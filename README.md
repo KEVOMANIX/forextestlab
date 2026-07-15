@@ -116,14 +116,22 @@ Never commit real credentials. `.env*` is git-ignored.
 
 ## Database setup & migration
 
-- **Dev (default): SQLite.** `npm run db:push` creates `prisma/dev.db`.
-- **Production: PostgreSQL.** Provision a Postgres (Neon / Vercel Postgres /
-  Supabase), then:
-  1. In `prisma/schema.prisma`, set `datasource db { provider = "postgresql" }`.
-  2. Set `DATABASE_URL` to your Postgres connection string.
-  3. `npx prisma migrate deploy` (or `npm run db:push`) and `npm run db:seed`.
+The Prisma datasource is configured for **PostgreSQL** (works locally and on
+Vercel). Recommended: **Supabase** (or Neon / Vercel Postgres).
 
-  No column-type changes are needed — prices are stored as strings.
+1. Create the database and copy two connection strings into `.env`
+   (Supabase → Project Settings → Database → **Connection pooling**):
+   - `DATABASE_URL` → **pooled**, port `6543`, with `?pgbouncer=true&connection_limit=1`
+     (used by the app; required for serverless).
+   - `DIRECT_URL` → **session** pooler, port `5432` (used by `db push` / migrations).
+   > URL-encode special characters in the password (e.g. `#` → `%23`). Use the
+   > **pooler** host (`aws-0-<region>.pooler.supabase.com`), not the IPv6-only
+   > direct `db.<ref>.supabase.co` host.
+2. `npm run db:push` to create the tables, then `npm run db:seed` for EUR/USD
+   demo data. No column-type changes are needed — prices are stored as strings.
+
+To develop fully offline instead, switch the datasource `provider` to `sqlite`
+and set `DATABASE_URL="file:./dev.db"`.
 
 ## Seed data & demonstration data
 
@@ -190,16 +198,14 @@ npm start
 ## Deploying to Vercel
 
 1. Push the repo to GitHub, then import it at <https://vercel.com/new>.
-2. **Provision Postgres** (Vercel Postgres / Neon / Supabase) and set
-   `DATABASE_URL`. Switch `prisma/schema.prisma` datasource to `postgresql`.
-   > SQLite writes do **not** persist on Vercel's ephemeral filesystem, so a
-   > managed Postgres is required for interactive sessions in production.
-3. Add env vars (`NEXT_PUBLIC_APP_URL`, `MARKET_DATA_PROVIDER=local_database`,
-   `ENABLE_DEMO_DATA=true`, and any others) in **Project → Settings → Environment
-   Variables**.
-4. Ensure the DB is migrated + seeded against Postgres (run `prisma migrate
-   deploy` and `npm run db:seed` locally against the prod `DATABASE_URL`, or via
-   a one-off job). `postinstall` runs `prisma generate` automatically on Vercel.
+2. **Provision Postgres** (Supabase / Neon / Vercel Postgres). The schema is
+   already PostgreSQL.
+3. Add env vars in **Project → Settings → Environment Variables**: `DATABASE_URL`
+   (pooled), `DIRECT_URL` (direct/session), `NEXT_PUBLIC_APP_URL`,
+   `MARKET_DATA_PROVIDER=local_database`, `ENABLE_DEMO_DATA=true`.
+4. Create + seed the tables against Postgres — run `npm run db:push` and
+   `npm run db:seed` locally with the production `DATABASE_URL`/`DIRECT_URL` in
+   your `.env` (a one-off). `postinstall` runs `prisma generate` on Vercel.
 5. Deploy.
 
 ### Connect the domain `forextestlab.com`

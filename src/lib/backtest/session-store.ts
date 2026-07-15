@@ -27,6 +27,23 @@ import type {
 /** Bound the candle count per session so reloads stay fast. */
 const MAX_SESSION_CANDLES = 1500;
 
+/**
+ * In-memory cache of each session's candle series. A session's candles never
+ * change, so this safely avoids re-querying the (possibly remote) database on
+ * every replay step. Per-process only — on serverless it warms per instance and
+ * simply falls back to a DB fetch on a cold instance.
+ */
+const candleCache = new Map<string, Candle[]>();
+const CANDLE_CACHE_MAX = 50;
+
+function cacheCandles(id: string, candles: Candle[]): void {
+  if (candleCache.size >= CANDLE_CACHE_MAX) {
+    const oldest = candleCache.keys().next().value;
+    if (oldest) candleCache.delete(oldest);
+  }
+  candleCache.set(id, candles);
+}
+
 export interface CreateSessionParams {
   symbol: string;
   timeframe: Timeframe;
@@ -154,6 +171,8 @@ export async function createSession(
     demoData,
   );
 
+  cacheCandles(id, series);
+
   const instrument = await prisma.marketInstrument.findUnique({
     where: { symbol: def.symbol },
     select: { id: true },
@@ -219,12 +238,16 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
   if (!row) return null;
 
   const state = JSON.parse(row.stateJson) as SessionState;
-  const series = await fetchSeries(
-    row.symbol,
-    row.timeframe as Timeframe,
-    Number(row.startTime),
-    Number(row.endTime),
-  );
+  let series = candleCache.get(id);
+  if (!series) {
+    series = await fetchSeries(
+      row.symbol,
+      row.timeframe as Timeframe,
+      Number(row.startTime),
+      Number(row.endTime),
+    );
+    cacheCandles(id, series);
+  }
 
   return {
     id: row.id,

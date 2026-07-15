@@ -11,8 +11,10 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Direct (non-pooled) connection used for migrations / db push.
+  directUrl = env("DIRECT_URL")
 }
 
 model MarketInstrument {

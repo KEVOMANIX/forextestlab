@@ -17,6 +17,7 @@ export default function PrivacyPage() {
       <LegalPage
         title="Privacy Policy"
         lastUpdated="15 July 2026"
+        showDraftNotice={false}
         intro={
           <p>
             This Privacy Policy explains how {siteConfig.name} (&ldquo;we&rdquo;,

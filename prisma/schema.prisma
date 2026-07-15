@@ -1,0 +1,167 @@
+// ForexTestLab data model.
+//
+// Prices are stored as STRINGS and all financial math is done with decimal.js
+// in application code — never with SQL/JS floating point. This keeps the schema
+// portable: to move to production PostgreSQL, change `provider` to "postgresql"
+// and point DATABASE_URL at your Postgres instance (see README). No column type
+// changes are required.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model MarketInstrument {
+  id            String         @id @default(cuid())
+  symbol        String         @unique // e.g. "EURUSD"
+  displayName   String // e.g. "EUR/USD"
+  baseCurrency  String
+  quoteCurrency String
+  pipSize       String // decimal string, e.g. "0.0001"
+  pricePrecision Int
+  enabled       Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  candles       MarketCandle[]
+  imports       DataImport[]
+  sessions      BacktestSession[]
+}
+
+model MarketCandle {
+  id           String           @id @default(cuid())
+  instrument   MarketInstrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+  instrumentId String
+  timeframe    String // Timeframe union value, e.g. "5m"
+  timestamp    BigInt // UTC epoch milliseconds at candle open
+  open         String
+  high         String
+  low          String
+  close        String
+  volume       String?
+  bidOpen      String?
+  bidHigh      String?
+  bidLow       String?
+  bidClose     String?
+  askOpen      String?
+  askHigh      String?
+  askLow       String?
+  askClose     String?
+  source       String
+  createdAt    DateTime         @default(now())
+
+  @@unique([instrumentId, timeframe, timestamp])
+  @@index([instrumentId, timeframe, timestamp])
+  @@index([timeframe, timestamp])
+}
+
+model DataImport {
+  id             String            @id @default(cuid())
+  instrument     MarketInstrument? @relation(fields: [instrumentId], references: [id])
+  instrumentId   String?
+  symbol         String
+  timeframe      String
+  source         String
+  fileName       String?
+  rowsRead       Int               @default(0)
+  rowsImported   Int               @default(0)
+  rowsRejected   Int               @default(0)
+  gapsDetected   Int               @default(0)
+  report         String? // JSON string with details
+  status         String            @default("completed")
+  createdAt      DateTime          @default(now())
+}
+
+model BacktestSession {
+  id              String           @id @default(cuid())
+  /// Opaque token used to authorise access to a public (no-login) session.
+  token           String           @unique
+  instrument      MarketInstrument @relation(fields: [instrumentId], references: [id])
+  instrumentId    String
+  symbol          String
+  timeframe       String
+  startTime       BigInt
+  endTime         BigInt
+  status          String           @default("idle")
+  speed           Float            @default(1)
+  visibleIndex    Int              @default(-1)
+  totalCandles    Int              @default(0)
+  lockedBeforeIndex Int            @default(0)
+  startingBalance String
+  balance         String
+  equity          String
+  maxEquity       String
+  maxDrawdown     String           @default("0")
+  maxDrawdownPercent String        @default("0")
+  accountCurrency String           @default("USD")
+  spreadPips      String
+  commissionPerLot String
+  slippagePips    String
+  executionPolicy String           @default("conservative")
+  dataSource      String
+  demoData        Boolean          @default(false)
+  notes           String?
+  /// Serialised engine SessionState — the authoritative source for stepping.
+  /// Relational trade/equity rows below are queryable projections of it.
+  stateJson       String           @default("{}")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  orders          SimulatedOrder[]
+  trades          SimulatedTrade[]
+  equitySnapshots EquitySnapshot[]
+
+  @@index([createdAt])
+}
+
+model SimulatedOrder {
+  id         String          @id @default(cuid())
+  session    BacktestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId  String
+  direction  String
+  sizingMode String
+  lots       String
+  requestedStopLoss   String?
+  requestedTakeProfit String?
+  createdIndex Int
+  createdTime  BigInt
+  createdAt  DateTime        @default(now())
+}
+
+model SimulatedTrade {
+  id            String          @id @default(cuid())
+  session       BacktestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId     String
+  direction     String
+  entryPrice    String
+  exitPrice     String
+  entryTime     BigInt
+  exitTime      BigInt
+  entryIndex    Int
+  exitIndex     Int
+  lots          String
+  stopLoss      String?
+  takeProfit    String?
+  commission    String
+  pnl           String
+  pips          String
+  exitReason    String
+  intrabarAmbiguous Boolean     @default(false)
+  notes         String?
+  createdAt     DateTime        @default(now())
+
+  @@index([sessionId])
+}
+
+model EquitySnapshot {
+  id        String          @id @default(cuid())
+  session   BacktestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId String
+  index     Int
+  time      BigInt
+  balance   String
+  equity    String
+
+  @@index([sessionId, index])
+}

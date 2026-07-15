@@ -54,7 +54,10 @@ export function Navbar() {
           ))}
         </div>
 
-        <div className="hidden lg:block">
+        <div className="hidden items-center gap-2 lg:flex">
+          <Link href="/app/backtest" className="btn-secondary">
+            Launch Beta
+          </Link>
           <Link href="/waitlist" className="btn-primary">
             Join the Waitlist
           </Link>
@@ -89,6 +92,13 @@ export function Navbar() {
               {item.label}
             </Link>
           ))}
+          <Link
+            href="/app/backtest"
+            onClick={() => setOpen(false)}
+            className="btn-secondary mt-2 w-full"
+          >
+            Launch Beta
+          </Link>
           <Link
             href="/waitlist"
             onClick={() => setOpen(false)}

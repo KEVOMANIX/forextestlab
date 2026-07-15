@@ -1,0 +1,82 @@
+/**
+ * Zod schemas for all backtester API requests. Every server endpoint validates
+ * its input against these before touching the engine or database.
+ */
+
+import { z } from "zod";
+
+import { isFiniteNumeric } from "@/lib/decimal";
+import { TIMEFRAMES } from "@/lib/market-data/types";
+
+const numericString = z
+  .string()
+  .trim()
+  .refine((v) => isFiniteNumeric(v), "Must be a numeric value.");
+
+const positiveNumericString = numericString.refine(
+  (v) => Number(v) > 0,
+  "Must be greater than zero.",
+);
+
+export const timeframeSchema = z.enum(
+  TIMEFRAMES as [string, ...string[]],
+);
+
+export const createSessionSchema = z
+  .object({
+    symbol: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{6}$/, "Symbol must be a 6-letter code, e.g. EURUSD."),
+    timeframe: timeframeSchema,
+    startTime: z.number().int().nonnegative(),
+    endTime: z.number().int().nonnegative(),
+    startingBalance: positiveNumericString.optional(),
+    spreadPips: numericString.optional(),
+    commissionPerLot: numericString.optional(),
+    slippagePips: numericString.optional(),
+    executionPolicy: z.enum(["conservative", "optimistic"]).optional(),
+  })
+  .refine((v) => v.endTime > v.startTime, {
+    message: "endTime must be after startTime.",
+    path: ["endTime"],
+  });
+
+export type CreateSessionInput = z.infer<typeof createSessionSchema>;
+
+const nullablePrice = z.union([positiveNumericString, z.null()]);
+
+export const actionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("start") }),
+  z.object({ type: z.literal("pause") }),
+  z.object({ type: z.literal("resume") }),
+  z.object({ type: z.literal("next") }),
+  z.object({ type: z.literal("prev") }),
+  z.object({ type: z.literal("restart") }),
+  z.object({ type: z.literal("end") }),
+  z.object({ type: z.literal("close") }),
+  z.object({
+    type: z.literal("set-speed"),
+    speed: z.union([
+      z.literal(0.5),
+      z.literal(1),
+      z.literal(2),
+      z.literal(5),
+      z.literal(10),
+    ]),
+  }),
+  z.object({
+    type: z.literal("place-order"),
+    direction: z.enum(["long", "short"]),
+    sizingMode: z.enum(["fixed-lots", "risk-percent"]),
+    lots: positiveNumericString.optional(),
+    riskPercent: positiveNumericString.optional(),
+    stopLoss: positiveNumericString.optional(),
+    takeProfit: positiveNumericString.optional(),
+  }),
+  z.object({ type: z.literal("modify-stop"), price: nullablePrice }),
+  z.object({ type: z.literal("modify-target"), price: nullablePrice }),
+  z.object({ type: z.literal("notes"), notes: z.string().max(5000) }),
+]);
+
+export type ActionInput = z.infer<typeof actionSchema>;

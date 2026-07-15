@@ -66,6 +66,60 @@
   }
 }
 
+/*
+ * App (backtester) theming. The backtester shell uses CSS variables so the
+ * theme toggle can switch between dark and light without touching the dark
+ * marketing site. Default is dark; `.light` flips the palette.
+ */
+@layer components {
+  .app-shell {
+    --app-bg: #070a12;
+    --app-panel: rgba(17, 23, 37, 0.72);
+    --app-panel-2: rgba(11, 15, 26, 0.72);
+    --app-border: rgba(255, 255, 255, 0.10);
+    --app-text: #e6ebf5;
+    --app-muted: #93a1b8;
+    background-color: var(--app-bg);
+    color: var(--app-text);
+  }
+
+  .app-shell.light {
+    --app-bg: #f5f7fb;
+    --app-panel: #ffffff;
+    --app-panel-2: #eef2f8;
+    --app-border: #d9e0ec;
+    --app-text: #0b1220;
+    --app-muted: #566179;
+  }
+
+  .panel {
+    background-color: var(--app-panel);
+    border: 1px solid var(--app-border);
+    @apply rounded-xl;
+  }
+
+  .panel-2 {
+    background-color: var(--app-panel-2);
+    border: 1px solid var(--app-border);
+    @apply rounded-lg;
+  }
+
+  .app-muted {
+    color: var(--app-muted);
+  }
+
+  .app-border {
+    border-color: var(--app-border);
+  }
+
+  .app-input {
+    background-color: var(--app-panel-2);
+    border: 1px solid var(--app-border);
+    color: var(--app-text);
+    @apply rounded-lg px-3 py-2 text-sm transition-colors focus:border-brand-400/60;
+  }
+}
+
 /* Respect users who prefer reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   html {

@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ArrowDownRight, ArrowUpRight, X } from "lucide-react";
 
 import { calculatePositionSize } from "@/lib/backtest/position-sizing";
-import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import type { OrderRequest, PublicSessionState, TradeDirection } from "@/lib/backtest/types";
+import { getSymbolDefinition } from "@/lib/market-data/symbols";
 
 interface OrderTicketProps {
   state: PublicSessionState;
@@ -13,12 +14,56 @@ interface OrderTicketProps {
   onClose: () => void;
 }
 
-function Stat({ label, value, tone = "" }: { label: string; value: string; tone?: string }) {
+function Stat({
+  label,
+  value,
+  tone = "",
+  prominent = false,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+  prominent?: boolean;
+}) {
   return (
-    <div className="panel-2 p-3">
-      <p className="text-xs app-muted">{label}</p>
-      <p className={`mt-1 font-mono text-base font-semibold ${tone}`}>{value}</p>
+    <div className="min-w-0 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-2">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">
+        {label}
+      </p>
+      <p className={`mt-0.5 truncate font-mono font-semibold ${prominent ? "text-lg" : "text-sm"} ${tone}`}>
+        {value}
+      </p>
     </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  ariaLabel,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">
+        {label}
+      </span>
+      <input
+        className="app-input h-10 w-full min-w-0 font-mono text-sm"
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={ariaLabel}
+      />
+    </label>
   );
 }
 
@@ -65,151 +110,136 @@ export function OrderTicket({ state, busy, onPlaceOrder, onClose }: OrderTicketP
     });
   }
 
-  const equityTone = Number(state.equity) >= Number(state.config.startingBalance)
-    ? "text-brand-300"
-    : "text-bear";
+  const equityTone =
+    Number(state.equity) >= Number(state.config.startingBalance)
+      ? "text-brand-300"
+      : "text-bear";
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <Stat label="Current price" value={price ?? "—"} />
-        <Stat label="Simulation spread" value={`${state.config.spreadPips} pips`} />
-        <Stat label="Balance" value={`$${state.balance}`} />
-        <Stat label="Equity" value={`$${state.equity}`} tone={equityTone} />
-      </div>
-
-      {hasPosition && state.openPosition ? (
-        <div className="panel-2 p-4">
-          <div className="flex items-center justify-between">
-            <span
-              className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                state.openPosition.direction === "long"
-                  ? "bg-brand-400/15 text-brand-300"
-                  : "bg-bear/15 text-bear"
-              }`}
-            >
-              {state.openPosition.direction === "long" ? "LONG" : "SHORT"} {state.openPosition.lots} lots
-            </span>
-            <span className={`font-mono text-sm ${Number(state.openPosition.unrealizedPnl) >= 0 ? "text-brand-300" : "text-bear"}`}>
-              {state.openPosition.unrealizedPnl}
-            </span>
-          </div>
-          <dl className="mt-3 space-y-1 font-mono text-xs app-muted">
-            <div className="flex justify-between"><dt>Entry</dt><dd>{state.openPosition.entryPrice}</dd></div>
-            <div className="flex justify-between"><dt>Stop-loss</dt><dd>{state.openPosition.stopLoss ?? "—"}</dd></div>
-            <div className="flex justify-between"><dt>Take-profit</dt><dd>{state.openPosition.takeProfit ?? "—"}</dd></div>
-          </dl>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="btn-secondary mt-4 w-full"
-          >
-            Close position
-          </button>
+    <div className="panel p-3">
+      <div className="grid gap-3 xl:grid-cols-[minmax(360px,0.8fr)_minmax(640px,1.5fr)]">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2">
+          <Stat label="Market price" value={price ?? "—"} prominent />
+          <Stat label="Spread" value={`${state.config.spreadPips} pips`} />
+          <Stat label="Balance" value={`$${state.balance}`} />
+          <Stat label="Equity" value={`$${state.equity}`} tone={equityTone} />
         </div>
-      ) : (
-        <div className="panel-2 space-y-3 p-4">
-          <div>
-            <span className="mb-1.5 block text-xs font-medium app-muted">Position sizing</span>
-            <div className="grid grid-cols-2 gap-1 rounded-lg border app-border p-1">
-              {(["risk-percent", "fixed-lots"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setSizingMode(mode)}
-                  aria-pressed={sizingMode === mode}
-                  className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                    sizingMode === mode ? "bg-brand-400/15 text-brand-300" : "app-muted"
-                  }`}
-                >
-                  {mode === "risk-percent" ? "Risk %" : "Fixed lots"}
-                </button>
-              ))}
+
+        {hasPosition && state.openPosition ? (
+          <div className="grid items-stretch gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+            <Stat
+              label="Open position"
+              value={`${state.openPosition.direction === "long" ? "LONG" : "SHORT"} · ${state.openPosition.lots} lots`}
+              tone={state.openPosition.direction === "long" ? "text-brand-300" : "text-bear"}
+            />
+            <Stat label="Entry" value={state.openPosition.entryPrice} />
+            <Stat label="Stop-loss" value={state.openPosition.stopLoss ?? "—"} />
+            <Stat label="Take-profit" value={state.openPosition.takeProfit ?? "—"} />
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="inline-flex min-h-14 items-center justify-center gap-2 rounded-lg border border-bear/40 bg-bear/10 px-5 text-sm font-semibold text-bear transition-colors hover:bg-bear/20 disabled:opacity-40"
+            >
+              <X size={16} aria-hidden />
+              Close position
+              <span className="font-mono">{state.openPosition.unrealizedPnl}</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid items-end gap-2 md:grid-cols-2 xl:grid-cols-[170px_120px_1fr_1fr_minmax(132px,0.8fr)_132px_132px]">
+            <div>
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">
+                Position sizing
+              </span>
+              <div className="grid h-10 grid-cols-2 gap-1 rounded-lg border app-border p-1">
+                {(["risk-percent", "fixed-lots"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setSizingMode(mode)}
+                    aria-pressed={sizingMode === mode}
+                    className={`rounded-md px-2 text-xs font-semibold transition-colors ${
+                      sizingMode === mode
+                        ? "bg-brand-400/15 text-brand-300"
+                        : "app-muted hover:text-brand-300"
+                    }`}
+                  >
+                    {mode === "risk-percent" ? "Risk %" : "Lots"}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {sizingMode === "risk-percent" ? (
-            <label className="block">
-              <span className="mb-1 block text-xs app-muted">Account risk (%)</span>
-              <input
-                className="app-input w-full"
-                inputMode="decimal"
+            {sizingMode === "risk-percent" ? (
+              <Field
+                label="Risk (%)"
                 value={riskPercent}
-                onChange={(e) => setRiskPercent(e.target.value)}
-                aria-label="Account risk percent"
+                onChange={setRiskPercent}
+                ariaLabel="Account risk percent"
               />
-            </label>
-          ) : (
-            <label className="block">
-              <span className="mb-1 block text-xs app-muted">Lot size</span>
-              <input
-                className="app-input w-full"
-                inputMode="decimal"
+            ) : (
+              <Field
+                label="Lot size"
                 value={lots}
-                onChange={(e) => setLots(e.target.value)}
-                aria-label="Lot size"
+                onChange={setLots}
+                ariaLabel="Lot size"
               />
-            </label>
-          )}
+            )}
 
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block">
-              <span className="mb-1 block text-xs app-muted">Stop-loss</span>
-              <input
-                className="app-input w-full"
-                inputMode="decimal"
-                placeholder="price"
-                value={stopLoss}
-                onChange={(e) => setStopLoss(e.target.value)}
-                aria-label="Stop-loss price"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs app-muted">Take-profit</span>
-              <input
-                className="app-input w-full"
-                inputMode="decimal"
-                placeholder="price"
-                value={takeProfit}
-                onChange={(e) => setTakeProfit(e.target.value)}
-                aria-label="Take-profit price"
-              />
-            </label>
-          </div>
+            <Field
+              label="Stop-loss"
+              value={stopLoss}
+              onChange={setStopLoss}
+              ariaLabel="Stop-loss price"
+              placeholder="Optional price"
+            />
+            <Field
+              label="Take-profit"
+              value={takeProfit}
+              onChange={setTakeProfit}
+              ariaLabel="Take-profit price"
+              placeholder="Optional price"
+            />
 
-          {preview && (
-            <dl className="space-y-1 font-mono text-xs app-muted">
-              <div className="flex justify-between"><dt>Est. size</dt><dd>{preview.lots} lots</dd></div>
-              <div className="flex justify-between"><dt>Risk amount</dt><dd>${preview.riskAmount}</dd></div>
-              <div className="flex justify-between"><dt>Stop distance</dt><dd>{preview.stopDistancePips} pips</dd></div>
-              <div className="flex justify-between"><dt>Max loss</dt><dd>${preview.maxExpectedLoss}</dd></div>
-              {preview.crossCurrencyApprox && (
-                <p className="pt-1 text-amber-400">Cross-currency pip value approximated.</p>
+            <div className="flex min-h-10 items-center rounded-lg border app-border bg-[var(--app-panel-2)] px-3">
+              {preview ? (
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-xs font-semibold">
+                    {preview.lots} lots · ${preview.riskAmount} risk
+                  </p>
+                  <p className="truncate text-[10px] app-muted">
+                    {preview.maxExpectedLoss === "Not available"
+                      ? "Add a stop-loss for max loss"
+                      : `Max loss $${preview.maxExpectedLoss}`}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs app-muted">Add a valid stop for risk preview</p>
               )}
-            </dl>
-          )}
+            </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               type="button"
               onClick={() => submit("long")}
               disabled={busy || finished || !price}
-              className="rounded-lg bg-brand-500 py-2.5 text-sm font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
+              className="inline-flex h-14 items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-base font-bold text-surface-950 shadow-lg shadow-brand-500/15 transition hover:bg-brand-400 disabled:opacity-40"
             >
+              <ArrowUpRight size={19} aria-hidden />
               Buy
             </button>
             <button
               type="button"
               onClick={() => submit("short")}
               disabled={busy || finished || !price}
-              className="rounded-lg bg-bear py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-40"
+              className="inline-flex h-14 items-center justify-center gap-2 rounded-lg bg-bear px-4 text-base font-bold text-white shadow-lg shadow-bear/15 transition hover:opacity-90 disabled:opacity-40"
             >
+              <ArrowDownRight size={19} aria-hidden />
               Sell
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -93,6 +93,49 @@ test("restarts a session", async ({ page }) => {
   await expect(page.getByText(/Candle \d+ \/ \d+/)).toBeVisible();
 });
 
+test("shows trading actions above the chart and moves the replay toolbox", async ({ page }) => {
+  await startSession(page);
+
+  const tradingHeader = page.getByRole("region", { name: /Trading header/i });
+  const chart = page.getByRole("img", { name: /Candlestick price chart/i });
+  const headerBox = await tradingHeader.boundingBox();
+  const chartBox = await chart.boundingBox();
+  expect(headerBox).not.toBeNull();
+  expect(chartBox).not.toBeNull();
+  expect(headerBox!.y + headerBox!.height).toBeLessThanOrEqual(chartBox!.y);
+  await expect(tradingHeader.getByRole("button", { name: "Buy", exact: true })).toBeVisible();
+  await expect(tradingHeader.getByRole("button", { name: "Sell", exact: true })).toBeVisible();
+
+  const toolbox = page.getByTestId("replay-toolbox");
+  const handle = page.getByTestId("replay-toolbox-handle");
+  await handle.hover();
+  const before = await toolbox.boundingBox();
+  const handleBox = await handle.boundingBox();
+  expect(before).not.toBeNull();
+  expect(handleBox).not.toBeNull();
+
+  await page.mouse.move(
+    handleBox!.x + handleBox!.width / 2,
+    handleBox!.y + handleBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    handleBox!.x + handleBox!.width / 2,
+    handleBox!.y + handleBox!.height / 2 - 140,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+
+  const moved = await toolbox.boundingBox();
+  expect(moved).not.toBeNull();
+  expect(moved!.y).toBeLessThan(before!.y - 60);
+
+  await page.getByRole("button", { name: /Reset replay controls position/i }).click();
+  const reset = await toolbox.boundingBox();
+  expect(reset).not.toBeNull();
+  expect(reset!.y).toBeGreaterThan(moved!.y + 60);
+});
+
 test("pause stays responsive during automatic replay requests", async ({ page }) => {
   test.setTimeout(45_000);
   await startSession(page);

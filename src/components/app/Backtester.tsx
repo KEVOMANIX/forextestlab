@@ -131,10 +131,18 @@ export function Backtester() {
         </p>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-[1fr_320px]">
-        {/* Chart + toolbar */}
-        <div className="panel flex flex-col overflow-hidden">
-          <div className="h-[360px] sm:h-[440px] lg:h-[520px]">
+      <div className="space-y-3">
+        <section aria-label="Trading header">
+          <OrderTicket
+            state={state}
+            busy={bt.busy}
+            onPlaceOrder={actions.placeOrder}
+            onClose={actions.closePosition}
+          />
+        </section>
+
+        <div className="panel overflow-hidden">
+          <div className="relative h-[420px] sm:h-[520px] lg:h-[620px]">
             <PriceChart
               key={`${state.sessionId}-${bt.resetNonce}`}
               initialCandles={bt.initialCandles}
@@ -146,29 +154,19 @@ export function Backtester() {
               precision={state.config.pricePrecision}
               theme={theme}
             />
+            <ReplayToolbar
+              state={state}
+              busy={bt.busy}
+              onPlay={actions.play}
+              onPause={actions.pause}
+              onNext={actions.stepNext}
+              onPrev={actions.stepPrev}
+              onRestart={actions.restart}
+              onEnd={actions.endSession}
+              onSpeed={actions.setSpeed}
+            />
           </div>
-          <ReplayToolbar
-            state={state}
-            busy={bt.busy}
-            onPlay={actions.play}
-            onPause={actions.pause}
-            onNext={actions.stepNext}
-            onPrev={actions.stepPrev}
-            onRestart={actions.restart}
-            onEnd={actions.endSession}
-            onSpeed={actions.setSpeed}
-          />
         </div>
-
-        {/* Order ticket */}
-        <aside aria-label="Order ticket" className="lg:sticky lg:top-16 lg:self-start">
-          <OrderTicket
-            state={state}
-            busy={bt.busy}
-            onPlaceOrder={actions.placeOrder}
-            onClose={actions.closePosition}
-          />
-        </aside>
       </div>
 
       <div className="mt-3">

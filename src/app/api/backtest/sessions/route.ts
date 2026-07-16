@@ -11,6 +11,8 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { ensureUserProfile } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/supabase/server";
 
+const SESSION_BASE_TIMEFRAME: Timeframe = "5m";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -47,8 +49,10 @@ export async function POST(request: Request) {
 
   try {
     const session = await createSession({
-      symbol: parsed.data.symbol,
-      timeframe: parsed.data.timeframe as Timeframe,
+      name: parsed.data.name,
+      symbols: parsed.data.symbols,
+      symbol: parsed.data.symbols[0]!,
+      timeframe: SESSION_BASE_TIMEFRAME,
       startTime: parsed.data.startTime,
       endTime: parsed.data.endTime,
       startingBalance: parsed.data.startingBalance,

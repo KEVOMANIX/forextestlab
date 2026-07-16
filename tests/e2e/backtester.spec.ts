@@ -9,6 +9,7 @@ async function startSession(page: Page) {
   await page.goto("/app/backtest");
   // Wait for the setup form and its prefilled symbol/dates.
   await expect(page.getByRole("heading", { name: /Start a backtest session/i })).toBeVisible();
+  await page.getByLabel("Session name").fill("E2E strategy session");
 
   // (5) Assert future candles are NOT sent on session creation.
   const createResponse = page.waitForResponse(
@@ -136,7 +137,7 @@ test("resumes a saved session at the last revealed candle", async ({ page }) => 
 
   await page.reload();
 
-  await expect(page.getByText(/Session resumed at candle/i)).toBeVisible();
+  await expect(page.getByText(/Session resumed:/i)).toBeVisible();
   await expect(counter).toHaveText(savedCounter ?? "");
   await expect(page.getByText(/^Long$/i)).toBeVisible();
   await expect(page.getByTestId("stop-loss-line")).toBeVisible();

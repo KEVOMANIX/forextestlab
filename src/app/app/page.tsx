@@ -198,7 +198,6 @@ export default async function AppHome() {
     where: { userId: user.id, anonymous: false },
     orderBy: { createdAt: "desc" },
     take: 100,
-    include: { _count: { select: { trades: true } } },
   });
 
   const chronological = [...sessions].reverse();
@@ -431,33 +430,29 @@ export default async function AppHome() {
             {sessions.slice(0, 6).map((session) => {
               const net = new Decimal(session.balance).minus(session.startingBalance);
               const positive = net.gte(0);
-              const resumable = session.status !== "finished";
+              const sessionState = safeState(session.stateJson);
+              const sessionName =
+                sessionState?.config.name?.trim() || `${session.symbol} backtest`;
+              const sessionSymbols =
+                sessionState?.config.symbols?.length
+                  ? sessionState.config.symbols
+                  : [session.symbol];
               return (
-                <Link
+                <article
                   key={session.id}
-                  href={
-                    resumable
-                      ? `/app/backtest?session=${encodeURIComponent(session.id)}`
-                      : `/app/results/${session.id}`
-                  }
-                  className="panel group p-5 transition-colors hover:border-brand-400/30"
+                  className="panel p-5 transition-colors hover:border-brand-400/30"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-base font-semibold">
-                          {session.symbol}
-                        </span>
-                        <span className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-0.5 font-mono text-[11px] app-muted">
-                          {session.timeframe}
-                        </span>
-                      </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-base font-semibold">{sessionName}</h3>
                       <p className="mt-2 flex items-center gap-1.5 text-xs app-muted">
                         <CalendarDays size={13} aria-hidden />
-                        {session.createdAt.toLocaleDateString("en", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
+                        {new Date(Number(session.startTime)).toLocaleDateString("en", {
+                          day: "numeric", month: "short", year: "numeric",
+                        })}
+                        {" – "}
+                        {new Date(Number(session.endTime)).toLocaleDateString("en", {
+                          day: "numeric", month: "short", year: "numeric",
                         })}
                       </p>
                     </div>
@@ -471,7 +466,17 @@ export default async function AppHome() {
                       {session.status}
                     </span>
                   </div>
-                  <div className="mt-6 flex items-end justify-between border-t app-border pt-4">
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {sessionSymbols.map((symbol) => (
+                      <span
+                        key={symbol}
+                        className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 font-mono text-[11px] font-semibold"
+                      >
+                        {symbol.slice(0, 3)}/{symbol.slice(3)}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-5 flex items-end justify-between border-t app-border pt-4">
                     <div>
                       <p className="text-xs app-muted">Net P/L</p>
                       <p className={`mt-1 font-mono text-lg font-semibold ${
@@ -480,23 +485,22 @@ export default async function AppHome() {
                         {formatMoney(net)}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs app-muted">
-                        {resumable ? "Continue" : "Trades"}
-                      </p>
-                      <p className="mt-1 font-mono font-semibold">
-                        {resumable
-                          ? `${session.visibleIndex + 1}/${session.totalCandles}`
-                          : session._count.trades}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/app/backtest?session=${encodeURIComponent(session.id)}`}
+                        className="btn-secondary px-3 py-2 text-xs"
+                      >
+                        <Play size={14} aria-hidden /> Resume
+                      </Link>
+                      <Link
+                        href={`/app/results/${session.id}`}
+                        className="btn-primary px-3 py-2 text-xs"
+                      >
+                        <BarChart3 size={14} aria-hidden /> Analytics
+                      </Link>
                     </div>
-                    <ArrowRight
-                      size={17}
-                      className="mb-1 text-brand-300 transition-transform group-hover:translate-x-1"
-                      aria-hidden
-                    />
                   </div>
-                </Link>
+                </article>
               );
             })}
           </div>

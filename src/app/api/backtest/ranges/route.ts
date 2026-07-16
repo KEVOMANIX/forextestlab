@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getMarketDataProvider } from "@/lib/market-data";
-import { isTimeframe } from "@/lib/market-data/types";
+const SESSION_BASE_TIMEFRAME = "5m";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,19 +9,14 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
-  const timeframe = searchParams.get("timeframe");
-
   if (!symbol || !/^[A-Z]{6}$/.test(symbol)) {
     return NextResponse.json({ ok: false, error: "Invalid symbol." }, { status: 400 });
-  }
-  if (!timeframe || !isTimeframe(timeframe)) {
-    return NextResponse.json({ ok: false, error: "Invalid timeframe." }, { status: 400 });
   }
 
   try {
     const ranges = await getMarketDataProvider().getAvailableRanges(
       symbol,
-      timeframe,
+      SESSION_BASE_TIMEFRAME,
     );
     return NextResponse.json({ ok: true, ranges });
   } catch (error) {

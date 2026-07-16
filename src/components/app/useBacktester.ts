@@ -103,7 +103,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lastCandle: res.candles[res.candles.length - 1] ?? null,
         busy: false,
         error: null,
-        notice: `Session resumed at candle ${res.state.visibleIndex + 1} of ${res.state.totalCandles}.`,
+        notice: `Session resumed: ${res.state.config.name || res.state.config.symbol}.`,
         notes: res.notes,
         resetNonce: prev.resetNonce + 1,
       }));

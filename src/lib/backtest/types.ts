@@ -31,6 +31,10 @@ export type PositionSizingMode = "fixed-lots" | "risk-percent";
 
 /** Immutable configuration chosen when a session is created. */
 export interface SessionConfig {
+  /** User-facing label for identifying a saved testing session. */
+  name?: string;
+  /** All pairs selected for this session. The first is the initial active chart. */
+  symbols?: string[];
   symbol: string;
   baseCurrency: string;
   quoteCurrency: string;

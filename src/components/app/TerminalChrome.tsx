@@ -67,7 +67,9 @@ export function TerminalTopBar({
         href="/app"
         className="shrink-0 rounded-md px-1.5 py-1 text-xs font-semibold hover:bg-[var(--app-panel-2)] sm:px-2"
       >
-        <span className="hidden sm:inline">Backtest workspace</span>
+        <span className="hidden max-w-52 truncate sm:inline">
+          {state.config.name || "Backtest workspace"}
+        </span>
         <span className="sm:hidden">Workspace</span>
       </Link>
       <span className="h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
@@ -75,9 +77,11 @@ export function TerminalTopBar({
         <span className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 font-mono text-xs font-bold">
           {state.config.symbol}
         </span>
-        <span className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 font-mono text-xs font-semibold text-brand-300">
-          {state.config.timeframe}
-        </span>
+        {(state.config.symbols?.length ?? 1) > 1 && (
+          <span className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 text-[10px] font-semibold text-brand-300">
+            +{(state.config.symbols?.length ?? 1) - 1} pairs
+          </span>
+        )}
         {state.demoData && (
           <span className="rounded-md border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] font-semibold text-amber-300">
             DEMO

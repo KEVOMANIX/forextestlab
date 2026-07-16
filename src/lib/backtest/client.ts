@@ -4,13 +4,13 @@
  * creation) in a header to authorise mutating actions.
  */
 
-import type { Candle, MarketSymbol, Timeframe } from "@/lib/market-data/types";
+import type { Candle, MarketSymbol } from "@/lib/market-data/types";
 import type { PublicSessionState, ReplaySpeed } from "./types";
 import type { ActionInput } from "./schemas";
 
 export interface CreateSessionBody {
-  symbol: string;
-  timeframe: Timeframe;
+  name: string;
+  symbols: string[];
   startTime: number;
   endTime: number;
   startingBalance?: string;
@@ -58,10 +58,9 @@ export async function fetchSymbols(): Promise<MarketSymbol[]> {
 
 export async function fetchRanges(
   symbol: string,
-  timeframe: Timeframe,
 ): Promise<{ startTime: number; endTime: number }[]> {
   const res = await fetch(
-    `/api/backtest/ranges?symbol=${symbol}&timeframe=${timeframe}`,
+    `/api/backtest/ranges?symbol=${symbol}`,
     { cache: "no-store" },
   );
   const data = await parse<{

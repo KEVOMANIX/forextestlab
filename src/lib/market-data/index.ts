@@ -54,10 +54,18 @@ class ProviderWithDemoFallback implements MarketDataProvider {
 
   async getAvailableSymbols(): Promise<MarketSymbol[]> {
     const primary = await this.primary.getAvailableSymbols();
-    const anyEnabled = primary.some((s) => s.enabled);
-    if (anyEnabled || !demoEnabled()) return primary;
-    // No stored data at all — offer the demo catalogue instead.
-    return this.demo.getAvailableSymbols();
+    if (!demoEnabled()) return primary;
+
+    const demoSymbols = await this.demo.getAvailableSymbols();
+    const primaryBySymbol = new Map(
+      primary.map((symbol) => [symbol.symbol, symbol]),
+    );
+    return demoSymbols.map((demoSymbol) => {
+      const stored = primaryBySymbol.get(demoSymbol.symbol);
+      return stored
+        ? { ...demoSymbol, ...stored, enabled: stored.enabled || demoSymbol.enabled }
+        : demoSymbol;
+    });
   }
 
   async getAvailableRanges(

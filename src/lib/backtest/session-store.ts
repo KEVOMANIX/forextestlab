@@ -45,6 +45,8 @@ function cacheCandles(id: string, candles: Candle[]): void {
 }
 
 export interface CreateSessionParams {
+  name: string;
+  symbols: string[];
   symbol: string;
   timeframe: Timeframe;
   startTime: number;
@@ -127,6 +129,11 @@ async function fetchSeries(
 export async function createSession(
   params: CreateSessionParams,
 ): Promise<LoadedSession> {
+  const unknownSymbol = params.symbols.find(
+    (symbol) => !getSymbolDefinition(symbol),
+  );
+  if (unknownSymbol) throw new Error(`Unknown symbol "${unknownSymbol}".`);
+
   const def = getSymbolDefinition(params.symbol);
   if (!def) throw new Error(`Unknown symbol "${params.symbol}".`);
 
@@ -158,6 +165,8 @@ export async function createSession(
   }
 
   const config = buildSessionConfig({
+    name: params.name,
+    symbols: params.symbols,
     symbol: def.symbol,
     baseCurrency: def.baseCurrency,
     quoteCurrency: def.quoteCurrency,

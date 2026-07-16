@@ -24,11 +24,19 @@ export const timeframeSchema = z.enum(
 
 export const createSessionSchema = z
   .object({
-    symbol: z
-      .string()
-      .trim()
-      .regex(/^[A-Z]{6}$/, "Symbol must be a 6-letter code, e.g. EURUSD."),
-    timeframe: timeframeSchema,
+    name: z.string().trim().min(2).max(80),
+    symbols: z
+      .array(
+        z
+          .string()
+          .trim()
+          .regex(/^[A-Z]{6}$/, "Each pair must be a 6-letter code, e.g. EURUSD."),
+      )
+      .min(1, "Select at least one currency pair.")
+      .max(12)
+      .refine((symbols) => new Set(symbols).size === symbols.length, {
+        message: "Currency pairs must be unique.",
+      }),
     startTime: z.number().int().nonnegative(),
     endTime: z.number().int().nonnegative(),
     startingBalance: positiveNumericString.optional(),

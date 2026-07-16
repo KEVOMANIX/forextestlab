@@ -19,6 +19,8 @@ export function simulationDefaults() {
 export const INITIAL_VISIBLE_CANDLES = 60;
 
 export interface BuildConfigInput {
+  name?: string;
+  symbols?: string[];
   symbol: string;
   baseCurrency: string;
   quoteCurrency: string;
@@ -37,6 +39,8 @@ export interface BuildConfigInput {
 export function buildSessionConfig(input: BuildConfigInput): SessionConfig {
   const defaults = simulationDefaults();
   return {
+    name: input.name,
+    symbols: input.symbols,
     symbol: input.symbol,
     baseCurrency: input.baseCurrency,
     quoteCurrency: input.quoteCurrency,

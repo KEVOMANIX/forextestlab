@@ -4,6 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { Decimal } from "@/lib/decimal";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
+import type { SessionState } from "@/lib/backtest/types";
 
 export const metadata: Metadata = {
   title: "Session history",
@@ -12,6 +13,20 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+function sessionDetails(stateJson: string, fallbackSymbol: string) {
+  try {
+    const state = JSON.parse(stateJson) as SessionState;
+    return {
+      name: state.config.name?.trim() || `${fallbackSymbol} backtest`,
+      symbols: state.config.symbols?.length
+        ? state.config.symbols
+        : [fallbackSymbol],
+    };
+  } catch {
+    return { name: `${fallbackSymbol} backtest`, symbols: [fallbackSymbol] };
+  }
+}
 
 export default async function HistoryPage() {
   const user = await requireUser("/app/history");
@@ -43,9 +58,9 @@ export default async function HistoryPage() {
             <caption className="sr-only">Recent backtest sessions</caption>
             <thead className="app-muted">
               <tr className="border-b app-border">
-                <th scope="col" className="px-4 py-3 font-medium">Pair</th>
-                <th scope="col" className="px-4 py-3 font-medium">Timeframe</th>
-                <th scope="col" className="px-4 py-3 font-medium">Created (UTC)</th>
+                <th scope="col" className="px-4 py-3 font-medium">Session</th>
+                <th scope="col" className="px-4 py-3 font-medium">Pairs</th>
+                <th scope="col" className="px-4 py-3 font-medium">Test period</th>
                 <th scope="col" className="px-4 py-3 font-medium">Trades</th>
                 <th scope="col" className="px-4 py-3 text-right font-medium">Net P/L</th>
                 <th scope="col" className="px-4 py-3" />
@@ -55,28 +70,36 @@ export default async function HistoryPage() {
               {sessions.map((s) => {
                 const net = new Decimal(s.balance).minus(s.startingBalance);
                 const positive = net.greaterThanOrEqualTo(0);
-                const resumable = s.status !== "finished";
+                const details = sessionDetails(s.stateJson, s.symbol);
                 return (
                   <tr key={s.id} className="border-b app-border/60">
-                    <td className="px-4 py-3 font-mono">{s.symbol}</td>
-                    <td className="px-4 py-3 font-mono">{s.timeframe}</td>
-                    <td className="px-4 py-3 app-muted">
-                      {s.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                    <td className="px-4 py-3 font-semibold">{details.name}</td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {details.symbols
+                        .map((symbol) => `${symbol.slice(0, 3)}/${symbol.slice(3)}`)
+                        .join(", ")}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs app-muted">
+                      {new Date(Number(s.startTime)).toISOString().slice(0, 10)}
+                      {" – "}
+                      {new Date(Number(s.endTime)).toISOString().slice(0, 10)}
                     </td>
                     <td className="px-4 py-3">{s._count.trades}</td>
                     <td className={`px-4 py-3 text-right font-mono ${positive ? "text-brand-300" : "text-bear"}`}>
                       {net.toFixed(2)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
                       <Link
-                        href={
-                          resumable
-                            ? `/app/backtest?session=${encodeURIComponent(s.id)}`
-                            : `/app/results/${s.id}`
-                        }
+                        href={`/app/backtest?session=${encodeURIComponent(s.id)}`}
+                        className="mr-3 font-semibold text-brand-300 hover:underline"
+                      >
+                        Resume
+                      </Link>
+                      <Link
+                        href={`/app/results/${s.id}`}
                         className="font-semibold text-brand-300 hover:underline"
                       >
-                        {resumable ? "Resume" : "Results"}
+                        Analytics
                       </Link>
                     </td>
                   </tr>

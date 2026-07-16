@@ -39,10 +39,18 @@ export default async function ResultsPage({
     <div className="mx-auto max-w-5xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Backtest results</h1>
-          <p className="mt-1 font-mono text-sm app-muted">
-            {results.symbol} · {results.timeframe} ·{" "}
-            {new Date(results.createdAt).toISOString().slice(0, 16).replace("T", " ")} UTC
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
+            Session analytics
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight">{results.name}</h1>
+          <p className="mt-1 text-sm app-muted">
+            {results.symbols
+              .map((symbol) => `${symbol.slice(0, 3)}/${symbol.slice(3)}`)
+              .join(" · ")}
+            {" · "}
+            {new Date(state.config.startTime).toISOString().slice(0, 10)}
+            {" – "}
+            {new Date(state.config.endTime).toISOString().slice(0, 10)}
           </p>
         </div>
         <div className="flex gap-2">
@@ -102,7 +110,7 @@ export default async function ResultsPage({
           <div><dt className="app-muted">Slippage</dt><dd>{state.config.slippagePips} pips</dd></div>
           <div><dt className="app-muted">Execution policy</dt><dd>{state.config.executionPolicy}</dd></div>
           <div><dt className="app-muted">Data source</dt><dd>{results.dataSource}</dd></div>
-          <div><dt className="app-muted">Candles</dt><dd>{state.totalCandles}</dd></div>
+          <div><dt className="app-muted">Pairs</dt><dd>{results.symbols.length}</dd></div>
         </dl>
         {results.notes && (
           <div className="mt-4">

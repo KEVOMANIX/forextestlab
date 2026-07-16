@@ -11,6 +11,8 @@ import type { SessionState } from "./types";
 
 export interface SessionResults {
   sessionId: string;
+  name: string;
+  symbols: string[];
   symbol: string;
   timeframe: string;
   createdAt: string;
@@ -41,6 +43,10 @@ export async function getSessionResults(
 
   return {
     sessionId: row.id,
+    name: state.config.name?.trim() || `${row.symbol} backtest`,
+    symbols: state.config.symbols?.length
+      ? state.config.symbols
+      : [row.symbol],
     symbol: row.symbol,
     timeframe: row.timeframe,
     createdAt: row.createdAt.toISOString(),

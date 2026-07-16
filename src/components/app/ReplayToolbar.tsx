@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type {
-  MouseEvent as ReactMouseEvent,
-  PointerEvent as ReactPointerEvent,
-} from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -50,7 +47,7 @@ function ControlBtn({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border app-border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-md border app-border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
         primary
           ? "bg-brand-500 text-surface-950 hover:bg-brand-400"
           : "hover:border-brand-400/40"
@@ -105,8 +102,10 @@ export function ReplayToolbar({
     };
   }
 
-  function startDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+  function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, input, select, textarea, a")) return;
     const toolbox = toolboxRef.current;
     const parent = toolbox?.parentElement;
     if (!toolbox || !parent) return;
@@ -151,44 +150,6 @@ export function ReplayToolbar({
     window.addEventListener("pointercancel", end);
   }
 
-  function startMouseDrag(event: ReactMouseEvent<HTMLButtonElement>) {
-    if (event.button !== 0) return;
-    const toolbox = toolboxRef.current;
-    const parent = toolbox?.parentElement;
-    if (!toolbox || !parent) return;
-
-    const box = toolbox.getBoundingClientRect();
-    const bounds = parent.getBoundingClientRect();
-    const offsetX = event.clientX - box.left;
-    const offsetY = event.clientY - box.top;
-    setPosition(clampPosition(box.left - bounds.left, box.top - bounds.top));
-    event.preventDefault();
-
-    dragCleanupRef.current?.();
-    const move = (moveEvent: MouseEvent) => {
-      const currentParent = toolboxRef.current?.parentElement;
-      if (!currentParent) return;
-      const currentBounds = currentParent.getBoundingClientRect();
-      setPosition(
-        clampPosition(
-          moveEvent.clientX - currentBounds.left - offsetX,
-          moveEvent.clientY - currentBounds.top - offsetY,
-        ),
-      );
-    };
-    const end = () => {
-      cleanup();
-      dragCleanupRef.current = null;
-    };
-    const cleanup = () => {
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", end);
-    };
-    dragCleanupRef.current = cleanup;
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", end);
-  }
-
   useEffect(() => {
     const keepInBounds = () => {
       setPosition((current) =>
@@ -206,66 +167,61 @@ export function ReplayToolbar({
     <div
       ref={toolboxRef}
       data-testid="replay-toolbox"
-      className="absolute z-20 w-[calc(100%-1.5rem)] max-w-[440px] rounded-xl border app-border bg-[var(--app-panel)]/95 p-2 shadow-2xl shadow-black/30 backdrop-blur"
+      onPointerDown={startDrag}
+      className="absolute z-20 w-[calc(100%-1.5rem)] max-w-[320px] touch-none cursor-move rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-2xl shadow-black/30 backdrop-blur"
       style={position ? { left: position.x, top: position.y } : { bottom: 12, left: 12 }}
     >
-      <div className="mb-2 flex items-center justify-between border-b app-border pb-1.5">
-        <button
-          type="button"
+      <div className="flex items-center gap-1.5">
+        <span
           data-testid="replay-toolbox-handle"
-          aria-label="Drag replay controls"
-          title="Drag toolbox"
-          onPointerDown={startDrag}
-          onMouseDown={startMouseDrag}
-          className="flex touch-none cursor-grab items-center gap-2 rounded-md px-2 py-1 text-xs font-semibold app-muted hover:bg-brand-400/10 hover:text-brand-300 active:cursor-grabbing"
+          aria-hidden
+          className="inline-flex h-7 w-5 shrink-0 items-center justify-center app-muted"
         >
-          <GripHorizontal size={16} aria-hidden />
-          Replay controls
-        </button>
+          <GripHorizontal size={15} />
+        </span>
+        <div className="flex items-center gap-1" role="group" aria-label="Replay controls">
+          <ControlBtn label="Step back one candle" onClick={onPrev} disabled={!canPrev || busy}>
+            <ChevronLeft size={15} aria-hidden />
+          </ControlBtn>
+          {running ? (
+            <ControlBtn label="Pause replay" onClick={onPause} primary>
+              <Pause size={15} aria-hidden />
+            </ControlBtn>
+          ) : (
+            <ControlBtn label="Play replay" onClick={onPlay} disabled={busy || finished} primary>
+              <Play size={15} aria-hidden />
+            </ControlBtn>
+          )}
+          <ControlBtn label="Next candle" onClick={onNext} disabled={busy || finished}>
+            <ChevronRight size={15} aria-hidden />
+          </ControlBtn>
+          <ControlBtn label="Restart session" onClick={onRestart} disabled={busy}>
+            <RotateCcw size={14} aria-hidden />
+          </ControlBtn>
+          <ControlBtn label="End session" onClick={onEnd} disabled={busy || finished}>
+            <Square size={14} aria-hidden />
+          </ControlBtn>
+        </div>
         <button
           type="button"
           aria-label="Reset replay controls position"
           title="Reset toolbox position"
           onClick={() => setPosition(null)}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md app-muted hover:bg-brand-400/10 hover:text-brand-300"
+          className="ml-auto inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md app-muted hover:bg-brand-400/10 hover:text-brand-300"
         >
           <LocateFixed size={14} aria-hidden />
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1.5" role="group" aria-label="Replay controls">
-          <ControlBtn label="Step back one candle" onClick={onPrev} disabled={!canPrev || busy}>
-            <ChevronLeft size={16} aria-hidden />
-          </ControlBtn>
-          {running ? (
-            <ControlBtn label="Pause replay" onClick={onPause} primary>
-              <Pause size={16} aria-hidden />
-            </ControlBtn>
-          ) : (
-            <ControlBtn label="Play replay" onClick={onPlay} disabled={busy || finished} primary>
-              <Play size={16} aria-hidden />
-            </ControlBtn>
-          )}
-          <ControlBtn label="Next candle" onClick={onNext} disabled={busy || finished}>
-            <ChevronRight size={16} aria-hidden />
-          </ControlBtn>
-          <ControlBtn label="Restart session" onClick={onRestart} disabled={busy}>
-            <RotateCcw size={16} aria-hidden />
-          </ControlBtn>
-          <ControlBtn label="End session" onClick={onEnd} disabled={busy || finished}>
-            <Square size={16} aria-hidden />
-          </ControlBtn>
-        </div>
-
-        <div className="flex items-center gap-1" role="group" aria-label="Replay speed">
+      <div className="mt-1 flex items-center gap-1 border-t app-border pt-1">
+        <div className="flex items-center gap-0.5" role="group" aria-label="Replay speed">
           {REPLAY_SPEEDS.map((sp) => (
             <button
               key={sp}
               type="button"
               onClick={() => onSpeed(sp)}
               aria-pressed={state.speed === sp}
-              className={`rounded-md px-2 py-1 font-mono text-xs transition-colors ${
+              className={`cursor-pointer rounded px-1.5 py-0.5 font-mono text-[10px] transition-colors ${
                 state.speed === sp
                   ? "bg-brand-400/15 text-brand-300"
                   : "app-muted hover:text-brand-300"
@@ -276,7 +232,7 @@ export function ReplayToolbar({
           ))}
         </div>
 
-        <div className="ml-auto font-mono text-xs app-muted" aria-live="polite">
+        <div className="ml-auto font-mono text-[10px] app-muted" aria-live="polite">
           Candle {state.visibleIndex + 1} / {state.totalCandles}
           {finished && <span className="ml-2 text-brand-300">· finished</span>}
         </div>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RotateCcw } from "lucide-react";
 
 import type { ChartMarker } from "./PriceChart";
@@ -25,6 +25,8 @@ export function Backtester() {
   const { theme } = useAppTheme();
   const bt = useBacktester();
   const { state, actions } = bt;
+  const [plannedStop, setPlannedStop] = useState<string | null>(null);
+  const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
 
   // Keyboard shortcuts for replay (ignored while typing in a field).
   useEffect(() => {
@@ -47,6 +49,11 @@ export function Backtester() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [bt.phase, state?.status, actions]);
+
+  useEffect(() => {
+    setPlannedStop(null);
+    setPlannedTarget(null);
+  }, [state?.sessionId, state?.openPosition?.id]);
 
   const markers = useMemo<ChartMarker[]>(() => {
     if (!state) return [];
@@ -92,6 +99,22 @@ export function Backtester() {
   }
 
   const pos = state.openPosition;
+  const chartStop = pos?.stopLoss ?? plannedStop;
+  const chartTarget = pos?.takeProfit ?? plannedTarget;
+
+  const changeStop = (price: string | null) => {
+    if (pos) void actions.modifyStop(price);
+    else setPlannedStop(price);
+  };
+  const changeTarget = (price: string | null) => {
+    if (pos) void actions.modifyTarget(price);
+    else setPlannedTarget(price);
+  };
+  const closePosition = () => {
+    setPlannedStop(null);
+    setPlannedTarget(null);
+    void actions.closePosition();
+  };
 
   return (
     <div className="mx-auto max-w-[1600px] px-3 py-4">
@@ -136,8 +159,10 @@ export function Backtester() {
           <OrderTicket
             state={state}
             busy={bt.busy}
+            stopLoss={chartStop}
+            takeProfit={chartTarget}
             onPlaceOrder={actions.placeOrder}
-            onClose={actions.closePosition}
+            onClose={closePosition}
           />
         </section>
 
@@ -149,8 +174,14 @@ export function Backtester() {
               lastCandle={bt.lastCandle}
               markers={markers}
               entryPrice={pos ? Number(pos.entryPrice) : null}
-              stopLoss={pos?.stopLoss ? Number(pos.stopLoss) : null}
-              takeProfit={pos?.takeProfit ? Number(pos.takeProfit) : null}
+              stopLoss={chartStop ? Number(chartStop) : null}
+              takeProfit={chartTarget ? Number(chartTarget) : null}
+              positionDirection={pos?.direction ?? null}
+              currentPrice={state.currentPrice ? Number(state.currentPrice) : null}
+              baseTimeframe={state.config.timeframe}
+              pipSize={Number(state.config.pipSize)}
+              onStopLossChange={changeStop}
+              onTakeProfitChange={changeTarget}
               precision={state.config.pricePrecision}
               theme={theme}
             />

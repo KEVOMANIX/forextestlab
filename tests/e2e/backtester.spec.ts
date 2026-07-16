@@ -24,7 +24,7 @@ async function startSession(page: Page) {
   expect(body.candles.length).toBeLessThan(body.state.totalCandles);
 }
 
-test("completes a full public backtest workflow without login", async ({ page }) => {
+test("completes a full public backtest workflow without login", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   // (1)(2)(3)(4) open + configure + start
   await startSession(page);
@@ -47,15 +47,33 @@ test("completes a full public backtest workflow without login", async ({ page })
   ]);
   await expect(counter).not.toHaveText(before ?? "");
 
-  // (6) place a Buy trade with (7) stop-loss and take-profit
-  await page.getByLabel(/Account risk percent/i).fill("1");
-  await page.getByLabel(/Stop-loss price/i).fill("1.07000");
-  await page.getByLabel(/Take-profit price/i).fill("1.12000");
+  // (6) place a Buy trade with (7) chart-based stop-loss and take-profit
+  await page.getByRole("button", { name: /Add stop-loss line/i }).click();
+  await page.getByRole("button", { name: /Add take-profit line/i }).click();
+  await expect(page.getByTestId("stop-loss-line")).toBeVisible();
+  await expect(page.getByTestId("take-profit-line")).toBeVisible();
   await Promise.all([
     page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
     page.getByRole("button", { name: "Buy", exact: true }).click(),
   ]);
-  await expect(page.getByText(/LONG/)).toBeVisible();
+  await expect(page.getByText(/^Long$/i)).toBeVisible();
+
+  // Protection levels remain interactive after entry and update the session.
+  if (testInfo.project.name === "chromium") {
+    const stopLine = page.getByTestId("stop-loss-line");
+    await stopLine.hover();
+    const stopBox = await stopLine.boundingBox();
+    expect(stopBox).not.toBeNull();
+    const modifiedStop = page.waitForRequest((request) => {
+      if (!request.url().includes("/action")) return false;
+      return (request.postDataJSON() as { type?: string } | null)?.type === "modify-stop";
+    });
+    await page.mouse.move(stopBox!.x + stopBox!.width / 2, stopBox!.y + stopBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(stopBox!.x + stopBox!.width / 2, stopBox!.y - 28, { steps: 5 });
+    await page.mouse.up();
+    await modifiedStop;
+  }
 
   // (8) advance more candles
   await Promise.all([
@@ -103,25 +121,30 @@ test("shows trading actions above the chart and moves the replay toolbox", async
   expect(headerBox).not.toBeNull();
   expect(chartBox).not.toBeNull();
   expect(headerBox!.y + headerBox!.height).toBeLessThanOrEqual(chartBox!.y);
+  expect(headerBox!.height).toBeLessThanOrEqual(64);
   await expect(tradingHeader.getByRole("button", { name: "Buy", exact: true })).toBeVisible();
   await expect(tradingHeader.getByRole("button", { name: "Sell", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Display 15m candles/i }).click();
+  await expect(page.getByRole("button", { name: /Display 15m candles/i })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByRole("button", { name: /Fit chart data/i }).click();
 
   const toolbox = page.getByTestId("replay-toolbox");
   const handle = page.getByTestId("replay-toolbox-handle");
   await handle.hover();
   const before = await toolbox.boundingBox();
-  const handleBox = await handle.boundingBox();
   expect(before).not.toBeNull();
-  expect(handleBox).not.toBeNull();
 
   await page.mouse.move(
-    handleBox!.x + handleBox!.width / 2,
-    handleBox!.y + handleBox!.height / 2,
+    before!.x + 3,
+    before!.y + 3,
   );
   await page.mouse.down();
   await page.mouse.move(
-    handleBox!.x + handleBox!.width / 2,
-    handleBox!.y + handleBox!.height / 2 - 140,
+    before!.x + 3,
+    before!.y - 137,
     { steps: 8 },
   );
   await page.mouse.up();

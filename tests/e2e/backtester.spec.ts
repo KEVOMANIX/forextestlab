@@ -122,8 +122,23 @@ test("shows trading actions above the chart and moves the replay toolbox", async
   expect(chartBox).not.toBeNull();
   expect(headerBox!.y + headerBox!.height).toBeLessThanOrEqual(chartBox!.y);
   expect(headerBox!.height).toBeLessThanOrEqual(64);
-  await expect(tradingHeader.getByRole("button", { name: "Buy", exact: true })).toBeVisible();
+  const buy = tradingHeader.getByRole("button", { name: "Buy", exact: true });
+  await expect(buy).toBeVisible();
   await expect(tradingHeader.getByRole("button", { name: "Sell", exact: true })).toBeVisible();
+  await Promise.all([
+    page.waitForResponse((response) => {
+      if (!response.url().includes("/action")) return false;
+      return (
+        (response.request().postDataJSON() as { type?: string } | null)?.type ===
+        "place-order"
+      );
+    }),
+    buy.click(),
+  ]);
+  await expect(page.getByTestId("stop-loss-line")).toBeVisible();
+  await expect(page.getByTestId("take-profit-line")).toBeVisible();
+  await expect(tradingHeader.getByText(/Drag SL\/TP directly on the chart/i)).toBeVisible();
+
   await page.getByRole("button", { name: /Display 15m candles/i }).click();
   await expect(page.getByRole("button", { name: /Display 15m candles/i })).toHaveAttribute(
     "aria-pressed",

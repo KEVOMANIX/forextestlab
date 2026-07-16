@@ -78,6 +78,20 @@ describe("orders and step-back locking", () => {
     expect(second.ok).toBe(false);
   });
 
+  it("adds temporary 20-pip stop and 40-pip target to a new long", () => {
+    const e = ctx(FLAT);
+    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    expect(e.state.openPosition?.stopLoss).toBe("1.09800");
+    expect(e.state.openPosition?.takeProfit).toBe("1.10400");
+  });
+
+  it("adds temporary protection levels on the correct side of a short", () => {
+    const e = ctx(FLAT);
+    placeOrder(e, { direction: "short", sizingMode: "fixed-lots", lots: "1.0" });
+    expect(e.state.openPosition?.stopLoss).toBe("1.10200");
+    expect(e.state.openPosition?.takeProfit).toBe("1.09600");
+  });
+
   it("disables step-back once a trade has been placed", () => {
     const e = ctx(FLAT, cfg({ initialVisibleCount: 1 }));
     revealNext(e); // index 1
@@ -140,7 +154,13 @@ describe("manual close and drawdown", () => {
       c(2, "1.10000", "1.10010", "1.08990", "1.10000"),
     ];
     const e = ctx(candles);
-    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    placeOrder(e, {
+      direction: "long",
+      sizingMode: "fixed-lots",
+      lots: "1.0",
+      stopLoss: "1.08000",
+      takeProfit: "1.12000",
+    });
     revealNext(e); // price drops to 1.09000 -> unreal -1000
     expect(e.state.equity).toBe("9000.00");
     expect(e.state.maxDrawdown).toBe("1000.00");

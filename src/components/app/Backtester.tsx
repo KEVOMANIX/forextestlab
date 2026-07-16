@@ -117,7 +117,7 @@ export function Backtester() {
   };
 
   return (
-    <div className="mx-auto max-w-[1600px] px-3 py-4">
+    <div className="w-full py-2">
       {/* aria-live region announces replay + order updates to assistive tech */}
       <p className="sr-only" aria-live="polite">
         {`Candle ${state.visibleIndex + 1} of ${state.totalCandles}. Balance ${state.balance}. ${
@@ -125,7 +125,7 @@ export function Backtester() {
         }`}
       </p>
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3 px-3">
         <div className="flex items-center gap-3">
           <h1 className="font-mono text-lg font-semibold">
             {state.config.symbol} · {state.config.timeframe}
@@ -149,12 +149,12 @@ export function Backtester() {
       </div>
 
       {bt.error && (
-        <p role="alert" className="mb-3 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
+        <p role="alert" className="mx-3 mb-2 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
           {bt.error}
         </p>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         <section aria-label="Trading header">
           <OrderTicket
             state={state}
@@ -166,8 +166,8 @@ export function Backtester() {
           />
         </section>
 
-        <div className="panel overflow-hidden">
-          <div className="relative h-[420px] sm:h-[520px] lg:h-[620px]">
+        <div className="panel overflow-hidden rounded-none border-x-0">
+          <div className="relative h-[calc(100vh-12rem)] min-h-[480px]">
             <PriceChart
               key={`${state.sessionId}-${bt.resetNonce}`}
               initialCandles={bt.initialCandles}
@@ -200,11 +200,11 @@ export function Backtester() {
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-2">
         <BottomPanel state={state} onSaveNotes={actions.saveNotes} busy={bt.busy} />
       </div>
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-3 space-y-2 px-3">
         {state.anonymous && (
           <p className="rounded-lg border border-brand-400/25 bg-brand-400/10 px-3 py-2 text-sm text-brand-300">
             This is a temporary demonstration.{" "}

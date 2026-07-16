@@ -329,13 +329,28 @@ export function placeOrder(
     state.config.pipSize,
     state.config.slippagePips,
   ).toFixed(state.config.pricePrecision);
+  const entryDecimal = d(entry);
+  const temporaryStopDistance = d(state.config.pipSize).times(20);
+  const temporaryTargetDistance = d(state.config.pipSize).times(40);
+  const stopLoss =
+    req.stopLoss ??
+    (req.direction === "long"
+      ? entryDecimal.minus(temporaryStopDistance)
+      : entryDecimal.plus(temporaryStopDistance)
+    ).toFixed(state.config.pricePrecision);
+  const takeProfit =
+    req.takeProfit ??
+    (req.direction === "long"
+      ? entryDecimal.plus(temporaryTargetDistance)
+      : entryDecimal.minus(temporaryTargetDistance)
+    ).toFixed(state.config.pricePrecision);
 
   const sizing = calculatePositionSize({
     accountBalance: state.balance,
     accountCurrency: state.config.accountCurrency,
     riskPercent: req.riskPercent,
     entryPrice: entry,
-    stopLoss: req.stopLoss,
+    stopLoss,
     pipSize: state.config.pipSize,
     symbol: state.config.symbol,
     quoteCurrency: state.config.quoteCurrency,
@@ -357,8 +372,8 @@ export function placeOrder(
     entryIndex: state.visibleIndex,
     entryTime: candle.timestamp,
     lots,
-    stopLoss: req.stopLoss ?? null,
-    takeProfit: req.takeProfit ?? null,
+    stopLoss,
+    takeProfit,
     commission,
     unrealizedPnl: "0.00",
   };

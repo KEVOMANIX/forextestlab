@@ -45,8 +45,8 @@ export function BottomPanel({
   );
 
   return (
-    <section className="panel overflow-hidden" aria-label="Session details">
-      <div role="tablist" aria-label="Session panels" className="flex flex-wrap gap-1 border-b app-border p-2">
+    <section className="flex h-full flex-col overflow-hidden border-t app-border bg-[var(--app-panel)]" aria-label="Session details">
+      <div role="tablist" aria-label="Session panels" className="flex shrink-0 flex-wrap gap-1 border-b app-border px-2 py-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -56,7 +56,7 @@ export function BottomPanel({
             aria-controls={`panel-${t.id}`}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
               tab === t.id ? "bg-brand-400/15 text-brand-300" : "app-muted hover:text-brand-300"
             }`}
           >
@@ -70,7 +70,7 @@ export function BottomPanel({
         ))}
       </div>
 
-      <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-[180px]">
+      <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-auto">
         {tab === "position" &&
           (state.openPosition ? (
             <dl className="grid grid-cols-2 gap-3 p-4 font-mono text-sm sm:grid-cols-4">

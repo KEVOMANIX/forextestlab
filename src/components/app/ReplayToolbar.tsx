@@ -169,7 +169,15 @@ export function ReplayToolbar({
       data-testid="replay-toolbox"
       onPointerDown={startDrag}
       className="absolute z-20 w-[calc(100%-1.5rem)] max-w-[320px] touch-none cursor-move rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-2xl shadow-black/30 backdrop-blur"
-      style={position ? { left: position.x, top: position.y } : { bottom: 12, left: 12 }}
+      style={
+        position
+          ? { left: position.x, top: position.y }
+          : {
+              left: "50%",
+              top: "55%",
+              transform: "translate(-50%, -50%)",
+            }
+      }
     >
       <div className="flex items-center gap-1.5">
         <span

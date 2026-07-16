@@ -3,21 +3,34 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import {
+  BarChart3,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
+  WalletCards,
+} from "lucide-react";
 
 import type { ChartMarker } from "./PriceChart";
 import { BottomPanel } from "./BottomPanel";
-import { DemoDataNotice, MarketDataNotice, SimulationNotice } from "./LegalNotices";
+import { MarketDataNotice, SimulationNotice } from "./LegalNotices";
 import { OrderTicket } from "./OrderTicket";
 import { ReplayToolbar } from "./ReplayToolbar";
 import { SessionSetup } from "./SessionSetup";
+import {
+  TerminalLeftRail,
+  TerminalRightRail,
+  TerminalTopBar,
+} from "./TerminalChrome";
 import { useAppTheme } from "./ThemeContext";
 import { useBacktester } from "./useBacktester";
 
 const PriceChart = dynamic(() => import("./PriceChart"), {
   ssr: false,
   loading: () => (
-    <div className="grid h-full place-items-center app-muted text-sm">Loading chart…</div>
+    <div className="grid h-full place-items-center text-sm app-muted">
+      Loading chart…
+    </div>
   ),
 });
 
@@ -26,27 +39,27 @@ export function Backtester({
 }: {
   resumeSessionId?: string | null;
 }) {
-  const { theme } = useAppTheme();
+  const { theme, toggle } = useAppTheme();
   const bt = useBacktester(resumeSessionId);
   const { state, actions } = bt;
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
+  const [dockOpen, setDockOpen] = useState(true);
 
-  // Keyboard shortcuts for replay (ignored while typing in a field).
   useEffect(() => {
     if (bt.phase !== "active") return;
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
-      if (e.key === " ") {
-        e.preventDefault();
+      if (event.key === " ") {
+        event.preventDefault();
         if (state?.status === "running") actions.pause();
         else actions.play();
-      } else if (e.key === "ArrowRight") {
-        e.preventDefault();
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
         actions.stepNext();
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
         actions.stepPrev();
       }
     };
@@ -61,33 +74,36 @@ export function Backtester({
 
   const markers = useMemo<ChartMarker[]>(() => {
     if (!state) return [];
-    const out: ChartMarker[] = [];
-    for (const t of state.closedTrades) {
-      out.push({
-        time: t.entryTime,
-        position: t.direction === "long" ? "belowBar" : "aboveBar",
-        color: t.direction === "long" ? "#22c3a0" : "#f4646c",
-        shape: t.direction === "long" ? "arrowUp" : "arrowDown",
-        text: t.direction === "long" ? "Buy" : "Sell",
+    const result: ChartMarker[] = [];
+    for (const trade of state.closedTrades) {
+      result.push({
+        time: trade.entryTime,
+        position: trade.direction === "long" ? "belowBar" : "aboveBar",
+        color: trade.direction === "long" ? "#22c3a0" : "#f4646c",
+        shape: trade.direction === "long" ? "arrowUp" : "arrowDown",
+        text: trade.direction === "long" ? "Buy" : "Sell",
       });
-      out.push({
-        time: t.exitTime,
-        position: t.direction === "long" ? "aboveBar" : "belowBar",
+      result.push({
+        time: trade.exitTime,
+        position: trade.direction === "long" ? "aboveBar" : "belowBar",
         color: "#93a1b8",
         shape: "circle",
-        text: `Exit ${t.pnl}`,
+        text: `Exit ${trade.pnl}`,
       });
     }
     if (state.openPosition) {
-      out.push({
+      result.push({
         time: state.openPosition.entryTime,
-        position: state.openPosition.direction === "long" ? "belowBar" : "aboveBar",
-        color: state.openPosition.direction === "long" ? "#22c3a0" : "#f4646c",
-        shape: state.openPosition.direction === "long" ? "arrowUp" : "arrowDown",
+        position:
+          state.openPosition.direction === "long" ? "belowBar" : "aboveBar",
+        color:
+          state.openPosition.direction === "long" ? "#22c3a0" : "#f4646c",
+        shape:
+          state.openPosition.direction === "long" ? "arrowUp" : "arrowDown",
         text: state.openPosition.direction === "long" ? "Buy" : "Sell",
       });
     }
-    return out;
+    return result;
   }, [state]);
 
   if (bt.phase === "loading") {
@@ -106,7 +122,11 @@ export function Backtester({
   if (bt.phase === "setup" || !state) {
     return (
       <div className="mx-auto max-w-[1600px] px-4 py-8">
-        <SessionSetup onStart={actions.startSession} busy={bt.busy} error={bt.error} />
+        <SessionSetup
+          onStart={actions.startSession}
+          busy={bt.busy}
+          error={bt.error}
+        />
         <div className="mx-auto mt-6 max-w-xl space-y-3">
           <SimulationNotice />
           <MarketDataNotice />
@@ -115,16 +135,16 @@ export function Backtester({
     );
   }
 
-  const pos = state.openPosition;
-  const chartStop = pos?.stopLoss ?? plannedStop;
-  const chartTarget = pos?.takeProfit ?? plannedTarget;
+  const position = state.openPosition;
+  const chartStop = position?.stopLoss ?? plannedStop;
+  const chartTarget = position?.takeProfit ?? plannedTarget;
 
   const changeStop = (price: string | null) => {
-    if (pos) void actions.modifyStop(price);
+    if (position) void actions.modifyStop(price);
     else setPlannedStop(price);
   };
   const changeTarget = (price: string | null) => {
-    if (pos) void actions.modifyTarget(price);
+    if (position) void actions.modifyTarget(price);
     else setPlannedTarget(price);
   };
   const closePosition = () => {
@@ -132,119 +152,177 @@ export function Backtester({
     setPlannedTarget(null);
     void actions.closePosition();
   };
+  const protectionPrice = (kind: "stop" | "target") => {
+    if (!state.currentPrice) return null;
+    const current = Number(state.currentPrice);
+    const pip = Number(state.config.pipSize);
+    const direction = position?.direction ?? "long";
+    const distance = pip * (kind === "stop" ? 20 : 40);
+    const price =
+      direction === "long"
+        ? current + (kind === "stop" ? -distance : distance)
+        : current + (kind === "stop" ? distance : -distance);
+    return price.toFixed(state.config.pricePrecision);
+  };
+  const toggleStop = () =>
+    changeStop(chartStop ? null : protectionPrice("stop"));
+  const toggleTarget = () =>
+    changeTarget(chartTarget ? null : protectionPrice("target"));
+  const clearProtection = () => {
+    changeStop(null);
+    changeTarget(null);
+  };
+  const currentTime = state.currentTime
+    ? new Date(state.currentTime).toISOString().slice(0, 16).replace("T", " ")
+    : "—";
 
   return (
-    <div className="w-full py-2">
-      {/* aria-live region announces replay + order updates to assistive tech */}
+    <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[var(--app-bg)]">
       <p className="sr-only" aria-live="polite">
         {`Candle ${state.visibleIndex + 1} of ${state.totalCandles}. Balance ${state.balance}. ${
-          pos ? `Open ${pos.direction} position.` : "No open position."
+          position ? `Open ${position.direction} position.` : "No open position."
         }`}
       </p>
 
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3 px-3">
-        <div className="flex items-center gap-3">
-          <h1 className="font-mono text-lg font-semibold">
-            {state.config.symbol} · {state.config.timeframe}
-          </h1>
-          {state.demoData && (
-            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[11px] text-amber-300">
-              Demo data
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {!state.anonymous && (
-            <Link href={`/app/results/${state.sessionId}`} className="btn-secondary py-2 text-xs">
-              View results
-            </Link>
-          )}
-          <button type="button" onClick={actions.newSession} className="btn-secondary py-2 text-xs">
-            <RotateCcw size={14} aria-hidden /> New session
-          </button>
-        </div>
-      </div>
+      <TerminalTopBar
+        state={state}
+        theme={theme}
+        onToggleTheme={toggle}
+        onNewSession={actions.newSession}
+      />
 
       {bt.error && (
-        <p role="alert" className="mx-3 mb-2 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
+        <p
+          role="alert"
+          className="absolute right-3 top-12 z-40 max-w-md rounded-lg border border-bear/30 bg-[var(--app-panel)] px-3 py-2 text-sm text-bear shadow-xl"
+        >
           {bt.error}
         </p>
       )}
-      {bt.notice && (
-        <p className="mx-3 mb-2 rounded-lg border border-brand-400/25 bg-brand-400/10 px-3 py-2 text-sm text-brand-300">
+      {bt.notice?.startsWith("Session resumed") && (
+        <p className="absolute right-3 top-12 z-30 max-w-md rounded-lg border border-brand-400/25 bg-[var(--app-panel)] px-3 py-2 text-xs text-brand-300 shadow-xl">
           {bt.notice}
         </p>
       )}
 
-      <div className="space-y-2">
-        <section aria-label="Trading header">
-          <OrderTicket
+      <section aria-label="Trading header" className="shrink-0">
+        <OrderTicket
+          state={state}
+          busy={bt.busy}
+          stopLoss={chartStop}
+          takeProfit={chartTarget}
+          onPlaceOrder={actions.placeOrder}
+          onClose={closePosition}
+        />
+      </section>
+
+      <div className="flex min-h-0 flex-1">
+        <TerminalLeftRail
+          hasStop={Boolean(chartStop)}
+          hasTarget={Boolean(chartTarget)}
+          onToggleStop={toggleStop}
+          onToggleTarget={toggleTarget}
+          onClearProtection={clearProtection}
+        />
+
+        <div className="relative min-w-0 flex-1 overflow-hidden">
+          <PriceChart
+            key={`${state.sessionId}-${bt.resetNonce}`}
+            initialCandles={bt.initialCandles}
+            lastCandle={bt.lastCandle}
+            markers={markers}
+            entryPrice={position ? Number(position.entryPrice) : null}
+            stopLoss={chartStop ? Number(chartStop) : null}
+            takeProfit={chartTarget ? Number(chartTarget) : null}
+            positionDirection={position?.direction ?? null}
+            currentPrice={state.currentPrice ? Number(state.currentPrice) : null}
+            baseTimeframe={state.config.timeframe}
+            pipSize={Number(state.config.pipSize)}
+            onStopLossChange={changeStop}
+            onTakeProfitChange={changeTarget}
+            precision={state.config.pricePrecision}
+            theme={theme}
+          />
+          <ReplayToolbar
             state={state}
             busy={bt.busy}
-            stopLoss={chartStop}
-            takeProfit={chartTarget}
-            onPlaceOrder={actions.placeOrder}
-            onClose={closePosition}
+            onPlay={actions.play}
+            onPause={actions.pause}
+            onNext={actions.stepNext}
+            onPrev={actions.stepPrev}
+            onRestart={actions.restart}
+            onEnd={actions.endSession}
+            onSpeed={actions.setSpeed}
           />
-        </section>
-
-        <div className="panel overflow-hidden rounded-none border-x-0">
-          <div className="relative h-[calc(100vh-12rem)] min-h-[480px]">
-            <PriceChart
-              key={`${state.sessionId}-${bt.resetNonce}`}
-              initialCandles={bt.initialCandles}
-              lastCandle={bt.lastCandle}
-              markers={markers}
-              entryPrice={pos ? Number(pos.entryPrice) : null}
-              stopLoss={chartStop ? Number(chartStop) : null}
-              takeProfit={chartTarget ? Number(chartTarget) : null}
-              positionDirection={pos?.direction ?? null}
-              currentPrice={state.currentPrice ? Number(state.currentPrice) : null}
-              baseTimeframe={state.config.timeframe}
-              pipSize={Number(state.config.pipSize)}
-              onStopLossChange={changeStop}
-              onTakeProfitChange={changeTarget}
-              precision={state.config.pricePrecision}
-              theme={theme}
-            />
-            <ReplayToolbar
-              state={state}
-              busy={bt.busy}
-              onPlay={actions.play}
-              onPause={actions.pause}
-              onNext={actions.stepNext}
-              onPrev={actions.stepPrev}
-              onRestart={actions.restart}
-              onEnd={actions.endSession}
-              onSpeed={actions.setSpeed}
-            />
-          </div>
         </div>
+
+        <TerminalRightRail state={state} onNewSession={actions.newSession} />
       </div>
 
-      <div className="mt-2">
-        <BottomPanel
-          state={state}
-          initialNotes={bt.notes}
-          onSaveNotes={actions.saveNotes}
-          busy={bt.busy}
-        />
-      </div>
-
-      <div className="mt-3 space-y-2 px-3">
+      <div className="flex h-8 shrink-0 items-center gap-3 overflow-x-auto border-t app-border bg-[var(--app-panel)] px-2 text-[11px]">
         {state.anonymous && (
-          <p className="rounded-lg border border-brand-400/25 bg-brand-400/10 px-3 py-2 text-sm text-brand-300">
-            This is a temporary demonstration.{" "}
-            <Link href="/sign-up" className="font-semibold underline">
+          <span className="shrink-0 text-[10px] font-semibold text-brand-300 sm:text-[11px]">
+            Temporary demonstration
+            <span> · </span>
+            <Link
+              href="/sign-up"
+              className="font-semibold underline"
+            >
               Create a free account
-            </Link>{" "}
-            to save private sessions, notes, history, and results.
-          </p>
+            </Link>
+          </span>
         )}
-        {state.demoData && <DemoDataNotice />}
-        <SimulationNotice />
-        <MarketDataNotice />
+        <span className="hidden shrink-0 items-center gap-1.5 app-muted md:inline-flex">
+          <Clock3 size={13} aria-hidden />
+          {currentTime} UTC
+        </span>
+        <span className="hidden shrink-0 items-center gap-1.5 sm:inline-flex">
+          <WalletCards size={13} className="app-muted" aria-hidden />
+          Balance <strong className="font-mono">${state.balance}</strong>
+        </span>
+        <span className="hidden shrink-0 sm:inline">
+          Equity <strong className="font-mono">${state.equity}</strong>
+        </span>
+        {position && (
+          <span
+            className={`shrink-0 font-mono font-semibold ${
+              Number(position.unrealizedPnl) >= 0
+                ? "text-brand-300"
+                : "text-bear"
+            }`}
+          >
+            Floating P/L ${position.unrealizedPnl}
+          </span>
+        )}
+        <span className="ml-auto hidden shrink-0 app-muted lg:inline">
+          Charts: TradingView Lightweight Charts™
+        </span>
+        <button
+          type="button"
+          onClick={() => setDockOpen((open) => !open)}
+          className="inline-flex h-6 shrink-0 items-center gap-1 rounded bg-blue-600 px-2 font-semibold text-white hover:bg-blue-500"
+          aria-expanded={dockOpen}
+        >
+          <BarChart3 size={12} aria-hidden />
+          Analytics
+          {dockOpen ? (
+            <ChevronDown size={12} aria-hidden />
+          ) : (
+            <ChevronUp size={12} aria-hidden />
+          )}
+        </button>
       </div>
+
+      {dockOpen && (
+        <div className="h-44 shrink-0 md:h-48">
+          <BottomPanel
+            state={state}
+            initialNotes={bt.notes}
+            onSaveNotes={actions.saveNotes}
+            busy={bt.busy}
+          />
+        </div>
+      )}
     </div>
   );
 }

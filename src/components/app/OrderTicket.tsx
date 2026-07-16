@@ -45,7 +45,7 @@ export function OrderTicket({
       : "text-bear";
 
   return (
-    <div className="panel overflow-x-auto p-2">
+    <div className="overflow-x-auto border-b app-border bg-[var(--app-panel)] p-1.5">
       <div className="flex min-w-max items-center gap-2">
         {hasPosition && state.openPosition ? (
           <>
@@ -86,7 +86,7 @@ export function OrderTicket({
               type="button"
               onClick={() => submit("long")}
               disabled={busy || finished || !state.currentPrice}
-              className="inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 text-sm font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-40"
+              className="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-sm font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-40"
             >
               <ArrowUpRight size={17} aria-hidden />
               Buy
@@ -95,12 +95,12 @@ export function OrderTicket({
               type="button"
               onClick={() => submit("short")}
               disabled={busy || finished || !state.currentPrice}
-              className="inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-lg bg-bear px-5 text-sm font-bold text-white hover:opacity-90 disabled:opacity-40"
+              className="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md bg-bear px-4 text-sm font-bold text-white hover:opacity-90 disabled:opacity-40"
             >
               <ArrowDownRight size={17} aria-hidden />
               Sell
             </button>
-            <div className="flex h-10 items-center rounded-lg border app-border p-1">
+            <div className="flex h-9 items-center rounded-md border app-border p-1">
               {(["fixed-lots", "risk-percent"] as const).map((mode) => (
                 <button
                   key={mode}
@@ -115,7 +115,7 @@ export function OrderTicket({
                 </button>
               ))}
             </div>
-            <label className="flex h-10 items-center gap-2 rounded-lg border app-border bg-[var(--app-panel-2)] px-3">
+            <label className="flex h-9 items-center gap-2 rounded-md border app-border bg-[var(--app-panel-2)] px-3">
               <span className="text-[10px] font-semibold uppercase tracking-wider app-muted">
                 {sizingMode === "fixed-lots" ? "Size" : "Risk"}
               </span>

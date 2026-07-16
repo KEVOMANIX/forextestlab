@@ -24,6 +24,8 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.6",
     "decimal.js": "^10.6.0",
     "lightweight-charts": "^4.2.3",
     "lucide-react": "^0.454.0",

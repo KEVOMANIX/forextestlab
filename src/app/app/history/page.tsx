@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { prisma } from "@/lib/db";
 import { Decimal } from "@/lib/decimal";
+import { ensureUserProfile, requireUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Session history",
@@ -13,7 +14,10 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function HistoryPage() {
+  const user = await requireUser("/app/history");
+  await ensureUserProfile(user);
   const sessions = await prisma.backtestSession.findMany({
+    where: { userId: user.id, anonymous: false },
     orderBy: { createdAt: "desc" },
     take: 25,
     include: { _count: { select: { trades: true } } },
@@ -23,8 +27,7 @@ export default async function HistoryPage() {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <h1 className="text-2xl font-bold tracking-tight">Session history</h1>
       <p className="mt-2 text-sm app-muted">
-        The most recent simulated sessions on this deployment. Sessions are
-        demonstrations only.
+        Your private saved backtest sessions.
       </p>
 
       {sessions.length === 0 ? (

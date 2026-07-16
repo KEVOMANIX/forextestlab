@@ -102,8 +102,12 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | `file:./dev.db` | Prisma datasource. Use PostgreSQL in production. |
-| `NEXT_PUBLIC_APP_URL` | `https://forextestlab.com` | Public site URL. |
+| `DATABASE_URL` | â€” | Pooled PostgreSQL connection used by the application. |
+| `DIRECT_URL` | â€” | Direct/session PostgreSQL connection used for schema operations. |
+| `NEXT_PUBLIC_SITE_URL` | `https://forextestlab.com` | Public site URL and auth redirect base. |
+| `NEXT_PUBLIC_SUPABASE_URL` | â€” | Supabase project URL used by Auth. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | â€” | Browser-safe Supabase publishable key. |
+| `SUPABASE_SECRET_KEY` | â€” | Server-only key used for permanent account deletion. |
 | `MARKET_DATA_PROVIDER` | `local_database` | `local_database` \| `local_csv` \| `demo`. |
 | `ENABLE_DEMO_DATA` | `true` | Fall back to deterministic demo data when no stored data. |
 | `TWELVE_DATA_ENABLED` / `TWELVE_DATA_API_KEY` | `false` / — | Disabled external adapter. |
@@ -113,6 +117,22 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `DEFAULT_ACCOUNT_BALANCE` / `DEFAULT_SPREAD_PIPS` / `DEFAULT_COMMISSION_PER_LOT` / `DEFAULT_SLIPPAGE_PIPS` | `10000` / `1.0` / `0` / `0` | Simulation defaults. |
 
 Never commit real credentials. `.env*` is git-ignored.
+
+### Supabase Auth setup
+
+1. In Supabase, enable Email authentication and decide whether email
+   confirmation is required.
+2. Add `http://localhost:3000/auth/callback` and
+   `https://forextestlab.com/auth/callback` to the allowed redirect URLs.
+3. Set the three Supabase Auth variables above in local and deployment
+   environments.
+4. Configure a production SMTP provider before launch; Supabase's default email
+   service is intended only for limited testing.
+
+Authenticated sessions are private and linked to the Supabase user UUID.
+Anonymous sessions are temporary 24-hour demonstrations, require their opaque
+session token for API access, cannot save notes, and do not appear in history or
+saved results.
 
 ## Database setup & migration
 
@@ -288,5 +308,6 @@ source files, screenshots, or branding are used.
 - [ ] The application URL is ready for review.
 
 See [`docs/implementation-plan.md`](docs/implementation-plan.md) for the phased
-build plan and [`LAUNCH_CHECKLIST.md`](LAUNCH_CHECKLIST.md) for the pre-launch
-review list.
+build plan, [`docs/production-product-definition.md`](docs/production-product-definition.md)
+for the proposed official Version 1 scope, and
+[`LAUNCH_CHECKLIST.md`](LAUNCH_CHECKLIST.md) for the pre-launch review list.

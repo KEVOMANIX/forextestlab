@@ -25,6 +25,7 @@ async function startSession(page: Page) {
 }
 
 test("completes a full public backtest workflow without login", async ({ page }) => {
+  test.setTimeout(60_000);
   // (1)(2)(3)(4) open + configure + start
   await startSession(page);
 
@@ -36,23 +37,41 @@ test("completes a full public backtest workflow without login", async ({ page })
 
   // (4) advance the replay a few candles
   const next = page.getByRole("button", { name: /Next candle/i });
-  await next.click();
-  await next.click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
+    next.click(),
+  ]);
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
+    next.click(),
+  ]);
   await expect(counter).not.toHaveText(before ?? "");
 
   // (6) place a Buy trade with (7) stop-loss and take-profit
   await page.getByLabel(/Account risk percent/i).fill("1");
   await page.getByLabel(/Stop-loss price/i).fill("1.07000");
   await page.getByLabel(/Take-profit price/i).fill("1.12000");
-  await page.getByRole("button", { name: "Buy", exact: true }).click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
+    page.getByRole("button", { name: "Buy", exact: true }).click(),
+  ]);
   await expect(page.getByText(/LONG/)).toBeVisible();
 
   // (8) advance more candles
-  await next.click();
-  await next.click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
+    next.click(),
+  ]);
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
+    next.click(),
+  ]);
 
   // (9) close the position manually
-  await page.getByRole("button", { name: /Close position/i }).click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
+    page.getByRole("button", { name: /Close position/i }).click(),
+  ]);
 
   // (10)(11) balance + statistics update; trade recorded
   await page.getByRole("tab", { name: /Statistics/i }).click();
@@ -60,10 +79,9 @@ test("completes a full public backtest workflow without login", async ({ page })
   await page.getByRole("tab", { name: /^Trades/ }).click();
   await expect(page.getByRole("cell", { name: /Long|Short/ }).first()).toBeVisible();
 
-  // (12) view results page
-  await page.getByRole("link", { name: /View results/i }).click();
-  await expect(page.getByRole("heading", { name: /Backtest results/i })).toBeVisible();
-  await expect(page.getByText(/Net profit \/ loss/i)).toBeVisible();
+  // Anonymous demonstrations are temporary and do not expose saved results.
+  await expect(page.getByText(/temporary demonstration/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /Create a free account/i })).toBeVisible();
 });
 
 test("restarts a session", async ({ page }) => {

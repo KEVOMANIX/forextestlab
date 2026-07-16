@@ -20,6 +20,8 @@ import {
 } from "@/lib/backtest/replay-engine";
 import type { Candle } from "@/lib/market-data/types";
 import { rateLimit } from "@/lib/rate-limit";
+import { canAccessSession } from "@/lib/backtest/session-access";
+import { getCurrentUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,9 +35,9 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
   }
 
-  // Ownership: the caller must present the session token issued at creation.
+  const user = await getCurrentUser();
   const token = request.headers.get("x-session-token");
-  if (!token || token !== session.token) {
+  if (!canAccessSession(session, user?.id ?? null, token)) {
     return NextResponse.json({ ok: false, error: "Unauthorised." }, { status: 403 });
   }
 
@@ -141,7 +143,11 @@ export async function POST(
       break;
     }
     case "notes":
-      session.notes = action.notes;
+      if (session.anonymous) {
+        opError = "Sign in to save private session notes.";
+      } else {
+        session.notes = action.notes;
+      }
       break;
   }
 
@@ -149,14 +155,14 @@ export async function POST(
 
   if (opError) {
     return NextResponse.json(
-      { ok: false, error: opError, state: toPublicState(ctx) },
+      { ok: false, error: opError, state: toPublicState(ctx, session.anonymous) },
       { status: 409 },
     );
   }
 
   return NextResponse.json({
     ok: true,
-    state: toPublicState(ctx),
+    state: toPublicState(ctx, session.anonymous),
     newCandle,
   });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Moon, Sun } from "lucide-react";
+import { LogIn, Moon, Sun, UserRound } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
 import { useAppTheme } from "./ThemeContext";
@@ -22,7 +22,7 @@ export function BetaBadge() {
   );
 }
 
-export function AppNav() {
+export function AppNav({ email }: { email: string | null }) {
   const { theme, toggle } = useAppTheme();
   return (
     <header className="sticky top-0 z-40 border-b app-border bg-[var(--app-bg)]/85 backdrop-blur">
@@ -47,14 +47,23 @@ export function AppNav() {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={toggle}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border app-border"
-          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-        >
-          {theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={email ? "/account" : "/sign-in"}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs app-muted hover:text-brand-300"
+          >
+            {email ? <UserRound size={15} aria-hidden /> : <LogIn size={15} aria-hidden />}
+            <span className="hidden sm:inline">{email ?? "Sign in"}</span>
+          </Link>
+          <button
+            type="button"
+            onClick={toggle}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border app-border"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+          >
+            {theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
+          </button>
+        </div>
       </nav>
     </header>
   );

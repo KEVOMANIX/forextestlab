@@ -30,6 +30,19 @@ function mk(
   return candle;
 }
 
+describe("aggregation provenance", () => {
+  it("preserves demo provenance when every source candle is demonstration data", () => {
+    const candles = [
+      { ...mk(DAY, "1", "2", "0.5", "1.5"), source: "demo" },
+      { ...mk(DAY + 5 * MIN, "1.5", "2", "1", "1.7"), source: "demo" },
+      { ...mk(DAY + 10 * MIN, "1.7", "2.1", "1.4", "2"), source: "demo" },
+    ];
+
+    const [aggregated] = aggregateCandles(candles, "5m", "15m");
+    expect(aggregated?.source).toBe("demo");
+  });
+});
+
 describe("candleBucketStart", () => {
   it("floors to the UTC-aligned bucket start for every timeframe", () => {
     for (const tf of Object.keys(TIMEFRAME_MS) as Timeframe[]) {

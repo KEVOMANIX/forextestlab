@@ -68,8 +68,8 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
     <form onSubmit={handleSubmit} className="panel mx-auto w-full max-w-xl p-6">
       <h2 className="text-lg font-semibold">Start a backtest session</h2>
       <p className="mt-1 text-sm app-muted">
-        Pick a pair, timeframe, and historical period. No account or payment
-        required.
+        Pick a pair, timeframe, and historical period. Signed-in sessions are
+        saved privately; anonymous demonstrations expire after 24 hours.
       </p>
 
       <div className="mt-5 space-y-4">

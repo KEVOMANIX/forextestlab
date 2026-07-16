@@ -54,11 +54,15 @@ export interface CreateSessionParams {
   commissionPerLot?: string;
   slippagePips?: string;
   executionPolicy?: "conservative" | "optimistic";
+  userId?: string;
 }
 
 export interface LoadedSession {
   id: string;
   token: string;
+  userId: string | null;
+  anonymous: boolean;
+  anonymousExpiresAt: Date | null;
   ctx: EngineContext;
   notes: string;
 }
@@ -70,7 +74,10 @@ function currentCandleOf(ctx: EngineContext): Candle | null {
 }
 
 /** Strip the engine state down to what is safe to send to the browser. */
-export function toPublicState(ctx: EngineContext): PublicSessionState {
+export function toPublicState(
+  ctx: EngineContext,
+  anonymous = false,
+): PublicSessionState {
   const { state } = ctx;
   const candle = currentCandleOf(ctx);
   return {
@@ -92,6 +99,7 @@ export function toPublicState(ctx: EngineContext): PublicSessionState {
     lockedBeforeIndex: state.lockedBeforeIndex,
     dataSource: state.dataSource,
     demoData: state.demoData,
+    anonymous,
   };
 }
 
@@ -143,6 +151,11 @@ export async function createSession(
 
   const source = firstCandle.source;
   const demoData = source === "demo";
+  if (!params.userId && !demoData) {
+    throw new Error(
+      "Create a free account to use saved historical market data. Anonymous access is demonstration-only.",
+    );
+  }
 
   const config = buildSessionConfig({
     symbol: def.symbol,
@@ -182,6 +195,11 @@ export async function createSession(
     data: {
       id,
       token,
+      userId: params.userId ?? null,
+      anonymous: !params.userId,
+      anonymousExpiresAt: params.userId
+        ? null
+        : new Date(Date.now() + 24 * 60 * 60 * 1000),
       instrumentId: instrument?.id ?? (await ensureInstrument(def.symbol)),
       symbol: def.symbol,
       timeframe: params.timeframe,
@@ -210,7 +228,17 @@ export async function createSession(
     },
   });
 
-  return { id, token, ctx: { state, candles: series }, notes: "" };
+  return {
+    id,
+    token,
+    userId: params.userId ?? null,
+    anonymous: !params.userId,
+    anonymousExpiresAt: params.userId
+      ? null
+      : new Date(Date.now() + 24 * 60 * 60 * 1000),
+    ctx: { state, candles: series },
+    notes: "",
+  };
 }
 
 async function ensureInstrument(symbol: string): Promise<string> {
@@ -252,6 +280,9 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
   return {
     id: row.id,
     token: row.token,
+    userId: row.userId,
+    anonymous: row.anonymous,
+    anonymousExpiresAt: row.anonymousExpiresAt,
     notes: row.notes ?? "",
     ctx: { state, candles: series },
   };

@@ -24,8 +24,11 @@ export interface SessionResults {
 
 export async function getSessionResults(
   id: string,
+  userId: string,
 ): Promise<SessionResults | null> {
-  const row = await prisma.backtestSession.findUnique({ where: { id } });
+  const row = await prisma.backtestSession.findFirst({
+    where: { id, userId, anonymous: false },
+  });
   if (!row) return null;
 
   const state = JSON.parse(row.stateJson) as SessionState;

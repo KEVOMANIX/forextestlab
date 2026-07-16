@@ -8,12 +8,21 @@ import {
 } from "@/lib/backtest/session-store";
 import type { Timeframe } from "@/lib/market-data/types";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { ensureUserProfile } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const limit = rateLimit(`create:${clientIp(request)}`, 30, 10 * 60_000);
+  const user = await getCurrentUser();
+  if (user) await ensureUserProfile(user);
+
+  const limit = rateLimit(
+    `create:${user?.id ?? clientIp(request)}`,
+    user ? 30 : 10,
+    60 * 60_000,
+  );
   if (!limit.ok) {
     return NextResponse.json(
       { ok: false, error: "Too many sessions created. Please try again shortly." },
@@ -47,6 +56,7 @@ export async function POST(request: Request) {
       commissionPerLot: parsed.data.commissionPerLot,
       slippagePips: parsed.data.slippagePips,
       executionPolicy: parsed.data.executionPolicy,
+      userId: user?.id,
     });
 
     return NextResponse.json(
@@ -54,7 +64,7 @@ export async function POST(request: Request) {
         ok: true,
         sessionId: session.id,
         token: session.token,
-        state: toPublicState(session.ctx),
+        state: toPublicState(session.ctx, session.anonymous),
         candles: visibleCandles(session.ctx),
       },
       { status: 201 },

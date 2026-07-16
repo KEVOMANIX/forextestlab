@@ -114,9 +114,11 @@ export function Backtester() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/app/results/${state.sessionId}`} className="btn-secondary py-2 text-xs">
-            View results
-          </Link>
+          {!state.anonymous && (
+            <Link href={`/app/results/${state.sessionId}`} className="btn-secondary py-2 text-xs">
+              View results
+            </Link>
+          )}
           <button type="button" onClick={actions.newSession} className="btn-secondary py-2 text-xs">
             <RotateCcw size={14} aria-hidden /> New session
           </button>
@@ -174,6 +176,15 @@ export function Backtester() {
       </div>
 
       <div className="mt-4 space-y-2">
+        {state.anonymous && (
+          <p className="rounded-lg border border-brand-400/25 bg-brand-400/10 px-3 py-2 text-sm text-brand-300">
+            This is a temporary demonstration.{" "}
+            <Link href="/sign-up" className="font-semibold underline">
+              Create a free account
+            </Link>{" "}
+            to save private sessions, notes, history, and results.
+          </p>
+        )}
         {state.demoData && <DemoDataNotice />}
         <SimulationNotice />
         <MarketDataNotice />

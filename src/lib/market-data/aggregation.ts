@@ -120,7 +120,11 @@ function aggregateBucket(timestamp: number, group: Candle[]): Candle {
     high: high.toString(),
     low: low.toString(),
     close: last.close,
-    source: "aggregated",
+    // Preserve demonstration provenance so aggregated synthetic candles cannot
+    // be mistaken for licensed/imported historical data.
+    source: group.every((item) => item.source === "demo")
+      ? "demo"
+      : "aggregated",
   };
 
   if (hasVolume) {

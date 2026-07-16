@@ -14,6 +14,8 @@ import {
 import { StatsGrid } from "@/components/app/StatsGrid";
 import { TradesTable } from "@/components/app/TradesTable";
 import { getSessionResults } from "@/lib/backtest/results";
+import { requireUser } from "@/lib/auth";
+import { DeleteSessionButton } from "@/components/app/DeleteSessionButton";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +29,8 @@ export default async function ResultsPage({
 }: {
   params: { sessionId: string };
 }) {
-  const results = await getSessionResults(params.sessionId);
+  const user = await requireUser(`/app/results/${params.sessionId}`);
+  const results = await getSessionResults(params.sessionId, user.id);
   if (!results) notFound();
 
   const { state, stats } = results;
@@ -43,6 +46,7 @@ export default async function ResultsPage({
           </p>
         </div>
         <div className="flex gap-2">
+          <DeleteSessionButton sessionId={results.sessionId} />
           <ExportTradesButton
             trades={state.closedTrades}
             symbol={results.symbol}

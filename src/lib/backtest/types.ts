@@ -149,6 +149,8 @@ export interface PublicSessionState {
   lockedBeforeIndex: number;
   dataSource: string;
   demoData: boolean;
+  /** Anonymous demonstrations are temporary and are not saved to user history. */
+  anonymous: boolean;
 }
 
 /** Engine + candle series bundled for server-side stepping. */

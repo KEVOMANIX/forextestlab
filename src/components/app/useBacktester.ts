@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SPEED_INTERVAL_MS,
   createSession,
+  getStateWithToken,
   sendAction,
   type CreateSessionBody,
 } from "@/lib/backtest/client";
@@ -133,10 +134,7 @@ export function useBacktester() {
     // After a restart the chart must reload from scratch — refetch visible set.
     const id = s.sessionId;
     if (!id) return;
-    const res = await fetch(`/api/backtest/sessions/${id}`, { cache: "no-store" });
-    const data = (await res.json()) as
-      | { ok: true; state: PublicSessionState; candles: Candle[] }
-      | { ok: false };
+    const data = await getStateWithToken(id, tokenRef.current);
     if (data.ok) {
       setS((prev) => ({
         ...prev,

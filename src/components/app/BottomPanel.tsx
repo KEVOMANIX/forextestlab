@@ -97,7 +97,11 @@ export function BottomPanel({ state, onSaveNotes, busy }: BottomPanelProps) {
           </div>
         )}
 
-        {tab === "notes" && (
+        {tab === "notes" && state.anonymous ? (
+          <div className="p-4 text-sm app-muted">
+            Sign in or create a free account to save private session notes.
+          </div>
+        ) : tab === "notes" ? (
           <div className="space-y-2 p-4">
             <label htmlFor="session-notes" className="text-xs app-muted">
               Session notes (saved with your simulated session)
@@ -114,7 +118,7 @@ export function BottomPanel({ state, onSaveNotes, busy }: BottomPanelProps) {
               Save notes
             </button>
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   );

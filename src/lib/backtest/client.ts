@@ -98,8 +98,16 @@ export async function sendAction(
 }
 
 export async function getState(sessionId: string): Promise<StateOk | ApiErr> {
+  return getStateWithToken(sessionId, null);
+}
+
+export async function getStateWithToken(
+  sessionId: string,
+  token: string | null,
+): Promise<StateOk | ApiErr> {
   const res = await fetch(`/api/backtest/sessions/${sessionId}`, {
     cache: "no-store",
+    headers: token ? { "x-session-token": token } : undefined,
   });
   return parse<StateOk>(res) as Promise<StateOk | ApiErr>;
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { ArrowUpRight, Menu, UserPlus, X } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
 import { mainNav } from "@/lib/site";
@@ -55,11 +55,19 @@ export function Navbar() {
         </div>
 
         <div className="hidden items-center gap-2 lg:flex">
-          <Link href="/app/backtest" className="btn-secondary">
-            Launch Beta
+          <Link
+            href="/sign-in"
+            className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-300 transition-colors hover:text-white"
+          >
+            Sign in
           </Link>
-          <Link href="/waitlist" className="btn-primary">
-            Join the Waitlist
+          <Link href="/app" className="btn-secondary py-2.5">
+            Launch app
+            <ArrowUpRight size={15} aria-hidden />
+          </Link>
+          <Link href="/sign-up" className="btn-primary py-2.5 shadow-glow">
+            <UserPlus size={16} aria-hidden />
+            Create free account
           </Link>
         </div>
 
@@ -93,18 +101,27 @@ export function Navbar() {
             </Link>
           ))}
           <Link
-            href="/app/backtest"
+            href="/app"
             onClick={() => setOpen(false)}
             className="btn-secondary mt-2 w-full"
           >
-            Launch Beta
+            Launch app
+            <ArrowUpRight size={16} aria-hidden />
           </Link>
           <Link
-            href="/waitlist"
+            href="/sign-up"
             onClick={() => setOpen(false)}
             className="btn-primary mt-2 w-full"
           >
-            Join the Waitlist
+            <UserPlus size={16} aria-hidden />
+            Create free account
+          </Link>
+          <Link
+            href="/sign-in"
+            onClick={() => setOpen(false)}
+            className="rounded-lg px-3 py-3 text-center text-sm font-semibold text-slate-300"
+          >
+            Already have an account? Sign in
           </Link>
         </div>
       </div>

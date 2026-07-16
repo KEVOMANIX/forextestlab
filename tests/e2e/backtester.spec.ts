@@ -93,10 +93,65 @@ test("restarts a session", async ({ page }) => {
   await expect(page.getByText(/Candle \d+ \/ \d+/)).toBeVisible();
 });
 
+test("pause stays responsive during automatic replay requests", async ({ page }) => {
+  test.setTimeout(45_000);
+  await startSession(page);
+
+  await page.route("**/api/backtest/sessions/*/action", async (route) => {
+    const body = route.request().postDataJSON() as { type?: string } | null;
+    if (body?.type === "next") {
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+    }
+    await route.continue();
+  });
+
+  const automaticStep = page.waitForRequest((request) => {
+    if (!request.url().includes("/action")) return false;
+    return (request.postDataJSON() as { type?: string } | null)?.type === "next";
+  });
+
+  await page.getByRole("button", { name: /Play replay/i }).click();
+  const pause = page.getByRole("button", { name: /Pause replay/i });
+  await expect(pause).toBeVisible();
+
+  // Wait until a deliberately slow automatic step is in flight. Controls and
+  // order buttons must remain usable rather than flashing disabled.
+  await automaticStep;
+  await expect(pause).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Buy", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Sell", exact: true })).toBeEnabled();
+
+  const pauseResponse = page.waitForResponse((response) => {
+    if (!response.url().includes("/action")) return false;
+    return (
+      (response.request().postDataJSON() as { type?: string } | null)?.type ===
+      "pause"
+    );
+  });
+  await pause.click();
+
+  // The UI stops immediately, before the delayed candle request completes.
+  await expect(page.getByRole("button", { name: /Play replay/i })).toBeVisible();
+  await pauseResponse;
+
+  const counter = page.getByText(/Candle \d+ \/ \d+/);
+  const pausedAt = await counter.textContent();
+  await page.waitForTimeout(1_500);
+  await expect(counter).toHaveText(pausedAt ?? "");
+});
+
 test("mobile navigation and workflow", async ({ page }) => {
-  await page.goto("/app");
-  await expect(page.getByRole("heading", { name: /ForexTestLab backtester/i })).toBeVisible();
-  // Open the backtester from the app home on a mobile viewport.
-  await page.getByRole("link", { name: /Open the backtester/i }).click();
+  await page.goto("/");
+  const landing = page.locator("main");
+  await expect(
+    landing.getByRole("link", { name: /Create free account/i }),
+  ).toBeVisible();
+
+  // The landing-page launch action opens the dashboard first.
+  await landing.getByRole("link", { name: /Open dashboard/i }).click();
+  await expect(page.getByRole("heading", { name: /Turn every backtest/i })).toBeVisible();
+
+  // Signed-out users can continue into the temporary demonstration.
+  await page.getByRole("link", { name: /Try a temporary demo/i }).click();
   await expect(page.getByRole("heading", { name: /Start a backtest session/i })).toBeVisible();
 });

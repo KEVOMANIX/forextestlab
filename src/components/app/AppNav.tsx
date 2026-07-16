@@ -7,7 +7,8 @@ import { Logo } from "@/components/Logo";
 import { useAppTheme } from "./ThemeContext";
 
 const LINKS = [
-  { label: "Backtester", href: "/app/backtest" },
+  { label: "Dashboard", href: "/app" },
+  { label: "New backtest", href: "/app/backtest" },
   { label: "History", href: "/app/history" },
   { label: "About", href: "/about" },
   { label: "Risk Disclosure", href: "/risk-disclosure" },

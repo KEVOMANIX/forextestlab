@@ -80,7 +80,7 @@ export function ReplayToolbar({
           <ChevronLeft size={16} aria-hidden />
         </ControlBtn>
         {running ? (
-          <ControlBtn label="Pause replay" onClick={onPause} disabled={busy} primary>
+          <ControlBtn label="Pause replay" onClick={onPause} primary>
             <Pause size={16} aria-hidden />
           </ControlBtn>
         ) : (

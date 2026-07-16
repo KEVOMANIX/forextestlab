@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, BarChart3, Sparkles, UserPlus } from "lucide-react";
 
 import { CandlestickChart } from "@/components/CandlestickChart";
 
@@ -20,27 +20,31 @@ export function Hero() {
         <div className="mx-auto max-w-3xl text-center">
           <p className="eyebrow animate-fade-up">
             <Sparkles size={14} aria-hidden />
-            Now building — join the waitlist
+            Your forex strategy testing workspace
           </p>
           <h1 className="mt-6 text-balance text-4xl font-bold tracking-tight text-white animate-fade-up sm:text-5xl lg:text-6xl">
             Test Your Forex Strategy Before Risking Real Capital
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-relaxed text-slate-300 animate-fade-up sm:text-lg">
-            ForexTestLab is a planned forex backtesting and market-replay
-            platform designed to help traders practise execution, review
-            historical price action, and evaluate trading strategies in a
-            structured environment.
+            Replay historical price action without future-data leakage, place
+            simulated trades, and turn every testing session into measurable
+            performance insights.
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 animate-fade-up sm:flex-row">
-            <Link href="/waitlist" className="btn-primary w-full sm:w-auto">
-              Join the Waitlist
+            <Link href="/sign-up" className="btn-primary w-full shadow-glow sm:w-auto">
+              <UserPlus size={16} aria-hidden />
+              Create free account
               <ArrowRight size={16} aria-hidden />
             </Link>
-            <Link href="/#features" className="btn-secondary w-full sm:w-auto">
-              Explore Features
+            <Link href="/app" className="btn-secondary w-full sm:w-auto">
+              <BarChart3 size={16} aria-hidden />
+              Open dashboard
             </Link>
           </div>
+          <p className="mt-4 text-xs text-slate-500">
+            No payment required. Your saved sessions and notes stay private.
+          </p>
         </div>
 
         {/* Chart-interface mock-up */}

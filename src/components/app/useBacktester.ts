@@ -42,7 +42,11 @@ const initial: BacktesterState = {
 export function useBacktester() {
   const [s, setS] = useState<BacktesterState>(initial);
   const tokenRef = useRef<string | null>(null);
-  const busyRef = useRef(false);
+  const sessionIdRef = useRef<string | null>(null);
+  const interactiveBusyRef = useRef(false);
+  const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const autoStepPendingRef = useRef(false);
+  const wantsReplayRunningRef = useRef(false);
   const stepRef = useRef<() => Promise<void>>(async () => {});
 
   const patch = useCallback((p: Partial<BacktesterState>) => {
@@ -51,16 +55,18 @@ export function useBacktester() {
 
   const startSession = useCallback(
     async (body: CreateSessionBody) => {
-      if (busyRef.current) return;
-      busyRef.current = true;
+      if (interactiveBusyRef.current) return;
+      interactiveBusyRef.current = true;
       patch({ busy: true, error: null, notice: null });
       const res = await createSession(body);
-      busyRef.current = false;
+      interactiveBusyRef.current = false;
       if (!res.ok) {
         patch({ busy: false, error: res.error });
         return;
       }
       tokenRef.current = res.token;
+      sessionIdRef.current = res.sessionId;
+      wantsReplayRunningRef.current = false;
       setS((prev) => ({
         phase: "active",
         sessionId: res.sessionId,
@@ -81,32 +87,86 @@ export function useBacktester() {
   const runAction = useCallback(
     async (
       action: Parameters<typeof sendAction>[2],
-      opts: { captureCandle?: boolean } = {},
+      opts: {
+        captureCandle?: boolean;
+        background?: boolean;
+        showBusy?: boolean;
+      } = {},
     ) => {
-      const id = s.sessionId;
-      const token = tokenRef.current;
-      if (!id || !token || busyRef.current) return;
-      busyRef.current = true;
-      patch({ busy: true, error: null });
-      const res = await sendAction(id, token, action);
-      busyRef.current = false;
-      if (!res.ok) {
-        patch({ busy: false, error: res.error, state: res.state ?? s.state });
-        return;
+      const background = opts.background === true;
+      const showBusy = opts.showBusy ?? !background;
+
+      // Only one automatic step may wait or run at once. User commands are
+      // queued behind it, so a slow candle request never makes controls flicker.
+      if (background && autoStepPendingRef.current) return;
+      if (showBusy && interactiveBusyRef.current) return;
+
+      if (background) autoStepPendingRef.current = true;
+      if (showBusy) {
+        interactiveBusyRef.current = true;
+        patch({ busy: true, error: null });
       }
-      patch({
-        busy: false,
-        state: res.state,
-        lastCandle:
-          opts.captureCandle && res.newCandle ? res.newCandle : s.lastCandle,
+
+      const task = actionQueueRef.current.then(async () => {
+        const id = sessionIdRef.current;
+        const token = tokenRef.current;
+        if (!id || !token) return;
+
+        const res = await sendAction(id, token, action);
+        if (!res.ok) {
+          setS((prev) => ({
+            ...prev,
+            error: res.error,
+            state: res.state ?? prev.state,
+          }));
+          return;
+        }
+
+        setS((prev) => {
+          let nextState = res.state;
+          // Pause is optimistic so it remains responsive while an already
+          // running "next" request finishes ahead of the queued pause command.
+          if (
+            !wantsReplayRunningRef.current &&
+            nextState.status === "running"
+          ) {
+            nextState = { ...nextState, status: "paused" };
+          }
+          return {
+            ...prev,
+            error: null,
+            state: nextState,
+            lastCandle:
+              opts.captureCandle && res.newCandle
+                ? res.newCandle
+                : prev.lastCandle,
+          };
+        });
       });
+
+      actionQueueRef.current = task
+        .catch(() => {
+          patch({ error: "The replay request failed. Please try again." });
+        })
+        .finally(() => {
+          if (background) autoStepPendingRef.current = false;
+          if (showBusy) {
+            interactiveBusyRef.current = false;
+            patch({ busy: false });
+          }
+        });
+
+      await actionQueueRef.current;
     },
-    [patch, s.sessionId, s.lastCandle, s.state],
+    [patch],
   );
 
   // Keep a stable reference to the latest "next" stepper for the interval loop.
   stepRef.current = useCallback(async () => {
-    await runAction({ type: "next" }, { captureCandle: true });
+    await runAction(
+      { type: "next" },
+      { captureCandle: true, background: true, showBusy: false },
+    );
   }, [runAction]);
 
   const status = s.state?.status;
@@ -122,14 +182,38 @@ export function useBacktester() {
     return () => clearInterval(timer);
   }, [status, speed]);
 
-  const play = useCallback(() => runAction({ type: "start" }), [runAction]);
-  const pause = useCallback(() => runAction({ type: "pause" }), [runAction]);
+  const play = useCallback(() => {
+    wantsReplayRunningRef.current = true;
+    setS((prev) =>
+      prev.state
+        ? { ...prev, state: { ...prev.state, status: "running" } }
+        : prev,
+    );
+    return runAction({ type: "start" }, { showBusy: false });
+  }, [runAction]);
+  const pause = useCallback(() => {
+    wantsReplayRunningRef.current = false;
+    // Stop the local timer immediately. The server pause command is serialized
+    // behind any candle request that is already in flight.
+    setS((prev) =>
+      prev.state
+        ? { ...prev, state: { ...prev.state, status: "paused" } }
+        : prev,
+    );
+    return runAction({ type: "pause" }, { showBusy: false });
+  }, [runAction]);
   const stepNext = useCallback(
     () => runAction({ type: "next" }, { captureCandle: true }),
     [runAction],
   );
   const stepPrev = useCallback(() => runAction({ type: "prev" }), [runAction]);
   const restart = useCallback(async () => {
+    wantsReplayRunningRef.current = false;
+    setS((prev) =>
+      prev.state?.status === "running"
+        ? { ...prev, state: { ...prev.state, status: "paused" } }
+        : prev,
+    );
     await runAction({ type: "restart" });
     // After a restart the chart must reload from scratch — refetch visible set.
     const id = s.sessionId;
@@ -145,7 +229,15 @@ export function useBacktester() {
       }));
     }
   }, [runAction, s.sessionId]);
-  const endSession = useCallback(() => runAction({ type: "end" }), [runAction]);
+  const endSession = useCallback(() => {
+    wantsReplayRunningRef.current = false;
+    setS((prev) =>
+      prev.state?.status === "running"
+        ? { ...prev, state: { ...prev.state, status: "paused" } }
+        : prev,
+    );
+    return runAction({ type: "end" });
+  }, [runAction]);
   const setSpeed = useCallback(
     (value: ReplaySpeed) => runAction({ type: "set-speed", speed: value }),
     [runAction],
@@ -181,6 +273,11 @@ export function useBacktester() {
   );
   const newSession = useCallback(() => {
     tokenRef.current = null;
+    sessionIdRef.current = null;
+    wantsReplayRunningRef.current = false;
+    interactiveBusyRef.current = false;
+    autoStepPendingRef.current = false;
+    actionQueueRef.current = Promise.resolve();
     setS(initial);
   }, []);
 

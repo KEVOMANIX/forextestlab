@@ -108,8 +108,12 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `NEXT_PUBLIC_SUPABASE_URL` | â€” | Supabase project URL used by Auth. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | â€” | Browser-safe Supabase publishable key. |
 | `SUPABASE_SECRET_KEY` | â€” | Server-only key used for permanent account deletion. |
-| `MARKET_DATA_PROVIDER` | `local_database` | `local_database` \| `local_csv` \| `demo`. |
-| `ENABLE_DEMO_DATA` | `true` | Fall back to deterministic demo data when no stored data. |
+| `MARKET_DATA_PROVIDER` | `r2` | `r2` \| `local_database` \| `local_csv` \| `demo`. |
+| `ENABLE_DEMO_DATA` | `false` | Fall back to deterministic demo data when no stored data. Keep disabled in production. |
+| `R2_ENDPOINT` | â€” | Server-only Cloudflare R2 S3 endpoint. |
+| `R2_BUCKET_NAME` | â€” | R2 bucket containing the monthly Parquet files. |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | â€” | Server-only R2 API credentials. |
+| `R2_PREFIX` | `market_data` | Object-key prefix before `<SYMBOL>/<YEAR>/<MONTH>.parquet`. |
 | `TWELVE_DATA_ENABLED` / `TWELVE_DATA_API_KEY` | `false` / — | Disabled external adapter. |
 | `TRADERMADE_ENABLED` / `TRADERMADE_API_KEY` | `false` / — | Disabled external adapter. |
 | `DUKASCOPY_DATA_AUTHORIZED` | `false` | Manual, owner-authorised import gate. |
@@ -222,7 +226,9 @@ npm start
    already PostgreSQL.
 3. Add env vars in **Project → Settings → Environment Variables**: `DATABASE_URL`
    (pooled), `DIRECT_URL` (direct/session), `NEXT_PUBLIC_APP_URL`,
-   `MARKET_DATA_PROVIDER=local_database`, `ENABLE_DEMO_DATA=true`.
+   `MARKET_DATA_PROVIDER=r2`, `ENABLE_DEMO_DATA=false`, and the five `R2_*`
+   variables documented above. Use `R2_PREFIX=market_data` for the downloader's
+   default upload structure.
 4. Create + seed the tables against Postgres — run `npm run db:push` and
    `npm run db:seed` locally with the production `DATABASE_URL`/`DIRECT_URL` in
    your `.env` (a one-off). `postinstall` runs `prisma generate` on Vercel.
@@ -234,6 +240,17 @@ npm start
 registrar set the records Vercel shows — apex `A` → `76.76.21.21`, `www` `CNAME`
 → `cname.vercel-dns.com`. HTTPS is provisioned automatically. Set
 `NEXT_PUBLIC_APP_URL` to the final domain and redeploy.
+
+## Cloudflare R2 historical-data provider
+
+- `R2ParquetProvider` lists uploaded monthly objects and only enables symbols
+  that currently exist in R2.
+- Parquet files remain private. The server downloads and decodes them; R2
+  credentials and object URLs are never sent to the browser.
+- Source data is one-minute UTC OHLCV with ZSTD compression. Replay requests are
+  aggregated to the requested timeframe on the server.
+- The expected object layout is
+  `market_data/<SYMBOL>/<YEAR>/<two-digit-month>.parquet`.
 
 ## Replacing the local provider / adding an authorised external provider
 

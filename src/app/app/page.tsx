@@ -24,6 +24,7 @@ import { prisma } from "@/lib/db";
 import { Decimal } from "@/lib/decimal";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
+import { formatSymbol } from "@/lib/market-data/symbols";
 
 export const dynamic = "force-dynamic";
 
@@ -633,7 +634,7 @@ export default async function AppHome({
                 <option value="">All pairs</option>
                 {availablePairs.map((symbol) => (
                   <option key={symbol} value={symbol}>
-                    {symbol.slice(0, 3)}/{symbol.slice(3)}
+                    {formatSymbol(symbol)}
                   </option>
                 ))}
               </select>
@@ -724,7 +725,7 @@ export default async function AppHome({
                         key={symbol}
                         className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 font-mono text-[11px] font-semibold"
                       >
-                        {symbol.slice(0, 3)}/{symbol.slice(3)}
+                        {formatSymbol(symbol)}
                       </span>
                     ))}
                     {tags.map((tag) => (

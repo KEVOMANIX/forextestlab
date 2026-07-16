@@ -6,6 +6,7 @@ import { Decimal } from "@/lib/decimal";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
 import type { SessionState } from "@/lib/backtest/types";
 import { BackLink } from "@/components/app/BackLink";
+import { formatSymbol } from "@/lib/market-data/symbols";
 
 export const metadata: Metadata = {
   title: "Session history",
@@ -78,7 +79,7 @@ export default async function HistoryPage() {
                     <td className="px-4 py-3 font-semibold">{details.name}</td>
                     <td className="px-4 py-3 font-mono text-xs">
                       {details.symbols
-                        .map((symbol) => `${symbol.slice(0, 3)}/${symbol.slice(3)}`)
+                        .map(formatSymbol)
                         .join(", ")}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs app-muted">

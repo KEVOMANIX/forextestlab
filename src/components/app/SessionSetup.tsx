@@ -9,6 +9,7 @@ import {
   type CreateSessionBody,
 } from "@/lib/backtest/client";
 import type { MarketSymbol } from "@/lib/market-data/types";
+import { formatSymbol } from "@/lib/market-data/symbols";
 
 interface SessionSetupProps {
   onStart: (body: CreateSessionBody) => void;
@@ -274,7 +275,7 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
               <p className="mt-2 font-semibold">{name}</p>
               <p className="mt-1 text-sm app-muted">
                 {selectedSymbols
-                  .map((symbol) => `${symbol.slice(0, 3)}/${symbol.slice(3)}`)
+                  .map(formatSymbol)
                   .join(", ")}
                 {start && end ? ` · ${start} to ${end}` : ""}
               </p>

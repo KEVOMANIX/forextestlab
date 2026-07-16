@@ -164,6 +164,7 @@ async function fetchSeries(
     timeframe,
     startTime,
     endTime,
+    limit: MAX_SESSION_CANDLES,
   });
   return candles.slice(0, MAX_SESSION_CANDLES);
 }

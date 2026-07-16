@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getMarketDataProvider } from "@/lib/market-data";
+import { getSymbolDefinition } from "@/lib/market-data/symbols";
 const SESSION_BASE_TIMEFRAME = "5m";
 
 export const runtime = "nodejs";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get("symbol");
-  if (!symbol || !/^[A-Z]{6}$/.test(symbol)) {
+  if (!symbol || !getSymbolDefinition(symbol)) {
     return NextResponse.json({ ok: false, error: "Invalid symbol." }, { status: 400 });
   }
 

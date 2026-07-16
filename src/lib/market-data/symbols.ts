@@ -83,10 +83,50 @@ export const SYMBOL_DEFINITIONS: SymbolDefinition[] = [
     pricePrecision: 5,
     demoBasePrice: "0.85500",
   },
+  {
+    symbol: "XAUUSD",
+    displayName: "XAU/USD",
+    baseCurrency: "XAU",
+    quoteCurrency: "USD",
+    pipSize: "0.01",
+    pricePrecision: 2,
+    demoBasePrice: "2350.00",
+  },
+  {
+    symbol: "XAGUSD",
+    displayName: "XAG/USD",
+    baseCurrency: "XAG",
+    quoteCurrency: "USD",
+    pipSize: "0.001",
+    pricePrecision: 3,
+    demoBasePrice: "29.000",
+  },
+  {
+    symbol: "BTCUSD",
+    displayName: "BTC/USD",
+    baseCurrency: "BTC",
+    quoteCurrency: "USD",
+    pipSize: "0.01",
+    pricePrecision: 2,
+    demoBasePrice: "65000.00",
+  },
+  {
+    symbol: "DXY",
+    displayName: "US Dollar Index",
+    baseCurrency: "DXY",
+    quoteCurrency: "USD",
+    pipSize: "0.001",
+    pricePrecision: 3,
+    demoBasePrice: "104.000",
+  },
 ];
 
 export function getSymbolDefinition(
   symbol: string,
 ): SymbolDefinition | undefined {
   return SYMBOL_DEFINITIONS.find((s) => s.symbol === symbol);
+}
+
+export function formatSymbol(symbol: string): string {
+  return getSymbolDefinition(symbol)?.displayName ?? symbol;
 }

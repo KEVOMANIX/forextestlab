@@ -17,6 +17,7 @@ import { getSessionResults } from "@/lib/backtest/results";
 import { requireUser } from "@/lib/auth";
 import { DeleteSessionButton } from "@/components/app/DeleteSessionButton";
 import { BackLink } from "@/components/app/BackLink";
+import { formatSymbol } from "@/lib/market-data/symbols";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function ResultsPage({
           <h1 className="mt-1 text-2xl font-bold tracking-tight">{results.name}</h1>
           <p className="mt-1 text-sm app-muted">
             {results.symbols
-              .map((symbol) => `${symbol.slice(0, 3)}/${symbol.slice(3)}`)
+              .map(formatSymbol)
               .join(" · ")}
             {" · "}
             {new Date(state.config.startTime).toISOString().slice(0, 10)}
@@ -134,7 +135,7 @@ export default async function ResultsPage({
             return (
               <article key={symbol} className="rounded-xl border app-border bg-[var(--app-panel-2)] p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <strong className="font-mono">{symbol.slice(0, 3)}/{symbol.slice(3)}</strong>
+                  <strong className="font-mono">{formatSymbol(symbol)}</strong>
                   <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
                     primary
                       ? "bg-brand-400/10 text-brand-300"

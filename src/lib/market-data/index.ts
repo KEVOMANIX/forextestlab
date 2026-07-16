@@ -12,6 +12,7 @@ import "server-only";
 import { DemoDataProvider } from "./providers/demo-data-provider";
 import { LocalCsvProvider } from "./providers/local-csv-provider";
 import { LocalDatabaseProvider } from "./providers/local-database-provider";
+import { R2ParquetProvider } from "./providers/r2-parquet-provider";
 import type {
   Candle,
   CandleRequest,
@@ -21,7 +22,7 @@ import type {
   Timeframe,
 } from "./types";
 
-export type ProviderKey = "local_database" | "local_csv" | "demo";
+export type ProviderKey = "local_database" | "local_csv" | "r2" | "demo";
 
 function demoEnabled(): boolean {
   // Enabled unless explicitly turned off.
@@ -34,6 +35,8 @@ function basePrimary(): MarketDataProvider {
       return new DemoDataProvider();
     case "local_csv":
       return new LocalCsvProvider();
+    case "r2":
+      return new R2ParquetProvider();
     case "local_database":
     default:
       return new LocalDatabaseProvider();

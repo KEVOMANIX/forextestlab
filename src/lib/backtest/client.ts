@@ -34,6 +34,7 @@ interface StateOk {
   ok: true;
   state: PublicSessionState;
   candles: Candle[];
+  notes: string;
 }
 interface ApiErr {
   ok: false;
@@ -83,14 +84,14 @@ export async function createSession(
 
 export async function sendAction(
   sessionId: string,
-  token: string,
+  token: string | null,
   action: ActionInput,
 ): Promise<ActionOk | ApiErr> {
   const res = await fetch(`/api/backtest/sessions/${sessionId}/action`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-session-token": token,
+      ...(token ? { "x-session-token": token } : {}),
     },
     body: JSON.stringify(action),
   });

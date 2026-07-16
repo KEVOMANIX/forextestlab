@@ -9,6 +9,14 @@ export const metadata: Metadata = {
   alternates: { canonical: "/app/backtest" },
 };
 
-export default function BacktestPage() {
-  return <Backtester />;
+export default function BacktestPage({
+  searchParams,
+}: {
+  searchParams: { session?: string };
+}) {
+  const resumeSessionId =
+    typeof searchParams.session === "string" && searchParams.session.length <= 100
+      ? searchParams.session
+      : null;
+  return <Backtester resumeSessionId={resumeSessionId} />;
 }

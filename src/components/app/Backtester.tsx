@@ -21,9 +21,13 @@ const PriceChart = dynamic(() => import("./PriceChart"), {
   ),
 });
 
-export function Backtester() {
+export function Backtester({
+  resumeSessionId = null,
+}: {
+  resumeSessionId?: string | null;
+}) {
   const { theme } = useAppTheme();
-  const bt = useBacktester();
+  const bt = useBacktester(resumeSessionId);
   const { state, actions } = bt;
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
@@ -85,6 +89,19 @@ export function Backtester() {
     }
     return out;
   }, [state]);
+
+  if (bt.phase === "loading") {
+    return (
+      <div className="grid min-h-[70vh] place-items-center px-4">
+        <div className="panel max-w-sm p-8 text-center">
+          <p className="font-semibold">Restoring your session…</p>
+          <p className="mt-2 text-sm app-muted">
+            Loading revealed candles, trades, and your last replay position.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (bt.phase === "setup" || !state) {
     return (
@@ -153,6 +170,11 @@ export function Backtester() {
           {bt.error}
         </p>
       )}
+      {bt.notice && (
+        <p className="mx-3 mb-2 rounded-lg border border-brand-400/25 bg-brand-400/10 px-3 py-2 text-sm text-brand-300">
+          {bt.notice}
+        </p>
+      )}
 
       <div className="space-y-2">
         <section aria-label="Trading header">
@@ -201,7 +223,12 @@ export function Backtester() {
       </div>
 
       <div className="mt-2">
-        <BottomPanel state={state} onSaveNotes={actions.saveNotes} busy={bt.busy} />
+        <BottomPanel
+          state={state}
+          initialNotes={bt.notes}
+          onSaveNotes={actions.saveNotes}
+          busy={bt.busy}
+        />
       </div>
 
       <div className="mt-3 space-y-2 px-3">

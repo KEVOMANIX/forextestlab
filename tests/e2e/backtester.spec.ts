@@ -111,6 +111,41 @@ test("restarts a session", async ({ page }) => {
   await expect(page.getByText(/Candle \d+ \/ \d+/)).toBeVisible();
 });
 
+test("resumes a saved session at the last revealed candle", async ({ page }) => {
+  test.setTimeout(60_000);
+  await startSession(page);
+
+  const next = page.getByRole("button", { name: /Next candle/i });
+  await next.click();
+  await next.click();
+  await Promise.all([
+    page.waitForResponse((response) => {
+      if (!response.url().includes("/action")) return false;
+      return (
+        (response.request().postDataJSON() as { type?: string } | null)?.type ===
+        "place-order"
+      );
+    }),
+    page.getByRole("button", { name: "Buy", exact: true }).click(),
+  ]);
+
+  const counter = page.getByText(/Candle \d+ \/ \d+/);
+  const savedCounter = await counter.textContent();
+  await expect(page).toHaveURL(/\/app\/backtest\?session=/);
+  await expect(page.getByText(/^Long$/i)).toBeVisible();
+
+  await page.reload();
+
+  await expect(page.getByText(/Session resumed at candle/i)).toBeVisible();
+  await expect(counter).toHaveText(savedCounter ?? "");
+  await expect(page.getByText(/^Long$/i)).toBeVisible();
+  await expect(page.getByTestId("stop-loss-line")).toBeVisible();
+  await expect(page.getByTestId("take-profit-line")).toBeVisible();
+
+  await next.click();
+  await expect(counter).not.toHaveText(savedCounter ?? "");
+});
+
 test("shows trading actions above the chart and moves the replay toolbox", async ({ page }) => {
   await startSession(page);
 

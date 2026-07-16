@@ -19,13 +19,19 @@ const TABS: { id: Tab; label: string }[] = [
 
 interface BottomPanelProps {
   state: PublicSessionState;
+  initialNotes?: string;
   onSaveNotes: (notes: string) => void;
   busy: boolean;
 }
 
-export function BottomPanel({ state, onSaveNotes, busy }: BottomPanelProps) {
+export function BottomPanel({
+  state,
+  initialNotes = "",
+  onSaveNotes,
+  busy,
+}: BottomPanelProps) {
   const [tab, setTab] = useState<Tab>("trades");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(initialNotes);
 
   const stats = useMemo(
     () =>

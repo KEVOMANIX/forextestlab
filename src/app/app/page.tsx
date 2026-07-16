@@ -431,10 +431,15 @@ export default async function AppHome() {
             {sessions.slice(0, 6).map((session) => {
               const net = new Decimal(session.balance).minus(session.startingBalance);
               const positive = net.gte(0);
+              const resumable = session.status !== "finished";
               return (
                 <Link
                   key={session.id}
-                  href={`/app/results/${session.id}`}
+                  href={
+                    resumable
+                      ? `/app/backtest?session=${encodeURIComponent(session.id)}`
+                      : `/app/results/${session.id}`
+                  }
                   className="panel group p-5 transition-colors hover:border-brand-400/30"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -476,8 +481,14 @@ export default async function AppHome() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs app-muted">Trades</p>
-                      <p className="mt-1 font-mono font-semibold">{session._count.trades}</p>
+                      <p className="text-xs app-muted">
+                        {resumable ? "Continue" : "Trades"}
+                      </p>
+                      <p className="mt-1 font-mono font-semibold">
+                        {resumable
+                          ? `${session.visibleIndex + 1}/${session.totalCandles}`
+                          : session._count.trades}
+                      </p>
                     </div>
                     <ArrowRight
                       size={17}

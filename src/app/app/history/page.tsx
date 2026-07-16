@@ -55,6 +55,7 @@ export default async function HistoryPage() {
               {sessions.map((s) => {
                 const net = new Decimal(s.balance).minus(s.startingBalance);
                 const positive = net.greaterThanOrEqualTo(0);
+                const resumable = s.status !== "finished";
                 return (
                   <tr key={s.id} className="border-b app-border/60">
                     <td className="px-4 py-3 font-mono">{s.symbol}</td>
@@ -67,8 +68,15 @@ export default async function HistoryPage() {
                       {net.toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link href={`/app/results/${s.id}`} className="text-brand-300 hover:underline">
-                        Results
+                      <Link
+                        href={
+                          resumable
+                            ? `/app/backtest?session=${encodeURIComponent(s.id)}`
+                            : `/app/results/${s.id}`
+                        }
+                        className="font-semibold text-brand-300 hover:underline"
+                      >
+                        {resumable ? "Resume" : "Results"}
                       </Link>
                     </td>
                   </tr>

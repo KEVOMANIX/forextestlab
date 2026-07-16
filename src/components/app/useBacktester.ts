@@ -12,7 +12,7 @@ import {
 import type { OrderRequest, PublicSessionState, ReplaySpeed } from "@/lib/backtest/types";
 import type { Candle } from "@/lib/market-data/types";
 
-export type Phase = "setup" | "active";
+export type Phase = "setup" | "loading" | "active";
 
 interface BacktesterState {
   phase: Phase;
@@ -23,6 +23,7 @@ interface BacktesterState {
   busy: boolean;
   error: string | null;
   notice: string | null;
+  notes: string;
   /** Bumped on start/restart so the chart remounts with fresh data. */
   resetNonce: number;
 }
@@ -36,11 +37,16 @@ const initial: BacktesterState = {
   busy: false,
   error: null,
   notice: null,
+  notes: "",
   resetNonce: 0,
 };
 
-export function useBacktester() {
-  const [s, setS] = useState<BacktesterState>(initial);
+export function useBacktester(resumeSessionId: string | null = null) {
+  const [s, setS] = useState<BacktesterState>(() => ({
+    ...initial,
+    phase: resumeSessionId ? "loading" : "setup",
+    busy: Boolean(resumeSessionId),
+  }));
   const tokenRef = useRef<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const interactiveBusyRef = useRef(false);
@@ -52,6 +58,62 @@ export function useBacktester() {
   const patch = useCallback((p: Partial<BacktesterState>) => {
     setS((prev) => ({ ...prev, ...p }));
   }, []);
+
+  useEffect(() => {
+    if (!resumeSessionId) return;
+    let cancelled = false;
+
+    const restore = async () => {
+      const storedToken = window.sessionStorage.getItem(
+        `forextestlab:session:${resumeSessionId}`,
+      );
+      tokenRef.current = storedToken;
+      sessionIdRef.current = resumeSessionId;
+      wantsReplayRunningRef.current = false;
+
+      let res = await getStateWithToken(resumeSessionId, storedToken);
+      if (!res.ok) {
+        if (!cancelled) {
+          setS({
+            ...initial,
+            phase: "setup",
+            error: res.error,
+          });
+        }
+        return;
+      }
+
+      // A browser tab closing cannot run a server replay timer, but its last
+      // persisted status may still be "running". Resume safely in paused mode.
+      if (res.state.status === "running") {
+        const paused = await sendAction(resumeSessionId, storedToken, {
+          type: "pause",
+        });
+        if (paused.ok) {
+          res = { ...res, state: paused.state };
+        }
+      }
+
+      if (cancelled) return;
+      setS((prev) => ({
+        phase: "active",
+        sessionId: resumeSessionId,
+        state: res.state,
+        initialCandles: res.candles,
+        lastCandle: res.candles[res.candles.length - 1] ?? null,
+        busy: false,
+        error: null,
+        notice: `Session resumed at candle ${res.state.visibleIndex + 1} of ${res.state.totalCandles}.`,
+        notes: res.notes,
+        resetNonce: prev.resetNonce + 1,
+      }));
+    };
+
+    void restore();
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeSessionId]);
 
   const startSession = useCallback(
     async (body: CreateSessionBody) => {
@@ -66,6 +128,15 @@ export function useBacktester() {
       }
       tokenRef.current = res.token;
       sessionIdRef.current = res.sessionId;
+      window.sessionStorage.setItem(
+        `forextestlab:session:${res.sessionId}`,
+        res.token,
+      );
+      window.history.replaceState(
+        null,
+        "",
+        `/app/backtest?session=${encodeURIComponent(res.sessionId)}`,
+      );
       wantsReplayRunningRef.current = false;
       setS((prev) => ({
         phase: "active",
@@ -78,6 +149,7 @@ export function useBacktester() {
         notice: res.state.demoData
           ? "This session uses generated demonstration data and does not represent an actual market feed."
           : null,
+        notes: "",
         resetNonce: prev.resetNonce + 1,
       }));
     },
@@ -110,7 +182,7 @@ export function useBacktester() {
       const task = actionQueueRef.current.then(async () => {
         const id = sessionIdRef.current;
         const token = tokenRef.current;
-        if (!id || !token) return;
+        if (!id) return;
 
         const res = await sendAction(id, token, action);
         if (!res.ok) {
@@ -226,6 +298,7 @@ export function useBacktester() {
         initialCandles: data.candles,
         lastCandle: data.candles[data.candles.length - 1] ?? null,
         resetNonce: prev.resetNonce + 1,
+        notes: data.notes,
       }));
     }
   }, [runAction, s.sessionId]);
@@ -268,7 +341,10 @@ export function useBacktester() {
     [runAction],
   );
   const saveNotes = useCallback(
-    (notes: string) => runAction({ type: "notes", notes }),
+    async (notes: string) => {
+      await runAction({ type: "notes", notes });
+      setS((prev) => ({ ...prev, notes }));
+    },
     [runAction],
   );
   const newSession = useCallback(() => {
@@ -278,6 +354,7 @@ export function useBacktester() {
     interactiveBusyRef.current = false;
     autoStepPendingRef.current = false;
     actionQueueRef.current = Promise.resolve();
+    window.history.replaceState(null, "", "/app/backtest");
     setS(initial);
   }, []);
 

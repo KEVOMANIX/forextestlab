@@ -67,6 +67,26 @@ export default async function ResultsPage({
           </Link>
         </div>
       </div>
+      <nav
+        aria-label="Analytics sections"
+        className="mt-6 flex gap-1 overflow-x-auto rounded-xl border app-border bg-[var(--app-panel)] p-1"
+      >
+        {([
+          ["Overview", "#overview"],
+          ["Trades", "#trades"],
+          ["Equity", "#equity"],
+          ["Pair breakdown", "#pairs"],
+          ["Notes", "#notes"],
+        ] as const).map(([label, href]) => (
+          <Link
+            key={href}
+            href={href}
+            className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
 
       {results.hasAmbiguousTrades && (
         <div
@@ -83,12 +103,12 @@ export default async function ResultsPage({
         </div>
       )}
 
-      <section className="mt-8" aria-label="Summary statistics">
+      <section id="overview" className="mt-8 scroll-mt-20" aria-label="Summary statistics">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide app-muted">Summary</h2>
         <StatsGrid stats={stats} />
       </section>
 
-      <section className="mt-8 panel p-5" aria-label="Equity curve">
+      <section id="equity" className="mt-8 scroll-mt-20 panel p-5" aria-label="Equity curve">
         <h2 className="mb-3 text-sm font-semibold">Equity curve</h2>
         <EquityCurve points={state.equityCurve} />
         <p className="mt-2 font-mono text-xs app-muted">
@@ -97,12 +117,44 @@ export default async function ResultsPage({
         </p>
       </section>
 
-      <section className="mt-8 panel overflow-hidden" aria-label="Trade history">
+      <section id="trades" className="mt-8 scroll-mt-20 panel overflow-hidden" aria-label="Trade history">
         <h2 className="border-b app-border px-4 py-3 text-sm font-semibold">Trade history</h2>
         <TradesTable trades={state.closedTrades} />
       </section>
 
-      <section className="mt-8 panel p-5" aria-label="Session details">
+      <section id="pairs" className="mt-8 scroll-mt-20 panel p-5" aria-label="Pair breakdown">
+        <h2 className="text-sm font-semibold">Pair breakdown</h2>
+        <p className="mt-1 text-xs app-muted">
+          Execution results currently belong to the primary pair. Other selected
+          pairs are synchronized reference charts.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {results.symbols.map((symbol) => {
+            const primary = symbol === results.symbol;
+            return (
+              <article key={symbol} className="rounded-xl border app-border bg-[var(--app-panel-2)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <strong className="font-mono">{symbol.slice(0, 3)}/{symbol.slice(3)}</strong>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                    primary
+                      ? "bg-brand-400/10 text-brand-300"
+                      : "bg-white/5 app-muted"
+                  }`}>
+                    {primary ? "Execution pair" : "Reference pair"}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm app-muted">
+                  {primary
+                    ? `${state.closedTrades.length} closed trade${state.closedTrades.length === 1 ? "" : "s"}`
+                    : "No independent executions recorded"}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section id="notes" className="mt-8 scroll-mt-20 panel p-5" aria-label="Session details">
         <h2 className="mb-3 text-sm font-semibold">Session details</h2>
         <dl className="grid grid-cols-2 gap-3 font-mono text-xs sm:grid-cols-4">
           <div><dt className="app-muted">Starting balance</dt><dd>${state.config.startingBalance}</dd></div>

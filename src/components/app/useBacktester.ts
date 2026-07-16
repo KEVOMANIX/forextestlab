@@ -5,9 +5,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   SPEED_INTERVAL_MS,
   createSession,
+  getPairChart,
   getStateWithToken,
   sendAction,
   type CreateSessionBody,
+  type PairChartData,
 } from "@/lib/backtest/client";
 import type { OrderRequest, PublicSessionState, ReplaySpeed } from "@/lib/backtest/types";
 import type { Candle } from "@/lib/market-data/types";
@@ -24,6 +26,11 @@ interface BacktesterState {
   error: string | null;
   notice: string | null;
   notes: string;
+  activeSymbol: string | null;
+  pairChart: PairChartData | null;
+  pairLoading: boolean;
+  saveStatus: "saved" | "saving" | "error";
+  savedAt: number | null;
   /** Bumped on start/restart so the chart remounts with fresh data. */
   resetNonce: number;
 }
@@ -38,6 +45,11 @@ const initial: BacktesterState = {
   error: null,
   notice: null,
   notes: "",
+  activeSymbol: null,
+  pairChart: null,
+  pairLoading: false,
+  saveStatus: "saved",
+  savedAt: null,
   resetNonce: 0,
 };
 
@@ -54,6 +66,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const autoStepPendingRef = useRef(false);
   const wantsReplayRunningRef = useRef(false);
   const stepRef = useRef<() => Promise<void>>(async () => {});
+  const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
 
   const patch = useCallback((p: Partial<BacktesterState>) => {
     setS((prev) => ({ ...prev, ...p }));
@@ -105,6 +118,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
         error: null,
         notice: `Session resumed: ${res.state.config.name || res.state.config.symbol}.`,
         notes: res.notes,
+        activeSymbol: res.state.config.symbol,
+        pairChart: null,
+        pairLoading: false,
+        saveStatus: "saved",
+        savedAt: Date.now(),
         resetNonce: prev.resetNonce + 1,
       }));
     };
@@ -150,6 +168,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
           ? "This session uses generated demonstration data and does not represent an actual market feed."
           : null,
         notes: "",
+        activeSymbol: res.state.config.symbol,
+        pairChart: null,
+        pairLoading: false,
+        saveStatus: "saved",
+        savedAt: Date.now(),
         resetNonce: prev.resetNonce + 1,
       }));
     },
@@ -172,11 +195,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
       // queued behind it, so a slow candle request never makes controls flicker.
       if (background && autoStepPendingRef.current) return;
       if (showBusy && interactiveBusyRef.current) return;
+      lastActionRef.current = action;
 
       if (background) autoStepPendingRef.current = true;
       if (showBusy) {
         interactiveBusyRef.current = true;
-        patch({ busy: true, error: null });
+        patch({ busy: true, error: null, saveStatus: "saving" });
+      } else {
+        patch({ saveStatus: "saving" });
       }
 
       const task = actionQueueRef.current.then(async () => {
@@ -190,8 +216,20 @@ export function useBacktester(resumeSessionId: string | null = null) {
             ...prev,
             error: res.error,
             state: res.state ?? prev.state,
+            saveStatus: "error",
           }));
           return;
+        }
+
+        const activeSymbol = s.activeSymbol;
+        let refreshedPair: PairChartData | null = null;
+        if (
+          activeSymbol &&
+          activeSymbol !== res.state.config.symbol &&
+          action.type === "next"
+        ) {
+          const pair = await getPairChart(id, token, activeSymbol);
+          if (pair.ok) refreshedPair = pair;
         }
 
         setS((prev) => {
@@ -212,13 +250,19 @@ export function useBacktester(resumeSessionId: string | null = null) {
               opts.captureCandle && res.newCandle
                 ? res.newCandle
                 : prev.lastCandle,
+            pairChart: refreshedPair ?? prev.pairChart,
+            saveStatus: "saved",
+            savedAt: Date.now(),
           };
         });
       });
 
       actionQueueRef.current = task
         .catch(() => {
-          patch({ error: "The replay request failed. Please try again." });
+          patch({
+            error: "The replay request failed. Please try again.",
+            saveStatus: "error",
+          });
         })
         .finally(() => {
           if (background) autoStepPendingRef.current = false;
@@ -230,7 +274,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
       await actionQueueRef.current;
     },
-    [patch],
+    [patch, s.activeSymbol],
   );
 
   // Keep a stable reference to the latest "next" stepper for the interval loop.
@@ -299,6 +343,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lastCandle: data.candles[data.candles.length - 1] ?? null,
         resetNonce: prev.resetNonce + 1,
         notes: data.notes,
+        activeSymbol: data.state.config.symbol,
+        pairChart: null,
+        saveStatus: "saved",
+        savedAt: Date.now(),
       }));
     }
   }, [runAction, s.sessionId]);
@@ -347,6 +395,35 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [runAction],
   );
+  const switchPair = useCallback(
+    async (symbol: string) => {
+      const id = sessionIdRef.current;
+      const state = s.state;
+      if (!id || !state) return;
+      if (symbol === state.config.symbol) {
+        patch({
+          activeSymbol: symbol,
+          pairChart: null,
+          pairLoading: false,
+          error: null,
+        });
+        return;
+      }
+      patch({ pairLoading: true, error: null });
+      const pair = await getPairChart(id, tokenRef.current, symbol);
+      if (!pair.ok) {
+        patch({ pairLoading: false, error: pair.error });
+        return;
+      }
+      patch({ activeSymbol: symbol, pairChart: pair, pairLoading: false });
+    },
+    [patch, s.state],
+  );
+  const retrySave = useCallback(() => {
+    const action = lastActionRef.current;
+    if (!action) return Promise.resolve();
+    return runAction(action);
+  }, [runAction]);
   const newSession = useCallback(() => {
     tokenRef.current = null;
     sessionIdRef.current = null;
@@ -374,6 +451,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
       modifyStop,
       modifyTarget,
       saveNotes,
+      switchPair,
+      retrySave,
       newSession,
     },
   };

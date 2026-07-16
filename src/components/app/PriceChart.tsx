@@ -58,6 +58,7 @@ interface PriceChartProps {
   onTakeProfitChange: (price: string | null) => void;
   loading?: boolean;
   error?: string | null;
+  storageKey?: string;
 }
 
 interface Palette {
@@ -151,6 +152,7 @@ export default function PriceChart({
   onTakeProfitChange,
   loading = false,
   error = null,
+  storageKey,
 }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -161,6 +163,7 @@ export default function PriceChart({
   const rawCandlesRef = useRef<Candle[]>(initialCandles);
   const displayTimeframeRef = useRef<Timeframe>(baseTimeframe);
   const draggingRef = useRef<"stop" | "target" | null>(null);
+  const savedRangeRef = useRef<{ from: number; to: number } | null>(null);
   const [legend, setLegend] = useState<CandlestickData<Time> | null>(null);
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(baseTimeframe);
   const [gridVisible, setGridVisible] = useState(true);
@@ -245,13 +248,51 @@ export default function PriceChart({
     chartRef.current = chart;
     refreshSeries();
     chart.timeScale().fitContent();
+    if (storageKey) {
+      try {
+        const saved = JSON.parse(
+          window.localStorage.getItem(`forextestlab:chart:${storageKey}`) ?? "{}",
+        ) as {
+          range?: { from: number; to: number };
+          timeframe?: Timeframe;
+          grid?: boolean;
+          magnet?: boolean;
+        };
+        if (saved.timeframe && availableTimeframes.includes(saved.timeframe)) {
+          setDisplayTimeframe(saved.timeframe);
+        }
+        if (typeof saved.grid === "boolean") setGridVisible(saved.grid);
+        if (typeof saved.magnet === "boolean") setMagnetCrosshair(saved.magnet);
+        if (saved.range) {
+          savedRangeRef.current = saved.range;
+          chart.timeScale().setVisibleLogicalRange(saved.range);
+        }
+      } catch {
+        // Ignore malformed local chart preferences.
+      }
+    }
 
     chart.subscribeCrosshairMove((param) => {
       const data = param.seriesData.get(series) as CandlestickData<Time> | undefined;
       setLegend(data ?? null);
     });
 
-    const coordinateUpdate = () => updateLineCoordinates();
+    const coordinateUpdate = () => {
+      updateLineCoordinates();
+      if (!storageKey) return;
+      const range = chart.timeScale().getVisibleLogicalRange();
+      try {
+        const existing = JSON.parse(
+          window.localStorage.getItem(`forextestlab:chart:${storageKey}`) ?? "{}",
+        ) as Record<string, unknown>;
+        window.localStorage.setItem(
+          `forextestlab:chart:${storageKey}`,
+          JSON.stringify({ ...existing, range }),
+        );
+      } catch {
+        // Local persistence is a convenience; chart interaction must still work.
+      }
+    };
     chart.timeScale().subscribeVisibleLogicalRangeChange(coordinateUpdate);
     const observer = new ResizeObserver(coordinateUpdate);
     observer.observe(container);
@@ -306,9 +347,35 @@ export default function PriceChart({
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;
     refreshSeries();
-    chartRef.current?.timeScale().fitContent();
+    const scale = chartRef.current?.timeScale();
+    if (savedRangeRef.current) {
+      scale?.setVisibleLogicalRange(savedRangeRef.current);
+      savedRangeRef.current = null;
+    } else {
+      scale?.fitContent();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayTimeframe]);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const existing = JSON.parse(
+        window.localStorage.getItem(`forextestlab:chart:${storageKey}`) ?? "{}",
+      ) as Record<string, unknown>;
+      window.localStorage.setItem(
+        `forextestlab:chart:${storageKey}`,
+        JSON.stringify({
+          ...existing,
+          timeframe: displayTimeframe,
+          grid: gridVisible,
+          magnet: magnetCrosshair,
+        }),
+      );
+    } catch {
+      // Ignore local storage failures.
+    }
+  }, [displayTimeframe, gridVisible, magnetCrosshair, storageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;

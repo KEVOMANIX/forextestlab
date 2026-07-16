@@ -25,6 +25,7 @@ import {
 import { useAppTheme } from "./ThemeContext";
 import { useBacktester } from "./useBacktester";
 import { BackLink } from "./BackLink";
+import { TradingOnboarding } from "./TradingOnboarding";
 
 const PriceChart = dynamic(() => import("./PriceChart"), {
   ssr: false,
@@ -46,6 +47,20 @@ export function Backtester({
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
   const [dockOpen, setDockOpen] = useState(true);
+  const hasMeaningfulActivity = Boolean(
+    state?.openPosition || state?.closedTrades.length,
+  );
+
+  useEffect(() => {
+    if (bt.phase !== "active") return;
+    const handler = (event: BeforeUnloadEvent) => {
+      if (!state?.openPosition && !bt.busy) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [bt.phase, bt.busy, state?.openPosition]);
 
   useEffect(() => {
     if (bt.phase !== "active") return;
@@ -152,6 +167,9 @@ export function Backtester({
     else setPlannedTarget(price);
   };
   const closePosition = () => {
+    if (!window.confirm("Close this position at the current simulated price?")) {
+      return;
+    }
     setPlannedStop(null);
     setPlannedTarget(null);
     void actions.closePosition();
@@ -179,6 +197,59 @@ export function Backtester({
   const currentTime = state.currentTime
     ? new Date(state.currentTime).toISOString().slice(0, 16).replace("T", " ")
     : "—";
+  const activeSymbol = bt.activeSymbol ?? state.config.symbol;
+  const referencePair =
+    activeSymbol === state.config.symbol ? null : activeSymbol;
+  const chartCandles = referencePair
+    ? bt.pairChart?.candles ?? []
+    : bt.initialCandles;
+  const chartLastCandle = referencePair ? null : bt.lastCandle;
+  const chartCurrentCandle = referencePair
+    ? chartCandles[chartCandles.length - 1] ?? null
+    : null;
+  const chartPipSize = referencePair
+    ? Number(bt.pairChart?.pipSize ?? state.config.pipSize)
+    : Number(state.config.pipSize);
+  const chartPrecision = referencePair
+    ? bt.pairChart?.pricePrecision ?? state.config.pricePrecision
+    : state.config.pricePrecision;
+  const confirmNavigation = () =>
+    !hasMeaningfulActivity ||
+    window.confirm(
+      "Leave this chart? Your session is saved, but any open position will remain open.",
+    );
+  const newSession = () => {
+    if (
+      hasMeaningfulActivity &&
+      !window.confirm(
+        "Start a new session? Your current session will stay saved and can be resumed.",
+      )
+    ) {
+      return;
+    }
+    actions.newSession();
+  };
+  const restart = () => {
+    if (
+      hasMeaningfulActivity &&
+      !window.confirm(
+        "Restart this session? All simulated trades and progress in it will be cleared.",
+      )
+    ) {
+      return;
+    }
+    void actions.restart();
+  };
+  const endSession = () => {
+    if (
+      !window.confirm(
+        "Finish this session now? Open positions will close at the current simulated price.",
+      )
+    ) {
+      return;
+    }
+    void actions.endSession();
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[var(--app-bg)]">
@@ -187,12 +258,18 @@ export function Backtester({
           position ? `Open ${position.direction} position.` : "No open position."
         }`}
       </p>
+      <TradingOnboarding />
 
       <TerminalTopBar
         state={state}
         theme={theme}
         onToggleTheme={toggle}
-        onNewSession={actions.newSession}
+        onNewSession={newSession}
+        activeSymbol={activeSymbol}
+        onSwitchPair={actions.switchPair}
+        saveStatus={bt.saveStatus}
+        onNavigate={confirmNavigation}
+        onRetrySave={actions.retrySave}
       />
 
       {bt.error && (
@@ -217,6 +294,7 @@ export function Backtester({
           takeProfit={chartTarget}
           onPlaceOrder={actions.placeOrder}
           onClose={closePosition}
+          referencePair={referencePair}
         />
       </section>
 
@@ -231,21 +309,31 @@ export function Backtester({
 
         <div className="relative min-w-0 flex-1 overflow-hidden">
           <PriceChart
-            key={`${state.sessionId}-${bt.resetNonce}`}
-            initialCandles={bt.initialCandles}
-            lastCandle={bt.lastCandle}
-            markers={markers}
-            entryPrice={position ? Number(position.entryPrice) : null}
-            stopLoss={chartStop ? Number(chartStop) : null}
-            takeProfit={chartTarget ? Number(chartTarget) : null}
-            positionDirection={position?.direction ?? null}
-            currentPrice={state.currentPrice ? Number(state.currentPrice) : null}
+            key={`${state.sessionId}-${activeSymbol}-${bt.resetNonce}`}
+            initialCandles={chartCandles}
+            lastCandle={chartLastCandle}
+            markers={referencePair ? [] : markers}
+            entryPrice={!referencePair && position ? Number(position.entryPrice) : null}
+            stopLoss={!referencePair && chartStop ? Number(chartStop) : null}
+            takeProfit={!referencePair && chartTarget ? Number(chartTarget) : null}
+            positionDirection={!referencePair ? position?.direction ?? null : null}
+            currentPrice={
+              referencePair
+                ? chartCurrentCandle
+                  ? Number(chartCurrentCandle.close)
+                  : null
+                : state.currentPrice
+                  ? Number(state.currentPrice)
+                  : null
+            }
             baseTimeframe={state.config.timeframe}
-            pipSize={Number(state.config.pipSize)}
-            onStopLossChange={changeStop}
-            onTakeProfitChange={changeTarget}
-            precision={state.config.pricePrecision}
+            pipSize={chartPipSize}
+            onStopLossChange={referencePair ? () => {} : changeStop}
+            onTakeProfitChange={referencePair ? () => {} : changeTarget}
+            precision={chartPrecision}
             theme={theme}
+            loading={bt.pairLoading}
+            storageKey={`${state.sessionId}:${activeSymbol}`}
           />
           <ReplayToolbar
             state={state}
@@ -254,13 +342,17 @@ export function Backtester({
             onPause={actions.pause}
             onNext={actions.stepNext}
             onPrev={actions.stepPrev}
-            onRestart={actions.restart}
-            onEnd={actions.endSession}
+            onRestart={restart}
+            onEnd={endSession}
             onSpeed={actions.setSpeed}
           />
         </div>
 
-        <TerminalRightRail state={state} onNewSession={actions.newSession} />
+        <TerminalRightRail
+          state={state}
+          onNewSession={newSession}
+          onNavigate={confirmNavigation}
+        />
       </div>
 
       <div className="flex h-8 shrink-0 items-center gap-3 overflow-x-auto border-t app-border bg-[var(--app-panel)] px-2 text-[11px]">

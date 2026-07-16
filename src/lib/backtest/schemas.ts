@@ -25,6 +25,7 @@ export const timeframeSchema = z.enum(
 export const createSessionSchema = z
   .object({
     name: z.string().trim().min(2).max(80),
+    tags: z.array(z.string().trim().min(1).max(24)).max(8).optional(),
     symbols: z
       .array(
         z
@@ -51,6 +52,12 @@ export const createSessionSchema = z
   });
 
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
+
+export const sessionMetadataSchema = z.object({
+  archived: z.boolean().optional(),
+  name: z.string().trim().min(2).max(80).optional(),
+  tags: z.array(z.string().trim().min(1).max(24)).max(8).optional(),
+});
 
 const nullablePrice = z.union([positiveNumericString, z.null()]);
 

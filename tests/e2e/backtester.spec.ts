@@ -10,6 +10,8 @@ async function startSession(page: Page) {
   // Wait for the setup form and its prefilled symbol/dates.
   await expect(page.getByRole("heading", { name: /Start a backtest session/i })).toBeVisible();
   await page.getByLabel("Session name").fill("E2E strategy session");
+  await page.getByRole("button", { name: /Continue/i }).click();
+  await page.getByRole("button", { name: /Continue/i }).click();
 
   // (5) Assert future candles are NOT sent on session creation.
   const createResponse = page.waitForResponse(
@@ -23,6 +25,8 @@ async function startSession(page: Page) {
   // Only the initial visible window is returned, never the full series.
   expect(body.candles.length).toBeLessThanOrEqual(60);
   expect(body.candles.length).toBeLessThan(body.state.totalCandles);
+  const closeTour = page.getByRole("button", { name: /Close trading tour/i });
+  if (await closeTour.isVisible()) await closeTour.click();
 }
 
 test("completes a full public backtest workflow without login", async ({ page }, testInfo) => {
@@ -87,6 +91,7 @@ test("completes a full public backtest workflow without login", async ({ page },
   ]);
 
   // (9) close the position manually
+  page.once("dialog", (dialog) => dialog.accept());
   await Promise.all([
     page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
     page.getByRole("button", { name: /Close position/i }).click(),

@@ -46,6 +46,7 @@ function cacheCandles(id: string, candles: Candle[]): void {
 
 export interface CreateSessionParams {
   name: string;
+  tags?: string[];
   symbols: string[];
   symbol: string;
   timeframe: Timeframe;
@@ -110,6 +111,47 @@ export function visibleCandles(ctx: EngineContext): Candle[] {
   return ctx.candles.slice(0, ctx.state.visibleIndex + 1);
 }
 
+export async function visiblePairCandles(
+  session: LoadedSession,
+  symbol: string,
+): Promise<{
+  candles: Candle[];
+  pipSize: string;
+  pricePrecision: number;
+}> {
+  const allowed = session.ctx.state.config.symbols?.length
+    ? session.ctx.state.config.symbols
+    : [session.ctx.state.config.symbol];
+  if (!allowed.includes(symbol)) {
+    throw new Error("This pair is not part of the session.");
+  }
+  const definition = getSymbolDefinition(symbol);
+  if (!definition) throw new Error("Unknown currency pair.");
+
+  if (symbol === session.ctx.state.config.symbol) {
+    return {
+      candles: visibleCandles(session.ctx),
+      pipSize: definition.pipSize,
+      pricePrecision: definition.pricePrecision,
+    };
+  }
+
+  const current = currentCandleOf(session.ctx)?.timestamp;
+  const series = await fetchSeries(
+    symbol,
+    session.ctx.state.config.timeframe,
+    session.ctx.state.config.startTime,
+    session.ctx.state.config.endTime,
+  );
+  return {
+    candles: current
+      ? series.filter((candle) => candle.timestamp <= current)
+      : series.slice(0, session.ctx.state.config.initialVisibleCount),
+    pipSize: definition.pipSize,
+    pricePrecision: definition.pricePrecision,
+  };
+}
+
 async function fetchSeries(
   symbol: string,
   timeframe: Timeframe,
@@ -167,6 +209,7 @@ export async function createSession(
   const config = buildSessionConfig({
     name: params.name,
     symbols: params.symbols,
+    tags: params.tags,
     symbol: def.symbol,
     baseCurrency: def.baseCurrency,
     quoteCurrency: def.quoteCurrency,

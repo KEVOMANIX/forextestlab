@@ -11,6 +11,9 @@ import {
   Moon,
   MousePointer2,
   RotateCcw,
+  Save,
+  Loader2,
+  CloudOff,
   Sun,
   Target,
   Trash2,
@@ -52,12 +55,25 @@ export function TerminalTopBar({
   theme,
   onToggleTheme,
   onNewSession,
+  activeSymbol,
+  onSwitchPair,
+  saveStatus,
+  onNavigate,
+  onRetrySave,
 }: {
   state: PublicSessionState;
   theme: "dark" | "light";
   onToggleTheme: () => void;
   onNewSession: () => void;
+  activeSymbol: string;
+  onSwitchPair: (symbol: string) => void;
+  saveStatus: "saved" | "saving" | "error";
+  onNavigate: (href: string) => boolean;
+  onRetrySave: () => void;
 }) {
+  const symbols = state.config.symbols?.length
+    ? state.config.symbols
+    : [state.config.symbol];
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b app-border bg-[var(--app-panel)] px-2">
       <div className="hidden shrink-0 sm:block">
@@ -67,6 +83,9 @@ export function TerminalTopBar({
       <Link
         href="/app"
         aria-label="Back to dashboard"
+        onClick={(event) => {
+          if (!onNavigate("/app")) event.preventDefault();
+        }}
         className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-semibold hover:bg-[var(--app-panel-2)] sm:px-2"
       >
         <ArrowLeft size={14} aria-hidden />
@@ -77,14 +96,19 @@ export function TerminalTopBar({
       </Link>
       <span className="h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
       <div className="flex shrink-0 items-center gap-1">
-        <span className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 font-mono text-xs font-bold">
-          {state.config.symbol}
-        </span>
-        {(state.config.symbols?.length ?? 1) > 1 && (
-          <span className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 text-[10px] font-semibold text-brand-300">
-            +{(state.config.symbols?.length ?? 1) - 1} pairs
-          </span>
-        )}
+        <label className="sr-only" htmlFor="terminal-pair">Chart pair</label>
+        <select
+          id="terminal-pair"
+          value={activeSymbol}
+          onChange={(event) => onSwitchPair(event.target.value)}
+          className="h-8 rounded-md border app-border bg-[var(--app-panel-2)] px-2 font-mono text-xs font-bold outline-none"
+        >
+          {symbols.map((symbol) => (
+            <option key={symbol} value={symbol}>
+              {symbol}
+            </option>
+          ))}
+        </select>
         {state.demoData && (
           <span className="rounded-md border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] font-semibold text-amber-300">
             DEMO
@@ -93,9 +117,37 @@ export function TerminalTopBar({
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={saveStatus === "error" ? onRetrySave : undefined}
+          disabled={saveStatus !== "error"}
+          className={`hidden items-center gap-1 text-[10px] sm:inline-flex ${
+            saveStatus === "error" ? "text-bear" : "app-muted"
+          }`}
+          aria-live="polite"
+        >
+          {saveStatus === "saving" ? (
+            <Loader2 size={12} className="animate-spin" aria-hidden />
+          ) : saveStatus === "error" ? (
+            <CloudOff size={12} aria-hidden />
+          ) : (
+            <Save size={12} aria-hidden />
+          )}
+          {saveStatus === "saving"
+            ? "Saving…"
+            : saveStatus === "error"
+              ? "Save failed"
+              : "Saved"}
+          {saveStatus === "error" && " · Retry"}
+        </button>
         {!state.anonymous && (
           <Link
             href={`/app/results/${state.sessionId}`}
+            onClick={(event) => {
+              if (!onNavigate(`/app/results/${state.sessionId}`)) {
+                event.preventDefault();
+              }
+            }}
             className="inline-flex h-8 items-center gap-1.5 rounded-md border app-border px-2.5 text-xs font-semibold hover:border-brand-400/40"
           >
             <BarChart3 size={14} aria-hidden />
@@ -161,9 +213,11 @@ export function TerminalLeftRail({
 export function TerminalRightRail({
   state,
   onNewSession,
+  onNavigate,
 }: {
   state: PublicSessionState;
   onNewSession: () => void;
+  onNavigate: (href: string) => boolean;
 }) {
   return (
     <aside
@@ -172,6 +226,9 @@ export function TerminalRightRail({
     >
       <Link
         href="/app"
+        onClick={(event) => {
+          if (!onNavigate("/app")) event.preventDefault();
+        }}
         aria-label="Dashboard"
         title="Dashboard"
         className="grid h-9 w-9 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
@@ -180,6 +237,9 @@ export function TerminalRightRail({
       </Link>
       <Link
         href="/app/history"
+        onClick={(event) => {
+          if (!onNavigate("/app/history")) event.preventDefault();
+        }}
         aria-label="Session history"
         title="Session history"
         className="grid h-9 w-9 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
@@ -189,6 +249,11 @@ export function TerminalRightRail({
       {!state.anonymous && (
         <Link
           href={`/app/results/${state.sessionId}`}
+          onClick={(event) => {
+            if (!onNavigate(`/app/results/${state.sessionId}`)) {
+              event.preventDefault();
+            }
+          }}
           aria-label="Session analytics"
           title="Session analytics"
           className="grid h-9 w-9 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"

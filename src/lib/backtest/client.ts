@@ -10,6 +10,7 @@ import type { ActionInput } from "./schemas";
 
 export interface CreateSessionBody {
   name: string;
+  tags?: string[];
   symbols: string[];
   startTime: number;
   endTime: number;
@@ -40,6 +41,13 @@ interface ApiErr {
   ok: false;
   error: string;
   state?: PublicSessionState;
+}
+
+export interface PairChartData {
+  symbol: string;
+  candles: Candle[];
+  pipSize: string;
+  pricePrecision: number;
 }
 
 async function parse<T>(res: Response): Promise<T | ApiErr> {
@@ -110,6 +118,23 @@ export async function getStateWithToken(
     headers: token ? { "x-session-token": token } : undefined,
   });
   return parse<StateOk>(res) as Promise<StateOk | ApiErr>;
+}
+
+export async function getPairChart(
+  sessionId: string,
+  token: string | null,
+  symbol: string,
+): Promise<({ ok: true } & PairChartData) | ApiErr> {
+  const res = await fetch(
+    `/api/backtest/sessions/${sessionId}/pair?symbol=${encodeURIComponent(symbol)}`,
+    {
+      cache: "no-store",
+      headers: token ? { "x-session-token": token } : undefined,
+    },
+  );
+  return parse<{ ok: true } & PairChartData>(res) as Promise<
+    ({ ok: true } & PairChartData) | ApiErr
+  >;
 }
 
 export const SPEED_INTERVAL_MS: Record<ReplaySpeed, number> = {

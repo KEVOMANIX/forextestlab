@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Play } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Play } from "lucide-react";
 
 import {
   fetchRanges,
@@ -21,7 +21,9 @@ function toDateInput(ms: number): string {
 }
 
 export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
+  const [step, setStep] = useState(1);
   const [name, setName] = useState("");
+  const [tagsText, setTagsText] = useState("");
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [range, setRange] = useState<{
@@ -47,11 +49,9 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
       setEnd("");
       return;
     }
-
     let cancelled = false;
     setLoadingRange(true);
     setRange(null);
-
     void Promise.all(
       selectedSymbols.map(async (symbol) => {
         const ranges = await fetchRanges(symbol);
@@ -65,7 +65,6 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
         setEnd("");
         return;
       }
-
       const available = ranges as { startTime: number; endTime: number }[];
       const commonRange = {
         startTime: Math.max(...available.map((item) => item.startTime)),
@@ -76,7 +75,6 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
         setEnd("");
         return;
       }
-
       setRange(commonRange);
       const threeDays = 3 * 24 * 60 * 60 * 1000;
       setStart(toDateInput(commonRange.startTime));
@@ -86,7 +84,6 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
         ),
       );
     });
-
     return () => {
       cancelled = true;
     };
@@ -96,6 +93,11 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
     () => symbols.filter((item) => item.enabled),
     [symbols],
   );
+  const tags = tagsText
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean)
+    .slice(0, 8);
   const canStart = Boolean(
     name.trim().length >= 2 &&
       selectedSymbols.length > 0 &&
@@ -116,19 +118,18 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!range) return;
-    const startTime = Math.max(
-      range.startTime,
-      Date.parse(`${start}T00:00:00Z`),
-    );
-    const endTime = Math.min(
-      range.endTime,
-      Date.parse(`${end}T23:59:59.999Z`),
-    );
     onStart({
       name: name.trim(),
+      tags,
       symbols: selectedSymbols,
-      startTime,
-      endTime,
+      startTime: Math.max(
+        range.startTime,
+        Date.parse(`${start}T00:00:00Z`),
+      ),
+      endTime: Math.min(
+        range.endTime,
+        Date.parse(`${end}T23:59:59.999Z`),
+      ),
     });
   }
 
@@ -136,121 +137,200 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
     <form onSubmit={handleSubmit} className="panel mx-auto w-full max-w-2xl p-6 sm:p-7">
       <h2 className="text-xl font-semibold">Start a backtest session</h2>
       <p className="mt-1 text-sm app-muted">
-        Name your session, select one or more pairs, and choose the historical
-        period you want to test.
+        Name your session, select one or more pairs, and confirm the period.
       </p>
 
-      <div className="mt-6 space-y-5">
-        <div>
-          <label htmlFor="setup-name" className="mb-1.5 block text-sm font-medium">
-            Session name
-          </label>
-          <input
-            id="setup-name"
-            className="app-input w-full"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="e.g. London breakout strategy"
-            minLength={2}
-            maxLength={80}
-            required
-            autoFocus
-          />
-        </div>
+      <ol className="mt-5 grid grid-cols-3 gap-2" aria-label="Session setup progress">
+        {["Name", "Pairs", "Dates"].map((label, index) => {
+          const number = index + 1;
+          return (
+            <li
+              key={label}
+              className={`rounded-lg border px-2 py-2 text-center text-xs font-semibold ${
+                step === number
+                  ? "border-brand-400/50 bg-brand-400/10 text-brand-300"
+                  : number < step
+                    ? "border-brand-400/20 text-brand-300"
+                    : "app-border app-muted"
+              }`}
+            >
+              {number}. {label}
+            </li>
+          );
+        })}
+      </ol>
 
-        <fieldset>
-          <legend className="text-sm font-medium">Currency pairs</legend>
-          <p className="mt-1 text-xs app-muted">
-            Select all pairs included in this session. The first selected pair
-            opens first in the replay workspace.
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-            {enabledSymbols.map((item) => {
-              const selected = selectedSymbols.includes(item.symbol);
-              return (
-                <label
-                  key={item.symbol}
-                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
-                    selected
-                      ? "border-brand-400/50 bg-brand-400/10 text-brand-300"
-                      : "app-border bg-[var(--app-panel-2)] hover:border-brand-400/30"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 shrink-0 cursor-pointer accent-emerald-400"
-                    checked={selected}
-                    onChange={() => toggleSymbol(item.symbol)}
-                  />
-                  <span className="font-mono font-semibold">{item.displayName}</span>
+      <div className="mt-6 min-h-72">
+        {step === 1 && (
+          <div>
+            <label htmlFor="setup-name" className="mb-1.5 block text-sm font-medium">
+              Session name
+            </label>
+            <input
+              id="setup-name"
+              className="app-input w-full"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. London breakout strategy"
+              minLength={2}
+              maxLength={80}
+              required
+              autoFocus
+            />
+            <label htmlFor="setup-tags" className="mb-1.5 mt-5 block text-sm font-medium">
+              Strategy tags <span className="font-normal app-muted">(optional)</span>
+            </label>
+            <input
+              id="setup-tags"
+              className="app-input w-full"
+              value={tagsText}
+              onChange={(event) => setTagsText(event.target.value)}
+              placeholder="breakout, London, trend"
+            />
+            <p className="mt-2 text-xs app-muted">
+              Separate tags with commas so related tests are easy to find later.
+            </p>
+          </div>
+        )}
+
+        {step === 2 && (
+          <fieldset>
+            <legend className="text-sm font-medium">Currency pairs</legend>
+            <p className="mt-1 text-xs app-muted">
+              Pair charts stay synchronized to the same replay timestamp. The
+              first selected pair is the execution pair.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+              {enabledSymbols.map((item) => {
+                const selected = selectedSymbols.includes(item.symbol);
+                return (
+                  <label
+                    key={item.symbol}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
+                      selected
+                        ? "border-brand-400/50 bg-brand-400/10 text-brand-300"
+                        : "app-border bg-[var(--app-panel-2)] hover:border-brand-400/30"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 shrink-0 cursor-pointer accent-emerald-400"
+                      checked={selected}
+                      onChange={() => toggleSymbol(item.symbol)}
+                    />
+                    <span className="font-mono font-semibold">{item.displayName}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="setup-start" className="mb-1.5 block text-sm font-medium">
+                  Start date
                 </label>
-              );
-            })}
+                <input
+                  id="setup-start"
+                  type="date"
+                  className="app-input w-full"
+                  value={start}
+                  min={range ? toDateInput(range.startTime) : undefined}
+                  max={range ? toDateInput(range.endTime) : undefined}
+                  onChange={(event) => setStart(event.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="setup-end" className="mb-1.5 block text-sm font-medium">
+                  End date
+                </label>
+                <input
+                  id="setup-end"
+                  type="date"
+                  className="app-input w-full"
+                  value={end}
+                  min={start || (range ? toDateInput(range.startTime) : undefined)}
+                  max={range ? toDateInput(range.endTime) : undefined}
+                  onChange={(event) => setEnd(event.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <p className="text-xs app-muted" aria-live="polite">
+              {loadingRange
+                ? "Checking the common data range for the selected pairs…"
+                : range
+                  ? `Available dates: ${toDateInput(range.startTime)} to ${toDateInput(range.endTime)} UTC`
+                  : "Select at least one pair with available historical data."}
+            </p>
+            <div className="rounded-xl border app-border bg-[var(--app-panel-2)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] app-muted">
+                Session summary
+              </p>
+              <p className="mt-2 font-semibold">{name}</p>
+              <p className="mt-1 text-sm app-muted">
+                {selectedSymbols
+                  .map((symbol) => `${symbol.slice(0, 3)}/${symbol.slice(3)}`)
+                  .join(", ")}
+                {start && end ? ` · ${start} to ${end}` : ""}
+              </p>
+              {tags.length > 0 && (
+                <p className="mt-2 text-xs text-brand-300">{tags.join(" · ")}</p>
+              )}
+              <p className="mt-3 text-xs text-amber-300">
+                Pairs without imported market data use clearly labelled demonstration data.
+              </p>
+            </div>
           </div>
-        </fieldset>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="setup-start" className="mb-1.5 block text-sm font-medium">
-              Start date
-            </label>
-            <input
-              id="setup-start"
-              type="date"
-              className="app-input w-full"
-              value={start}
-              min={range ? toDateInput(range.startTime) : undefined}
-              max={range ? toDateInput(range.endTime) : undefined}
-              onChange={(event) => setStart(event.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="setup-end" className="mb-1.5 block text-sm font-medium">
-              End date
-            </label>
-            <input
-              id="setup-end"
-              type="date"
-              className="app-input w-full"
-              value={end}
-              min={start || (range ? toDateInput(range.startTime) : undefined)}
-              max={range ? toDateInput(range.endTime) : undefined}
-              onChange={(event) => setEnd(event.target.value)}
-              required
-            />
-          </div>
-        </div>
-
-        <p className="text-xs app-muted" aria-live="polite">
-          {loadingRange
-            ? "Checking the common data range for the selected pairs…"
-            : range
-              ? `Available dates: ${toDateInput(range.startTime)} to ${toDateInput(range.endTime)} UTC`
-              : "Select at least one pair with available historical data."}
-        </p>
+        )}
       </div>
 
       {error && (
-        <p
-          role="alert"
-          className="mt-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear"
-        >
+        <p role="alert" className="mt-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
           {error}
         </p>
       )}
 
-      <button type="submit" className="btn-primary mt-6 w-full" disabled={!canStart}>
-        {busy ? (
-          <>
-            <Loader2 size={16} className="animate-spin" aria-hidden /> Creating…
-          </>
-        ) : (
-          <>
-            <Play size={16} aria-hidden /> Start session
-          </>
+      <div className="mt-6 flex gap-3">
+        {step > 1 && (
+          <button
+            type="button"
+            className="btn-secondary flex-1"
+            onClick={() => setStep((current) => current - 1)}
+          >
+            <ArrowLeft size={16} aria-hidden /> Back
+          </button>
         )}
-      </button>
+        {step < 3 ? (
+          <button
+            type="button"
+            className="btn-primary flex-1"
+            disabled={
+              (step === 1 && name.trim().length < 2) ||
+              (step === 2 && selectedSymbols.length === 0)
+            }
+            onClick={() => setStep((current) => current + 1)}
+          >
+            Continue <ArrowRight size={16} aria-hidden />
+          </button>
+        ) : (
+          <button type="submit" className="btn-primary flex-1" disabled={!canStart}>
+            {busy ? (
+              <>
+                <Loader2 size={16} className="animate-spin" aria-hidden /> Creating…
+              </>
+            ) : (
+              <>
+                <Play size={16} aria-hidden /> Start session
+              </>
+            )}
+          </button>
+        )}
+      </div>
     </form>
   );
 }

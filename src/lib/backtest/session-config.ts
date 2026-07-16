@@ -21,6 +21,7 @@ export const INITIAL_VISIBLE_CANDLES = 60;
 export interface BuildConfigInput {
   name?: string;
   symbols?: string[];
+  tags?: string[];
   symbol: string;
   baseCurrency: string;
   quoteCurrency: string;
@@ -41,6 +42,7 @@ export function buildSessionConfig(input: BuildConfigInput): SessionConfig {
   return {
     name: input.name,
     symbols: input.symbols,
+    tags: input.tags,
     symbol: input.symbol,
     baseCurrency: input.baseCurrency,
     quoteCurrency: input.quoteCurrency,

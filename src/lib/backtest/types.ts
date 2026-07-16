@@ -35,6 +35,10 @@ export interface SessionConfig {
   name?: string;
   /** All pairs selected for this session. The first is the initial active chart. */
   symbols?: string[];
+  /** Optional user-defined strategy labels for organization and search. */
+  tags?: string[];
+  /** Archived sessions are hidden from the default recent-session view. */
+  archived?: boolean;
   symbol: string;
   baseCurrency: string;
   quoteCurrency: string;

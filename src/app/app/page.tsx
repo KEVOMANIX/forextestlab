@@ -23,6 +23,7 @@ import type { SessionState } from "@/lib/backtest/types";
 import { prisma } from "@/lib/db";
 import { Decimal } from "@/lib/decimal";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { SessionCardActions } from "@/components/app/SessionCardActions";
 
 export const dynamic = "force-dynamic";
 
@@ -166,7 +167,7 @@ function SignedOutDashboard() {
       </section>
 
       <section className="mt-8">
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">
               Dashboard preview
@@ -196,7 +197,13 @@ function SignedOutDashboard() {
 export default async function AppHome({
   searchParams,
 }: {
-  searchParams?: { performance?: string };
+  searchParams?: {
+    performance?: string;
+    q?: string;
+    status?: string;
+    pair?: string;
+    sort?: string;
+  };
 }) {
   const user = await getCurrentUser();
   if (!user) return <SignedOutDashboard />;
@@ -231,6 +238,66 @@ export default async function AppHome({
       : performanceScope === "active"
         ? "Active sessions"
         : "Completed sessions";
+
+  const query = searchParams?.q?.trim().toLowerCase() ?? "";
+  const statusFilter = ["active", "completed", "archived"].includes(
+    searchParams?.status ?? "",
+  )
+    ? searchParams?.status
+    : "current";
+  const pairFilter = /^[A-Z]{6}$/.test(searchParams?.pair ?? "")
+    ? searchParams?.pair
+    : "";
+  const sort = ["pnl", "name", "oldest"].includes(searchParams?.sort ?? "")
+    ? searchParams?.sort
+    : "recent";
+  const organizedSessions = sessions
+    .filter((session) => {
+      const state = safeState(session.stateJson);
+      const archived = state?.config.archived === true;
+      const name = sessionName(session.stateJson, session.symbol).toLowerCase();
+      const tags = state?.config.tags ?? [];
+      const symbols = state?.config.symbols?.length
+        ? state.config.symbols
+        : [session.symbol];
+      if (
+        query &&
+        !name.includes(query) &&
+        !tags.some((tag) => tag.toLowerCase().includes(query))
+      ) {
+        return false;
+      }
+      if (pairFilter && !symbols.includes(pairFilter)) return false;
+      if (statusFilter === "archived") return archived;
+      if (archived) return false;
+      if (statusFilter === "active") return session.status !== "finished";
+      if (statusFilter === "completed") return session.status === "finished";
+      return true;
+    })
+    .sort((a, b) => {
+      if (sort === "pnl") {
+        const aNet = new Decimal(a.balance).minus(a.startingBalance);
+        const bNet = new Decimal(b.balance).minus(b.startingBalance);
+        return bNet.comparedTo(aNet);
+      }
+      if (sort === "name") {
+        return sessionName(a.stateJson, a.symbol).localeCompare(
+          sessionName(b.stateJson, b.symbol),
+        );
+      }
+      if (sort === "oldest") return a.createdAt.getTime() - b.createdAt.getTime();
+      return b.updatedAt.getTime() - a.updatedAt.getTime();
+    });
+  const availablePairs = Array.from(
+    new Set(
+      sessions.flatMap((session) => {
+        const state = safeState(session.stateJson);
+        return state?.config.symbols?.length
+          ? state.config.symbols
+          : [session.symbol];
+      }),
+    ),
+  ).sort();
 
   const chronological = [...performanceSessions].reverse();
   const totalNet = performanceSessions.reduce(
@@ -399,7 +466,19 @@ export default async function AppHome({
         </div>
       </section>
 
-      <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Account summary">
+      {performanceSessions.length === 0 && (
+        <section className="panel mt-5 px-6 py-10 text-center">
+          <Activity size={28} className="mx-auto text-brand-300" aria-hidden />
+          <h2 className="mt-4 text-lg font-semibold">No performance data in this view</h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm app-muted">
+            {performanceScope === "completed"
+              ? "Finish a session to include it in your default performance results, or switch to Active or All."
+              : "Choose another performance view or start a new backtest session."}
+          </p>
+        </section>
+      )}
+
+      <section className={`${performanceSessions.length === 0 ? "hidden" : "grid"} mt-8 gap-3 sm:grid-cols-2 xl:grid-cols-4`} aria-label="Account summary">
         {summaryCards.map(({ label, value, detail, icon: Icon, tone }) => (
           <article key={label} className="panel relative overflow-hidden p-5">
             <div
@@ -420,7 +499,7 @@ export default async function AppHome({
         ))}
       </section>
 
-      <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
+      <section className={`${performanceSessions.length === 0 ? "hidden" : "grid"} mt-4 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]`}>
         <article className="panel p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -521,6 +600,57 @@ export default async function AppHome({
           )}
         </div>
 
+        {sessions.length > 0 && (
+          <form
+            action="/app"
+            method="get"
+            className="panel mt-4 grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_160px_160px_auto]"
+          >
+            {searchParams?.performance && (
+              <input type="hidden" name="performance" value={searchParams.performance} />
+            )}
+            <label>
+              <span className="sr-only">Search sessions</span>
+              <input
+                name="q"
+                defaultValue={searchParams?.q ?? ""}
+                className="app-input w-full"
+                placeholder="Search name or tag…"
+              />
+            </label>
+            <label>
+              <span className="sr-only">Session status</span>
+              <select name="status" defaultValue={statusFilter} className="app-input w-full">
+                <option value="current">Current sessions</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="archived">Archived</option>
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Currency pair</span>
+              <select name="pair" defaultValue={pairFilter} className="app-input w-full">
+                <option value="">All pairs</option>
+                {availablePairs.map((symbol) => (
+                  <option key={symbol} value={symbol}>
+                    {symbol.slice(0, 3)}/{symbol.slice(3)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Sort sessions</span>
+              <select name="sort" defaultValue={sort} className="app-input w-full">
+                <option value="recent">Recent activity</option>
+                <option value="oldest">Oldest first</option>
+                <option value="pnl">Highest P/L</option>
+                <option value="name">Session name</option>
+              </select>
+            </label>
+            <button type="submit" className="btn-secondary">Apply</button>
+          </form>
+        )}
+
         {sessions.length === 0 ? (
           <div className="panel mt-4 flex flex-col items-center px-6 py-12 text-center">
             <span className="grid h-14 w-14 place-items-center rounded-2xl border border-brand-400/20 bg-brand-400/10 text-brand-300">
@@ -535,9 +665,19 @@ export default async function AppHome({
               Start first backtest <ArrowRight size={16} aria-hidden />
             </Link>
           </div>
+        ) : organizedSessions.length === 0 ? (
+          <div className="panel mt-4 px-6 py-10 text-center">
+            <p className="font-semibold">No sessions match these filters</p>
+            <p className="mt-2 text-sm app-muted">
+              Try clearing the search, changing the pair, or viewing archived sessions.
+            </p>
+            <Link href="/app" className="btn-secondary mt-5">
+              Clear filters
+            </Link>
+          </div>
         ) : (
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {sessions.slice(0, 6).map((session) => {
+            {organizedSessions.slice(0, 12).map((session) => {
               const net = new Decimal(session.balance).minus(session.startingBalance);
               const positive = net.gte(0);
               const sessionState = safeState(session.stateJson);
@@ -547,6 +687,8 @@ export default async function AppHome({
                 sessionState?.config.symbols?.length
                   ? sessionState.config.symbols
                   : [session.symbol];
+              const tags = sessionState?.config.tags ?? [];
+              const archived = sessionState?.config.archived === true;
               return (
                 <article
                   key={session.id}
@@ -585,8 +727,16 @@ export default async function AppHome({
                         {symbol.slice(0, 3)}/{symbol.slice(3)}
                       </span>
                     ))}
+                    {tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-md bg-brand-400/10 px-2 py-1 text-[11px] text-brand-300"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
                   </div>
-                  <div className="mt-5 flex items-end justify-between border-t app-border pt-4">
+                  <div className="mt-5 flex flex-col gap-4 border-t app-border pt-4">
                     <div>
                       <p className="text-xs app-muted">Net P/L</p>
                       <p className={`mt-1 font-mono text-lg font-semibold ${
@@ -595,20 +745,11 @@ export default async function AppHome({
                         {formatMoney(net)}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={`/app/backtest?session=${encodeURIComponent(session.id)}`}
-                        className="btn-secondary px-3 py-2 text-xs"
-                      >
-                        <Play size={14} aria-hidden /> Resume
-                      </Link>
-                      <Link
-                        href={`/app/results/${session.id}`}
-                        className="btn-primary px-3 py-2 text-xs"
-                      >
-                        <BarChart3 size={14} aria-hidden /> Analytics
-                      </Link>
-                    </div>
+                    <SessionCardActions
+                      sessionId={session.id}
+                      status={session.status}
+                      archived={archived}
+                    />
                   </div>
                 </article>
               );

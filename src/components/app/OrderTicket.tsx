@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight, X } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronDown, X } from "lucide-react";
 
 import type { OrderRequest, PublicSessionState, TradeDirection } from "@/lib/backtest/types";
 
@@ -12,6 +12,7 @@ interface OrderTicketProps {
   takeProfit: string | null;
   onPlaceOrder: (order: OrderRequest) => void;
   onClose: () => void;
+  referencePair?: string | null;
 }
 
 export function OrderTicket({
@@ -21,10 +22,12 @@ export function OrderTicket({
   takeProfit,
   onPlaceOrder,
   onClose,
+  referencePair = null,
 }: OrderTicketProps) {
   const [sizingMode, setSizingMode] = useState<"risk-percent" | "fixed-lots">("fixed-lots");
   const [riskPercent, setRiskPercent] = useState("1");
   const [lots, setLots] = useState("0.10");
+  const [mobileDetails, setMobileDetails] = useState(false);
   const hasPosition = state.openPosition !== null;
   const finished = state.status === "finished";
 
@@ -47,6 +50,11 @@ export function OrderTicket({
   return (
     <div className="overflow-x-auto border-b app-border bg-[var(--app-panel)] p-1.5">
       <div className="flex min-w-max items-center gap-2">
+        {referencePair && (
+          <div className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+            Reference chart: {referencePair}. Switch to {state.config.symbol} to place orders.
+          </div>
+        )}
         {hasPosition && state.openPosition ? (
           <>
             <div className={`rounded-lg border px-3 py-2 ${
@@ -85,7 +93,8 @@ export function OrderTicket({
             <button
               type="button"
               onClick={() => submit("long")}
-              disabled={busy || finished || !state.currentPrice}
+              disabled={busy || finished || !state.currentPrice || Boolean(referencePair)}
+              aria-disabled={Boolean(referencePair)}
               className="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-sm font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-40"
             >
               <ArrowUpRight size={17} aria-hidden />
@@ -94,13 +103,22 @@ export function OrderTicket({
             <button
               type="button"
               onClick={() => submit("short")}
-              disabled={busy || finished || !state.currentPrice}
+              disabled={busy || finished || !state.currentPrice || Boolean(referencePair)}
+              aria-disabled={Boolean(referencePair)}
               className="inline-flex h-9 min-w-24 items-center justify-center gap-2 rounded-md bg-bear px-4 text-sm font-bold text-white hover:opacity-90 disabled:opacity-40"
             >
               <ArrowDownRight size={17} aria-hidden />
               Sell
             </button>
-            <div className="flex h-9 items-center rounded-md border app-border p-1">
+            <button
+              type="button"
+              onClick={() => setMobileDetails((open) => !open)}
+              className="inline-flex h-9 items-center gap-1 rounded-md border app-border px-3 text-xs font-semibold sm:hidden"
+              aria-expanded={mobileDetails}
+            >
+              Size <ChevronDown size={13} aria-hidden />
+            </button>
+            <div className={`${mobileDetails ? "flex" : "hidden"} h-9 items-center rounded-md border app-border p-1 sm:flex`}>
               {(["fixed-lots", "risk-percent"] as const).map((mode) => (
                 <button
                   key={mode}
@@ -115,7 +133,7 @@ export function OrderTicket({
                 </button>
               ))}
             </div>
-            <label className="flex h-9 items-center gap-2 rounded-md border app-border bg-[var(--app-panel-2)] px-3">
+            <label className={`${mobileDetails ? "flex" : "hidden"} h-9 items-center gap-2 rounded-md border app-border bg-[var(--app-panel-2)] px-3 sm:flex`}>
               <span className="text-[10px] font-semibold uppercase tracking-wider app-muted">
                 {sizingMode === "fixed-lots" ? "Size" : "Risk"}
               </span>
@@ -132,21 +150,21 @@ export function OrderTicket({
               />
               {sizingMode === "risk-percent" && <span className="text-xs app-muted">%</span>}
             </label>
-            <span className="text-xs app-muted">
+            <span className={`${mobileDetails ? "inline" : "hidden"} text-xs app-muted sm:inline`}>
               {stopLoss ? `SL ${stopLoss}` : "Use chart SL"}
               {takeProfit ? ` · TP ${takeProfit}` : ""}
             </span>
           </>
         )}
-        <div className="rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-2">
+        <div className="hidden rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-2 sm:block">
           <span className="mr-2 text-[10px] font-semibold uppercase tracking-wider app-muted">Balance</span>
           <span className="font-mono text-sm font-semibold">${state.balance}</span>
         </div>
-        <div className="rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-2">
+        <div className="hidden rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-2 sm:block">
           <span className="mr-2 text-[10px] font-semibold uppercase tracking-wider app-muted">Equity</span>
           <span className={`font-mono text-sm font-semibold ${equityTone}`}>${state.equity}</span>
         </div>
-        <div className="rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-2">
+        <div className="hidden rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-2 md:block">
           <span className="mr-2 text-[10px] font-semibold uppercase tracking-wider app-muted">Spread</span>
           <span className="font-mono text-sm font-semibold">{state.config.spreadPips} pips</span>
         </div>

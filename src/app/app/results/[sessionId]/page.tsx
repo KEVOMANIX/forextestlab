@@ -16,6 +16,7 @@ import { TradesTable } from "@/components/app/TradesTable";
 import { getSessionResults } from "@/lib/backtest/results";
 import { requireUser } from "@/lib/auth";
 import { DeleteSessionButton } from "@/components/app/DeleteSessionButton";
+import { BackLink } from "@/components/app/BackLink";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,8 @@ export default async function ResultsPage({
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <BackLink label="Back to sessions" />
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
             Session analytics

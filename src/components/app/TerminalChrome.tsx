@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   BarChart3,
+  ArrowLeft,
   BookOpenText,
   LayoutDashboard,
   LogOut,
@@ -65,12 +66,14 @@ export function TerminalTopBar({
       <span className="hidden h-5 w-px shrink-0 bg-[var(--app-border)] sm:block" aria-hidden />
       <Link
         href="/app"
-        className="shrink-0 rounded-md px-1.5 py-1 text-xs font-semibold hover:bg-[var(--app-panel-2)] sm:px-2"
+        aria-label="Back to dashboard"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-semibold hover:bg-[var(--app-panel-2)] sm:px-2"
       >
+        <ArrowLeft size={14} aria-hidden />
         <span className="hidden max-w-52 truncate sm:inline">
           {state.config.name || "Backtest workspace"}
         </span>
-        <span className="sm:hidden">Workspace</span>
+        <span className="sm:hidden">Back</span>
       </Link>
       <span className="h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
       <div className="flex shrink-0 items-center gap-1">

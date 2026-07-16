@@ -41,6 +41,10 @@ function safeState(value: string): SessionState | null {
   }
 }
 
+function sessionName(stateJson: string, fallbackSymbol: string): string {
+  return safeState(stateJson)?.config.name?.trim() || `${fallbackSymbol} backtest`;
+}
+
 function formatMoney(value: Decimal): string {
   const sign = value.isPositive() ? "+" : value.isNegative() ? "−" : "";
   return `${sign}$${value.abs().toFixed(2)}`;
@@ -189,7 +193,11 @@ function SignedOutDashboard() {
   );
 }
 
-export default async function AppHome() {
+export default async function AppHome({
+  searchParams,
+}: {
+  searchParams?: { performance?: string };
+}) {
   const user = await getCurrentUser();
   if (!user) return <SignedOutDashboard />;
 
@@ -200,13 +208,37 @@ export default async function AppHome() {
     take: 100,
   });
 
-  const chronological = [...sessions].reverse();
-  const totalNet = sessions.reduce(
+  const requestedScope = searchParams?.performance ?? "completed";
+  const selectedSession = sessions.find(
+    (session) => requestedScope === `session:${session.id}`,
+  );
+  const performanceScope = selectedSession
+    ? "individual"
+    : requestedScope === "all" || requestedScope === "active"
+      ? requestedScope
+      : "completed";
+  const performanceSessions = selectedSession
+    ? [selectedSession]
+    : performanceScope === "all"
+      ? sessions
+      : performanceScope === "active"
+        ? sessions.filter((session) => session.status !== "finished")
+        : sessions.filter((session) => session.status === "finished");
+  const scopeLabel = selectedSession
+    ? sessionName(selectedSession.stateJson, selectedSession.symbol)
+    : performanceScope === "all"
+      ? "All saved sessions"
+      : performanceScope === "active"
+        ? "Active sessions"
+        : "Completed sessions";
+
+  const chronological = [...performanceSessions].reverse();
+  const totalNet = performanceSessions.reduce(
     (sum, session) =>
       sum.plus(new Decimal(session.balance).minus(session.startingBalance)),
     new Decimal(0),
   );
-  const states = sessions
+  const states = performanceSessions
     .map((session) => safeState(session.stateJson))
     .filter((state): state is SessionState => state !== null);
   const trades = states.flatMap((state) => state.closedTrades);
@@ -218,7 +250,7 @@ export default async function AppHome() {
     (max, state) => Decimal.max(max, new Decimal(state.maxDrawdown || 0)),
     new Decimal(0),
   );
-  const bestSession = sessions.reduce<(typeof sessions)[number] | null>(
+  const bestSession = performanceSessions.reduce<(typeof sessions)[number] | null>(
     (best, session) => {
       if (!best) return session;
       const currentNet = new Decimal(session.balance).minus(session.startingBalance);
@@ -242,16 +274,16 @@ export default async function AppHome() {
 
   const summaryCards = [
     {
-      label: "Total sessions",
-      value: String(sessions.length),
-      detail: `${completed} completed`,
+      label: "Sessions analyzed",
+      value: String(performanceSessions.length),
+      detail: `${sessions.length} total saved`,
       icon: CalendarDays,
       tone: "text-brand-300",
     },
     {
       label: "Net simulated P/L",
       value: formatMoney(totalNet),
-      detail: sessions.length ? "Across saved sessions" : "No saved results yet",
+      detail: performanceSessions.length ? scopeLabel : `No ${scopeLabel.toLowerCase()}`,
       icon: totalNet.isNegative() ? TrendingDown : TrendingUp,
       tone: totalNet.isNegative() ? "text-bear" : "text-brand-300",
     },
@@ -291,6 +323,82 @@ export default async function AppHome() {
         </Link>
       </header>
 
+      <section
+        className="mt-7 rounded-xl border app-border bg-[var(--app-panel)] p-3"
+        aria-label="Performance scope"
+      >
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
+              Performance view
+            </p>
+            <p className="mt-1 text-sm">
+              Showing metrics for <strong className="text-brand-300">{scopeLabel}</strong>
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel-2)] p-1">
+              {[
+                { label: "Completed", value: "completed" },
+                { label: "All", value: "all" },
+                { label: "Active", value: "active" },
+              ].map((option) => {
+                const active =
+                  !selectedSession && performanceScope === option.value;
+                return (
+                  <Link
+                    key={option.value}
+                    href={
+                      option.value === "completed"
+                        ? "/app"
+                        : `/app?performance=${option.value}`
+                    }
+                    aria-current={active ? "page" : undefined}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      active
+                        ? "bg-brand-500 text-surface-950"
+                        : "app-muted hover:text-brand-300"
+                    }`}
+                  >
+                    {option.label}
+                  </Link>
+                );
+              })}
+            </div>
+            {sessions.length > 0 && (
+              <form action="/app" method="get" className="flex min-w-0 gap-2">
+                <label htmlFor="performance-session" className="sr-only">
+                  Analyze an individual session
+                </label>
+                <select
+                  id="performance-session"
+                  name="performance"
+                  className="app-input min-w-0 flex-1 py-1.5 text-xs sm:w-56"
+                  defaultValue={
+                    selectedSession ? `session:${selectedSession.id}` : ""
+                  }
+                >
+                  <option value="" disabled>
+                    Individual session…
+                  </option>
+                  {sessions.map((session) => (
+                    <option
+                      key={session.id}
+                      value={`session:${session.id}`}
+                    >
+                      {sessionName(session.stateJson, session.symbol)}
+                    </option>
+                  ))}
+                </select>
+                <button type="submit" className="btn-secondary px-3 py-1.5 text-xs">
+                  View
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </section>
+
       <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Account summary">
         {summaryCards.map(({ label, value, detail, icon: Icon, tone }) => (
           <article key={label} className="panel relative overflow-hidden p-5">
@@ -319,7 +427,9 @@ export default async function AppHome() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
                 Performance trend
               </p>
-              <h2 className="mt-2 text-lg font-semibold">Cumulative session P/L</h2>
+              <h2 className="mt-2 text-lg font-semibold">
+                Cumulative P/L · {scopeLabel}
+              </h2>
             </div>
             <div className={`rounded-full px-3 py-1 font-mono text-sm font-semibold ${
               totalNet.isNegative()
@@ -329,7 +439,7 @@ export default async function AppHome() {
               {formatMoney(totalNet)}
             </div>
           </div>
-          {sessions.length ? (
+          {performanceSessions.length ? (
             <PerformanceTrend values={trend} />
           ) : (
             <div className="mt-5 grid min-h-52 place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/40 p-6 text-center">
@@ -372,7 +482,7 @@ export default async function AppHome() {
             </div>
             <div className="flex items-center justify-between border-b app-border pb-4">
               <dt className="flex items-center gap-2 text-sm app-muted">
-                <BookOpenCheck size={16} aria-hidden /> Completion
+                <BookOpenCheck size={16} aria-hidden /> Overall completion
               </dt>
               <dd className="font-mono text-sm font-semibold">
                 {sessions.length ? `${completed}/${sessions.length}` : "—"}
@@ -383,13 +493,13 @@ export default async function AppHome() {
                 <Clock3 size={16} aria-hidden /> Last activity
               </dt>
               <dd className="text-right text-xs font-medium">
-                {sessions[0]
-                  ? sessions[0].updatedAt.toLocaleDateString("en", {
+                {performanceSessions[0]
+                  ? performanceSessions[0].updatedAt.toLocaleDateString("en", {
                       day: "numeric",
                       month: "short",
                       year: "numeric",
                     })
-                  : "No sessions"}
+                  : "No activity in this view"}
               </dd>
             </div>
           </dl>

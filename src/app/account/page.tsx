@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { AccountActions } from "@/components/account/AccountActions";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
+import { BackLink } from "@/components/app/BackLink";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Account", robots: { index: false } };
@@ -13,7 +14,8 @@ export default async function AccountPage() {
 
   return (
     <main id="main" className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="text-2xl font-bold tracking-tight">Account settings</h1>
+      <BackLink />
+      <h1 className="mt-5 text-2xl font-bold tracking-tight">Account settings</h1>
       <div className="panel mt-6 space-y-6 p-6">
         <div>
           <p className="text-xs app-muted">Email</p>

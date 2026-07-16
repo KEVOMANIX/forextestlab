@@ -24,6 +24,7 @@ import {
 } from "./TerminalChrome";
 import { useAppTheme } from "./ThemeContext";
 import { useBacktester } from "./useBacktester";
+import { BackLink } from "./BackLink";
 
 const PriceChart = dynamic(() => import("./PriceChart"), {
   ssr: false,
@@ -122,6 +123,9 @@ export function Backtester({
   if (bt.phase === "setup" || !state) {
     return (
       <div className="mx-auto max-w-[1600px] px-4 py-8">
+        <div className="mx-auto mb-4 max-w-2xl">
+          <BackLink />
+        </div>
         <SessionSetup
           onStart={actions.startSession}
           busy={bt.busy}

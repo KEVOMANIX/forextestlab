@@ -67,7 +67,18 @@ export async function POST(
   let opError: string | undefined;
   let orderProjection: Promise<unknown> | null = null;
 
+  const requestedIndex = "targetIndex" in action ? action.targetIndex : undefined;
+  if (requestedIndex !== undefined) {
+    const target = Math.min(requestedIndex, ctx.state.totalCandles - 1);
+    while (ctx.state.visibleIndex < target && revealNext(ctx)) {
+      // Reproduce every intervening candle so SL/TP and equity remain exact.
+    }
+  }
+
   switch (action.type) {
+    case "sync":
+      if (action.status) setStatus(ctx, action.status);
+      break;
     case "start":
       setStatus(ctx, "running");
       break;

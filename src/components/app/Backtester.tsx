@@ -334,6 +334,9 @@ export function Backtester({
             pipSize={chartPipSize}
             onStopLossChange={referencePair ? () => {} : changeStop}
             onTakeProfitChange={referencePair ? () => {} : changeTarget}
+            onLoadHistory={(timeframe, before) =>
+              actions.loadHistory(activeSymbol, timeframe, before)
+            }
             precision={chartPrecision}
             theme={theme}
             loading={bt.pairLoading}

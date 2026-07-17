@@ -62,14 +62,19 @@ export const sessionMetadataSchema = z.object({
 const nullablePrice = z.union([positiveNumericString, z.null()]);
 
 export const actionSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("sync"),
+    targetIndex: z.number().int().nonnegative(),
+    status: z.enum(["running", "paused"]).optional(),
+  }),
   z.object({ type: z.literal("start") }),
   z.object({ type: z.literal("pause") }),
   z.object({ type: z.literal("resume") }),
   z.object({ type: z.literal("next") }),
   z.object({ type: z.literal("prev") }),
   z.object({ type: z.literal("restart") }),
-  z.object({ type: z.literal("end") }),
-  z.object({ type: z.literal("close") }),
+  z.object({ type: z.literal("end"), targetIndex: z.number().int().nonnegative().optional() }),
+  z.object({ type: z.literal("close"), targetIndex: z.number().int().nonnegative().optional() }),
   z.object({
     type: z.literal("set-speed"),
     speed: z.union([
@@ -83,6 +88,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("place-order"),
+    targetIndex: z.number().int().nonnegative().optional(),
     direction: z.enum(["long", "short"]),
     sizingMode: z.enum(["fixed-lots", "risk-percent"]),
     lots: positiveNumericString.optional(),
@@ -90,8 +96,8 @@ export const actionSchema = z.discriminatedUnion("type", [
     stopLoss: positiveNumericString.optional(),
     takeProfit: positiveNumericString.optional(),
   }),
-  z.object({ type: z.literal("modify-stop"), price: nullablePrice }),
-  z.object({ type: z.literal("modify-target"), price: nullablePrice }),
+  z.object({ type: z.literal("modify-stop"), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
+  z.object({ type: z.literal("modify-target"), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
   z.object({ type: z.literal("notes"), notes: z.string().max(5000) }),
 ]);
 

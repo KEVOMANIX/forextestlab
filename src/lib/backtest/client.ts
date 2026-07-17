@@ -30,6 +30,7 @@ interface CreateOk {
   token: string;
   state: PublicSessionState;
   candles: Candle[];
+  replayCandles: Candle[];
   contextCandles: Candle[];
 }
 interface ActionOk {
@@ -41,6 +42,7 @@ interface StateOk {
   ok: true;
   state: PublicSessionState;
   candles: Candle[];
+  replayCandles: Candle[];
   contextCandles: Candle[];
   notes: string;
 }
@@ -56,6 +58,12 @@ export interface PairChartData {
   contextCandles: Candle[];
   pipSize: string;
   pricePrecision: number;
+}
+
+export interface ChartHistoryPage {
+  candles: Candle[];
+  hasMore: boolean;
+  timeframe: Timeframe;
 }
 
 async function parse<T>(res: Response): Promise<T | ApiErr> {
@@ -142,6 +150,23 @@ export async function getPairChart(
   );
   return parse<{ ok: true } & PairChartData>(res) as Promise<
     ({ ok: true } & PairChartData) | ApiErr
+  >;
+}
+
+export async function getChartHistory(
+  sessionId: string,
+  token: string | null,
+  symbol: string,
+  timeframe: Timeframe,
+  before: number,
+): Promise<({ ok: true } & ChartHistoryPage) | ApiErr> {
+  const query = new URLSearchParams({ symbol, timeframe, before: String(before) });
+  const res = await fetch(`/api/backtest/sessions/${sessionId}/context?${query}`, {
+    cache: "no-store",
+    headers: token ? { "x-session-token": token } : undefined,
+  });
+  return parse<{ ok: true } & ChartHistoryPage>(res) as Promise<
+    ({ ok: true } & ChartHistoryPage) | ApiErr
   >;
 }
 

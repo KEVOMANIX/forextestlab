@@ -1,7 +1,7 @@
 /**
- * Session store — the server-side boundary that owns the full candle series and
- * enforces FUTURE-DATA PROTECTION: the complete series is fetched and held on
- * the server; only candles up to `visibleIndex` are ever exposed to the client.
+ * Session store — the server-side persistence boundary. The bounded replay
+ * window is also sent to the browser so playback is smooth and independent of
+ * request latency; server checkpoints remain authoritative for resume/history.
  *
  * The engine SessionState is persisted as JSON (authoritative for stepping);
  * closed trades and equity points are also mirrored into relational tables for
@@ -15,8 +15,8 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { getMarketDataProvider } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
-import type { Candle, Timeframe } from "@/lib/market-data/types";
-import { createSessionState } from "./replay-engine";
+import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
+import { createSessionState, publicSessionState } from "./replay-engine";
 import { buildSessionConfig } from "./session-config";
 import type {
   EngineContext,
@@ -27,7 +27,7 @@ import { normalizeReplaySpeed } from "./types";
 
 /** Bound the candle count per session so reloads stay fast. */
 const MAX_SESSION_CANDLES = 1500;
-const MAX_CONTEXT_CANDLES = 5000;
+const MAX_CONTEXT_CANDLES = 3000;
 const CONTEXT_LOOKBACK_MS = 183 * 24 * 60 * 60 * 1000;
 
 /**
@@ -94,32 +94,10 @@ export function toPublicState(
   ctx: EngineContext,
   anonymous = false,
 ): PublicSessionState {
-  const { state } = ctx;
-  const candle = currentCandleOf(ctx);
-  return {
-    sessionId: state.sessionId,
-    config: state.config,
-    status: state.status,
-    speed: state.speed,
-    visibleIndex: state.visibleIndex,
-    totalCandles: state.totalCandles,
-    balance: state.balance,
-    equity: state.equity,
-    maxDrawdown: state.maxDrawdown,
-    maxDrawdownPercent: state.maxDrawdownPercent,
-    currentPrice: candle ? candle.close : null,
-    currentTime: candle ? candle.timestamp : null,
-    openPosition: state.openPosition,
-    closedTrades: state.closedTrades,
-    equityCurve: state.equityCurve,
-    lockedBeforeIndex: state.lockedBeforeIndex,
-    dataSource: state.dataSource,
-    demoData: state.demoData,
-    anonymous,
-  };
+  return publicSessionState(ctx, anonymous);
 }
 
-/** Candles revealed so far (never includes future candles). */
+/** Candles revealed so far, used to initialise the visible chart series. */
 export function visibleCandles(ctx: EngineContext): Candle[] {
   return ctx.candles.slice(0, ctx.state.visibleIndex + 1);
 }
@@ -174,29 +152,66 @@ export async function visiblePairCandles(
 async function fetchChartContext(
   symbol: string,
   replayStartTime: number,
+  timeframe: Timeframe,
+  before = replayStartTime,
 ): Promise<Candle[]> {
-  return getMarketDataProvider().getCandles({
+  const lowerBound = Math.max(0, replayStartTime - CONTEXT_LOOKBACK_MS);
+  const endTime = Math.min(before - 1, replayStartTime - 1);
+  if (endTime < lowerBound) return [];
+  // Fetch a bounded window immediately before `before`. The extra calendar
+  // width covers weekends/holidays; slicing from the end keeps it adjacent to
+  // the visible chart instead of returning the oldest part of six months.
+  const windowMs = TIMEFRAME_MS[timeframe] * MAX_CONTEXT_CANDLES * 3;
+  const candles = await getMarketDataProvider().getCandles({
     symbol,
-    timeframe: "1h",
-    startTime: Math.max(0, replayStartTime - CONTEXT_LOOKBACK_MS),
-    endTime: replayStartTime - 1,
-    limit: MAX_CONTEXT_CANDLES,
+    timeframe,
+    startTime: Math.max(lowerBound, endTime - windowMs),
+    endTime,
   });
+  return candles.slice(-MAX_CONTEXT_CANDLES);
 }
 
 export async function getChartContext(
   session: LoadedSession,
   symbol = session.ctx.state.config.symbol,
+  timeframe = session.ctx.state.config.timeframe,
 ): Promise<Candle[]> {
-  const key = `${session.id}:${symbol}`;
+  const key = `${session.id}:${symbol}:${timeframe}`;
   const cached = contextCache.get(key);
   if (cached) return cached;
   const candles = await fetchChartContext(
     symbol,
     session.ctx.state.config.startTime,
+    timeframe,
   );
   cacheContext(key, candles);
   return candles;
+}
+
+export async function getChartContextPage(
+  session: LoadedSession,
+  symbol: string,
+  timeframe: Timeframe,
+  before: number,
+): Promise<{ candles: Candle[]; hasMore: boolean }> {
+  const allowed = session.ctx.state.config.symbols?.length
+    ? session.ctx.state.config.symbols
+    : [session.ctx.state.config.symbol];
+  if (!allowed.includes(symbol)) throw new Error("This pair is not part of the session.");
+  const candles = await fetchChartContext(
+    symbol,
+    session.ctx.state.config.startTime,
+    timeframe,
+    before,
+  );
+  const lowerBound = Math.max(
+    0,
+    session.ctx.state.config.startTime - CONTEXT_LOOKBACK_MS,
+  );
+  return {
+    candles,
+    hasMore: Boolean(candles[0] && candles[0].timestamp > lowerBound),
+  };
 }
 
 async function fetchSeries(
@@ -256,6 +271,7 @@ export async function createSession(
   const contextCandles = await fetchChartContext(
     params.symbol,
     effectiveStart,
+    params.timeframe,
   );
 
   const config = buildSessionConfig({
@@ -289,7 +305,7 @@ export async function createSession(
   );
 
   cacheCandles(id, series);
-  cacheContext(`${id}:${params.symbol}`, contextCandles);
+  cacheContext(`${id}:${params.symbol}:${params.timeframe}`, contextCandles);
 
   const instrument = await prisma.marketInstrument.findUnique({
     where: { symbol: def.symbol },

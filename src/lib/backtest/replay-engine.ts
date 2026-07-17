@@ -3,11 +3,11 @@
  *
  * This module holds NO React and NO database code. It operates purely on an
  * EngineContext ({ state, candles }) and returns new state, so it can be:
- *   - driven by the server (which owns the candle series and controls reveal),
+ *   - driven by the browser for latency-free replay,
+ *   - replayed by the server when synchronising a checkpoint,
  *   - and unit-tested in isolation.
  *
- * Future-data protection is a property of how this engine is USED: the server
- * keeps `candles` and only ever exposes candles up to `state.visibleIndex`.
+ * Both environments use the same candle-by-candle execution rules.
  */
 
 import { Decimal, d, money } from "@/lib/decimal";
@@ -28,10 +28,34 @@ import type {
   OpenPosition,
   OrderRequest,
   ReplaySpeed,
+  PublicSessionState,
   SessionConfig,
   SessionState,
 } from "./types";
 import { DEFAULT_REPLAY_SPEED } from "./types";
+
+/** Convert persisted/public state into a mutable replay state for local playback. */
+export function engineStateFromPublic(state: PublicSessionState): SessionState {
+  const engine = structuredClone(state) as unknown as Record<string, unknown>;
+  delete engine.currentPrice;
+  delete engine.currentTime;
+  delete engine.anonymous;
+  return engine as unknown as SessionState;
+}
+
+/** Build the browser-safe view of an engine state. */
+export function publicSessionState(
+  ctx: EngineContext,
+  anonymous = false,
+): PublicSessionState {
+  const candle = currentCandle(ctx);
+  return {
+    ...structuredClone(ctx.state),
+    currentPrice: candle?.close ?? null,
+    currentTime: candle?.timestamp ?? null,
+    anonymous,
+  };
+}
 
 let counter = 0;
 /** Deterministic-enough id for positions/trades within a process. */

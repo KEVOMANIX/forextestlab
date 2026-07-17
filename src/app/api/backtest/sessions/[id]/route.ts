@@ -33,6 +33,7 @@ export async function GET(
     ok: true,
     state: toPublicState(session.ctx, session.anonymous),
     candles: visibleCandles(session.ctx),
+    replayCandles: session.ctx.candles,
     contextCandles: await getChartContext(session),
     notes: session.notes,
   });

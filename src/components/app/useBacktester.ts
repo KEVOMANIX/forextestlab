@@ -5,15 +5,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createSession,
   getPairChart,
+  getChartHistory,
   getStateWithToken,
   sendAction,
   replayIntervalMs,
   type CreateSessionBody,
   type PairChartData,
 } from "@/lib/backtest/client";
-import type { OrderRequest, PublicSessionState, ReplaySpeed } from "@/lib/backtest/types";
-import { previewPosition } from "@/lib/backtest/replay-engine";
-import type { Candle } from "@/lib/market-data/types";
+import type { EngineContext, OrderRequest, PublicSessionState, ReplaySpeed } from "@/lib/backtest/types";
+import {
+  engineStateFromPublic,
+  placeOrder as placeLocalOrder,
+  publicSessionState,
+  revealNext,
+} from "@/lib/backtest/replay-engine";
+import type { Candle, Timeframe } from "@/lib/market-data/types";
 
 export type Phase = "setup" | "loading" | "active";
 
@@ -22,6 +28,7 @@ interface BacktesterState {
   sessionId: string | null;
   state: PublicSessionState | null;
   initialCandles: Candle[];
+  replayCandles: Candle[];
   contextCandles: Candle[];
   lastCandle: Candle | null;
   busy: boolean;
@@ -42,6 +49,7 @@ const initial: BacktesterState = {
   sessionId: null,
   state: null,
   initialCandles: [],
+  replayCandles: [],
   contextCandles: [],
   lastCandle: null,
   busy: false,
@@ -69,7 +77,19 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const autoStepPendingRef = useRef(false);
   const wantsReplayRunningRef = useRef(false);
   const stepRef = useRef<() => Promise<void>>(async () => {});
+  const replayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
+  const localEngineRef = useRef<EngineContext | null>(null);
+
+  const hydrateLocalEngine = useCallback(
+    (state: PublicSessionState, candles: Candle[]) => {
+      localEngineRef.current = {
+        state: engineStateFromPublic(state),
+        candles,
+      };
+    },
+    [],
+  );
 
   const patch = useCallback((p: Partial<BacktesterState>) => {
     setS((prev) => ({ ...prev, ...p }));
@@ -111,11 +131,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
 
       if (cancelled) return;
+      hydrateLocalEngine(res.state, res.replayCandles);
       setS((prev) => ({
         phase: "active",
         sessionId: resumeSessionId,
         state: res.state,
         initialCandles: res.candles,
+        replayCandles: res.replayCandles,
         contextCandles: res.contextCandles,
         lastCandle: res.candles[res.candles.length - 1] ?? null,
         busy: false,
@@ -135,7 +157,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     return () => {
       cancelled = true;
     };
-  }, [resumeSessionId]);
+  }, [hydrateLocalEngine, resumeSessionId]);
 
   const startSession = useCallback(
     async (body: CreateSessionBody) => {
@@ -160,11 +182,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
         `/app/backtest?session=${encodeURIComponent(res.sessionId)}`,
       );
       wantsReplayRunningRef.current = false;
+      hydrateLocalEngine(res.state, res.replayCandles);
       setS((prev) => ({
         phase: "active",
         sessionId: res.sessionId,
         state: res.state,
         initialCandles: res.candles,
+        replayCandles: res.replayCandles,
         contextCandles: res.contextCandles,
         lastCandle: res.candles[res.candles.length - 1] ?? null,
         busy: false,
@@ -181,7 +205,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         resetNonce: prev.resetNonce + 1,
       }));
     },
-    [patch],
+    [hydrateLocalEngine, patch],
   );
 
   const runAction = useCallback(
@@ -243,6 +267,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
         setS((prev) => {
           let nextState = res.state;
+          // A background save can finish after local playback has already
+          // advanced further. Never rewind the browser to that older index.
+          if (
+            prev.state &&
+            prev.state.visibleIndex > nextState.visibleIndex
+          ) {
+            nextState = prev.state;
+          } else if (localEngineRef.current) {
+            localEngineRef.current.state = engineStateFromPublic(nextState);
+          }
           // Pause is optimistic so it remains responsive while an already
           // running "next" request finishes ahead of the queued pause command.
           if (
@@ -250,6 +284,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
             nextState.status === "running"
           ) {
             nextState = { ...nextState, status: "paused" };
+          } else if (
+            wantsReplayRunningRef.current &&
+            nextState.status !== "finished"
+          ) {
+            nextState = { ...nextState, status: "running" };
           }
           return {
             ...prev,
@@ -287,41 +326,85 @@ export function useBacktester(resumeSessionId: string | null = null) {
     [patch, s.activeSymbol],
   );
 
-  // Keep a stable reference to the latest "next" stepper for the interval loop.
+  // Playback is deliberately browser-local. The whole replay window is loaded
+  // once, then each tick is a synchronous memory operation with no HTTP jitter.
   stepRef.current = useCallback(async () => {
-    await runAction(
-      { type: "next" },
-      { captureCandle: true, background: true, showBusy: false },
-    );
-  }, [runAction]);
+    const engine = localEngineRef.current;
+    if (!engine || !revealNext(engine)) return;
+    if (
+      wantsReplayRunningRef.current &&
+      engine.state.status !== "finished"
+    ) {
+      engine.state.status = "running";
+    }
+    const state = publicSessionState(engine, s.state?.anonymous ?? false);
+    const candle = engine.candles[state.visibleIndex] ?? null;
+    setS((prev) => ({ ...prev, state, lastCandle: candle }));
+  }, [s.state?.anonymous]);
 
   const status = s.state?.status;
-  const speed = s.state?.speed;
 
-  // Auto-advance while running. A completion-aware loop preserves the target
-  // cadence better than setInterval: network latency no longer adds a second
-  // full interval or allows requests to pile up.
-  useEffect(() => {
-    const timeframe = s.state?.config.timeframe;
-    if (status !== "running" || !speed || !timeframe) return;
-    const interval = replayIntervalMs(speed as ReplaySpeed, timeframe);
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+  const stopLocalScheduler = useCallback(() => {
+    if (replayTimerRef.current) clearTimeout(replayTimerRef.current);
+    replayTimerRef.current = null;
+  }, []);
 
-    const schedule = (delay: number) => {
-      timer = setTimeout(async () => {
+  const startLocalScheduler = useCallback(() => {
+    stopLocalScheduler();
+    const schedule = (delayOverride?: number) => {
+      const engine = localEngineRef.current;
+      if (!engine || engine.state.status !== "running") return;
+      const delay = replayIntervalMs(
+        engine.state.speed,
+        engine.state.config.timeframe,
+      );
+      replayTimerRef.current = setTimeout(async () => {
         const started = performance.now();
         await stepRef.current();
-        if (cancelled) return;
-        schedule(Math.max(0, interval - (performance.now() - started)));
-      }, delay);
+        const current = localEngineRef.current;
+        if (!current || current.state.status !== "running") return;
+        const nextDelay = replayIntervalMs(
+          current.state.speed,
+          current.state.config.timeframe,
+        );
+        schedule(Math.max(0, nextDelay - (performance.now() - started)));
+      }, delayOverride ?? delay);
     };
-    schedule(interval);
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [status, speed, s.state?.config.timeframe]);
+    schedule();
+  }, [stopLocalScheduler]);
+
+  useEffect(() => stopLocalScheduler, [stopLocalScheduler]);
+
+  const checkpoint = useCallback(async (statusOverride?: "running" | "paused") => {
+    const id = sessionIdRef.current;
+    const engine = localEngineRef.current;
+    if (!id || !engine) return;
+    const targetIndex = engine.state.visibleIndex;
+    patch({ saveStatus: "saving" });
+    const task = actionQueueRef.current.then(async () => {
+      const res = await sendAction(id, tokenRef.current, {
+        type: "sync",
+        targetIndex,
+        status: statusOverride,
+      });
+      patch(
+        res.ok
+          ? { saveStatus: "saved", savedAt: Date.now() }
+          : { saveStatus: "error", error: res.error },
+      );
+    });
+    actionQueueRef.current = task.catch(() => {
+      patch({ saveStatus: "error", error: "Replay progress could not be saved." });
+    });
+    await actionQueueRef.current;
+  }, [patch]);
+
+  // Persist progress in batches. Closing/pausing also checkpoints immediately.
+  useEffect(() => {
+    if (status !== "running") return;
+    const timer = window.setInterval(() => void checkpoint("running"), 3_000);
+    return () => window.clearInterval(timer);
+  }, [checkpoint, status]);
 
   const play = useCallback(() => {
     wantsReplayRunningRef.current = true;
@@ -330,8 +413,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
         ? { ...prev, state: { ...prev.state, status: "running" } }
         : prev,
     );
-    return runAction({ type: "start" }, { showBusy: false });
-  }, [runAction]);
+    if (localEngineRef.current) localEngineRef.current.state.status = "running";
+    startLocalScheduler();
+    return checkpoint("running");
+  }, [checkpoint, startLocalScheduler]);
   const pause = useCallback(() => {
     wantsReplayRunningRef.current = false;
     // Stop the local timer immediately. The server pause command is serialized
@@ -341,11 +426,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
         ? { ...prev, state: { ...prev.state, status: "paused" } }
         : prev,
     );
-    return runAction({ type: "pause" }, { showBusy: false });
-  }, [runAction]);
+    if (localEngineRef.current) localEngineRef.current.state.status = "paused";
+    stopLocalScheduler();
+    return checkpoint("paused");
+  }, [checkpoint, stopLocalScheduler]);
   const stepNext = useCallback(
-    () => runAction({ type: "next" }, { captureCandle: true }),
-    [runAction],
+    async () => {
+      await stepRef.current();
+      await checkpoint("paused");
+    },
+    [checkpoint],
   );
   const stepPrev = useCallback(() => runAction({ type: "prev" }), [runAction]);
   const restart = useCallback(async () => {
@@ -365,6 +455,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         ...prev,
         state: data.state,
         initialCandles: data.candles,
+        replayCandles: data.replayCandles,
         contextCandles: data.contextCandles,
         lastCandle: data.candles[data.candles.length - 1] ?? null,
         resetNonce: prev.resetNonce + 1,
@@ -374,8 +465,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
         saveStatus: "saved",
         savedAt: Date.now(),
       }));
+      hydrateLocalEngine(data.state, data.replayCandles);
     }
-  }, [runAction, s.sessionId]);
+  }, [hydrateLocalEngine, runAction, s.sessionId]);
   const endSession = useCallback(() => {
     wantsReplayRunningRef.current = false;
     setS((prev) =>
@@ -383,7 +475,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
         ? { ...prev, state: { ...prev.state, status: "paused" } }
         : prev,
     );
-    return runAction({ type: "end" });
+    return runAction({
+      type: "end",
+      targetIndex: localEngineRef.current?.state.visibleIndex,
+    });
   }, [runAction]);
   const setSpeed = useCallback(
     (value: ReplaySpeed) => {
@@ -392,32 +487,26 @@ export function useBacktester(resumeSessionId: string | null = null) {
           ? { ...prev, state: { ...prev.state, speed: value } }
           : prev,
       );
+      if (localEngineRef.current) localEngineRef.current.state.speed = value;
+      if (localEngineRef.current?.state.status === "running") {
+        startLocalScheduler();
+      }
       return runAction(
         { type: "set-speed", speed: value },
         { showBusy: false },
       );
     },
-    [runAction],
+    [runAction, startLocalScheduler],
   );
   const placeOrder = useCallback(
     (order: OrderRequest) => {
       const rollbackState = s.state;
-      const candle = s.lastCandle;
-      if (rollbackState && candle && !rollbackState.openPosition) {
-        const preview = previewPosition(rollbackState, candle, order);
-        if (preview.ok && preview.position) {
-          setS((prev) =>
-            prev.state
-              ? {
-                  ...prev,
-                  state: {
-                    ...prev.state,
-                    openPosition: preview.position ?? null,
-                    lockedBeforeIndex: prev.state.visibleIndex,
-                  },
-                }
-              : prev,
-          );
+      const engine = localEngineRef.current;
+      if (engine && !engine.state.openPosition) {
+        const result = placeLocalOrder(engine, order);
+        if (result.ok) {
+          const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
+          setS((prev) => ({ ...prev, state }));
         }
       }
       return runAction({
@@ -428,20 +517,32 @@ export function useBacktester(resumeSessionId: string | null = null) {
         riskPercent: order.riskPercent,
         stopLoss: order.stopLoss ?? undefined,
         takeProfit: order.takeProfit ?? undefined,
+        targetIndex: localEngineRef.current?.state.visibleIndex,
       }, { rollbackState: rollbackState ?? undefined });
     },
-    [runAction, s.lastCandle, s.state],
+    [runAction, s.state],
   );
   const closePosition = useCallback(
-    () => runAction({ type: "close" }),
+    () => runAction({
+      type: "close",
+      targetIndex: localEngineRef.current?.state.visibleIndex,
+    }),
     [runAction],
   );
   const modifyStop = useCallback(
-    (price: string | null) => runAction({ type: "modify-stop", price }),
+    (price: string | null) => runAction({
+      type: "modify-stop",
+      price,
+      targetIndex: localEngineRef.current?.state.visibleIndex,
+    }),
     [runAction],
   );
   const modifyTarget = useCallback(
-    (price: string | null) => runAction({ type: "modify-target", price }),
+    (price: string | null) => runAction({
+      type: "modify-target",
+      price,
+      targetIndex: localEngineRef.current?.state.visibleIndex,
+    }),
     [runAction],
   );
   const saveNotes = useCallback(
@@ -480,16 +581,37 @@ export function useBacktester(resumeSessionId: string | null = null) {
     if (!action) return Promise.resolve();
     return runAction(action);
   }, [runAction]);
+  const loadHistory = useCallback(
+    async (symbol: string, timeframe: Timeframe, before: number) => {
+      const id = sessionIdRef.current;
+      if (!id) return { candles: [], hasMore: false };
+      const result = await getChartHistory(
+        id,
+        tokenRef.current,
+        symbol,
+        timeframe,
+        before,
+      );
+      if (!result.ok) {
+        patch({ error: result.error });
+        return { candles: [], hasMore: false };
+      }
+      return { candles: result.candles, hasMore: result.hasMore };
+    },
+    [patch],
+  );
   const newSession = useCallback(() => {
     tokenRef.current = null;
     sessionIdRef.current = null;
     wantsReplayRunningRef.current = false;
     interactiveBusyRef.current = false;
     autoStepPendingRef.current = false;
+    stopLocalScheduler();
+    localEngineRef.current = null;
     actionQueueRef.current = Promise.resolve();
     window.history.replaceState(null, "", "/app/backtest");
     setS(initial);
-  }, []);
+  }, [stopLocalScheduler]);
 
   return {
     ...s,
@@ -509,6 +631,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       saveNotes,
       switchPair,
       retrySave,
+      loadHistory,
       newSession,
     },
   };

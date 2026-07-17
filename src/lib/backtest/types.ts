@@ -160,6 +160,7 @@ export interface PublicSessionState {
   totalCandles: number;
   balance: string;
   equity: string;
+  maxEquity: string;
   maxDrawdown: string;
   maxDrawdownPercent: string;
   currentPrice: string | null;

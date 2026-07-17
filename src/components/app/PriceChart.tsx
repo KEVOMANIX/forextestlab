@@ -57,6 +57,10 @@ interface PriceChartProps {
   theme: "dark" | "light";
   onStopLossChange: (price: string | null) => void;
   onTakeProfitChange: (price: string | null) => void;
+  onLoadHistory: (
+    timeframe: Timeframe,
+    before: number,
+  ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading?: boolean;
   error?: string | null;
   storageKey?: string;
@@ -152,6 +156,7 @@ export default function PriceChart({
   theme,
   onStopLossChange,
   onTakeProfitChange,
+  onLoadHistory,
   loading = false,
   error = null,
   storageKey,
@@ -167,6 +172,10 @@ export default function PriceChart({
   const displayTimeframeRef = useRef<Timeframe>(baseTimeframe);
   const draggingRef = useRef<"stop" | "target" | null>(null);
   const savedRangeRef = useRef<{ from: number; to: number } | null>(null);
+  const historyCandlesRef = useRef<Candle[]>(contextCandles);
+  const historyLoadingRef = useRef(false);
+  const historyHasMoreRef = useRef(true);
+  const loadOlderRef = useRef<() => void>(() => {});
   const [legend, setLegend] = useState<CandlestickData<Time> | null>(null);
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(baseTimeframe);
   const [gridVisible, setGridVisible] = useState(true);
@@ -177,6 +186,32 @@ export default function PriceChart({
     stop: number | null;
     target: number | null;
   }>({ stop: null, target: null });
+  const [historyAvailable, setHistoryAvailable] = useState(contextCandles.length > 0);
+
+  async function loadHistoryPage(replace: boolean) {
+    if (historyLoadingRef.current || (!replace && !historyHasMoreRef.current)) return;
+    const firstReplayTime = rawCandlesRef.current[0]?.timestamp;
+    const earliest = historyCandlesRef.current[0]?.timestamp ?? firstReplayTime;
+    if (!earliest) return;
+    historyLoadingRef.current = true;
+    try {
+      const page = await onLoadHistory(
+        displayTimeframeRef.current,
+        replace ? firstReplayTime ?? earliest : earliest,
+      );
+      const existing = replace ? [] : historyCandlesRef.current;
+      const byTime = new Map<number, Candle>();
+      for (const candle of [...page.candles, ...existing]) byTime.set(candle.timestamp, candle);
+      const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
+      historyCandlesRef.current = merged;
+      historyHasMoreRef.current = page.hasMore;
+      contextSeriesRef.current?.setData(merged.map(toBar));
+      setHistoryAvailable(merged.length > 0);
+    } finally {
+      historyLoadingRef.current = false;
+    }
+  }
+  loadOlderRef.current = () => void loadHistoryPage(false);
 
   const availableTimeframes = TIMEFRAMES.filter(
     (timeframe) =>
@@ -297,6 +332,8 @@ export default function PriceChart({
 
     const coordinateUpdate = () => {
       updateLineCoordinates();
+      const visible = chart.timeScale().getVisibleLogicalRange();
+      if (visible && visible.from < 100) loadOlderRef.current();
       if (!storageKey) return;
       const range = chart.timeScale().getVisibleLogicalRange();
       try {
@@ -387,6 +424,10 @@ export default function PriceChart({
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;
     refreshSeries();
+    historyCandlesRef.current = [];
+    historyHasMoreRef.current = true;
+    contextSeriesRef.current?.setData([]);
+    void loadHistoryPage(true);
     const scale = chartRef.current?.timeScale();
     if (savedRangeRef.current) {
       scale?.setVisibleLogicalRange(savedRangeRef.current);
@@ -582,9 +623,9 @@ export default function PriceChart({
         aria-label="Chart tools"
       >
         <CandlestickChart size={16} className="mx-1 shrink-0 text-brand-300" aria-hidden />
-        {contextCandles.length > 0 && (
+        {historyAvailable && (
           <span className="shrink-0 rounded bg-blue-500/10 px-1.5 py-1 font-mono text-[9px] text-blue-300">
-            6M context · 1h
+            6M history · {displayTimeframe}
           </span>
         )}
         <div className="flex shrink-0 items-center border-r app-border pr-1" aria-label="Display timeframe">

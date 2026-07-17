@@ -13,7 +13,7 @@ async function startSession(page: Page) {
   await page.getByRole("button", { name: /Continue/i }).click();
   await page.getByRole("button", { name: /Continue/i }).click();
 
-  // (5) Assert future candles are NOT sent on session creation.
+  // The bounded replay window is preloaded once for smooth browser-local play.
   const createResponse = page.waitForResponse(
     (r) => r.url().includes("/api/backtest/sessions") && r.request().method() === "POST",
   );
@@ -25,6 +25,7 @@ async function startSession(page: Page) {
   // Only the initial visible window is returned, never the full series.
   expect(body.candles.length).toBeLessThanOrEqual(60);
   expect(body.candles.length).toBeLessThan(body.state.totalCandles);
+  expect(body.replayCandles.length).toBe(body.state.totalCandles);
   expect(body.state.config.timeframe).toBe("1m");
   expect(Array.isArray(body.contextCandles)).toBe(true);
   expect(body.candles[0].timestamp).toBeGreaterThanOrEqual(
@@ -65,7 +66,7 @@ test("loads pre-start context without moving the replay start", async ({ page })
     { sessionId: body.sessionId, token: body.token },
   );
   await page.goto(`/app/backtest?session=${encodeURIComponent(body.sessionId)}`);
-  await expect(page.getByText(/6M context · 1h/i)).toBeVisible();
+  await expect(page.getByText(/6M history · 1m/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /Display 1m candles/i })).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -85,15 +86,9 @@ test("completes a full public backtest workflow without login", async ({ page },
 
   // (4) advance the replay a few candles
   const next = page.getByRole("button", { name: /Next candle/i });
-  await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
-    next.click(),
-  ]);
-  await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
-    next.click(),
-  ]);
+  await next.click();
   await expect(counter).not.toHaveText(before ?? "");
+  await next.click();
 
   // (6) place a Buy trade with (7) chart-based stop-loss and take-profit
   await page.getByRole("button", { name: /Add stop-loss line/i }).click();
@@ -124,14 +119,8 @@ test("completes a full public backtest workflow without login", async ({ page },
   }
 
   // (8) advance more candles
-  await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
-    next.click(),
-  ]);
-  await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
-    next.click(),
-  ]);
+  await next.click();
+  await next.click();
 
   // (9) close the position manually
   page.once("dialog", (dialog) => dialog.accept());
@@ -303,48 +292,44 @@ test("shows a new market order immediately while it saves", async ({ page }) => 
   await response;
 });
 
-test("pause stays responsive during automatic replay requests", async ({ page }) => {
+test("replay advances locally and pause stays responsive during checkpoint saves", async ({ page }) => {
   test.setTimeout(45_000);
   await startSession(page);
 
   await page.route("**/api/backtest/sessions/*/action", async (route) => {
     const body = route.request().postDataJSON() as { type?: string } | null;
-    if (body?.type === "next") {
+    if (body?.type === "sync") {
       await new Promise((resolve) => setTimeout(resolve, 1_500));
     }
     await route.continue();
   });
 
-  const automaticStep = page.waitForRequest((request) => {
-    if (!request.url().includes("/action")) return false;
-    return (request.postDataJSON() as { type?: string } | null)?.type === "next";
-  });
-
+  const counter = page.getByText(/Candle \d+ \/ \d+/);
+  const before = await counter.textContent();
   await page.getByRole("button", { name: /Play replay/i }).click();
   const pause = page.getByRole("button", { name: /Pause replay/i });
   await expect(pause).toBeVisible();
 
-  // Wait until a deliberately slow automatic step is in flight. Controls and
-  // order buttons must remain usable rather than flashing disabled.
-  await automaticStep;
+  // Candles continue advancing while the deliberately slow save is in flight.
+  await expect(counter).not.toHaveText(before ?? "", { timeout: 2_500 });
   await expect(pause).toBeEnabled();
   await expect(page.getByRole("button", { name: "Buy", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Sell", exact: true })).toBeEnabled();
 
   const pauseResponse = page.waitForResponse((response) => {
     if (!response.url().includes("/action")) return false;
-    return (
-      (response.request().postDataJSON() as { type?: string } | null)?.type ===
-      "pause"
-    );
+    const body = response.request().postDataJSON() as {
+      type?: string;
+      status?: string;
+    } | null;
+    return body?.type === "sync" && body.status === "paused";
   });
   await pause.click();
 
-  // The UI stops immediately, before the delayed candle request completes.
+  // The UI stops immediately, before the delayed checkpoint completes.
   await expect(page.getByRole("button", { name: /Play replay/i })).toBeVisible();
   await pauseResponse;
 
-  const counter = page.getByText(/Candle \d+ \/ \d+/);
   const pausedAt = await counter.textContent();
   await page.waitForTimeout(1_500);
   await expect(counter).toHaveText(pausedAt ?? "");

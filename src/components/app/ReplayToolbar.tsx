@@ -318,9 +318,9 @@ export function ReplayToolbar({
         </div>
 
         <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] app-muted">
-          <span>15x</span>
+          <span>{REPLAY_SPEEDS[0]}x</span>
           {finished && <span className="text-brand-300">Finished</span>}
-          <span>600x</span>
+          <span>{REPLAY_SPEEDS[REPLAY_SPEEDS.length - 1]}x</span>
         </div>
       </div>
     </div>

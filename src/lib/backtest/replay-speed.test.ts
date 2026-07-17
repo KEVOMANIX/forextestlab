@@ -12,6 +12,8 @@ describe("real market-time replay speed", () => {
     expect(replayIntervalMs(60, "1m")).toBe(1_000);
     expect(replayIntervalMs(300, "1m")).toBe(200);
     expect(replayIntervalMs(600, "1m")).toBe(100);
+    expect(replayIntervalMs(3600, "1m")).toBeCloseTo(16.67, 2);
+    expect(replayIntervalMs(7200, "1m")).toBe(16);
   });
 
   it("uses the candle duration when another base timeframe is restored", () => {
@@ -21,6 +23,7 @@ describe("real market-time replay speed", () => {
   it("preserves real market-time speed for multi-candle replay steps", () => {
     expect(replayIntervalMs(60, "1m", 5)).toBe(5_000);
     expect(replayIntervalMs(600, "1m", 15)).toBe(1_500);
+    expect(replayIntervalMs(7200, "1m", 15)).toBe(125);
   });
 
   it("migrates legacy candles-per-second session speeds", () => {

@@ -1,14 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import {
-  BarChart3,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
 
 import type { ChartMarker } from "./PriceChart";
 import { BottomPanel } from "./BottomPanel";
@@ -57,7 +51,6 @@ export function Backtester({
   const { state, actions } = bt;
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
-  const [dockOpen, setDockOpen] = useState(true);
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
   const [orderTemplate, setOrderTemplate] = useState<Omit<OrderRequest, "direction">>({
@@ -395,45 +388,13 @@ export function Backtester({
         />
       </div>
 
-      <div className="flex h-8 shrink-0 items-center gap-3 overflow-x-auto border-t app-border bg-[var(--app-panel)] px-2 text-[11px]">
-        {state.anonymous && (
-          <span className="shrink-0 text-[10px] font-semibold text-brand-300 sm:text-[11px]">
-            Temporary demonstration
-            <span> · </span>
-            <Link
-              href="/sign-up"
-              className="font-semibold underline"
-            >
-              Create a free account
-            </Link>
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={() => setDockOpen((open) => !open)}
-          className="ml-auto inline-flex h-6 shrink-0 items-center gap-1 rounded bg-blue-600 px-2 font-semibold text-white hover:bg-blue-500"
-          aria-expanded={dockOpen}
-        >
-          <BarChart3 size={12} aria-hidden />
-          Analytics
-          {dockOpen ? (
-            <ChevronDown size={12} aria-hidden />
-          ) : (
-            <ChevronUp size={12} aria-hidden />
-          )}
-        </button>
-      </div>
-
-      {dockOpen && (
-        <div className="h-44 shrink-0 md:h-48">
-          <BottomPanel
-            state={state}
-            initialNotes={bt.notes}
-            onSaveNotes={actions.saveNotes}
-            busy={bt.busy}
-          />
-        </div>
-      )}
+      <BottomPanel
+        state={state}
+        currentTime={bt.lastCandle?.timestamp ?? null}
+        initialNotes={bt.notes}
+        onSaveNotes={actions.saveNotes}
+        busy={bt.busy}
+      />
       <ConfirmModal
         open={Boolean(pendingConfirmation)}
         title={pendingConfirmation?.title ?? "Confirm action"}

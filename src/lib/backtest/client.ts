@@ -209,5 +209,5 @@ export function replayIntervalMs(
   timeframe: Timeframe,
   stepCount = 1,
 ): number {
-  return Math.max(75, (TIMEFRAME_MS[timeframe] * stepCount) / speed);
+  return Math.max(16, (TIMEFRAME_MS[timeframe] * stepCount) / speed);
 }

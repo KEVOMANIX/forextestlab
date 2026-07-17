@@ -173,7 +173,7 @@ test("completes a full public backtest workflow without login", async ({ page },
   ]);
 
   // (10)(11) balance + statistics update; trade recorded
-  await page.getByRole("tab", { name: /Statistics/i }).click();
+  await page.getByRole("button", { name: /Analytics/i }).click();
   await expect(page.getByText(/Total trades/i)).toBeVisible();
   await page.getByRole("tab", { name: /^Trades/ }).click();
   await expect(page.getByRole("cell", { name: /Long|Short/ }).first()).toBeVisible();

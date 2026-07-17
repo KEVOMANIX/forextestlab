@@ -286,9 +286,8 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
     );
   }
 
-  function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!range) return;
+  function handleStart() {
+    if (!range || !canStart) return;
     onStart({
       name: name.trim(),
       tags,
@@ -305,7 +304,7 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="panel mx-auto w-full max-w-2xl p-6 sm:p-7">
+    <div className="panel mx-auto w-full max-w-2xl p-6 sm:p-7">
       <h2 className="text-xl font-semibold">Start a backtest session</h2>
       <p className="mt-1 text-sm app-muted">
         Name your session, select one or more pairs, and confirm the period.
@@ -478,7 +477,12 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
             Continue <ArrowRight size={16} aria-hidden />
           </button>
         ) : (
-          <button type="submit" className="btn-primary flex-1" disabled={!canStart}>
+          <button
+            type="button"
+            className="btn-primary flex-1"
+            disabled={!canStart}
+            onClick={handleStart}
+          >
             {busy ? (
               <>
                 <Loader2 size={16} className="animate-spin" aria-hidden /> Creating…
@@ -491,6 +495,6 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
           </button>
         )}
       </div>
-    </form>
+    </div>
   );
 }

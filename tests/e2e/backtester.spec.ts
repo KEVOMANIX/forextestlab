@@ -74,6 +74,12 @@ test("loads pre-start context without moving the replay start", async ({ page })
 });
 
 test("keeps the custom date calendar open and submits the selected period", async ({ page }) => {
+  let createRequests = 0;
+  page.on("request", (request) => {
+    if (request.url().includes("/api/backtest/sessions") && request.method() === "POST") {
+      createRequests += 1;
+    }
+  });
   await page.goto("/app/backtest");
   await page.getByLabel("Session name").fill("Calendar selection session");
   await page.getByRole("button", { name: /Continue/i }).click();
@@ -82,6 +88,8 @@ test("keeps the custom date calendar open and submits the selected period", asyn
   await page.getByLabel("Start date").click();
   const startCalendar = page.getByRole("dialog", { name: /Start date calendar/i });
   await expect(startCalendar).toBeVisible();
+  expect(createRequests).toBe(0);
+  await expect(page).toHaveURL(/\/app\/backtest$/);
   await startCalendar.getByRole("button", { name: "2024-03-04" }).click();
   await expect(startCalendar).toBeHidden();
 

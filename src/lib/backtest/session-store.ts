@@ -23,6 +23,7 @@ import type {
   PublicSessionState,
   SessionState,
 } from "./types";
+import { normalizeReplaySpeed } from "./types";
 
 /** Bound the candle count per session so reloads stay fast. */
 const MAX_SESSION_CANDLES = 1500;
@@ -319,6 +320,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
   if (!row) return null;
 
   const state = JSON.parse(row.stateJson) as SessionState;
+  state.speed = normalizeReplaySpeed(Number(state.speed));
   let series = candleCache.get(id);
   if (!series) {
     series = await fetchSeries(
@@ -344,6 +346,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
 /** Persist the engine state and refresh relational projections. */
 export async function persistSession(
   session: LoadedSession,
+  options: { resetProjections?: boolean } = {},
 ): Promise<void> {
   const { state } = session.ctx;
 
@@ -364,17 +367,22 @@ export async function persistSession(
     },
   });
 
-  // Mirror closed trades (append-only, reset on restart).
+  if (options.resetProjections) {
+    await prisma.simulatedTrade.deleteMany({ where: { sessionId: session.id } });
+    await prisma.equitySnapshot.deleteMany({ where: { sessionId: session.id } });
+    return;
+  }
+
+  // The common replay tick has no closed trades, so avoid a second database
+  // round-trip on every candle. Projection work starts only after a trade exits.
+  if (state.closedTrades.length === 0) return;
+
+  // Mirror closed trades (append-only).
   const existingTrades = await prisma.simulatedTrade.count({
     where: { sessionId: session.id },
   });
-  if (state.closedTrades.length < existingTrades) {
-    // Restart happened: clear projections and rewrite.
-    await prisma.simulatedTrade.deleteMany({ where: { sessionId: session.id } });
-    await prisma.equitySnapshot.deleteMany({ where: { sessionId: session.id } });
-  }
   const tradesToInsert = state.closedTrades.slice(
-    state.closedTrades.length < existingTrades ? 0 : existingTrades,
+    existingTrades,
   );
   if (tradesToInsert.length > 0) {
     await prisma.simulatedTrade.createMany({

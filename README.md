@@ -24,7 +24,7 @@ Lightweight Charts™.
 - Currency-pair, timeframe, and historical-period selection.
 - Server-controlled market replay (candle-by-candle; **future candles are never
   sent to the browser**).
-- Start / pause / resume / next / previous / restart, and 0.5×–10× speeds.
+- Start / pause / resume / next / previous / restart, with a 15×–600× real market-time speed slider.
 - Simulated Buy/Sell with stop-loss, take-profit, fixed-lot or risk-% sizing.
 - Manual close and automatic SL/TP close (with a conservative intrabar policy).
 - Configurable spread, commission, and slippage; balance and equity tracking.

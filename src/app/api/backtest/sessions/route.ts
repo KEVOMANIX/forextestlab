@@ -11,7 +11,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { ensureUserProfile } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/supabase/server";
 
-const SESSION_BASE_TIMEFRAME: Timeframe = "5m";
+const SESSION_BASE_TIMEFRAME: Timeframe = "1m";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

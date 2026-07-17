@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getMarketDataProvider } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
-const SESSION_BASE_TIMEFRAME = "5m";
+const SESSION_BASE_TIMEFRAME = "1m";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

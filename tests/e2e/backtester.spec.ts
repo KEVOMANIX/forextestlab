@@ -166,6 +166,28 @@ test("shows trading actions above the chart and moves the replay toolbox", async
   const buy = tradingHeader.getByRole("button", { name: "Buy", exact: true });
   await expect(buy).toBeVisible();
   await expect(tradingHeader.getByRole("button", { name: "Sell", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Display 1m candles/i })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  const speedSlider = page.getByLabel("Replay speed");
+  await expect(speedSlider).toHaveAttribute(
+    "aria-valuetext",
+    /60 times real market time, 1 candle \/ 1s/,
+  );
+  const speedSave = page.waitForRequest((request) => {
+    if (!request.url().includes("/action")) return false;
+    return (
+      (request.postDataJSON() as { type?: string } | null)?.type ===
+      "set-speed"
+    );
+  });
+  await speedSlider.fill("4");
+  await speedSave;
+  await expect(speedSlider).toHaveAttribute(
+    "aria-valuetext",
+    /300 times real market time, 5\.0 candles\/s/,
+  );
   await Promise.all([
     page.waitForResponse((response) => {
       if (!response.url().includes("/action")) return false;
@@ -213,6 +235,29 @@ test("shows trading actions above the chart and moves the replay toolbox", async
   const reset = await toolbox.boundingBox();
   expect(reset).not.toBeNull();
   expect(reset!.y).toBeGreaterThan(moved!.y + 60);
+});
+
+test("shows a new market order immediately while it saves", async ({ page }) => {
+  await startSession(page);
+
+  await page.route("**/api/backtest/sessions/*/action", async (route) => {
+    const body = route.request().postDataJSON() as { type?: string } | null;
+    if (body?.type === "place-order") {
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+    }
+    await route.continue();
+  });
+
+  const response = page.waitForResponse((item) => {
+    if (!item.url().includes("/action")) return false;
+    return (
+      (item.request().postDataJSON() as { type?: string } | null)?.type ===
+      "place-order"
+    );
+  });
+  await page.getByRole("button", { name: "Buy", exact: true }).click();
+  await expect(page.getByText(/^Long$/i)).toBeVisible({ timeout: 300 });
+  await response;
 });
 
 test("pause stays responsive during automatic replay requests", async ({ page }) => {

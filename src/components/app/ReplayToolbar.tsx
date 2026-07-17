@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { REPLAY_SPEEDS, type PublicSessionState, type ReplaySpeed } from "@/lib/backtest/types";
+import { replayIntervalMs } from "@/lib/backtest/client";
 
 interface ReplayToolbarProps {
   state: PublicSessionState;
@@ -84,6 +85,11 @@ export function ReplayToolbar({
     state.closedTrades.length === 0 &&
     !state.openPosition &&
     state.visibleIndex > state.config.initialVisibleCount - 1;
+  const speedIndex = Math.max(0, REPLAY_SPEEDS.indexOf(state.speed));
+  const cadenceMs = replayIntervalMs(state.speed, state.config.timeframe);
+  const cadenceLabel = cadenceMs >= 1000
+    ? `1 candle / ${(cadenceMs / 1000).toFixed(cadenceMs % 1000 === 0 ? 0 : 1)}s`
+    : `${(1000 / cadenceMs).toFixed(1)} candles/s`;
 
   function clampPosition(x: number, y: number) {
     const toolbox = toolboxRef.current;
@@ -168,7 +174,7 @@ export function ReplayToolbar({
       ref={toolboxRef}
       data-testid="replay-toolbox"
       onPointerDown={startDrag}
-      className="absolute z-20 w-[calc(100%-1.5rem)] max-w-[320px] touch-none cursor-move rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-2xl shadow-black/30 backdrop-blur"
+      className="absolute z-20 w-[calc(100%-1.5rem)] max-w-[350px] touch-none cursor-move rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-2xl shadow-black/30 backdrop-blur"
       style={
         position
           ? { left: position.x, top: position.y }
@@ -221,28 +227,36 @@ export function ReplayToolbar({
         </button>
       </div>
 
-      <div className="mt-1 flex items-center gap-1 border-t app-border pt-1">
-        <div className="flex items-center gap-0.5" role="group" aria-label="Replay speed">
-          {REPLAY_SPEEDS.map((sp) => (
-            <button
-              key={sp}
-              type="button"
-              onClick={() => onSpeed(sp)}
-              aria-pressed={state.speed === sp}
-              className={`cursor-pointer rounded px-1.5 py-0.5 font-mono text-[10px] transition-colors ${
-                state.speed === sp
-                  ? "bg-brand-400/15 text-brand-300"
-                  : "app-muted hover:text-brand-300"
-              }`}
-            >
-              {sp}x
-            </button>
-          ))}
+      <div className="mt-1 border-t app-border px-1 pt-1">
+        <div className="flex items-center gap-2">
+          <label htmlFor="replay-speed" className="shrink-0 font-mono text-[10px] font-semibold text-brand-300">
+            {state.speed}x
+          </label>
+          <input
+            id="replay-speed"
+            type="range"
+            min={0}
+            max={REPLAY_SPEEDS.length - 1}
+            step={1}
+            value={speedIndex}
+            onChange={(event) => {
+              const selected = REPLAY_SPEEDS[Number(event.target.value)];
+              if (selected !== undefined) onSpeed(selected);
+            }}
+            aria-label="Replay speed"
+            aria-valuetext={`${state.speed} times real market time, ${cadenceLabel}`}
+            className="h-1.5 min-w-0 flex-1 cursor-pointer accent-emerald-400"
+          />
+          <span className="shrink-0 font-mono text-[9px] app-muted">{cadenceLabel}</span>
         </div>
 
-        <div className="ml-auto font-mono text-[10px] app-muted" aria-live="polite">
-          Candle {state.visibleIndex + 1} / {state.totalCandles}
-          {finished && <span className="ml-2 text-brand-300">· finished</span>}
+        <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] app-muted" aria-live="polite">
+          <span>15x</span>
+          <span>
+            Candle {state.visibleIndex + 1} / {state.totalCandles}
+            {finished && <span className="ml-2 text-brand-300"> · finished</span>}
+          </span>
+          <span>600x</span>
         </div>
       </div>
     </div>

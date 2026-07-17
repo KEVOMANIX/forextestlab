@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  SPEED_INTERVAL_MS,
   createSession,
   getPairChart,
   getStateWithToken,
   sendAction,
+  replayIntervalMs,
   type CreateSessionBody,
   type PairChartData,
 } from "@/lib/backtest/client";
 import type { OrderRequest, PublicSessionState, ReplaySpeed } from "@/lib/backtest/types";
+import { previewPosition } from "@/lib/backtest/replay-engine";
 import type { Candle } from "@/lib/market-data/types";
 
 export type Phase = "setup" | "loading" | "active";
@@ -186,6 +187,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         captureCandle?: boolean;
         background?: boolean;
         showBusy?: boolean;
+        rollbackState?: PublicSessionState;
       } = {},
     ) => {
       const background = opts.background === true;
@@ -193,7 +195,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
       // Only one automatic step may wait or run at once. User commands are
       // queued behind it, so a slow candle request never makes controls flicker.
-      if (background && autoStepPendingRef.current) return;
+      if (
+        background &&
+        (autoStepPendingRef.current || interactiveBusyRef.current)
+      ) return;
       if (showBusy && interactiveBusyRef.current) return;
       lastActionRef.current = action;
 
@@ -262,6 +267,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
           patch({
             error: "The replay request failed. Please try again.",
             saveStatus: "error",
+            ...(opts.rollbackState ? { state: opts.rollbackState } : {}),
           });
         })
         .finally(() => {
@@ -288,15 +294,30 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const status = s.state?.status;
   const speed = s.state?.speed;
 
-  // Auto-advance while running.
+  // Auto-advance while running. A completion-aware loop preserves the target
+  // cadence better than setInterval: network latency no longer adds a second
+  // full interval or allows requests to pile up.
   useEffect(() => {
-    if (status !== "running" || !speed) return;
-    const interval = SPEED_INTERVAL_MS[speed as ReplaySpeed] ?? 1000;
-    const timer = setInterval(() => {
-      void stepRef.current();
-    }, interval);
-    return () => clearInterval(timer);
-  }, [status, speed]);
+    const timeframe = s.state?.config.timeframe;
+    if (status !== "running" || !speed || !timeframe) return;
+    const interval = replayIntervalMs(speed as ReplaySpeed, timeframe);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = (delay: number) => {
+      timer = setTimeout(async () => {
+        const started = performance.now();
+        await stepRef.current();
+        if (cancelled) return;
+        schedule(Math.max(0, interval - (performance.now() - started)));
+      }, delay);
+    };
+    schedule(interval);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [status, speed, s.state?.config.timeframe]);
 
   const play = useCallback(() => {
     wantsReplayRunningRef.current = true;
@@ -360,12 +381,41 @@ export function useBacktester(resumeSessionId: string | null = null) {
     return runAction({ type: "end" });
   }, [runAction]);
   const setSpeed = useCallback(
-    (value: ReplaySpeed) => runAction({ type: "set-speed", speed: value }),
+    (value: ReplaySpeed) => {
+      setS((prev) =>
+        prev.state
+          ? { ...prev, state: { ...prev.state, speed: value } }
+          : prev,
+      );
+      return runAction(
+        { type: "set-speed", speed: value },
+        { showBusy: false },
+      );
+    },
     [runAction],
   );
   const placeOrder = useCallback(
-    (order: OrderRequest) =>
-      runAction({
+    (order: OrderRequest) => {
+      const rollbackState = s.state;
+      const candle = s.lastCandle;
+      if (rollbackState && candle && !rollbackState.openPosition) {
+        const preview = previewPosition(rollbackState, candle, order);
+        if (preview.ok && preview.position) {
+          setS((prev) =>
+            prev.state
+              ? {
+                  ...prev,
+                  state: {
+                    ...prev.state,
+                    openPosition: preview.position ?? null,
+                    lockedBeforeIndex: prev.state.visibleIndex,
+                  },
+                }
+              : prev,
+          );
+        }
+      }
+      return runAction({
         type: "place-order",
         direction: order.direction,
         sizingMode: order.sizingMode,
@@ -373,8 +423,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
         riskPercent: order.riskPercent,
         stopLoss: order.stopLoss ?? undefined,
         takeProfit: order.takeProfit ?? undefined,
-      }),
-    [runAction],
+      }, { rollbackState: rollbackState ?? undefined });
+    },
+    [runAction, s.lastCandle, s.state],
   );
   const closePosition = useCallback(
     () => runAction({ type: "close" }),

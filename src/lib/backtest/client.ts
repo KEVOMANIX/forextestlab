@@ -4,7 +4,12 @@
  * creation) in a header to authorise mutating actions.
  */
 
-import type { Candle, MarketSymbol } from "@/lib/market-data/types";
+import {
+  TIMEFRAME_MS,
+  type Candle,
+  type MarketSymbol,
+  type Timeframe,
+} from "@/lib/market-data/types";
 import type { PublicSessionState, ReplaySpeed } from "./types";
 import type { ActionInput } from "./schemas";
 
@@ -137,10 +142,10 @@ export async function getPairChart(
   >;
 }
 
-export const SPEED_INTERVAL_MS: Record<ReplaySpeed, number> = {
-  0.5: 2000,
-  1: 1000,
-  2: 500,
-  5: 200,
-  10: 100,
-};
+/** Convert a market-time multiplier into wall-clock replay cadence. */
+export function replayIntervalMs(
+  speed: ReplaySpeed,
+  timeframe: Timeframe,
+): number {
+  return Math.max(75, TIMEFRAME_MS[timeframe] / speed);
+}

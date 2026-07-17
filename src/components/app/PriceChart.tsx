@@ -334,13 +334,34 @@ export default function PriceChart({
 
   useEffect(() => {
     if (!lastCandle) return;
+    const series = seriesRef.current;
     const candles = rawCandlesRef.current;
     const existing = candles.findIndex((candle) => candle.timestamp === lastCandle.timestamp);
     rawCandlesRef.current =
       existing >= 0
         ? candles.map((candle, index) => (index === existing ? lastCandle : candle))
         : [...candles, lastCandle];
-    refreshSeries();
+
+    // Update only the active bar. Replacing the complete series on every tick
+    // made the chart flash and reset internal layout work during playback.
+    if (series) {
+      if (displayTimeframeRef.current === baseTimeframe) {
+        series.update(toBar(lastCandle));
+      } else {
+        const bucket = candleBucketStart(
+          lastCandle.timestamp,
+          displayTimeframeRef.current,
+        );
+        const aggregate = aggregateCandles(
+          rawCandlesRef.current.filter((candle) => candle.timestamp >= bucket),
+          baseTimeframe,
+          displayTimeframeRef.current,
+        )[0];
+        if (aggregate) series.update(toBar(aggregate));
+      }
+      chartRef.current?.timeScale().scrollToRealTime();
+      requestAnimationFrame(updateLineCoordinates);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastCandle]);
 

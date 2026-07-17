@@ -65,6 +65,7 @@ export async function POST(
   const ctx = session.ctx;
   let newCandle: Candle | null = null;
   let opError: string | undefined;
+  let orderProjection: Promise<unknown> | null = null;
 
   switch (action.type) {
     case "start":
@@ -116,7 +117,7 @@ export async function POST(
       } else {
         const pos = ctx.state.openPosition;
         if (pos) {
-          await prisma.simulatedOrder.create({
+          orderProjection = prisma.simulatedOrder.create({
             data: {
               sessionId: session.id,
               direction: pos.direction,
@@ -151,7 +152,10 @@ export async function POST(
       break;
   }
 
-  await persistSession(session);
+  await Promise.all([
+    persistSession(session, { resetProjections: action.type === "restart" }),
+    orderProjection,
+  ]);
 
   if (opError) {
     return NextResponse.json(

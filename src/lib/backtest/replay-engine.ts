@@ -31,6 +31,7 @@ import type {
   SessionConfig,
   SessionState,
 } from "./types";
+import { DEFAULT_REPLAY_SPEED } from "./types";
 
 let counter = 0;
 /** Deterministic-enough id for positions/trades within a process. */
@@ -78,7 +79,7 @@ export function createSessionState(
     sessionId,
     config,
     status: "idle",
-    speed: 1,
+    speed: DEFAULT_REPLAY_SPEED,
     visibleIndex: initialIndex,
     totalCandles,
     balance,
@@ -307,21 +308,17 @@ export interface PlaceOrderResult {
   error?: string;
 }
 
-/** Open a simulated position (one at a time in the public beta). */
-export function placeOrder(
-  ctx: EngineContext,
-  req: OrderRequest,
-): PlaceOrderResult {
-  const { state } = ctx;
-  if (state.status === "finished") {
-    return { ok: false, error: "Session has finished." };
-  }
-  if (state.openPosition) {
-    return { ok: false, error: "A position is already open." };
-  }
-  const candle = currentCandle(ctx);
-  if (!candle) return { ok: false, error: "No current candle." };
+export interface PositionPreviewResult extends PlaceOrderResult {
+  position?: OpenPosition;
+}
 
+/** Build the exact server fill immediately for optimistic client feedback. */
+export function previewPosition(
+  state: Pick<SessionState, "config" | "balance" | "visibleIndex">,
+  candle: Candle,
+  req: OrderRequest,
+  id = "pending-position",
+): PositionPreviewResult {
   const entry = entryFillPrice(
     req.direction,
     candle,
@@ -363,22 +360,41 @@ export function placeOrder(
     return { ok: false, error: "Calculated position size is zero." };
   }
 
-  const commission = commissionForLots(state.config.commissionPerLot, lots);
-
-  const position: OpenPosition = {
-    id: makeId("pos"),
-    direction: req.direction,
-    entryPrice: entry,
-    entryIndex: state.visibleIndex,
-    entryTime: candle.timestamp,
-    lots,
-    stopLoss,
-    takeProfit,
-    commission,
-    unrealizedPnl: "0.00",
+  return {
+    ok: true,
+    position: {
+      id,
+      direction: req.direction,
+      entryPrice: entry,
+      entryIndex: state.visibleIndex,
+      entryTime: candle.timestamp,
+      lots,
+      stopLoss,
+      takeProfit,
+      commission: commissionForLots(state.config.commissionPerLot, lots),
+      unrealizedPnl: "0.00",
+    },
   };
+}
 
-  state.openPosition = position;
+/** Open a simulated position (one at a time in the public beta). */
+export function placeOrder(
+  ctx: EngineContext,
+  req: OrderRequest,
+): PlaceOrderResult {
+  const { state } = ctx;
+  if (state.status === "finished") {
+    return { ok: false, error: "Session has finished." };
+  }
+  if (state.openPosition) {
+    return { ok: false, error: "A position is already open." };
+  }
+  const candle = currentCandle(ctx);
+  if (!candle) return { ok: false, error: "No current candle." };
+
+  const preview = previewPosition(state, candle, req, makeId("pos"));
+  if (!preview.ok || !preview.position) return preview;
+  state.openPosition = preview.position;
   state.lockedBeforeIndex = state.visibleIndex;
   recomputeEquity(ctx, false);
   return { ok: true };

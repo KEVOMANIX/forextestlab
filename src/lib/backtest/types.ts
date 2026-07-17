@@ -11,9 +11,22 @@ export type TradeDirection = "long" | "short";
 
 export type ReplayStatus = "idle" | "running" | "paused" | "finished";
 
-export type ReplaySpeed = 0.5 | 1 | 2 | 5 | 10;
+/** Market-time multiplier. At 60x, one 1-minute candle appears each second. */
+export type ReplaySpeed = 15 | 30 | 60 | 120 | 300 | 600;
 
-export const REPLAY_SPEEDS: ReplaySpeed[] = [0.5, 1, 2, 5, 10];
+export const REPLAY_SPEEDS: ReplaySpeed[] = [15, 30, 60, 120, 300, 600];
+export const DEFAULT_REPLAY_SPEED: ReplaySpeed = 60;
+
+export function normalizeReplaySpeed(value: number): ReplaySpeed {
+  if (REPLAY_SPEEDS.includes(value as ReplaySpeed)) return value as ReplaySpeed;
+  // Sessions created before real-time multipliers used candles-per-second.
+  const migrated = value < 15 ? value * 60 : value;
+  return REPLAY_SPEEDS.reduce((closest, candidate) =>
+    Math.abs(candidate - migrated) < Math.abs(closest - migrated)
+      ? candidate
+      : closest,
+  DEFAULT_REPLAY_SPEED);
+}
 
 /**
  * How to resolve the case where a single candle's range touches both the

@@ -31,7 +31,7 @@ export const createSessionSchema = z
         z
           .string()
           .trim()
-          .regex(/^[A-Z]{6}$/, "Each pair must be a 6-letter code, e.g. EURUSD."),
+          .regex(/^[A-Z0-9]{3,6}$/, "Each market must use its supported symbol code."),
       )
       .min(1, "Select at least one currency pair.")
       .max(12)
@@ -73,11 +73,12 @@ export const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("set-speed"),
     speed: z.union([
-      z.literal(0.5),
-      z.literal(1),
-      z.literal(2),
-      z.literal(5),
-      z.literal(10),
+      z.literal(15),
+      z.literal(30),
+      z.literal(60),
+      z.literal(120),
+      z.literal(300),
+      z.literal(600),
     ]),
   }),
   z.object({

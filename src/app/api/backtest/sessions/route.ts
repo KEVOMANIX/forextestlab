@@ -71,6 +71,7 @@ export async function POST(request: Request) {
         token: session.token,
         state: toPublicState(session.ctx, session.anonymous),
         candles: visibleCandles(session.ctx),
+        contextCandles: session.contextCandles,
       },
       { status: 201 },
     );

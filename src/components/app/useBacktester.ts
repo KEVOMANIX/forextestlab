@@ -22,6 +22,7 @@ interface BacktesterState {
   sessionId: string | null;
   state: PublicSessionState | null;
   initialCandles: Candle[];
+  contextCandles: Candle[];
   lastCandle: Candle | null;
   busy: boolean;
   error: string | null;
@@ -41,6 +42,7 @@ const initial: BacktesterState = {
   sessionId: null,
   state: null,
   initialCandles: [],
+  contextCandles: [],
   lastCandle: null,
   busy: false,
   error: null,
@@ -114,6 +116,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         sessionId: resumeSessionId,
         state: res.state,
         initialCandles: res.candles,
+        contextCandles: res.contextCandles,
         lastCandle: res.candles[res.candles.length - 1] ?? null,
         busy: false,
         error: null,
@@ -162,6 +165,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         sessionId: res.sessionId,
         state: res.state,
         initialCandles: res.candles,
+        contextCandles: res.contextCandles,
         lastCandle: res.candles[res.candles.length - 1] ?? null,
         busy: false,
         error: null,
@@ -361,6 +365,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         ...prev,
         state: data.state,
         initialCandles: data.candles,
+        contextCandles: data.contextCandles,
         lastCandle: data.candles[data.candles.length - 1] ?? null,
         resetNonce: prev.resetNonce + 1,
         notes: data.notes,

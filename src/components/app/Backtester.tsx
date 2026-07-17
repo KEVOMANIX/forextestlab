@@ -203,6 +203,9 @@ export function Backtester({
   const chartCandles = referencePair
     ? bt.pairChart?.candles ?? []
     : bt.initialCandles;
+  const chartContextCandles = referencePair
+    ? bt.pairChart?.contextCandles ?? []
+    : bt.contextCandles;
   const chartLastCandle = referencePair ? null : bt.lastCandle;
   const chartCurrentCandle = referencePair
     ? chartCandles[chartCandles.length - 1] ?? null
@@ -311,6 +314,7 @@ export function Backtester({
           <PriceChart
             key={`${state.sessionId}-${activeSymbol}-${bt.resetNonce}`}
             initialCandles={chartCandles}
+            contextCandles={chartContextCandles}
             lastCandle={chartLastCandle}
             markers={referencePair ? [] : markers}
             entryPrice={!referencePair && position ? Number(position.entryPrice) : null}

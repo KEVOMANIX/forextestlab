@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   loadSession,
+  getChartContext,
   toPublicState,
   visibleCandles,
 } from "@/lib/backtest/session-store";
@@ -32,6 +33,7 @@ export async function GET(
     ok: true,
     state: toPublicState(session.ctx, session.anonymous),
     candles: visibleCandles(session.ctx),
+    contextCandles: await getChartContext(session),
     notes: session.notes,
   });
 }

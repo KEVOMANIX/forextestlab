@@ -30,6 +30,7 @@ interface CreateOk {
   token: string;
   state: PublicSessionState;
   candles: Candle[];
+  contextCandles: Candle[];
 }
 interface ActionOk {
   ok: true;
@@ -40,6 +41,7 @@ interface StateOk {
   ok: true;
   state: PublicSessionState;
   candles: Candle[];
+  contextCandles: Candle[];
   notes: string;
 }
 interface ApiErr {
@@ -51,6 +53,7 @@ interface ApiErr {
 export interface PairChartData {
   symbol: string;
   candles: Candle[];
+  contextCandles: Candle[];
   pipSize: string;
   pricePrecision: number;
 }

@@ -25,9 +25,52 @@ async function startSession(page: Page) {
   // Only the initial visible window is returned, never the full series.
   expect(body.candles.length).toBeLessThanOrEqual(60);
   expect(body.candles.length).toBeLessThan(body.state.totalCandles);
+  expect(body.state.config.timeframe).toBe("1m");
+  expect(Array.isArray(body.contextCandles)).toBe(true);
+  expect(body.candles[0].timestamp).toBeGreaterThanOrEqual(
+    body.state.config.startTime,
+  );
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 }
+
+test("loads pre-start context without moving the replay start", async ({ page }) => {
+  const selectedStart = Date.parse("2024-03-05T00:00:00Z");
+  const response = await page.request.post("/api/backtest/sessions", {
+    data: {
+      name: "Context boundary session",
+      symbols: ["EURUSD"],
+      startTime: selectedStart,
+      endTime: Date.parse("2024-03-08T23:59:59Z"),
+    },
+  });
+  const body = await response.json();
+  expect(response.ok()).toBe(true);
+  expect(body.contextCandles.length).toBeGreaterThan(0);
+  expect(body.contextCandles.at(-1).timestamp).toBeLessThan(
+    body.state.config.startTime,
+  );
+  expect(body.candles[0].timestamp).toBeGreaterThanOrEqual(
+    body.state.config.startTime,
+  );
+
+  await page.goto("/app/backtest");
+  await page.evaluate(
+    ({ sessionId, token }) => {
+      window.sessionStorage.setItem(
+        `forextestlab:session:${sessionId}`,
+        token,
+      );
+    },
+    { sessionId: body.sessionId, token: body.token },
+  );
+  await page.goto(`/app/backtest?session=${encodeURIComponent(body.sessionId)}`);
+  await expect(page.getByText(/6M context · 1h/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /Display 1m candles/i })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});
 
 test("completes a full public backtest workflow without login", async ({ page }, testInfo) => {
   test.setTimeout(60_000);

@@ -25,6 +25,7 @@ Lightweight Charts™.
 - Server-controlled market replay (candle-by-candle; **future candles are never
   sent to the browser**).
 - Start / pause / resume / next / previous / restart, with a 15×–600× real market-time speed slider.
+- Each chart preloads roughly six months of hourly context before the selected 1-minute replay start; context candles never affect execution or analytics.
 - Simulated Buy/Sell with stop-loss, take-profit, fixed-lot or risk-% sizing.
 - Manual close and automatic SL/TP close (with a conservative intrabar policy).
 - Configurable spread, commission, and slippage; balance and equity tracking.

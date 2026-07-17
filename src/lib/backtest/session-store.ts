@@ -27,6 +27,8 @@ import { normalizeReplaySpeed } from "./types";
 
 /** Bound the candle count per session so reloads stay fast. */
 const MAX_SESSION_CANDLES = 1500;
+const MAX_CONTEXT_CANDLES = 5000;
+const CONTEXT_LOOKBACK_MS = 183 * 24 * 60 * 60 * 1000;
 
 /**
  * In-memory cache of each session's candle series. A session's candles never
@@ -35,6 +37,7 @@ const MAX_SESSION_CANDLES = 1500;
  * simply falls back to a DB fetch on a cold instance.
  */
 const candleCache = new Map<string, Candle[]>();
+const contextCache = new Map<string, Candle[]>();
 const CANDLE_CACHE_MAX = 50;
 
 function cacheCandles(id: string, candles: Candle[]): void {
@@ -43,6 +46,14 @@ function cacheCandles(id: string, candles: Candle[]): void {
     if (oldest) candleCache.delete(oldest);
   }
   candleCache.set(id, candles);
+}
+
+function cacheContext(key: string, candles: Candle[]): void {
+  if (contextCache.size >= CANDLE_CACHE_MAX) {
+    const oldest = contextCache.keys().next().value;
+    if (oldest) contextCache.delete(oldest);
+  }
+  contextCache.set(key, candles);
 }
 
 export interface CreateSessionParams {
@@ -68,6 +79,7 @@ export interface LoadedSession {
   anonymous: boolean;
   anonymousExpiresAt: Date | null;
   ctx: EngineContext;
+  contextCandles: Candle[];
   notes: string;
 }
 
@@ -117,6 +129,7 @@ export async function visiblePairCandles(
   symbol: string,
 ): Promise<{
   candles: Candle[];
+  contextCandles: Candle[];
   pipSize: string;
   pricePrecision: number;
 }> {
@@ -132,25 +145,58 @@ export async function visiblePairCandles(
   if (symbol === session.ctx.state.config.symbol) {
     return {
       candles: visibleCandles(session.ctx),
+      contextCandles: await getChartContext(session, symbol),
       pipSize: definition.pipSize,
       pricePrecision: definition.pricePrecision,
     };
   }
 
   const current = currentCandleOf(session.ctx)?.timestamp;
-  const series = await fetchSeries(
-    symbol,
-    session.ctx.state.config.timeframe,
-    session.ctx.state.config.startTime,
-    session.ctx.state.config.endTime,
-  );
+  const [series, contextCandles] = await Promise.all([
+    fetchSeries(
+      symbol,
+      session.ctx.state.config.timeframe,
+      session.ctx.state.config.startTime,
+      session.ctx.state.config.endTime,
+    ),
+    getChartContext(session, symbol),
+  ]);
   return {
     candles: current
       ? series.filter((candle) => candle.timestamp <= current)
       : series.slice(0, session.ctx.state.config.initialVisibleCount),
+    contextCandles,
     pipSize: definition.pipSize,
     pricePrecision: definition.pricePrecision,
   };
+}
+
+async function fetchChartContext(
+  symbol: string,
+  replayStartTime: number,
+): Promise<Candle[]> {
+  return getMarketDataProvider().getCandles({
+    symbol,
+    timeframe: "1h",
+    startTime: Math.max(0, replayStartTime - CONTEXT_LOOKBACK_MS),
+    endTime: replayStartTime - 1,
+    limit: MAX_CONTEXT_CANDLES,
+  });
+}
+
+export async function getChartContext(
+  session: LoadedSession,
+  symbol = session.ctx.state.config.symbol,
+): Promise<Candle[]> {
+  const key = `${session.id}:${symbol}`;
+  const cached = contextCache.get(key);
+  if (cached) return cached;
+  const candles = await fetchChartContext(
+    symbol,
+    session.ctx.state.config.startTime,
+  );
+  cacheContext(key, candles);
+  return candles;
 }
 
 async function fetchSeries(
@@ -207,6 +253,10 @@ export async function createSession(
       "Create a free account to use saved historical market data. Anonymous access is demonstration-only.",
     );
   }
+  const contextCandles = await fetchChartContext(
+    params.symbol,
+    effectiveStart,
+  );
 
   const config = buildSessionConfig({
     name: params.name,
@@ -239,6 +289,7 @@ export async function createSession(
   );
 
   cacheCandles(id, series);
+  cacheContext(`${id}:${params.symbol}`, contextCandles);
 
   const instrument = await prisma.marketInstrument.findUnique({
     where: { symbol: def.symbol },
@@ -291,6 +342,7 @@ export async function createSession(
       ? null
       : new Date(Date.now() + 24 * 60 * 60 * 1000),
     ctx: { state, candles: series },
+    contextCandles,
     notes: "",
   };
 }
@@ -340,6 +392,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
     anonymousExpiresAt: row.anonymousExpiresAt,
     notes: row.notes ?? "",
     ctx: { state, candles: series },
+    contextCandles: [],
   };
 }
 

@@ -43,6 +43,7 @@ export interface ChartMarker {
 
 interface PriceChartProps {
   initialCandles: Candle[];
+  contextCandles: Candle[];
   lastCandle: Candle | null;
   markers: ChartMarker[];
   entryPrice: number | null;
@@ -137,6 +138,7 @@ function ToolButton({
 
 export default function PriceChart({
   initialCandles,
+  contextCandles,
   lastCandle,
   markers,
   entryPrice,
@@ -157,6 +159,7 @@ export default function PriceChart({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const contextSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const entryLineRef = useRef<IPriceLine | null>(null);
   const stopLineRef = useRef<IPriceLine | null>(null);
   const targetLineRef = useRef<IPriceLine | null>(null);
@@ -234,6 +237,20 @@ export default function PriceChart({
       autoSize: true,
     });
 
+    const contextSeries = chart.addCandlestickSeries({
+      upColor: "#167f6d",
+      downColor: "#a54850",
+      borderUpColor: "#167f6d",
+      borderDownColor: "#a54850",
+      wickUpColor: "#167f6d",
+      wickDownColor: "#a54850",
+      priceLineVisible: false,
+      lastValueVisible: false,
+      priceFormat: { type: "price", precision, minMove: 1 / 10 ** precision },
+    });
+    contextSeries.setData(contextCandles.map(toBar));
+    contextSeriesRef.current = contextSeries;
+
     const series = chart.addCandlestickSeries({
       upColor: BULL,
       downColor: BEAR,
@@ -247,7 +264,7 @@ export default function PriceChart({
     seriesRef.current = series;
     chartRef.current = chart;
     refreshSeries();
-    chart.timeScale().fitContent();
+    chart.timeScale().scrollToRealTime();
     if (storageKey) {
       try {
         const saved = JSON.parse(
@@ -273,7 +290,8 @@ export default function PriceChart({
     }
 
     chart.subscribeCrosshairMove((param) => {
-      const data = param.seriesData.get(series) as CandlestickData<Time> | undefined;
+      const data = (param.seriesData.get(series) ??
+        param.seriesData.get(contextSeries)) as CandlestickData<Time> | undefined;
       setLegend(data ?? null);
     });
 
@@ -303,6 +321,7 @@ export default function PriceChart({
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      contextSeriesRef.current = null;
       entryLineRef.current = null;
       stopLineRef.current = null;
       targetLineRef.current = null;
@@ -373,7 +392,7 @@ export default function PriceChart({
       scale?.setVisibleLogicalRange(savedRangeRef.current);
       savedRangeRef.current = null;
     } else {
-      scale?.fitContent();
+      scale?.scrollToRealTime();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayTimeframe]);
@@ -563,6 +582,11 @@ export default function PriceChart({
         aria-label="Chart tools"
       >
         <CandlestickChart size={16} className="mx-1 shrink-0 text-brand-300" aria-hidden />
+        {contextCandles.length > 0 && (
+          <span className="shrink-0 rounded bg-blue-500/10 px-1.5 py-1 font-mono text-[9px] text-blue-300">
+            6M context · 1h
+          </span>
+        )}
         <div className="flex shrink-0 items-center border-r app-border pr-1" aria-label="Display timeframe">
           {availableTimeframes.map((timeframe) => (
             <ToolButton

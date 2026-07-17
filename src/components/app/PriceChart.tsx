@@ -322,6 +322,7 @@ export default function PriceChart({
         if (typeof saved.grid === "boolean") setGridVisible(saved.grid);
         if (typeof saved.magnet === "boolean") setMagnetCrosshair(saved.magnet);
         if (saved.range) {
+          followLatestRef.current = false;
           savedRangeRef.current = saved.range;
           chart.timeScale().setVisibleLogicalRange(saved.range);
         }
@@ -333,10 +334,6 @@ export default function PriceChart({
     const coordinateUpdate = () => {
       updateLineCoordinates();
       const visible = chart.timeScale().getVisibleLogicalRange();
-      if (visible) {
-        const bars = series.barsInLogicalRange(visible);
-        if (bars) followLatestRef.current = bars.barsAfter < 2;
-      }
       if (visible && visible.from < 100) loadOlderRef.current();
       if (!storageKey) return;
       const range = chart.timeScale().getVisibleLogicalRange();
@@ -353,11 +350,18 @@ export default function PriceChart({
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(coordinateUpdate);
+    const detachFromLatest = () => {
+      followLatestRef.current = false;
+    };
+    container.addEventListener("pointerdown", detachFromLatest, true);
+    container.addEventListener("wheel", detachFromLatest, { passive: true });
     const observer = new ResizeObserver(coordinateUpdate);
     observer.observe(container);
 
     return () => {
       observer.disconnect();
+      container.removeEventListener("pointerdown", detachFromLatest, true);
+      container.removeEventListener("wheel", detachFromLatest);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(coordinateUpdate);
       chart.remove();
       chartRef.current = null;
@@ -441,6 +445,7 @@ export default function PriceChart({
     }
     const scale = chartRef.current?.timeScale();
     if (savedRangeRef.current) {
+      followLatestRef.current = false;
       scale?.setVisibleLogicalRange(savedRangeRef.current);
       savedRangeRef.current = null;
     } else {

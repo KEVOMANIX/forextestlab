@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, ChevronDown, X } from "lucide-react";
 
 import type { OrderRequest, PublicSessionState, TradeDirection } from "@/lib/backtest/types";
@@ -12,6 +12,7 @@ interface OrderTicketProps {
   takeProfit: string | null;
   onPlaceOrder: (order: OrderRequest) => void;
   onClose: () => void;
+  onTemplateChange: (template: Omit<OrderRequest, "direction">) => void;
   referencePair?: string | null;
 }
 
@@ -22,6 +23,7 @@ export function OrderTicket({
   takeProfit,
   onPlaceOrder,
   onClose,
+  onTemplateChange,
   referencePair = null,
 }: OrderTicketProps) {
   const [sizingMode, setSizingMode] = useState<"risk-percent" | "fixed-lots">("fixed-lots");
@@ -30,6 +32,14 @@ export function OrderTicket({
   const [mobileDetails, setMobileDetails] = useState(false);
   const hasPosition = state.openPosition !== null;
   const finished = state.status === "finished";
+
+  useEffect(() => {
+    onTemplateChange({
+      sizingMode,
+      lots: sizingMode === "fixed-lots" ? lots : undefined,
+      riskPercent: sizingMode === "risk-percent" ? riskPercent : undefined,
+    });
+  }, [lots, onTemplateChange, riskPercent, sizingMode]);
 
   function submit(direction: TradeDirection) {
     onPlaceOrder({

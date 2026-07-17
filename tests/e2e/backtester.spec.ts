@@ -123,7 +123,7 @@ test("completes a full public backtest workflow without login", async ({ page },
 
   // (3) initial candles + workspace visible
   await expect(page.getByRole("img", { name: /Candlestick price chart/i })).toBeVisible();
-  const counter = page.getByText(/Candle \d+ \/ \d+/);
+  const counter = page.getByText(/Candle \d+ of \d+/);
   await expect(counter).toBeVisible();
   const before = await counter.textContent();
 
@@ -189,7 +189,7 @@ test("restarts a session", async ({ page }) => {
   await next.click();
   await next.click();
   await page.getByRole("button", { name: /Restart session/i }).click();
-  await expect(page.getByText(/Candle \d+ \/ \d+/)).toBeVisible();
+  await expect(page.getByText(/Candle \d+ of \d+/)).toBeVisible();
 });
 
 test("resumes a saved session at the last revealed candle", async ({ page }) => {
@@ -210,7 +210,7 @@ test("resumes a saved session at the last revealed candle", async ({ page }) => 
     page.getByRole("button", { name: "Buy", exact: true }).click(),
   ]);
 
-  const counter = page.getByText(/Candle \d+ \/ \d+/);
+  const counter = page.getByText(/Candle \d+ of \d+/);
   const savedCounter = await counter.textContent();
   await expect(page).toHaveURL(/\/app\/backtest\?session=/);
   await expect(page.getByText(/^Long$/i)).toBeVisible();
@@ -246,6 +246,9 @@ test("shows trading actions above the chart and moves the replay toolbox", async
     "true",
   );
   const speedSlider = page.getByLabel("Replay speed");
+  await expect(page.getByRole("button", { name: "Quick Buy" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Quick Sell" })).toBeVisible();
+  await expect(page.getByTestId("replay-toolbox")).not.toContainText(/Candle \d+ \/ \d+/);
   await expect(speedSlider).toHaveAttribute(
     "aria-valuetext",
     /60 times real market time, 1 candle \/ 1s/,
@@ -348,7 +351,7 @@ test("replay advances locally and pause stays responsive during checkpoint saves
     await route.continue();
   });
 
-  const counter = page.getByText(/Candle \d+ \/ \d+/);
+  const counter = page.getByText(/Candle \d+ of \d+/);
   const before = await counter.textContent();
   await page.getByRole("button", { name: /Play replay/i }).click();
   const pause = page.getByRole("button", { name: /Pause replay/i });

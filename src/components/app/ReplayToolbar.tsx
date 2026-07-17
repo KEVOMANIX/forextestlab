@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
+  ArrowDownRight,
+  ArrowUpRight,
   ChevronLeft,
   ChevronRight,
   GripHorizontal,
@@ -26,6 +28,9 @@ interface ReplayToolbarProps {
   onRestart: () => void;
   onEnd: () => void;
   onSpeed: (s: ReplaySpeed) => void;
+  onBuy: () => void;
+  onSell: () => void;
+  canTrade: boolean;
 }
 
 function ControlBtn({
@@ -69,6 +74,9 @@ export function ReplayToolbar({
   onRestart,
   onEnd,
   onSpeed,
+  onBuy,
+  onSell,
+  canTrade,
 }: ReplayToolbarProps) {
   const toolboxRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
@@ -218,10 +226,28 @@ export function ReplayToolbar({
         </div>
         <button
           type="button"
+          aria-label="Quick Sell"
+          onClick={onSell}
+          disabled={!canTrade}
+          className="ml-auto inline-flex h-7 items-center gap-1 rounded-md bg-bear px-2 text-[10px] font-bold text-white hover:opacity-90 disabled:opacity-35"
+        >
+          <ArrowDownRight size={12} aria-hidden /> Sell
+        </button>
+        <button
+          type="button"
+          aria-label="Quick Buy"
+          onClick={onBuy}
+          disabled={!canTrade}
+          className="inline-flex h-7 items-center gap-1 rounded-md bg-brand-500 px-2 text-[10px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35"
+        >
+          <ArrowUpRight size={12} aria-hidden /> Buy
+        </button>
+        <button
+          type="button"
           aria-label="Reset replay controls position"
           title="Reset toolbox position"
           onClick={() => setPosition(null)}
-          className="ml-auto inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md app-muted hover:bg-brand-400/10 hover:text-brand-300"
+          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md app-muted hover:bg-brand-400/10 hover:text-brand-300"
         >
           <LocateFixed size={14} aria-hidden />
         </button>
@@ -250,12 +276,9 @@ export function ReplayToolbar({
           <span className="shrink-0 font-mono text-[9px] app-muted">{cadenceLabel}</span>
         </div>
 
-        <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] app-muted" aria-live="polite">
+        <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] app-muted">
           <span>15x</span>
-          <span>
-            Candle {state.visibleIndex + 1} / {state.totalCandles}
-            {finished && <span className="ml-2 text-brand-300"> · finished</span>}
-          </span>
+          {finished && <span className="text-brand-300">Finished</span>}
           <span>600x</span>
         </div>
       </div>

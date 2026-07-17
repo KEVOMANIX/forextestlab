@@ -24,6 +24,7 @@ import { useAppTheme } from "./ThemeContext";
 import { useBacktester } from "./useBacktester";
 import { BackLink } from "./BackLink";
 import { TradingOnboarding } from "./TradingOnboarding";
+import type { OrderRequest } from "@/lib/backtest/types";
 
 const PriceChart = dynamic(() => import("./PriceChart"), {
   ssr: false,
@@ -45,6 +46,10 @@ export function Backtester({
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
   const [dockOpen, setDockOpen] = useState(true);
+  const [orderTemplate, setOrderTemplate] = useState<Omit<OrderRequest, "direction">>({
+    sizingMode: "fixed-lots",
+    lots: "0.10",
+  });
   const hasMeaningfulActivity = Boolean(
     state?.openPosition || state?.closedTrades.length,
   );
@@ -195,6 +200,14 @@ export function Backtester({
   const activeSymbol = bt.activeSymbol ?? state.config.symbol;
   const referencePair =
     activeSymbol === state.config.symbol ? null : activeSymbol;
+  const quickOrder = (direction: "long" | "short") => {
+    actions.placeOrder({
+      ...orderTemplate,
+      direction,
+      stopLoss: chartStop ?? undefined,
+      takeProfit: chartTarget ?? undefined,
+    });
+  };
   const chartCandles = referencePair
     ? bt.pairChart?.candles ?? []
     : bt.initialCandles;
@@ -276,6 +289,7 @@ export function Backtester({
           takeProfit={chartTarget}
           onPlaceOrder={actions.placeOrder}
           onClose={closePosition}
+          onTemplateChange={setOrderTemplate}
           referencePair={referencePair}
         />
       </TerminalTopBar>
@@ -345,6 +359,15 @@ export function Backtester({
             onRestart={restart}
             onEnd={endSession}
             onSpeed={actions.setSpeed}
+            onBuy={() => quickOrder("long")}
+            onSell={() => quickOrder("short")}
+            canTrade={Boolean(
+              !bt.busy &&
+              !position &&
+              state.status !== "finished" &&
+              state.currentPrice &&
+              !referencePair
+            )}
           />
         </div>
 

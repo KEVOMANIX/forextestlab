@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createSession,
+  extendReplay,
   getPairChart,
   getChartHistory,
   getStateWithToken,
@@ -75,6 +76,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const interactiveBusyRef = useRef(false);
   const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const autoStepPendingRef = useRef(false);
+  const replayExtendPendingRef = useRef(false);
   const wantsReplayRunningRef = useRef(false);
   const stepRef = useRef<() => Promise<void>>(async () => {});
   const replayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -326,11 +328,66 @@ export function useBacktester(resumeSessionId: string | null = null) {
     [patch, s.activeSymbol],
   );
 
-  // Playback is deliberately browser-local. The whole replay window is loaded
-  // once, then each tick is a synchronous memory operation with no HTTP jitter.
+  // Playback is browser-local for smooth ticks. Additional bounded candle
+  // chunks are fetched only when playback reaches the current memory boundary.
   stepRef.current = useCallback(async () => {
     const engine = localEngineRef.current;
-    if (!engine || !revealNext(engine)) return;
+    if (!engine) return;
+
+    const lastLoaded = engine.candles[engine.candles.length - 1];
+    const atLoadedBoundary =
+      engine.state.visibleIndex >= engine.state.totalCandles - 1;
+    if (
+      atLoadedBoundary &&
+      lastLoaded &&
+      lastLoaded.timestamp < engine.state.config.endTime
+    ) {
+      if (replayExtendPendingRef.current) return;
+      const id = sessionIdRef.current;
+      if (!id) return;
+      replayExtendPendingRef.current = true;
+      const extension = await extendReplay(id, tokenRef.current);
+      replayExtendPendingRef.current = false;
+
+      if (!extension.ok) {
+        wantsReplayRunningRef.current = false;
+        engine.state.status = "paused";
+        setS((prev) => ({
+          ...prev,
+          error: extension.error,
+          state: prev.state ? { ...prev.state, status: "paused" } : prev.state,
+        }));
+        return;
+      }
+
+      const newestTimestamp = engine.candles[engine.candles.length - 1]?.timestamp ?? 0;
+      const newCandles = extension.candles.filter(
+        (candle) => candle.timestamp > newestTimestamp,
+      );
+      if (newCandles.length > 0) {
+        engine.candles.push(...newCandles);
+        engine.state.totalCandles = engine.candles.length;
+        setS((prev) => ({
+          ...prev,
+          replayCandles: [...prev.replayCandles, ...newCandles],
+          state: prev.state
+            ? { ...prev.state, totalCandles: engine.state.totalCandles }
+            : prev.state,
+        }));
+      }
+    }
+
+    const advanced = revealNext(engine);
+    if (!advanced) {
+      wantsReplayRunningRef.current = false;
+      const state = publicSessionState(engine, s.state?.anonymous ?? false);
+      setS((prev) => ({ ...prev, state }));
+      void runAction(
+        { type: "end", targetIndex: engine.state.visibleIndex },
+        { background: true, showBusy: false },
+      );
+      return;
+    }
     if (
       wantsReplayRunningRef.current &&
       engine.state.status !== "finished"
@@ -340,7 +397,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const state = publicSessionState(engine, s.state?.anonymous ?? false);
     const candle = engine.candles[state.visibleIndex] ?? null;
     setS((prev) => ({ ...prev, state, lastCandle: candle }));
-  }, [s.state?.anonymous]);
+  }, [runAction, s.state?.anonymous]);
 
   const status = s.state?.status;
 
@@ -606,6 +663,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     wantsReplayRunningRef.current = false;
     interactiveBusyRef.current = false;
     autoStepPendingRef.current = false;
+    replayExtendPendingRef.current = false;
     stopLocalScheduler();
     localEngineRef.current = null;
     actionQueueRef.current = Promise.resolve();

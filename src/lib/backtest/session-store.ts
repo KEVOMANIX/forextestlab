@@ -25,7 +25,7 @@ import type {
 } from "./types";
 import { normalizeReplaySpeed } from "./types";
 
-/** Bound the candle count per session so reloads stay fast. */
+/** Bounded replay chunk size; longer sessions are extended progressively. */
 const MAX_SESSION_CANDLES = 1500;
 const MAX_CONTEXT_CANDLES = 3000;
 const CONTEXT_LOOKBACK_MS = 183 * 24 * 60 * 60 * 1000;
@@ -223,6 +223,7 @@ async function fetchSeries(
   timeframe: Timeframe,
   startTime: number,
   endTime: number,
+  limit = MAX_SESSION_CANDLES,
 ): Promise<Candle[]> {
   const provider = getMarketDataProvider();
   const candles = await provider.getCandles({
@@ -230,9 +231,43 @@ async function fetchSeries(
     timeframe,
     startTime,
     endTime,
-    limit: MAX_SESSION_CANDLES,
+    limit,
   });
-  return candles.slice(0, MAX_SESSION_CANDLES);
+  return candles.slice(0, limit);
+}
+
+export async function extendReplaySeries(
+  session: LoadedSession,
+): Promise<{ candles: Candle[]; hasMore: boolean }> {
+  const { ctx } = session;
+  const last = ctx.candles[ctx.candles.length - 1];
+  if (!last || last.timestamp >= ctx.state.config.endTime) {
+    return { candles: [], hasMore: false };
+  }
+
+  const next = await fetchSeries(
+    ctx.state.config.symbol,
+    ctx.state.config.timeframe,
+    last.timestamp + TIMEFRAME_MS[ctx.state.config.timeframe],
+    ctx.state.config.endTime,
+  );
+  const candles = next.filter((candle) => candle.timestamp > last.timestamp);
+  if (candles.length === 0) return { candles: [], hasMore: false };
+
+  ctx.candles.push(...candles);
+  ctx.state.totalCandles = ctx.candles.length;
+  cacheCandles(session.id, ctx.candles);
+  await persistSession(session);
+
+  const newest = candles[candles.length - 1];
+  return {
+    candles,
+    hasMore: Boolean(
+      newest &&
+      newest.timestamp < ctx.state.config.endTime &&
+      candles.length >= MAX_SESSION_CANDLES
+    ),
+  };
 }
 
 export async function createSession(
@@ -401,6 +436,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
       row.timeframe as Timeframe,
       Number(row.startTime),
       Number(row.endTime),
+      Math.max(MAX_SESSION_CANDLES, state.totalCandles),
     );
     cacheCandles(id, series);
   }
@@ -430,6 +466,7 @@ export async function persistSession(
       status: state.status,
       speed: state.speed,
       visibleIndex: state.visibleIndex,
+      totalCandles: state.totalCandles,
       lockedBeforeIndex: state.lockedBeforeIndex,
       balance: state.balance,
       equity: state.equity,

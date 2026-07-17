@@ -66,6 +66,12 @@ export interface ChartHistoryPage {
   timeframe: Timeframe;
 }
 
+interface ReplayExtensionOk {
+  ok: true;
+  candles: Candle[];
+  hasMore: boolean;
+}
+
 async function parse<T>(res: Response): Promise<T | ApiErr> {
   try {
     return (await res.json()) as T | ApiErr;
@@ -119,6 +125,21 @@ export async function sendAction(
     body: JSON.stringify(action),
   });
   return parse<ActionOk>(res) as Promise<ActionOk | ApiErr>;
+}
+
+export async function extendReplay(
+  sessionId: string,
+  token: string | null,
+): Promise<ReplayExtensionOk | ApiErr> {
+  try {
+    const res = await fetch(`/api/backtest/sessions/${sessionId}/extend`, {
+      method: "POST",
+      headers: token ? { "x-session-token": token } : undefined,
+    });
+    return parse<ReplayExtensionOk>(res) as Promise<ReplayExtensionOk | ApiErr>;
+  } catch {
+    return { ok: false, error: "More replay data could not be loaded." };
+  }
 }
 
 export async function getState(sessionId: string): Promise<StateOk | ApiErr> {

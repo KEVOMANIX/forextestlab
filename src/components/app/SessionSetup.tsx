@@ -78,12 +78,24 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
       }
       setRange(commonRange);
       const threeDays = 3 * 24 * 60 * 60 * 1000;
-      setStart(toDateInput(commonRange.startTime));
-      setEnd(
-        toDateInput(
-          Math.min(commonRange.endTime, commonRange.startTime + threeDays),
-        ),
-      );
+      setStart((current) => {
+        if (!current) return toDateInput(commonRange.startTime);
+        const selected = Date.parse(`${current}T00:00:00Z`);
+        return toDateInput(
+          Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)),
+        );
+      });
+      setEnd((current) => {
+        if (!current) {
+          return toDateInput(
+            Math.min(commonRange.endTime, commonRange.startTime + threeDays),
+          );
+        }
+        const selected = Date.parse(`${current}T23:59:59.999Z`);
+        return toDateInput(
+          Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)),
+        );
+      });
     });
     return () => {
       cancelled = true;

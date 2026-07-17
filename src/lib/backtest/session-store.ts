@@ -179,9 +179,11 @@ export async function getChartContext(
   const key = `${session.id}:${symbol}:${timeframe}`;
   const cached = contextCache.get(key);
   if (cached) return cached;
+  const replayStartTime =
+    session.ctx.candles[0]?.timestamp ?? session.ctx.state.config.startTime;
   const candles = await fetchChartContext(
     symbol,
-    session.ctx.state.config.startTime,
+    replayStartTime,
     timeframe,
   );
   cacheContext(key, candles);
@@ -198,15 +200,17 @@ export async function getChartContextPage(
     ? session.ctx.state.config.symbols
     : [session.ctx.state.config.symbol];
   if (!allowed.includes(symbol)) throw new Error("This pair is not part of the session.");
+  const replayStartTime =
+    session.ctx.candles[0]?.timestamp ?? session.ctx.state.config.startTime;
   const candles = await fetchChartContext(
     symbol,
-    session.ctx.state.config.startTime,
+    replayStartTime,
     timeframe,
     before,
   );
   const lowerBound = Math.max(
     0,
-    session.ctx.state.config.startTime - CONTEXT_LOOKBACK_MS,
+    replayStartTime - CONTEXT_LOOKBACK_MS,
   );
   return {
     candles,
@@ -259,7 +263,6 @@ export async function createSession(
     throw new Error("Historical data could not be loaded.");
   }
   const effectiveStart = firstCandle.timestamp;
-  const effectiveEnd = lastCandle.timestamp;
 
   const source = firstCandle.source;
   const demoData = source === "demo";
@@ -284,8 +287,10 @@ export async function createSession(
     pipSize: def.pipSize,
     pricePrecision: def.pricePrecision,
     timeframe: params.timeframe,
-    startTime: effectiveStart,
-    endTime: effectiveEnd,
+    // Preserve the dates the user chose. The candle series can begin later
+    // (weekend/holiday) without silently changing the saved test period.
+    startTime: params.startTime,
+    endTime: params.endTime,
     startingBalance: params.startingBalance,
     spreadPips: params.spreadPips,
     commissionPerLot: params.commissionPerLot,
@@ -324,8 +329,8 @@ export async function createSession(
       instrumentId: instrument?.id ?? (await ensureInstrument(def.symbol)),
       symbol: def.symbol,
       timeframe: params.timeframe,
-      startTime: BigInt(effectiveStart),
-      endTime: BigInt(effectiveEnd),
+      startTime: BigInt(params.startTime),
+      endTime: BigInt(params.endTime),
       status: state.status,
       speed: state.speed,
       visibleIndex: state.visibleIndex,

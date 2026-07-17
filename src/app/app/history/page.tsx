@@ -6,6 +6,7 @@ import { Decimal } from "@/lib/decimal";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
 import type { SessionState } from "@/lib/backtest/types";
 import { BackLink } from "@/components/app/BackLink";
+import { DeleteSessionButton } from "@/components/app/DeleteSessionButton";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
 export const metadata: Metadata = {
@@ -104,6 +105,11 @@ export default async function HistoryPage() {
                       >
                         Analytics
                       </Link>
+                      <DeleteSessionButton
+                        sessionId={s.id}
+                        iconOnly
+                        redirectAfterDelete={false}
+                      />
                     </td>
                   </tr>
                 );

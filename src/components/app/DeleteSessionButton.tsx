@@ -4,7 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 
-export function DeleteSessionButton({ sessionId }: { sessionId: string }) {
+export function DeleteSessionButton({
+  sessionId,
+  iconOnly = false,
+  redirectAfterDelete = true,
+}: {
+  sessionId: string;
+  iconOnly?: boolean;
+  redirectAfterDelete?: boolean;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -15,7 +23,7 @@ export function DeleteSessionButton({ sessionId }: { sessionId: string }) {
       method: "DELETE",
     });
     if (response.ok) {
-      router.replace("/app/history");
+      if (redirectAfterDelete) router.replace("/app/history");
       router.refresh();
       return;
     }
@@ -23,9 +31,18 @@ export function DeleteSessionButton({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <button type="button" className="btn-secondary py-2 text-xs" onClick={remove} disabled={busy}>
+    <button
+      type="button"
+      className={iconOnly
+        ? "ml-2 inline-grid h-8 w-8 place-items-center rounded-md text-bear/80 hover:bg-bear/10 hover:text-bear"
+        : "btn-secondary py-2 text-xs"}
+      onClick={remove}
+      disabled={busy}
+      aria-label={iconOnly ? "Delete session" : undefined}
+      title={iconOnly ? "Delete session" : undefined}
+    >
       <Trash2 size={14} aria-hidden />
-      Delete
+      {!iconOnly && "Delete"}
     </button>
   );
 }

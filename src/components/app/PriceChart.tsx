@@ -177,6 +177,14 @@ export default function PriceChart({
   }>({ stop: null, target: null });
   const [historyLoading, setHistoryLoading] = useState(contextCandles.length === 0);
 
+  // Never let a slow or stalled remote history request permanently cover a
+  // usable replay chart. The request itself also has a network timeout.
+  useEffect(() => {
+    if (!historyLoading) return;
+    const timeout = window.setTimeout(() => setHistoryLoading(false), 8_000);
+    return () => window.clearTimeout(timeout);
+  }, [historyLoading, displayTimeframe]);
+
   async function loadHistoryPage(replace: boolean) {
     if (historyLoadingRef.current || (!replace && !historyHasMoreRef.current)) return;
     const firstReplayTime = rawCandlesRef.current[0]?.timestamp;

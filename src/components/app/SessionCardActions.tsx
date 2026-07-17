@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, BarChart3, Copy, Play, RotateCcw } from "lucide-react";
+import { Archive, BarChart3, Copy, Play, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 export function SessionCardActions({
@@ -45,6 +45,16 @@ export function SessionCardActions({
     }
   }
 
+  async function remove() {
+    if (!window.confirm("Delete this saved session permanently?")) return;
+    setBusy(true);
+    const response = await fetch(`/api/backtest/sessions/${sessionId}`, {
+      method: "DELETE",
+    });
+    setBusy(false);
+    if (response.ok) router.refresh();
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {!finished && (
@@ -69,6 +79,16 @@ export function SessionCardActions({
       >
         <Copy size={14} aria-hidden />
         {finished ? "Duplicate" : "Copy"}
+      </button>
+      <button
+        type="button"
+        onClick={remove}
+        disabled={busy}
+        aria-label="Delete session"
+        title="Delete session"
+        className="grid h-8 w-8 place-items-center rounded-md text-bear/80 hover:bg-bear/10 hover:text-bear disabled:opacity-40"
+      >
+        <Trash2 size={14} aria-hidden />
       </button>
       <button
         type="button"

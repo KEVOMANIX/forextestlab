@@ -27,6 +27,7 @@ import { BackLink } from "./BackLink";
 import { TradingOnboarding } from "./TradingOnboarding";
 import type { OrderRequest } from "@/lib/backtest/types";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { PageLoader } from "@/components/PageLoader";
 
 type PendingConfirmation = {
   title: string;
@@ -139,13 +140,7 @@ export function Backtester({
   }, [state]);
 
   if (bt.phase === "loading") {
-    return (
-      <div className="grid min-h-[70vh] place-items-center px-4">
-        <div className="panel max-w-sm p-8 text-center">
-          <p className="font-semibold">Restoring your session…</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (bt.phase === "setup" || !state) {

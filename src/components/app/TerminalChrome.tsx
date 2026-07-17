@@ -19,7 +19,6 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { Logo } from "@/components/Logo";
 import type { PublicSessionState } from "@/lib/backtest/types";
 
 function RailButton({
@@ -60,6 +59,7 @@ export function TerminalTopBar({
   saveStatus,
   onNavigate,
   onRetrySave,
+  children,
 }: {
   state: PublicSessionState;
   theme: "dark" | "light";
@@ -70,16 +70,13 @@ export function TerminalTopBar({
   saveStatus: "saved" | "saving" | "error";
   onNavigate: (href: string) => boolean;
   onRetrySave: () => void;
+  children: React.ReactNode;
 }) {
   const symbols = state.config.symbols?.length
     ? state.config.symbols
     : [state.config.symbol];
   return (
-    <header className="flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b app-border bg-[var(--app-panel)] px-2">
-      <div className="hidden shrink-0 sm:block">
-        <Logo className="h-5" />
-      </div>
-      <span className="hidden h-5 w-px shrink-0 bg-[var(--app-border)] sm:block" aria-hidden />
+    <header aria-label="Trading header" className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-b app-border bg-[var(--app-panel)] px-2 shadow-sm">
       <Link
         href="/app"
         aria-label="Back to dashboard"
@@ -109,19 +106,17 @@ export function TerminalTopBar({
             </option>
           ))}
         </select>
-        {state.demoData && (
-          <span className="rounded-md border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] font-semibold text-amber-300">
-            DEMO
-          </span>
-        )}
       </div>
+
+      <span className="h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
+      {children}
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <button
           type="button"
           onClick={saveStatus === "error" ? onRetrySave : undefined}
           disabled={saveStatus !== "error"}
-          className={`hidden items-center gap-1 text-[10px] sm:inline-flex ${
+          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-[10px] ${
             saveStatus === "error" ? "text-bear" : "app-muted"
           }`}
           aria-live="polite"
@@ -133,34 +128,18 @@ export function TerminalTopBar({
           ) : (
             <Save size={12} aria-hidden />
           )}
-          {saveStatus === "saving"
-            ? "Saving…"
-            : saveStatus === "error"
-              ? "Save failed"
-              : "Saved"}
-          {saveStatus === "error" && " · Retry"}
+          <span className="hidden xl:inline">
+            {saveStatus === "saving" ? "Saving…" : saveStatus === "error" ? "Retry save" : "Saved"}
+          </span>
         </button>
-        {!state.anonymous && (
-          <Link
-            href={`/app/results/${state.sessionId}`}
-            onClick={(event) => {
-              if (!onNavigate(`/app/results/${state.sessionId}`)) {
-                event.preventDefault();
-              }
-            }}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border app-border px-2.5 text-xs font-semibold hover:border-brand-400/40"
-          >
-            <BarChart3 size={14} aria-hidden />
-            Analytics
-          </Link>
-        )}
         <button
           type="button"
           onClick={onNewSession}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-500"
+          aria-label="New session"
+          title="New session"
+          className="grid h-8 w-8 place-items-center rounded-md border app-border app-muted hover:text-brand-300"
         >
           <RotateCcw size={14} aria-hidden />
-          <span className="hidden sm:inline">New session</span>
         </button>
         <button
           type="button"

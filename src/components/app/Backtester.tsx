@@ -7,8 +7,6 @@ import {
   BarChart3,
   ChevronDown,
   ChevronUp,
-  Clock3,
-  WalletCards,
 } from "lucide-react";
 
 import type { ChartMarker } from "./PriceChart";
@@ -194,9 +192,6 @@ export function Backtester({
     changeStop(null);
     changeTarget(null);
   };
-  const currentTime = state.currentTime
-    ? new Date(state.currentTime).toISOString().slice(0, 16).replace("T", " ")
-    : "—";
   const activeSymbol = bt.activeSymbol ?? state.config.symbol;
   const referencePair =
     activeSymbol === state.config.symbol ? null : activeSymbol;
@@ -273,7 +268,17 @@ export function Backtester({
         saveStatus={bt.saveStatus}
         onNavigate={confirmNavigation}
         onRetrySave={actions.retrySave}
-      />
+      >
+        <OrderTicket
+          state={state}
+          busy={bt.busy}
+          stopLoss={chartStop}
+          takeProfit={chartTarget}
+          onPlaceOrder={actions.placeOrder}
+          onClose={closePosition}
+          referencePair={referencePair}
+        />
+      </TerminalTopBar>
 
       {bt.error && (
         <p
@@ -288,18 +293,6 @@ export function Backtester({
           {bt.notice}
         </p>
       )}
-
-      <section aria-label="Trading header" className="shrink-0">
-        <OrderTicket
-          state={state}
-          busy={bt.busy}
-          stopLoss={chartStop}
-          takeProfit={chartTarget}
-          onPlaceOrder={actions.placeOrder}
-          onClose={closePosition}
-          referencePair={referencePair}
-        />
-      </section>
 
       <div className="flex min-h-0 flex-1">
         <TerminalLeftRail
@@ -375,35 +368,10 @@ export function Backtester({
             </Link>
           </span>
         )}
-        <span className="hidden shrink-0 items-center gap-1.5 app-muted md:inline-flex">
-          <Clock3 size={13} aria-hidden />
-          {currentTime} UTC
-        </span>
-        <span className="hidden shrink-0 items-center gap-1.5 sm:inline-flex">
-          <WalletCards size={13} className="app-muted" aria-hidden />
-          Balance <strong className="font-mono">${state.balance}</strong>
-        </span>
-        <span className="hidden shrink-0 sm:inline">
-          Equity <strong className="font-mono">${state.equity}</strong>
-        </span>
-        {position && (
-          <span
-            className={`shrink-0 font-mono font-semibold ${
-              Number(position.unrealizedPnl) >= 0
-                ? "text-brand-300"
-                : "text-bear"
-            }`}
-          >
-            Floating P/L ${position.unrealizedPnl}
-          </span>
-        )}
-        <span className="ml-auto hidden shrink-0 app-muted lg:inline">
-          Charts: TradingView Lightweight Charts™
-        </span>
         <button
           type="button"
           onClick={() => setDockOpen((open) => !open)}
-          className="inline-flex h-6 shrink-0 items-center gap-1 rounded bg-blue-600 px-2 font-semibold text-white hover:bg-blue-500"
+          className="ml-auto inline-flex h-6 shrink-0 items-center gap-1 rounded bg-blue-600 px-2 font-semibold text-white hover:bg-blue-500"
           aria-expanded={dockOpen}
         >
           <BarChart3 size={12} aria-hidden />

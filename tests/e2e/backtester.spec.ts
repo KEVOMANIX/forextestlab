@@ -66,7 +66,7 @@ test("loads pre-start context without moving the replay start", async ({ page })
     { sessionId: body.sessionId, token: body.token },
   );
   await page.goto(`/app/backtest?session=${encodeURIComponent(body.sessionId)}`);
-  await expect(page.getByText(/6M history · 1m/i)).toBeVisible();
+  await expect(page.getByText(/Loading 1m chart history/i)).toBeHidden();
   await expect(page.getByRole("button", { name: /Display 1m candles/i })).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -187,7 +187,7 @@ test("resumes a saved session at the last revealed candle", async ({ page }) => 
 test("shows trading actions above the chart and moves the replay toolbox", async ({ page }) => {
   await startSession(page);
 
-  const tradingHeader = page.getByRole("region", { name: /Trading header/i });
+  const tradingHeader = page.locator('[aria-label="Trading header"]');
   const chart = page.getByRole("img", { name: /Candlestick price chart/i });
   const headerBox = await tradingHeader.boundingBox();
   const chartBox = await chart.boundingBox();
@@ -232,7 +232,8 @@ test("shows trading actions above the chart and moves the replay toolbox", async
   ]);
   await expect(page.getByTestId("stop-loss-line")).toBeVisible();
   await expect(page.getByTestId("take-profit-line")).toBeVisible();
-  await expect(tradingHeader.getByText(/Drag SL\/TP directly on the chart/i)).toBeVisible();
+  await expect(page.getByTestId("stop-loss-line")).toHaveCount(1);
+  await expect(page.getByTestId("take-profit-line")).toHaveCount(1);
 
   await page.getByRole("button", { name: /Display 15m candles/i }).click();
   await expect(page.getByRole("button", { name: /Display 15m candles/i })).toHaveAttribute(

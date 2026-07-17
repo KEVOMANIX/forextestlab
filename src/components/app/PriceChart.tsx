@@ -1,16 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  CandlestickChart,
-  Crosshair,
-  Grid3X3,
-  Maximize2,
-  Minus,
-  Target,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+import { Crosshair, Grid3X3, LocateFixed, Maximize2, Minus, Target } from "lucide-react";
 import {
   ColorType,
   CrosshairMode,
@@ -166,8 +157,7 @@ export default function PriceChart({
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const entryLineRef = useRef<IPriceLine | null>(null);
-  const stopLineRef = useRef<IPriceLine | null>(null);
-  const targetLineRef = useRef<IPriceLine | null>(null);
+  const followLatestRef = useRef(true);
   const rawCandlesRef = useRef<Candle[]>(initialCandles);
   const displayTimeframeRef = useRef<Timeframe>(baseTimeframe);
   const draggingRef = useRef<"stop" | "target" | null>(null);
@@ -176,7 +166,6 @@ export default function PriceChart({
   const historyLoadingRef = useRef(false);
   const historyHasMoreRef = useRef(true);
   const loadOlderRef = useRef<() => void>(() => {});
-  const [legend, setLegend] = useState<CandlestickData<Time> | null>(null);
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(baseTimeframe);
   const [gridVisible, setGridVisible] = useState(true);
   const [magnetCrosshair, setMagnetCrosshair] = useState(false);
@@ -186,7 +175,7 @@ export default function PriceChart({
     stop: number | null;
     target: number | null;
   }>({ stop: null, target: null });
-  const [historyAvailable, setHistoryAvailable] = useState(contextCandles.length > 0);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   async function loadHistoryPage(replace: boolean) {
     if (historyLoadingRef.current || (!replace && !historyHasMoreRef.current)) return;
@@ -194,6 +183,7 @@ export default function PriceChart({
     const earliest = historyCandlesRef.current[0]?.timestamp ?? firstReplayTime;
     if (!earliest) return;
     historyLoadingRef.current = true;
+    if (replace) setHistoryLoading(true);
     try {
       const page = await onLoadHistory(
         displayTimeframeRef.current,
@@ -206,9 +196,9 @@ export default function PriceChart({
       historyCandlesRef.current = merged;
       historyHasMoreRef.current = page.hasMore;
       contextSeriesRef.current?.setData(merged.map(toBar));
-      setHistoryAvailable(merged.length > 0);
     } finally {
       historyLoadingRef.current = false;
+      if (replace) setHistoryLoading(false);
     }
   }
   loadOlderRef.current = () => void loadHistoryPage(false);
@@ -324,15 +314,13 @@ export default function PriceChart({
       }
     }
 
-    chart.subscribeCrosshairMove((param) => {
-      const data = (param.seriesData.get(series) ??
-        param.seriesData.get(contextSeries)) as CandlestickData<Time> | undefined;
-      setLegend(data ?? null);
-    });
-
     const coordinateUpdate = () => {
       updateLineCoordinates();
       const visible = chart.timeScale().getVisibleLogicalRange();
+      if (visible) {
+        const bars = series.barsInLogicalRange(visible);
+        if (bars) followLatestRef.current = bars.barsAfter < 2;
+      }
       if (visible && visible.from < 100) loadOlderRef.current();
       if (!storageKey) return;
       const range = chart.timeScale().getVisibleLogicalRange();
@@ -360,8 +348,6 @@ export default function PriceChart({
       seriesRef.current = null;
       contextSeriesRef.current = null;
       entryLineRef.current = null;
-      stopLineRef.current = null;
-      targetLineRef.current = null;
     };
     // The parent remounts this chart when a session changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -415,7 +401,7 @@ export default function PriceChart({
         )[0];
         if (aggregate) series.update(toBar(aggregate));
       }
-      chartRef.current?.timeScale().scrollToRealTime();
+      if (followLatestRef.current) chartRef.current?.timeScale().scrollToRealTime();
       requestAnimationFrame(updateLineCoordinates);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -433,6 +419,7 @@ export default function PriceChart({
       scale?.setVisibleLogicalRange(savedRangeRef.current);
       savedRangeRef.current = null;
     } else {
+      followLatestRef.current = true;
       scale?.scrollToRealTime();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -482,38 +469,6 @@ export default function PriceChart({
   }, [takeProfit]);
 
   useEffect(() => {
-    const series = seriesRef.current;
-    if (!series) return;
-    if (stopDraft == null && stopLineRef.current) {
-      series.removePriceLine(stopLineRef.current);
-      stopLineRef.current = null;
-    } else if (stopDraft != null && stopLineRef.current) {
-      stopLineRef.current.applyOptions({ price: stopDraft });
-    } else if (stopDraft != null) {
-      stopLineRef.current = series.createPriceLine({
-            price: stopDraft,
-            color: BEAR,
-            lineWidth: 1,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: true,
-            title: "SL",
-          });
-    }
-    if (targetDraft == null && targetLineRef.current) {
-      series.removePriceLine(targetLineRef.current);
-      targetLineRef.current = null;
-    } else if (targetDraft != null && targetLineRef.current) {
-      targetLineRef.current.applyOptions({ price: targetDraft });
-    } else if (targetDraft != null) {
-      targetLineRef.current = series.createPriceLine({
-            price: targetDraft,
-            color: BULL,
-            lineWidth: 1,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: true,
-            title: "TP",
-          });
-    }
     requestAnimationFrame(updateLineCoordinates);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopDraft, targetDraft]);
@@ -537,13 +492,15 @@ export default function PriceChart({
     }
   }, [entryPrice]);
 
-  function zoom(factor: number) {
-    const scale = chartRef.current?.timeScale();
-    const range = scale?.getVisibleLogicalRange();
-    if (!scale || !range) return;
-    const center = (range.from + range.to) / 2;
-    const half = ((range.to - range.from) / 2) * factor;
-    scale.setVisibleLogicalRange({ from: center - half, to: center + half });
+  function goToLatest() {
+    followLatestRef.current = true;
+    chartRef.current?.timeScale().scrollToRealTime();
+  }
+
+  function selectTimeframe(timeframe: Timeframe) {
+    if (timeframe === displayTimeframe) return;
+    setHistoryLoading(true);
+    setDisplayTimeframe(timeframe);
   }
 
   function defaultProtection(kind: "stop" | "target") {
@@ -622,19 +579,13 @@ export default function PriceChart({
         role="toolbar"
         aria-label="Chart tools"
       >
-        <CandlestickChart size={16} className="mx-1 shrink-0 text-brand-300" aria-hidden />
-        {historyAvailable && (
-          <span className="shrink-0 rounded bg-blue-500/10 px-1.5 py-1 font-mono text-[9px] text-blue-300">
-            6M history · {displayTimeframe}
-          </span>
-        )}
         <div className="flex shrink-0 items-center border-r app-border pr-1" aria-label="Display timeframe">
           {availableTimeframes.map((timeframe) => (
             <ToolButton
               key={timeframe}
               label={`Display ${timeframe} candles`}
               active={displayTimeframe === timeframe}
-              onClick={() => setDisplayTimeframe(timeframe)}
+              onClick={() => selectTimeframe(timeframe)}
             >
               {timeframe}
             </ToolButton>
@@ -654,11 +605,8 @@ export default function PriceChart({
         >
           <Grid3X3 size={15} aria-hidden />
         </ToolButton>
-        <ToolButton label="Zoom in" onClick={() => zoom(0.75)}>
-          <ZoomIn size={15} aria-hidden />
-        </ToolButton>
-        <ToolButton label="Zoom out" onClick={() => zoom(1.3)}>
-          <ZoomOut size={15} aria-hidden />
+        <ToolButton label="Go to latest candle" onClick={goToLatest}>
+          <LocateFixed size={15} aria-hidden />
         </ToolButton>
         <ToolButton label="Fit chart data" onClick={() => chartRef.current?.timeScale().fitContent()}>
           <Maximize2 size={15} aria-hidden />
@@ -680,15 +628,6 @@ export default function PriceChart({
           <span className="ml-1">TP</span>
         </ToolButton>
       </div>
-
-      {legend && (
-        <div className="pointer-events-none absolute left-3 top-14 rounded-md border app-border bg-[var(--app-panel-2)] px-3 py-1.5 font-mono text-xs">
-          <span className="app-muted">O</span> {legend.open}{" "}
-          <span className="app-muted">H</span> {legend.high}{" "}
-          <span className="app-muted">L</span> {legend.low}{" "}
-          <span className="app-muted">C</span> {legend.close}
-        </div>
-      )}
 
       {stopDraft != null && lineCoordinates.stop != null && (
         <button
@@ -726,9 +665,14 @@ export default function PriceChart({
         </button>
       )}
 
-      {loading && (
-        <div className="absolute inset-0 grid place-items-center bg-[var(--app-bg)]/60">
-          <span className="app-muted text-sm">Loading candles…</span>
+      {(loading || historyLoading) && (
+        <div className="absolute inset-0 z-30 grid place-items-center bg-[var(--app-bg)]/95 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
+            <span className="app-muted text-sm">
+              {loading ? "Loading market…" : `Loading ${displayTimeframe} chart history…`}
+            </span>
+          </div>
         </div>
       )}
       {error && (
@@ -736,7 +680,7 @@ export default function PriceChart({
           <span className="max-w-xs text-center text-sm text-bear">{error}</span>
         </div>
       )}
-      {!loading && !error && initialCandles.length === 0 && (
+      {!loading && !historyLoading && !error && initialCandles.length === 0 && (
         <div className="absolute inset-0 grid place-items-center">
           <span className="app-muted text-sm">No candles to display.</span>
         </div>

@@ -15,14 +15,6 @@ const LINKS = [
   { label: "Contact", href: "/contact" },
 ];
 
-export function BetaBadge() {
-  return (
-    <span className="rounded-full border border-brand-400/40 bg-brand-400/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-brand-300">
-      Public Beta
-    </span>
-  );
-}
-
 export function AppNav({ email }: { email: string | null }) {
   const { theme, toggle } = useAppTheme();
   return (
@@ -31,10 +23,7 @@ export function AppNav({ email }: { email: string | null }) {
         className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-4 px-4"
         aria-label="Backtester"
       >
-        <div className="flex items-center gap-3">
-          <Logo className="h-7" />
-          <BetaBadge />
-        </div>
+        <Logo className="h-7" />
 
         <div className="hidden items-center gap-1 md:flex">
           {LINKS.map((l) => (

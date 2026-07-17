@@ -341,9 +341,6 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
   return (
     <div className="panel mx-auto w-full max-w-2xl p-6 sm:p-7">
       <h2 className="text-xl font-semibold">Start a backtest session</h2>
-      <p className="mt-1 text-sm app-muted">
-        Name your session, select one or more pairs, and confirm the period.
-      </p>
 
       <ol className="mt-5 grid grid-cols-3 gap-2" aria-label="Session setup progress">
         {["Name", "Pairs", "Dates"].map((label, index) => {
@@ -392,19 +389,12 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
               onChange={(event) => setTagsText(event.target.value)}
               placeholder="breakout, London, trend"
             />
-            <p className="mt-2 text-xs app-muted">
-              Separate tags with commas so related tests are easy to find later.
-            </p>
           </div>
         )}
 
         {step === 2 && (
           <fieldset>
             <legend className="text-sm font-medium">Currency pairs</legend>
-            <p className="mt-1 text-xs app-muted">
-              Pair charts stay synchronized to the same replay timestamp. The
-              first selected pair is the execution pair.
-            </p>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
               {enabledSymbols.map((item) => {
                 const selected = selectedSymbols.includes(item.symbol);
@@ -462,10 +452,7 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
                   : "Select at least one pair with available historical data."}
             </p>
             <div className="rounded-xl border app-border bg-[var(--app-panel-2)] p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] app-muted">
-                Session summary
-              </p>
-              <p className="mt-2 font-semibold">{name}</p>
+              <p className="font-semibold">{name}</p>
               <p className="mt-1 text-sm app-muted">
                 {selectedSymbols
                   .map(formatSymbol)
@@ -475,9 +462,6 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
               {tags.length > 0 && (
                 <p className="mt-2 text-xs text-brand-300">{tags.join(" · ")}</p>
               )}
-              <p className="mt-3 text-xs text-amber-300">
-                Pairs without imported market data use clearly labelled demonstration data.
-              </p>
             </div>
           </div>
         )}

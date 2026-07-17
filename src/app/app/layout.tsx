@@ -6,17 +6,13 @@ import { AppThemeProvider } from "@/components/app/ThemeContext";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
-  title: "Backtester (Public Beta)",
+  title: "Backtester",
   description:
-    "Run a real simulated forex backtest in the browser — historical market replay, simulated execution, risk tools, and performance reporting. Public beta.",
+    "Run simulated forex backtests with historical market replay, execution tools, and performance reporting.",
   alternates: { canonical: "/app" },
 };
 
-export default async function AppLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
   return (
     <AppThemeProvider>

@@ -2,7 +2,7 @@
   "name": "forextestlab",
   "version": "1.0.0",
   "private": true,
-  "description": "Landing website for ForexTestLab — a forex backtesting and market-replay platform in development.",
+  "description": "ForexTestLab forex backtesting and historical market-replay platform.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

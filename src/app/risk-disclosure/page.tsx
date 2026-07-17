@@ -17,11 +17,12 @@ export default function RiskDisclosurePage() {
       <LegalPage
         title="Forex Risk Disclosure"
         lastUpdated="15 July 2026"
+        showDraftNotice={false}
         intro={
           <p>
             Trading foreign exchange carries a high level of risk. This
             disclosure highlights key risks and the limitations of the practice
-            and analysis tools that {siteConfig.name} is building. Please read it
+            and analysis tools provided by {siteConfig.name}. Please read it
             carefully.
           </p>
         }

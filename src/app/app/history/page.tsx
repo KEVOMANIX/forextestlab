@@ -45,9 +45,6 @@ export default async function HistoryPage() {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <BackLink />
       <h1 className="mt-5 text-2xl font-bold tracking-tight">Session history</h1>
-      <p className="mt-2 text-sm app-muted">
-        Your private saved backtest sessions.
-      </p>
 
       {sessions.length === 0 ? (
         <div className="panel mt-8 p-8 text-center">

@@ -22,9 +22,7 @@ export default function PrivacyPage() {
           <p>
             This Privacy Policy explains how {siteConfig.name} (&ldquo;we&rdquo;,
             &ldquo;us&rdquo;, or &ldquo;our&rdquo;) handles information collected
-            through {siteConfig.domain}. Because ForexTestLab is still in
-            development, this policy covers our website and pre-launch waitlist
-            and contact activities only.
+            through {siteConfig.domain} and the ForexTestLab application.
           </p>
         }
       >
@@ -32,9 +30,7 @@ export default function PrivacyPage() {
           <p>We collect only the information you choose to provide, including:</p>
           <ul className="list-disc space-y-1 pl-5">
             <li>Your name and email address.</li>
-            <li>
-              Your stated trading experience level and preferred currency pairs.
-            </li>
+            <li>Your saved sessions, simulated trades, strategy notes, and selected markets.</li>
             <li>The contents of any message you send us.</li>
             <li>
               Basic technical data (such as your IP address and browser type)
@@ -43,11 +39,10 @@ export default function PrivacyPage() {
           </ul>
         </LegalSection>
 
-        <LegalSection heading="2. Waitlist and contact-form data">
+        <LegalSection heading="2. Account and contact data">
           <p>
-            When you join the waitlist or use the contact form, we use your
-            details to respond to you, to send you updates about ForexTestLab
-            that you have asked for, and to plan early-access invitations. We do
+            We use your details to operate your account, save your sessions,
+            respond to messages, and provide requested service updates. We do
             not sell your personal information.
           </p>
         </LegalSection>
@@ -71,7 +66,7 @@ export default function PrivacyPage() {
 
         <LegalSection heading="5. Data retention">
           <p>
-            We keep waitlist and contact information only for as long as needed
+            We keep account and contact information only for as long as needed
             for the purposes described above, or until you ask us to remove it.
             You may request deletion at any time using the contact details
             below.

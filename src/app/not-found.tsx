@@ -16,16 +16,12 @@ export default function NotFound() {
         <h1 className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
           Page not found
         </h1>
-        <p className="mt-3 max-w-md text-slate-400">
-          The page you&apos;re looking for doesn&apos;t exist or may have moved.
-          Let&apos;s get you back on track.
-        </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/" className="btn-primary">
             Back to home
           </Link>
-          <Link href="/waitlist" className="btn-secondary">
-            Join the Waitlist
+          <Link href="/app/backtest" className="btn-secondary">
+            Start backtesting
           </Link>
         </div>
       </div>

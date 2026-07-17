@@ -5,7 +5,7 @@ import { Backtester } from "@/components/app/Backtester";
 export const metadata: Metadata = {
   title: "Backtester",
   description:
-    "Run a simulated forex backtest with historical market replay, simulated execution, and risk tools. No account required — public beta.",
+    "Run a simulated forex backtest with historical market replay and execution tools.",
   alternates: { canonical: "/app/backtest" },
 };
 

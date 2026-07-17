@@ -68,7 +68,7 @@ export function TerminalTopBar({
   activeSymbol: string;
   onSwitchPair: (symbol: string) => void;
   saveStatus: "saved" | "saving" | "error";
-  onNavigate: (href: string) => boolean;
+  onNavigate: (href: string) => void;
   onRetrySave: () => void;
   children: React.ReactNode;
 }) {
@@ -81,7 +81,8 @@ export function TerminalTopBar({
         href="/app"
         aria-label="Back to dashboard"
         onClick={(event) => {
-          if (!onNavigate("/app")) event.preventDefault();
+          event.preventDefault();
+          onNavigate("/app");
         }}
         className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs font-semibold hover:bg-[var(--app-panel-2)] sm:px-2"
       >
@@ -196,7 +197,7 @@ export function TerminalRightRail({
 }: {
   state: PublicSessionState;
   onNewSession: () => void;
-  onNavigate: (href: string) => boolean;
+  onNavigate: (href: string) => void;
 }) {
   return (
     <aside
@@ -206,7 +207,8 @@ export function TerminalRightRail({
       <Link
         href="/app"
         onClick={(event) => {
-          if (!onNavigate("/app")) event.preventDefault();
+          event.preventDefault();
+          onNavigate("/app");
         }}
         aria-label="Dashboard"
         title="Dashboard"
@@ -217,7 +219,8 @@ export function TerminalRightRail({
       <Link
         href="/app/history"
         onClick={(event) => {
-          if (!onNavigate("/app/history")) event.preventDefault();
+          event.preventDefault();
+          onNavigate("/app/history");
         }}
         aria-label="Session history"
         title="Session history"
@@ -229,9 +232,8 @@ export function TerminalRightRail({
         <Link
           href={`/app/results/${state.sessionId}`}
           onClick={(event) => {
-            if (!onNavigate(`/app/results/${state.sessionId}`)) {
-              event.preventDefault();
-            }
+            event.preventDefault();
+            onNavigate(`/app/results/${state.sessionId}`);
           }}
           aria-label="Session analytics"
           title="Session analytics"

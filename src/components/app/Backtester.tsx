@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
@@ -25,6 +26,15 @@ import { useBacktester } from "./useBacktester";
 import { BackLink } from "./BackLink";
 import { TradingOnboarding } from "./TradingOnboarding";
 import type { OrderRequest } from "@/lib/backtest/types";
+import { ConfirmModal } from "@/components/ConfirmModal";
+
+type PendingConfirmation = {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  action: () => void;
+};
 
 const PriceChart = dynamic(() => import("./PriceChart"), {
   ssr: false,
@@ -40,12 +50,15 @@ export function Backtester({
 }: {
   resumeSessionId?: string | null;
 }) {
+  const router = useRouter();
   const { theme, toggle } = useAppTheme();
   const bt = useBacktester(resumeSessionId);
   const { state, actions } = bt;
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
   const [dockOpen, setDockOpen] = useState(true);
+  const [pendingConfirmation, setPendingConfirmation] =
+    useState<PendingConfirmation | null>(null);
   const [orderTemplate, setOrderTemplate] = useState<Omit<OrderRequest, "direction">>({
     sizingMode: "fixed-lots",
     lots: "0.10",
@@ -130,9 +143,6 @@ export function Backtester({
       <div className="grid min-h-[70vh] place-items-center px-4">
         <div className="panel max-w-sm p-8 text-center">
           <p className="font-semibold">Restoring your session…</p>
-          <p className="mt-2 text-sm app-muted">
-            Loading revealed candles, trades, and your last replay position.
-          </p>
         </div>
       </div>
     );
@@ -170,12 +180,17 @@ export function Backtester({
     else setPlannedTarget(price);
   };
   const closePosition = () => {
-    if (!window.confirm("Close this position at the current simulated price?")) {
-      return;
-    }
-    setPlannedStop(null);
-    setPlannedTarget(null);
-    void actions.closePosition();
+    setPendingConfirmation({
+      title: "Close position?",
+      message: "The position will close at the current simulated price.",
+      confirmLabel: "Close position",
+      danger: true,
+      action: () => {
+        setPlannedStop(null);
+        setPlannedTarget(null);
+        void actions.closePosition();
+      },
+    });
   };
   const protectionPrice = (kind: "stop" | "target") => {
     if (!state.currentPrice) return null;
@@ -224,42 +239,50 @@ export function Backtester({
   const chartPrecision = referencePair
     ? bt.pairChart?.pricePrecision ?? state.config.pricePrecision
     : state.config.pricePrecision;
-  const confirmNavigation = () =>
-    !hasMeaningfulActivity ||
-    window.confirm(
-      "Leave this chart? Your session is saved, but any open position will remain open.",
-    );
-  const newSession = () => {
-    if (
-      hasMeaningfulActivity &&
-      !window.confirm(
-        "Start a new session? Your current session will stay saved and can be resumed.",
-      )
-    ) {
+  const navigateFromChart = (href: string) => {
+    if (!hasMeaningfulActivity) {
+      router.push(href);
       return;
     }
-    actions.newSession();
+    setPendingConfirmation({
+      title: "Leave session?",
+      message: "Your progress is saved. Any open position will remain open.",
+      confirmLabel: "Leave session",
+      action: () => router.push(href),
+    });
+  };
+  const newSession = () => {
+    if (!hasMeaningfulActivity) {
+      actions.newSession();
+      return;
+    }
+    setPendingConfirmation({
+      title: "Start a new session?",
+      message: "This session will remain saved and can be resumed later.",
+      confirmLabel: "New session",
+      action: actions.newSession,
+    });
   };
   const restart = () => {
-    if (
-      hasMeaningfulActivity &&
-      !window.confirm(
-        "Restart this session? All simulated trades and progress in it will be cleared.",
-      )
-    ) {
+    if (!hasMeaningfulActivity) {
+      void actions.restart();
       return;
     }
-    void actions.restart();
+    setPendingConfirmation({
+      title: "Restart session?",
+      message: "All trades and replay progress in this session will be cleared.",
+      confirmLabel: "Restart",
+      danger: true,
+      action: () => void actions.restart(),
+    });
   };
   const endSession = () => {
-    if (
-      !window.confirm(
-        "Finish this session now? Open positions will close at the current simulated price.",
-      )
-    ) {
-      return;
-    }
-    void actions.endSession();
+    setPendingConfirmation({
+      title: "Finish session?",
+      message: "Any open position will close at the current simulated price.",
+      confirmLabel: "Finish session",
+      action: () => void actions.endSession(),
+    });
   };
 
   return (
@@ -279,7 +302,7 @@ export function Backtester({
         activeSymbol={activeSymbol}
         onSwitchPair={actions.switchPair}
         saveStatus={bt.saveStatus}
-        onNavigate={confirmNavigation}
+        onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}
       >
         <OrderTicket
@@ -300,11 +323,6 @@ export function Backtester({
           className="absolute right-3 top-12 z-40 max-w-md rounded-lg border border-bear/30 bg-[var(--app-panel)] px-3 py-2 text-sm text-bear shadow-xl"
         >
           {bt.error}
-        </p>
-      )}
-      {bt.notice?.startsWith("Session resumed") && (
-        <p className="absolute right-3 top-12 z-30 max-w-md rounded-lg border border-brand-400/25 bg-[var(--app-panel)] px-3 py-2 text-xs text-brand-300 shadow-xl">
-          {bt.notice}
         </p>
       )}
 
@@ -374,7 +392,7 @@ export function Backtester({
         <TerminalRightRail
           state={state}
           onNewSession={newSession}
-          onNavigate={confirmNavigation}
+          onNavigate={navigateFromChart}
         />
       </div>
 
@@ -417,6 +435,19 @@ export function Backtester({
           />
         </div>
       )}
+      <ConfirmModal
+        open={Boolean(pendingConfirmation)}
+        title={pendingConfirmation?.title ?? "Confirm action"}
+        message={pendingConfirmation?.message ?? ""}
+        confirmLabel={pendingConfirmation?.confirmLabel}
+        danger={pendingConfirmation?.danger}
+        onCancel={() => setPendingConfirmation(null)}
+        onConfirm={() => {
+          const action = pendingConfirmation?.action;
+          setPendingConfirmation(null);
+          action?.();
+        }}
+      />
     </div>
   );
 }

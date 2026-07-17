@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 export function AccountActions() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   async function signOut() {
     const supabase = createBrowserSupabaseClient();
@@ -20,13 +22,6 @@ export function AccountActions() {
   }
 
   async function deleteAccount() {
-    if (
-      !window.confirm(
-        "Permanently delete your account and all saved backtests? This cannot be undone.",
-      )
-    ) {
-      return;
-    }
     setBusy(true);
     setError(null);
     const response = await fetch("/api/account", { method: "DELETE" });
@@ -50,18 +45,25 @@ export function AccountActions() {
       </button>
       <div className="rounded-xl border border-bear/30 bg-bear/5 p-4">
         <h2 className="font-semibold text-bear">Delete account</h2>
-        <p className="mt-1 text-sm app-muted">
-          Permanently removes your profile, sessions, trades, notes, and results.
-        </p>
         <button
           type="button"
           className="mt-4 rounded-lg bg-bear px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          onClick={deleteAccount}
+          onClick={() => setDeleteOpen(true)}
           disabled={busy}
         >
           Delete my account
         </button>
       </div>
+      <ConfirmModal
+        open={deleteOpen}
+        title="Delete account?"
+        message="Your profile, sessions, trades, notes, and results will be permanently deleted. This cannot be undone."
+        confirmLabel="Delete account"
+        danger
+        busy={busy}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={() => void deleteAccount()}
+      />
     </div>
   );
 }

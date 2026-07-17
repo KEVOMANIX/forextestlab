@@ -381,10 +381,6 @@ export default async function AppHome({
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
             Welcome back, {displayName}
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed app-muted sm:text-base">
-            Review your testing record, spot performance patterns, or begin a
-            fresh market-replay session.
-          </p>
         </div>
         <Link href="/app/backtest" className="btn-primary shrink-0 shadow-glow">
           <Plus size={17} aria-hidden /> New backtest
@@ -396,14 +392,7 @@ export default async function AppHome({
         aria-label="Performance scope"
       >
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-              Performance view
-            </p>
-            <p className="mt-1 text-sm">
-              Showing metrics for <strong className="text-brand-300">{scopeLabel}</strong>
-            </p>
-          </div>
+          <p className="text-sm font-semibold text-brand-300">{scopeLabel}</p>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel-2)] p-1">
               {[
@@ -471,11 +460,6 @@ export default async function AppHome({
         <section className="panel mt-5 px-6 py-10 text-center">
           <Activity size={28} className="mx-auto text-brand-300" aria-hidden />
           <h2 className="mt-4 text-lg font-semibold">No performance data in this view</h2>
-          <p className="mx-auto mt-2 max-w-lg text-sm app-muted">
-            {performanceScope === "completed"
-              ? "Finish a session to include it in your default performance results, or switch to Active or All."
-              : "Choose another performance view or start a new backtest session."}
-          </p>
         </section>
       )}
 
@@ -658,10 +642,6 @@ export default async function AppHome({
               <ChartNoAxesCombined size={25} aria-hidden />
             </span>
             <h3 className="mt-5 text-lg font-semibold">Start building your testing record</h3>
-            <p className="mt-2 max-w-md text-sm leading-relaxed app-muted">
-              Your saved sessions, results, notes, and performance patterns will
-              collect here as you test.
-            </p>
             <Link href="/app/backtest" className="btn-primary mt-6">
               Start first backtest <ArrowRight size={16} aria-hidden />
             </Link>
@@ -669,9 +649,6 @@ export default async function AppHome({
         ) : organizedSessions.length === 0 ? (
           <div className="panel mt-4 px-6 py-10 text-center">
             <p className="font-semibold">No sessions match these filters</p>
-            <p className="mt-2 text-sm app-muted">
-              Try clearing the search, changing the pair, or viewing archived sessions.
-            </p>
             <Link href="/app" className="btn-secondary mt-5">
               Clear filters
             </Link>

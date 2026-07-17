@@ -125,10 +125,6 @@ export default async function ResultsPage({
 
       <section id="pairs" className="mt-8 scroll-mt-20 panel p-5" aria-label="Pair breakdown">
         <h2 className="text-sm font-semibold">Pair breakdown</h2>
-        <p className="mt-1 text-xs app-muted">
-          Execution results currently belong to the primary pair. Other selected
-          pairs are synchronized reference charts.
-        </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {results.symbols.map((symbol) => {
             const primary = symbol === results.symbol;

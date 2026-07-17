@@ -23,13 +23,11 @@ export function StructuredData() {
     operatingSystem: "Web",
     description: siteConfig.description,
     url: siteConfig.url,
-    // The product is not yet released — reflect that honestly.
-    releaseNotes: "In development. Not yet publicly available.",
     offers: {
       "@type": "Offer",
       price: "0",
       priceCurrency: "USD",
-      availability: "https://schema.org/PreOrder",
+      availability: "https://schema.org/InStock",
     },
   };
 

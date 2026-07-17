@@ -11,7 +11,7 @@ export const siteConfig = {
     "https://forextestlab.com",
   title: "ForexTestLab | Forex Backtesting and Market Replay",
   description:
-    "ForexTestLab is a forex backtesting and historical market-replay platform in development, designed for structured strategy testing, simulated execution, and performance review.",
+    "ForexTestLab is a forex backtesting and historical market-replay platform for strategy testing, simulated execution, and performance review.",
   tagline: "Test forex strategies before risking real capital.",
   emails: {
     hello: "hello@forextestlab.com",
@@ -35,8 +35,7 @@ export const footerNav = {
     { label: "Features", href: "/#features" },
     { label: "How It Works", href: "/#how-it-works" },
     { label: "Product Preview", href: "/#product-preview" },
-    { label: "Roadmap", href: "/#development-status" },
-    { label: "Join the Waitlist", href: "/waitlist" },
+    { label: "Start Backtesting", href: "/app/backtest" },
   ],
   company: [
     { label: "About", href: "/about" },

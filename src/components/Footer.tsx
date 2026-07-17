@@ -45,9 +45,7 @@ export function Footer() {
           <div className="lg:col-span-2">
             <Logo />
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
-              A forex backtesting and market-replay platform in development,
-              built for structured strategy testing, simulated execution, and
-              performance review.
+              Historical market replay, simulated execution, and performance review.
             </p>
             <div className="mt-6 space-y-1 text-sm">
               <a

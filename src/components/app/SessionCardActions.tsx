@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Archive, BarChart3, Copy, Play, RotateCcw, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 export function SessionCardActions({
   sessionId,
@@ -16,6 +17,7 @@ export function SessionCardActions({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const finished = status === "finished";
 
   async function setArchived(value: boolean) {
@@ -46,16 +48,19 @@ export function SessionCardActions({
   }
 
   async function remove() {
-    if (!window.confirm("Delete this saved session permanently?")) return;
     setBusy(true);
     const response = await fetch(`/api/backtest/sessions/${sessionId}`, {
       method: "DELETE",
     });
     setBusy(false);
-    if (response.ok) router.refresh();
+    if (response.ok) {
+      setDeleteOpen(false);
+      router.refresh();
+    }
   }
 
   return (
+    <>
     <div className="flex flex-wrap items-center justify-end gap-2">
       {!finished && (
         <Link
@@ -82,7 +87,7 @@ export function SessionCardActions({
       </button>
       <button
         type="button"
-        onClick={remove}
+        onClick={() => setDeleteOpen(true)}
         disabled={busy}
         aria-label="Delete session"
         title="Delete session"
@@ -100,5 +105,16 @@ export function SessionCardActions({
         {archived ? "Restore" : "Archive"}
       </button>
     </div>
+    <ConfirmModal
+      open={deleteOpen}
+      title="Delete session?"
+      message="This session and its saved trades will be permanently deleted."
+      confirmLabel="Delete session"
+      danger
+      busy={busy}
+      onCancel={() => setDeleteOpen(false)}
+      onConfirm={() => void remove()}
+    />
+    </>
   );
 }

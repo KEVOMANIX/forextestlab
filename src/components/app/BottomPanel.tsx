@@ -109,9 +109,7 @@ export function BottomPanel({
           </div>
         ) : tab === "notes" ? (
           <div className="space-y-2 p-4">
-            <label htmlFor="session-notes" className="text-xs app-muted">
-              Session notes (saved with your simulated session)
-            </label>
+            <label htmlFor="session-notes" className="text-xs app-muted">Session notes</label>
             <textarea
               id="session-notes"
               rows={4}

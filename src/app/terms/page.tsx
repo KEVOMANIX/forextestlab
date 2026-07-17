@@ -7,7 +7,7 @@ import { siteConfig } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Terms of Use",
   description:
-    "The terms that govern your use of the ForexTestLab website while the platform is in development.",
+    "The terms that govern your use of ForexTestLab.",
   alternates: { canonical: "/terms" },
 };
 
@@ -17,6 +17,7 @@ export default function TermsPage() {
       <LegalPage
         title="Terms of Use"
         lastUpdated="15 July 2026"
+        showDraftNotice={false}
         intro={
           <p>
             These Terms of Use govern your access to and use of the{" "}
@@ -37,9 +38,8 @@ export default function TermsPage() {
         <LegalSection heading="2. Permitted website use">
           <p>
             You may use this website for lawful, personal, and informational
-            purposes only, including learning about ForexTestLab and joining the
-            waitlist. You agree not to misuse the site or interfere with its
-            normal operation.
+            purposes only, including strategy research and simulated trading.
+            You agree not to misuse the service or interfere with its operation.
           </p>
         </LegalSection>
 
@@ -80,7 +80,7 @@ export default function TermsPage() {
         <LegalSection heading="7. User responsibilities">
           <p>
             You are responsible for the accuracy of the information you submit,
-            for keeping any future account credentials secure, and for complying
+            for keeping your account credentials secure, and for complying
             with all laws that apply to you.
           </p>
         </LegalSection>
@@ -122,23 +122,13 @@ export default function TermsPage() {
 
         <LegalSection heading="11. Changes to the service">
           <p>
-            Because ForexTestLab is in development, we may change, suspend, or
-            discontinue any part of the website or planned platform at any time,
-            and we may update these terms. Continued use after changes means you
-            accept the revised terms.
+            We may change, suspend, or discontinue parts of the service and may
+            update these terms. Continued use after changes means you accept the
+            revised terms.
           </p>
         </LegalSection>
 
-        <LegalSection heading="12. Governing law">
-          <p className="rounded-lg border border-amber-400/20 bg-amber-400/5 px-4 py-3 text-amber-200/90">
-            [PLACEHOLDER — Insert the governing law and jurisdiction that will
-            apply (for example, the country and state whose laws govern these
-            terms and where disputes will be resolved). Have this reviewed by a
-            qualified legal professional before launch.]
-          </p>
-        </LegalSection>
-
-        <LegalSection heading="13. Contact">
+        <LegalSection heading="12. Contact">
           <p>
             Questions about these terms? Email us at{" "}
             <a

@@ -13,14 +13,20 @@ import {
   type CreateSessionBody,
   type PairChartData,
 } from "@/lib/backtest/client";
-import type { EngineContext, OrderRequest, PublicSessionState, ReplaySpeed } from "@/lib/backtest/types";
+import type {
+  EngineContext,
+  OrderRequest,
+  PublicSessionState,
+  ReplaySpeed,
+  ReplayStepMinutes,
+} from "@/lib/backtest/types";
 import {
   engineStateFromPublic,
   placeOrder as placeLocalOrder,
   publicSessionState,
   revealNext,
 } from "@/lib/backtest/replay-engine";
-import type { Candle, Timeframe } from "@/lib/market-data/types";
+import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 
 export type Phase = "setup" | "loading" | "active";
 
@@ -32,6 +38,7 @@ interface BacktesterState {
   replayCandles: Candle[];
   contextCandles: Candle[];
   lastCandle: Candle | null;
+  lastCandles: Candle[];
   busy: boolean;
   error: string | null;
   notice: string | null;
@@ -53,6 +60,7 @@ const initial: BacktesterState = {
   replayCandles: [],
   contextCandles: [],
   lastCandle: null,
+  lastCandles: [],
   busy: false,
   error: null,
   notice: null,
@@ -77,6 +85,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const autoStepPendingRef = useRef(false);
   const replayExtendPendingRef = useRef(false);
+  const replayStepRef = useRef<ReplayStepMinutes>(1);
+  const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
   const stepRef = useRef<() => Promise<void>>(async () => {});
   const replayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,6 +152,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         replayCandles: res.replayCandles,
         contextCandles: res.contextCandles,
         lastCandle: res.candles[res.candles.length - 1] ?? null,
+        lastCandles: [],
         busy: false,
         error: null,
         notice: `Session resumed: ${res.state.config.name || res.state.config.symbol}.`,
@@ -193,6 +204,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         replayCandles: res.replayCandles,
         contextCandles: res.contextCandles,
         lastCandle: res.candles[res.candles.length - 1] ?? null,
+        lastCandles: [],
         busy: false,
         error: null,
         notice: res.state.demoData
@@ -333,61 +345,64 @@ export function useBacktester(resumeSessionId: string | null = null) {
   stepRef.current = useCallback(async () => {
     const engine = localEngineRef.current;
     if (!engine) return;
+    const stepCount = Math.max(
+      1,
+      Math.round(
+        (replayStepRef.current * TIMEFRAME_MS["1m"]) /
+          TIMEFRAME_MS[engine.state.config.timeframe],
+      ),
+    );
+    const advancedCandles: Candle[] = [];
+    let extensionError: string | null = null;
+    let finished = false;
 
-    const lastLoaded = engine.candles[engine.candles.length - 1];
-    const atLoadedBoundary =
-      engine.state.visibleIndex >= engine.state.totalCandles - 1;
-    if (
-      atLoadedBoundary &&
-      lastLoaded &&
-      lastLoaded.timestamp < engine.state.config.endTime
-    ) {
-      if (replayExtendPendingRef.current) return;
-      const id = sessionIdRef.current;
-      if (!id) return;
-      replayExtendPendingRef.current = true;
-      const extension = await extendReplay(id, tokenRef.current);
-      replayExtendPendingRef.current = false;
+    for (let index = 0; index < stepCount; index += 1) {
+      const lastLoaded = engine.candles[engine.candles.length - 1];
+      const atLoadedBoundary =
+        engine.state.visibleIndex >= engine.state.totalCandles - 1;
+      if (
+        atLoadedBoundary &&
+        lastLoaded &&
+        lastLoaded.timestamp < engine.state.config.endTime
+      ) {
+        if (replayExtendPendingRef.current) break;
+        const id = sessionIdRef.current;
+        if (!id) break;
+        replayExtendPendingRef.current = true;
+        const extension = await extendReplay(id, tokenRef.current);
+        replayExtendPendingRef.current = false;
 
-      if (!extension.ok) {
+        if (!extension.ok) {
+          extensionError = extension.error;
+          wantsReplayRunningRef.current = false;
+          engine.state.status = "paused";
+          break;
+        }
+
+        const newestTimestamp =
+          engine.candles[engine.candles.length - 1]?.timestamp ?? 0;
+        const newCandles = extension.candles.filter(
+          (candle) => candle.timestamp > newestTimestamp,
+        );
+        if (newCandles.length > 0) {
+          engine.candles.push(...newCandles);
+          engine.state.totalCandles = engine.candles.length;
+          setS((prev) => ({
+            ...prev,
+            replayCandles: [...prev.replayCandles, ...newCandles],
+          }));
+        }
+      }
+
+      if (!revealNext(engine)) {
+        finished = true;
         wantsReplayRunningRef.current = false;
-        engine.state.status = "paused";
-        setS((prev) => ({
-          ...prev,
-          error: extension.error,
-          state: prev.state ? { ...prev.state, status: "paused" } : prev.state,
-        }));
-        return;
+        break;
       }
-
-      const newestTimestamp = engine.candles[engine.candles.length - 1]?.timestamp ?? 0;
-      const newCandles = extension.candles.filter(
-        (candle) => candle.timestamp > newestTimestamp,
-      );
-      if (newCandles.length > 0) {
-        engine.candles.push(...newCandles);
-        engine.state.totalCandles = engine.candles.length;
-        setS((prev) => ({
-          ...prev,
-          replayCandles: [...prev.replayCandles, ...newCandles],
-          state: prev.state
-            ? { ...prev.state, totalCandles: engine.state.totalCandles }
-            : prev.state,
-        }));
-      }
+      const candle = engine.candles[engine.state.visibleIndex];
+      if (candle) advancedCandles.push(candle);
     }
 
-    const advanced = revealNext(engine);
-    if (!advanced) {
-      wantsReplayRunningRef.current = false;
-      const state = publicSessionState(engine, s.state?.anonymous ?? false);
-      setS((prev) => ({ ...prev, state }));
-      void runAction(
-        { type: "end", targetIndex: engine.state.visibleIndex },
-        { background: true, showBusy: false },
-      );
-      return;
-    }
     if (
       wantsReplayRunningRef.current &&
       engine.state.status !== "finished"
@@ -396,7 +411,19 @@ export function useBacktester(resumeSessionId: string | null = null) {
     }
     const state = publicSessionState(engine, s.state?.anonymous ?? false);
     const candle = engine.candles[state.visibleIndex] ?? null;
-    setS((prev) => ({ ...prev, state, lastCandle: candle }));
+    setS((prev) => ({
+      ...prev,
+      state,
+      lastCandle: candle,
+      lastCandles: advancedCandles,
+      error: extensionError ?? prev.error,
+    }));
+    if (finished) {
+      void runAction(
+        { type: "end", targetIndex: engine.state.visibleIndex },
+        { background: true, showBusy: false },
+      );
+    }
   }, [runAction, s.state?.anonymous]);
 
   const status = s.state?.status;
@@ -414,6 +441,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
       const delay = replayIntervalMs(
         engine.state.speed,
         engine.state.config.timeframe,
+        Math.max(
+          1,
+          Math.round(
+            (replayStepRef.current * TIMEFRAME_MS["1m"]) /
+              TIMEFRAME_MS[engine.state.config.timeframe],
+          ),
+        ),
       );
       replayTimerRef.current = setTimeout(async () => {
         const started = performance.now();
@@ -423,6 +457,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
         const nextDelay = replayIntervalMs(
           current.state.speed,
           current.state.config.timeframe,
+          Math.max(
+            1,
+            Math.round(
+              (replayStepRef.current * TIMEFRAME_MS["1m"]) /
+                TIMEFRAME_MS[current.state.config.timeframe],
+            ),
+          ),
         );
         schedule(Math.max(0, nextDelay - (performance.now() - started)));
       }, delayOverride ?? delay);
@@ -494,7 +535,28 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [checkpoint],
   );
-  const stepPrev = useCallback(() => runAction({ type: "prev" }), [runAction]);
+  const stepPrev = useCallback(async () => {
+    const engine = localEngineRef.current;
+    if (!engine) return;
+    const steps = Math.max(
+      1,
+      Math.round(
+        (replayStepRef.current * TIMEFRAME_MS["1m"]) /
+          TIMEFRAME_MS[engine.state.config.timeframe],
+      ),
+    );
+    await runAction({ type: "prev", steps });
+    const current = localEngineRef.current;
+    if (!current) return;
+    const visible = current.candles.slice(0, current.state.visibleIndex + 1);
+    setS((prev) => ({
+      ...prev,
+      initialCandles: visible,
+      lastCandle: visible[visible.length - 1] ?? null,
+      lastCandles: [],
+      resetNonce: prev.resetNonce + 1,
+    }));
+  }, [runAction]);
   const restart = useCallback(async () => {
     wantsReplayRunningRef.current = false;
     setS((prev) =>
@@ -515,6 +577,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         replayCandles: data.replayCandles,
         contextCandles: data.contextCandles,
         lastCandle: data.candles[data.candles.length - 1] ?? null,
+        lastCandles: [],
         resetNonce: prev.resetNonce + 1,
         notes: data.notes,
         activeSymbol: data.state.config.symbol,
@@ -554,6 +617,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
       );
     },
     [runAction, startLocalScheduler],
+  );
+  const setReplayStep = useCallback(
+    (value: ReplayStepMinutes) => {
+      replayStepRef.current = value;
+      setReplayStepMinutes(value);
+      if (localEngineRef.current?.state.status === "running") {
+        startLocalScheduler();
+      }
+    },
+    [startLocalScheduler],
   );
   const placeOrder = useCallback(
     (order: OrderRequest) => {
@@ -664,6 +737,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
     interactiveBusyRef.current = false;
     autoStepPendingRef.current = false;
     replayExtendPendingRef.current = false;
+    replayStepRef.current = 1;
+    setReplayStepMinutes(1);
     stopLocalScheduler();
     localEngineRef.current = null;
     actionQueueRef.current = Promise.resolve();
@@ -673,6 +748,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
   return {
     ...s,
+    replayStepMinutes,
     actions: {
       startSession,
       play,
@@ -682,6 +758,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       restart,
       endSession,
       setSpeed,
+      setReplayStep,
       placeOrder,
       closePosition,
       modifyStop,

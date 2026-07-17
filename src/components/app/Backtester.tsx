@@ -225,6 +225,7 @@ export function Backtester({
     ? bt.pairChart?.contextCandles ?? []
     : bt.contextCandles;
   const chartLastCandle = referencePair ? null : bt.lastCandle;
+  const chartLastCandles = referencePair ? [] : bt.lastCandles;
   const chartCurrentCandle = referencePair
     ? chartCandles[chartCandles.length - 1] ?? null
     : null;
@@ -336,6 +337,7 @@ export function Backtester({
             initialCandles={chartCandles}
             contextCandles={chartContextCandles}
             lastCandle={chartLastCandle}
+            lastCandles={chartLastCandles}
             markers={referencePair ? [] : markers}
             entryPrice={!referencePair && position ? Number(position.entryPrice) : null}
             stopLoss={!referencePair && chartStop ? Number(chartStop) : null}
@@ -372,6 +374,8 @@ export function Backtester({
             onRestart={restart}
             onEnd={endSession}
             onSpeed={actions.setSpeed}
+            stepMinutes={bt.replayStepMinutes}
+            onStepMinutes={actions.setReplayStep}
             onBuy={() => quickOrder("long")}
             onSell={() => quickOrder("short")}
             canTrade={Boolean(

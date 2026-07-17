@@ -94,7 +94,11 @@ export async function POST(
       break;
     }
     case "prev": {
-      const stepped = stepBack(ctx);
+      let stepped = false;
+      for (let index = 0; index < (action.steps ?? 1); index += 1) {
+        if (!stepBack(ctx)) break;
+        stepped = true;
+      }
       if (!stepped) opError = "Stepping back is not allowed here.";
       break;
     }

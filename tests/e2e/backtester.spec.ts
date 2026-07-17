@@ -251,7 +251,7 @@ test("shows trading actions above the chart and moves the replay toolbox", async
   await expect(page.getByTestId("replay-toolbox")).not.toContainText(/Candle \d+ \/ \d+/);
   await expect(speedSlider).toHaveAttribute(
     "aria-valuetext",
-    /60 times real market time, 1 candle \/ 1s/,
+    /60 times real market time, 1 step \/ 1s/,
   );
   const speedSave = page.waitForRequest((request) => {
     if (!request.url().includes("/action")) return false;
@@ -264,7 +264,7 @@ test("shows trading actions above the chart and moves the replay toolbox", async
   await speedSave;
   await expect(speedSlider).toHaveAttribute(
     "aria-valuetext",
-    /300 times real market time, 5\.0 candles\/s/,
+    /300 times real market time, 5\.0 steps\/s/,
   );
   await Promise.all([
     page.waitForResponse((response) => {

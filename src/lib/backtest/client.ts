@@ -207,6 +207,7 @@ export async function getChartHistory(
 export function replayIntervalMs(
   speed: ReplaySpeed,
   timeframe: Timeframe,
+  stepCount = 1,
 ): number {
-  return Math.max(75, TIMEFRAME_MS[timeframe] / speed);
+  return Math.max(75, (TIMEFRAME_MS[timeframe] * stepCount) / speed);
 }

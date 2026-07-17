@@ -36,6 +36,7 @@ interface PriceChartProps {
   initialCandles: Candle[];
   contextCandles: Candle[];
   lastCandle: Candle | null;
+  lastCandles: Candle[];
   markers: ChartMarker[];
   entryPrice: number | null;
   stopLoss: number | null;
@@ -135,6 +136,7 @@ export default function PriceChart({
   initialCandles,
   contextCandles,
   lastCandle,
+  lastCandles,
   markers,
   entryPrice,
   stopLoss,
@@ -395,37 +397,50 @@ export default function PriceChart({
   }, [theme, gridVisible, magnetCrosshair]);
 
   useEffect(() => {
-    if (!lastCandle) return;
+    const incoming = lastCandles.length > 0
+      ? lastCandles
+      : lastCandle
+        ? [lastCandle]
+        : [];
+    if (incoming.length === 0) return;
     const series = seriesRef.current;
-    const candles = rawCandlesRef.current;
-    const existing = candles.findIndex((candle) => candle.timestamp === lastCandle.timestamp);
-    rawCandlesRef.current =
-      existing >= 0
-        ? candles.map((candle, index) => (index === existing ? lastCandle : candle))
-        : [...candles, lastCandle];
+    for (const nextCandle of incoming) {
+      const candles = rawCandlesRef.current;
+      const existing = candles.findIndex(
+        (candle) => candle.timestamp === nextCandle.timestamp,
+      );
+      rawCandlesRef.current =
+        existing >= 0
+          ? candles.map((candle, index) =>
+              index === existing ? nextCandle : candle,
+            )
+          : [...candles, nextCandle];
 
-    // Update only the active bar. Replacing the complete series on every tick
-    // made the chart flash and reset internal layout work during playback.
-    if (series) {
-      if (displayTimeframeRef.current === baseTimeframe) {
-        series.update(toBar(lastCandle));
-      } else {
-        const bucket = candleBucketStart(
-          lastCandle.timestamp,
-          displayTimeframeRef.current,
-        );
-        const aggregate = aggregateCandles(
-          rawCandlesRef.current.filter((candle) => candle.timestamp >= bucket),
-          baseTimeframe,
-          displayTimeframeRef.current,
-        )[0];
-        if (aggregate) series.update(toBar(aggregate));
+      // Update incrementally so stepping across several base candles preserves
+      // every candle needed for higher-timeframe aggregation.
+      if (series) {
+        if (displayTimeframeRef.current === baseTimeframe) {
+          series.update(toBar(nextCandle));
+        } else {
+          const bucket = candleBucketStart(
+            nextCandle.timestamp,
+            displayTimeframeRef.current,
+          );
+          const aggregate = aggregateCandles(
+            rawCandlesRef.current.filter((candle) => candle.timestamp >= bucket),
+            baseTimeframe,
+            displayTimeframeRef.current,
+          )[0];
+          if (aggregate) series.update(toBar(aggregate));
+        }
       }
+    }
+    if (series) {
       if (followLatestRef.current) chartRef.current?.timeScale().scrollToRealTime();
       requestAnimationFrame(updateLineCoordinates);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastCandle]);
+  }, [lastCandle, lastCandles]);
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;

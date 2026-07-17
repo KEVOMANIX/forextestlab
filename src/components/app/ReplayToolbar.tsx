@@ -15,7 +15,14 @@ import {
   Square,
 } from "lucide-react";
 
-import { REPLAY_SPEEDS, type PublicSessionState, type ReplaySpeed } from "@/lib/backtest/types";
+import {
+  REPLAY_SPEEDS,
+  REPLAY_STEP_MINUTES,
+  type PublicSessionState,
+  type ReplaySpeed,
+  type ReplayStepMinutes,
+} from "@/lib/backtest/types";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
 import { replayIntervalMs } from "@/lib/backtest/client";
 
 interface ReplayToolbarProps {
@@ -28,6 +35,8 @@ interface ReplayToolbarProps {
   onRestart: () => void;
   onEnd: () => void;
   onSpeed: (s: ReplaySpeed) => void;
+  stepMinutes: ReplayStepMinutes;
+  onStepMinutes: (step: ReplayStepMinutes) => void;
   onBuy: () => void;
   onSell: () => void;
   canTrade: boolean;
@@ -74,6 +83,8 @@ export function ReplayToolbar({
   onRestart,
   onEnd,
   onSpeed,
+  stepMinutes,
+  onStepMinutes,
   onBuy,
   onSell,
   canTrade,
@@ -94,10 +105,21 @@ export function ReplayToolbar({
     !state.openPosition &&
     state.visibleIndex > state.config.initialVisibleCount - 1;
   const speedIndex = Math.max(0, REPLAY_SPEEDS.indexOf(state.speed));
-  const cadenceMs = replayIntervalMs(state.speed, state.config.timeframe);
+  const stepCount = Math.max(
+    1,
+    Math.round(
+      (stepMinutes * TIMEFRAME_MS["1m"]) /
+        TIMEFRAME_MS[state.config.timeframe],
+    ),
+  );
+  const cadenceMs = replayIntervalMs(
+    state.speed,
+    state.config.timeframe,
+    stepCount,
+  );
   const cadenceLabel = cadenceMs >= 1000
-    ? `1 candle / ${(cadenceMs / 1000).toFixed(cadenceMs % 1000 === 0 ? 0 : 1)}s`
-    : `${(1000 / cadenceMs).toFixed(1)} candles/s`;
+    ? `1 step / ${(cadenceMs / 1000).toFixed(cadenceMs % 1000 === 0 ? 0 : 1)}s`
+    : `${(1000 / cadenceMs).toFixed(1)} steps/s`;
 
   function clampPosition(x: number, y: number) {
     const toolbox = toolboxRef.current;
@@ -182,7 +204,7 @@ export function ReplayToolbar({
       ref={toolboxRef}
       data-testid="replay-toolbox"
       onPointerDown={startDrag}
-      className="absolute z-20 w-[calc(100%-1.5rem)] max-w-[350px] touch-none cursor-move rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-2xl shadow-black/30 backdrop-blur"
+      className="absolute z-20 w-[calc(100%-1.5rem)] max-w-[390px] touch-none cursor-move rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-2xl shadow-black/30 backdrop-blur"
       style={
         position
           ? { left: position.x, top: position.y }
@@ -255,6 +277,25 @@ export function ReplayToolbar({
 
       <div className="mt-1 border-t app-border px-1 pt-1">
         <div className="flex items-center gap-2">
+          <label htmlFor="replay-step" className="flex shrink-0 items-center gap-1 text-[9px] font-semibold uppercase tracking-wide app-muted">
+            Step
+            <select
+              id="replay-step"
+              aria-label="Replay step"
+              value={stepMinutes}
+              onChange={(event) =>
+                onStepMinutes(Number(event.target.value) as ReplayStepMinutes)
+              }
+              className="h-6 rounded border app-border bg-[var(--app-panel-2)] px-1 font-mono text-[10px] font-semibold text-[var(--app-text)] outline-none"
+            >
+              {REPLAY_STEP_MINUTES.map((minutes) => (
+                <option key={minutes} value={minutes}>
+                  {minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="h-4 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
           <label htmlFor="replay-speed" className="shrink-0 font-mono text-[10px] font-semibold text-brand-300">
             {state.speed}x
           </label>

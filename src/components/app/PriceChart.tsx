@@ -175,7 +175,7 @@ export default function PriceChart({
     stop: number | null;
     target: number | null;
   }>({ stop: null, target: null });
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(contextCandles.length === 0);
 
   async function loadHistoryPage(replace: boolean) {
     if (historyLoadingRef.current || (!replace && !historyHasMoreRef.current)) return;
@@ -410,10 +410,19 @@ export default function PriceChart({
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;
     refreshSeries();
-    historyCandlesRef.current = [];
-    historyHasMoreRef.current = true;
-    contextSeriesRef.current?.setData([]);
-    void loadHistoryPage(true);
+    if (displayTimeframe === baseTimeframe && contextCandles.length > 0) {
+      // The session response already includes the nearest base-timeframe
+      // history page. Reusing it avoids a duplicate R2 request on every open.
+      historyCandlesRef.current = contextCandles;
+      historyHasMoreRef.current = true;
+      contextSeriesRef.current?.setData(contextCandles.map(toBar));
+      setHistoryLoading(false);
+    } else {
+      historyCandlesRef.current = [];
+      historyHasMoreRef.current = true;
+      contextSeriesRef.current?.setData([]);
+      void loadHistoryPage(true);
+    }
     const scale = chartRef.current?.timeScale();
     if (savedRangeRef.current) {
       scale?.setVisibleLogicalRange(savedRangeRef.current);

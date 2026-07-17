@@ -161,13 +161,25 @@ export async function getChartHistory(
   before: number,
 ): Promise<({ ok: true } & ChartHistoryPage) | ApiErr> {
   const query = new URLSearchParams({ symbol, timeframe, before: String(before) });
-  const res = await fetch(`/api/backtest/sessions/${sessionId}/context?${query}`, {
-    cache: "no-store",
-    headers: token ? { "x-session-token": token } : undefined,
-  });
-  return parse<{ ok: true } & ChartHistoryPage>(res) as Promise<
-    ({ ok: true } & ChartHistoryPage) | ApiErr
-  >;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const res = await fetch(`/api/backtest/sessions/${sessionId}/context?${query}`, {
+      cache: "no-store",
+      headers: token ? { "x-session-token": token } : undefined,
+      signal: controller.signal,
+    });
+    return parse<{ ok: true } & ChartHistoryPage>(res) as Promise<
+      ({ ok: true } & ChartHistoryPage) | ApiErr
+    >;
+  } catch {
+    return {
+      ok: false,
+      error: "Chart history took too long to load. The visible replay data is still available.",
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /** Convert a market-time multiplier into wall-clock replay cadence. */

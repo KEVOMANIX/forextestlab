@@ -73,6 +73,32 @@ test("loads pre-start context without moving the replay start", async ({ page })
   );
 });
 
+test("keeps the custom date calendar open and submits the selected period", async ({ page }) => {
+  await page.goto("/app/backtest");
+  await page.getByLabel("Session name").fill("Calendar selection session");
+  await page.getByRole("button", { name: /Continue/i }).click();
+  await page.getByRole("button", { name: /Continue/i }).click();
+
+  await page.getByLabel("Start date").click();
+  const startCalendar = page.getByRole("dialog", { name: /Start date calendar/i });
+  await expect(startCalendar).toBeVisible();
+  await startCalendar.getByRole("button", { name: "2024-03-04" }).click();
+  await expect(startCalendar).toBeHidden();
+
+  await page.getByLabel("End date").click();
+  const endCalendar = page.getByRole("dialog", { name: /End date calendar/i });
+  await expect(endCalendar).toBeVisible();
+  await endCalendar.getByRole("button", { name: "2024-03-08" }).click();
+
+  const createResponse = page.waitForResponse(
+    (response) => response.url().includes("/api/backtest/sessions") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: /Start session/i }).click();
+  const body = await (await createResponse).json();
+  expect(body.state.config.startTime).toBe(Date.parse("2024-03-04T00:00:00Z"));
+  expect(body.state.config.endTime).toBe(Date.parse("2024-03-08T23:59:59.999Z"));
+});
+
 test("completes a full public backtest workflow without login", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   // (1)(2)(3)(4) open + configure + start

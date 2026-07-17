@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Loader2, Play } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Play,
+} from "lucide-react";
 
 import {
   fetchRanges,
@@ -19,6 +27,156 @@ interface SessionSetupProps {
 
 function toDateInput(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
+}
+
+function monthStart(value: string, fallback: string): Date {
+  const source = value || fallback || toDateInput(Date.now());
+  const date = new Date(`${source}T00:00:00Z`);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function SessionDatePicker({
+  id,
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  min: string;
+  max: string;
+  onChange: (value: string) => void;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => monthStart(value, min));
+
+  useEffect(() => {
+    if (open) setViewMonth(monthStart(value, min));
+  }, [open, value, min]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  const year = viewMonth.getUTCFullYear();
+  const month = viewMonth.getUTCMonth();
+  const offset = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  const days = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(Date.UTC(year, month, index - offset + 1));
+    return {
+      value: toDateInput(date.getTime()),
+      day: date.getUTCDate(),
+      currentMonth: date.getUTCMonth() === month,
+    };
+  });
+  const previousMonth = new Date(Date.UTC(year, month - 1, 1));
+  const nextMonth = new Date(Date.UTC(year, month + 1, 1));
+  const minMonth = monthStart(min, min);
+  const maxMonth = monthStart(max, max);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium">
+        {label}
+      </label>
+      <button
+        id={id}
+        type="button"
+        className="app-input flex w-full items-center justify-between text-left"
+        onClick={() => setOpen((current) => !current)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+      >
+        <span className={value ? "font-medium" : "app-muted"}>
+          {value || "Choose a date"}
+        </span>
+        <CalendarDays size={16} className="app-muted" aria-hidden />
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label={`${label} calendar`}
+          className="absolute left-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-xl border app-border bg-[var(--app-panel)] p-3 shadow-2xl"
+        >
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              aria-label="Previous month"
+              disabled={previousMonth < minMonth}
+              onClick={() => setViewMonth(previousMonth)}
+              className="grid h-8 w-8 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] disabled:opacity-30"
+            >
+              <ChevronLeft size={16} aria-hidden />
+            </button>
+            <p className="text-sm font-semibold">
+              {viewMonth.toLocaleDateString("en", {
+                month: "long",
+                year: "numeric",
+                timeZone: "UTC",
+              })}
+            </p>
+            <button
+              type="button"
+              aria-label="Next month"
+              disabled={nextMonth > maxMonth}
+              onClick={() => setViewMonth(nextMonth)}
+              className="grid h-8 w-8 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] disabled:opacity-30"
+            >
+              <ChevronRight size={16} aria-hidden />
+            </button>
+          </div>
+          <div className="mt-2 grid grid-cols-7 text-center text-[10px] font-semibold uppercase app-muted">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}
+          </div>
+          <div className="mt-1 grid grid-cols-7 gap-1">
+            {days.map((date) => {
+              const disabled = date.value < min || date.value > max;
+              const selected = date.value === value;
+              return (
+                <button
+                  key={date.value}
+                  type="button"
+                  disabled={disabled}
+                  aria-label={date.value}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    onChange(date.value);
+                    setOpen(false);
+                  }}
+                  className={`grid h-9 place-items-center rounded-md text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-20 ${
+                    selected
+                      ? "bg-brand-500 font-bold text-surface-950"
+                      : date.currentMonth
+                        ? "hover:bg-[var(--app-panel-2)]"
+                        : "app-muted hover:bg-[var(--app-panel-2)]"
+                  }`}
+                >
+                  {date.day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
@@ -242,36 +400,25 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
         {step === 3 && (
           <div className="space-y-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="setup-start" className="mb-1.5 block text-sm font-medium">
-                  Start date
-                </label>
-                <input
-                  id="setup-start"
-                  type="date"
-                  className="app-input w-full"
-                  value={start}
-                  min={range ? toDateInput(range.startTime) : undefined}
-                  max={range ? toDateInput(range.endTime) : undefined}
-                  onChange={(event) => setStart(event.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="setup-end" className="mb-1.5 block text-sm font-medium">
-                  End date
-                </label>
-                <input
-                  id="setup-end"
-                  type="date"
-                  className="app-input w-full"
-                  value={end}
-                  min={start || (range ? toDateInput(range.startTime) : undefined)}
-                  max={range ? toDateInput(range.endTime) : undefined}
-                  onChange={(event) => setEnd(event.target.value)}
-                  required
-                />
-              </div>
+              <SessionDatePicker
+                id="setup-start"
+                label="Start date"
+                value={start}
+                min={range ? toDateInput(range.startTime) : ""}
+                max={range ? toDateInput(range.endTime) : ""}
+                onChange={(value) => {
+                  setStart(value);
+                  if (end && end < value) setEnd(value);
+                }}
+              />
+              <SessionDatePicker
+                id="setup-end"
+                label="End date"
+                value={end}
+                min={start || (range ? toDateInput(range.startTime) : "")}
+                max={range ? toDateInput(range.endTime) : ""}
+                onChange={setEnd}
+              />
             </div>
             <p className="text-xs app-muted" aria-live="polite">
               {loadingRange

@@ -71,6 +71,12 @@ test("loads pre-start context without moving the replay start", async ({ page })
     "aria-pressed",
     "true",
   );
+  const olderHistory = page.getByRole("button", { name: /Load older candles/i });
+  await expect(olderHistory).toBeVisible();
+  await Promise.all([
+    page.waitForResponse((response) => response.url().includes("/context?")),
+    olderHistory.click(),
+  ]);
 });
 
 test("keeps the custom date calendar open and submits the selected period", async ({ page }) => {
@@ -88,6 +94,9 @@ test("keeps the custom date calendar open and submits the selected period", asyn
   await page.getByLabel("Start date").click();
   const startCalendar = page.getByRole("dialog", { name: /Start date calendar/i });
   await expect(startCalendar).toBeVisible();
+  await expect(startCalendar.getByLabel("Calendar year")).toBeVisible();
+  await startCalendar.getByLabel("Calendar year").selectOption("2024");
+  await startCalendar.getByLabel("Calendar month").selectOption("2");
   expect(createRequests).toBe(0);
   await expect(page).toHaveURL(/\/app\/backtest$/);
   await startCalendar.getByRole("button", { name: "2024-03-04" }).click();

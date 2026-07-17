@@ -35,6 +35,11 @@ function monthStart(value: string, fallback: string): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 function SessionDatePicker({
   id,
   label,
@@ -89,6 +94,17 @@ function SessionDatePicker({
   const nextMonth = new Date(Date.UTC(year, month + 1, 1));
   const minMonth = monthStart(min, min);
   const maxMonth = monthStart(max, max);
+  const years = Array.from(
+    { length: maxMonth.getUTCFullYear() - minMonth.getUTCFullYear() + 1 },
+    (_, index) => minMonth.getUTCFullYear() + index,
+  );
+
+  function changeVisibleMonth(nextYear: number, nextMonth: number) {
+    const requested = new Date(Date.UTC(nextYear, nextMonth, 1));
+    setViewMonth(
+      requested < minMonth ? minMonth : requested > maxMonth ? maxMonth : requested,
+    );
+  }
 
   return (
     <div ref={rootRef} className="relative">
@@ -125,13 +141,32 @@ function SessionDatePicker({
             >
               <ChevronLeft size={16} aria-hidden />
             </button>
-            <p className="text-sm font-semibold">
-              {viewMonth.toLocaleDateString("en", {
-                month: "long",
-                year: "numeric",
-                timeZone: "UTC",
-              })}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <label className="sr-only" htmlFor={`${id}-month`}>Calendar month</label>
+              <select
+                id={`${id}-month`}
+                aria-label="Calendar month"
+                value={month}
+                onChange={(event) => changeVisibleMonth(year, Number(event.target.value))}
+                className="h-8 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-xs font-semibold outline-none"
+              >
+                {MONTH_NAMES.map((name, index) => (
+                  <option key={name} value={index}>{name}</option>
+                ))}
+              </select>
+              <label className="sr-only" htmlFor={`${id}-year`}>Calendar year</label>
+              <select
+                id={`${id}-year`}
+                aria-label="Calendar year"
+                value={year}
+                onChange={(event) => changeVisibleMonth(Number(event.target.value), month)}
+                className="h-8 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-xs font-semibold outline-none"
+              >
+                {years.map((availableYear) => (
+                  <option key={availableYear} value={availableYear}>{availableYear}</option>
+                ))}
+              </select>
+            </div>
             <button
               type="button"
               aria-label="Next month"

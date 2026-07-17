@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Crosshair, Grid3X3, LocateFixed, Maximize2, Minus, Target } from "lucide-react";
+import { Crosshair, Grid3X3, History, LocateFixed, Maximize2, Minus, Target } from "lucide-react";
 import {
   ColorType,
   CrosshairMode,
@@ -176,12 +176,17 @@ export default function PriceChart({
     target: number | null;
   }>({ stop: null, target: null });
   const [historyLoading, setHistoryLoading] = useState(contextCandles.length === 0);
+  const [olderHistoryLoading, setOlderHistoryLoading] = useState(false);
+  const [hasOlderHistory, setHasOlderHistory] = useState(true);
 
   // Never let a slow or stalled remote history request permanently cover a
   // usable replay chart. The request itself also has a network timeout.
   useEffect(() => {
     if (!historyLoading) return;
-    const timeout = window.setTimeout(() => setHistoryLoading(false), 8_000);
+    const timeout = window.setTimeout(() => {
+      historyLoadingRef.current = false;
+      setHistoryLoading(false);
+    }, 8_000);
     return () => window.clearTimeout(timeout);
   }, [historyLoading, displayTimeframe]);
 
@@ -192,6 +197,7 @@ export default function PriceChart({
     if (!earliest) return;
     historyLoadingRef.current = true;
     if (replace) setHistoryLoading(true);
+    else setOlderHistoryLoading(true);
     try {
       const page = await onLoadHistory(
         displayTimeframeRef.current,
@@ -203,10 +209,12 @@ export default function PriceChart({
       const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
       historyCandlesRef.current = merged;
       historyHasMoreRef.current = page.hasMore;
+      setHasOlderHistory(page.hasMore);
       contextSeriesRef.current?.setData(merged.map(toBar));
     } finally {
       historyLoadingRef.current = false;
       if (replace) setHistoryLoading(false);
+      else setOlderHistoryLoading(false);
     }
   }
   loadOlderRef.current = () => void loadHistoryPage(false);
@@ -271,12 +279,12 @@ export default function PriceChart({
     });
 
     const contextSeries = chart.addCandlestickSeries({
-      upColor: "#167f6d",
-      downColor: "#a54850",
-      borderUpColor: "#167f6d",
-      borderDownColor: "#a54850",
-      wickUpColor: "#167f6d",
-      wickDownColor: "#a54850",
+      upColor: BULL,
+      downColor: BEAR,
+      borderUpColor: BULL,
+      borderDownColor: BEAR,
+      wickUpColor: BULL,
+      wickDownColor: BEAR,
       priceLineVisible: false,
       lastValueVisible: false,
       priceFormat: { type: "price", precision, minMove: 1 / 10 ** precision },
@@ -608,6 +616,20 @@ export default function PriceChart({
             </ToolButton>
           ))}
         </div>
+        {hasOlderHistory && (
+          <ToolButton
+            label={olderHistoryLoading ? "Loading older candles" : "Load older candles"}
+            onClick={() => {
+              if (!olderHistoryLoading) void loadHistoryPage(false);
+            }}
+          >
+            {olderHistoryLoading ? (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden />
+            ) : (
+              <History size={15} aria-hidden />
+            )}
+          </ToolButton>
+        )}
         <ToolButton
           label="Toggle magnet crosshair"
           active={magnetCrosshair}

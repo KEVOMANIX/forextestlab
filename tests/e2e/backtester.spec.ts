@@ -142,7 +142,7 @@ test("completes a full public backtest workflow without login", async ({ page },
     page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
     page.getByRole("button", { name: "Buy", exact: true }).click(),
   ]);
-  await expect(page.getByText(/^Long$/i)).toBeVisible();
+  await expect(page.getByText(/Buy position opened/i)).toBeVisible();
 
   // Protection levels remain interactive after entry and update the session.
   if (testInfo.project.name === "chromium") {
@@ -165,11 +165,12 @@ test("completes a full public backtest workflow without login", async ({ page },
   await next.click();
   await next.click();
 
-  // (9) close the position manually
-  page.once("dialog", (dialog) => dialog.accept());
+  // (9) manage the position from its chart entry line and close it manually
+  await page.getByTestId("position-entry-line").first().hover();
+  await page.getByRole("button", { name: /Edit buy position/i }).click();
   await Promise.all([
     page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
-    page.getByRole("button", { name: /Close position/i }).click(),
+    page.getByRole("button", { name: /Close all/i }).click(),
   ]);
 
   // (10)(11) balance + statistics update; trade recorded

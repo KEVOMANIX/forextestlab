@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ChartMarker } from "./PriceChart";
 import { BottomPanel } from "./BottomPanel";
@@ -22,6 +22,8 @@ import { TradingOnboarding } from "./TradingOnboarding";
 import type { OrderRequest } from "@/lib/backtest/types";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { PageLoader } from "@/components/PageLoader";
+import { PositionEditorModal } from "./PositionEditorModal";
+import { TradeNotifications, type TradeNotification } from "./TradeNotifications";
 
 type PendingConfirmation = {
   title: string;
@@ -51,6 +53,10 @@ export function Backtester({
   const { state, actions } = bt;
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
+  const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
+  const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<TradeNotification[]>([]);
+  const notificationStateRef = useRef<{ sessionId: string | null; openIds: Set<string>; closedCount: number }>({ sessionId: null, openIds: new Set(), closedCount: 0 });
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
   const [orderTemplate, setOrderTemplate] = useState<Omit<OrderRequest, "direction">>({
@@ -58,19 +64,19 @@ export function Backtester({
     lots: "0.10",
   });
   const hasMeaningfulActivity = Boolean(
-    state?.openPosition || state?.closedTrades.length,
+    state?.openPositions.length || state?.closedTrades.length,
   );
 
   useEffect(() => {
     if (bt.phase !== "active") return;
     const handler = (event: BeforeUnloadEvent) => {
-      if (!state?.openPosition && !bt.busy) return;
+      if (!state?.openPositions.length && !bt.busy) return;
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [bt.phase, bt.busy, state?.openPosition]);
+  }, [bt.phase, bt.busy, state?.openPositions.length]);
 
   useEffect(() => {
     if (bt.phase !== "active") return;
@@ -96,7 +102,41 @@ export function Backtester({
   useEffect(() => {
     setPlannedStop(null);
     setPlannedTarget(null);
-  }, [state?.sessionId, state?.openPosition?.id]);
+  }, [state?.sessionId]);
+
+  useEffect(() => {
+    if (!state) return;
+    const previous = notificationStateRef.current;
+    const currentIds = new Set(state.openPositions.map((position) => position.id));
+    if (previous.sessionId !== state.sessionId) {
+      notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length };
+      return;
+    }
+    const added = state.openPositions.filter((position) => !previous.openIds.has(position.id));
+    const newlyClosed = state.closedTrades.slice(previous.closedCount);
+    const nextNotifications: TradeNotification[] = [
+      ...added.map((position) => ({
+        id: `open-${position.id}-${Date.now()}`,
+        title: `${position.direction === "long" ? "Buy" : "Sell"} position opened`,
+        detail: `${state.config.symbol}, ${position.lots} lot, open ${position.entryPrice}, SL ${position.stopLoss ?? "—"}, TP ${position.takeProfit ?? "—"}`,
+        tone: position.direction as "long" | "short",
+      })),
+      ...newlyClosed.map((trade) => ({
+        id: `close-${trade.id}-${Date.now()}`,
+        title: trade.exitReason === "take-profit" ? "Take profit filled" : trade.exitReason === "stop-loss" ? "Stop loss filled" : "Position closed",
+        detail: `${state.config.symbol}, ${trade.lots} lot, exit ${trade.exitPrice}, P&L ${trade.pnl}`,
+        tone: "closed" as const,
+      })),
+    ];
+    if (added.length > 0) setSelectedPositionId(added.at(-1)?.id ?? null);
+    if (nextNotifications.length > 0) {
+      setNotifications((current) => [...current, ...nextNotifications].slice(-4));
+      for (const notification of nextNotifications) {
+        window.setTimeout(() => setNotifications((current) => current.filter((item) => item.id !== notification.id)), 4_500);
+      }
+    }
+    notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length };
+  }, [state]);
 
   const markers = useMemo<ChartMarker[]>(() => {
     if (!state) return [];
@@ -117,16 +157,16 @@ export function Backtester({
         text: `Exit ${trade.pnl}`,
       });
     }
-    if (state.openPosition) {
+    for (const position of state.openPositions) {
       result.push({
-        time: state.openPosition.entryTime,
+        time: position.entryTime,
         position:
-          state.openPosition.direction === "long" ? "belowBar" : "aboveBar",
+          position.direction === "long" ? "belowBar" : "aboveBar",
         color:
-          state.openPosition.direction === "long" ? "#22c3a0" : "#f4646c",
+          position.direction === "long" ? "#22c3a0" : "#f4646c",
         shape:
-          state.openPosition.direction === "long" ? "arrowUp" : "arrowDown",
-        text: state.openPosition.direction === "long" ? "Buy" : "Sell",
+          position.direction === "long" ? "arrowUp" : "arrowDown",
+        text: position.direction === "long" ? "Buy" : "Sell",
       });
     }
     return result;
@@ -155,30 +195,17 @@ export function Backtester({
     );
   }
 
-  const position = state.openPosition;
+  const position = state.openPositions.find((item) => item.id === selectedPositionId) ?? state.openPositions.at(-1) ?? null;
   const chartStop = position?.stopLoss ?? plannedStop;
   const chartTarget = position?.takeProfit ?? plannedTarget;
 
   const changeStop = (price: string | null) => {
-    if (position) void actions.modifyStop(price);
+    if (position) void actions.modifyStop(price, position.id);
     else setPlannedStop(price);
   };
   const changeTarget = (price: string | null) => {
-    if (position) void actions.modifyTarget(price);
+    if (position) void actions.modifyTarget(price, position.id);
     else setPlannedTarget(price);
-  };
-  const closePosition = () => {
-    setPendingConfirmation({
-      title: "Close position?",
-      message: "The position will close at the current simulated price.",
-      confirmLabel: "Close position",
-      danger: true,
-      action: () => {
-        setPlannedStop(null);
-        setPlannedTarget(null);
-        void actions.closePosition();
-      },
-    });
   };
   const protectionPrice = (kind: "stop" | "target") => {
     if (!state.currentPrice) return null;
@@ -207,8 +234,8 @@ export function Backtester({
     actions.placeOrder({
       ...orderTemplate,
       direction,
-      stopLoss: chartStop ?? undefined,
-      takeProfit: chartTarget ?? undefined,
+      stopLoss: plannedStop ?? undefined,
+      takeProfit: plannedTarget ?? undefined,
     });
   };
   const chartCandles = referencePair
@@ -278,7 +305,7 @@ export function Backtester({
     <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[var(--app-bg)]">
       <p className="sr-only" aria-live="polite">
         {`Candle ${state.visibleIndex + 1} of ${state.totalCandles}. Balance ${state.balance}. ${
-          position ? `Open ${position.direction} position.` : "No open position."
+          state.openPositions.length ? `${state.openPositions.length} open positions.` : "No open position."
         }`}
       </p>
       <TradingOnboarding />
@@ -297,10 +324,9 @@ export function Backtester({
         <OrderTicket
           state={state}
           busy={bt.busy}
-          stopLoss={chartStop}
-          takeProfit={chartTarget}
+          stopLoss={plannedStop}
+          takeProfit={plannedTarget}
           onPlaceOrder={actions.placeOrder}
-          onClose={closePosition}
           onTemplateChange={setOrderTemplate}
           referencePair={referencePair}
         />
@@ -332,7 +358,12 @@ export function Backtester({
             lastCandle={chartLastCandle}
             lastCandles={chartLastCandles}
             markers={referencePair ? [] : markers}
-            entryPrice={!referencePair && position ? Number(position.entryPrice) : null}
+            positions={referencePair ? [] : state.openPositions}
+            activePositionId={!referencePair ? position?.id ?? null : null}
+            onEditPosition={(positionId) => {
+              setSelectedPositionId(positionId);
+              setEditorPositionId(positionId);
+            }}
             stopLoss={!referencePair && chartStop ? Number(chartStop) : null}
             takeProfit={!referencePair && chartTarget ? Number(chartTarget) : null}
             positionDirection={!referencePair ? position?.direction ?? null : null}
@@ -372,8 +403,6 @@ export function Backtester({
             onBuy={() => quickOrder("long")}
             onSell={() => quickOrder("short")}
             canTrade={Boolean(
-              !bt.busy &&
-              !position &&
               state.status !== "finished" &&
               state.currentPrice &&
               !referencePair
@@ -394,6 +423,16 @@ export function Backtester({
         initialNotes={bt.notes}
         onSaveNotes={actions.saveNotes}
         busy={bt.busy}
+      />
+      <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
+      <PositionEditorModal
+        position={state.openPositions.find((item) => item.id === editorPositionId) ?? null}
+        onDismiss={() => setEditorPositionId(null)}
+        onSave={(positionId, stopLoss, takeProfit) => {
+          void actions.modifyStop(stopLoss, positionId);
+          void actions.modifyTarget(takeProfit, positionId);
+        }}
+        onClose={(positionId, lots) => void actions.closePosition(positionId, lots)}
       />
       <ConfirmModal
         open={Boolean(pendingConfirmation)}

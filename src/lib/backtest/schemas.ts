@@ -77,7 +77,12 @@ export const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("restart") }),
   z.object({ type: z.literal("end"), targetIndex: z.number().int().nonnegative().optional() }),
-  z.object({ type: z.literal("close"), targetIndex: z.number().int().nonnegative().optional() }),
+  z.object({
+    type: z.literal("close"),
+    positionId: z.string().min(1).optional(),
+    lots: positiveNumericString.optional(),
+    targetIndex: z.number().int().nonnegative().optional(),
+  }),
   z.object({
     type: z.literal("set-speed"),
     speed: z.union([
@@ -103,8 +108,8 @@ export const actionSchema = z.discriminatedUnion("type", [
     stopLoss: positiveNumericString.optional(),
     takeProfit: positiveNumericString.optional(),
   }),
-  z.object({ type: z.literal("modify-stop"), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
-  z.object({ type: z.literal("modify-target"), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
+  z.object({ type: z.literal("modify-stop"), positionId: z.string().min(1).optional(), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
+  z.object({ type: z.literal("modify-target"), positionId: z.string().min(1).optional(), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
   z.object({ type: z.literal("notes"), notes: z.string().max(5000) }),
 ]);
 

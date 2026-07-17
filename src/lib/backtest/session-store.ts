@@ -16,7 +16,7 @@ import { prisma } from "@/lib/db";
 import { getMarketDataProvider } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
-import { createSessionState, publicSessionState } from "./replay-engine";
+import { createSessionState, normalizeSessionState, publicSessionState } from "./replay-engine";
 import { buildSessionConfig } from "./session-config";
 import type {
   EngineContext,
@@ -427,7 +427,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
   const row = await prisma.backtestSession.findUnique({ where: { id } });
   if (!row) return null;
 
-  const state = JSON.parse(row.stateJson) as SessionState;
+  const state = normalizeSessionState(JSON.parse(row.stateJson) as SessionState);
   state.speed = normalizeReplaySpeed(Number(state.speed));
   let series = candleCache.get(id);
   if (!series) {

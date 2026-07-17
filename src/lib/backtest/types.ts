@@ -145,7 +145,7 @@ export interface SessionState {
   maxEquity: string;
   maxDrawdown: string;
   maxDrawdownPercent: string;
-  openPosition: OpenPosition | null;
+  openPositions: OpenPosition[];
   closedTrades: ClosedTrade[];
   equityCurve: EquityPoint[];
   /** Index after which stepping backwards is disallowed (a trade was placed). */
@@ -169,7 +169,7 @@ export interface PublicSessionState {
   maxDrawdownPercent: string;
   currentPrice: string | null;
   currentTime: number | null;
-  openPosition: OpenPosition | null;
+  openPositions: OpenPosition[];
   closedTrades: ClosedTrade[];
   equityCurve: EquityPoint[];
   lockedBeforeIndex: number;

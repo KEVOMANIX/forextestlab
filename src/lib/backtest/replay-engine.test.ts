@@ -70,26 +70,27 @@ describe("replay indexing", () => {
 });
 
 describe("orders and step-back locking", () => {
-  it("opens one position and rejects a second", () => {
+  it("opens multiple independent positions", () => {
     const e = ctx(FLAT);
     expect(placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" }).ok).toBe(true);
-    expect(e.state.openPosition).not.toBeNull();
+    expect(e.state.openPositions).toHaveLength(1);
     const second = placeOrder(e, { direction: "short", sizingMode: "fixed-lots", lots: "1.0" });
-    expect(second.ok).toBe(false);
+    expect(second.ok).toBe(true);
+    expect(e.state.openPositions).toHaveLength(2);
   });
 
   it("adds temporary 20-pip stop and 40-pip target to a new long", () => {
     const e = ctx(FLAT);
     placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
-    expect(e.state.openPosition?.stopLoss).toBe("1.09800");
-    expect(e.state.openPosition?.takeProfit).toBe("1.10400");
+    expect(e.state.openPositions[0]?.stopLoss).toBe("1.09800");
+    expect(e.state.openPositions[0]?.takeProfit).toBe("1.10400");
   });
 
   it("adds temporary protection levels on the correct side of a short", () => {
     const e = ctx(FLAT);
     placeOrder(e, { direction: "short", sizingMode: "fixed-lots", lots: "1.0" });
-    expect(e.state.openPosition?.stopLoss).toBe("1.10200");
-    expect(e.state.openPosition?.takeProfit).toBe("1.09600");
+    expect(e.state.openPositions[0]?.stopLoss).toBe("1.10200");
+    expect(e.state.openPositions[0]?.takeProfit).toBe("1.09600");
   });
 
   it("disables step-back once a trade has been placed", () => {
@@ -111,7 +112,7 @@ describe("stop-loss / take-profit execution", () => {
     const e = ctx(candles);
     placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0", stopLoss: "1.09900", takeProfit: "1.10500" });
     revealNext(e);
-    expect(e.state.openPosition).toBeNull();
+    expect(e.state.openPositions).toHaveLength(0);
     expect(e.state.closedTrades).toHaveLength(1);
     expect(e.state.closedTrades[0]?.exitReason).toBe("stop-loss");
     // pips = (1.09900 - 1.10000)/0.0001 = -10 -> -100.00
@@ -147,6 +148,15 @@ describe("manual close and drawdown", () => {
     expect(e.state.closedTrades[0]?.pnl).toBe("100.00");
   });
 
+  it("partially closes a position and leaves the remainder open", () => {
+    const e = ctx(FLAT);
+    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    const id = e.state.openPositions[0]?.id;
+    expect(closePosition(e, id, "0.5").ok).toBe(true);
+    expect(e.state.closedTrades[0]?.lots).toBe("0.5");
+    expect(e.state.openPositions[0]?.lots).toBe("0.5");
+  });
+
   it("tracks max drawdown from unrealised equity", () => {
     const candles = [
       c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
@@ -177,7 +187,7 @@ describe("restart", () => {
     restart(e);
     expect(e.state.visibleIndex).toBe(0);
     expect(e.state.closedTrades).toHaveLength(0);
-    expect(e.state.openPosition).toBeNull();
+    expect(e.state.openPositions).toHaveLength(0);
     expect(e.state.balance).toBe("10000.00");
   });
 });

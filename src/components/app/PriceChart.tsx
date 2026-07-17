@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Crosshair, Grid3X3, History, LocateFixed, Maximize2, Minus, Target } from "lucide-react";
+import { Crosshair, Grid3X3, History, LocateFixed, Maximize2, Minus, Pencil, Target } from "lucide-react";
 import {
   ColorType,
   CrosshairMode,
@@ -23,6 +23,7 @@ import {
   type Candle,
   type Timeframe,
 } from "@/lib/market-data/types";
+import type { OpenPosition } from "@/lib/backtest/types";
 
 export interface ChartMarker {
   time: number;
@@ -38,7 +39,9 @@ interface PriceChartProps {
   lastCandle: Candle | null;
   lastCandles: Candle[];
   markers: ChartMarker[];
-  entryPrice: number | null;
+  positions: OpenPosition[];
+  activePositionId: string | null;
+  onEditPosition: (positionId: string) => void;
   stopLoss: number | null;
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
@@ -138,7 +141,9 @@ export default function PriceChart({
   lastCandle,
   lastCandles,
   markers,
-  entryPrice,
+  positions,
+  activePositionId,
+  onEditPosition,
   stopLoss,
   takeProfit,
   positionDirection,
@@ -158,7 +163,8 @@ export default function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const entryLineRef = useRef<IPriceLine | null>(null);
+  const positionLinesRef = useRef<IPriceLine[]>([]);
+  const positionsRef = useRef<OpenPosition[]>(positions);
   const followLatestRef = useRef(true);
   const rawCandlesRef = useRef<Candle[]>(initialCandles);
   const displayTimeframeRef = useRef<Timeframe>(baseTimeframe);
@@ -177,9 +183,11 @@ export default function PriceChart({
     stop: number | null;
     target: number | null;
   }>({ stop: null, target: null });
+  const [entryCoordinates, setEntryCoordinates] = useState<Record<string, number | null>>({});
   const [historyLoading, setHistoryLoading] = useState(contextCandles.length === 0);
   const [olderHistoryLoading, setOlderHistoryLoading] = useState(false);
   const [hasOlderHistory, setHasOlderHistory] = useState(true);
+  positionsRef.current = positions;
 
   // Never let a slow or stalled remote history request permanently cover a
   // usable replay chart. The request itself also has a network timeout.
@@ -234,6 +242,9 @@ export default function PriceChart({
       stop: stopDraft == null ? null : series.priceToCoordinate(stopDraft),
       target: targetDraft == null ? null : series.priceToCoordinate(targetDraft),
     });
+    setEntryCoordinates(Object.fromEntries(
+      positionsRef.current.map((position) => [position.id, series.priceToCoordinate(Number(position.entryPrice))]),
+    ));
   }
 
   function refreshSeries() {
@@ -369,7 +380,7 @@ export default function PriceChart({
       chartRef.current = null;
       seriesRef.current = null;
       contextSeriesRef.current = null;
-      entryLineRef.current = null;
+      positionLinesRef.current = [];
     };
     // The parent remounts this chart when a session changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -521,21 +532,31 @@ export default function PriceChart({
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    if (entryLineRef.current) {
-      series.removePriceLine(entryLineRef.current);
-      entryLineRef.current = null;
+    for (const line of positionLinesRef.current) series.removePriceLine(line);
+    positionLinesRef.current = [];
+    for (const position of positions) {
+      if (position.id === activePositionId) continue;
+      if (position.stopLoss) {
+        positionLinesRef.current.push(series.createPriceLine({
+          price: Number(position.stopLoss), color: BEAR, lineWidth: 1,
+          lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "SL",
+        }));
+      }
+      if (position.takeProfit) {
+        positionLinesRef.current.push(series.createPriceLine({
+          price: Number(position.takeProfit), color: BULL, lineWidth: 1,
+          lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "TP",
+        }));
+      }
     }
-    if (entryPrice != null && !Number.isNaN(entryPrice)) {
-      entryLineRef.current = series.createPriceLine({
-        price: entryPrice,
-        color: "#5b8bff",
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: true,
-        title: "ENTRY",
-      });
-    }
-  }, [entryPrice]);
+    requestAnimationFrame(updateLineCoordinates);
+    return () => {
+      if (!seriesRef.current) return;
+      for (const line of positionLinesRef.current) seriesRef.current.removePriceLine(line);
+      positionLinesRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [positions, activePositionId]);
 
   function goToLatest() {
     followLatestRef.current = true;
@@ -618,6 +639,35 @@ export default function PriceChart({
         role="img"
         aria-label="Candlestick price chart"
       />
+
+      {positions.map((position) => {
+        const top = entryCoordinates[position.id];
+        if (top == null) return null;
+        const isLong = position.direction === "long";
+        return (
+          <div
+            key={position.id}
+            data-testid="position-entry-line"
+            className="group pointer-events-auto absolute left-0 right-16 z-20 h-3 -translate-y-1/2"
+            style={{ top }}
+          >
+            <span className={`pointer-events-none absolute left-0 right-0 top-1/2 border-t border-dashed ${isLong ? "border-brand-400/80" : "border-bear/80"}`} />
+            <div className="absolute left-2 -top-9 flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel)] px-2 py-1.5 text-[10px] opacity-0 shadow-xl transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+              <span className={`font-bold ${isLong ? "text-brand-300" : "text-bear"}`}>{isLong ? "BUY" : "SELL"} @ {position.entryPrice}</span>
+              <span className="font-mono app-muted">{position.lots} lot</span>
+              <span className={`font-mono ${Number(position.unrealizedPnl) >= 0 ? "text-brand-300" : "text-bear"}`}>{position.unrealizedPnl}</span>
+              <button
+                type="button"
+                onClick={() => onEditPosition(position.id)}
+                className="grid h-6 w-6 place-items-center rounded bg-white/[0.06] hover:bg-white/[0.12]"
+                aria-label={`Edit ${isLong ? "buy" : "sell"} position at ${position.entryPrice}`}
+              >
+                <Pencil size={12} aria-hidden />
+              </button>
+            </div>
+          </div>
+        );
+      })}
 
       <div
         className="absolute left-2 right-16 top-2 z-10 flex items-center gap-1 overflow-x-auto rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur"

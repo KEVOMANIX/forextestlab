@@ -8,6 +8,7 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { computeStatistics, type PerformanceStats } from "./statistics";
 import type { SessionState } from "./types";
+import { normalizeSessionState } from "./replay-engine";
 
 export interface SessionResults {
   sessionId: string;
@@ -33,7 +34,7 @@ export async function getSessionResults(
   });
   if (!row) return null;
 
-  const state = JSON.parse(row.stateJson) as SessionState;
+  const state = normalizeSessionState(JSON.parse(row.stateJson) as SessionState);
   const stats = computeStatistics({
     startingBalance: state.config.startingBalance,
     endingBalance: state.balance,

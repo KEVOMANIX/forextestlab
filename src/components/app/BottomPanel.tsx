@@ -55,7 +55,7 @@ export function BottomPanel({
     [state],
   );
 
-  const openCount = state.openPosition ? 1 : 0;
+  const openCount = state.openPositions.length;
   const pnl = Number(state.equity) - Number(state.config.startingBalance);
   const timeLabel = currentTime
     ? new Date(currentTime).toISOString().slice(0, 16).replace("T", " ")
@@ -85,16 +85,21 @@ export function BottomPanel({
           className="min-h-0 flex-1 overflow-auto border-b app-border"
         >
           {tab === "position" &&
-            (state.openPosition ? (
-              <dl className="grid grid-cols-2 gap-3 p-4 font-mono text-sm sm:grid-cols-4 lg:grid-cols-7">
-                <div><dt className="text-xs app-muted">Direction</dt><dd>{state.openPosition.direction}</dd></div>
-                <div><dt className="text-xs app-muted">Lots</dt><dd>{state.openPosition.lots}</dd></div>
-                <div><dt className="text-xs app-muted">Entry</dt><dd>{state.openPosition.entryPrice}</dd></div>
-                <div><dt className="text-xs app-muted">Unrealised</dt><dd className={Number(state.openPosition.unrealizedPnl) >= 0 ? "text-brand-300" : "text-bear"}>{state.openPosition.unrealizedPnl}</dd></div>
-                <div><dt className="text-xs app-muted">Stop-loss</dt><dd>{state.openPosition.stopLoss ?? "—"}</dd></div>
-                <div><dt className="text-xs app-muted">Take-profit</dt><dd>{state.openPosition.takeProfit ?? "—"}</dd></div>
-                <div><dt className="text-xs app-muted">Commission</dt><dd>{state.openPosition.commission}</dd></div>
-              </dl>
+            (state.openPositions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-xs">
+                  <thead className="app-muted"><tr className="border-b app-border"><th className="px-3 py-2">Side</th><th>Lots</th><th>Entry</th><th>SL</th><th>TP</th><th>Commission</th><th>Unrealised</th></tr></thead>
+                  <tbody>
+                    {state.openPositions.map((position) => (
+                      <tr key={position.id} className="border-b app-border font-mono">
+                        <td className={`px-3 py-2 font-semibold ${position.direction === "long" ? "text-brand-300" : "text-bear"}`}>{position.direction === "long" ? "BUY" : "SELL"}</td>
+                        <td>{position.lots}</td><td>{position.entryPrice}</td><td>{position.stopLoss ?? "—"}</td><td>{position.takeProfit ?? "—"}</td><td>{position.commission}</td>
+                        <td className={Number(position.unrealizedPnl) >= 0 ? "text-brand-300" : "text-bear"}>{position.unrealizedPnl}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               <p className="p-4 text-sm app-muted">No open positions.</p>
             ))}

@@ -102,7 +102,7 @@ export function ReplayToolbar({
   const canPrev =
     !running &&
     state.closedTrades.length === 0 &&
-    !state.openPosition &&
+    state.openPositions.length === 0 &&
     state.visibleIndex > state.config.initialVisibleCount - 1;
   const speedIndex = Math.max(0, REPLAY_SPEEDS.indexOf(state.speed));
   const stepCount = Math.max(

@@ -109,12 +109,12 @@ export async function POST(
       restart(ctx);
       break;
     case "end":
-      if (ctx.state.openPosition) closePosition(ctx);
+      while (ctx.state.openPositions.length > 0) closePosition(ctx);
       setStatus(ctx, "finished");
       ctx.state.status = "finished";
       break;
     case "close": {
-      const r = closePosition(ctx);
+      const r = closePosition(ctx, action.positionId, action.lots);
       if (!r.ok) opError = r.error;
       break;
     }
@@ -130,7 +130,7 @@ export async function POST(
       if (!r.ok) {
         opError = r.error;
       } else {
-        const pos = ctx.state.openPosition;
+        const pos = ctx.state.openPositions.at(-1);
         if (pos) {
           orderProjection = prisma.simulatedOrder.create({
             data: {
@@ -149,12 +149,12 @@ export async function POST(
       break;
     }
     case "modify-stop": {
-      const r = modifyStopLoss(ctx, action.price);
+      const r = modifyStopLoss(ctx, action.price, action.positionId);
       if (!r.ok) opError = r.error;
       break;
     }
     case "modify-target": {
-      const r = modifyTakeProfit(ctx, action.price);
+      const r = modifyTakeProfit(ctx, action.price, action.positionId);
       if (!r.ok) opError = r.error;
       break;
     }

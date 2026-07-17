@@ -21,7 +21,10 @@ import type {
   ReplayStepMinutes,
 } from "@/lib/backtest/types";
 import {
+  closePosition as closeLocalPosition,
   engineStateFromPublic,
+  modifyStopLoss as modifyLocalStopLoss,
+  modifyTakeProfit as modifyLocalTakeProfit,
   placeOrder as placeLocalOrder,
   publicSessionState,
   revealNext,
@@ -230,6 +233,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         background?: boolean;
         showBusy?: boolean;
         rollbackState?: PublicSessionState;
+        preserveLocalState?: boolean;
       } = {},
     ) => {
       const background = opts.background === true;
@@ -259,6 +263,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
         const res = await sendAction(id, token, action);
         if (!res.ok) {
+          if (res.state) localEngineRef.current = {
+            state: engineStateFromPublic(res.state),
+            candles: localEngineRef.current?.candles ?? [],
+          };
           setS((prev) => ({
             ...prev,
             error: res.error,
@@ -283,7 +291,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
           let nextState = res.state;
           // A background save can finish after local playback has already
           // advanced further. Never rewind the browser to that older index.
-          if (
+          if (opts.preserveLocalState && localEngineRef.current) {
+            nextState = publicSessionState(
+              localEngineRef.current,
+              prev.state?.anonymous ?? false,
+            );
+          } else if (
             prev.state &&
             prev.state.visibleIndex > nextState.visibleIndex
           ) {
@@ -632,7 +645,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     (order: OrderRequest) => {
       const rollbackState = s.state;
       const engine = localEngineRef.current;
-      if (engine && !engine.state.openPosition) {
+      if (engine) {
         const result = placeLocalOrder(engine, order);
         if (result.ok) {
           const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
@@ -648,32 +661,63 @@ export function useBacktester(resumeSessionId: string | null = null) {
         stopLoss: order.stopLoss ?? undefined,
         takeProfit: order.takeProfit ?? undefined,
         targetIndex: localEngineRef.current?.state.visibleIndex,
-      }, { rollbackState: rollbackState ?? undefined });
+      }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
     },
     [runAction, s.state],
   );
   const closePosition = useCallback(
-    () => runAction({
-      type: "close",
-      targetIndex: localEngineRef.current?.state.visibleIndex,
-    }),
-    [runAction],
+    (positionId?: string, lots?: string) => {
+      const rollbackState = s.state;
+      const engine = localEngineRef.current;
+      if (engine) {
+        const result = closeLocalPosition(engine, positionId, lots);
+        if (result.ok) {
+          const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
+          setS((prev) => ({ ...prev, state }));
+        }
+      }
+      return runAction({
+        type: "close",
+        positionId,
+        lots,
+        targetIndex: localEngineRef.current?.state.visibleIndex,
+      }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
+    },
+    [runAction, s.state],
   );
   const modifyStop = useCallback(
-    (price: string | null) => runAction({
-      type: "modify-stop",
-      price,
-      targetIndex: localEngineRef.current?.state.visibleIndex,
-    }),
-    [runAction],
+    (price: string | null, positionId?: string) => {
+      const rollbackState = s.state;
+      const engine = localEngineRef.current;
+      if (engine && modifyLocalStopLoss(engine, price, positionId).ok) {
+        const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
+        setS((prev) => ({ ...prev, state }));
+      }
+      return runAction({
+        type: "modify-stop",
+        positionId,
+        price,
+        targetIndex: localEngineRef.current?.state.visibleIndex,
+      }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
+    },
+    [runAction, s.state],
   );
   const modifyTarget = useCallback(
-    (price: string | null) => runAction({
-      type: "modify-target",
-      price,
-      targetIndex: localEngineRef.current?.state.visibleIndex,
-    }),
-    [runAction],
+    (price: string | null, positionId?: string) => {
+      const rollbackState = s.state;
+      const engine = localEngineRef.current;
+      if (engine && modifyLocalTakeProfit(engine, price, positionId).ok) {
+        const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
+        setS((prev) => ({ ...prev, state }));
+      }
+      return runAction({
+        type: "modify-target",
+        positionId,
+        price,
+        targetIndex: localEngineRef.current?.state.visibleIndex,
+      }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
+    },
+    [runAction, s.state],
   );
   const saveNotes = useCallback(
     async (notes: string) => {

@@ -40,7 +40,17 @@ export function engineStateFromPublic(state: PublicSessionState): SessionState {
   delete engine.currentPrice;
   delete engine.currentTime;
   delete engine.anonymous;
-  return engine as unknown as SessionState;
+  return normalizeSessionState(engine as unknown as SessionState);
+}
+
+/** Upgrade states saved before multi-position support without invalidating sessions. */
+export function normalizeSessionState(state: SessionState): SessionState {
+  const legacy = state as SessionState & { openPosition?: OpenPosition | null };
+  if (!Array.isArray(state.openPositions)) {
+    state.openPositions = legacy.openPosition ? [legacy.openPosition] : [];
+  }
+  delete legacy.openPosition;
+  return state;
 }
 
 /** Build the browser-safe view of an engine state. */
@@ -111,7 +121,7 @@ export function createSessionState(
     maxEquity: balance,
     maxDrawdown: "0.00",
     maxDrawdownPercent: "0.0",
-    openPosition: null,
+    openPositions: [],
     closedTrades: [],
     equityCurve: startCandle
       ? [
@@ -130,12 +140,11 @@ export function createSessionState(
   return state;
 }
 
-/** Unrealised P&L of the open position at the current candle. */
-function unrealizedPnl(ctx: EngineContext): string {
+/** Unrealised P&L of one open position at the current candle. */
+function unrealizedPnl(ctx: EngineContext, pos: OpenPosition): string {
   const { state } = ctx;
-  const pos = state.openPosition;
   const candle = currentCandle(ctx);
-  if (!pos || !candle) return "0.00";
+  if (!candle) return "0.00";
   const exit = exitFillPrice(
     pos.direction,
     candle,
@@ -158,9 +167,10 @@ function unrealizedPnl(ctx: EngineContext): string {
 function recomputeEquity(ctx: EngineContext, record: boolean): void {
   const { state } = ctx;
   const candle = currentCandle(ctx);
-  const unreal = state.openPosition ? unrealizedPnl(ctx) : "0.00";
-  if (state.openPosition) {
-    state.openPosition.unrealizedPnl = unreal;
+  let unreal = d(0);
+  for (const position of state.openPositions) {
+    position.unrealizedPnl = unrealizedPnl(ctx, position);
+    unreal = unreal.plus(position.unrealizedPnl);
   }
   const equity = d(state.balance).plus(unreal);
   state.equity = equity.toFixed(2);
@@ -189,23 +199,35 @@ function recomputeEquity(ctx: EngineContext, record: boolean): void {
 /** Close the open position at a specific price for a specific reason. */
 function closeAt(
   ctx: EngineContext,
+  positionId: string,
   exitPrice: string,
   reason: ExitReason,
   intrabarAmbiguous: boolean,
+  requestedLots?: string,
 ): void {
   const { state } = ctx;
-  const pos = state.openPosition;
+  const pos = state.openPositions.find((position) => position.id === positionId);
   const candle = currentCandle(ctx);
   if (!pos || !candle) return;
+
+  const closeLots = requestedLots
+    ? Decimal.min(d(requestedLots), d(pos.lots))
+    : d(pos.lots);
+  if (closeLots.lessThanOrEqualTo(0)) return;
+  const closingAll = closeLots.greaterThanOrEqualTo(pos.lots);
+  const commission = d(pos.commission)
+    .times(closeLots)
+    .dividedBy(pos.lots)
+    .toFixed(2);
 
   const { pnl, pips } = computePnl({
     direction: pos.direction,
     entryPrice: pos.entryPrice,
     exitPrice,
-    lots: pos.lots,
+    lots: closeLots.toString(),
     pipSize: state.config.pipSize,
     pipValueAccountPerLot: pipValueAccountPerLot(state.config, exitPrice),
-    commission: pos.commission,
+    commission,
   });
 
   const trade: ClosedTrade = {
@@ -217,10 +239,10 @@ function closeAt(
     exitTime: candle.timestamp,
     entryIndex: pos.entryIndex,
     exitIndex: state.visibleIndex,
-    lots: pos.lots,
+    lots: closeLots.toString(),
     stopLoss: pos.stopLoss,
     takeProfit: pos.takeProfit,
-    commission: pos.commission,
+    commission,
     pnl,
     pips,
     exitReason: reason,
@@ -229,7 +251,12 @@ function closeAt(
 
   state.balance = d(state.balance).plus(pnl).toFixed(2);
   state.closedTrades.push(trade);
-  state.openPosition = null;
+  if (closingAll) {
+    state.openPositions = state.openPositions.filter((position) => position.id !== pos.id);
+  } else {
+    pos.lots = d(pos.lots).minus(closeLots).toString();
+    pos.commission = d(pos.commission).minus(commission).toFixed(2);
+  }
 }
 
 /**
@@ -241,16 +268,16 @@ export function revealNext(ctx: EngineContext): boolean {
   const { state, candles } = ctx;
   if (state.visibleIndex >= state.totalCandles - 1) {
     // End of data: close any open position at the final candle, mark finished.
-    if (state.openPosition) {
+    for (const position of [...state.openPositions]) {
       const candle = currentCandle(ctx);
       if (candle) {
         const price = exitFillPrice(
-          state.openPosition.direction,
+          position.direction,
           candle,
           state.config.spreadPips,
           state.config.pipSize,
         ).toString();
-        closeAt(ctx, price, "session-end", false);
+        closeAt(ctx, position.id, price, "session-end", false);
       }
     }
     state.status = "finished";
@@ -261,18 +288,20 @@ export function revealNext(ctx: EngineContext): boolean {
   state.visibleIndex += 1;
   const candle = candles[state.visibleIndex];
 
-  if (state.openPosition && candle) {
-    const hit = checkStopTakeProfit(
-      state.openPosition.direction,
-      state.openPosition.stopLoss,
-      state.openPosition.takeProfit,
-      candle,
-      state.config.spreadPips,
-      state.config.pipSize,
-      state.config.executionPolicy,
-    );
-    if (hit) {
-      closeAt(ctx, hit.price, hit.reason, hit.intrabarAmbiguous);
+  if (candle) {
+    for (const position of [...state.openPositions]) {
+      const hit = checkStopTakeProfit(
+        position.direction,
+        position.stopLoss,
+        position.takeProfit,
+        candle,
+        state.config.spreadPips,
+        state.config.pipSize,
+        state.config.executionPolicy,
+      );
+      if (hit) {
+        closeAt(ctx, position.id, hit.price, hit.reason, hit.intrabarAmbiguous);
+      }
     }
   }
 
@@ -289,7 +318,7 @@ export function stepBack(ctx: EngineContext): boolean {
   const floor = Math.max(state.config.initialVisibleCount - 1, 0);
   const canStep =
     state.closedTrades.length === 0 &&
-    state.openPosition === null &&
+    state.openPositions.length === 0 &&
     state.visibleIndex > floor &&
     state.visibleIndex > state.lockedBeforeIndex;
   if (!canStep) return false;
@@ -401,7 +430,7 @@ export function previewPosition(
   };
 }
 
-/** Open a simulated position (one at a time in the public beta). */
+/** Open a simulated position. Multiple independent positions are supported. */
 export function placeOrder(
   ctx: EngineContext,
   req: OrderRequest,
@@ -410,15 +439,12 @@ export function placeOrder(
   if (state.status === "finished") {
     return { ok: false, error: "Session has finished." };
   }
-  if (state.openPosition) {
-    return { ok: false, error: "A position is already open." };
-  }
   const candle = currentCandle(ctx);
   if (!candle) return { ok: false, error: "No current candle." };
 
   const preview = previewPosition(state, candle, req, makeId("pos"));
   if (!preview.ok || !preview.position) return preview;
-  state.openPosition = preview.position;
+  state.openPositions.push(preview.position);
   state.lockedBeforeIndex = state.visibleIndex;
   recomputeEquity(ctx, false);
   return { ok: true };
@@ -427,38 +453,55 @@ export function placeOrder(
 export function modifyStopLoss(
   ctx: EngineContext,
   price: string | null,
+  positionId?: string,
 ): PlaceOrderResult {
-  if (!ctx.state.openPosition) {
+  const position = positionId
+    ? ctx.state.openPositions.find((item) => item.id === positionId)
+    : ctx.state.openPositions[0];
+  if (!position) {
     return { ok: false, error: "No open position." };
   }
-  ctx.state.openPosition.stopLoss = price;
+  position.stopLoss = price;
+  recomputeEquity(ctx, false);
   return { ok: true };
 }
 
 export function modifyTakeProfit(
   ctx: EngineContext,
   price: string | null,
+  positionId?: string,
 ): PlaceOrderResult {
-  if (!ctx.state.openPosition) {
+  const position = positionId
+    ? ctx.state.openPositions.find((item) => item.id === positionId)
+    : ctx.state.openPositions[0];
+  if (!position) {
     return { ok: false, error: "No open position." };
   }
-  ctx.state.openPosition.takeProfit = price;
+  position.takeProfit = price;
+  recomputeEquity(ctx, false);
   return { ok: true };
 }
 
-/** Manually close the open position at the current candle. */
-export function closePosition(ctx: EngineContext): PlaceOrderResult {
+/** Manually close all or part of a position at the current candle. */
+export function closePosition(
+  ctx: EngineContext,
+  positionId?: string,
+  lots?: string,
+): PlaceOrderResult {
   const { state } = ctx;
-  if (!state.openPosition) return { ok: false, error: "No open position." };
+  const position = positionId
+    ? state.openPositions.find((item) => item.id === positionId)
+    : state.openPositions[0];
+  if (!position) return { ok: false, error: "No open position." };
   const candle = currentCandle(ctx);
   if (!candle) return { ok: false, error: "No current candle." };
   const price = exitFillPrice(
-    state.openPosition.direction,
+    position.direction,
     candle,
     state.config.spreadPips,
     state.config.pipSize,
   ).toFixed(state.config.pricePrecision);
-  closeAt(ctx, price, "manual", false);
+  closeAt(ctx, position.id, price, "manual", false, lots);
   recomputeEquity(ctx, false);
   return { ok: true };
 }

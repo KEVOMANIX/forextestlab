@@ -302,7 +302,14 @@ export default function PriceChart({
         tickMarkFormatter: (time: Time) => chartTickFormatter.format(chartTimeMs(time)),
       },
       localization: {
-        timeFormatter: (time: Time) => formatNewYorkDateTime(chartTimeMs(time)),
+        timeFormatter: (time: Time) => formatNewYorkDateTime(chartTimeMs(time), {
+          weekday: "long",
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       },
       crosshair: { mode: CrosshairMode.Normal },
       handleScroll: true,

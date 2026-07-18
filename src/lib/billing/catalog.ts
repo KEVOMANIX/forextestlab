@@ -1,6 +1,6 @@
 import "server-only";
 
-import { isPaystackSecretKey } from "./paystack";
+import { configuredPaystackSecretKey, isPaystackSecretKey, paystackMode } from "./paystack";
 
 export type PaidPlanKey = "pro_monthly_usd" | "pro_annual_usd";
 export type CheckoutProductKey = PaidPlanKey | "pro_pass_30d_kes";
@@ -99,9 +99,9 @@ export function annualSavingPercent(monthlyAmount: number, annualAmount: number)
 }
 
 export function paystackCheckoutReady(): boolean {
-  const secret = process.env.PAYSTACK_SECRET_KEY?.trim();
-  const monthly = (process.env.PAYSTACK_KES_MONTHLY_PLAN_CODE || process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE)?.trim();
-  const annual = (process.env.PAYSTACK_KES_ANNUAL_PLAN_CODE || process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE)?.trim();
+  const secret = configuredPaystackSecretKey();
+  const monthly = configuredPlanCode("month");
+  const annual = configuredPlanCode("year");
   return Boolean(
     isPaystackSecretKey(secret) &&
       monthly?.startsWith("PLN_") &&
@@ -109,6 +109,19 @@ export function paystackCheckoutReady(): boolean {
       !monthly.includes("REPLACE") &&
       !annual.includes("REPLACE"),
   );
+}
+
+function configuredPlanCode(interval: "month" | "year"): string | undefined {
+  const testVariable = interval === "month"
+    ? process.env.PAYSTACK_TEST_KES_MONTHLY_PLAN_CODE
+    : process.env.PAYSTACK_TEST_KES_ANNUAL_PLAN_CODE;
+  const kesVariable = interval === "month"
+    ? process.env.PAYSTACK_KES_MONTHLY_PLAN_CODE
+    : process.env.PAYSTACK_KES_ANNUAL_PLAN_CODE;
+  const legacyVariable = interval === "month"
+    ? process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE
+    : process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE;
+  return (paystackMode() === "test" ? testVariable || kesVariable || legacyVariable : kesVariable || legacyVariable)?.trim();
 }
 
 export function isCheckoutProductKey(value: unknown): value is CheckoutProductKey {
@@ -131,9 +144,7 @@ export function getCheckoutProduct(key: CheckoutProductKey): CheckoutProduct {
   }
   const plan = plans.find((item) => item.key === key);
   if (!plan) throw new Error("Unknown billing product.");
-  const planCode = key === "pro_monthly_usd"
-    ? (process.env.PAYSTACK_KES_MONTHLY_PLAN_CODE || process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE)?.trim()
-    : (process.env.PAYSTACK_KES_ANNUAL_PLAN_CODE || process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE)?.trim();
+  const planCode = configuredPlanCode(key === "pro_monthly_usd" ? "month" : "year");
   return {
     key,
     name: plan.name,
@@ -148,7 +159,7 @@ export function getCheckoutProduct(key: CheckoutProductKey): CheckoutProduct {
 
 export function checkoutProductReady(key: CheckoutProductKey): boolean {
   if (process.env.PAYSTACK_CHECKOUT_PAUSED === "true") return false;
-  const secret = process.env.PAYSTACK_SECRET_KEY?.trim();
+  const secret = configuredPaystackSecretKey();
   if (!isPaystackSecretKey(secret)) return false;
   const product = getCheckoutProduct(key);
   return !product.recurring || Boolean(product.planCode);

@@ -39,8 +39,21 @@ export function isPaystackSecretKey(value: string | undefined): boolean {
   return Boolean(value && /^sk_(?:test|live)_[A-Za-z0-9]+$/.test(value.trim()));
 }
 
+export type PaystackMode = "live" | "test";
+
+export function paystackMode(): PaystackMode {
+  return process.env.PAYSTACK_MODE === "test" ? "test" : "live";
+}
+
+export function configuredPaystackSecretKey(): string | undefined {
+  const value = paystackMode() === "test"
+    ? process.env.PAYSTACK_TEST_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY
+    : process.env.PAYSTACK_SECRET_KEY;
+  return value?.trim();
+}
+
 function secretKey(): string {
-  const value = process.env.PAYSTACK_SECRET_KEY?.trim();
+  const value = configuredPaystackSecretKey();
   if (!value) throw new Error("Paystack is not configured.");
   if (!isPaystackSecretKey(value)) {
     throw new Error("The Paystack secret key is malformed. Configure exactly one server-side secret key.");
@@ -108,8 +121,12 @@ export async function getSubscriptionManageLink(subscriptionCode: string): Promi
 
 export function validPaystackSignature(rawBody: string, signature: string | null): boolean {
   if (!signature) return false;
-  const expected = createHmac("sha512", secretKey()).update(rawBody).digest("hex");
   const actualBuffer = Buffer.from(signature, "utf8");
-  const expectedBuffer = Buffer.from(expected, "utf8");
-  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+  const keys = [process.env.PAYSTACK_SECRET_KEY, process.env.PAYSTACK_TEST_SECRET_KEY]
+    .map((value) => value?.trim())
+    .filter((value): value is string => isPaystackSecretKey(value));
+  return [...new Set(keys)].some((key) => {
+    const expectedBuffer = Buffer.from(createHmac("sha512", key).update(rawBody).digest("hex"), "utf8");
+    return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+  });
 }

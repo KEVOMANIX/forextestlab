@@ -32,4 +32,14 @@ describe("billing catalogue", () => {
     vi.stubEnv("PAYSTACK_CHECKOUT_PAUSED", "false");
     expect(checkoutProductReady("pro_monthly_usd")).toBe(true);
   });
+
+  it("selects isolated test credentials and plans when test mode is enabled", () => {
+    vi.stubEnv("PAYSTACK_MODE", "test");
+    vi.stubEnv("PAYSTACK_SECRET_KEY", "sk_live_liveexample");
+    vi.stubEnv("PAYSTACK_TEST_SECRET_KEY", "sk_test_testexample");
+    vi.stubEnv("PAYSTACK_KES_MONTHLY_PLAN_CODE", "PLN_liveplan");
+    vi.stubEnv("PAYSTACK_TEST_KES_MONTHLY_PLAN_CODE", "PLN_testplan");
+    expect(getCheckoutProduct("pro_monthly_usd").planCode).toBe("PLN_testplan");
+    expect(checkoutProductReady("pro_monthly_usd")).toBe(true);
+  });
 });

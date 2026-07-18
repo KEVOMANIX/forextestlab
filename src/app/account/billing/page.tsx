@@ -15,6 +15,7 @@ import {
   type PaidPlanKey,
 } from "@/lib/billing/catalog";
 import { prisma } from "@/lib/db";
+import { paystackMode } from "@/lib/billing/paystack";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Billing", robots: { index: false } };
@@ -40,6 +41,7 @@ export default async function BillingPage({ searchParams }: { searchParams: { pl
         <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Account billing</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Choose your Pro plan</h1><p className="mt-2 text-sm app-muted">Signed in as {user.email}</p></div>
         <span className="w-fit rounded-full border app-border bg-white/[0.04] px-3 py-1.5 text-xs font-semibold app-muted">Current plan · {hasPro ? "Pro" : "Free"}</span>
       </div>
+      {paystackMode() === "test" && <div className="mt-5 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200"><strong>Paystack Test Mode</strong> · No real money will be charged.</div>}
 
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         {plans.map((plan) => {

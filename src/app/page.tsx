@@ -7,6 +7,7 @@ import { Hero } from "@/components/Hero";
 import { HowItWorks } from "@/components/HowItWorks";
 import { Navbar } from "@/components/Navbar";
 import { ProductPreview } from "@/components/ProductPreview";
+import { PricingSection } from "@/components/PricingSection";
 import { TrustStatement } from "@/components/TrustStatement";
 
 export default function HomePage() {
@@ -22,6 +23,7 @@ export default function HomePage() {
         <HowItWorks />
         <ProductPreview />
         <Benefits />
+        <PricingSection />
         <FAQ />
         <ContactSection id="contact" />
       </main>

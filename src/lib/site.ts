@@ -25,10 +25,9 @@ export const siteConfig = {
 export const mainNav = [
   { label: "Features", href: "/#features" },
   { label: "How It Works", href: "/#how-it-works" },
-  { label: "Product Preview", href: "/#product-preview" },
+  { label: "Pricing", href: "/pricing" },
   { label: "FAQ", href: "/#faq" },
   { label: "About", href: "/about" },
-  { label: "Contact", href: "/contact" },
 ] as const;
 
 export const footerNav = {
@@ -36,6 +35,7 @@ export const footerNav = {
     { label: "Features", href: "/#features" },
     { label: "How It Works", href: "/#how-it-works" },
     { label: "Product Preview", href: "/#product-preview" },
+    { label: "Pricing", href: "/pricing" },
     { label: "Start Backtesting", href: "/app/backtest" },
   ],
   company: [

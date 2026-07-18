@@ -10,9 +10,7 @@ const LINKS = [
   { label: "Dashboard", href: "/app" },
   { label: "New backtest", href: "/app/backtest" },
   { label: "History", href: "/app/history" },
-  { label: "About", href: "/about" },
-  { label: "Risk Disclosure", href: "/risk-disclosure" },
-  { label: "Contact", href: "/contact" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 export function AppNav({ email }: { email: string | null }) {

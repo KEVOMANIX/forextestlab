@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isPaystackSecretKey } from "./paystack";
+
 export type PaidPlanKey = "pro_monthly_usd" | "pro_annual_usd";
 export type CheckoutProductKey = PaidPlanKey | "pro_pass_30d_kes";
 
@@ -101,7 +103,7 @@ export function paystackCheckoutReady(): boolean {
   const monthly = (process.env.PAYSTACK_KES_MONTHLY_PLAN_CODE || process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE)?.trim();
   const annual = (process.env.PAYSTACK_KES_ANNUAL_PLAN_CODE || process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE)?.trim();
   return Boolean(
-    secret &&
+    isPaystackSecretKey(secret) &&
       monthly?.startsWith("PLN_") &&
       annual?.startsWith("PLN_") &&
       !monthly.includes("REPLACE") &&
@@ -147,7 +149,7 @@ export function getCheckoutProduct(key: CheckoutProductKey): CheckoutProduct {
 export function checkoutProductReady(key: CheckoutProductKey): boolean {
   if (process.env.PAYSTACK_CHECKOUT_PAUSED === "true") return false;
   const secret = process.env.PAYSTACK_SECRET_KEY?.trim();
-  if (!secret) return false;
+  if (!isPaystackSecretKey(secret)) return false;
   const product = getCheckoutProduct(key);
   return !product.recurring || Boolean(product.planCode);
 }

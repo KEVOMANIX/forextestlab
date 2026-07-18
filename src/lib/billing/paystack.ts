@@ -35,9 +35,16 @@ interface PaystackEnvelope<T> {
   data: T;
 }
 
+export function isPaystackSecretKey(value: string | undefined): boolean {
+  return Boolean(value && /^sk_(?:test|live)_[A-Za-z0-9]+$/.test(value.trim()));
+}
+
 function secretKey(): string {
   const value = process.env.PAYSTACK_SECRET_KEY?.trim();
   if (!value) throw new Error("Paystack is not configured.");
+  if (!isPaystackSecretKey(value)) {
+    throw new Error("The Paystack secret key is malformed. Configure exactly one server-side secret key.");
+  }
   return value;
 }
 

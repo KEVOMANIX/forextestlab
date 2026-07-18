@@ -10,10 +10,12 @@ export function SessionCardActions({
   sessionId,
   status,
   archived,
+  showAnalytics = true,
 }: {
   sessionId: string;
   status: string;
   archived: boolean;
+  showAnalytics?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -70,12 +72,14 @@ export function SessionCardActions({
           <Play size={14} aria-hidden /> Resume
         </Link>
       )}
-      <Link
-        href={`/app/results/${sessionId}`}
-        className={`${finished ? "btn-primary" : "btn-secondary"} px-3 py-2 text-xs`}
-      >
-        <BarChart3 size={14} aria-hidden /> Analytics
-      </Link>
+      {showAnalytics && (
+        <Link
+          href={`/app/results/${sessionId}`}
+          className={`${finished ? "btn-primary" : "btn-secondary"} px-3 py-2 text-xs`}
+        >
+          <BarChart3 size={14} aria-hidden /> Analytics
+        </Link>
+      )}
       <button
         type="button"
         onClick={duplicate}

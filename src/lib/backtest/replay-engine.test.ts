@@ -84,6 +84,9 @@ describe("orders and step-back locking", () => {
     placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
     expect(e.state.openPositions[0]?.stopLoss).toBe("1.09800");
     expect(e.state.openPositions[0]?.takeProfit).toBe("1.10400");
+    expect(e.state.openPositions[0]?.initialStopLoss).toBe("1.09800");
+    expect(e.state.openPositions[0]?.initialTakeProfit).toBe("1.10400");
+    expect(Number(e.state.openPositions[0]?.initialRiskAmount)).toBeGreaterThan(0);
   });
 
   it("adds temporary protection levels on the correct side of a short", () => {
@@ -146,6 +149,33 @@ describe("manual close and drawdown", () => {
     closePosition(e);
     expect(e.state.closedTrades[0]?.exitReason).toBe("manual");
     expect(e.state.closedTrades[0]?.pnl).toBe("100.00");
+  });
+
+  it("persists intrabar favorable and adverse excursion for analytics", () => {
+    const candles = [
+      c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+      c(1, "1.10000", "1.10300", "1.09700", "1.10100"),
+    ];
+    const e = ctx(candles);
+    placeOrder(e, {
+      direction: "long",
+      sizingMode: "fixed-lots",
+      lots: "1.0",
+      stopLoss: "1.09000",
+      takeProfit: "1.11000",
+    });
+    revealNext(e);
+
+    const position = e.state.openPositions[0];
+    expect(Number(position?.maxFavorablePnl)).toBeGreaterThan(0);
+    expect(Number(position?.maxAdversePnl)).toBeLessThan(0);
+    const favorable = position?.maxFavorablePnl;
+    const adverse = position?.maxAdversePnl;
+    closePosition(e, position?.id);
+
+    expect(e.state.closedTrades[0]?.maxFavorablePnl).toBe(favorable);
+    expect(e.state.closedTrades[0]?.maxAdversePnl).toBe(adverse);
+    expect(Number(e.state.closedTrades[0]?.initialRiskAmount)).toBeGreaterThan(0);
   });
 
   it("partially closes a position and leaves the remainder open", () => {

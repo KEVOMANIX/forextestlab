@@ -18,6 +18,7 @@ import {
   checkStopTakeProfit,
   commissionForLots,
   computePnl,
+  deriveBidAsk,
   entryFillPrice,
   exitFillPrice,
 } from "./execution";
@@ -50,6 +51,13 @@ export function normalizeSessionState(state: SessionState): SessionState {
     state.openPositions = legacy.openPosition ? [legacy.openPosition] : [];
   }
   delete legacy.openPosition;
+  for (const position of state.openPositions) {
+    position.initialStopLoss ??= position.stopLoss;
+    position.initialTakeProfit ??= position.takeProfit;
+    position.initialRiskAmount ??= null;
+    position.maxFavorablePnl ??= "0.00";
+    position.maxAdversePnl ??= "0.00";
+  }
   return state;
 }
 
@@ -163,6 +171,25 @@ function unrealizedPnl(ctx: EngineContext, pos: OpenPosition): string {
   return pnl;
 }
 
+/** Record intrabar best/worst marked-to-market outcomes for MAE/MFE analytics. */
+function updateExcursion(ctx: EngineContext, pos: OpenPosition, candle: Candle): void {
+  const { state } = ctx;
+  const bidAsk = deriveBidAsk(candle, state.config.spreadPips, state.config.pipSize);
+  const favorablePrice = pos.direction === "long" ? bidAsk.bidHigh : bidAsk.askLow;
+  const adversePrice = pos.direction === "long" ? bidAsk.bidLow : bidAsk.askHigh;
+  const pnlAt = (price: Decimal) => computePnl({
+    direction: pos.direction,
+    entryPrice: pos.entryPrice,
+    exitPrice: price.toString(),
+    lots: pos.lots,
+    pipSize: state.config.pipSize,
+    pipValueAccountPerLot: pipValueAccountPerLot(state.config, price.toString()),
+    commission: pos.commission,
+  }).pnl;
+  pos.maxFavorablePnl = Decimal.max(d(pos.maxFavorablePnl ?? 0), d(pnlAt(favorablePrice))).toFixed(2);
+  pos.maxAdversePnl = Decimal.min(d(pos.maxAdversePnl ?? 0), d(pnlAt(adversePrice))).toFixed(2);
+}
+
 /** Recompute equity, running peak, and drawdown; append an equity-curve point. */
 function recomputeEquity(ctx: EngineContext, record: boolean): void {
   const { state } = ctx;
@@ -170,6 +197,14 @@ function recomputeEquity(ctx: EngineContext, record: boolean): void {
   let unreal = d(0);
   for (const position of state.openPositions) {
     position.unrealizedPnl = unrealizedPnl(ctx, position);
+    position.maxFavorablePnl = Decimal.max(
+      d(position.maxFavorablePnl ?? 0),
+      d(position.unrealizedPnl),
+    ).toFixed(2);
+    position.maxAdversePnl = Decimal.min(
+      d(position.maxAdversePnl ?? 0),
+      d(position.unrealizedPnl),
+    ).toFixed(2);
     unreal = unreal.plus(position.unrealizedPnl);
   }
   const equity = d(state.balance).plus(unreal);
@@ -215,6 +250,7 @@ function closeAt(
     : d(pos.lots);
   if (closeLots.lessThanOrEqualTo(0)) return;
   const closingAll = closeLots.greaterThanOrEqualTo(pos.lots);
+  const closeRatio = closeLots.dividedBy(pos.lots);
   const commission = d(pos.commission)
     .times(closeLots)
     .dividedBy(pos.lots)
@@ -242,6 +278,13 @@ function closeAt(
     lots: closeLots.toString(),
     stopLoss: pos.stopLoss,
     takeProfit: pos.takeProfit,
+    initialStopLoss: pos.initialStopLoss ?? pos.stopLoss,
+    initialTakeProfit: pos.initialTakeProfit ?? pos.takeProfit,
+    initialRiskAmount: pos.initialRiskAmount
+      ? d(pos.initialRiskAmount).times(closeRatio).toFixed(2)
+      : null,
+    maxFavorablePnl: d(pos.maxFavorablePnl ?? 0).times(closeRatio).toFixed(2),
+    maxAdversePnl: d(pos.maxAdversePnl ?? 0).times(closeRatio).toFixed(2),
     commission,
     pnl,
     pips,
@@ -254,8 +297,14 @@ function closeAt(
   if (closingAll) {
     state.openPositions = state.openPositions.filter((position) => position.id !== pos.id);
   } else {
+    const remainingRatio = d(1).minus(closeRatio);
     pos.lots = d(pos.lots).minus(closeLots).toString();
     pos.commission = d(pos.commission).minus(commission).toFixed(2);
+    if (pos.initialRiskAmount) {
+      pos.initialRiskAmount = d(pos.initialRiskAmount).times(remainingRatio).toFixed(2);
+    }
+    pos.maxFavorablePnl = d(pos.maxFavorablePnl ?? 0).times(remainingRatio).toFixed(2);
+    pos.maxAdversePnl = d(pos.maxAdversePnl ?? 0).times(remainingRatio).toFixed(2);
   }
 }
 
@@ -290,6 +339,7 @@ export function revealNext(ctx: EngineContext): boolean {
 
   if (candle) {
     for (const position of [...state.openPositions]) {
+      updateExcursion(ctx, position, candle);
       const hit = checkStopTakeProfit(
         position.direction,
         position.stopLoss,
@@ -413,6 +463,19 @@ export function previewPosition(
     return { ok: false, error: "Calculated position size is zero." };
   }
 
+  const commission = commissionForLots(state.config.commissionPerLot, lots);
+  const initialRiskAmount = stopLoss
+    ? d(computePnl({
+        direction: req.direction,
+        entryPrice: entry,
+        exitPrice: stopLoss,
+        lots,
+        pipSize: state.config.pipSize,
+        pipValueAccountPerLot: pipValueAccountPerLot(state.config, stopLoss),
+        commission,
+      }).pnl).abs().toFixed(2)
+    : null;
+
   return {
     ok: true,
     position: {
@@ -424,7 +487,12 @@ export function previewPosition(
       lots,
       stopLoss,
       takeProfit,
-      commission: commissionForLots(state.config.commissionPerLot, lots),
+      initialStopLoss: stopLoss,
+      initialTakeProfit: takeProfit,
+      initialRiskAmount,
+      maxFavorablePnl: "0.00",
+      maxAdversePnl: "0.00",
+      commission,
       unrealizedPnl: "0.00",
     },
   };

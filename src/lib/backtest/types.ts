@@ -97,6 +97,13 @@ export interface OpenPosition {
   lots: string;
   stopLoss: string | null;
   takeProfit: string | null;
+  /** Protection captured at entry for realised risk/reward analytics. */
+  initialStopLoss?: string | null;
+  initialTakeProfit?: string | null;
+  initialRiskAmount?: string | null;
+  /** Best and worst marked-to-market P&L observed while the position was open. */
+  maxFavorablePnl?: string;
+  maxAdversePnl?: string;
   commission: string;
   /** Unrealised P&L at the current candle, in account currency. */
   unrealizedPnl: string;
@@ -114,6 +121,11 @@ export interface ClosedTrade {
   lots: string;
   stopLoss: string | null;
   takeProfit: string | null;
+  initialStopLoss?: string | null;
+  initialTakeProfit?: string | null;
+  initialRiskAmount?: string | null;
+  maxFavorablePnl?: string;
+  maxAdversePnl?: string;
   commission: string;
   /** Realised profit/loss net of commission, in account currency. */
   pnl: string;

@@ -16,6 +16,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 
+import { DISPLAY_TIME_ZONE, formatNewYorkDateTime } from "@/lib/date-time";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
   TIMEFRAMES,
@@ -32,6 +33,20 @@ export interface ChartMarker {
   shape: "arrowUp" | "arrowDown" | "circle" | "square";
   text: string;
 }
+
+function chartTimeMs(time: Time): number {
+  if (typeof time === "number") return time * 1000;
+  if (typeof time === "string") return Date.parse(time);
+  return Date.UTC(time.year, time.month - 1, time.day, 12);
+}
+
+const chartTickFormatter = new Intl.DateTimeFormat("en", {
+  timeZone: DISPLAY_TIME_ZONE,
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 interface PriceChartProps {
   initialCandles: Candle[];
@@ -284,6 +299,10 @@ export default function PriceChart({
         secondsVisible: false,
         rightOffset: 4,
         barSpacing: 10,
+        tickMarkFormatter: (time: Time) => chartTickFormatter.format(chartTimeMs(time)),
+      },
+      localization: {
+        timeFormatter: (time: Time) => formatNewYorkDateTime(chartTimeMs(time)),
       },
       crosshair: { mode: CrosshairMode.Normal },
       handleScroll: true,

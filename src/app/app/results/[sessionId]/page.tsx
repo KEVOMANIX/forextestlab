@@ -5,16 +5,11 @@ import { AlertTriangle, ChevronDown, Plus } from "lucide-react";
 
 import { BackLink } from "@/components/app/BackLink";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
-import {
-  DemoDataNotice,
-  ImportedDataNotice,
-  MarketDataNotice,
-  SimulationNotice,
-} from "@/components/app/LegalNotices";
 import { SessionAnalyticsWorkbench } from "@/components/app/SessionAnalyticsWorkbench";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { requireUser } from "@/lib/auth";
 import { getSessionResults } from "@/lib/backtest/results";
+import { formatNewYorkDate } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +44,7 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs app-muted">
                 <span className={`rounded-full px-2.5 py-1 font-semibold ${state.status === "finished" ? "bg-brand-400/10 text-brand-300" : "bg-amber-400/10 text-amber-300"}`}>{state.status === "finished" ? "Completed" : "Active"}</span>
                 {results.symbols.map((symbol) => <span key={symbol} className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold">{formatSymbol(symbol)}</span>)}
-                <span>{new Date(state.config.startTime).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })} – {new Date(state.config.endTime).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}</span>
+                <span>{formatNewYorkDate(state.config.startTime)} – {formatNewYorkDate(state.config.endTime)} · New York time</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -98,18 +93,6 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
             <p className="text-xs font-semibold app-muted">Session notes</p>
             <p className="mt-2 whitespace-pre-wrap text-sm">{results.notes || "No notes were saved for this session."}</p>
           </div>
-        </div>
-      </details>
-
-      <details className="panel group mt-3 overflow-hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 text-sm font-semibold app-muted">
-          Data and simulation information
-          <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="space-y-2 border-t app-border p-4">
-          {results.demoData ? <DemoDataNotice /> : <ImportedDataNotice source={results.dataSource} />}
-          <SimulationNotice />
-          <MarketDataNotice />
         </div>
       </details>
     </div>

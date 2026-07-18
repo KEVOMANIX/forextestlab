@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { PublicSessionState } from "@/lib/backtest/types";
+import { formatNewYorkDateTime } from "@/lib/date-time";
 import { StatsGrid } from "./StatsGrid";
 import { TradesTable } from "./TradesTable";
 
@@ -58,7 +59,7 @@ export function BottomPanel({
   const openCount = state.openPositions.length;
   const pnl = Number(state.equity) - Number(state.config.startingBalance);
   const timeLabel = currentTime
-    ? new Date(currentTime).toISOString().slice(0, 16).replace("T", " ")
+    ? formatNewYorkDateTime(currentTime, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
     : "—";
 
   const selectTab = (next: Tab) => {
@@ -177,7 +178,7 @@ export function BottomPanel({
             </span>
           )}
           <span className="hidden border-l app-border px-3 font-mono text-[10px] app-muted lg:inline">
-            Time: {timeLabel} UTC
+            Time: {timeLabel}
           </span>
           <span className="hidden border-l app-border px-3 sm:inline">
             Balance: <strong className="font-mono text-[var(--app-text)]">{money(Number(state.balance))}</strong>

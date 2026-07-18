@@ -3,11 +3,12 @@
 import { useState } from "react";
 
 import type { ClosedTrade } from "@/lib/backtest/types";
+import { formatNewYorkDateTime } from "@/lib/date-time";
 
 const PAGE_SIZE = 10;
 
 function fmtTime(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 16).replace("T", " ");
+  return formatNewYorkDateTime(ms, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 const EXIT_LABEL: Record<ClosedTrade["exitReason"], string> = {

@@ -21,6 +21,7 @@ import {
 import { ensureUserProfile } from "@/lib/auth";
 import type { SessionState } from "@/lib/backtest/types";
 import { prisma } from "@/lib/db";
+import { formatNewYorkDate } from "@/lib/date-time";
 import { Decimal } from "@/lib/decimal";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
@@ -273,7 +274,7 @@ export default async function AppHome({
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs app-muted">
                   <span className={`rounded-full px-2.5 py-1 font-semibold ${selectedSession.status === "finished" ? "bg-brand-400/10 text-brand-300" : "bg-amber-400/10 text-amber-300"}`}>{selectedSession.status === "finished" ? "Completed" : "Active"}</span>
                   {selectedSymbols.map((symbol) => <span key={symbol} className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold">{formatSymbol(symbol)}</span>)}
-                  <span>{new Date(Number(selectedSession.startTime)).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })} – {new Date(Number(selectedSession.endTime)).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}</span>
+                  <span>{formatNewYorkDate(Number(selectedSession.startTime))} – {formatNewYorkDate(Number(selectedSession.endTime))}</span>
                 </div>
               )}
             </div>
@@ -289,7 +290,7 @@ export default async function AppHome({
                     name: sessionName(session.stateJson, session.symbol),
                     symbols: symbols.map(formatSymbol).join(", "),
                     status: session.status === "finished" ? "Completed" : "Active",
-                    updatedAt: session.updatedAt.toLocaleDateString("en", { day: "numeric", month: "short" }),
+                    updatedAt: formatNewYorkDate(session.updatedAt, { day: "numeric", month: "short" }),
                     pnl: formatMoney(net),
                     positive: net.gte(0),
                   };
@@ -399,7 +400,7 @@ export default async function AppHome({
               </dt>
               <dd className="text-right text-xs font-medium">
                 {selectedSession
-                  ? selectedSession.updatedAt.toLocaleDateString("en", {
+                  ? formatNewYorkDate(selectedSession.updatedAt, {
                       day: "numeric",
                       month: "short",
                       year: "numeric",
@@ -462,11 +463,11 @@ export default async function AppHome({
                       <h3 className="truncate text-base font-semibold">{sessionName}</h3>
                       <p className="mt-2 flex items-center gap-1.5 text-xs app-muted">
                         <CalendarDays size={13} aria-hidden />
-                        {new Date(Number(session.startTime)).toLocaleDateString("en", {
+                        {formatNewYorkDate(Number(session.startTime), {
                           day: "numeric", month: "short", year: "numeric",
                         })}
                         {" – "}
-                        {new Date(Number(session.endTime)).toLocaleDateString("en", {
+                        {formatNewYorkDate(Number(session.endTime), {
                           day: "numeric", month: "short", year: "numeric",
                         })}
                       </p>

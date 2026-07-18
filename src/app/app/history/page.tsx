@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { prisma } from "@/lib/db";
+import { formatNewYorkDate } from "@/lib/date-time";
 import { Decimal } from "@/lib/decimal";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
 import type { SessionState } from "@/lib/backtest/types";
@@ -81,9 +82,9 @@ export default async function HistoryPage() {
                         .join(", ")}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs app-muted">
-                      {new Date(Number(s.startTime)).toISOString().slice(0, 10)}
+                      {formatNewYorkDate(Number(s.startTime), { year: "numeric", month: "2-digit", day: "2-digit" })}
                       {" – "}
-                      {new Date(Number(s.endTime)).toISOString().slice(0, 10)}
+                      {formatNewYorkDate(Number(s.endTime), { year: "numeric", month: "2-digit", day: "2-digit" })}
                     </td>
                     <td className="px-4 py-3">{s._count.trades}</td>
                     <td className={`px-4 py-3 text-right font-mono ${positive ? "text-brand-300" : "text-bear"}`}>

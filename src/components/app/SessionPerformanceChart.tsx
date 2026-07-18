@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { formatNewYorkDateTime } from "@/lib/date-time";
+
 export interface SessionChartPoint {
   time: number;
   balance: number;
@@ -68,7 +70,7 @@ export function SessionPerformanceChart({ points }: { points: SessionChartPoint[
 
       <div className="relative mt-3 overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/55">
         <div className="pointer-events-none absolute left-4 top-3 z-10 rounded-lg border app-border bg-[var(--app-panel)]/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
-          <p className="app-muted">{new Date(active.time).toLocaleString("en", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+          <p className="app-muted">{formatNewYorkDateTime(active.time)}</p>
           <div className="mt-1.5 flex gap-4 font-mono font-semibold"><span className="text-brand-300">E {money(active.equity)}</span><span className="text-blue-300">B {money(active.balance)}</span></div>
         </div>
         <svg

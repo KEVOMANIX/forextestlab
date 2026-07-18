@@ -16,6 +16,7 @@ import {
   fetchSymbols,
   type CreateSessionBody,
 } from "@/lib/backtest/client";
+import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date-time";
 import type { MarketSymbol } from "@/lib/market-data/types";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
@@ -26,7 +27,7 @@ interface SessionSetupProps {
 }
 
 function toDateInput(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
+  return toNewYorkDateInput(ms);
 }
 
 function monthStart(value: string, fallback: string): Date {
@@ -273,7 +274,7 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
       const threeDays = 3 * 24 * 60 * 60 * 1000;
       setStart((current) => {
         if (!current) return toDateInput(commonRange.startTime);
-        const selected = Date.parse(`${current}T00:00:00Z`);
+        const selected = newYorkDateStart(current);
         return toDateInput(
           Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)),
         );
@@ -284,7 +285,7 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
             Math.min(commonRange.endTime, commonRange.startTime + threeDays),
           );
         }
-        const selected = Date.parse(`${current}T23:59:59.999Z`);
+        const selected = newYorkDateEnd(current);
         return toDateInput(
           Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)),
         );
@@ -329,11 +330,11 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
       symbols: selectedSymbols,
       startTime: Math.max(
         range.startTime,
-        Date.parse(`${start}T00:00:00Z`),
+        newYorkDateStart(start),
       ),
       endTime: Math.min(
         range.endTime,
-        Date.parse(`${end}T23:59:59.999Z`),
+        newYorkDateEnd(end),
       ),
     });
   }
@@ -448,7 +449,7 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
               {loadingRange
                 ? "Checking the common data range for the selected pairs…"
                 : range
-                  ? `Available dates: ${toDateInput(range.startTime)} to ${toDateInput(range.endTime)} UTC`
+                  ? `Available dates: ${toDateInput(range.startTime)} to ${toDateInput(range.endTime)} New York time`
                   : "Select at least one pair with available historical data."}
             </p>
             <div className="rounded-xl border app-border bg-[var(--app-panel-2)] p-4">

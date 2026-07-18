@@ -26,6 +26,7 @@ import { getCurrentUser } from "@/lib/supabase/server";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { formatSymbol } from "@/lib/market-data/symbols";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
+import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
 
 export const dynamic = "force-dynamic";
 
@@ -51,73 +52,6 @@ function sessionName(stateJson: string, fallbackSymbol: string): string {
 function formatMoney(value: Decimal): string {
   const sign = value.isPositive() ? "+" : value.isNegative() ? "−" : "";
   return `${sign}$${value.abs().toFixed(2)}`;
-}
-
-function PerformanceTrend({ values }: { values: number[] }) {
-  const maxPoints = 240;
-  const stride = Math.max(1, Math.ceil(values.length / maxPoints));
-  const sampled = values.filter((_, index) => index % stride === 0);
-  const finalValue = values.at(-1);
-  if (finalValue !== undefined && sampled.at(-1) !== finalValue) sampled.push(finalValue);
-  const points = sampled.length > 1 ? sampled : [0, sampled[0] ?? 0];
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = max - min || 1;
-  const width = 700;
-  const height = 210;
-  const pad = 12;
-  const step = (width - pad * 2) / (points.length - 1);
-  const y = (value: number) =>
-    pad + (1 - (value - min) / range) * (height - pad * 2);
-  const line = points
-    .map(
-      (value, index) =>
-        `${index === 0 ? "M" : "L"}${(pad + index * step).toFixed(1)},${y(value).toFixed(1)}`,
-    )
-    .join(" ");
-  const positive = points[points.length - 1]! >= points[0]!;
-
-  return (
-    <div className="relative mt-4 overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/60">
-      <div
-        aria-hidden
-        className="absolute inset-0 opacity-30 [background-image:linear-gradient(to_right,var(--app-border)_1px,transparent_1px),linear-gradient(to_bottom,var(--app-border)_1px,transparent_1px)] [background-size:48px_48px]"
-      />
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="relative h-52 w-full"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="Selected session equity curve"
-      >
-        <defs>
-          <linearGradient id="dashboard-performance" x1="0" y1="0" x2="0" y2="1">
-            <stop
-              offset="0%"
-              stopColor={positive ? "#22c3a0" : "#f4646c"}
-              stopOpacity="0.28"
-            />
-            <stop
-              offset="100%"
-              stopColor={positive ? "#22c3a0" : "#f4646c"}
-              stopOpacity="0"
-            />
-          </linearGradient>
-        </defs>
-        <path
-          d={`${line} L${width - pad},${height - pad} L${pad},${height - pad} Z`}
-          fill="url(#dashboard-performance)"
-        />
-        <path
-          d={line}
-          fill="none"
-          stroke={positive ? "#22c3a0" : "#f4646c"}
-          strokeWidth="3"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-    </div>
-  );
 }
 
 function SignedOutDashboard() {
@@ -207,10 +141,6 @@ export default async function AppHome({
   searchParams?: {
     performance?: string;
     session?: string;
-    q?: string;
-    status?: string;
-    pair?: string;
-    sort?: string;
   };
 }) {
   const user = await getCurrentUser();
@@ -234,65 +164,9 @@ export default async function AppHome({
     ? sessionName(selectedSession.stateJson, selectedSession.symbol)
     : "No session selected";
 
-  const query = searchParams?.q?.trim().toLowerCase() ?? "";
-  const statusFilter = ["active", "completed", "archived"].includes(
-    searchParams?.status ?? "",
-  )
-    ? searchParams?.status
-    : "current";
-  const pairFilter = /^[A-Z]{6}$/.test(searchParams?.pair ?? "")
-    ? searchParams?.pair
-    : "";
-  const sort = ["pnl", "name", "oldest"].includes(searchParams?.sort ?? "")
-    ? searchParams?.sort
-    : "recent";
-  const organizedSessions = sessions
-    .filter((session) => {
-      const state = safeState(session.stateJson);
-      const archived = state?.config.archived === true;
-      const name = sessionName(session.stateJson, session.symbol).toLowerCase();
-      const tags = state?.config.tags ?? [];
-      const symbols = state?.config.symbols?.length
-        ? state.config.symbols
-        : [session.symbol];
-      if (
-        query &&
-        !name.includes(query) &&
-        !tags.some((tag) => tag.toLowerCase().includes(query))
-      ) {
-        return false;
-      }
-      if (pairFilter && !symbols.includes(pairFilter)) return false;
-      if (statusFilter === "archived") return archived;
-      if (archived) return false;
-      if (statusFilter === "active") return session.status !== "finished";
-      if (statusFilter === "completed") return session.status === "finished";
-      return true;
-    })
-    .sort((a, b) => {
-      if (sort === "pnl") {
-        const aNet = new Decimal(a.balance).minus(a.startingBalance);
-        const bNet = new Decimal(b.balance).minus(b.startingBalance);
-        return bNet.comparedTo(aNet);
-      }
-      if (sort === "name") {
-        return sessionName(a.stateJson, a.symbol).localeCompare(
-          sessionName(b.stateJson, b.symbol),
-        );
-      }
-      if (sort === "oldest") return a.createdAt.getTime() - b.createdAt.getTime();
-      return b.updatedAt.getTime() - a.updatedAt.getTime();
-    });
-  const availablePairs = Array.from(
-    new Set(
-      sessions.flatMap((session) => {
-        const state = safeState(session.stateJson);
-        return state?.config.symbols?.length
-          ? state.config.symbols
-          : [session.symbol];
-      }),
-    ),
-  ).sort();
+  const recentSessions = sessions
+    .filter((session) => safeState(session.stateJson)?.config.archived !== true)
+    .slice(0, 5);
 
   const totalNet = performanceSessions.reduce(
     (sum, session) =>
@@ -315,15 +189,24 @@ export default async function AppHome({
     (best, trade) => !best || new Decimal(trade.pnl).gt(best.pnl) ? trade : best,
     null,
   );
-  const trend = selectedState?.equityCurve.length
-    ? selectedState.equityCurve.map((point) =>
-        new Decimal(point.equity).minus(selectedState.config.startingBalance).toNumber())
-    : [0, totalNet.toNumber()];
+  const chartPoints = selectedState?.equityCurve.map((point) => ({
+    time: point.time,
+    balance: Number(point.balance),
+    equity: Number(point.equity),
+  })) ?? [];
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&
     user.user_metadata.display_name.trim()
       ? user.user_metadata.display_name.trim()
       : user.email?.split("@")[0] ?? "Trader";
+  const selectedSymbols = selectedState?.config.symbols?.length
+    ? selectedState.config.symbols
+    : selectedSession
+      ? [selectedSession.symbol]
+      : [];
+  const sessionProgress = selectedState?.totalCandles
+    ? Math.min(100, ((selectedState.visibleIndex + 1) / selectedState.totalCandles) * 100)
+    : 0;
 
   const summaryCards = [
     {
@@ -373,26 +256,55 @@ export default async function AppHome({
       </header>
 
       <section
-        className="mt-7 rounded-xl border app-border bg-[var(--app-panel)] p-4 sm:p-5"
+        className="relative mt-7 overflow-hidden rounded-2xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.10),var(--app-panel)_48%,rgba(59,107,255,0.08))] p-5 shadow-card sm:p-6"
         aria-label="Dashboard session"
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div aria-hidden className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-brand-400/10 blur-3xl" />
+        <div className="relative flex flex-col gap-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
               Showing results for
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-brand-300">
+            <h2 className="mt-2 truncate text-2xl font-bold tracking-tight text-brand-300 sm:text-3xl">
               &ldquo;{scopeLabel}&rdquo;
             </h2>
+              {selectedSession && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs app-muted">
+                  <span className={`rounded-full px-2.5 py-1 font-semibold ${selectedSession.status === "finished" ? "bg-brand-400/10 text-brand-300" : "bg-amber-400/10 text-amber-300"}`}>{selectedSession.status === "finished" ? "Completed" : "Active"}</span>
+                  {selectedSymbols.map((symbol) => <span key={symbol} className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold">{formatSymbol(symbol)}</span>)}
+                  <span>{new Date(Number(selectedSession.startTime)).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })} – {new Date(Number(selectedSession.endTime)).toLocaleDateString("en", { day: "numeric", month: "short", year: "numeric" })}</span>
+                </div>
+              )}
+            </div>
+            {selectedSession && (
+              <DashboardSessionSwitcher
+                selectedId={selectedSession.id}
+                sessions={sessions.map((session) => {
+                  const state = safeState(session.stateJson);
+                  const net = new Decimal(session.balance).minus(session.startingBalance);
+                  const symbols = state?.config.symbols?.length ? state.config.symbols : [session.symbol];
+                  return {
+                    id: session.id,
+                    name: sessionName(session.stateJson, session.symbol),
+                    symbols: symbols.map(formatSymbol).join(", "),
+                    status: session.status === "finished" ? "Completed" : "Active",
+                    updatedAt: session.updatedAt.toLocaleDateString("en", { day: "numeric", month: "short" }),
+                    pnl: formatMoney(net),
+                    positive: net.gte(0),
+                  };
+                })}
+              />
+            )}
           </div>
           {selectedSession && (
-            <DashboardSessionSwitcher
-              selectedId={selectedSession.id}
-              sessions={sessions.map((session) => ({
-                id: session.id,
-                name: sessionName(session.stateJson, session.symbol),
-              }))}
-            />
+            <div className="grid gap-4 border-t app-border pt-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <div>
+                <div className="flex items-center justify-between text-xs"><span className="font-semibold app-muted">Replay progress</span><span className="font-mono font-semibold">{sessionProgress.toFixed(0)}%</span></div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500 transition-[width]" style={{ width: `${sessionProgress}%` }} /></div>
+              </div>
+              <SessionCardActions sessionId={selectedSession.id} status={selectedSession.status} archived={selectedState?.config.archived === true} />
+            </div>
           )}
         </div>
       </section>
@@ -400,7 +312,9 @@ export default async function AppHome({
       {performanceSessions.length === 0 && (
         <section className="panel mt-5 px-6 py-10 text-center">
           <Activity size={28} className="mx-auto text-brand-300" aria-hidden />
-          <h2 className="mt-4 text-lg font-semibold">No performance data in this view</h2>
+          <h2 className="mt-4 text-lg font-semibold">Create your first backtest</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm app-muted">Your session performance, replay progress, and trading analytics will appear here.</p>
+          <Link href="/app/backtest" className="btn-primary mt-5">Start backtesting <ArrowRight size={15} /></Link>
         </section>
       )}
 
@@ -444,19 +358,7 @@ export default async function AppHome({
               {formatMoney(totalNet)}
             </div>
           </div>
-          {performanceSessions.length ? (
-            <PerformanceTrend values={trend} />
-          ) : (
-            <div className="mt-5 grid min-h-52 place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/40 p-6 text-center">
-              <div>
-                <Activity size={26} className="mx-auto text-brand-300" aria-hidden />
-                <p className="mt-3 font-medium">Your performance trend will appear here</p>
-                <p className="mt-1 text-sm app-muted">
-                  Complete your first saved backtest to start building a record.
-                </p>
-              </div>
-            </div>
-          )}
+          <SessionPerformanceChart points={chartPoints} />
         </article>
 
         <aside className="panel p-5 sm:p-6">
@@ -509,7 +411,7 @@ export default async function AppHome({
         </aside>
       </section>
 
-      <section className="mt-8">
+      <section className={sessions.length === 0 ? "hidden" : "mt-8"}>
         <div className="flex items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
@@ -524,57 +426,6 @@ export default async function AppHome({
           )}
         </div>
 
-        {sessions.length > 0 && (
-          <form
-            action="/app"
-            method="get"
-            className="panel mt-4 grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_160px_160px_auto]"
-          >
-            {selectedSession && (
-              <input type="hidden" name="session" value={selectedSession.id} />
-            )}
-            <label>
-              <span className="sr-only">Search sessions</span>
-              <input
-                name="q"
-                defaultValue={searchParams?.q ?? ""}
-                className="app-input w-full"
-                placeholder="Search name or tag…"
-              />
-            </label>
-            <label>
-              <span className="sr-only">Session status</span>
-              <select name="status" defaultValue={statusFilter} className="app-input w-full">
-                <option value="current">Current sessions</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="archived">Archived</option>
-              </select>
-            </label>
-            <label>
-              <span className="sr-only">Currency pair</span>
-              <select name="pair" defaultValue={pairFilter} className="app-input w-full">
-                <option value="">All pairs</option>
-                {availablePairs.map((symbol) => (
-                  <option key={symbol} value={symbol}>
-                    {formatSymbol(symbol)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span className="sr-only">Sort sessions</span>
-              <select name="sort" defaultValue={sort} className="app-input w-full">
-                <option value="recent">Recent activity</option>
-                <option value="oldest">Oldest first</option>
-                <option value="pnl">Highest P/L</option>
-                <option value="name">Session name</option>
-              </select>
-            </label>
-            <button type="submit" className="btn-secondary">Apply</button>
-          </form>
-        )}
-
         {sessions.length === 0 ? (
           <div className="panel mt-4 flex flex-col items-center px-6 py-12 text-center">
             <span className="grid h-14 w-14 place-items-center rounded-2xl border border-brand-400/20 bg-brand-400/10 text-brand-300">
@@ -585,16 +436,11 @@ export default async function AppHome({
               Start first backtest <ArrowRight size={16} aria-hidden />
             </Link>
           </div>
-        ) : organizedSessions.length === 0 ? (
-          <div className="panel mt-4 px-6 py-10 text-center">
-            <p className="font-semibold">No sessions match these filters</p>
-            <Link href="/app" className="btn-secondary mt-5">
-              Clear filters
-            </Link>
-          </div>
+        ) : recentSessions.length === 0 ? (
+          <div className="panel mt-4 px-6 py-8 text-center text-sm app-muted">No current sessions. Archived sessions remain available in History.</div>
         ) : (
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {organizedSessions.slice(0, 12).map((session) => {
+            {recentSessions.map((session) => {
               const net = new Decimal(session.balance).minus(session.startingBalance);
               const positive = net.gte(0);
               const sessionState = safeState(session.stateJson);

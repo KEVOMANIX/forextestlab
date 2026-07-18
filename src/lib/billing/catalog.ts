@@ -145,7 +145,7 @@ export function getCheckoutProduct(key: CheckoutProductKey): CheckoutProduct {
 }
 
 export function checkoutProductReady(key: CheckoutProductKey): boolean {
-  if (process.env.PAYSTACK_CHECKOUT_ENABLED !== "true") return false;
+  if (process.env.PAYSTACK_CHECKOUT_PAUSED === "true") return false;
   const secret = process.env.PAYSTACK_SECRET_KEY?.trim();
   if (!secret) return false;
   const product = getCheckoutProduct(key);

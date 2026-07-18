@@ -24,12 +24,12 @@ describe("billing catalogue", () => {
     expect(isCheckoutProductKey("custom_price_from_browser")).toBe(false);
   });
 
-  it("requires the checkout kill switch and real plan code", () => {
+  it("requires a real plan code and respects the emergency pause switch", () => {
     vi.stubEnv("PAYSTACK_SECRET_KEY", "sk_test_example");
     vi.stubEnv("PAYSTACK_KES_MONTHLY_PLAN_CODE", "PLN_realexample");
-    vi.stubEnv("PAYSTACK_CHECKOUT_ENABLED", "false");
+    vi.stubEnv("PAYSTACK_CHECKOUT_PAUSED", "true");
     expect(checkoutProductReady("pro_monthly_usd")).toBe(false);
-    vi.stubEnv("PAYSTACK_CHECKOUT_ENABLED", "true");
+    vi.stubEnv("PAYSTACK_CHECKOUT_PAUSED", "false");
     expect(checkoutProductReady("pro_monthly_usd")).toBe(true);
   });
 });

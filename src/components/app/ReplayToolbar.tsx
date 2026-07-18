@@ -40,6 +40,7 @@ interface ReplayToolbarProps {
   onBuy: () => void;
   onSell: () => void;
   canTrade: boolean;
+  maxReplaySpeed: number;
 }
 
 function ControlBtn({
@@ -88,6 +89,7 @@ export function ReplayToolbar({
   onBuy,
   onSell,
   canTrade,
+  maxReplaySpeed,
 }: ReplayToolbarProps) {
   const toolboxRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
@@ -104,7 +106,8 @@ export function ReplayToolbar({
     state.closedTrades.length === 0 &&
     state.openPositions.length === 0 &&
     state.visibleIndex > state.config.initialVisibleCount - 1;
-  const speedIndex = Math.max(0, REPLAY_SPEEDS.indexOf(state.speed));
+  const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
+  const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));
   const stepCount = Math.max(
     1,
     Math.round(
@@ -303,11 +306,11 @@ export function ReplayToolbar({
             id="replay-speed"
             type="range"
             min={0}
-            max={REPLAY_SPEEDS.length - 1}
+            max={availableSpeeds.length - 1}
             step={1}
             value={speedIndex}
             onChange={(event) => {
-              const selected = REPLAY_SPEEDS[Number(event.target.value)];
+              const selected = availableSpeeds[Number(event.target.value)];
               if (selected !== undefined) onSpeed(selected);
             }}
             aria-label="Replay speed"
@@ -318,9 +321,9 @@ export function ReplayToolbar({
         </div>
 
         <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] app-muted">
-          <span>{REPLAY_SPEEDS[0]}x</span>
+          <span>{availableSpeeds[0]}x</span>
           {finished && <span className="text-brand-300">Finished</span>}
-          <span>{REPLAY_SPEEDS[REPLAY_SPEEDS.length - 1]}x</span>
+          <span>{availableSpeeds[availableSpeeds.length - 1]}x</span>
         </div>
       </div>
     </div>

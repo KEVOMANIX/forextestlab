@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -8,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  LockKeyhole,
   Play,
 } from "lucide-react";
 
@@ -19,15 +21,23 @@ import {
 import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date-time";
 import type { MarketSymbol } from "@/lib/market-data/types";
 import { formatSymbol } from "@/lib/market-data/symbols";
+import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 
 interface SessionSetupProps {
   onStart: (body: CreateSessionBody) => void;
   busy: boolean;
   error: string | null;
+  entitlements: PlanEntitlements;
 }
 
 function toDateInput(ms: number): string {
   return toNewYorkDateInput(ms);
+}
+
+function addCalendarDays(value: string, days: number): string {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toDateInput(date.getTime());
 }
 
 function monthStart(value: string, fallback: string): Date {
@@ -215,7 +225,7 @@ function SessionDatePicker({
   );
 }
 
-export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
+export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetupProps) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [tagsText, setTagsText] = useState("");
@@ -313,8 +323,19 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
       end &&
       !busy,
   );
+  const availableEnd = range ? toDateInput(range.endTime) : "";
+  const sessionEndMax =
+    entitlements.maxSessionDays !== null && start
+      ? [availableEnd, addCalendarDays(start, entitlements.maxSessionDays - 1)]
+          .filter(Boolean)
+          .sort()[0] ?? availableEnd
+      : availableEnd;
 
   function toggleSymbol(symbol: string) {
+    if (entitlements.maxPairsPerSession === 1) {
+      setSelectedSymbols([symbol]);
+      return;
+    }
     setSelectedSymbols((current) =>
       current.includes(symbol)
         ? current.filter((item) => item !== symbol)
@@ -339,9 +360,32 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
     });
   }
 
+  if (entitlements.plan === "free" && entitlements.freeSessionUsed) {
+    return (
+      <div className="panel mx-auto w-full max-w-2xl p-7 text-center sm:p-10">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
+          <LockKeyhole size={22} aria-hidden />
+        </span>
+        <h2 className="mt-5 text-2xl font-semibold">Your Free session has been used</h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed app-muted">
+          Your account includes one backtest session of up to one month. Upgrade to Pro for unlimited sessions and the complete workspace.
+        </p>
+        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+          <Link href="/account/billing" className="btn-primary">Upgrade to Pro</Link>
+          <Link href="/app/history" className="btn-secondary">View saved session</Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="panel mx-auto w-full max-w-2xl p-6 sm:p-7">
       <h2 className="text-xl font-semibold">Start a backtest session</h2>
+      {entitlements.plan === "free" && (
+        <p className="mt-2 text-sm app-muted">
+          Free includes one single-pair session covering up to 31 days.
+        </p>
+      )}
 
       <ol className="mt-5 grid grid-cols-3 gap-2" aria-label="Session setup progress">
         {["Name", "Pairs", "Dates"].map((label, index) => {
@@ -409,7 +453,8 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
                     }`}
                   >
                     <input
-                      type="checkbox"
+                      type={entitlements.maxPairsPerSession === 1 ? "radio" : "checkbox"}
+                      name={entitlements.maxPairsPerSession === 1 ? "session-pair" : undefined}
                       className="h-4 w-4 shrink-0 cursor-pointer accent-emerald-400"
                       checked={selected}
                       onChange={() => toggleSymbol(item.symbol)}
@@ -433,7 +478,13 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
                 max={range ? toDateInput(range.endTime) : ""}
                 onChange={(value) => {
                   setStart(value);
-                  if (end && end < value) setEnd(value);
+                  const nextMax =
+                    entitlements.maxSessionDays === null
+                      ? availableEnd
+                      : [availableEnd, addCalendarDays(value, entitlements.maxSessionDays - 1)]
+                          .filter(Boolean)
+                          .sort()[0] ?? availableEnd;
+                  if (end && (end < value || end > nextMax)) setEnd(end < value ? value : nextMax);
                 }}
               />
               <SessionDatePicker
@@ -441,7 +492,7 @@ export function SessionSetup({ onStart, busy, error }: SessionSetupProps) {
                 label="End date"
                 value={end}
                 min={start || (range ? toDateInput(range.startTime) : "")}
-                max={range ? toDateInput(range.endTime) : ""}
+                max={sessionEndMax}
                 onChange={setEnd}
               />
             </div>

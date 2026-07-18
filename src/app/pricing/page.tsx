@@ -12,7 +12,8 @@ export const metadata: Metadata = {
 };
 
 const comparison = [
-  ["Saved sessions", "3", "Unlimited"],
+  ["Saved sessions", "1 total", "Unlimited"],
+  ["Session date range", "Up to 31 days", "Unlimited"],
   ["Pairs per session", "1", "Multiple"],
   ["Replay and simulated orders", "Included", "Included"],
   ["Session summary", "Included", "Included"],

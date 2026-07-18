@@ -45,8 +45,8 @@ export function getBillingCatalog(): BillingPlan[] {
       currency: "KES",
       interval: "forever",
       features: [
-        "3 saved backtest sessions",
-        "Single-pair sessions",
+        "One saved backtest session",
+        "Any one pair for up to 31 days",
         "Core replay and order tools",
         "Session summary analytics",
       ],

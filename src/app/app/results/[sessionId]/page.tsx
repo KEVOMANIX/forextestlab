@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ChevronDown, Plus } from "lucide-react";
+import { AlertTriangle, ChevronDown, LockKeyhole, Plus } from "lucide-react";
 
 import { BackLink } from "@/components/app/BackLink";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/auth";
 import { getSessionResults } from "@/lib/backtest/results";
 import { formatNewYorkDate } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
+import { getUserEntitlements } from "@/lib/billing/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
   const user = await requireUser(`/app/results/${params.sessionId}`);
   const results = await getSessionResults(params.sessionId, user.id);
   if (!results) notFound();
+  const entitlements = await getUserEntitlements(user.id);
 
   const { state } = results;
   const archived = state.config.archived === true;
@@ -48,7 +50,13 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <ExportTradesButton trades={state.closedTrades} symbol={results.symbol} sessionId={results.sessionId} />
+              {entitlements.csvExports ? (
+                <ExportTradesButton trades={state.closedTrades} symbol={results.symbol} sessionId={results.sessionId} />
+              ) : (
+                <Link href="/account/billing" className="btn-secondary py-2 text-xs" title="CSV exports are included with Pro">
+                  <LockKeyhole size={14} aria-hidden /> Export with Pro
+                </Link>
+              )}
               <SessionCardActions sessionId={results.sessionId} status={state.status} archived={archived} showAnalytics={false} />
               <Link href="/app/backtest" className="btn-primary px-3 py-2 text-xs"><Plus size={14} /> New session</Link>
             </div>
@@ -71,6 +79,7 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
         trades={state.closedTrades}
         equityCurve={state.equityCurve}
         startingBalance={state.config.startingBalance}
+        fullAccess={entitlements.fullAnalytics}
       />
 
       <details className="panel group mt-6 overflow-hidden">

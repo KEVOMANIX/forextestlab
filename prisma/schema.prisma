@@ -42,6 +42,10 @@ model UserProfile {
   billingPlan          String                @default("free")
   billingStatus        String                @default("inactive")
   proAccessUntil       DateTime?
+  /// Set when the account creates its one free session. This is deliberately
+  /// not cleared when that session is deleted, so the free allowance cannot
+  /// be reset by deleting and recreating sessions.
+  freeSessionUsedAt    DateTime?
   paystackCustomerCode String?               @unique
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt

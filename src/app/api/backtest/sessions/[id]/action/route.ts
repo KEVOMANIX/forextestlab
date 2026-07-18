@@ -22,6 +22,7 @@ import type { Candle } from "@/lib/market-data/types";
 import { rateLimit } from "@/lib/rate-limit";
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { getUserEntitlements } from "@/lib/billing/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,7 +104,16 @@ export async function POST(
       break;
     }
     case "set-speed":
-      setSpeed(ctx, action.speed);
+      if (
+        action.speed >
+        (session.userId
+          ? (await getUserEntitlements(session.userId)).maxReplaySpeed
+          : 300)
+      ) {
+        opError = "Upgrade to Pro to unlock the fastest replay speeds.";
+      } else {
+        setSpeed(ctx, action.speed);
+      }
       break;
     case "restart":
       restart(ctx);

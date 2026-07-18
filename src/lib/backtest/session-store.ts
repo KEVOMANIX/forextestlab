@@ -13,6 +13,11 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import {
+  assertSessionAllowed,
+  getUserEntitlements,
+  planEntitlements,
+} from "@/lib/billing/entitlements";
 import { getMarketDataProvider } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
@@ -281,6 +286,10 @@ export async function createSession(
   const def = getSymbolDefinition(params.symbol);
   if (!def) throw new Error(`Unknown symbol "${params.symbol}".`);
 
+  if (params.userId) {
+    assertSessionAllowed(await getUserEntitlements(params.userId), params);
+  }
+
   const series = await fetchSeries(
     params.symbol,
     params.timeframe,
@@ -352,8 +361,8 @@ export async function createSession(
     select: { id: true },
   });
 
-  await prisma.backtestSession.create({
-    data: {
+  const instrumentId = instrument?.id ?? (await ensureInstrument(def.symbol));
+  const sessionData = {
       id,
       token,
       userId: params.userId ?? null,
@@ -361,7 +370,7 @@ export async function createSession(
       anonymousExpiresAt: params.userId
         ? null
         : new Date(Date.now() + 24 * 60 * 60 * 1000),
-      instrumentId: instrument?.id ?? (await ensureInstrument(def.symbol)),
+      instrumentId,
       symbol: def.symbol,
       timeframe: params.timeframe,
       startTime: BigInt(params.startTime),
@@ -386,8 +395,38 @@ export async function createSession(
       demoData,
       notes: "",
       stateJson: JSON.stringify(state),
-    },
-  });
+  };
+
+  if (params.userId) {
+    await prisma.$transaction(async (tx) => {
+      const profile = await tx.userProfile.findUnique({
+        where: { id: params.userId },
+        select: {
+          billingStatus: true,
+          proAccessUntil: true,
+          freeSessionUsedAt: true,
+        },
+      });
+      if (!profile) throw new Error("Account profile not found.");
+
+      const entitlements = planEntitlements(profile);
+      assertSessionAllowed(entitlements, params);
+      if (entitlements.plan === "free") {
+        const claimed = await tx.userProfile.updateMany({
+          where: { id: params.userId, freeSessionUsedAt: null },
+          data: { freeSessionUsedAt: new Date() },
+        });
+        if (claimed.count !== 1) {
+          throw new Error(
+            "Your one Free backtest session has already been used. Upgrade to Pro to create another session.",
+          );
+        }
+      }
+      await tx.backtestSession.create({ data: sessionData });
+    });
+  } else {
+    await prisma.backtestSession.create({ data: sessionData });
+  }
 
   return {
     id,

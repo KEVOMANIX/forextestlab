@@ -24,6 +24,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { PageLoader } from "@/components/PageLoader";
 import { PositionEditorModal } from "./PositionEditorModal";
 import { TradeNotifications, type TradeNotification } from "./TradeNotifications";
+import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 
 type PendingConfirmation = {
   title: string;
@@ -44,8 +45,10 @@ const PriceChart = dynamic(() => import("./PriceChart"), {
 
 export function Backtester({
   resumeSessionId = null,
+  entitlements,
 }: {
   resumeSessionId?: string | null;
+  entitlements: PlanEntitlements;
 }) {
   const router = useRouter();
   const { theme, toggle } = useAppTheme();
@@ -103,6 +106,12 @@ export function Backtester({
     setPlannedStop(null);
     setPlannedTarget(null);
   }, [state?.sessionId]);
+
+  useEffect(() => {
+    if (state && state.speed > entitlements.maxReplaySpeed) {
+      actions.setSpeed(entitlements.maxReplaySpeed);
+    }
+  }, [state?.speed, entitlements.maxReplaySpeed, actions, state]);
 
   useEffect(() => {
     if (!state) return;
@@ -186,6 +195,7 @@ export function Backtester({
           onStart={actions.startSession}
           busy={bt.busy}
           error={bt.error}
+          entitlements={entitlements}
         />
         <div className="mx-auto mt-6 max-w-xl space-y-3">
           <SimulationNotice />
@@ -407,6 +417,7 @@ export function Backtester({
               state.currentPrice &&
               !referencePair
             )}
+            maxReplaySpeed={entitlements.maxReplaySpeed}
           />
         </div>
 

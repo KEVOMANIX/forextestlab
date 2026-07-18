@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Activity, BarChart3, Clock3, Filter, Search, ShieldAlert, Target, TrendingDown, TrendingUp } from "lucide-react";
+import { Activity, BarChart3, Clock3, Filter, LockKeyhole, Search, ShieldAlert, Target, TrendingDown, TrendingUp } from "lucide-react";
 
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { formatNewYorkDateTime, getNewYorkDateParts, getTradingSession, newYorkMonthKey } from "@/lib/date-time";
@@ -194,7 +195,7 @@ function ExcursionChart({ trades }: { trades: ClosedTrade[] }) {
   return <div className="space-y-2">{recorded.slice(-20).map((trade,index)=><div key={trade.id} className="grid grid-cols-[38px_1fr_1fr] items-center gap-1 text-[10px]"><span className="font-mono app-muted">#{recorded.length-Math.min(20,recorded.length)+index+1}</span><div className="flex justify-end"><span className="h-2.5 rounded-l bg-bear" style={{width:`${Math.max(2,(Math.abs(Number(trade.maxAdversePnl))/max)*100)}%`}} title={`MAE ${money(Number(trade.maxAdversePnl))}`}/></div><div><span className="block h-2.5 rounded-r bg-brand-500" style={{width:`${Math.max(2,(Math.abs(Number(trade.maxFavorablePnl))/max)*100)}%`}} title={`MFE ${money(Number(trade.maxFavorablePnl))}`}/></div></div>)}<div className="grid grid-cols-2 text-[10px] app-muted"><span className="text-right pr-2">← MAE</span><span className="pl-2">MFE →</span></div></div>;
 }
 
-export function SessionAnalyticsWorkbench({ trades, equityCurve, startingBalance }: { trades: ClosedTrade[]; equityCurve: EquityPoint[]; startingBalance: string }) {
+export function SessionAnalyticsWorkbench({ trades, equityCurve, startingBalance, fullAccess = true }: { trades: ClosedTrade[]; equityCurve: EquityPoint[]; startingBalance: string; fullAccess?: boolean }) {
   const [tab,setTab]=useState<AnalyticsTab>("overview"); const [filter,setFilter]=useState<TradeFilter>("all"); const [query,setQuery]=useState(""); const [hoveredTrade,setHoveredTrade]=useState<number|null>(null);
   const filtered=useMemo(()=>trades.filter(t=>filter==='all'||filter==='long'&&t.direction==='long'||filter==='short'&&t.direction==='short'||filter==='winners'&&Number(t.pnl)>0||filter==='losers'&&Number(t.pnl)<0),[trades,filter]);
   const searched=useMemo(()=>filtered.filter(t=>`${t.id} ${t.direction} ${t.exitReason} ${t.entryPrice} ${t.exitPrice}`.toLowerCase().includes(query.toLowerCase())),[filtered,query]);
@@ -215,9 +216,11 @@ export function SessionAnalyticsWorkbench({ trades, equityCurve, startingBalance
 
   return <div className="mt-7">
     <div className="sticky top-16 z-30 flex flex-col gap-3 rounded-xl border app-border bg-[var(--app-panel)]/95 p-2 shadow-lg backdrop-blur lg:flex-row lg:items-center lg:justify-between">
-      <div role="tablist" aria-label="Analytics views" className="flex overflow-x-auto">{([['overview','Overview'],['risk','Risk'],['timing','Timing'],['trades','Trades']] as const).map(([id,label])=><button key={id} type="button" role="tab" aria-selected={tab===id} onClick={()=>setTab(id)} className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold ${tab===id?'bg-brand-500 text-surface-950':'app-muted hover:text-brand-300'}`}>{label}</button>)}</div>
+      <div role="tablist" aria-label="Analytics views" className="flex overflow-x-auto">{([['overview','Overview'],['risk','Risk'],['timing','Timing'],['trades','Trades']] as const).map(([id,label])=>{const locked=!fullAccess&&(id==='risk'||id==='timing');return <button key={id} type="button" role="tab" aria-selected={tab===id} disabled={locked} title={locked?`${label} analytics are included with Pro`:undefined} onClick={()=>setTab(id)} className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold ${tab===id?'bg-brand-500 text-surface-950':'app-muted hover:text-brand-300'} disabled:cursor-not-allowed disabled:opacity-45`}>{locked&&<LockKeyhole size={11} className="mr-1 inline"/>}{label}</button>;})}</div>
       <div className="flex items-center gap-1 overflow-x-auto"><Filter size={13} className="ml-2 shrink-0 app-muted"/>{([['all','All'],['long','Buy'],['short','Sell'],['winners','Winners'],['losers','Losers']] as const).map(([id,label])=><button key={id} type="button" onClick={()=>setFilter(id)} aria-pressed={filter===id} className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold ${filter===id?'border-brand-400/40 bg-brand-400/10 text-brand-300':'app-border app-muted'}`}>{label}</button>)}</div>
     </div>
+
+    {!fullAccess&&<div className="mt-4 flex flex-col gap-3 rounded-xl border border-brand-400/25 bg-brand-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold">Unlock complete session analytics</p><p className="mt-1 text-xs app-muted">Pro adds risk analysis, MAE/MFE, timing heatmaps, and CSV exports.</p></div><Link href="/account/billing" className="btn-primary shrink-0 px-4 py-2 text-xs">View Pro plans</Link></div>}
 
     <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Filtered analytics summary">{kpis.map(({label,value,tone,icon:Icon})=><article key={label} className="panel p-4 transition-transform hover:-translate-y-0.5"><div className="flex items-start justify-between"><div><p className="text-xs app-muted">{label}</p><p className={`mt-2 font-mono text-lg font-semibold ${tone}`}>{value}</p></div><span className="grid h-9 w-9 place-items-center rounded-xl bg-white/[0.04] app-muted"><Icon size={16}/></span></div></article>)}</section>
 

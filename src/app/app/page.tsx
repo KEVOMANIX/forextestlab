@@ -25,6 +25,7 @@ import { Decimal } from "@/lib/decimal";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { formatSymbol } from "@/lib/market-data/symbols";
+import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,12 @@ function formatMoney(value: Decimal): string {
 }
 
 function PerformanceTrend({ values }: { values: number[] }) {
-  const points = values.length > 1 ? values : [0, values[0] ?? 0];
+  const maxPoints = 240;
+  const stride = Math.max(1, Math.ceil(values.length / maxPoints));
+  const sampled = values.filter((_, index) => index % stride === 0);
+  const finalValue = values.at(-1);
+  if (finalValue !== undefined && sampled.at(-1) !== finalValue) sampled.push(finalValue);
+  const points = sampled.length > 1 ? sampled : [0, sampled[0] ?? 0];
   const min = Math.min(...points);
   const max = Math.max(...points);
   const range = max - min || 1;
@@ -82,7 +88,7 @@ function PerformanceTrend({ values }: { values: number[] }) {
         className="relative h-52 w-full"
         preserveAspectRatio="none"
         role="img"
-        aria-label="Cumulative simulated profit and loss by session"
+        aria-label="Selected session equity curve"
       >
         <defs>
           <linearGradient id="dashboard-performance" x1="0" y1="0" x2="0" y2="1">
@@ -200,6 +206,7 @@ export default async function AppHome({
 }: {
   searchParams?: {
     performance?: string;
+    session?: string;
     q?: string;
     status?: string;
     pair?: string;
@@ -212,33 +219,20 @@ export default async function AppHome({
   await ensureUserProfile(user);
   const sessions = await prisma.backtestSession.findMany({
     where: { userId: user.id, anonymous: false },
-    orderBy: { createdAt: "desc" },
+    orderBy: { updatedAt: "desc" },
     take: 100,
   });
 
-  const requestedScope = searchParams?.performance ?? "completed";
+  const legacySelectedId = searchParams?.performance?.startsWith("session:")
+    ? searchParams.performance.slice("session:".length)
+    : null;
   const selectedSession = sessions.find(
-    (session) => requestedScope === `session:${session.id}`,
-  );
-  const performanceScope = selectedSession
-    ? "individual"
-    : requestedScope === "all" || requestedScope === "active"
-      ? requestedScope
-      : "completed";
-  const performanceSessions = selectedSession
-    ? [selectedSession]
-    : performanceScope === "all"
-      ? sessions
-      : performanceScope === "active"
-        ? sessions.filter((session) => session.status !== "finished")
-        : sessions.filter((session) => session.status === "finished");
+    (session) => session.id === (searchParams?.session ?? legacySelectedId),
+  ) ?? sessions[0] ?? null;
+  const performanceSessions = selectedSession ? [selectedSession] : [];
   const scopeLabel = selectedSession
     ? sessionName(selectedSession.stateJson, selectedSession.symbol)
-    : performanceScope === "all"
-      ? "All saved sessions"
-      : performanceScope === "active"
-        ? "Active sessions"
-        : "Completed sessions";
+    : "No session selected";
 
   const query = searchParams?.q?.trim().toLowerCase() ?? "";
   const statusFilter = ["active", "completed", "archived"].includes(
@@ -300,7 +294,6 @@ export default async function AppHome({
     ),
   ).sort();
 
-  const chronological = [...performanceSessions].reverse();
   const totalNet = performanceSessions.reduce(
     (sum, session) =>
       sum.plus(new Decimal(session.balance).minus(session.startingBalance)),
@@ -313,27 +306,19 @@ export default async function AppHome({
   const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
   const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
   const winRate = trades.length ? (wins / trades.length) * 100 : 0;
-  const completed = sessions.filter((session) => session.status === "finished").length;
   const maxDrawdown = states.reduce(
     (max, state) => Decimal.max(max, new Decimal(state.maxDrawdown || 0)),
     new Decimal(0),
   );
-  const bestSession = performanceSessions.reduce<(typeof sessions)[number] | null>(
-    (best, session) => {
-      if (!best) return session;
-      const currentNet = new Decimal(session.balance).minus(session.startingBalance);
-      const bestNet = new Decimal(best.balance).minus(best.startingBalance);
-      return currentNet.gt(bestNet) ? session : best;
-    },
+  const selectedState = states[0] ?? null;
+  const bestTrade = trades.reduce<SessionState["closedTrades"][number] | null>(
+    (best, trade) => !best || new Decimal(trade.pnl).gt(best.pnl) ? trade : best,
     null,
   );
-  let cumulative = new Decimal(0);
-  const trend = [0, ...chronological.map((session) => {
-    cumulative = cumulative.plus(
-      new Decimal(session.balance).minus(session.startingBalance),
-    );
-    return cumulative.toNumber();
-  })];
+  const trend = selectedState?.equityCurve.length
+    ? selectedState.equityCurve.map((point) =>
+        new Decimal(point.equity).minus(selectedState.config.startingBalance).toNumber())
+    : [0, totalNet.toNumber()];
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&
     user.user_metadata.display_name.trim()
@@ -342,16 +327,16 @@ export default async function AppHome({
 
   const summaryCards = [
     {
-      label: "Sessions analyzed",
-      value: String(performanceSessions.length),
-      detail: `${sessions.length} total saved`,
+      label: "Session status",
+      value: selectedSession?.status === "finished" ? "Completed" : "Active",
+      detail: selectedSession ? formatSymbol(selectedSession.symbol) : "No session",
       icon: CalendarDays,
       tone: "text-brand-300",
     },
     {
       label: "Net simulated P/L",
       value: formatMoney(totalNet),
-      detail: performanceSessions.length ? scopeLabel : `No ${scopeLabel.toLowerCase()}`,
+      detail: scopeLabel,
       icon: totalNet.isNegative() ? TrendingDown : TrendingUp,
       tone: totalNet.isNegative() ? "text-bear" : "text-brand-300",
     },
@@ -363,7 +348,7 @@ export default async function AppHome({
       tone: "text-accent-400",
     },
     {
-      label: "Overall win rate",
+      label: "Session win rate",
       value: trades.length ? `${winRate.toFixed(1)}%` : "—",
       detail: trades.length ? `${trades.length} closed trades` : "Complete a trade to calculate",
       icon: Gauge,
@@ -388,71 +373,27 @@ export default async function AppHome({
       </header>
 
       <section
-        className="mt-7 rounded-xl border app-border bg-[var(--app-panel)] p-3"
-        aria-label="Performance scope"
+        className="mt-7 rounded-xl border app-border bg-[var(--app-panel)] p-4 sm:p-5"
+        aria-label="Dashboard session"
       >
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <p className="text-sm font-semibold text-brand-300">{scopeLabel}</p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel-2)] p-1">
-              {[
-                { label: "Completed", value: "completed" },
-                { label: "All", value: "all" },
-                { label: "Active", value: "active" },
-              ].map((option) => {
-                const active =
-                  !selectedSession && performanceScope === option.value;
-                return (
-                  <Link
-                    key={option.value}
-                    href={
-                      option.value === "completed"
-                        ? "/app"
-                        : `/app?performance=${option.value}`
-                    }
-                    aria-current={active ? "page" : undefined}
-                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      active
-                        ? "bg-brand-500 text-surface-950"
-                        : "app-muted hover:text-brand-300"
-                    }`}
-                  >
-                    {option.label}
-                  </Link>
-                );
-              })}
-            </div>
-            {sessions.length > 0 && (
-              <form action="/app" method="get" className="flex min-w-0 gap-2">
-                <label htmlFor="performance-session" className="sr-only">
-                  Analyze an individual session
-                </label>
-                <select
-                  id="performance-session"
-                  name="performance"
-                  className="app-input min-w-0 flex-1 py-1.5 text-xs sm:w-56"
-                  defaultValue={
-                    selectedSession ? `session:${selectedSession.id}` : ""
-                  }
-                >
-                  <option value="" disabled>
-                    Individual session…
-                  </option>
-                  {sessions.map((session) => (
-                    <option
-                      key={session.id}
-                      value={`session:${session.id}`}
-                    >
-                      {sessionName(session.stateJson, session.symbol)}
-                    </option>
-                  ))}
-                </select>
-                <button type="submit" className="btn-secondary px-3 py-1.5 text-xs">
-                  View
-                </button>
-              </form>
-            )}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
+              Showing results for
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-brand-300">
+              &ldquo;{scopeLabel}&rdquo;
+            </h2>
           </div>
+          {selectedSession && (
+            <DashboardSessionSwitcher
+              selectedId={selectedSession.id}
+              sessions={sessions.map((session) => ({
+                id: session.id,
+                name: sessionName(session.stateJson, session.symbol),
+              }))}
+            />
+          )}
         </div>
       </section>
 
@@ -463,7 +404,7 @@ export default async function AppHome({
         </section>
       )}
 
-      <section className={`${performanceSessions.length === 0 ? "hidden" : "grid"} mt-8 gap-3 sm:grid-cols-2 xl:grid-cols-4`} aria-label="Account summary">
+      <section className={`${performanceSessions.length === 0 ? "hidden" : "grid"} mt-8 gap-3 sm:grid-cols-2 xl:grid-cols-4`} aria-label="Selected session summary">
         {summaryCards.map(({ label, value, detail, icon: Icon, tone }) => (
           <article key={label} className="panel relative overflow-hidden p-5">
             <div
@@ -489,10 +430,10 @@ export default async function AppHome({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-                Performance trend
+                Session performance
               </p>
               <h2 className="mt-2 text-lg font-semibold">
-                Cumulative P/L · {scopeLabel}
+                Equity curve · {scopeLabel}
               </h2>
             </div>
             <div className={`rounded-full px-3 py-1 font-mono text-sm font-semibold ${
@@ -526,14 +467,10 @@ export default async function AppHome({
           <dl className="mt-5 space-y-4">
             <div className="flex items-center justify-between border-b app-border pb-4">
               <dt className="flex items-center gap-2 text-sm app-muted">
-                <CircleDollarSign size={16} aria-hidden /> Best session
+                <CircleDollarSign size={16} aria-hidden /> Best trade
               </dt>
               <dd className="font-mono text-sm font-semibold text-brand-300">
-                {bestSession
-                  ? formatMoney(
-                      new Decimal(bestSession.balance).minus(bestSession.startingBalance),
-                    )
-                  : "—"}
+                {bestTrade ? formatMoney(new Decimal(bestTrade.pnl)) : "—"}
               </dd>
             </div>
             <div className="flex items-center justify-between border-b app-border pb-4">
@@ -546,10 +483,12 @@ export default async function AppHome({
             </div>
             <div className="flex items-center justify-between border-b app-border pb-4">
               <dt className="flex items-center gap-2 text-sm app-muted">
-                <BookOpenCheck size={16} aria-hidden /> Overall completion
+                <BookOpenCheck size={16} aria-hidden /> Replay progress
               </dt>
               <dd className="font-mono text-sm font-semibold">
-                {sessions.length ? `${completed}/${sessions.length}` : "—"}
+                {selectedState?.totalCandles
+                  ? `${Math.min(100, ((selectedState.visibleIndex + 1) / selectedState.totalCandles) * 100).toFixed(0)}%`
+                  : "—"}
               </dd>
             </div>
             <div className="flex items-center justify-between">
@@ -557,8 +496,8 @@ export default async function AppHome({
                 <Clock3 size={16} aria-hidden /> Last activity
               </dt>
               <dd className="text-right text-xs font-medium">
-                {performanceSessions[0]
-                  ? performanceSessions[0].updatedAt.toLocaleDateString("en", {
+                {selectedSession
+                  ? selectedSession.updatedAt.toLocaleDateString("en", {
                       day: "numeric",
                       month: "short",
                       year: "numeric",
@@ -591,8 +530,8 @@ export default async function AppHome({
             method="get"
             className="panel mt-4 grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_160px_160px_160px_auto]"
           >
-            {searchParams?.performance && (
-              <input type="hidden" name="performance" value={searchParams.performance} />
+            {selectedSession && (
+              <input type="hidden" name="session" value={selectedSession.id} />
             )}
             <label>
               <span className="sr-only">Search sessions</span>

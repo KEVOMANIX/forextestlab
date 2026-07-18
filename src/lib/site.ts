@@ -5,6 +5,7 @@
 
 export const siteConfig = {
   name: "ForexTestLab",
+  company: "Manixlabs",
   domain: "forextestlab.com",
   url:
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??

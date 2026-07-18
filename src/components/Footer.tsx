@@ -92,7 +92,7 @@ export function Footer() {
 
         <div className="mt-8 flex flex-col items-start justify-between gap-3 border-t border-white/5 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center">
           <p>
-            © {year} {siteConfig.name}. All rights reserved.
+            © {year} {siteConfig.company}. All rights reserved.
           </p>
           <p>Made for research, practice, and strategy evaluation.</p>
         </div>

@@ -19,7 +19,7 @@ export interface BillingPlan {
   name: string;
   description: string;
   amount: number;
-  currency: "USD";
+  currency: "KES";
   interval: "forever" | "month" | "year";
   features: string[];
   featured?: boolean;
@@ -32,15 +32,15 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 
 /** Public product catalogue. Amounts are read from server-only Paystack config. */
 export function getBillingCatalog(): BillingPlan[] {
-  const monthlyAmount = positiveInteger(process.env.PAYSTACK_USD_MONTHLY_PRICE, 1200);
-  const annualAmount = positiveInteger(process.env.PAYSTACK_USD_ANNUAL_PRICE, 9900);
+  const monthlyAmount = positiveInteger(process.env.PAYSTACK_KES_MONTHLY_PRICE, 120000);
+  const annualAmount = positiveInteger(process.env.PAYSTACK_KES_ANNUAL_PRICE, 990000);
   return [
     {
       key: "free",
       name: "Free",
       description: "Build a testing habit and learn the replay workflow.",
       amount: 0,
-      currency: "USD",
+      currency: "KES",
       interval: "forever",
       features: [
         "3 saved backtest sessions",
@@ -54,7 +54,7 @@ export function getBillingCatalog(): BillingPlan[] {
       name: "Pro Monthly",
       description: "Full access with the flexibility of monthly billing.",
       amount: monthlyAmount,
-      currency: "USD",
+      currency: "KES",
       interval: "month",
       featured: true,
       features: [
@@ -70,7 +70,7 @@ export function getBillingCatalog(): BillingPlan[] {
       name: "Pro Annual",
       description: "The complete workspace at the best effective price.",
       amount: annualAmount,
-      currency: "USD",
+      currency: "KES",
       interval: "year",
       features: [
         "Everything in Pro Monthly",
@@ -84,7 +84,7 @@ export function getBillingCatalog(): BillingPlan[] {
 }
 
 export function formatPlanPrice(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(currency === "KES" ? "en-KE" : "en-US", {
     style: "currency",
     currency,
     minimumFractionDigits: amount % 100 === 0 ? 0 : 2,
@@ -98,8 +98,8 @@ export function annualSavingPercent(monthlyAmount: number, annualAmount: number)
 
 export function paystackCheckoutReady(): boolean {
   const secret = process.env.PAYSTACK_SECRET_KEY?.trim();
-  const monthly = process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE?.trim();
-  const annual = process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE?.trim();
+  const monthly = (process.env.PAYSTACK_KES_MONTHLY_PLAN_CODE || process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE)?.trim();
+  const annual = (process.env.PAYSTACK_KES_ANNUAL_PLAN_CODE || process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE)?.trim();
   return Boolean(
     secret &&
       monthly?.startsWith("PLN_") &&
@@ -130,8 +130,8 @@ export function getCheckoutProduct(key: CheckoutProductKey): CheckoutProduct {
   const plan = plans.find((item) => item.key === key);
   if (!plan) throw new Error("Unknown billing product.");
   const planCode = key === "pro_monthly_usd"
-    ? process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE?.trim()
-    : process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE?.trim();
+    ? (process.env.PAYSTACK_KES_MONTHLY_PLAN_CODE || process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE)?.trim()
+    : (process.env.PAYSTACK_KES_ANNUAL_PLAN_CODE || process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE)?.trim();
   return {
     key,
     name: plan.name,

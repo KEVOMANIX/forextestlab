@@ -43,7 +43,7 @@ export function PricingCards({ compact = false }: { compact?: boolean }) {
             <p className="text-sm font-semibold text-slate-300">{plan.name}</p>
             <div className="mt-5 flex items-end gap-2">
               <strong className="text-4xl font-bold tracking-tight text-white">
-                {free ? "$0" : formatPlanPrice(plan.amount, plan.currency)}
+                {formatPlanPrice(plan.amount, plan.currency)}
               </strong>
               <span className="pb-1 text-sm text-slate-500">
                 {free ? "forever" : `/ ${plan.interval}`}

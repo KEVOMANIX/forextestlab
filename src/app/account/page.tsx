@@ -5,6 +5,7 @@ import { ArrowRight, CreditCard } from "lucide-react";
 import { AccountActions } from "@/components/account/AccountActions";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
 import { BackLink } from "@/components/app/BackLink";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Account", robots: { index: false } };
@@ -12,6 +13,8 @@ export const metadata: Metadata = { title: "Account", robots: { index: false } }
 export default async function AccountPage() {
   const user = await requireUser("/account");
   await ensureUserProfile(user);
+  const profile = await prisma.userProfile.findUniqueOrThrow({ where: { id: user.id } });
+  const hasPro = ["active", "attention", "non-renewing"].includes(profile.billingStatus) || Boolean(profile.proAccessUntil && profile.proAccessUntil > new Date());
 
   return (
     <main id="main" className="app-shell min-h-screen px-4 py-12">
@@ -22,7 +25,7 @@ export default async function AccountPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><CreditCard size={18} aria-hidden /></span>
-            <div><p className="text-xs app-muted">Current plan</p><h2 className="mt-1 font-semibold">Free</h2><p className="mt-1 text-xs app-muted">Review Pro options and international billing.</p></div>
+            <div><p className="text-xs app-muted">Current plan</p><h2 className="mt-1 font-semibold">{hasPro ? "Pro" : "Free"}</h2><p className="mt-1 text-xs app-muted">Review your plan and international billing.</p></div>
           </div>
           <Link href="/account/billing" className="btn-primary shrink-0 px-4 py-2 text-xs">Manage billing <ArrowRight size={14} aria-hidden /></Link>
         </div>

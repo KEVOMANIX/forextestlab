@@ -1,6 +1,18 @@
 import "server-only";
 
 export type PaidPlanKey = "pro_monthly_usd" | "pro_annual_usd";
+export type CheckoutProductKey = PaidPlanKey | "pro_pass_30d_kes";
+
+export interface CheckoutProduct {
+  key: CheckoutProductKey;
+  name: string;
+  amount: number;
+  currency: "USD" | "KES";
+  accessDays: number;
+  recurring: boolean;
+  planCode: string | null;
+  channels: ("card" | "mobile_money")[];
+}
 
 export interface BillingPlan {
   key: "free" | PaidPlanKey;
@@ -95,4 +107,47 @@ export function paystackCheckoutReady(): boolean {
       !monthly.includes("REPLACE") &&
       !annual.includes("REPLACE"),
   );
+}
+
+export function isCheckoutProductKey(value: unknown): value is CheckoutProductKey {
+  return value === "pro_monthly_usd" || value === "pro_annual_usd" || value === "pro_pass_30d_kes";
+}
+
+export function getCheckoutProduct(key: CheckoutProductKey): CheckoutProduct {
+  const plans = getBillingCatalog();
+  if (key === "pro_pass_30d_kes") {
+    return {
+      key,
+      name: "Pro 30-Day Kenya Pass",
+      amount: positiveInteger(process.env.PAYSTACK_KES_PASS_PRICE, 150000),
+      currency: "KES",
+      accessDays: positiveInteger(process.env.PAYSTACK_KES_PASS_DURATION_DAYS, 30),
+      recurring: false,
+      planCode: null,
+      channels: ["mobile_money"],
+    };
+  }
+  const plan = plans.find((item) => item.key === key);
+  if (!plan) throw new Error("Unknown billing product.");
+  const planCode = key === "pro_monthly_usd"
+    ? process.env.PAYSTACK_USD_MONTHLY_PLAN_CODE?.trim()
+    : process.env.PAYSTACK_USD_ANNUAL_PLAN_CODE?.trim();
+  return {
+    key,
+    name: plan.name,
+    amount: plan.amount,
+    currency: plan.currency,
+    accessDays: key === "pro_monthly_usd" ? 35 : 370,
+    recurring: true,
+    planCode: planCode && planCode.startsWith("PLN_") && !planCode.includes("REPLACE") ? planCode : null,
+    channels: ["card"],
+  };
+}
+
+export function checkoutProductReady(key: CheckoutProductKey): boolean {
+  if (process.env.PAYSTACK_CHECKOUT_ENABLED !== "true") return false;
+  const secret = process.env.PAYSTACK_SECRET_KEY?.trim();
+  if (!secret) return false;
+  const product = getCheckoutProduct(key);
+  return !product.recurring || Boolean(product.planCode);
 }

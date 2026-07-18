@@ -36,14 +36,63 @@ model MarketInstrument {
 /// Authentication credentials remain in Supabase Auth; this table stores only
 /// ForexTestLab-owned profile data and relations.
 model UserProfile {
-  id          String            @id
-  email       String            @unique
-  displayName String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  sessions    BacktestSession[]
+  id                   String                @id
+  email                String                @unique
+  displayName          String?
+  billingPlan          String                @default("free")
+  billingStatus        String                @default("inactive")
+  proAccessUntil       DateTime?
+  paystackCustomerCode String?               @unique
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  sessions             BacktestSession[]
+  billingPayments      BillingPayment[]
+  billingSubscriptions BillingSubscription[]
 
   @@index([createdAt])
+}
+
+model BillingPayment {
+  id                    String      @id @default(cuid())
+  user                  UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                String
+  reference             String      @unique
+  providerTransactionId String?
+  productKey            String
+  amount                Int
+  currency              String
+  status                String      @default("initialized")
+  channel               String?
+  paidAt                DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model BillingSubscription {
+  id                 String      @id @default(cuid())
+  user               UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             String
+  subscriptionCode   String      @unique
+  planCode           String
+  productKey         String
+  status             String
+  nextPaymentAt      DateTime?
+  cancelAtPeriodEnd  Boolean     @default(false)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([userId, status])
+}
+
+model BillingWebhookEvent {
+  id          String   @id
+  eventType   String
+  processedAt DateTime @default(now())
+
+  @@index([eventType, processedAt])
 }
 
 model MarketCandle {

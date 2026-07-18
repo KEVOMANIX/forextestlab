@@ -46,7 +46,7 @@ export async function createCheckout(input: {
   email: string;
   productKey: CheckoutProductKey;
   callbackBaseUrl: string;
-}): Promise<{ authorizationUrl: string; reference: string }> {
+}): Promise<{ authorizationUrl: string; accessCode: string; reference: string }> {
   if (!checkoutProductReady(input.productKey)) {
     throw new Error("This payment option is not available yet.");
   }
@@ -75,7 +75,11 @@ export async function createCheckout(input: {
       planCode: product.planCode,
       channels: product.channels,
     });
-    return { authorizationUrl: initialized.authorization_url, reference };
+    return {
+      authorizationUrl: initialized.authorization_url,
+      accessCode: initialized.access_code,
+      reference,
+    };
   } catch (error) {
     await prisma.billingPayment.update({ where: { reference }, data: { status: "initialization_failed" } });
     throw error;

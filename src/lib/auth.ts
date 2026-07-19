@@ -18,10 +18,12 @@ export async function ensureUserProfile(user: User): Promise<void> {
   const email = user.email?.trim().toLowerCase();
   if (!email) throw new Error("Your account does not have an email address.");
 
-  const displayName =
-    typeof user.user_metadata?.display_name === "string"
-      ? user.user_metadata.display_name.trim().slice(0, 120) || null
-      : null;
+  const metadataName = [
+    user.user_metadata?.display_name,
+    user.user_metadata?.full_name,
+    user.user_metadata?.name,
+  ].find((value): value is string => typeof value === "string" && Boolean(value.trim()));
+  const displayName = metadataName?.trim().slice(0, 120) || null;
 
   await prisma.userProfile.upsert({
     where: { id: user.id },

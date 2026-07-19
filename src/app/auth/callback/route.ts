@@ -15,9 +15,24 @@ export async function GET(request: Request) {
   if (code && supabase) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return NextResponse.redirect(new URL(next, url.origin));
+    console.error("Supabase authentication callback failed", {
+      errorCode: error.code,
+      message: error.message,
+      callbackHost: url.host,
+    });
+  } else {
+    console.error("Supabase authentication callback was incomplete", {
+      hasCode: Boolean(code),
+      configured: Boolean(supabase),
+      providerError: url.searchParams.get("error") ?? undefined,
+      callbackHost: url.host,
+    });
   }
 
   return NextResponse.redirect(
-    new URL("/sign-in?error=authentication-callback-failed", url.origin),
+    new URL(
+      `/sign-in?error=authentication-callback-failed&next=${encodeURIComponent(next)}`,
+      url.origin,
+    ),
   );
 }

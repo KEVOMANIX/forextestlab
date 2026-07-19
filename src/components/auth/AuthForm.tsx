@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
+import { siteConfig } from "@/lib/site";
 
 type Mode = "sign-in" | "sign-up" | "forgot-password" | "update-password";
 
@@ -24,9 +25,11 @@ const COPY: Record<Mode, { title: string; submit: string }> = {
 export function AuthForm({
   mode,
   nextPath,
+  initialError,
 }: {
   mode: Mode;
   nextPath?: string;
+  initialError?: string;
 }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -34,7 +37,7 @@ export function AuthForm({
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
 
   const needsEmail = mode !== "update-password";
   const needsPassword =
@@ -45,6 +48,12 @@ export function AuthForm({
     return nextPath?.startsWith("/") && !nextPath.startsWith("//")
       ? nextPath
       : "/app";
+  }
+
+  function callbackUrl(next: string): string {
+    const callback = new URL("/auth/callback", siteConfig.url);
+    callback.searchParams.set("next", next);
+    return callback.toString();
   }
 
   async function continueWithGoogle() {
@@ -59,12 +68,10 @@ export function AuthForm({
     setBusy(true);
     setError(null);
     setMessage(null);
-    const callback = new URL("/auth/callback", window.location.origin);
-    callback.searchParams.set("next", safeNextPath());
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: callback.toString(),
+        redirectTo: callbackUrl(safeNextPath()),
         queryParams: {
           access_type: "offline",
           prompt: "select_account",
@@ -92,7 +99,6 @@ export function AuthForm({
     setError(null);
     setMessage(null);
 
-    const origin = window.location.origin;
     let result: { error: { message: string } | null };
 
     if (mode === "sign-up") {
@@ -101,7 +107,7 @@ export function AuthForm({
         password,
         options: {
           data: { display_name: displayName.trim() },
-          emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safeNextPath())}`,
+          emailRedirectTo: callbackUrl(safeNextPath()),
         },
       });
       if (!result.error) {
@@ -115,7 +121,7 @@ export function AuthForm({
       }
     } else if (mode === "forgot-password") {
       result = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/auth/callback?next=/account/update-password`,
+        redirectTo: callbackUrl("/account/update-password"),
       });
       if (!result.error) {
         setMessage("If that account exists, a password-reset email has been sent.");

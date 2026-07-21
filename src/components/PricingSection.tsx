@@ -8,10 +8,15 @@ import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billi
 import { getPricingTiers } from "@/lib/billing/tiers";
 import { countryCodeFromHeaders } from "@/lib/request-country";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { prisma } from "@/lib/db";
 
 export async function PricingSection() {
   const countryCode = countryCodeFromHeaders(headers());
   const user = await getCurrentUser();
+  const profile = user ? await prisma.userProfile.findUnique({
+    where: { id: user.id },
+    select: { paddleCustomerId: true },
+  }) : null;
 
   return (
     <Section
@@ -27,6 +32,7 @@ export async function PricingSection() {
         tiers={getPricingTiers()}
         countryCode={countryCode}
         customerEmail={user?.email}
+        paddleCustomerId={profile?.paddleCustomerId ?? undefined}
         userId={user?.id}
         clientToken={requiredPaddleClientToken()}
         environment={paddleBrowserEnvironment()}

@@ -8,6 +8,7 @@ import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billi
 import { getPricingTiers } from "@/lib/billing/tiers";
 import { countryCodeFromHeaders } from "@/lib/request-country";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,10 @@ export default async function PricingPage() {
   const requestHeaders = headers();
   const countryCode = countryCodeFromHeaders(requestHeaders);
   const user = await getCurrentUser();
+  const profile = user ? await prisma.userProfile.findUnique({
+    where: { id: user.id },
+    select: { paddleCustomerId: true },
+  }) : null;
   const tiers = getPricingTiers();
   const clientToken = requiredPaddleClientToken();
   const environment = paddleBrowserEnvironment();
@@ -38,7 +43,7 @@ export default async function PricingPage() {
 
       <section className="py-16 sm:py-20">
         <div className="container-page">
-          <LocalizedPricing tiers={tiers} countryCode={countryCode} customerEmail={user?.email} userId={user?.id} clientToken={clientToken} environment={environment} />
+          <LocalizedPricing tiers={tiers} countryCode={countryCode} customerEmail={user?.email} paddleCustomerId={profile?.paddleCustomerId ?? undefined} userId={user?.id} clientToken={clientToken} environment={environment} />
           <div className="mt-12 grid gap-4 sm:grid-cols-3">
             <div className="card p-5"><Globe2 size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Localized totals</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Paddle detects your market and returns the formatted total shown above.</p></div>
             <div className="card p-5"><CreditCard size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Secure overlay checkout</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Payment details stay inside Paddle&apos;s one-page checkout.</p></div>

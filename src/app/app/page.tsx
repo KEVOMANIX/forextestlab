@@ -99,11 +99,11 @@ function SignedOutDashboard() {
               Create free account <ArrowRight size={16} aria-hidden />
             </Link>
             <Link href="/app/backtest" className="btn-secondary">
-              <Play size={16} aria-hidden /> Try a temporary demo
+              <Play size={16} aria-hidden /> Explore the workspace
             </Link>
           </div>
           <p className="mt-3 text-xs app-muted">
-            No payment required. Anonymous demo sessions expire after 24 hours.
+            No payment required. Guest sessions remain available for 24 hours.
           </p>
         </div>
       </section>

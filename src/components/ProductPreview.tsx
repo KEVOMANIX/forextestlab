@@ -62,9 +62,9 @@ export function ProductPreview() {
   return (
     <Section
       id="product-preview"
-      eyebrow="Product Preview"
-      title="A look at the planned interface"
-      description="An original, non-functional mock-up of the ForexTestLab workspace. This is a visual demonstration only — it does not use real market data or execute orders."
+      eyebrow="Trading workspace"
+      title="Replay, execute, and review in one place"
+      description="A focused workspace for historical market replay, simulated execution, trade management, and performance review."
       centered
     >
       <div className="mx-auto max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-surface-800/60 shadow-card">
@@ -191,10 +191,6 @@ export function ProductPreview() {
           </div>
         </div>
       </div>
-      <p className="mt-4 text-center text-xs text-slate-500">
-        Figures shown are placeholder values for demonstration and do not
-        represent real or expected results.
-      </p>
     </Section>
   );
 }

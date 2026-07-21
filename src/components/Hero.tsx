@@ -72,9 +72,6 @@ export function Hero() {
               <CandlestickChart className="h-56 w-full sm:h-64" />
             </div>
           </div>
-          <p className="mt-3 text-center text-xs text-slate-500">
-            Illustrative interface mock-up. Not real market data.
-          </p>
         </div>
       </div>
     </section>

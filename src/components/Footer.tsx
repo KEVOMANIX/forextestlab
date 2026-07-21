@@ -5,7 +5,6 @@ import {
   RISK_WARNING,
   footerNav,
   siteConfig,
-  socialLinks,
 } from "@/lib/site";
 
 function FooterColumn({
@@ -66,19 +65,6 @@ export function Footer() {
           <FooterColumn title="Product" links={footerNav.product} />
           <FooterColumn title="Company" links={footerNav.company} />
           <FooterColumn title="Legal" links={footerNav.legal} />
-        </div>
-
-        <div className="mt-10 flex flex-wrap items-center gap-4">
-          {socialLinks.map((social) => (
-            <a
-              key={social.label}
-              href={social.href}
-              className="text-sm text-slate-400 transition-colors hover:text-slate-200"
-              aria-label={`${siteConfig.name} on ${social.label}`}
-            >
-              {social.label}
-            </a>
-          ))}
         </div>
 
         <div className="mt-10 rounded-xl border border-white/10 bg-surface-800/50 p-5">

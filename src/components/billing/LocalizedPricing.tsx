@@ -18,6 +18,7 @@ interface LocalizedPricingProps {
   tiers: Tier[];
   countryCode?: string;
   customerEmail?: string;
+  paddleCustomerId?: string;
   userId?: string;
   clientToken: string;
   environment: Environments;
@@ -39,6 +40,7 @@ export function LocalizedPricing({
   tiers,
   countryCode,
   customerEmail,
+  paddleCustomerId,
   userId,
   clientToken,
   environment,
@@ -57,6 +59,7 @@ export function LocalizedPricing({
     initializePaddle({
       token: clientToken,
       environment,
+      ...(paddleCustomerId?.startsWith("ctm_") ? { pwCustomer: { id: paddleCustomerId } } : {}),
       eventCallback: (event) => {
         if (event.name === "checkout.closed") setOpeningPriceId(undefined);
         if (event.name === "checkout.error") {
@@ -77,7 +80,7 @@ export function LocalizedPricing({
     return () => {
       active = false;
     };
-  }, [clientToken, environment]);
+  }, [clientToken, environment, paddleCustomerId]);
 
   useEffect(() => {
     if (!paddle) return;

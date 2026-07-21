@@ -16,7 +16,7 @@ export async function DELETE() {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return NextResponse.json(
-      { ok: false, error: "Account deletion is not configured." },
+      { ok: false, error: "Account deletion is temporarily unavailable. Please contact support." },
       { status: 503 },
     );
   }

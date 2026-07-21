@@ -60,7 +60,7 @@ export function AuthForm({
     const supabase = createBrowserSupabaseClient();
     if (!supabase) {
       setError(
-        "Authentication is not configured yet. Add the Supabase URL and publishable key.",
+        `Sign-in is temporarily unavailable. Please contact ${siteConfig.emails.support}.`,
       );
       return;
     }
@@ -90,7 +90,7 @@ export function AuthForm({
     const supabase = createBrowserSupabaseClient();
     if (!supabase) {
       setError(
-        "Authentication is not configured yet. Add the Supabase URL and publishable key.",
+        `Sign-in is temporarily unavailable. Please contact ${siteConfig.emails.support}.`,
       );
       return;
     }

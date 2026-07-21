@@ -174,6 +174,13 @@ For production, add the corresponding `PADDLE_LIVE_*` values, approve the live
 domain in Paddle, set `PADDLE_MODE=live`, and redeploy. Sandbox and live catalog
 IDs are separate.
 
+To recreate the approved Starter, Pro, and Advanced catalog in live, create a
+live API key with product, price, and discount read/write access, set
+`PADDLE_LIVE_API_KEY`, then run `npm run paddle:migrate-live`. The idempotent
+script skips junk/test entities and writes the old-to-new IDs to
+`.tmp/paddle-live-id-map.json`. Webhook requests are checked against Paddle's current
+environment-specific `/ips` response before signature verification.
+
 ## Database setup & migration
 
 The Prisma datasource is configured for **PostgreSQL** (works locally and on

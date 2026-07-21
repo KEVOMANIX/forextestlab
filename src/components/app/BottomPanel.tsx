@@ -173,7 +173,7 @@ export function BottomPanel({
         <div className="ml-auto flex h-full shrink-0 items-center">
           {state.anonymous && (
             <span className="hidden border-l app-border px-3 text-[10px] text-brand-300 xl:inline-flex">
-              Temporary demonstration&nbsp;·&nbsp;
+              Guest session&nbsp;·&nbsp;
               <Link href="/sign-up" className="font-semibold underline">Create a free account</Link>
             </span>
           )}

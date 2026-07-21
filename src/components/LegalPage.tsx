@@ -5,8 +5,6 @@ interface LegalPageProps {
   lastUpdated: string;
   intro?: ReactNode;
   children: ReactNode;
-  /** Show the "general website draft — not legal advice" notice. */
-  showDraftNotice?: boolean;
 }
 
 /** Consistent wrapper + prose styling for legal / policy documents. */
@@ -15,7 +13,6 @@ export function LegalPage({
   lastUpdated,
   intro,
   children,
-  showDraftNotice = true,
 }: LegalPageProps) {
   return (
     <div className="container-page py-16 sm:py-20">
@@ -25,17 +22,6 @@ export function LegalPage({
           {title}
         </h1>
         <p className="mt-3 text-sm text-slate-500">Last updated: {lastUpdated}</p>
-
-        {showDraftNotice && (
-          <div className="mt-6 rounded-xl border border-amber-400/20 bg-amber-400/5 p-4">
-            <p className="text-sm leading-relaxed text-amber-200/90">
-              This document is a general website draft provided for
-              informational purposes only. It is not legal advice. Please have a
-              qualified legal professional review and adapt it for your
-              jurisdiction before commercial launch.
-            </p>
-          </div>
-        )}
 
         {intro && (
           <div className="mt-8 text-base leading-relaxed text-slate-300">

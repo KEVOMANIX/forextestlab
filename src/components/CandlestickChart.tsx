@@ -58,7 +58,7 @@ export function CandlestickChart({ className = "" }: { className?: string }) {
       viewBox={`0 0 ${width} ${height}`}
       className={className}
       role="img"
-      aria-label="Illustrative candlestick chart placeholder"
+      aria-label="Forex market replay chart"
       preserveAspectRatio="none"
     >
       <defs>

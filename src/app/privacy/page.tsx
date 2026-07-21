@@ -16,8 +16,7 @@ export default function PrivacyPage() {
     <PageShell>
       <LegalPage
         title="Privacy Policy"
-        lastUpdated="15 July 2026"
-        showDraftNotice={false}
+        lastUpdated="21 July 2026"
         intro={
           <p>
             This Privacy Policy explains how {siteConfig.name} (&ldquo;we&rdquo;,
@@ -47,42 +46,61 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="3. Cookies">
+        <LegalSection heading="3. How and why we process information">
           <p>
-            This website aims to use only essential cookies required for the
-            site to function. If we introduce optional cookies (for example, for
-            analytics), we will update this policy and, where required, request
-            your consent.
+            We process information to perform our agreement with you, operate
+            and secure the service, comply with legal obligations, respond to
+            requests, and pursue legitimate interests in maintaining and
+            improving ForexTestLab. Where consent is required, you may withdraw
+            it at any time without affecting earlier lawful processing.
           </p>
         </LegalSection>
 
-        <LegalSection heading="4. Analytics">
+        <LegalSection heading="4. Cookies">
           <p>
-            We may use privacy-respecting analytics to understand aggregate,
-            non-identifying usage patterns and improve the site. Any analytics
-            provider we adopt will be listed here before it is enabled.
+            We use essential cookies and similar storage required for secure
+            authentication, session continuity, account preferences, and fraud
+            prevention. Optional cookies are used only where permitted and, when
+            required, after consent.
           </p>
         </LegalSection>
 
-        <LegalSection heading="5. Data retention">
+        <LegalSection heading="5. Analytics">
           <p>
-            We keep account and contact information only for as long as needed
-            for the purposes described above, or until you ask us to remove it.
-            You may request deletion at any time using the contact details
-            below.
+            We process limited usage and diagnostic information to maintain
+            security, measure service reliability, and improve product
+            performance. Analytics information is not sold to third parties.
           </p>
         </LegalSection>
 
-        <LegalSection heading="6. Third-party services">
+        <LegalSection heading="6. Data retention">
           <p>
-            We may rely on third-party providers for hosting, email delivery,
-            and storage of submissions (for example, a hosting platform, an
-            email provider, or a database service). These providers process data
-            on our behalf under their own terms and security practices.
+            We retain information for as long as necessary to provide the
+            service, meet contractual and legal obligations, resolve disputes,
+            and maintain security records. Account data is deleted or
+            anonymised when it is no longer required.
           </p>
         </LegalSection>
 
-        <LegalSection heading="7. Security">
+        <LegalSection heading="7. Service providers and payments">
+          <p>
+            We rely on third-party providers for hosting, authentication, email,
+            storage, and payments. Paddle acts as our merchant of record and
+            processes checkout, billing, tax, and payment information under its
+            own privacy notice. We do not receive or store complete card details.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="8. International processing">
+          <p>
+            Our service providers may process information in countries other
+            than your own. Where required, we use contractual and legal
+            safeguards designed to protect information transferred across
+            borders.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="9. Security">
           <p>
             We take reasonable technical and organisational measures to protect
             your information. However, no method of transmission or storage is
@@ -90,7 +108,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="8. Your rights">
+        <LegalSection heading="10. Your rights">
           <p>
             Depending on where you live, you may have rights to access, correct,
             export, or delete your personal information, and to object to or
@@ -99,7 +117,24 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="9. Contact">
+        <LegalSection heading="11. Children&apos;s privacy">
+          <p>
+            ForexTestLab is not directed to children. We do not knowingly
+            collect personal information from anyone who is not legally able to
+            enter into a binding agreement for the service.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="12. Policy updates">
+          <p>
+            We update this policy when our services or legal obligations
+            change. The effective date shown above identifies the current
+            version. Material changes will be communicated through the service
+            or by email where appropriate.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="13. Contact">
           <p>
             For any privacy questions or requests, email us at{" "}
             <a

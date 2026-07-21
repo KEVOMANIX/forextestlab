@@ -16,8 +16,7 @@ export default function RiskDisclosurePage() {
     <PageShell>
       <LegalPage
         title="Forex Risk Disclosure"
-        lastUpdated="15 July 2026"
-        showDraftNotice={false}
+        lastUpdated="21 July 2026"
         intro={
           <p>
             Trading foreign exchange carries a high level of risk. This

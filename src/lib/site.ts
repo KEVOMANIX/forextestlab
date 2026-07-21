@@ -9,7 +9,7 @@ export const siteConfig = {
   domain: "forextestlab.com",
   url:
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
-    "https://forextestlab.com",
+    "https://www.forextestlab.com",
   title: "ForexTestLab | Forex Backtesting and Market Replay",
   description:
     "ForexTestLab is a forex backtesting and historical market-replay platform for strategy testing, simulated execution, and performance review.",
@@ -46,16 +46,10 @@ export const footerNav = {
   legal: [
     { label: "Privacy Policy", href: "/privacy" },
     { label: "Terms of Use", href: "/terms" },
+    { label: "Refund & Cancellation", href: "/refund-policy" },
     { label: "Risk Disclosure", href: "/risk-disclosure" },
   ],
 } as const;
-
-/** Social placeholders — replace `href` values before launch. */
-export const socialLinks = [
-  { label: "X (Twitter)", href: "#", handle: "@forextestlab" },
-  { label: "LinkedIn", href: "#", handle: "ForexTestLab" },
-  { label: "YouTube", href: "#", handle: "ForexTestLab" },
-] as const;
 
 export const RISK_WARNING =
   "Forex and leveraged trading involve substantial risk and may not be suitable for every person. Historical or simulated results do not guarantee future performance. ForexTestLab is an educational and analytical software platform and does not provide investment, brokerage, or financial-advisory services.";

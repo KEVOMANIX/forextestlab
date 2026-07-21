@@ -5,7 +5,6 @@ import { ArrowRight, BadgeCheck, CreditCard } from "lucide-react";
 import { BackLink } from "@/components/app/BackLink";
 import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
-import { paddleMode } from "@/lib/billing/paddle";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +30,6 @@ export default async function BillingPage() {
       <div className="mx-auto max-w-3xl">
         <BackLink label="Back to account" fallback="/account" />
         <div className="mt-5"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Account billing</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Plan and subscription</h1><p className="mt-2 text-sm app-muted">Signed in as {user.email}</p></div>
-        {paddleMode() === "sandbox" && <div className="mt-5 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200"><strong>Paddle Sandbox</strong> · No real money is charged.</div>}
-
         <section className="panel mt-8 p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">

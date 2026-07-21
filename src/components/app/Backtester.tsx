@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ChartMarker } from "./PriceChart";
 import { BottomPanel } from "./BottomPanel";
-import { MarketDataNotice, SimulationNotice } from "./LegalNotices";
 import { OrderTicket } from "./OrderTicket";
 import { ReplayToolbar } from "./ReplayToolbar";
 import { SessionSetup } from "./SessionSetup";
@@ -197,10 +196,6 @@ export function Backtester({
           error={bt.error}
           entitlements={entitlements}
         />
-        <div className="mx-auto mt-6 max-w-xl space-y-3">
-          <SimulationNotice />
-          <MarketDataNotice />
-        </div>
       </div>
     );
   }

@@ -16,14 +16,13 @@ export default function TermsPage() {
     <PageShell>
       <LegalPage
         title="Terms of Use"
-        lastUpdated="15 July 2026"
-        showDraftNotice={false}
+        lastUpdated="21 July 2026"
         intro={
           <p>
-            These Terms of Use govern your access to and use of the{" "}
-            {siteConfig.name} website at {siteConfig.domain}. By using the site,
-            you agree to these terms. If you do not agree, please do not use the
-            site.
+            Manixlabs operates {siteConfig.name}. These Terms of Use govern your
+            access to the website, application, subscriptions, and related
+            services. By creating an account or using the service, you agree to
+            these terms.
           </p>
         }
       >
@@ -43,7 +42,16 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="3. Intellectual property">
+        <LegalSection heading="3. Accounts">
+          <p>
+            You must provide accurate account information and keep your login
+            credentials secure. You are responsible for activity performed
+            through your account and must notify us promptly of suspected
+            unauthorised access.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="4. Intellectual property">
           <p>
             The website and its content — including text, design, graphics,
             logos, and the {siteConfig.name} name — are owned by us or our
@@ -52,7 +60,7 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="4. No financial advice">
+        <LegalSection heading="5. No financial advice">
           <p>
             Nothing on this website constitutes investment, trading, tax, or
             financial advice, or a recommendation to buy, sell, or hold any
@@ -61,7 +69,7 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="5. No brokerage services">
+        <LegalSection heading="6. No brokerage services">
           <p>
             {siteConfig.name} is not a broker or dealer. We do not hold client
             funds, execute real orders, or provide access to live markets. The
@@ -69,7 +77,7 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="6. No guaranteed results">
+        <LegalSection heading="7. No guaranteed results">
           <p>
             Historical and simulated results do not guarantee future
             performance. We make no representation that using ForexTestLab will
@@ -77,7 +85,7 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="7. User responsibilities">
+        <LegalSection heading="8. User responsibilities">
           <p>
             You are responsible for the accuracy of the information you submit,
             for keeping your account credentials secure, and for complying
@@ -85,7 +93,7 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="8. Prohibited use">
+        <LegalSection heading="9. Prohibited use">
           <p>You agree not to:</p>
           <ul className="list-disc space-y-1 pl-5">
             <li>Use the site for any unlawful or fraudulent purpose.</li>
@@ -103,7 +111,7 @@ export default function TermsPage() {
           </ul>
         </LegalSection>
 
-        <LegalSection heading="9. Third-party services">
+        <LegalSection heading="10. Third-party services">
           <p>
             The site may link to or rely on third-party services. We are not
             responsible for the content, policies, or practices of those third
@@ -111,7 +119,30 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="10. Limitation of liability">
+        <LegalSection heading="11. Subscriptions and billing">
+          <p>
+            Paid plans are sold by Manixlabs under the ForexTestLab brand and
+            are billed by Paddle, our merchant of record. Subscriptions renew
+            automatically for the selected monthly or yearly term until
+            canceled. The price and billing interval are shown before purchase.
+          </p>
+          <p>
+            Cancellation and refund terms are described in our Refund and
+            Cancellation Policy. Taxes, currency conversion, and available
+            payment methods are calculated and presented by Paddle at checkout.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="12. Suspension and termination">
+          <p>
+            We may restrict or terminate access where an account breaches these
+            terms, threatens the security or availability of the service, or is
+            used unlawfully. You may stop using the service and request account
+            deletion at any time.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="13. Limitation of liability">
           <p>
             To the maximum extent permitted by law, {siteConfig.name} and its
             team will not be liable for any indirect, incidental, or
@@ -120,7 +151,7 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="11. Changes to the service">
+        <LegalSection heading="14. Changes to the service and terms">
           <p>
             We may change, suspend, or discontinue parts of the service and may
             update these terms. Continued use after changes means you accept the
@@ -128,7 +159,7 @@ export default function TermsPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="12. Contact">
+        <LegalSection heading="15. Contact">
           <p>
             Questions about these terms? Email us at{" "}
             <a

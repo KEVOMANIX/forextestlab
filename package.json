@@ -17,6 +17,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "data:import": "tsx scripts/import-market-data.ts",
+    "paddle:seed": "tsx scripts/seed-paddle-catalog.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {
@@ -24,7 +25,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1089.0",
-    "@paystack/inline-js": "^2.23.1",
+    "@paddle/paddle-js": "^1.6.4",
+    "@paddle/paddle-node-sdk": "3.7.0",
     "@prisma/client": "^5.22.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.6",

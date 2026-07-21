@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { ensureUserProfile } from "@/lib/auth";
-import { isCheckoutProductKey } from "@/lib/billing/catalog";
-import { createCheckout } from "@/lib/billing/service";
+import { checkoutProductReady, getCheckoutProduct, isCheckoutProductKey } from "@/lib/billing/catalog";
+import { configuredPaddleClientToken, paddleMode } from "@/lib/billing/paddle";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -21,13 +21,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Select a valid payment option." }, { status: 422 });
   }
   try {
-    const checkout = await createCheckout({
+    if (!checkoutProductReady(body.productKey)) throw new Error("Paddle checkout is not configured yet.");
+    const product = getCheckoutProduct(body.productKey);
+    return NextResponse.json({
+      ok: true,
+      clientToken: configuredPaddleClientToken(),
+      environment: paddleMode() === "live" ? "production" : "sandbox",
+      priceId: product.planCode,
       userId: user.id,
       email: user.email,
-      productKey: body.productKey,
-      callbackBaseUrl: new URL(request.url).origin,
+      productKey: product.key,
     });
-    return NextResponse.json({ ok: true, ...checkout });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Checkout could not be created.";
     const unavailable = message.includes("not available") || message.includes("not configured");

@@ -34,10 +34,10 @@ function planCodeFromTransaction(transaction: PaystackTransaction): string | nul
 
 export function productKeyFromPlanCode(planCode: string | null | undefined): CheckoutProductKey | null {
   if (!planCode) return null;
-  const monthly = getCheckoutProduct("pro_monthly_usd");
-  const annual = getCheckoutProduct("pro_annual_usd");
-  if (monthly.planCode === planCode) return monthly.key;
-  if (annual.planCode === planCode) return annual.key;
+  const monthlyCodes = [process.env.PAYSTACK_KES_MONTHLY_PLAN_CODE, process.env.PAYSTACK_TEST_KES_MONTHLY_PLAN_CODE];
+  const annualCodes = [process.env.PAYSTACK_KES_ANNUAL_PLAN_CODE, process.env.PAYSTACK_TEST_KES_ANNUAL_PLAN_CODE];
+  if (monthlyCodes.includes(planCode)) return "pro_monthly_usd";
+  if (annualCodes.includes(planCode)) return "pro_annual_usd";
   return null;
 }
 
@@ -59,6 +59,7 @@ export async function createCheckout(input: {
       productKey: product.key,
       amount: product.amount,
       currency: product.currency,
+      provider: "paystack",
       status: "initialized",
     },
   });
@@ -116,8 +117,9 @@ export async function recordSuccessfulTransaction(transaction: PaystackTransacti
         userId: user.id,
         reference,
         productKey,
-        amount: product.amount,
-        currency: product.currency,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        provider: "paystack",
         status: "initialized",
       },
       include: { user: true },
@@ -138,7 +140,7 @@ export async function recordSuccessfulTransaction(transaction: PaystackTransacti
 
   const product = getCheckoutProduct(payment.productKey as CheckoutProductKey);
   const transactionPlanCode = planCodeFromTransaction(transaction);
-  const validPlan = !product.recurring || !transactionPlanCode || transactionPlanCode === product.planCode;
+  const validPlan = !product.recurring || !transactionPlanCode || productKeyFromPlanCode(transactionPlanCode) === payment.productKey;
   if (transaction.amount !== payment.amount || transaction.currency !== payment.currency || !validPlan) {
     await prisma.billingPayment.update({ where: { reference }, data: { status: "amount_or_plan_mismatch" } });
     return { status: "failed", reference, message: "Payment details did not match the selected product." };
@@ -224,8 +226,9 @@ async function recordSubscription(data: SubscriptionEventData, statusOverride?: 
   await prisma.$transaction([
     prisma.billingSubscription.upsert({
       where: { subscriptionCode },
-      create: { userId: user.id, subscriptionCode, planCode, productKey, status, nextPaymentAt },
+      create: { userId: user.id, subscriptionCode, planCode, productKey, provider: "paystack", status, nextPaymentAt },
       update: {
+        provider: "paystack",
         status,
         nextPaymentAt,
         cancelAtPeriodEnd: status === "non-renewing" || status === "disabled" || status === "complete",
@@ -263,7 +266,7 @@ export async function processPaystackWebhook(rawBody: string, event: { event?: s
   }
 
   try {
-    await prisma.billingWebhookEvent.create({ data: { id: eventId, eventType } });
+    await prisma.billingWebhookEvent.create({ data: { id: eventId, eventType, provider: "paystack" } });
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
   }

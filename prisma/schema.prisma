@@ -47,6 +47,7 @@ model UserProfile {
   /// be reset by deleting and recreating sessions.
   freeSessionUsedAt    DateTime?
   paystackCustomerCode String?               @unique
+  paddleCustomerId     String?               @unique
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   sessions             BacktestSession[]
@@ -65,6 +66,7 @@ model BillingPayment {
   productKey            String
   amount                Int
   currency              String
+  provider              String      @default("paystack")
   status                String      @default("initialized")
   channel               String?
   paidAt                DateTime?
@@ -73,6 +75,7 @@ model BillingPayment {
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
+  @@index([provider, status, createdAt])
 }
 
 model BillingSubscription {
@@ -82,6 +85,7 @@ model BillingSubscription {
   subscriptionCode   String      @unique
   planCode           String
   productKey         String
+  provider           String      @default("paystack")
   status             String
   nextPaymentAt      DateTime?
   cancelAtPeriodEnd  Boolean     @default(false)
@@ -89,11 +93,13 @@ model BillingSubscription {
   updatedAt          DateTime    @updatedAt
 
   @@index([userId, status])
+  @@index([provider, status])
 }
 
 model BillingWebhookEvent {
   id          String   @id
   eventType   String
+  provider    String   @default("paystack")
   processedAt DateTime @default(now())
 
   @@index([eventType, processedAt])

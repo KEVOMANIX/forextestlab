@@ -120,6 +120,12 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `DUKASCOPY_DATA_AUTHORIZED` | `false` | Manual, owner-authorised import gate. |
 | `ADMIN_IMPORT_TOKEN` | — | Bearer token for any admin import endpoint. |
 | `DEFAULT_ACCOUNT_BALANCE` / `DEFAULT_SPREAD_PIPS` / `DEFAULT_COMMISSION_PER_LOT` / `DEFAULT_SLIPPAGE_PIPS` | `10000` / `1.0` / `0` / `0` | Simulation defaults. |
+| `PADDLE_MODE` | `sandbox` | Paddle environment: `sandbox` or `live`. |
+| `PADDLE_SANDBOX_API_KEY` / `PADDLE_LIVE_API_KEY` | - | Server-only Paddle API keys. |
+| `PADDLE_SANDBOX_CLIENT_TOKEN` / `PADDLE_LIVE_CLIENT_TOKEN` | - | Paddle.js client tokens selected by `PADDLE_MODE`. |
+| `PADDLE_SANDBOX_WEBHOOK_SECRET` / `PADDLE_LIVE_WEBHOOK_SECRET` | - | Secrets used to verify `/api/paddle/webhook`. |
+| `PADDLE_SANDBOX_MONTHLY_PRICE_ID` / `PADDLE_SANDBOX_ANNUAL_PRICE_ID` | - | Sandbox recurring price IDs. Use the equivalent `PADDLE_LIVE_*` variables in live mode. |
+| `PADDLE_CHECKOUT_PAUSED` | `false` | Emergency switch that prevents new checkouts. |
 
 Never commit real credentials. `.env*` is git-ignored.
 
@@ -138,6 +144,29 @@ Authenticated sessions are private and linked to the Supabase user UUID.
 Anonymous sessions are temporary 24-hour demonstrations, require their opaque
 session token for API access, cannot save notes, and do not appear in history or
 saved results.
+
+### Paddle billing setup
+
+Billing uses Paddle overlay checkout, verified webhooks, and Paddle's hosted
+customer portal. Start in sandbox and keep API keys and webhook secrets
+server-side.
+
+1. Add `PADDLE_SANDBOX_API_KEY` locally and run `npm run paddle:seed`. The
+   command creates the ForexTestLab Pro product with USD 10 monthly and USD 80
+   annual recurring prices and prints the resulting `pri_...` IDs.
+2. Create a sandbox client token and set `PADDLE_SANDBOX_CLIENT_TOKEN`.
+3. Set the two printed price IDs in `PADDLE_SANDBOX_MONTHLY_PRICE_ID` and
+   `PADDLE_SANDBOX_ANNUAL_PRICE_ID`.
+4. In Paddle, create a notification destination for
+   `https://forextestlab.com/api/paddle/webhook`. Subscribe to customer,
+   subscription, and `transaction.completed` events, then store its endpoint
+   secret as `PADDLE_SANDBOX_WEBHOOK_SECRET`.
+5. Apply database migrations with `npx prisma migrate deploy`, deploy, and test
+   a complete sandbox purchase plus cancellation from the customer portal.
+
+For production, add the corresponding `PADDLE_LIVE_*` values, approve the live
+domain in Paddle, set `PADDLE_MODE=live`, and redeploy. Sandbox and live catalog
+IDs are separate.
 
 ## Database setup & migration
 

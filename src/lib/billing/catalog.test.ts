@@ -12,11 +12,11 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("billing catalogue", () => {
   it("keeps prices in provider subunits and formats them for users", () => {
-    vi.stubEnv("PAYSTACK_KES_MONTHLY_PRICE", "120000");
-    expect(getCheckoutProduct("pro_monthly_usd").amount).toBe(120000);
-    expect(formatPlanPrice(120000, "KES")).toContain("1,200");
-    expect(formatPlanPrice(150000, "KES")).toContain("1,500");
-    expect(annualSavingPercent(1200, 9900)).toBe(31);
+    vi.stubEnv("PADDLE_MONTHLY_PRICE_USD", "1000");
+    expect(getCheckoutProduct("pro_monthly_usd").amount).toBe(1000);
+    expect(formatPlanPrice(1000, "USD")).toContain("10");
+    expect(formatPlanPrice(8000, "USD")).toContain("80");
+    expect(annualSavingPercent(1000, 8000)).toBe(33);
   });
 
   it("accepts only known server-side product identifiers", () => {
@@ -25,21 +25,22 @@ describe("billing catalogue", () => {
   });
 
   it("requires a real plan code and respects the emergency pause switch", () => {
-    vi.stubEnv("PAYSTACK_SECRET_KEY", "sk_test_example");
-    vi.stubEnv("PAYSTACK_KES_MONTHLY_PLAN_CODE", "PLN_realexample");
-    vi.stubEnv("PAYSTACK_CHECKOUT_PAUSED", "true");
+    vi.stubEnv("PADDLE_MODE", "sandbox");
+    vi.stubEnv("PADDLE_SANDBOX_CLIENT_TOKEN", "test_example");
+    vi.stubEnv("PADDLE_SANDBOX_MONTHLY_PRICE_ID", "pri_realexample");
+    vi.stubEnv("PADDLE_CHECKOUT_PAUSED", "true");
     expect(checkoutProductReady("pro_monthly_usd")).toBe(false);
-    vi.stubEnv("PAYSTACK_CHECKOUT_PAUSED", "false");
+    vi.stubEnv("PADDLE_CHECKOUT_PAUSED", "false");
     expect(checkoutProductReady("pro_monthly_usd")).toBe(true);
   });
 
-  it("selects isolated test credentials and plans when test mode is enabled", () => {
-    vi.stubEnv("PAYSTACK_MODE", "test");
-    vi.stubEnv("PAYSTACK_SECRET_KEY", "sk_live_liveexample");
-    vi.stubEnv("PAYSTACK_TEST_SECRET_KEY", "sk_test_testexample");
-    vi.stubEnv("PAYSTACK_KES_MONTHLY_PLAN_CODE", "PLN_liveplan");
-    vi.stubEnv("PAYSTACK_TEST_KES_MONTHLY_PLAN_CODE", "PLN_testplan");
-    expect(getCheckoutProduct("pro_monthly_usd").planCode).toBe("PLN_testplan");
+  it("selects isolated sandbox credentials and prices in sandbox mode", () => {
+    vi.stubEnv("PADDLE_MODE", "sandbox");
+    vi.stubEnv("PADDLE_SANDBOX_CLIENT_TOKEN", "test_sandbox-token");
+    vi.stubEnv("PADDLE_LIVE_CLIENT_TOKEN", "live_live-token");
+    vi.stubEnv("PADDLE_SANDBOX_MONTHLY_PRICE_ID", "pri_sandboxplan");
+    vi.stubEnv("PADDLE_LIVE_MONTHLY_PRICE_ID", "pri_liveplan");
+    expect(getCheckoutProduct("pro_monthly_usd").planCode).toBe("pri_sandboxplan");
     expect(checkoutProductReady("pro_monthly_usd")).toBe(true);
   });
 });

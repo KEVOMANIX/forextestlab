@@ -28,7 +28,7 @@ export default function PricingPage() {
       <section className="relative overflow-hidden border-b border-white/10 py-20 sm:py-24">
         <div aria-hidden className="absolute left-1/2 top-0 h-72 w-[52rem] -translate-x-1/2 rounded-full bg-brand-500/10 blur-3xl" />
         <div className="container-page relative text-center">
-          <p className="eyebrow">Simple KES pricing</p>
+          <p className="eyebrow">Simple international pricing</p>
           <h1 className="mx-auto mt-5 max-w-3xl text-balance text-4xl font-bold tracking-tight text-white sm:text-5xl">
             A serious testing workspace without a complicated price structure.
           </h1>
@@ -43,9 +43,9 @@ export default function PricingPage() {
           <PricingCards />
 
           <div className="mt-12 grid gap-4 sm:grid-cols-3">
-            <div className="card p-5"><WalletCards size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Kenya-shilling pricing</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Every paid plan is clearly priced and charged in KES.</p></div>
-            <div className="card p-5"><CreditCard size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Secure checkout</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Payments are processed by Paystack; ForexTestLab does not collect card details.</p></div>
-            <div className="card p-5"><Smartphone size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">M-PESA access pass</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Prefer mobile money? Choose the renewable 30-day Pro pass.</p></div>
+            <div className="card p-5"><WalletCards size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Global checkout</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Paddle presents supported local payment methods and currencies where available.</p></div>
+            <div className="card p-5"><CreditCard size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Secure checkout</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Payments are processed by Paddle; ForexTestLab never collects card details.</p></div>
+            <div className="card p-5"><Smartphone size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Taxes handled</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Paddle acts as merchant of record and calculates applicable transaction taxes.</p></div>
           </div>
         </div>
       </section>

@@ -105,6 +105,23 @@ model BillingWebhookEvent {
   @@index([eventType, processedAt])
 }
 
+/// Holds Paddle ownership data for checkouts completed before an account is
+/// created. The matching email claims the subscription on first sign-in.
+model PaddleCustomerClaim {
+  customerId         String   @id
+  email              String?  @unique
+  subscriptionId     String?  @unique
+  priceId            String?
+  productKey         String?
+  status             String?
+  nextPaymentAt      DateTime?
+  cancelAtPeriodEnd  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([email, status])
+}
+
 model MarketCandle {
   id           String           @id @default(cuid())
   instrument   MarketInstrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)

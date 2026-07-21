@@ -1,6 +1,6 @@
 import "server-only";
 
-import { configuredPaddlePriceId, paddleClientReady } from "./paddle";
+import { configuredPaystackSecretKey, paystackMode } from "./paystack";
 
 export type PaidPlanKey = "pro_monthly_usd" | "pro_annual_usd";
 export type CheckoutProductKey = PaidPlanKey | "pro_pass_30d_kes";
@@ -21,7 +21,7 @@ export interface BillingPlan {
   name: string;
   description: string;
   amount: number;
-  currency: "USD";
+  currency: "USD" | "KES";
   interval: "forever" | "month" | "year";
   features: string[];
   featured?: boolean;
@@ -34,15 +34,15 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 
 /** Public product catalogue. Paddle localizes these base USD prices at checkout. */
 export function getBillingCatalog(): BillingPlan[] {
-  const monthlyAmount = positiveInteger(process.env.PADDLE_MONTHLY_PRICE_USD, 1000);
-  const annualAmount = positiveInteger(process.env.PADDLE_ANNUAL_PRICE_USD, 8000);
+  const monthlyAmount = positiveInteger(process.env.PAYSTACK_KES_MONTHLY_PRICE, 120000);
+  const annualAmount = positiveInteger(process.env.PAYSTACK_KES_ANNUAL_PRICE, 990000);
   return [
     {
       key: "free",
       name: "Free",
       description: "Build a testing habit and learn the replay workflow.",
       amount: 0,
-      currency: "USD",
+      currency: "KES",
       interval: "forever",
       features: [
         "One saved backtest session",
@@ -56,7 +56,7 @@ export function getBillingCatalog(): BillingPlan[] {
       name: "Pro Monthly",
       description: "Full access with the flexibility of monthly billing.",
       amount: monthlyAmount,
-      currency: "USD",
+      currency: "KES",
       interval: "month",
       featured: true,
       features: [
@@ -72,7 +72,7 @@ export function getBillingCatalog(): BillingPlan[] {
       name: "Pro Annual",
       description: "The complete workspace at the best effective price.",
       amount: annualAmount,
-      currency: "USD",
+      currency: "KES",
       interval: "year",
       features: [
         "Everything in Pro Monthly",
@@ -99,7 +99,8 @@ export function annualSavingPercent(monthlyAmount: number, annualAmount: number)
 }
 
 function configuredPlanCode(interval: "month" | "year"): string | undefined {
-  return configuredPaddlePriceId(interval);
+  const scope = paystackMode() === "test" ? "PAYSTACK_TEST_KES" : "PAYSTACK_KES";
+  return process.env[`${scope}_${interval === "month" ? "MONTHLY" : "ANNUAL"}_PLAN_CODE`]?.trim();
 }
 
 export function isCheckoutProductKey(value: unknown): value is CheckoutProductKey {
@@ -130,13 +131,13 @@ export function getCheckoutProduct(key: CheckoutProductKey): CheckoutProduct {
     currency: plan.currency,
     accessDays: key === "pro_monthly_usd" ? 35 : 370,
     recurring: true,
-    planCode: planCode && planCode.startsWith("pri_") && !planCode.includes("REPLACE") ? planCode : null,
+    planCode: planCode && planCode.startsWith("PLN_") && !planCode.includes("REPLACE") ? planCode : null,
     channels: ["card"],
   };
 }
 
 export function checkoutProductReady(key: CheckoutProductKey): boolean {
-  if (process.env.PADDLE_CHECKOUT_PAUSED === "true" || key === "pro_pass_30d_kes") return false;
+  if (process.env.PAYSTACK_CHECKOUT_PAUSED === "true") return false;
   const product = getCheckoutProduct(key);
-  return paddleClientReady() && Boolean(product.planCode?.startsWith("pri_"));
+  return Boolean(configuredPaystackSecretKey()) && (!product.recurring || Boolean(product.planCode?.startsWith("PLN_")));
 }

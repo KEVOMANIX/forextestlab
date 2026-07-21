@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
 import { prisma } from "@/lib/db";
+import { claimPaddleSubscriptionForUser } from "@/lib/billing/paddle-service";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export async function requireUser(nextPath = "/app"): Promise<User> {
@@ -30,4 +31,5 @@ export async function ensureUserProfile(user: User): Promise<void> {
     update: { email, displayName },
     create: { id: user.id, email, displayName },
   });
+  await claimPaddleSubscriptionForUser(user.id, email);
 }

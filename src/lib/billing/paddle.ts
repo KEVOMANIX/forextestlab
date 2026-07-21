@@ -5,7 +5,25 @@ import { Environment, LogLevel, Paddle } from "@paddle/paddle-node-sdk";
 export type PaddleMode = "sandbox" | "live";
 
 export function paddleMode(): PaddleMode {
-  return process.env.PADDLE_MODE?.trim().toLowerCase() === "live" ? "live" : "sandbox";
+  const value = process.env.PADDLE_MODE?.trim().toLowerCase();
+  if (value !== "sandbox" && value !== "live") {
+    throw new Error("PADDLE_MODE must be explicitly set to sandbox or live.");
+  }
+  return value;
+}
+
+export type PaddleBrowserEnvironment = "sandbox" | "production";
+
+export function paddleBrowserEnvironment(): PaddleBrowserEnvironment {
+  const value = process.env.NEXT_PUBLIC_PADDLE_ENV?.trim().toLowerCase();
+  if (value !== "sandbox" && value !== "production") {
+    throw new Error("NEXT_PUBLIC_PADDLE_ENV must be explicitly set to sandbox or production.");
+  }
+  const expected = paddleMode() === "sandbox" ? "sandbox" : "production";
+  if (value !== expected) {
+    throw new Error(`Paddle environment mismatch: PADDLE_MODE requires NEXT_PUBLIC_PADDLE_ENV=${expected}.`);
+  }
+  return value;
 }
 
 export function configuredPaddleApiKey(): string | undefined {
@@ -22,11 +40,6 @@ export function configuredPaddleWebhookSecret(): string | undefined {
   )?.trim() || process.env.PADDLE_NOTIFICATION_WEBHOOK_SECRET?.trim();
 }
 
-export function configuredPaddlePriceId(interval: "month" | "year"): string | undefined {
-  const prefix = paddleMode() === "live" ? "PADDLE_LIVE" : "PADDLE_SANDBOX";
-  return process.env[`${prefix}_${interval === "month" ? "MONTHLY" : "ANNUAL"}_PRICE_ID`]?.trim();
-}
-
 export function configuredPaddleClientToken(): string | undefined {
   return (paddleMode() === "live"
     ? process.env.PADDLE_LIVE_CLIENT_TOKEN
@@ -36,12 +49,21 @@ export function configuredPaddleClientToken(): string | undefined {
 
 export function paddleClientReady(): boolean {
   const token = configuredPaddleClientToken();
-  const environment = process.env.NEXT_PUBLIC_PADDLE_ENV?.trim() || (paddleMode() === "live" ? "production" : "sandbox");
+  const environment = paddleBrowserEnvironment();
   return Boolean(
     token &&
       (token.startsWith("test_") || token.startsWith("live_")) &&
       environment === (paddleMode() === "live" ? "production" : "sandbox"),
   );
+}
+
+export function requiredPaddleClientToken(): string {
+  const token = configuredPaddleClientToken();
+  const expectedPrefix = paddleMode() === "sandbox" ? "test_" : "live_";
+  if (!token || !token.startsWith(expectedPrefix)) {
+    throw new Error(`The configured Paddle client token must begin with ${expectedPrefix}.`);
+  }
+  return token;
 }
 
 let instance: Paddle | null = null;

@@ -4,8 +4,7 @@ import type { EventEntity } from "@paddle/paddle-node-sdk";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
-import { configuredPaddlePriceId } from "./paddle";
-import type { PaidPlanKey } from "./catalog";
+import { paddleProductKeyFromPriceId } from "./tiers";
 
 type PaddleData = Record<string, unknown>;
 
@@ -15,13 +14,6 @@ function stringValue(value: unknown): string | null {
 
 function objectValue(value: unknown): PaddleData {
   return value && typeof value === "object" ? value as PaddleData : {};
-}
-
-function productKeyFromPriceId(priceId: string | null): PaidPlanKey | null {
-  if (!priceId) return null;
-  if (priceId === configuredPaddlePriceId("month")) return "pro_monthly_usd";
-  if (priceId === configuredPaddlePriceId("year")) return "pro_annual_usd";
-  return null;
 }
 
 function addDays(date: Date, days: number): Date {
@@ -62,6 +54,11 @@ async function syncCustomer(data: PaddleData): Promise<void> {
   const id = stringValue(data.id);
   const email = stringValue(data.email)?.trim().toLowerCase();
   if (!id || !email) return;
+  await prisma.paddleCustomerClaim.upsert({
+    where: { customerId: id },
+    create: { customerId: id, email },
+    update: { email },
+  });
   await prisma.userProfile.updateMany({ where: { email }, data: { paddleCustomerId: id } });
 }
 
@@ -69,10 +66,8 @@ async function syncSubscription(data: PaddleData): Promise<void> {
   const subscriptionId = stringValue(data.id);
   const customerId = stringValue(data.customerId ?? data.customer_id);
   const priceId = firstPriceId(data);
-  const productKey = productKeyFromPriceId(priceId);
+  const productKey = paddleProductKeyFromPriceId(priceId);
   const user = await resolveUser(data);
-  if (!subscriptionId || !customerId || !priceId || !productKey || !user) return;
-
   const rawStatus = stringValue(data.status) ?? "active";
   const nextBilled = stringValue(data.nextBilledAt ?? data.next_billed_at);
   const period = objectValue(data.currentBillingPeriod ?? data.current_billing_period);
@@ -86,6 +81,15 @@ async function syncSubscription(data: PaddleData): Promise<void> {
       ? "active"
       : "inactive";
 
+  if (subscriptionId && customerId) {
+    await prisma.paddleCustomerClaim.upsert({
+      where: { customerId },
+      create: { customerId, subscriptionId, priceId, productKey, status: rawStatus, nextPaymentAt, cancelAtPeriodEnd },
+      update: { subscriptionId, priceId, productKey, status: rawStatus, nextPaymentAt, cancelAtPeriodEnd },
+    });
+  }
+
+  if (!subscriptionId || !customerId || !priceId || !productKey || !user) return;
   await prisma.$transaction([
     prisma.billingSubscription.upsert({
       where: { subscriptionCode: subscriptionId },
@@ -113,11 +117,57 @@ async function syncSubscription(data: PaddleData): Promise<void> {
   ]);
 }
 
+export async function claimPaddleSubscriptionForUser(userId: string, email: string): Promise<void> {
+  const claim = await prisma.paddleCustomerClaim.findUnique({ where: { email: email.trim().toLowerCase() } });
+  if (!claim) return;
+  const billingStatus = claim.status === "past_due"
+    ? "attention"
+    : claim.status && ["active", "trialing"].includes(claim.status)
+      ? "active"
+      : "inactive";
+  const operations: Prisma.PrismaPromise<unknown>[] = [
+    prisma.userProfile.update({
+      where: { id: userId },
+      data: {
+        paddleCustomerId: claim.customerId,
+        billingPlan: claim.productKey ?? undefined,
+        billingStatus,
+        proAccessUntil: billingStatus === "inactive" ? undefined : claim.nextPaymentAt ? addDays(claim.nextPaymentAt, 5) : undefined,
+      },
+    }),
+  ];
+  if (claim.subscriptionId && claim.priceId && claim.productKey && claim.status) {
+    operations.push(prisma.billingSubscription.upsert({
+      where: { subscriptionCode: claim.subscriptionId },
+      create: {
+        userId,
+        subscriptionCode: claim.subscriptionId,
+        planCode: claim.priceId,
+        productKey: claim.productKey,
+        provider: "paddle",
+        status: claim.status,
+        nextPaymentAt: claim.nextPaymentAt,
+        cancelAtPeriodEnd: claim.cancelAtPeriodEnd,
+      },
+      update: {
+        userId,
+        planCode: claim.priceId,
+        productKey: claim.productKey,
+        provider: "paddle",
+        status: claim.status,
+        nextPaymentAt: claim.nextPaymentAt,
+        cancelAtPeriodEnd: claim.cancelAtPeriodEnd,
+      },
+    }));
+  }
+  await prisma.$transaction(operations);
+}
+
 async function syncTransaction(data: PaddleData): Promise<void> {
   const transactionId = stringValue(data.id);
   const customerId = stringValue(data.customerId ?? data.customer_id);
   const priceId = firstPriceId(data);
-  const productKey = productKeyFromPriceId(priceId);
+  const productKey = paddleProductKeyFromPriceId(priceId);
   const user = await resolveUser(data);
   if (!transactionId || !productKey || !user) return;
   const details = objectValue(data.details);

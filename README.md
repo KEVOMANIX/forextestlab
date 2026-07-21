@@ -124,8 +124,8 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `PADDLE_SANDBOX_API_KEY` / `PADDLE_LIVE_API_KEY` | - | Server-only Paddle API keys. |
 | `PADDLE_SANDBOX_CLIENT_TOKEN` / `PADDLE_LIVE_CLIENT_TOKEN` | - | Paddle.js client tokens selected by `PADDLE_MODE`. |
 | `PADDLE_SANDBOX_WEBHOOK_SECRET` / `PADDLE_LIVE_WEBHOOK_SECRET` | - | Secrets used to verify `/api/paddle/webhook`. |
-| `PADDLE_SANDBOX_MONTHLY_PRICE_ID` / `PADDLE_SANDBOX_ANNUAL_PRICE_ID` | - | Sandbox recurring price IDs. Use the equivalent `PADDLE_LIVE_*` variables in live mode. |
-| `PADDLE_CHECKOUT_PAUSED` | `false` | Emergency switch that prevents new checkouts. |
+| `PADDLE_SANDBOX_<TIER>_<INTERVAL>_PRICE_ID` | - | Six sandbox recurring IDs for `STARTER`, `PRO`, and `ADVANCED`, each with `MONTH` and `YEAR`. Use the equivalent `PADDLE_LIVE_*` variables in live mode. |
+| `PADDLE_<TIER>_<INTERVAL>_PRICE_USD_CENTS` | - | Six USD catalog amounts consumed only by `npm run paddle:seed`. |
 
 Never commit real credentials. `.env*` is git-ignored.
 
@@ -151,18 +151,24 @@ Billing uses Paddle overlay checkout, verified webhooks, and Paddle's hosted
 customer portal. Start in sandbox and keep API keys and webhook secrets
 server-side.
 
-1. Add `PADDLE_SANDBOX_API_KEY` locally and run `npm run paddle:seed`. The
-   command creates the ForexTestLab Pro product with USD 10 monthly and USD 80
-   annual recurring prices and prints the resulting `pri_...` IDs.
-2. Create a sandbox client token and set `PADDLE_SANDBOX_CLIENT_TOKEN`.
-3. Set the two printed price IDs in `PADDLE_SANDBOX_MONTHLY_PRICE_ID` and
-   `PADDLE_SANDBOX_ANNUAL_PRICE_ID`.
-4. In Paddle, create a notification destination for
+1. Set all six `PADDLE_<TIER>_<INTERVAL>_PRICE_USD_CENTS` values, add
+   `PADDLE_SANDBOX_API_KEY` locally, and run `npm run paddle:seed`. The command
+   creates Starter, Pro, and Advanced SaaS products with monthly and yearly
+   recurring prices, then prints all six `pri_...` IDs.
+2. Create a sandbox client token beginning with `test_` and set
+   `PADDLE_SANDBOX_CLIENT_TOKEN`.
+3. Store the printed IDs in the matching
+   `PADDLE_SANDBOX_<TIER>_<INTERVAL>_PRICE_ID` variables.
+4. In **Paddle > Checkout > Checkout settings**, set the default payment link
+   to the sandbox checkout page. Localhost is valid in sandbox. A production
+   default payment link must use the real, approved domain.
+5. In Paddle, create a notification destination for
    `https://forextestlab.com/api/paddle/webhook`. Subscribe to customer,
    subscription, and `transaction.completed` events, then store its endpoint
    secret as `PADDLE_SANDBOX_WEBHOOK_SECRET`.
-5. Apply database migrations with `npx prisma migrate deploy`, deploy, and test
-   a complete sandbox purchase plus cancellation from the customer portal.
+6. Deploy and test each tier with Paddle's sandbox card. Successful checkout
+   redirects to `/welcome`; subscription provisioning still comes from the
+   verified webhook.
 
 For production, add the corresponding `PADDLE_LIVE_*` values, approve the live
 domain in Paddle, set `PADDLE_MODE=live`, and redeploy. Sandbox and live catalog

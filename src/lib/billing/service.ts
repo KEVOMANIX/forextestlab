@@ -111,7 +111,6 @@ export async function recordSuccessfulTransaction(transaction: PaystackTransacti
     if (!productKey || !user) {
       return { status: "failed", reference, message: "This payment could not be matched to an account." };
     }
-    const product = getCheckoutProduct(productKey);
     payment = await prisma.billingPayment.create({
       data: {
         userId: user.id,

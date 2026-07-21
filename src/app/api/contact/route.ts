@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getStorageProvider } from "@/lib/storage";
+import { sendContactEmail } from "@/lib/contact-email";
 import type { ApiResult } from "@/lib/types";
 import { validateContact } from "@/lib/validation";
 
@@ -31,9 +31,9 @@ export async function POST(request: Request): Promise<NextResponse<ApiResult>> {
   }
 
   try {
-    await getStorageProvider().saveContact(result.data);
+    await sendContactEmail(result.data);
   } catch (error) {
-    console.error("Failed to save contact submission:", error);
+    console.error("Failed to deliver contact submission:", error);
     return NextResponse.json(
       {
         ok: false,

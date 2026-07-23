@@ -82,16 +82,18 @@ export function Hero() {
 
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">
         <div className="mx-auto max-w-[1240px]">
-          <p className="eyebrow animate-fade-up">
-            <Sparkles size={13} aria-hidden />
-            A workspace for deliberate strategy testing
-          </p>
-          <h1 className="mt-6 max-w-6xl text-balance text-5xl font-bold leading-[0.98] tracking-[-0.05em] text-white animate-fade-up sm:text-6xl lg:text-[5rem]">
-            Build a trading process you can{" "}
-            <span className="bg-gradient-to-r from-brand-200 via-brand-300 to-accent-400 bg-clip-text text-transparent">
-              actually measure.
-            </span>
-          </h1>
+          <div className="text-center">
+            <p className="eyebrow animate-fade-up">
+              <Sparkles size={13} aria-hidden />
+              A workspace for deliberate strategy testing
+            </p>
+            <h1 className="mx-auto mt-6 max-w-6xl text-balance text-5xl font-bold leading-[0.98] tracking-[-0.05em] text-white animate-fade-up sm:text-6xl lg:text-[5rem]">
+              Build a trading process you can{" "}
+              <span className="bg-gradient-to-r from-brand-200 via-brand-300 to-accent-400 bg-clip-text text-transparent">
+                actually measure.
+              </span>
+            </h1>
+          </div>
 
           <div className="mt-8 grid gap-7 border-t border-white/[0.08] pt-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div>

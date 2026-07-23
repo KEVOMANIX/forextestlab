@@ -100,3 +100,15 @@ export async function sendContactEmail(
     `,
   });
 }
+
+export async function sendContactReceipt(submission: ContactSubmission): Promise<void> {
+  const config = getSmtpConfig();
+  const transporter = nodemailer.createTransport({ host: config.host, port: config.port, secure: config.secure, auth: { user: config.username, pass: config.password }, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000 });
+  const safeName = escapeHtml(submission.name);
+  await transporter.sendMail({
+    from: `ForexTestLab Support <${config.from}>`, to: submission.email, replyTo: config.to,
+    subject: "We received your ForexTestLab support request",
+    text: [`Hi ${submission.name},`, "", "We received your support request and our team is reviewing it.", "We will reply to this email as soon as possible.", "", "ForexTestLab Support"].join("\n"),
+    html: `<p>Hi ${safeName},</p><p>We received your support request and our team is reviewing it.</p><p>We will reply to this email as soon as possible.</p><p>ForexTestLab Support</p>`,
+  });
+}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db";
+import { sendContactEmail, sendContactReceipt } from "@/lib/contact-email";
 
 export const runtime = "nodejs";
 
@@ -34,10 +35,22 @@ export async function POST(request: Request) {
 
   if (action === "start") {
     if (!message) return NextResponse.json({ ok: false, message: "Please enter a message." }, { status: 422 });
+    const customerName = clean(input.name, 120) || "Customer";
+    const customerEmail = clean(input.email, 180) || user?.email || "";
+    if (!customerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) return NextResponse.json({ ok: false, message: "A valid email address is required so support can reply." }, { status: 422 });
     const conversation = await prisma.supportConversation.create({
-      data: { userId, visitorId: visitorId || null, customerName: clean(input.name, 120) || null, customerEmail: clean(input.email, 180) || user?.email || null, status: "open", messages: { create: { senderType: "customer", senderName: clean(input.name, 120) || "Customer", body: message } } },
+      data: { userId, visitorId: visitorId || null, customerName, customerEmail, status: "open", messages: { create: { senderType: "customer", senderName: customerName, body: message } } },
       include: { messages: true },
     });
+    const submission = { name: customerName, email: customerEmail, subject: "Live support chat request", message, consent: true as const };
+    try {
+      await sendContactEmail(submission);
+      await sendContactReceipt(submission);
+      await prisma.contactMessage.create({ data: { ...submission, deliveryStatus: "delivered" } });
+    } catch (error) {
+      console.error("Failed to deliver live support request:", error);
+      await prisma.contactMessage.create({ data: { ...submission, deliveryStatus: "failed" } }).catch(() => undefined);
+    }
     return NextResponse.json({ ok: true, conversation }, { status: 201 });
   }
 

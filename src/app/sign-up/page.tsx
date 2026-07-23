@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AuthForm } from "@/components/auth/AuthForm";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 export const metadata: Metadata = { title: "Create account", robots: { index: false } };
 
@@ -10,8 +11,8 @@ export default function SignUpPage({
   searchParams: { next?: string };
 }) {
   return (
-    <main id="main" className="grid min-h-screen place-items-center px-4 py-12">
+    <AuthShell>
       <AuthForm mode="sign-up" nextPath={searchParams.next} />
-    </main>
+    </AuthShell>
   );
 }

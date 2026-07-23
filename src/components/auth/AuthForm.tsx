@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -32,6 +33,7 @@ export function AuthForm({
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError ?? null);
 
@@ -127,10 +129,22 @@ export function AuthForm({
   }
 
   return (
-    <div className="mx-auto w-full max-w-md">
-      <form onSubmit={submit} className="panel p-6 sm:p-8">
-        <h1 className="text-2xl font-bold tracking-tight">{COPY[mode].title}</h1>
-        <p className="mt-2 text-sm app-muted">
+    <div className="w-full">
+      <form
+        onSubmit={submit}
+        className="panel overflow-hidden p-7 shadow-[0_30px_90px_-45px_rgba(0,0,0,0.95)] sm:p-9 lg:p-10"
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
+          {mode === "sign-up"
+            ? "Create your workspace"
+            : mode === "sign-in"
+              ? "Welcome back"
+              : "Account recovery"}
+        </p>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+          {COPY[mode].title}
+        </h1>
+        <p className="mt-3 max-w-md text-sm leading-6 app-muted">
           {mode === "sign-up"
             ? "Start with three one-month trial sessions on this device."
             : mode === "sign-in"
@@ -145,7 +159,7 @@ export function AuthForm({
             <button
               type="button"
               onClick={continueWithGoogle}
-              className="mt-6 inline-flex h-11 w-full items-center justify-center gap-3 rounded-lg border app-border bg-white text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-3 rounded-xl border app-border bg-white px-4 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={busy}
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
@@ -156,7 +170,7 @@ export function AuthForm({
               </svg>
               {busy ? "Connecting…" : "Continue with Google"}
             </button>
-            <div className="my-5 flex items-center gap-3" aria-hidden>
+            <div className="my-6 flex items-center gap-3" aria-hidden>
               <span className="h-px flex-1 bg-[var(--app-border)]" />
               <span className="text-xs font-medium uppercase tracking-wider app-muted">or use email</span>
               <span className="h-px flex-1 bg-[var(--app-border)]" />
@@ -164,12 +178,12 @@ export function AuthForm({
           </>
         )}
 
-        <div className={supportsGoogle ? "space-y-4" : "mt-6 space-y-4"}>
+        <div className={supportsGoogle ? "space-y-5" : "mt-7 space-y-5"}>
           {mode === "sign-up" && (
             <label className="block">
-              <span className="mb-1 block text-sm font-medium">Display name</span>
+              <span className="mb-2 block text-sm font-medium">Display name</span>
               <input
-                className="app-input w-full"
+                className="app-input h-12 w-full px-4"
                 autoComplete="name"
                 maxLength={120}
                 value={displayName}
@@ -179,9 +193,9 @@ export function AuthForm({
           )}
 
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Email</span>
+            <span className="mb-2 block text-sm font-medium">Email address</span>
             <input
-              className="app-input w-full"
+              className="app-input h-12 w-full px-4"
               type="email"
               autoComplete="email"
               required
@@ -191,24 +205,43 @@ export function AuthForm({
           </label>
 
           {needsPassword && (
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">
+            <div className="block">
+              <label
+                htmlFor="auth-password"
+                className="mb-2 block text-sm font-medium"
+              >
                 Password
+              </label>
+              <span className="relative block">
+                <input
+                  id="auth-password"
+                  className="app-input h-12 w-full px-4 pr-12"
+                  type={showPassword ? "text" : "password"}
+                  minLength={8}
+                  autoComplete={
+                    mode === "sign-up"
+                      ? "new-password"
+                      : "current-password"
+                  }
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  className="absolute inset-y-0 right-0 inline-flex w-12 items-center justify-center app-muted transition-colors hover:text-[var(--app-text)]"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  title={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Eye className="h-4 w-4" aria-hidden />
+                  )}
+                </button>
               </span>
-              <input
-                className="app-input w-full"
-                type="password"
-                minLength={8}
-                autoComplete={
-                  mode === "sign-up"
-                    ? "new-password"
-                    : "current-password"
-                }
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
+            </div>
           )}
         </div>
 
@@ -223,11 +256,15 @@ export function AuthForm({
           </p>
         )}
 
-        <button type="submit" className="btn-primary mt-6 w-full" disabled={busy}>
+        <button
+          type="submit"
+          className="btn-primary mt-7 min-h-12 w-full rounded-xl"
+          disabled={busy}
+        >
           {busy ? "Please wait…" : COPY[mode].submit}
         </button>
 
-        <div className="mt-5 flex flex-wrap justify-between gap-2 text-sm">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
           {mode === "sign-in" && (
             <>
               <Link href="/forgot-password" className="text-brand-300 hover:underline">
@@ -249,6 +286,13 @@ export function AuthForm({
             </Link>
           )}
         </div>
+
+        {needsPassword && (
+          <p className="mt-7 flex items-center justify-center gap-2 border-t app-border pt-5 text-xs app-muted">
+            <LockKeyhole className="h-3.5 w-3.5 text-brand-300" aria-hidden />
+            Your credentials are encrypted in transit.
+          </p>
+        )}
       </form>
     </div>
   );

@@ -144,12 +144,12 @@ export function LocalizedPricing({
       </div>
 
       {interval === "month" && (
-        <div className="mx-auto mt-3 flex w-fit flex-wrap items-center justify-center gap-2 rounded-xl border border-brand-300/15 bg-brand-300/[0.06] px-3 py-2 text-center text-xs text-slate-300">
-          <Sparkles size={13} className="text-brand-300" aria-hidden />
+        <div className="mx-auto mt-3 flex w-fit flex-wrap items-center justify-center gap-2 rounded-xl border border-brand-100/45 bg-gradient-to-r from-brand-300 via-cyan-300 to-accent-300 px-3 py-2 text-center text-xs font-semibold text-surface-950 shadow-[0_12px_30px_-18px_rgba(45,212,191,.95)]">
+          <Sparkles size={13} aria-hidden />
           <span>
             Launch offer: 20% off your first month. Apply in checkout.
           </span>
-          <CopyWelcomeCode compact />
+          <CopyWelcomeCode compact bright />
         </div>
       )}
 

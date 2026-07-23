@@ -43,7 +43,7 @@ export function AuthForm({
   function safeNextPath(): string {
     return nextPath?.startsWith("/") && !nextPath.startsWith("//")
       ? nextPath
-      : "/app";
+      : "/account/continue";
   }
 
   function callbackUrl(next: string): string {

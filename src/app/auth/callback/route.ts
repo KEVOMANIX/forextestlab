@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const next =
     requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
       ? requestedNext
-      : "/app";
+      : "/account/continue";
   const supabase = createServerSupabaseClient();
 
   if (code && supabase) {

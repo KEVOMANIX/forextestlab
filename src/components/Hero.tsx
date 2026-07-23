@@ -5,6 +5,7 @@ import {
   BarChart3,
   Check,
   Clock3,
+  LogIn,
   Play,
   ShieldCheck,
   Sparkles,
@@ -135,6 +136,16 @@ export function Hero() {
             </div>
               <p className="mt-3 text-center text-xs text-slate-500 lg:text-right">
                 Three one-month trial sessions · No payment required
+              </p>
+              <p className="mt-2 text-center text-xs text-slate-400 lg:text-right">
+                Already have an account?{" "}
+                <Link
+                  href="/sign-in?next=%2Faccount%2Fcontinue"
+                  className="inline-flex items-center gap-1 font-semibold text-brand-300 transition-colors hover:text-brand-200"
+                >
+                  <LogIn size={12} aria-hidden />
+                  Sign in to your workspace
+                </Link>
               </p>
             </div>
           </div>

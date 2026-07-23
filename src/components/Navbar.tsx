@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, Menu, UserPlus, X } from "lucide-react";
+import { LogIn, Menu, UserPlus, X } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
 import { mainNav, TRIAL_SIGN_UP_PATH } from "@/lib/site";
@@ -56,14 +56,11 @@ export function Navbar() {
 
         <div className="hidden items-center gap-2 lg:flex">
           <Link
-            href="/sign-in"
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-300 transition-colors hover:text-white"
+            href="/sign-in?next=%2Faccount%2Fcontinue"
+            className="btn-secondary py-2.5"
           >
+            <LogIn size={16} aria-hidden />
             Sign in
-          </Link>
-          <Link href="/app" className="btn-secondary py-2.5">
-            Launch app
-            <ArrowUpRight size={15} aria-hidden />
           </Link>
           <Link href={TRIAL_SIGN_UP_PATH} className="btn-primary py-2.5 shadow-glow">
             <UserPlus size={16} aria-hidden />
@@ -101,12 +98,12 @@ export function Navbar() {
             </Link>
           ))}
           <Link
-            href="/app"
+            href="/sign-in?next=%2Faccount%2Fcontinue"
             onClick={() => setOpen(false)}
             className="btn-secondary mt-2 w-full"
           >
-            Launch app
-            <ArrowUpRight size={16} aria-hidden />
+            <LogIn size={16} aria-hidden />
+            Sign in
           </Link>
           <Link
             href={TRIAL_SIGN_UP_PATH}
@@ -115,13 +112,6 @@ export function Navbar() {
           >
             <UserPlus size={16} aria-hidden />
             Start free trial
-          </Link>
-          <Link
-            href="/sign-in"
-            onClick={() => setOpen(false)}
-            className="rounded-lg px-3 py-3 text-center text-sm font-semibold text-slate-300"
-          >
-            Already have an account? Sign in
           </Link>
         </div>
       </div>

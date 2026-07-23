@@ -26,7 +26,7 @@ export default async function BillingPage() {
   const active = ["active", "attention", "non-renewing"].includes(profile.billingStatus) || Boolean(profile.proAccessUntil && profile.proAccessUntil > new Date());
 
   return (
-    <main id="main" className="app-shell min-h-screen px-4 py-10 sm:py-12">
+    <main id="main" className="min-h-[calc(100vh-3.5rem)] px-4 py-10 sm:py-12">
       <div className="mx-auto max-w-3xl">
         <BackLink label="Back to account" fallback="/account" />
         <div className="mt-5"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Account billing</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Plan and subscription</h1><p className="mt-2 text-sm app-muted">Signed in as {user.email}</p></div>

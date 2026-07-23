@@ -10,10 +10,12 @@ export const metadata: Metadata = { title: "Update password", robots: { index: f
 export default async function UpdatePasswordPage() {
   await requireUser("/account/update-password");
   return (
-    <main id="main" className="mx-auto min-h-screen max-w-2xl px-4 py-12">
-      <BackLink fallback="/account" label="Back to account" />
-      <div className="mt-6">
-        <AuthForm mode="update-password" />
+    <main id="main" className="min-h-[calc(100vh-3.5rem)] px-4 py-10 sm:py-12">
+      <div className="mx-auto max-w-2xl">
+        <BackLink fallback="/account" label="Back to account" />
+        <div className="mt-6">
+          <AuthForm mode="update-password" />
+        </div>
       </div>
     </main>
   );

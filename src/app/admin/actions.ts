@@ -76,3 +76,25 @@ export async function updateEnquiryStatus(formData: FormData) {
   revalidatePath("/admin/enquiries");
 }
 
+export async function replyToSupportConversation(formData: FormData) {
+  const actor = await requireAdmin("/admin/enquiries");
+  const conversationId = String(formData.get("conversationId") ?? "");
+  const body = String(formData.get("body") ?? "").trim().slice(0, 2000);
+  if (!conversationId || !body) return;
+  const agentName = actor.user_metadata?.display_name || actor.user_metadata?.full_name || "ForexTestLab Support";
+  await prisma.$transaction([
+    prisma.supportMessage.create({ data: { conversationId, senderType: "agent", senderName: String(agentName).slice(0, 120), body } }),
+    prisma.supportConversation.update({ where: { id: conversationId }, data: { status: "active", assignedAgentName: String(agentName).slice(0, 120) } }),
+  ]);
+  await audit("support.reply_sent", "support_conversation", conversationId);
+  revalidatePath("/admin/enquiries");
+}
+
+export async function resolveSupportConversation(formData: FormData) {
+  await requireAdmin("/admin/enquiries");
+  const conversationId = String(formData.get("conversationId") ?? "");
+  if (!conversationId) return;
+  await prisma.supportConversation.update({ where: { id: conversationId }, data: { status: "resolved" } });
+  await audit("support.conversation_resolved", "support_conversation", conversationId);
+  revalidatePath("/admin/enquiries");
+}

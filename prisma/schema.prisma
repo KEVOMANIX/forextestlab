@@ -73,6 +73,35 @@ model ContactMessage {
   @@index([email, createdAt])
 }
 
+model SupportConversation {
+  id               String            @id @default(cuid())
+  userId           String?
+  visitorId        String?
+  customerName     String?
+  customerEmail    String?
+  status           String            @default("open")
+  assignedAgentName String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  messages         SupportMessage[]
+
+  @@index([status, updatedAt])
+  @@index([visitorId, updatedAt])
+  @@index([userId, updatedAt])
+}
+
+model SupportMessage {
+  id           String             @id @default(cuid())
+  conversation SupportConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  senderType   String
+  senderName   String
+  body         String
+  createdAt    DateTime           @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
 /// Immutable record of privileged actions performed through the admin console.
 model AdminAuditEvent {
   id           String   @id @default(cuid())

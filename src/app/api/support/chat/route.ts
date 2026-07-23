@@ -16,6 +16,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const id = clean(url.searchParams.get("conversationId"), 80);
   const visitorId = clean(url.searchParams.get("visitorId"), 120);
+  if (!id && visitorId && url.searchParams.get("list") === "1") {
+    const conversations = await prisma.supportConversation.findMany({
+      where: { visitorId }, orderBy: { updatedAt: "desc" }, take: 20,
+      select: { id: true, status: true, customerEmail: true, assignedAgentName: true, updatedAt: true, messages: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true } } },
+    });
+    return NextResponse.json({ ok: true, conversations });
+  }
   if (!id) return NextResponse.json({ ok: true, conversation: null });
   const conversation = await conversationFor(id, visitorId);
   return NextResponse.json({ ok: true, conversation });

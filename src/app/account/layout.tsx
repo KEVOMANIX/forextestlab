@@ -9,10 +9,15 @@ export default async function AccountLayout({
   children: React.ReactNode;
 }) {
   const user = await getCurrentUser();
+  const displayName = [
+    user?.user_metadata?.display_name,
+    user?.user_metadata?.full_name,
+    user?.user_metadata?.name,
+  ].find((value): value is string => typeof value === "string" && Boolean(value.trim()))?.trim() ?? null;
 
   return (
     <AppThemeProvider>
-      <AppNav email={user?.email ?? null} />
+      <AppNav signedIn={Boolean(user)} displayName={displayName} />
       {children}
       <AppFooter />
     </AppThemeProvider>

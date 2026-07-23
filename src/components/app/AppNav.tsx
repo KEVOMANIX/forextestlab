@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LogIn, Moon, Sun, UserRound } from "lucide-react";
+import { LogIn, Moon, Sun } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
 import { useAppTheme } from "./ThemeContext";
@@ -13,7 +13,23 @@ const LINKS = [
   { label: "Pricing", href: "/pricing" },
 ];
 
-export function AppNav({ email }: { email: string | null }) {
+function initials(displayName: string | null): string {
+  if (!displayName) return "FT";
+  return displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "FT";
+}
+
+export function AppNav({
+  signedIn,
+  displayName,
+}: {
+  signedIn: boolean;
+  displayName: string | null;
+}) {
   const { theme, toggle } = useAppTheme();
   return (
     <header className="sticky top-0 z-40 border-b app-border bg-[var(--app-bg)]/85 backdrop-blur">
@@ -37,11 +53,26 @@ export function AppNav({ email }: { email: string | null }) {
 
         <div className="flex items-center gap-2">
           <Link
-            href={email ? "/account" : "/sign-in"}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs app-muted hover:text-brand-300"
+            href={signedIn ? "/account" : "/sign-in"}
+            aria-label={signedIn ? "Open profile" : "Sign in"}
+            title={signedIn ? "Profile" : "Sign in"}
+            className={
+              signedIn
+                ? "group relative grid h-9 w-9 place-items-center rounded-full border border-brand-400/25 bg-gradient-to-br from-brand-400/20 to-brand-500/[0.04] text-[11px] font-bold text-brand-200 shadow-sm transition-all hover:border-brand-400/60 hover:shadow-glow"
+                : "inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs app-muted hover:text-brand-300"
+            }
           >
-            {email ? <UserRound size={15} aria-hidden /> : <LogIn size={15} aria-hidden />}
-            <span className="hidden sm:inline">{email ?? "Sign in"}</span>
+            {signedIn ? (
+              <>
+                <span aria-hidden>{initials(displayName)}</span>
+                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--app-bg)] bg-brand-400" aria-hidden />
+              </>
+            ) : (
+              <>
+                <LogIn size={15} aria-hidden />
+                <span className="hidden sm:inline">Sign in</span>
+              </>
+            )}
           </Link>
           <button
             type="button"

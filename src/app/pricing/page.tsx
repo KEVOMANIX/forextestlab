@@ -34,25 +34,25 @@ export default async function PricingPage() {
 
   return (
     <PageShell>
-      <section className="relative overflow-hidden border-b border-white/10 py-12 sm:py-16 lg:py-20">
-        <div aria-hidden className="absolute inset-0 bg-[linear-gradient(135deg,rgba(34,195,160,.07),transparent_42%,rgba(59,107,255,.07))]" />
-        <div aria-hidden className="absolute -left-32 top-4 h-80 w-80 rounded-full bg-brand-400/10 blur-3xl" />
-        <div aria-hidden className="absolute -right-24 bottom-0 h-72 w-72 rounded-full bg-accent-500/10 blur-3xl" />
-        <div className="container-page relative">
-          <div className="grid overflow-hidden rounded-[2rem] border border-white/10 bg-surface-900/60 p-5 shadow-[0_35px_100px_-55px_rgba(34,195,160,.7)] backdrop-blur sm:p-7 lg:grid-cols-[1.02fr_.98fr] lg:gap-8 lg:p-8">
-            <div className="flex flex-col justify-center px-1 py-4 sm:px-3 lg:py-6">
-              <p className="eyebrow w-fit">Plans that scale with your process</p>
-              <h1 className="mt-6 max-w-2xl text-balance text-4xl font-bold leading-[1.02] tracking-[-0.04em] text-white sm:text-5xl lg:text-[3.6rem]">
-                Choose a plan built for the way you test.
+      <section className="relative overflow-hidden border-b border-white/10">
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_18%_28%,rgba(34,195,160,.12),transparent_32%),radial-gradient(circle_at_85%_72%,rgba(59,107,255,.09),transparent_28%)]" />
+        <div className="container-page relative py-14 sm:py-20 lg:py-24">
+          <div className="grid items-center gap-10 lg:grid-cols-[1.12fr_.88fr] lg:gap-16">
+            <div>
+              <p className="eyebrow w-fit">Simple plans. Serious testing.</p>
+              <h1 className="mt-6 max-w-3xl text-balance text-5xl font-bold leading-[.98] tracking-[-0.045em] text-white sm:text-6xl lg:text-[4.5rem]">
+                Build confidence.<br />
+                <span className="bg-gradient-to-r from-brand-200 via-cyan-300 to-accent-400 bg-clip-text text-transparent">
+                  Trade with evidence.
+                </span>
               </h1>
-              <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-slate-400 sm:text-lg">
-                Start free, then move into a workspace sized for your replay volume and research process.
+              <p className="mt-6 max-w-xl text-pretty text-base leading-7 text-slate-400 sm:text-lg">
+                Replay real market history, test your process, and choose the workspace that fits the depth of your research.
               </p>
-              <dl className="mt-8 grid grid-cols-3 gap-2 border-t border-white/10 pt-6">
-                <div><dt className="text-lg font-bold text-white sm:text-xl">3 tiers</dt><dd className="mt-1 text-[11px] text-slate-500 sm:text-xs">Starter to Advanced</dd></div>
-                <div><dt className="text-lg font-bold text-white sm:text-xl">2 options</dt><dd className="mt-1 text-[11px] text-slate-500 sm:text-xs">Monthly or yearly</dd></div>
-                <div><dt className="text-lg font-bold text-white sm:text-xl">Global</dt><dd className="mt-1 text-[11px] text-slate-500 sm:text-xs">Localized totals</dd></div>
-              </dl>
+              <p className="mt-7 flex items-center gap-2 text-sm text-slate-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-300" aria-hidden />
+                Localized pricing appears below
+              </p>
             </div>
             <TrialOffer
               variant="hero"

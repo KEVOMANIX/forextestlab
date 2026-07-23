@@ -4,6 +4,7 @@ import { AppFooter } from "@/components/app/AppFooter";
 import { AppNav } from "@/components/app/AppNav";
 import { AppThemeProvider } from "@/components/app/ThemeContext";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { isAdminUser } from "@/lib/admin";
 
 export const metadata: Metadata = {
   title: "Backtester",
@@ -21,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ].find((value): value is string => typeof value === "string" && Boolean(value.trim()))?.trim() ?? null;
   return (
     <AppThemeProvider>
-      <AppNav signedIn={Boolean(user)} displayName={displayName} />
+      <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} />
       <main id="main" className="min-h-[calc(100vh-3.5rem)]">
         {children}
       </main>

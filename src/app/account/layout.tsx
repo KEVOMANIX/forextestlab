@@ -2,6 +2,7 @@ import { AppFooter } from "@/components/app/AppFooter";
 import { AppNav } from "@/components/app/AppNav";
 import { AppThemeProvider } from "@/components/app/ThemeContext";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { isAdminUser } from "@/lib/admin";
 
 export default async function AccountLayout({
   children,
@@ -17,7 +18,7 @@ export default async function AccountLayout({
 
   return (
     <AppThemeProvider>
-      <AppNav signedIn={Boolean(user)} displayName={displayName} />
+      <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} />
       {children}
       <AppFooter />
     </AppThemeProvider>

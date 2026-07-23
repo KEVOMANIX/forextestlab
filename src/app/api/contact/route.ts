@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { sendContactEmail } from "@/lib/contact-email";
+import { prisma } from "@/lib/db";
 import type { ApiResult } from "@/lib/types";
 import { validateContact } from "@/lib/validation";
 
@@ -30,9 +31,28 @@ export async function POST(request: Request): Promise<NextResponse<ApiResult>> {
     );
   }
 
+  const enquiry = await prisma.contactMessage.create({
+    data: {
+      name: result.data.name,
+      email: result.data.email,
+      subject: result.data.subject,
+      message: result.data.message,
+      consent: result.data.consent,
+    },
+    select: { id: true },
+  });
+
   try {
     await sendContactEmail(result.data);
+    await prisma.contactMessage.update({
+      where: { id: enquiry.id },
+      data: { deliveryStatus: "delivered" },
+    });
   } catch (error) {
+    await prisma.contactMessage.update({
+      where: { id: enquiry.id },
+      data: { deliveryStatus: "failed" },
+    });
     console.error("Failed to deliver contact submission:", error);
     return NextResponse.json(
       {

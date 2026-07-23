@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2, LogIn, LogOut, Moon, Sun } from "lucide-react";
+import { Loader2, LogIn, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -29,9 +29,11 @@ function initials(displayName: string | null): string {
 export function AppNav({
   signedIn,
   displayName,
+  admin = false,
 }: {
   signedIn: boolean;
   displayName: string | null;
+  admin?: boolean;
 }) {
   const { theme, toggle } = useAppTheme();
   const router = useRouter();
@@ -79,6 +81,15 @@ export function AppNav({
         </div>
 
         <div className="flex items-center gap-2">
+          {admin && (
+            <Link
+              href="/admin"
+              className="hidden h-9 items-center gap-2 rounded-lg border border-brand-400/25 bg-brand-400/[0.07] px-3 text-xs font-semibold text-brand-300 sm:inline-flex"
+            >
+              <ShieldCheck size={14} aria-hidden />
+              Admin
+            </Link>
+          )}
           <Link
             href={signedIn ? "/account" : "/sign-in"}
             aria-label={signedIn ? "Open profile" : "Sign in"}
@@ -152,6 +163,14 @@ export function AppNav({
             </Link>
           );
         })}
+        {admin && (
+          <Link
+            href="/admin"
+            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-brand-400/10 px-3 py-1.5 text-xs font-semibold text-brand-300"
+          >
+            <ShieldCheck size={13} aria-hidden /> Admin
+          </Link>
+        )}
       </nav>
     </header>
   );

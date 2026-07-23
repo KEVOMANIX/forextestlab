@@ -56,6 +56,39 @@ model UserProfile {
   @@index([createdAt])
 }
 
+/// Contact-form enquiries retained for support follow-up in the admin console.
+model ContactMessage {
+  id             String   @id @default(cuid())
+  name           String
+  email          String
+  subject        String
+  message        String
+  consent        Boolean  @default(true)
+  status         String   @default("open")
+  deliveryStatus String   @default("pending")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([email, createdAt])
+}
+
+/// Immutable record of privileged actions performed through the admin console.
+model AdminAuditEvent {
+  id           String   @id @default(cuid())
+  actorUserId  String
+  actorEmail   String
+  action       String
+  targetType   String
+  targetId     String?
+  metadataJson String?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId])
+}
+
 model BillingPayment {
   id                    String      @id @default(cuid())
   user                  UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)

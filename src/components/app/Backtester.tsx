@@ -23,6 +23,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { PageLoader } from "@/components/PageLoader";
 import { PositionEditorModal } from "./PositionEditorModal";
 import { TradeNotifications, type TradeNotification } from "./TradeNotifications";
+import { EndOfDataModal } from "./EndOfDataModal";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 
 type PendingConfirmation = {
@@ -451,6 +452,20 @@ export function Backtester({
           const action = pendingConfirmation?.action;
           setPendingConfirmation(null);
           action?.();
+        }}
+      />
+      <EndOfDataModal
+        open={bt.endOfData}
+        currentEndTime={state.config.endTime}
+        sessionStartTime={state.config.startTime}
+        maxSessionDays={entitlements.maxSessionDays}
+        busy={bt.busy}
+        error={bt.error}
+        onAddData={actions.extendSessionData}
+        onFinish={() => {
+          void actions.endSession().then(() => {
+            router.push(`/app/results/${state.sessionId}`);
+          });
         }}
       />
     </div>

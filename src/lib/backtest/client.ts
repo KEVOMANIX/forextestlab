@@ -142,6 +142,26 @@ export async function extendReplay(
   }
 }
 
+export async function extendSessionRange(
+  sessionId: string,
+  token: string | null,
+  endTime: number,
+): Promise<ReplayExtensionOk | ApiErr> {
+  try {
+    const res = await fetch(`/api/backtest/sessions/${sessionId}/extend`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "x-session-token": token } : {}),
+      },
+      body: JSON.stringify({ endTime }),
+    });
+    return parse<ReplayExtensionOk>(res) as Promise<ReplayExtensionOk | ApiErr>;
+  } catch {
+    return { ok: false, error: "The additional market data could not be loaded." };
+  }
+}
+
 export async function getState(sessionId: string): Promise<StateOk | ApiErr> {
   return getStateWithToken(sessionId, null);
 }

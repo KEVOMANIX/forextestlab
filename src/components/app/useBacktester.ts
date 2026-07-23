@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createSession,
   extendReplay,
+  extendSessionRange,
   getPairChart,
   getChartHistory,
   getStateWithToken,
@@ -52,6 +53,7 @@ interface BacktesterState {
   pairLoading: boolean;
   saveStatus: "saved" | "saving" | "error";
   savedAt: number | null;
+  endOfData: boolean;
   /** Bumped on start/restart so the chart remounts with fresh data. */
   resetNonce: number;
 }
@@ -74,6 +76,7 @@ const initial: BacktesterState = {
   pairLoading: false,
   saveStatus: "saved",
   savedAt: null,
+  endOfData: false,
   resetNonce: 0,
 };
 
@@ -166,6 +169,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         pairLoading: false,
         saveStatus: "saved",
         savedAt: Date.now(),
+        endOfData: false,
         resetNonce: prev.resetNonce + 1,
       }));
     };
@@ -218,6 +222,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         activeSymbol: res.state.config.symbol,
         pairChart: null,
         pairLoading: false,
+        endOfData: false,
         saveStatus: "saved",
         savedAt: Date.now(),
         resetNonce: prev.resetNonce + 1,
@@ -377,6 +382,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
       if (
         atLoadedBoundary &&
         lastLoaded &&
+        lastLoaded.timestamp >= engine.state.config.endTime
+      ) {
+        finished = true;
+        wantsReplayRunningRef.current = false;
+        engine.state.status = "paused";
+        break;
+      }
+      if (
+        atLoadedBoundary &&
+        lastLoaded &&
         lastLoaded.timestamp < engine.state.config.endTime
       ) {
         if (replayExtendPendingRef.current) break;
@@ -405,6 +420,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
             ...prev,
             replayCandles: [...prev.replayCandles, ...newCandles],
           }));
+        } else if (!extension.hasMore) {
+          finished = true;
+          wantsReplayRunningRef.current = false;
+          engine.state.status = "paused";
+          break;
         }
       }
 
@@ -433,9 +453,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
       error: extensionError ?? prev.error,
     }));
     if (finished) {
+      if (replayTimerRef.current) clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
+      setS((prev) => ({ ...prev, endOfData: true }));
       void runAction(
-        { type: "end", targetIndex: engine.state.visibleIndex },
-        { background: true, showBusy: false },
+        {
+          type: "sync",
+          targetIndex: engine.state.visibleIndex,
+          status: "paused",
+        },
+        { background: true, showBusy: false, preserveLocalState: true },
       );
     }
   }, [runAction, s.state?.anonymous]);
@@ -530,6 +557,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   }, [checkpoint, status]);
 
   const play = useCallback(() => {
+    if (s.endOfData) return Promise.resolve();
     wantsReplayRunningRef.current = true;
     setS((prev) =>
       prev.state
@@ -539,7 +567,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     if (localEngineRef.current) localEngineRef.current.state.status = "running";
     startLocalScheduler();
     return checkpoint("running");
-  }, [checkpoint, startLocalScheduler]);
+  }, [checkpoint, s.endOfData, startLocalScheduler]);
   const pause = useCallback(() => {
     wantsReplayRunningRef.current = false;
     // Stop the local timer immediately. The server pause command is serialized
@@ -555,10 +583,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
   }, [checkpoint, stopLocalScheduler]);
   const stepNext = useCallback(
     async () => {
+      if (s.endOfData) return;
       await stepRef.current();
       await checkpoint("paused");
     },
-    [checkpoint],
+    [checkpoint, s.endOfData],
   );
   const stepPrev = useCallback(async () => {
     const engine = localEngineRef.current;
@@ -625,6 +654,57 @@ export function useBacktester(resumeSessionId: string | null = null) {
       targetIndex: localEngineRef.current?.state.visibleIndex,
     });
   }, [runAction]);
+  const extendSessionData = useCallback(
+    async (endTime: number) => {
+      const id = sessionIdRef.current;
+      const engine = localEngineRef.current;
+      if (!id || !engine || interactiveBusyRef.current) return false;
+
+      interactiveBusyRef.current = true;
+      patch({ busy: true, error: null });
+      const result = await extendSessionRange(id, tokenRef.current, endTime);
+      interactiveBusyRef.current = false;
+
+      if (!result.ok) {
+        patch({ busy: false, error: result.error });
+        return false;
+      }
+
+      const newestTimestamp = engine.candles.at(-1)?.timestamp ?? 0;
+      const newCandles = result.candles.filter(
+        (candle) => candle.timestamp > newestTimestamp,
+      );
+      if (newCandles.length === 0) {
+        patch({
+          busy: false,
+          error: "No additional market data is available for the selected period.",
+        });
+        return false;
+      }
+
+      engine.candles.push(...newCandles);
+      engine.state.totalCandles = engine.candles.length;
+      engine.state.config.endTime = endTime;
+      engine.state.status = "paused";
+      const nextState = publicSessionState(
+        engine,
+        s.state?.anonymous ?? false,
+      );
+      setS((prev) => ({
+        ...prev,
+        state: nextState,
+        replayCandles: [...prev.replayCandles, ...newCandles],
+        busy: false,
+        error: null,
+        notice: "Additional market data is ready. Continue when you are ready.",
+        endOfData: false,
+        saveStatus: "saved",
+        savedAt: Date.now(),
+      }));
+      return true;
+    },
+    [patch, s.state?.anonymous],
+  );
   const setSpeed = useCallback(
     (value: ReplaySpeed) => {
       setS((prev) =>
@@ -813,6 +893,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       stepPrev,
       restart,
       endSession,
+      extendSessionData,
       setSpeed,
       setReplayStep,
       placeOrder,

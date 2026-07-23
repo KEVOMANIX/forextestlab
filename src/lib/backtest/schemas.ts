@@ -59,6 +59,10 @@ export const sessionMetadataSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(24)).max(8).optional(),
 });
 
+export const extendSessionSchema = z.object({
+  endTime: z.number().int().positive(),
+});
+
 const nullablePrice = z.union([positiveNumericString, z.null()]);
 
 export const actionSchema = z.discriminatedUnion("type", [

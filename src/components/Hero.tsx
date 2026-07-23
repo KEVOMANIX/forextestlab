@@ -66,7 +66,7 @@ const PROOF_POINTS = [
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pb-20 pt-24 sm:pt-28 lg:pb-32 lg:pt-32">
+    <section className="relative overflow-hidden pb-12 pt-24 sm:pt-28 lg:pb-16 lg:pt-32">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(to_bottom,#070a12_0%,#071015_46%,#070a12_100%)]"
@@ -81,29 +81,41 @@ export function Hero() {
       />
 
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">
-        <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)] lg:gap-16">
-          <div>
-            <p className="eyebrow animate-fade-up">
-              <Sparkles size={13} aria-hidden />
-              Forex strategy testing, made measurable
-            </p>
-            <h1 className="mt-6 max-w-5xl text-balance text-5xl font-bold leading-[0.95] tracking-[-0.05em] text-white animate-fade-up sm:text-6xl lg:text-[5.2rem]">
-              See the market.
-              <br />
-              Test your process.
-              <br />
-              <span className="bg-gradient-to-r from-brand-200 via-brand-300 to-accent-400 bg-clip-text text-transparent">
-                Build your evidence.
-              </span>
-            </h1>
-          </div>
+        <div className="mx-auto max-w-[1240px]">
+          <p className="eyebrow animate-fade-up">
+            <Sparkles size={13} aria-hidden />
+            A workspace for deliberate strategy testing
+          </p>
+          <h1 className="mt-6 max-w-6xl text-balance text-5xl font-bold leading-[0.98] tracking-[-0.05em] text-white animate-fade-up sm:text-6xl lg:text-[5rem]">
+            Build a trading process you can{" "}
+            <span className="bg-gradient-to-r from-brand-200 via-brand-300 to-accent-400 bg-clip-text text-transparent">
+              actually measure.
+            </span>
+          </h1>
 
-          <div className="pb-1 lg:pb-3">
-            <p className="max-w-lg text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
-              Replay historical forex data, execute simulated trades, and turn
-              every decision into a testing record you can review.
-            </p>
-            <div className="mt-7 flex flex-col gap-3 animate-fade-up sm:flex-row lg:flex-col xl:flex-row">
+          <div className="mt-8 grid gap-7 border-t border-white/[0.08] pt-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div>
+              <p className="max-w-2xl text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
+                Replay historical forex markets, practise entries and exits,
+                and review every session through structured performance analytics.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2">
+                {["Replay without future candles", "Execute simulated trades", "Review session analytics"].map(
+                  (item) => (
+                    <span
+                      key={item}
+                      className="flex items-center gap-2 text-xs font-medium text-slate-400"
+                    >
+                      <Check size={13} className="text-brand-300" aria-hidden />
+                      {item}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+
+            <div className="lg:min-w-[23rem]">
+              <div className="flex flex-col gap-3 animate-fade-up sm:flex-row lg:justify-end">
               <Link
                 href={TRIAL_SIGN_UP_PATH}
                 className="btn-primary min-h-12 w-full px-6 shadow-glow sm:w-auto"
@@ -119,14 +131,14 @@ export function Hero() {
                 Explore product
               </Link>
             </div>
-            <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-              <Check size={13} className="text-brand-300" aria-hidden />
-              No payment required for your trial.
-            </p>
+              <p className="mt-3 text-center text-xs text-slate-500 lg:text-right">
+                Three one-month trial sessions · No payment required
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="dimension-stage relative mt-16 lg:mt-20">
+        <div className="dimension-stage relative mt-14 lg:mt-16">
           <div
             aria-hidden
             className="absolute -left-[4%] top-[14%] hidden w-[46%] lg:block"

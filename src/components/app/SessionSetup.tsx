@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
-  ArrowRight,
   CalendarDays,
+  Check,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Loader2,
   LockKeyhole,
   Play,
+  Tags,
 } from "lucide-react";
 
 import {
@@ -18,10 +19,10 @@ import {
   fetchSymbols,
   type CreateSessionBody,
 } from "@/lib/backtest/client";
-import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date-time";
-import type { MarketSymbol } from "@/lib/market-data/types";
-import { formatSymbol } from "@/lib/market-data/symbols";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
+import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date-time";
+import { formatSymbol } from "@/lib/market-data/symbols";
+import type { MarketSymbol } from "@/lib/market-data/types";
 
 interface SessionSetupProps {
   onStart: (body: CreateSessionBody) => void;
@@ -44,6 +45,16 @@ function monthStart(value: string, fallback: string): Date {
   const source = value || fallback || toDateInput(Date.now());
   const date = new Date(`${source}T00:00:00Z`);
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function friendlyDate(value: string): string {
+  if (!value) return "Choose a date";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T12:00:00Z`));
 }
 
 const MONTH_NAMES = [
@@ -131,7 +142,7 @@ function SessionDatePicker({
         aria-expanded={open}
       >
         <span className={value ? "font-medium" : "app-muted"}>
-          {value || "Choose a date"}
+          {friendlyDate(value)}
         </span>
         <CalendarDays size={16} className="app-muted" aria-hidden />
       </button>
@@ -140,7 +151,7 @@ function SessionDatePicker({
         <div
           role="dialog"
           aria-label={`${label} calendar`}
-          className="absolute left-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-xl border app-border bg-[var(--app-panel)] p-3 shadow-2xl"
+          className="absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-3rem))] rounded-xl border app-border bg-[var(--app-panel)] p-3 shadow-2xl sm:left-0 sm:right-auto"
         >
           <div className="flex items-center justify-between">
             <button
@@ -189,7 +200,7 @@ function SessionDatePicker({
             </button>
           </div>
           <div className="mt-2 grid grid-cols-7 text-center text-[10px] font-semibold uppercase app-muted">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}
+            {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => <span key={day}>{day}</span>)}
           </div>
           <div className="mt-1 grid grid-cols-7 gap-1">
             {days.map((date) => {
@@ -226,25 +237,34 @@ function SessionDatePicker({
 }
 
 export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetupProps) {
-  const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
+  const [loadingSymbols, setLoadingSymbols] = useState(true);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
-  const [range, setRange] = useState<{
-    startTime: number;
-    endTime: number;
-  } | null>(null);
+  const [range, setRange] = useState<{ startTime: number; endTime: number } | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [loadingRange, setLoadingRange] = useState(false);
 
   useEffect(() => {
-    void fetchSymbols().then((list) => {
-      setSymbols(list);
-      const firstEnabled = list.find((item) => item.enabled);
-      if (firstEnabled) setSelectedSymbols([firstEnabled.symbol]);
-    });
+    let active = true;
+    void fetchSymbols()
+      .then((list) => {
+        if (!active) return;
+        setSymbols(list);
+        const firstEnabled = list.find((item) => item.enabled);
+        if (firstEnabled) setSelectedSymbols([firstEnabled.symbol]);
+      })
+      .catch(() => {
+        if (active) setSymbols([]);
+      })
+      .finally(() => {
+        if (active) setLoadingSymbols(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -252,6 +272,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       setRange(null);
       setStart("");
       setEnd("");
+      setLoadingRange(false);
       return;
     }
     let cancelled = false;
@@ -262,45 +283,44 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         const ranges = await fetchRanges(symbol);
         return ranges[0] ?? null;
       }),
-    ).then((ranges) => {
-      if (cancelled) return;
-      setLoadingRange(false);
-      if (ranges.some((item) => item === null)) {
-        setStart("");
-        setEnd("");
-        return;
-      }
-      const available = ranges as { startTime: number; endTime: number }[];
-      const commonRange = {
-        startTime: Math.max(...available.map((item) => item.startTime)),
-        endTime: Math.min(...available.map((item) => item.endTime)),
-      };
-      if (commonRange.endTime <= commonRange.startTime) {
-        setStart("");
-        setEnd("");
-        return;
-      }
-      setRange(commonRange);
-      const threeDays = 3 * 24 * 60 * 60 * 1000;
-      setStart((current) => {
-        if (!current) return toDateInput(commonRange.startTime);
-        const selected = newYorkDateStart(current);
-        return toDateInput(
-          Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)),
-        );
-      });
-      setEnd((current) => {
-        if (!current) {
-          return toDateInput(
-            Math.min(commonRange.endTime, commonRange.startTime + threeDays),
-          );
+    )
+      .then((ranges) => {
+        if (cancelled) return;
+        setLoadingRange(false);
+        if (ranges.some((item) => item === null)) {
+          setStart("");
+          setEnd("");
+          return;
         }
-        const selected = newYorkDateEnd(current);
-        return toDateInput(
-          Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)),
-        );
+        const available = ranges as { startTime: number; endTime: number }[];
+        const commonRange = {
+          startTime: Math.max(...available.map((item) => item.startTime)),
+          endTime: Math.min(...available.map((item) => item.endTime)),
+        };
+        if (commonRange.endTime <= commonRange.startTime) {
+          setStart("");
+          setEnd("");
+          return;
+        }
+        setRange(commonRange);
+        const threeDays = 3 * 24 * 60 * 60 * 1000;
+        setStart((current) => {
+          if (!current) return toDateInput(commonRange.startTime);
+          const selected = newYorkDateStart(current);
+          return toDateInput(Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)));
+        });
+        setEnd((current) => {
+          if (!current) return toDateInput(Math.min(commonRange.endTime, commonRange.startTime + threeDays));
+          const selected = newYorkDateEnd(current);
+          return toDateInput(Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)));
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoadingRange(false);
+        setStart("");
+        setEnd("");
       });
-    });
     return () => {
       cancelled = true;
     };
@@ -315,14 +335,6 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
     .map((tag) => tag.trim())
     .filter(Boolean)
     .slice(0, 8);
-  const canStart = Boolean(
-    name.trim().length >= 2 &&
-      selectedSymbols.length > 0 &&
-      range &&
-      start &&
-      end &&
-      !busy,
-  );
   const availableEnd = range ? toDateInput(range.endTime) : "";
   const sessionEndMax =
     entitlements.maxSessionDays !== null && start
@@ -330,6 +342,16 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           .filter(Boolean)
           .sort()[0] ?? availableEnd
       : availableEnd;
+  const canStart = Boolean(
+    name.trim().length >= 2 &&
+      selectedSymbols.length > 0 &&
+      range &&
+      start &&
+      end &&
+      end >= start &&
+      !loadingRange &&
+      !busy,
+  );
 
   function toggleSymbol(symbol: string) {
     if (entitlements.maxPairsPerSession === 1) {
@@ -343,20 +365,15 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
     );
   }
 
-  function handleStart() {
+  function handleStart(event: React.FormEvent) {
+    event.preventDefault();
     if (!range || !canStart) return;
     onStart({
       name: name.trim(),
       tags,
       symbols: selectedSymbols,
-      startTime: Math.max(
-        range.startTime,
-        newYorkDateStart(start),
-      ),
-      endTime: Math.min(
-        range.endTime,
-        newYorkDateEnd(end),
-      ),
+      startTime: Math.max(range.startTime, newYorkDateStart(start)),
+      endTime: Math.min(range.endTime, newYorkDateEnd(end)),
     });
   }
 
@@ -379,97 +396,111 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   }
 
   return (
-    <div className="panel mx-auto w-full max-w-2xl p-6 sm:p-7">
-      <h2 className="text-xl font-semibold">Start a backtest session</h2>
-      {entitlements.plan === "free" && (
-        <p className="mt-2 text-sm app-muted">
-          Free includes one single-pair session covering up to 31 days.
-        </p>
-      )}
+    <form onSubmit={handleStart} className="panel mx-auto w-full max-w-5xl overflow-visible">
+      <div className="flex flex-col gap-3 border-b app-border px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">New backtest</p>
+          <h2 className="mt-1 text-2xl font-bold tracking-tight">Set up your session</h2>
+        </div>
+        <span className="w-fit rounded-full border border-brand-400/20 bg-brand-400/[0.07] px-3 py-1.5 text-xs font-semibold text-brand-300">
+          {entitlements.plan === "free" ? "Free · 1 pair · up to 31 days" : "Pro workspace"}
+        </span>
+      </div>
 
-      <ol className="mt-5 grid grid-cols-3 gap-2" aria-label="Session setup progress">
-        {["Name", "Pairs", "Dates"].map((label, index) => {
-          const number = index + 1;
-          return (
-            <li
-              key={label}
-              className={`rounded-lg border px-2 py-2 text-center text-xs font-semibold ${
-                step === number
-                  ? "border-brand-400/50 bg-brand-400/10 text-brand-300"
-                  : number < step
-                    ? "border-brand-400/20 text-brand-300"
-                    : "app-border app-muted"
-              }`}
-            >
-              {number}. {label}
-            </li>
-          );
-        })}
-      </ol>
-
-      <div className="mt-6 min-h-72">
-        {step === 1 && (
-          <div>
-            <label htmlFor="setup-name" className="mb-1.5 block text-sm font-medium">
-              Session name
-            </label>
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)]">
+        <div className="space-y-7 px-5 py-6 sm:px-7 lg:border-r lg:border-[var(--app-border)]">
+          <section>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">1</span>
+              <h3 className="text-sm font-semibold">Name your session</h3>
+            </div>
+            <label htmlFor="setup-name" className="sr-only">Session name</label>
             <input
               id="setup-name"
-              className="app-input w-full"
+              className="app-input w-full text-base"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. London breakout strategy"
+              placeholder="e.g. London breakout"
               minLength={2}
               maxLength={80}
               required
               autoFocus
             />
-            <label htmlFor="setup-tags" className="mb-1.5 mt-5 block text-sm font-medium">
-              Strategy tags <span className="font-normal app-muted">(optional)</span>
-            </label>
-            <input
-              id="setup-tags"
-              className="app-input w-full"
-              value={tagsText}
-              onChange={(event) => setTagsText(event.target.value)}
-              placeholder="breakout, London, trend"
-            />
-          </div>
-        )}
-
-        {step === 2 && (
-          <fieldset>
-            <legend className="text-sm font-medium">Currency pairs</legend>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-              {enabledSymbols.map((item) => {
-                const selected = selectedSymbols.includes(item.symbol);
-                return (
-                  <label
-                    key={item.symbol}
-                    className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-colors ${
-                      selected
-                        ? "border-brand-400/50 bg-brand-400/10 text-brand-300"
-                        : "app-border bg-[var(--app-panel-2)] hover:border-brand-400/30"
-                    }`}
-                  >
-                    <input
-                      type={entitlements.maxPairsPerSession === 1 ? "radio" : "checkbox"}
-                      name={entitlements.maxPairsPerSession === 1 ? "session-pair" : undefined}
-                      className="h-4 w-4 shrink-0 cursor-pointer accent-emerald-400"
-                      checked={selected}
-                      onChange={() => toggleSymbol(item.symbol)}
-                    />
-                    <span className="font-mono font-semibold">{item.displayName}</span>
-                  </label>
-                );
-              })}
+            <div className="relative mt-3">
+              <Tags size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
+              <label htmlFor="setup-tags" className="sr-only">Strategy tags</label>
+              <input
+                id="setup-tags"
+                className="app-input w-full pl-9 text-sm"
+                value={tagsText}
+                onChange={(event) => setTagsText(event.target.value)}
+                placeholder="Optional tags: breakout, London, trend"
+              />
             </div>
-          </fieldset>
-        )}
+          </section>
 
-        {step === 3 && (
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <fieldset>
+            <legend className="mb-3 flex w-full items-center gap-2">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">2</span>
+              <span className="text-sm font-semibold">Choose market{entitlements.maxPairsPerSession === 1 ? "" : "s"}</span>
+              {selectedSymbols.length > 0 && (
+                <span className="ml-auto text-xs font-medium text-brand-300">{selectedSymbols.length} selected</span>
+              )}
+            </legend>
+
+            {loadingSymbols ? (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Loading markets">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <span key={index} className="h-11 animate-pulse rounded-xl bg-white/[0.05]" />
+                ))}
+              </div>
+            ) : enabledSymbols.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {enabledSymbols.map((item) => {
+                  const selected = selectedSymbols.includes(item.symbol);
+                  return (
+                    <label
+                      key={item.symbol}
+                      className={`group flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 py-3 text-sm transition-all ${
+                        selected
+                          ? "border-brand-400/50 bg-brand-400/10 text-brand-200 shadow-sm"
+                          : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30 hover:bg-brand-400/[0.04]"
+                      }`}
+                    >
+                      <input
+                        type={entitlements.maxPairsPerSession === 1 ? "radio" : "checkbox"}
+                        name={entitlements.maxPairsPerSession === 1 ? "session-pair" : undefined}
+                        className="sr-only"
+                        checked={selected}
+                        onChange={() => toggleSymbol(item.symbol)}
+                      />
+                      <span className="font-mono font-semibold">{item.displayName}</span>
+                      <span className={`grid h-5 w-5 place-items-center rounded-full border transition-colors ${
+                        selected
+                          ? "border-brand-400 bg-brand-500 text-surface-950"
+                          : "app-border group-hover:border-brand-400/40"
+                      }`}>
+                        {selected && <Check size={12} strokeWidth={3} aria-hidden />}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 text-sm app-muted">
+                Markets are temporarily unavailable. Please refresh and try again.
+              </p>
+            )}
+          </fieldset>
+        </div>
+
+        <div className="border-t app-border px-5 py-6 sm:px-7 lg:border-t-0">
+          <section>
+            <div className="mb-4 flex items-center gap-2">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
+              <h3 className="text-sm font-semibold">Choose your replay period</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
               <SessionDatePicker
                 id="setup-start"
                 label="Start date"
@@ -496,76 +527,69 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                 onChange={setEnd}
               />
             </div>
-            <p className="text-xs app-muted" aria-live="polite">
-              {loadingRange
-                ? "Checking the common data range for the selected pairs…"
-                : range
-                  ? `Available dates: ${toDateInput(range.startTime)} to ${toDateInput(range.endTime)} New York time`
-                  : "Select at least one pair with available historical data."}
-            </p>
-            <div className="rounded-xl border app-border bg-[var(--app-panel-2)] p-4">
-              <p className="font-semibold">{name}</p>
-              <p className="mt-1 text-sm app-muted">
-                {selectedSymbols
-                  .map(formatSymbol)
-                  .join(", ")}
-                {start && end ? ` · ${start} to ${end}` : ""}
-              </p>
-              {tags.length > 0 && (
-                <p className="mt-2 text-xs text-brand-300">{tags.join(" · ")}</p>
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--app-panel-2)]/55 px-3 py-2.5 text-xs app-muted" aria-live="polite">
+              {loadingRange ? (
+                <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-brand-300" aria-hidden />
+              ) : (
+                <Clock3 size={14} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
               )}
+              <span>
+                {loadingRange
+                  ? "Checking available market history…"
+                  : range
+                    ? `${friendlyDate(toDateInput(range.startTime))} – ${friendlyDate(toDateInput(range.endTime))} · New York time`
+                    : "Choose a market to see available dates."}
+              </span>
             </div>
-          </div>
-        )}
+          </section>
+
+          <section className="mt-6 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Session preview</p>
+            <p className={`mt-2 font-semibold ${name.trim() ? "" : "app-muted"}`}>
+              {name.trim() || "Your session name"}
+            </p>
+            <p className="mt-1 text-sm app-muted">
+              {selectedSymbols.length > 0
+                ? selectedSymbols.map(formatSymbol).join(", ")
+                : "Choose at least one market"}
+            </p>
+            <p className="mt-1 text-sm app-muted">
+              {start && end ? `${friendlyDate(start)} – ${friendlyDate(end)}` : "Select your replay dates"}
+            </p>
+            {tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {tags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-brand-400/10 px-2 py-1 text-[10px] font-medium text-brand-300">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
 
-      {error && (
-        <p role="alert" className="mt-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
-          {error}
-        </p>
-      )}
-
-      <div className="mt-6 flex gap-3">
-        {step > 1 && (
-          <button
-            type="button"
-            className="btn-secondary flex-1"
-            onClick={() => setStep((current) => current - 1)}
-          >
-            <ArrowLeft size={16} aria-hidden /> Back
-          </button>
+      <div className="border-t app-border px-5 py-4 sm:px-7">
+        {error && (
+          <p role="alert" className="mb-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
+            {error}
+          </p>
         )}
-        {step < 3 ? (
-          <button
-            type="button"
-            className="btn-primary flex-1"
-            disabled={
-              (step === 1 && name.trim().length < 2) ||
-              (step === 2 && selectedSymbols.length === 0)
-            }
-            onClick={() => setStep((current) => current + 1)}
-          >
-            Continue <ArrowRight size={16} aria-hidden />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="btn-primary flex-1"
-            disabled={!canStart}
-            onClick={handleStart}
-          >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs app-muted">Your session is saved automatically after it starts.</p>
+          <button type="submit" className="btn-primary min-w-44" disabled={!canStart}>
             {busy ? (
               <>
                 <Loader2 size={16} className="animate-spin" aria-hidden /> Creating…
               </>
             ) : (
               <>
-                <Play size={16} aria-hidden /> Start session
+                <Play size={16} aria-hidden /> Start backtest
               </>
             )}
           </button>
-        )}
+        </div>
       </div>
-    </div>
+    </form>
   );
 }

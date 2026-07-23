@@ -67,7 +67,7 @@ const PROOF_POINTS = [
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pb-12 pt-24 sm:pt-28 lg:pb-16 lg:pt-32">
+    <section className="relative overflow-hidden pb-12 pt-16 sm:pt-20 lg:pb-16 lg:pt-24">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(to_bottom,#070a12_0%,#071015_46%,#070a12_100%)]"

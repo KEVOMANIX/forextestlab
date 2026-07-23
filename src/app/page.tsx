@@ -7,12 +7,14 @@ import { HowItWorks } from "@/components/HowItWorks";
 import { Navbar } from "@/components/Navbar";
 import { ProductPreview } from "@/components/ProductPreview";
 import { PricingSection } from "@/components/PricingSection";
+import { WelcomeOfferBanner } from "@/components/WelcomeOffer";
 
 export default function HomePage() {
   return (
     <>
       <Navbar />
-      <main id="main">
+      <main id="main" className="pt-16">
+        <WelcomeOfferBanner />
         <Hero />
         <ProductPreview />
         <Features />

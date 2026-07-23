@@ -21,7 +21,7 @@ const FAQS = [
   },
   {
     q: "What is included in the free trial?",
-    a: "You can create up to three trial sessions on each device. Each session can use any one supported pair and up to 31 days of historical data.",
+    a: "You can create up to three trial sessions on each device. Each session opens EUR/USD on a randomly selected 31-day historical period.",
   },
   {
     q: "Can I simulate trades?",

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { ChartMarker } from "./PriceChart";
 import { BottomPanel } from "./BottomPanel";
@@ -24,6 +24,7 @@ import { PageLoader } from "@/components/PageLoader";
 import { PositionEditorModal } from "./PositionEditorModal";
 import { TradeNotifications, type TradeNotification } from "./TradeNotifications";
 import { EndOfDataModal } from "./EndOfDataModal";
+import { TrialSessionLauncher } from "./TrialSessionLauncher";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 
 type PendingConfirmation = {
@@ -46,9 +47,11 @@ const PriceChart = dynamic(() => import("./PriceChart"), {
 export function Backtester({
   resumeSessionId = null,
   entitlements,
+  autoStartTrial = false,
 }: {
   resumeSessionId?: string | null;
   entitlements: PlanEntitlements;
+  autoStartTrial?: boolean;
 }) {
   const router = useRouter();
   const { theme, toggle } = useAppTheme();
@@ -71,6 +74,7 @@ export function Backtester({
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
+  const autoTrialAttemptedRef = useRef(false);
   const notificationStateRef = useRef<{ sessionId: string | null; openIds: Set<string>; closedCount: number }>({ sessionId: null, openIds: new Set(), closedCount: 0 });
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
@@ -81,6 +85,34 @@ export function Backtester({
   const hasMeaningfulActivity = Boolean(
     state?.openPositions.length || state?.closedTrades.length,
   );
+  const launchTrial = useCallback(async () => {
+    const started = await actions.startTrialSession();
+    if (started && trialSessionsRemaining !== null) {
+      setTrialSessionsRemaining((current) =>
+        current === null ? null : Math.max(0, current - 1),
+      );
+    }
+  }, [actions, trialSessionsRemaining]);
+
+  useEffect(() => {
+    if (
+      !autoStartTrial ||
+      autoTrialAttemptedRef.current ||
+      bt.phase !== "setup" ||
+      entitlements.plan !== "free" ||
+      (trialSessionsRemaining ?? 0) <= 0
+    ) {
+      return;
+    }
+    autoTrialAttemptedRef.current = true;
+    void launchTrial();
+  }, [
+    autoStartTrial,
+    bt.phase,
+    entitlements.plan,
+    launchTrial,
+    trialSessionsRemaining,
+  ]);
 
   useEffect(() => {
     if (bt.phase !== "active") return;
@@ -203,19 +235,21 @@ export function Backtester({
         <div className="mx-auto mb-4 max-w-5xl">
           <BackLink />
         </div>
-        <SessionSetup
-          onStart={async (body) => {
-            const started = await actions.startSession(body);
-            if (started && trialSessionsRemaining !== null) {
-              setTrialSessionsRemaining((current) =>
-                current === null ? null : Math.max(0, current - 1),
-              );
-            }
-          }}
-          busy={bt.busy}
-          error={bt.error}
-          entitlements={effectiveEntitlements}
-        />
+        {effectiveEntitlements.plan === "free" ? (
+          <TrialSessionLauncher
+            remaining={effectiveEntitlements.trialSessionsRemaining ?? 0}
+            busy={bt.busy}
+            error={bt.error}
+            onStart={() => void launchTrial()}
+          />
+        ) : (
+          <SessionSetup
+            onStart={actions.startSession}
+            busy={bt.busy}
+            error={bt.error}
+            entitlements={effectiveEntitlements}
+          />
+        )}
       </div>
     );
   }

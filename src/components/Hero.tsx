@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, BarChart3, Sparkles, UserPlus } from "lucide-react";
 
 import { CandlestickChart } from "@/components/CandlestickChart";
+import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export function Hero() {
   return (
@@ -32,7 +33,7 @@ export function Hero() {
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 animate-fade-up sm:flex-row">
-            <Link href="/sign-up" className="btn-primary w-full shadow-glow sm:w-auto">
+            <Link href={TRIAL_SIGN_UP_PATH} className="btn-primary w-full shadow-glow sm:w-auto">
               <UserPlus size={16} aria-hidden />
               Start free trial
               <ArrowRight size={16} aria-hidden />

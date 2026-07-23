@@ -24,7 +24,7 @@ export interface CreateSessionBody {
   executionPolicy?: "conservative" | "optimistic";
 }
 
-interface CreateOk {
+export interface CreatedSession {
   ok: true;
   sessionId: string;
   token: string;
@@ -102,13 +102,18 @@ export async function fetchRanges(
 
 export async function createSession(
   body: CreateSessionBody,
-): Promise<CreateOk | ApiErr> {
+): Promise<CreatedSession | ApiErr> {
   const res = await fetch("/api/backtest/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  return parse<CreateOk>(res) as Promise<CreateOk | ApiErr>;
+  return parse<CreatedSession>(res) as Promise<CreatedSession | ApiErr>;
+}
+
+export async function createTrialSession(): Promise<CreatedSession | ApiErr> {
+  const res = await fetch("/api/backtest/trial", { method: "POST" });
+  return parse<CreatedSession>(res) as Promise<CreatedSession | ApiErr>;
 }
 
 export async function sendAction(

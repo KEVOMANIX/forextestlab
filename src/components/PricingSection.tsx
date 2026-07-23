@@ -10,6 +10,7 @@ import { countryCodeFromHeaders } from "@/lib/request-country";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db";
 import { TrialOffer } from "@/components/TrialOffer";
+import { TRIAL_SIGN_UP_PATH, TRIAL_START_PATH } from "@/lib/site";
 
 export async function PricingSection() {
   const countryCode = countryCodeFromHeaders(headers());
@@ -31,7 +32,7 @@ export async function PricingSection() {
       <div className="mb-8 text-left">
         <TrialOffer
           compact
-          href={user ? "/app/backtest" : "/sign-up?next=%2Fapp%2Fbacktest"}
+          href={user ? TRIAL_START_PATH : TRIAL_SIGN_UP_PATH}
         />
       </div>
       <LocalizedPricing

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight, Menu, UserPlus, X } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
-import { mainNav } from "@/lib/site";
+import { mainNav, TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -65,7 +65,7 @@ export function Navbar() {
             Launch app
             <ArrowUpRight size={15} aria-hidden />
           </Link>
-          <Link href="/sign-up" className="btn-primary py-2.5 shadow-glow">
+          <Link href={TRIAL_SIGN_UP_PATH} className="btn-primary py-2.5 shadow-glow">
             <UserPlus size={16} aria-hidden />
             Start free trial
           </Link>
@@ -109,7 +109,7 @@ export function Navbar() {
             <ArrowUpRight size={16} aria-hidden />
           </Link>
           <Link
-            href="/sign-up"
+            href={TRIAL_SIGN_UP_PATH}
             onClick={() => setOpen(false)}
             className="btn-primary mt-2 w-full"
           >

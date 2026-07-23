@@ -46,7 +46,7 @@ export function getBillingCatalog(): BillingPlan[] {
       interval: "forever",
       features: [
         "Three trial sessions per device",
-        "Any one pair for up to 31 days per session",
+        "EUR/USD with a random 31-day period",
         "Core replay and order tools",
         "Session summary analytics",
       ],

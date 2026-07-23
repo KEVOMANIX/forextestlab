@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createSession,
+  createTrialSession,
   extendReplay,
   extendSessionRange,
   getPairChart,
@@ -13,6 +14,7 @@ import {
   replayBatchSize,
   replayIntervalMs,
   type CreateSessionBody,
+  type CreatedSession,
   type PairChartData,
 } from "@/lib/backtest/client";
 import type {
@@ -114,6 +116,48 @@ export function useBacktester(resumeSessionId: string | null = null) {
     setS((prev) => ({ ...prev, ...p }));
   }, []);
 
+  const activateCreatedSession = useCallback(
+    (res: CreatedSession) => {
+      tokenRef.current = res.token;
+      sessionIdRef.current = res.sessionId;
+      window.sessionStorage.setItem(
+        `forextestlab:session:${res.sessionId}`,
+        res.token,
+      );
+      window.history.replaceState(
+        null,
+        "",
+        `/app/backtest?session=${encodeURIComponent(res.sessionId)}`,
+      );
+      wantsReplayRunningRef.current = false;
+      hydrateLocalEngine(res.state, res.replayCandles);
+      setS((prev) => ({
+        phase: "active",
+        sessionId: res.sessionId,
+        state: res.state,
+        initialCandles: res.candles,
+        replayCandles: res.replayCandles,
+        contextCandles: res.contextCandles,
+        lastCandle: res.candles[res.candles.length - 1] ?? null,
+        lastCandles: [],
+        busy: false,
+        error: null,
+        notice: res.state.demoData
+          ? "This session uses generated demonstration data and does not represent an actual market feed."
+          : null,
+        notes: "",
+        activeSymbol: res.state.config.symbol,
+        pairChart: null,
+        pairLoading: false,
+        endOfData: false,
+        saveStatus: "saved",
+        savedAt: Date.now(),
+        resetNonce: prev.resetNonce + 1,
+      }));
+    },
+    [hydrateLocalEngine],
+  );
+
   useEffect(() => {
     if (!resumeSessionId) return;
     let cancelled = false;
@@ -191,46 +235,24 @@ export function useBacktester(resumeSessionId: string | null = null) {
         patch({ busy: false, error: res.error });
         return false;
       }
-      tokenRef.current = res.token;
-      sessionIdRef.current = res.sessionId;
-      window.sessionStorage.setItem(
-        `forextestlab:session:${res.sessionId}`,
-        res.token,
-      );
-      window.history.replaceState(
-        null,
-        "",
-        `/app/backtest?session=${encodeURIComponent(res.sessionId)}`,
-      );
-      wantsReplayRunningRef.current = false;
-      hydrateLocalEngine(res.state, res.replayCandles);
-      setS((prev) => ({
-        phase: "active",
-        sessionId: res.sessionId,
-        state: res.state,
-        initialCandles: res.candles,
-        replayCandles: res.replayCandles,
-        contextCandles: res.contextCandles,
-        lastCandle: res.candles[res.candles.length - 1] ?? null,
-        lastCandles: [],
-        busy: false,
-        error: null,
-        notice: res.state.demoData
-          ? "This session uses generated demonstration data and does not represent an actual market feed."
-          : null,
-        notes: "",
-        activeSymbol: res.state.config.symbol,
-        pairChart: null,
-        pairLoading: false,
-        endOfData: false,
-        saveStatus: "saved",
-        savedAt: Date.now(),
-        resetNonce: prev.resetNonce + 1,
-      }));
+      activateCreatedSession(res);
       return true;
     },
-    [hydrateLocalEngine, patch],
+    [activateCreatedSession, patch],
   );
+  const startTrialSession = useCallback(async () => {
+    if (interactiveBusyRef.current) return false;
+    interactiveBusyRef.current = true;
+    patch({ busy: true, error: null, notice: null });
+    const res = await createTrialSession();
+    interactiveBusyRef.current = false;
+    if (!res.ok) {
+      patch({ busy: false, error: res.error });
+      return false;
+    }
+    activateCreatedSession(res);
+    return true;
+  }, [activateCreatedSession, patch]);
 
   const runAction = useCallback(
     async (
@@ -888,6 +910,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     replayStepMinutes,
     actions: {
       startSession,
+      startTrialSession,
       play,
       pause,
       stepNext,

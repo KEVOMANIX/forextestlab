@@ -21,6 +21,9 @@ export const siteConfig = {
   ogImage: "/og-image.png",
 } as const;
 
+export const TRIAL_START_PATH = "/app/backtest?trial=instant";
+export const TRIAL_SIGN_UP_PATH = `/sign-up?next=${encodeURIComponent(TRIAL_START_PATH)}`;
+
 /** Primary landing-page navigation (anchor links + routes). */
 export const mainNav = [
   { label: "Features", href: "/#features" },

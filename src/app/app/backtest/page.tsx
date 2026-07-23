@@ -33,7 +33,7 @@ const DEMO_ENTITLEMENTS: PlanEntitlements = {
 export default async function BacktestPage({
   searchParams,
 }: {
-  searchParams: { session?: string };
+  searchParams: { session?: string; trial?: string };
 }) {
   const user = await getCurrentUser();
   if (user) await ensureUserProfile(user);
@@ -47,5 +47,15 @@ export default async function BacktestPage({
     typeof searchParams.session === "string" && searchParams.session.length <= 100
       ? searchParams.session
       : null;
-  return <Backtester resumeSessionId={resumeSessionId} entitlements={entitlements} />;
+  return (
+    <Backtester
+      resumeSessionId={resumeSessionId}
+      entitlements={entitlements}
+      autoStartTrial={
+        !resumeSessionId &&
+        searchParams.trial === "instant" &&
+        entitlements.plan === "free"
+      }
+    />
+  );
 }

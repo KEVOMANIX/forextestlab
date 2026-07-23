@@ -77,6 +77,7 @@ export interface CreateSessionParams {
   executionPolicy?: "conservative" | "optimistic";
   userId?: string;
   trialDeviceId?: string | null;
+  trialSession?: boolean;
 }
 
 export interface LoadedSession {
@@ -289,7 +290,18 @@ export async function createSession(
   if (!def) throw new Error(`Unknown symbol "${params.symbol}".`);
 
   if (params.userId) {
-    assertSessionAllowed(await getUserEntitlements(params.userId), params);
+    const entitlements = await getUserEntitlements(params.userId);
+    assertSessionAllowed(entitlements, params);
+    if (
+      entitlements.plan === "free" &&
+      (!params.trialSession ||
+        params.symbol !== "EURUSD" ||
+        params.symbols.length !== 1)
+    ) {
+      throw new Error(
+        "Trial sessions use EUR/USD and a randomly selected one-month period.",
+      );
+    }
   }
 
   const series = await fetchSeries(
@@ -413,6 +425,15 @@ export async function createSession(
       const entitlements = planEntitlements(profile);
       assertSessionAllowed(entitlements, params);
       if (entitlements.plan === "free") {
+        if (
+          !params.trialSession ||
+          params.symbol !== "EURUSD" ||
+          params.symbols.length !== 1
+        ) {
+          throw new Error(
+            "Trial sessions use EUR/USD and a randomly selected one-month period.",
+          );
+        }
         if (!params.trialDeviceId) {
           throw new Error(
             "Your trial device could not be verified. Refresh the page and try again.",

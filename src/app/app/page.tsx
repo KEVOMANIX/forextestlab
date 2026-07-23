@@ -26,6 +26,7 @@ import { Decimal } from "@/lib/decimal";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { formatSymbol } from "@/lib/market-data/symbols";
+import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
 
@@ -95,7 +96,7 @@ function SignedOutDashboard() {
             focused workspace.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/sign-up?next=%2Fapp%2Fbacktest" className="btn-primary shadow-glow">
+            <Link href={TRIAL_SIGN_UP_PATH} className="btn-primary shadow-glow">
               Start free trial <ArrowRight size={16} aria-hidden />
             </Link>
             <Link href="/app/backtest" className="btn-secondary">

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { ArrowRight, CalendarRange, Check, MonitorSmartphone } from "lucide-react";
+import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export function TrialOffer({
-  href = "/sign-up?next=%2Fapp%2Fbacktest",
+  href = TRIAL_SIGN_UP_PATH,
   compact = false,
 }: {
   href?: string;
@@ -23,15 +24,15 @@ export function TrialOffer({
             Test three sessions before choosing a plan
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-300 sm:text-base">
-            Use any supported pair for up to 31 days of historical data per
-            session. The trial includes a maximum of three sessions on each device.
+            Each trial opens EUR/USD on a randomly selected 31-day historical
+            period. The trial includes a maximum of three sessions on each device.
           </p>
         </div>
         <div className="shrink-0">
           <ul className="mb-4 grid gap-2 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-1">
             <li className="flex items-center gap-2"><CalendarRange size={15} className="text-brand-300" aria-hidden /><span>One month of market data</span></li>
             <li className="flex items-center gap-2"><MonitorSmartphone size={15} className="text-brand-300" aria-hidden /><span>Three sessions per device</span></li>
-            <li className="flex items-center gap-2"><Check size={15} className="text-brand-300" aria-hidden /><span>Any available pair</span></li>
+            <li className="flex items-center gap-2"><Check size={15} className="text-brand-300" aria-hidden /><span>Instant EUR/USD replay</span></li>
           </ul>
           <Link href={href} className="btn-primary w-full px-5 py-3 shadow-glow">
             Start free trial

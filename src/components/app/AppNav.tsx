@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { LogIn, Moon, Sun } from "lucide-react";
+import { Loader2, LogIn, LogOut, Moon, Sun } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { Logo } from "@/components/Logo";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useAppTheme } from "./ThemeContext";
 
 const LINKS = [
@@ -31,6 +34,18 @@ export function AppNav({
   displayName: string | null;
 }) {
   const { theme, toggle } = useAppTheme();
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOut() {
+    const supabase = createBrowserSupabaseClient();
+    if (!supabase || signingOut) return;
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.replace("/");
+    router.refresh();
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b app-border bg-[var(--app-bg)]/85 backdrop-blur">
       <nav
@@ -74,6 +89,22 @@ export function AppNav({
               </>
             )}
           </Link>
+          {signedIn && (
+            <button
+              type="button"
+              onClick={signOut}
+              disabled={signingOut}
+              aria-label="Sign out"
+              title="Sign out"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border app-border app-muted transition-colors hover:border-bear/35 hover:bg-bear/[0.06] hover:text-bear disabled:opacity-50"
+            >
+              {signingOut ? (
+                <Loader2 size={15} className="animate-spin" aria-hidden />
+              ) : (
+                <LogOut size={15} aria-hidden />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={toggle}

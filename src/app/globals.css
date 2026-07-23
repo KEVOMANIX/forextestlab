@@ -262,3 +262,56 @@
 .showcase-copy {
   animation: showcase-copy 360ms ease-out both;
 }
+
+@keyframes dimension-main {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97) rotateX(3deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0);
+  }
+}
+
+@keyframes dimension-left {
+  from {
+    opacity: 0;
+    transform: translateX(70px) rotateY(8deg) rotateZ(-2deg) scale(0.94);
+  }
+  to {
+    opacity: 0.6;
+    transform: translateX(0) rotateY(12deg) rotateZ(-3deg) scale(0.96);
+  }
+}
+
+@keyframes dimension-right {
+  from {
+    opacity: 0;
+    transform: translateX(-70px) rotateY(-8deg) rotateZ(2deg) scale(0.94);
+  }
+  to {
+    opacity: 0.6;
+    transform: translateX(0) rotateY(-12deg) rotateZ(3deg) scale(0.96);
+  }
+}
+
+.dimension-stage {
+  perspective: 1800px;
+  transform-style: preserve-3d;
+}
+
+.dimension-stage-main {
+  animation: dimension-main 820ms 120ms ease-out both;
+  transform-origin: center bottom;
+}
+
+.dimension-stage-left {
+  animation: dimension-left 900ms 300ms ease-out both;
+  transform-origin: right center;
+}
+
+.dimension-stage-right {
+  animation: dimension-right 900ms 300ms ease-out both;
+  transform-origin: left center;
+}

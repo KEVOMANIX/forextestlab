@@ -168,6 +168,17 @@
   }
 }
 
+@keyframes page-loader-quote {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .page-loader-candle {
   animation: page-loader-candle 1.1s ease-in-out infinite;
   transform-origin: center;
@@ -179,4 +190,8 @@
 
 .page-loader-mark {
   animation: page-loader-mark 2s ease-in-out infinite;
+}
+
+.page-loader-quote {
+  animation: page-loader-quote 320ms ease-out both;
 }

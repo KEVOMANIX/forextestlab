@@ -11,6 +11,7 @@ import {
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type Stage = "verify" | "change" | "complete";
+const REAUTH_CODE_LENGTH = 8;
 
 export function SecurePasswordForm({ email }: { email: string }) {
   const router = useRouter();
@@ -24,6 +25,7 @@ export function SecurePasswordForm({ email }: { email: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const requirements = useMemo(() => passwordRequirements(password), [password]);
   const passwordsMatch = confirmation.length > 0 && confirmation === password;
+  const codeComplete = nonce.length === REAUTH_CODE_LENGTH;
 
   async function requestCode() {
     const supabase = createBrowserSupabaseClient();
@@ -47,8 +49,8 @@ export function SecurePasswordForm({ email }: { email: string }) {
 
   async function updatePassword(event: React.FormEvent) {
     event.preventDefault();
-    if (!/^\d{6}$/.test(nonce.trim())) {
-      setError("Enter the six-digit verification code from your email.");
+    if (!new RegExp(`^\\d{${REAUTH_CODE_LENGTH}}$`).test(nonce.trim())) {
+      setError(`Enter the ${REAUTH_CODE_LENGTH}-digit verification code from your email.`);
       return;
     }
     if (!isStrongPassword(password)) {
@@ -73,7 +75,11 @@ export function SecurePasswordForm({ email }: { email: string }) {
       nonce: nonce.trim(),
     });
     if (updateError) {
-      setError(updateError.message);
+      setError(
+        updateError.code === "reauthentication_not_valid"
+          ? "That verification code is incorrect or has expired. Request a new code and try again."
+          : updateError.message,
+      );
       setBusy(false);
       return;
     }
@@ -155,47 +161,68 @@ export function SecurePasswordForm({ email }: { email: string }) {
               className="app-input w-full tracking-[0.35em]"
               inputMode="numeric"
               autoComplete="one-time-code"
-              maxLength={6}
-              pattern="[0-9]{6}"
+              maxLength={REAUTH_CODE_LENGTH}
+              pattern={`[0-9]{${REAUTH_CODE_LENGTH}}`}
+              aria-describedby="verification-code-status"
               value={nonce}
-              onChange={(event) => setNonce(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              onChange={(event) => {
+                setNonce(event.target.value.replace(/\D/g, "").slice(0, REAUTH_CODE_LENGTH));
+                setError(null);
+              }}
               required
             />
           </label>
 
-          <PasswordField
-            label="New password"
-            value={password}
-            onChange={setPassword}
-            visible={showPassword}
-            onToggle={() => setShowPassword((current) => !current)}
-            autoComplete="new-password"
-          />
-          <PasswordField
-            label="Confirm new password"
-            value={confirmation}
-            onChange={setConfirmation}
-            visible={showPassword}
-            onToggle={() => setShowPassword((current) => !current)}
-            autoComplete="new-password"
-          />
+          <p
+            id="verification-code-status"
+            role="status"
+            className={`mt-2 flex items-center gap-2 text-xs ${codeComplete ? "text-brand-300" : "app-muted"}`}
+          >
+            <span className={`grid h-4 w-4 place-items-center rounded-full ${codeComplete ? "bg-brand-400/15" : "border app-border"}`}>
+              {codeComplete && <Check size={11} strokeWidth={3} aria-hidden />}
+            </span>
+            {codeComplete
+              ? "Code entered. You can now choose a new password."
+              : `${nonce.length} of ${REAUTH_CODE_LENGTH} digits entered`}
+          </p>
 
-          <div className="mt-5 grid gap-2 rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 sm:grid-cols-2">
-            {requirements.map((requirement) => (
-              <p key={requirement.key} className={`flex items-center gap-2 text-xs ${requirement.met ? "text-brand-300" : "app-muted"}`}>
-                <span className={`grid h-4 w-4 place-items-center rounded-full ${requirement.met ? "bg-brand-400/15" : "border app-border"}`}>
-                  {requirement.met && <Check size={11} strokeWidth={3} aria-hidden />}
-                </span>
-                {requirement.label}
-              </p>
-            ))}
-            <p className={`flex items-center gap-2 text-xs ${passwordsMatch ? "text-brand-300" : "app-muted"}`}>
-              <span className={`grid h-4 w-4 place-items-center rounded-full ${passwordsMatch ? "bg-brand-400/15" : "border app-border"}`}>
-                {passwordsMatch && <Check size={11} strokeWidth={3} aria-hidden />}
-              </span>
-              Passwords match
-            </p>
-          </div>
+          {codeComplete && (
+            <>
+              <PasswordField
+                label="New password"
+                value={password}
+                onChange={setPassword}
+                visible={showPassword}
+                onToggle={() => setShowPassword((current) => !current)}
+                autoComplete="new-password"
+              />
+              <PasswordField
+                label="Confirm new password"
+                value={confirmation}
+                onChange={setConfirmation}
+                visible={showPassword}
+                onToggle={() => setShowPassword((current) => !current)}
+                autoComplete="new-password"
+              />
+
+              <div className="mt-5 grid gap-2 rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 sm:grid-cols-2">
+                {requirements.map((requirement) => (
+                  <p key={requirement.key} className={`flex items-center gap-2 text-xs ${requirement.met ? "text-brand-300" : "app-muted"}`}>
+                    <span className={`grid h-4 w-4 place-items-center rounded-full ${requirement.met ? "bg-brand-400/15" : "border app-border"}`}>
+                      {requirement.met && <Check size={11} strokeWidth={3} aria-hidden />}
+                    </span>
+                    {requirement.label}
+                  </p>
+                ))}
+                <p className={`flex items-center gap-2 text-xs ${passwordsMatch ? "text-brand-300" : "app-muted"}`}>
+                  <span className={`grid h-4 w-4 place-items-center rounded-full ${passwordsMatch ? "bg-brand-400/15" : "border app-border"}`}>
+                    {passwordsMatch && <Check size={11} strokeWidth={3} aria-hidden />}
+                  </span>
+                  Passwords match
+                </p>
+              </div>
+            </>
+          )}
 
           {error && <Feedback kind="error">{error}</Feedback>}
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
@@ -205,7 +232,7 @@ export function SecurePasswordForm({ email }: { email: string }) {
             <button
               type="submit"
               className="btn-primary"
-              disabled={busy || !isStrongPassword(password) || !passwordsMatch || nonce.length !== 6}
+              disabled={busy || !codeComplete || !isStrongPassword(password) || !passwordsMatch}
             >
               {busy ? <><Loader2 size={15} className="animate-spin" /> Updating…</> : "Update password"}
             </button>

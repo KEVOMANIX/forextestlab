@@ -7,7 +7,7 @@ import { useState } from "react";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { siteConfig } from "@/lib/site";
 
-type Mode = "sign-in" | "sign-up" | "forgot-password" | "update-password";
+type Mode = "sign-in" | "sign-up" | "forgot-password";
 
 const COPY: Record<Mode, { title: string; submit: string }> = {
   "sign-in": { title: "Sign in to ForexTestLab", submit: "Sign in" },
@@ -15,10 +15,6 @@ const COPY: Record<Mode, { title: string; submit: string }> = {
   "forgot-password": {
     title: "Reset your password",
     submit: "Send reset link",
-  },
-  "update-password": {
-    title: "Choose a new password",
-    submit: "Update password",
   },
 };
 
@@ -39,9 +35,7 @@ export function AuthForm({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError ?? null);
 
-  const needsEmail = mode !== "update-password";
-  const needsPassword =
-    mode === "sign-in" || mode === "sign-up" || mode === "update-password";
+  const needsPassword = mode === "sign-in" || mode === "sign-up";
   const supportsGoogle = mode === "sign-in" || mode === "sign-up";
 
   function safeNextPath(): string {
@@ -119,19 +113,12 @@ export function AuthForm({
         router.replace(safeNextPath());
         router.refresh();
       }
-    } else if (mode === "forgot-password") {
+    } else {
       result = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: callbackUrl("/account/update-password"),
       });
       if (!result.error) {
         setMessage("If that account exists, a password-reset email has been sent.");
-      }
-    } else {
-      result = await supabase.auth.updateUser({ password });
-      if (!result.error) {
-        setMessage("Your password has been updated.");
-        router.replace("/account");
-        router.refresh();
       }
     }
 
@@ -150,7 +137,7 @@ export function AuthForm({
               ? "Access your private backtesting workspace."
               : mode === "forgot-password"
                 ? "We will email you a secure password-reset link."
-                : "Use at least eight characters for your new password."}
+                : "We will email you a secure password-reset link."}
         </p>
 
         {supportsGoogle && (
@@ -191,24 +178,22 @@ export function AuthForm({
             </label>
           )}
 
-          {needsEmail && (
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium">Email</span>
-              <input
-                className="app-input w-full"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </label>
-          )}
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium">Email</span>
+            <input
+              className="app-input w-full"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
 
           {needsPassword && (
             <label className="block">
               <span className="mb-1 block text-sm font-medium">
-                {mode === "update-password" ? "New password" : "Password"}
+                Password
               </span>
               <input
                 className="app-input w-full"
@@ -217,9 +202,7 @@ export function AuthForm({
                 autoComplete={
                   mode === "sign-up"
                     ? "new-password"
-                    : mode === "update-password"
-                      ? "new-password"
-                      : "current-password"
+                    : "current-password"
                 }
                 required
                 value={password}

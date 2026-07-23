@@ -4,6 +4,7 @@ import { ArrowRight, BadgeCheck, CreditCard } from "lucide-react";
 
 import { BackLink } from "@/components/app/BackLink";
 import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton";
+import { SubscriptionRenewalControls } from "@/components/billing/SubscriptionRenewalControls";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -24,6 +25,18 @@ export default async function BillingPage() {
     orderBy: { updatedAt: "desc" },
   });
   const active = ["active", "attention", "non-renewing"].includes(profile.billingStatus) || Boolean(profile.proAccessUntil && profile.proAccessUntil > new Date());
+  const paddleSubscription = subscription?.provider === "paddle"
+    && ["active", "trialing"].includes(subscription.status)
+    ? subscription
+    : null;
+  const nextPaymentLabel = subscription?.nextPaymentAt
+    ? new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "America/New_York",
+      }).format(subscription.nextPaymentAt)
+    : null;
 
   return (
     <main id="main" className="min-h-[calc(100vh-3.5rem)] px-4 py-10 sm:py-12">
@@ -38,6 +51,17 @@ export default async function BillingPage() {
             </div>
             <div className="w-full sm:w-52">{subscription ? <ManageSubscriptionButton /> : <Link href="/pricing" className="btn-primary w-full">View plans <ArrowRight size={15} aria-hidden /></Link>}</div>
           </div>
+          {paddleSubscription && (
+            <div className="mt-6 border-t app-border pt-6">
+              <SubscriptionRenewalControls
+                autoRenew={!paddleSubscription.cancelAtPeriodEnd}
+                nextPaymentLabel={nextPaymentLabel}
+              />
+              <p className="mt-3 text-xs app-muted">
+                Paddle securely handles invoices, payment methods, and billing history.
+              </p>
+            </div>
+          )}
         </section>
       </div>
     </main>

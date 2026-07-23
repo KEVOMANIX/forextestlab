@@ -139,6 +139,9 @@ Never commit real credentials. `.env*` is git-ignored.
    environments.
 4. Configure a production SMTP provider before launch; Supabase's default email
    service is intended only for limited testing.
+5. In the Supabase email provider settings, enable **Secure password change**.
+   The account security screen requests Supabase's one-time reauthentication
+   code before accepting a new password.
 
 Authenticated sessions are private and linked to the Supabase user UUID.
 Anonymous sessions are temporary 24-hour demonstrations, require their opaque

@@ -89,22 +89,6 @@ export function AppNav({
               </>
             )}
           </Link>
-          {signedIn && (
-            <button
-              type="button"
-              onClick={signOut}
-              disabled={signingOut}
-              aria-label="Sign out"
-              title="Sign out"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border app-border app-muted transition-colors hover:border-bear/35 hover:bg-bear/[0.06] hover:text-bear disabled:opacity-50"
-            >
-              {signingOut ? (
-                <Loader2 size={15} className="animate-spin" aria-hidden />
-              ) : (
-                <LogOut size={15} aria-hidden />
-              )}
-            </button>
-          )}
           <button
             type="button"
             onClick={toggle}
@@ -113,6 +97,24 @@ export function AppNav({
           >
             {theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
           </button>
+          {signedIn && (
+            <div className="ml-1 border-l app-border pl-2">
+              <button
+                type="button"
+                onClick={signOut}
+                disabled={signingOut}
+                aria-label="Sign out"
+                title="Sign out"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border app-border app-muted transition-colors hover:border-bear/35 hover:bg-bear/[0.06] hover:text-bear disabled:opacity-50"
+              >
+                {signingOut ? (
+                  <Loader2 size={15} className="animate-spin" aria-hidden />
+                ) : (
+                  <LogOut size={15} aria-hidden />
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </nav>
     </header>

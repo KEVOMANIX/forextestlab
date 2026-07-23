@@ -19,6 +19,7 @@
     "data:import": "tsx scripts/import-market-data.ts",
     "paddle:seed": "tsx scripts/seed-paddle-catalog.ts",
     "paddle:migrate-live": "tsx scripts/migrate-paddle-live.ts",
+    "paddle:audit-live": "tsx scripts/audit-paddle-live.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

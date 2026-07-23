@@ -72,7 +72,7 @@ export async function POST(
             {
               ok: false,
               error:
-                "Free sessions can cover up to one month. Upgrade to Pro to extend this session further.",
+                "Trial sessions can cover up to one month. Upgrade to extend this session further.",
             },
             { status: 403 },
           );

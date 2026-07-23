@@ -42,9 +42,8 @@ model UserProfile {
   billingPlan          String                @default("free")
   billingStatus        String                @default("inactive")
   proAccessUntil       DateTime?
-  /// Set when the account creates its one free session. This is deliberately
-  /// not cleared when that session is deleted, so the free allowance cannot
-  /// be reset by deleting and recreating sessions.
+  /// Legacy audit marker from the original account-level Free allowance.
+  /// New trial enforcement uses TrialDevice.
   freeSessionUsedAt    DateTime?
   paystackCustomerCode String?               @unique
   paddleCustomerId     String?               @unique
@@ -122,6 +121,18 @@ model PaddleCustomerClaim {
   @@index([email, status])
 }
 
+/// Durable browser-device allowance for the three-session product trial.
+/// The id is a one-way SHA-256 hash of an opaque, HttpOnly device cookie.
+model TrialDevice {
+  id           String            @id
+  sessionsUsed Int               @default(0)
+  createdAt    DateTime          @default(now())
+  lastUsedAt   DateTime          @default(now())
+  sessions     BacktestSession[]
+
+  @@index([lastUsedAt])
+}
+
 model MarketCandle {
   id           String           @id @default(cuid())
   instrument   MarketInstrument @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
@@ -172,6 +183,8 @@ model BacktestSession {
   token              String           @unique
   user               UserProfile?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId             String?
+  trialDevice         TrialDevice?     @relation(fields: [trialDeviceId], references: [id], onDelete: SetNull)
+  trialDeviceId       String?
   anonymous          Boolean          @default(true)
   anonymousExpiresAt DateTime?
   instrument         MarketInstrument @relation(fields: [instrumentId], references: [id])
@@ -210,6 +223,7 @@ model BacktestSession {
 
   @@index([createdAt])
   @@index([userId, createdAt])
+  @@index([trialDeviceId, createdAt])
   @@index([anonymous, anonymousExpiresAt])
 }
 

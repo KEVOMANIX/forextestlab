@@ -9,6 +9,7 @@ import { getPricingTiers } from "@/lib/billing/tiers";
 import { countryCodeFromHeaders } from "@/lib/request-country";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db";
+import { TrialOffer } from "@/components/TrialOffer";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,11 @@ export default async function PricingPage() {
 
       <section className="py-16 sm:py-20">
         <div className="container-page">
+          <div className="mb-10">
+            <TrialOffer
+              href={user ? "/app/backtest" : "/sign-up?next=%2Fapp%2Fbacktest"}
+            />
+          </div>
           <LocalizedPricing tiers={tiers} countryCode={countryCode} customerEmail={user?.email} paddleCustomerId={profile?.paddleCustomerId ?? undefined} userId={user?.id} clientToken={clientToken} environment={environment} />
           <div className="mt-12 grid gap-4 sm:grid-cols-3">
             <div className="card p-5"><Globe2 size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Localized totals</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Paddle detects your market and returns the formatted total shown above.</p></div>

@@ -132,7 +132,7 @@ export function AuthForm({
         <h1 className="text-2xl font-bold tracking-tight">{COPY[mode].title}</h1>
         <p className="mt-2 text-sm app-muted">
           {mode === "sign-up"
-            ? "Save private backtests, notes, and results."
+            ? "Start with three one-month trial sessions on this device."
             : mode === "sign-in"
               ? "Access your private backtesting workspace."
               : mode === "forgot-password"

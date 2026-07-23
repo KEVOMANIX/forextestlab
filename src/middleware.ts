@@ -4,8 +4,27 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export async function middleware(request: NextRequest) {
+  const trialCookieName = "ftl_trial_device";
+  let newTrialToken: string | null = null;
+  if (!request.cookies.get(trialCookieName)?.value) {
+    newTrialToken = crypto.randomUUID();
+    request.cookies.set(trialCookieName, newTrialToken);
+  }
+
   const config = getSupabasePublicConfig();
-  if (!config) return NextResponse.next();
+  if (!config) {
+    const response = NextResponse.next({ request });
+    if (newTrialToken) {
+      response.cookies.set(trialCookieName, newTrialToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 365 * 24 * 60 * 60,
+      });
+    }
+    return response;
+  }
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(config.url, config.publishableKey, {
@@ -27,6 +46,15 @@ export async function middleware(request: NextRequest) {
 
   // Validate and refresh the cookie-backed session when necessary.
   await supabase.auth.getUser();
+  if (newTrialToken) {
+    response.cookies.set(trialCookieName, newTrialToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60,
+    });
+  }
   return response;
 }
 

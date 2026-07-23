@@ -182,14 +182,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
   const startSession = useCallback(
     async (body: CreateSessionBody) => {
-      if (interactiveBusyRef.current) return;
+      if (interactiveBusyRef.current) return false;
       interactiveBusyRef.current = true;
       patch({ busy: true, error: null, notice: null });
       const res = await createSession(body);
       interactiveBusyRef.current = false;
       if (!res.ok) {
         patch({ busy: false, error: res.error });
-        return;
+        return false;
       }
       tokenRef.current = res.token;
       sessionIdRef.current = res.sessionId;
@@ -227,6 +227,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         savedAt: Date.now(),
         resetNonce: prev.resetNonce + 1,
       }));
+      return true;
     },
     [hydrateLocalEngine, patch],
   );

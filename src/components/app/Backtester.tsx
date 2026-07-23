@@ -54,6 +54,18 @@ export function Backtester({
   const { theme, toggle } = useAppTheme();
   const bt = useBacktester(resumeSessionId);
   const { state, actions } = bt;
+  const [trialSessionsRemaining, setTrialSessionsRemaining] = useState(
+    entitlements.trialSessionsRemaining,
+  );
+  const effectiveEntitlements = useMemo<PlanEntitlements>(
+    () => ({
+      ...entitlements,
+      trialSessionsRemaining,
+      freeSessionUsed:
+        entitlements.plan === "free" && trialSessionsRemaining === 0,
+    }),
+    [entitlements, trialSessionsRemaining],
+  );
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
@@ -192,10 +204,17 @@ export function Backtester({
           <BackLink />
         </div>
         <SessionSetup
-          onStart={actions.startSession}
+          onStart={async (body) => {
+            const started = await actions.startSession(body);
+            if (started && trialSessionsRemaining !== null) {
+              setTrialSessionsRemaining((current) =>
+                current === null ? null : Math.max(0, current - 1),
+              );
+            }
+          }}
           busy={bt.busy}
           error={bt.error}
-          entitlements={entitlements}
+          entitlements={effectiveEntitlements}
         />
       </div>
     );

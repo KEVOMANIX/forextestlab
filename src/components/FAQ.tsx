@@ -20,6 +20,10 @@ const FAQS = [
     a: "Yes. Sessions replay historical price data without revealing future candles.",
   },
   {
+    q: "What is included in the free trial?",
+    a: "You can create up to three trial sessions on each device. Each session can use any one supported pair and up to 31 days of historical data.",
+  },
+  {
     q: "Can I simulate trades?",
     a: "Yes. Place simulated buy and sell orders, manage protection levels, and review the results. No real money is involved.",
   },

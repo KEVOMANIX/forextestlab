@@ -39,14 +39,14 @@ export function getBillingCatalog(): BillingPlan[] {
   return [
     {
       key: "free",
-      name: "Free",
-      description: "Build a testing habit and learn the replay workflow.",
+      name: "Trial",
+      description: "Experience the replay workflow before choosing a plan.",
       amount: 0,
       currency: "KES",
       interval: "forever",
       features: [
-        "One saved backtest session",
-        "Any one pair for up to 31 days",
+        "Three trial sessions per device",
+        "Any one pair for up to 31 days per session",
         "Core replay and order tools",
         "Session summary analytics",
       ],

@@ -10,6 +10,7 @@ import type { Timeframe } from "@/lib/market-data/types";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { ensureUserProfile } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { trialDeviceIdFromRequest } from "@/lib/trial-device";
 
 const SESSION_BASE_TIMEFRAME: Timeframe = "1m";
 
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
       slippagePips: parsed.data.slippagePips,
       executionPolicy: parsed.data.executionPolicy,
       userId: user?.id,
+      trialDeviceId: trialDeviceIdFromRequest(request),
     });
 
     return NextResponse.json(

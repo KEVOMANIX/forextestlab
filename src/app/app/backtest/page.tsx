@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
 import { Backtester } from "@/components/app/Backtester";
 import { ensureUserProfile } from "@/lib/auth";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { getCurrentUser } from "@/lib/supabase/server";
+import {
+  TRIAL_DEVICE_COOKIE,
+  trialDeviceIdFromToken,
+} from "@/lib/trial-device";
 
 export const metadata: Metadata = {
   title: "Backtester",
@@ -15,12 +20,13 @@ export const metadata: Metadata = {
 
 const DEMO_ENTITLEMENTS: PlanEntitlements = {
   plan: "free",
-  maxSavedSessions: 1,
+  maxSavedSessions: 3,
   maxSessionDays: 31,
   maxPairsPerSession: 1,
   maxReplaySpeed: 1200,
   fullAnalytics: false,
   csvExports: false,
+  trialSessionsRemaining: 3,
   freeSessionUsed: false,
 };
 
@@ -32,7 +38,10 @@ export default async function BacktestPage({
   const user = await getCurrentUser();
   if (user) await ensureUserProfile(user);
   const entitlements = user
-    ? await getUserEntitlements(user.id)
+    ? await getUserEntitlements(
+        user.id,
+        trialDeviceIdFromToken(cookies().get(TRIAL_DEVICE_COOKIE)?.value),
+      )
     : DEMO_ENTITLEMENTS;
   const resumeSessionId =
     typeof searchParams.session === "string" && searchParams.session.length <= 100

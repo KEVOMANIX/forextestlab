@@ -3,13 +3,14 @@ import "server-only";
 import type { UserProfile } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { TRIAL_SESSION_LIMIT } from "@/lib/trial-device";
 import type { PlanEntitlements } from "./entitlement-types";
 
 export const FREE_SESSION_MAX_MS = 31 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000;
 
 type BillingProfile = Pick<
   UserProfile,
-  "billingStatus" | "proAccessUntil" | "freeSessionUsedAt"
+  "billingStatus" | "proAccessUntil"
 >;
 
 export function hasProAccess(profile: BillingProfile, now = new Date()): boolean {
@@ -19,31 +20,48 @@ export function hasProAccess(profile: BillingProfile, now = new Date()): boolean
   );
 }
 
-export function planEntitlements(profile: BillingProfile): PlanEntitlements {
+export function planEntitlements(
+  profile: BillingProfile,
+  trialSessionsUsed = 0,
+): PlanEntitlements {
   const pro = hasProAccess(profile);
+  const trialSessionsRemaining = pro
+    ? null
+    : Math.max(0, TRIAL_SESSION_LIMIT - trialSessionsUsed);
   return {
     plan: pro ? "pro" : "free",
-    maxSavedSessions: pro ? null : 1,
+    maxSavedSessions: pro ? null : 3,
     maxSessionDays: pro ? null : 31,
     maxPairsPerSession: pro ? null : 1,
     maxReplaySpeed: pro ? 28800 : 1200,
     fullAnalytics: pro,
     csvExports: pro,
-    freeSessionUsed: Boolean(profile.freeSessionUsedAt),
+    trialSessionsRemaining,
+    freeSessionUsed: trialSessionsRemaining === 0,
   };
 }
 
-export async function getUserEntitlements(userId: string): Promise<PlanEntitlements> {
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: userId },
-    select: {
-      billingStatus: true,
-      proAccessUntil: true,
-      freeSessionUsedAt: true,
-    },
-  });
+export async function getUserEntitlements(
+  userId: string,
+  trialDeviceId?: string | null,
+): Promise<PlanEntitlements> {
+  const [profile, trialDevice] = await Promise.all([
+    prisma.userProfile.findUnique({
+      where: { id: userId },
+      select: {
+        billingStatus: true,
+        proAccessUntil: true,
+      },
+    }),
+    trialDeviceId
+      ? prisma.trialDevice.findUnique({
+          where: { id: trialDeviceId },
+          select: { sessionsUsed: true },
+        })
+      : null,
+  ]);
   if (!profile) throw new Error("Account profile not found.");
-  return planEntitlements(profile);
+  return planEntitlements(profile, trialDevice?.sessionsUsed ?? 0);
 }
 
 export function assertSessionAllowed(
@@ -54,15 +72,12 @@ export function assertSessionAllowed(
     entitlements.maxPairsPerSession !== null &&
     input.symbols.length > entitlements.maxPairsPerSession
   ) {
-    throw new Error("Free sessions support one pair. Upgrade to Pro for multi-pair backtests.");
+    throw new Error("Trial sessions support one pair. Upgrade for multi-pair backtests.");
   }
   if (
     entitlements.maxSessionDays !== null &&
     input.endTime - input.startTime > FREE_SESSION_MAX_MS
   ) {
-    throw new Error("A Free session can cover up to one month (31 days). Choose a shorter range or upgrade to Pro.");
-  }
-  if (entitlements.plan === "free" && entitlements.freeSessionUsed) {
-    throw new Error("Your one Free backtest session has already been used. Upgrade to Pro to create another session.");
+    throw new Error("A trial session can cover up to one month (31 days). Choose a shorter range or upgrade.");
   }
 }

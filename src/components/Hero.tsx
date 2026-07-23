@@ -34,7 +34,7 @@ export function Hero() {
           <div className="mt-9 flex flex-col items-center justify-center gap-3 animate-fade-up sm:flex-row">
             <Link href="/sign-up" className="btn-primary w-full shadow-glow sm:w-auto">
               <UserPlus size={16} aria-hidden />
-              Create free account
+              Start free trial
               <ArrowRight size={16} aria-hidden />
             </Link>
             <Link href="/app" className="btn-secondary w-full sm:w-auto">
@@ -43,7 +43,7 @@ export function Hero() {
             </Link>
           </div>
           <p className="mt-4 text-xs text-slate-500">
-            No payment required. Your saved sessions and notes stay private.
+            Three one-month trial sessions per device. No payment required.
           </p>
         </div>
 

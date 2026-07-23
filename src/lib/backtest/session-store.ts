@@ -29,6 +29,7 @@ import type {
   SessionState,
 } from "./types";
 import { normalizeReplaySpeed } from "./types";
+import { TRIAL_SESSION_LIMIT } from "@/lib/trial-device";
 
 /** Bounded replay chunk size; longer sessions are extended progressively. */
 const MAX_SESSION_CANDLES = 1500;
@@ -75,6 +76,7 @@ export interface CreateSessionParams {
   slippagePips?: string;
   executionPolicy?: "conservative" | "optimistic";
   userId?: string;
+  trialDeviceId?: string | null;
 }
 
 export interface LoadedSession {
@@ -404,7 +406,6 @@ export async function createSession(
         select: {
           billingStatus: true,
           proAccessUntil: true,
-          freeSessionUsedAt: true,
         },
       });
       if (!profile) throw new Error("Account profile not found.");
@@ -412,15 +413,35 @@ export async function createSession(
       const entitlements = planEntitlements(profile);
       assertSessionAllowed(entitlements, params);
       if (entitlements.plan === "free") {
-        const claimed = await tx.userProfile.updateMany({
-          where: { id: params.userId, freeSessionUsedAt: null },
-          data: { freeSessionUsedAt: new Date() },
+        if (!params.trialDeviceId) {
+          throw new Error(
+            "Your trial device could not be verified. Refresh the page and try again.",
+          );
+        }
+        await tx.trialDevice.upsert({
+          where: { id: params.trialDeviceId },
+          create: { id: params.trialDeviceId },
+          update: {},
+        });
+        const claimed = await tx.trialDevice.updateMany({
+          where: {
+            id: params.trialDeviceId,
+            sessionsUsed: { lt: TRIAL_SESSION_LIMIT },
+          },
+          data: {
+            sessionsUsed: { increment: 1 },
+            lastUsedAt: new Date(),
+          },
         });
         if (claimed.count !== 1) {
           throw new Error(
-            "Your one Free backtest session has already been used. Upgrade to Pro to create another session.",
+            "This device has used its three trial sessions. Upgrade to continue with unlimited sessions.",
           );
         }
+        await tx.backtestSession.create({
+          data: { ...sessionData, trialDeviceId: params.trialDeviceId },
+        });
+        return;
       }
       await tx.backtestSession.create({ data: sessionData });
     });

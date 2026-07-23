@@ -95,15 +95,15 @@ function SignedOutDashboard() {
             focused workspace.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/sign-up" className="btn-primary shadow-glow">
-              Create free account <ArrowRight size={16} aria-hidden />
+            <Link href="/sign-up?next=%2Fapp%2Fbacktest" className="btn-primary shadow-glow">
+              Start free trial <ArrowRight size={16} aria-hidden />
             </Link>
             <Link href="/app/backtest" className="btn-secondary">
               <Play size={16} aria-hidden /> Explore the workspace
             </Link>
           </div>
           <p className="mt-3 text-xs app-muted">
-            No payment required. Guest sessions remain available for 24 hours.
+            Three one-month trial sessions per device. No payment required.
           </p>
         </div>
       </section>

@@ -9,6 +9,7 @@ import { getPricingTiers } from "@/lib/billing/tiers";
 import { countryCodeFromHeaders } from "@/lib/request-country";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db";
+import { TrialOffer } from "@/components/TrialOffer";
 
 export async function PricingSection() {
   const countryCode = countryCodeFromHeaders(headers());
@@ -27,6 +28,12 @@ export async function PricingSection() {
       className="bg-surface-900/45"
       centered
     >
+      <div className="mb-8 text-left">
+        <TrialOffer
+          compact
+          href={user ? "/app/backtest" : "/sign-up?next=%2Fapp%2Fbacktest"}
+        />
+      </div>
       <LocalizedPricing
         compact
         tiers={getPricingTiers()}

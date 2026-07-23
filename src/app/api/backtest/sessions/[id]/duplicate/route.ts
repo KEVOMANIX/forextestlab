@@ -3,12 +3,13 @@ import { NextResponse } from "next/server";
 import { ensureUserProfile } from "@/lib/auth";
 import { createSession, loadSession } from "@/lib/backtest/session-store";
 import { getCurrentUser } from "@/lib/supabase/server";
+import { trialDeviceIdFromRequest } from "@/lib/trial-device";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } },
 ) {
   const user = await getCurrentUser();
@@ -37,6 +38,7 @@ export async function POST(
       slippagePips: config.slippagePips,
       executionPolicy: config.executionPolicy,
       userId: user.id,
+      trialDeviceId: trialDeviceIdFromRequest(request),
     });
     return NextResponse.json({ ok: true, sessionId: duplicate.id }, { status: 201 });
   } catch (error) {

@@ -67,7 +67,7 @@ export function Navbar() {
           </Link>
           <Link href="/sign-up" className="btn-primary py-2.5 shadow-glow">
             <UserPlus size={16} aria-hidden />
-            Create free account
+            Start free trial
           </Link>
         </div>
 
@@ -114,7 +114,7 @@ export function Navbar() {
             className="btn-primary mt-2 w-full"
           >
             <UserPlus size={16} aria-hidden />
-            Create free account
+            Start free trial
           </Link>
           <Link
             href="/sign-in"

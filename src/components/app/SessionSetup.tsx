@@ -383,13 +383,14 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
           <LockKeyhole size={22} aria-hidden />
         </span>
-        <h2 className="mt-5 text-2xl font-semibold">Your Free session has been used</h2>
+        <h2 className="mt-5 text-2xl font-semibold">Your device trial is complete</h2>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed app-muted">
-          Your account includes one backtest session of up to one month. Upgrade to Pro for unlimited sessions and the complete workspace.
+          This device has used its three trial sessions. Upgrade for unlimited
+          sessions, longer test periods, and the complete workspace.
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
           <Link href="/account/billing" className="btn-primary">Upgrade to Pro</Link>
-          <Link href="/app/history" className="btn-secondary">View saved session</Link>
+          <Link href="/app/history" className="btn-secondary">View saved sessions</Link>
         </div>
       </div>
     );
@@ -403,7 +404,9 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           <h2 className="mt-1 text-2xl font-bold tracking-tight">Set up your session</h2>
         </div>
         <span className="w-fit rounded-full border border-brand-400/20 bg-brand-400/[0.07] px-3 py-1.5 text-xs font-semibold text-brand-300">
-          {entitlements.plan === "free" ? "Free · 1 pair · up to 31 days" : "Pro workspace"}
+          {entitlements.plan === "free"
+            ? `Trial · ${entitlements.trialSessionsRemaining ?? 0} of 3 left · 1 pair · 31 days`
+            : "Pro workspace"}
         </span>
       </div>
 

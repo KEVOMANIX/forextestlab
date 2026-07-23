@@ -631,7 +631,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
       initialCandles: visible,
       lastCandle: visible[visible.length - 1] ?? null,
       lastCandles: [],
-      resetNonce: prev.resetNonce + 1,
     }));
   }, [runAction]);
   const restart = useCallback(async () => {

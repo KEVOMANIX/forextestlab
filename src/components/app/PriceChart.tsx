@@ -182,6 +182,7 @@ export default function PriceChart({
   const positionsRef = useRef<OpenPosition[]>(positions);
   const followLatestRef = useRef(true);
   const rawCandlesRef = useRef<Candle[]>(initialCandles);
+  const syncedInitialCandlesRef = useRef<Candle[]>(initialCandles);
   const displayTimeframeRef = useRef<Timeframe>(baseTimeframe);
   const draggingRef = useRef<"stop" | "target" | null>(null);
   const savedRangeRef = useRef<{ from: number; to: number } | null>(null);
@@ -478,6 +479,24 @@ export default function PriceChart({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastCandle, lastCandles]);
+
+  // Moving replay backward replaces the visible candle slice. Update the
+  // existing series instead of remounting the chart so zoom, scroll position,
+  // loaded history, drawings, and toolbar state remain untouched.
+  useEffect(() => {
+    if (syncedInitialCandlesRef.current === initialCandles) return;
+    syncedInitialCandlesRef.current = initialCandles;
+    rawCandlesRef.current = initialCandles;
+
+    const scale = chartRef.current?.timeScale();
+    const visibleRange = scale?.getVisibleLogicalRange() ?? null;
+    refreshSeries();
+    if (visibleRange) {
+      followLatestRef.current = false;
+      scale?.setVisibleLogicalRange(visibleRange);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCandles]);
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;

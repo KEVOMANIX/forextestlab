@@ -5,30 +5,43 @@ import {
   ArrowRight,
   BarChart3,
   BookOpenCheck,
-  CalendarDays,
   ChartNoAxesCombined,
-  CircleDollarSign,
   Clock3,
   Gauge,
+  Lightbulb,
+  ListChecks,
   Play,
   Plus,
   ShieldCheck,
+  Sparkles,
   Target,
   TrendingDown,
   TrendingUp,
+  Trophy,
 } from "lucide-react";
 
-import { ensureUserProfile } from "@/lib/auth";
-import type { SessionState } from "@/lib/backtest/types";
-import { prisma } from "@/lib/db";
-import { formatNewYorkDate } from "@/lib/date-time";
-import { Decimal } from "@/lib/decimal";
-import { getCurrentUser } from "@/lib/supabase/server";
-import { SessionCardActions } from "@/components/app/SessionCardActions";
-import { formatSymbol } from "@/lib/market-data/symbols";
-import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
+import {
+  DashboardSessionsTable,
+  type DashboardSessionRow,
+} from "@/components/app/DashboardSessionsTable";
+import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
+import { ensureUserProfile } from "@/lib/auth";
+import { computeStatistics } from "@/lib/backtest/statistics";
+import type { ClosedTrade, SessionState } from "@/lib/backtest/types";
+import { prisma } from "@/lib/db";
+import {
+  formatNewYorkDate,
+  formatNewYorkDateTime,
+  getNewYorkDateParts,
+  getTradingSession,
+} from "@/lib/date-time";
+import { Decimal } from "@/lib/decimal";
+import { formatSymbol } from "@/lib/market-data/symbols";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
+import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
+import { getCurrentUser } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +51,16 @@ export const metadata: Metadata = {
     "Review private forex backtesting sessions, trading performance, and recent strategy-testing activity.",
   robots: { index: false, follow: false },
 };
+
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
 
 function safeState(value: string): SessionState | null {
   try {
@@ -54,6 +77,32 @@ function sessionName(stateJson: string, fallbackSymbol: string): string {
 function formatMoney(value: Decimal): string {
   const sign = value.isPositive() ? "+" : value.isNegative() ? "−" : "";
   return `${sign}$${value.abs().toFixed(2)}`;
+}
+
+function sessionProgress(state: SessionState | null): number {
+  if (!state?.totalCandles) return state?.status === "finished" ? 100 : 0;
+  return Math.min(
+    100,
+    Math.max(0, ((state.visibleIndex + 1) / state.totalCandles) * 100),
+  );
+}
+
+function aggregateTradePnl<T extends string | number>(
+  trades: ClosedTrade[],
+  keyFor: (trade: ClosedTrade) => T,
+): Array<{ key: T; pnl: Decimal; count: number }> {
+  const values = new Map<T, { pnl: Decimal; count: number }>();
+  trades.forEach((trade) => {
+    const key = keyFor(trade);
+    const current = values.get(key) ?? { pnl: new Decimal(0), count: 0 };
+    values.set(key, {
+      pnl: current.pnl.plus(trade.pnl),
+      count: current.count + 1,
+    });
+  });
+  return [...values.entries()]
+    .map(([key, value]) => ({ key, ...value }))
+    .sort((left, right) => right.pnl.comparedTo(left.pnl));
 }
 
 function SignedOutDashboard() {
@@ -91,36 +140,30 @@ function SignedOutDashboard() {
             Turn every backtest into a clearer trading process.
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-relaxed app-muted sm:text-lg">
-            Create an account to save private sessions and see your results,
-            trends, trade count, win rate, and recent testing activity in one
-            focused workspace.
+            Save private sessions, resume replay, and review every decision from
+            one focused workspace.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href={TRIAL_SIGN_UP_PATH} className="btn-primary shadow-glow">
               Start free trial <ArrowRight size={16} aria-hidden />
             </Link>
-            <Link href="/app/backtest" className="btn-secondary">
-              <Play size={16} aria-hidden /> Explore the workspace
+            <Link
+              href="/sign-in?next=%2Faccount%2Fcontinue"
+              className="btn-secondary"
+            >
+              Sign in
             </Link>
           </div>
-          <p className="mt-3 text-xs app-muted">
-            Three one-month trial sessions per device. No payment required.
-          </p>
         </div>
       </section>
 
       <section className="mt-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">
-              Dashboard preview
-            </p>
-            <h2 className="mt-2 text-xl font-semibold">Built around your testing record</h2>
-          </div>
-          <Link href="/sign-in" className="text-sm font-semibold text-brand-300 hover:underline">
-            Already registered? Sign in
-          </Link>
-        </div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">
+          Your testing record
+        </p>
+        <h2 className="mt-2 text-xl font-semibold">
+          Everything needed to continue and review
+        </h2>
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {previewCards.map(({ icon: Icon, label, text }) => (
             <article key={label} className="panel p-6">
@@ -158,91 +201,217 @@ export default async function AppHome({
   const legacySelectedId = searchParams?.performance?.startsWith("session:")
     ? searchParams.performance.slice("session:".length)
     : null;
-  const selectedSession = sessions.find(
-    (session) => session.id === (searchParams?.session ?? legacySelectedId),
-  ) ?? sessions[0] ?? null;
-  const performanceSessions = selectedSession ? [selectedSession] : [];
+  const selectedSession =
+    sessions.find(
+      (session) => session.id === (searchParams?.session ?? legacySelectedId),
+    ) ??
+    sessions[0] ??
+    null;
+  const selectedState = selectedSession
+    ? safeState(selectedSession.stateJson)
+    : null;
   const scopeLabel = selectedSession
     ? sessionName(selectedSession.stateJson, selectedSession.symbol)
     : "No session selected";
-
-  const recentSessions = sessions
-    .filter((session) => safeState(session.stateJson)?.config.archived !== true)
-    .slice(0, 5);
-
-  const totalNet = performanceSessions.reduce(
-    (sum, session) =>
-      sum.plus(new Decimal(session.balance).minus(session.startingBalance)),
-    new Decimal(0),
-  );
-  const states = performanceSessions
-    .map((session) => safeState(session.stateJson))
-    .filter((state): state is SessionState => state !== null);
-  const trades = states.flatMap((state) => state.closedTrades);
-  const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
-  const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
-  const winRate = trades.length ? (wins / trades.length) * 100 : 0;
-  const maxDrawdown = states.reduce(
-    (max, state) => Decimal.max(max, new Decimal(state.maxDrawdown || 0)),
-    new Decimal(0),
-  );
-  const selectedState = states[0] ?? null;
-  const bestTrade = trades.reduce<SessionState["closedTrades"][number] | null>(
-    (best, trade) => !best || new Decimal(trade.pnl).gt(best.pnl) ? trade : best,
-    null,
-  );
-  const chartPoints = selectedState?.equityCurve.map((point) => ({
-    time: point.time,
-    balance: Number(point.balance),
-    equity: Number(point.equity),
-  })) ?? [];
-  const displayName =
-    typeof user.user_metadata?.display_name === "string" &&
-    user.user_metadata.display_name.trim()
-      ? user.user_metadata.display_name.trim()
-      : user.email?.split("@")[0] ?? "Trader";
   const selectedSymbols = selectedState?.config.symbols?.length
     ? selectedState.config.symbols
     : selectedSession
       ? [selectedSession.symbol]
       : [];
-  const sessionProgress = selectedState?.totalCandles
-    ? Math.min(100, ((selectedState.visibleIndex + 1) / selectedState.totalCandles) * 100)
-    : 0;
+  const progress = sessionProgress(selectedState);
+  const trades = selectedState?.closedTrades ?? [];
+  const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
+  const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
+  const winRate = trades.length ? (wins / trades.length) * 100 : 0;
+  const totalNet = selectedSession
+    ? new Decimal(selectedSession.balance).minus(selectedSession.startingBalance)
+    : new Decimal(0);
+  const startingBalance = new Decimal(selectedSession?.startingBalance ?? 0);
+  const netPercent = startingBalance.isZero()
+    ? new Decimal(0)
+    : totalNet.dividedBy(startingBalance).times(100);
+  const stats =
+    selectedSession && selectedState
+      ? computeStatistics({
+          startingBalance: selectedSession.startingBalance,
+          endingBalance: selectedSession.balance,
+          trades,
+          equityCurve: selectedState.equityCurve,
+        })
+      : null;
+  const chartPoints =
+    selectedState?.equityCurve.map((point) => ({
+      time: point.time,
+      balance: Number(point.balance),
+      equity: Number(point.equity),
+    })) ?? [];
+  const chartTrades = trades.map((trade) => ({
+    time: trade.exitTime,
+    pnl: Number(trade.pnl),
+  }));
+  const displayName =
+    typeof user.user_metadata?.display_name === "string" &&
+    user.user_metadata.display_name.trim()
+      ? user.user_metadata.display_name.trim()
+      : user.email?.split("@")[0] ?? "Trader";
+
+  const lastReplayTime =
+    selectedSession && selectedState
+      ? Math.min(
+          Number(selectedSession.endTime),
+          Number(selectedSession.startTime) +
+            Math.max(0, selectedState.visibleIndex) *
+              TIMEFRAME_MS[selectedState.config.timeframe],
+        )
+      : null;
+
+  const dayLeaders = aggregateTradePnl(
+    trades,
+    (trade) => getNewYorkDateParts(trade.exitTime).weekday,
+  );
+  const marketSessionLeaders = aggregateTradePnl(trades, (trade) =>
+    getTradingSession(trade.entryTime),
+  );
+
+  const insightCards = trades.length
+    ? [
+        {
+          icon: Trophy,
+          title: `${WEEKDAYS[Number(dayLeaders[0]?.key ?? 0)]} is your strongest day`,
+          detail: `${formatMoney(dayLeaders[0]?.pnl ?? new Decimal(0))} across ${dayLeaders[0]?.count ?? 0} closed trade${dayLeaders[0]?.count === 1 ? "" : "s"}.`,
+        },
+        {
+          icon: Clock3,
+          title: `${marketSessionLeaders[0]?.key ?? "New York"} leads your session results`,
+          detail: `${formatMoney(marketSessionLeaders[0]?.pnl ?? new Decimal(0))} from ${marketSessionLeaders[0]?.count ?? 0} trade${marketSessionLeaders[0]?.count === 1 ? "" : "s"} entered in this market window.`,
+        },
+        {
+          icon: Gauge,
+          title:
+            stats?.expectancy === "Not available"
+              ? "Build a larger trade sample"
+              : `${stats?.expectancy} expectancy per trade`,
+          detail:
+            stats?.profitFactor === "Not available"
+              ? "Close both winning and losing trades to establish a profit factor."
+              : `Profit factor ${stats?.profitFactor} · average risk/reward ${stats?.averageRiskReward}.`,
+        },
+      ]
+    : [
+        {
+          icon: Play,
+          title: "Resume replay and place your first trade",
+          detail: "Insights become specific to this session as you close positions.",
+        },
+        {
+          icon: Target,
+          title: `${progress.toFixed(0)}% of the replay completed`,
+          detail: "Continue from the last saved candle whenever you are ready.",
+        },
+        {
+          icon: Lightbulb,
+          title: "Use notes to capture the reason behind each decision",
+          detail: "A consistent record makes the analytics more useful later.",
+        },
+      ];
+
+  const recentTradeActivity = [...trades]
+    .sort((left, right) => right.exitTime - left.exitTime)
+    .slice(0, 4);
+
+  const sessionOptions = sessions.map((session) => {
+    const state = safeState(session.stateJson);
+    const net = new Decimal(session.balance).minus(session.startingBalance);
+    const symbols = state?.config.symbols?.length
+      ? state.config.symbols
+      : [session.symbol];
+    return {
+      id: session.id,
+      name: sessionName(session.stateJson, session.symbol),
+      symbols: symbols.map(formatSymbol).join(", "),
+      status: session.status === "finished" ? "Completed" : "Active",
+      updatedAt: formatNewYorkDate(session.updatedAt, {
+        day: "numeric",
+        month: "short",
+      }),
+      pnl: formatMoney(net),
+      positive: net.gte(0),
+    };
+  });
+
+  const sessionRows: DashboardSessionRow[] = sessions
+    .map((session) => {
+      const state = safeState(session.stateJson);
+      if (state?.config.archived === true) return null;
+      const net = new Decimal(session.balance).minus(session.startingBalance);
+      const symbols = state?.config.symbols?.length
+        ? state.config.symbols
+        : [session.symbol];
+      return {
+        id: session.id,
+        name: sessionName(session.stateJson, session.symbol),
+        symbols: symbols.map(formatSymbol).join(", "),
+        dateRange: `${formatNewYorkDate(Number(session.startTime), {
+          day: "numeric",
+          month: "short",
+        })} – ${formatNewYorkDate(Number(session.endTime), {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })}`,
+        status:
+          session.status === "finished"
+            ? ("Completed" as const)
+            : ("Active" as const),
+        updatedAt: session.updatedAt.getTime(),
+        updatedLabel: `Updated ${formatNewYorkDate(session.updatedAt, {
+          day: "numeric",
+          month: "short",
+        })}`,
+        pnl: net.toNumber(),
+        pnlLabel: formatMoney(net),
+        progress: sessionProgress(state),
+        archived: false,
+      };
+    })
+    .filter((session): session is DashboardSessionRow => session !== null);
 
   const summaryCards = [
     {
-      label: "Session status",
-      value: selectedSession?.status === "finished" ? "Completed" : "Active",
-      detail: selectedSession ? formatSymbol(selectedSession.symbol) : "No session",
-      icon: CalendarDays,
-      tone: "text-brand-300",
-    },
-    {
-      label: "Net simulated P/L",
+      label: "Net P/L",
       value: formatMoney(totalNet),
-      detail: scopeLabel,
+      detail: `${netPercent.gte(0) ? "+" : "−"}${netPercent.abs().toFixed(2)}% from starting balance`,
       icon: totalNet.isNegative() ? TrendingDown : TrendingUp,
       tone: totalNet.isNegative() ? "text-bear" : "text-brand-300",
     },
     {
+      label: "Win rate",
+      value: trades.length ? `${winRate.toFixed(1)}%` : "—",
+      detail: trades.length ? `${wins} wins · ${losses} losses` : "No closed trades",
+      icon: Gauge,
+      tone: "text-amber-300",
+    },
+    {
       label: "Total trades",
       value: String(trades.length),
-      detail: `${wins} wins · ${losses} losses`,
+      detail:
+        stats?.expectancy === "Not available"
+          ? "Build your sample"
+          : `${stats?.expectancy ?? "$0.00"} average result`,
       icon: Target,
       tone: "text-accent-400",
     },
     {
-      label: "Session win rate",
-      value: trades.length ? `${winRate.toFixed(1)}%` : "—",
-      detail: trades.length ? `${trades.length} closed trades` : "Complete a trade to calculate",
-      icon: Gauge,
-      tone: "text-amber-300",
+      label: "Maximum drawdown",
+      value: stats ? `$${stats.maxDrawdown}` : "$0.00",
+      detail: stats ? `${stats.maxDrawdownPercent}% from peak equity` : "No drawdown",
+      icon: TrendingDown,
+      tone: "text-bear",
     },
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:py-10">
+    <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 sm:py-9">
       <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
@@ -251,277 +420,301 @@ export default async function AppHome({
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
             Welcome back, {displayName}
           </h1>
+          <p className="mt-2 text-sm app-muted">
+            Continue your latest replay or review the decisions behind your results.
+          </p>
         </div>
         <Link href="/app/backtest" className="btn-primary shrink-0 shadow-glow">
           <Plus size={17} aria-hidden /> New backtest
         </Link>
       </header>
 
-      <section
-        className="relative mt-7 overflow-hidden rounded-2xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.10),var(--app-panel)_48%,rgba(59,107,255,0.08))] p-5 shadow-card sm:p-6"
-        aria-label="Dashboard session"
-      >
-        <div aria-hidden className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-brand-400/10 blur-3xl" />
-        <div className="relative flex flex-col gap-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-              Showing results for
-            </p>
-            <h2 className="mt-2 truncate text-2xl font-bold tracking-tight text-brand-300 sm:text-3xl">
-              &ldquo;{scopeLabel}&rdquo;
+      {!selectedSession ? (
+        <section className="relative mt-7 overflow-hidden rounded-3xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-6 shadow-card sm:p-9">
+          <div
+            aria-hidden
+            className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl"
+          />
+          <div className="relative">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-brand-400/25 bg-brand-400/10 text-brand-300">
+              <ListChecks size={22} aria-hidden />
+            </span>
+            <h2 className="mt-5 text-2xl font-bold tracking-tight">
+              Create your first backtest
             </h2>
-              {selectedSession && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs app-muted">
-                  <span className={`rounded-full px-2.5 py-1 font-semibold ${selectedSession.status === "finished" ? "bg-brand-400/10 text-brand-300" : "bg-amber-400/10 text-amber-300"}`}>{selectedSession.status === "finished" ? "Completed" : "Active"}</span>
-                  {selectedSymbols.map((symbol) => <span key={symbol} className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold">{formatSymbol(symbol)}</span>)}
-                  <span>{formatNewYorkDate(Number(selectedSession.startTime))} – {formatNewYorkDate(Number(selectedSession.endTime))}</span>
+            <div className="mt-6 grid gap-3 md:grid-cols-3">
+              {[
+                ["1", "Choose a market", "Select the pair and historical period."],
+                ["2", "Replay and trade", "Practise without seeing future candles."],
+                ["3", "Review the evidence", "Use analytics to refine your process."],
+              ].map(([number, title, detail]) => (
+                <div
+                  key={number}
+                  className="rounded-2xl border app-border bg-[var(--app-panel-2)]/60 p-4"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-500 text-xs font-bold text-surface-950">
+                    {number}
+                  </span>
+                  <h3 className="mt-4 font-semibold">{title}</h3>
+                  <p className="mt-1 text-sm app-muted">{detail}</p>
                 </div>
-              )}
+              ))}
             </div>
-            {selectedSession && (
-              <DashboardSessionSwitcher
-                selectedId={selectedSession.id}
-                sessions={sessions.map((session) => {
-                  const state = safeState(session.stateJson);
-                  const net = new Decimal(session.balance).minus(session.startingBalance);
-                  const symbols = state?.config.symbols?.length ? state.config.symbols : [session.symbol];
-                  return {
-                    id: session.id,
-                    name: sessionName(session.stateJson, session.symbol),
-                    symbols: symbols.map(formatSymbol).join(", "),
-                    status: session.status === "finished" ? "Completed" : "Active",
-                    updatedAt: formatNewYorkDate(session.updatedAt, { day: "numeric", month: "short" }),
-                    pnl: formatMoney(net),
-                    positive: net.gte(0),
-                  };
-                })}
-              />
-            )}
+            <Link href="/app/backtest" className="btn-primary mt-6">
+              Start backtesting <ArrowRight size={15} aria-hidden />
+            </Link>
           </div>
-          {selectedSession && (
-            <div className="grid gap-4 border-t app-border pt-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-              <div>
-                <div className="flex items-center justify-between text-xs"><span className="font-semibold app-muted">Replay progress</span><span className="font-mono font-semibold">{sessionProgress.toFixed(0)}%</span></div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500 transition-[width]" style={{ width: `${sessionProgress}%` }} /></div>
-              </div>
-              <SessionCardActions sessionId={selectedSession.id} status={selectedSession.status} archived={selectedState?.config.archived === true} />
-            </div>
-          )}
-        </div>
-      </section>
-
-      {performanceSessions.length === 0 && (
-        <section className="panel mt-5 px-6 py-10 text-center">
-          <Activity size={28} className="mx-auto text-brand-300" aria-hidden />
-          <h2 className="mt-4 text-lg font-semibold">Create your first backtest</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm app-muted">Your session performance, replay progress, and trading analytics will appear here.</p>
-          <Link href="/app/backtest" className="btn-primary mt-5">Start backtesting <ArrowRight size={15} /></Link>
         </section>
-      )}
-
-      <section className={`${performanceSessions.length === 0 ? "hidden" : "grid"} mt-8 gap-3 sm:grid-cols-2 xl:grid-cols-4`} aria-label="Selected session summary">
-        {summaryCards.map(({ label, value, detail, icon: Icon, tone }) => (
-          <article key={label} className="panel relative overflow-hidden p-5">
+      ) : (
+        <>
+          <section
+            className="relative mt-7 overflow-hidden rounded-2xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.11),var(--app-panel)_50%,rgba(59,107,255,0.08))] p-5 shadow-card sm:p-6"
+            aria-label="Selected dashboard session"
+          >
             <div
               aria-hidden
-              className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-brand-400/5 blur-2xl"
+              className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-brand-400/10 blur-3xl"
             />
-            <div className="relative flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-medium app-muted">{label}</p>
-                <p className={`mt-3 font-mono text-2xl font-semibold ${tone}`}>{value}</p>
-                <p className="mt-2 text-xs app-muted">{detail}</p>
-              </div>
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border app-border bg-[var(--app-panel-2)]">
-                <Icon size={18} className={tone} aria-hidden />
-              </span>
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <section className={`${performanceSessions.length === 0 ? "hidden" : "grid"} mt-4 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]`}>
-        <article className="panel p-5 sm:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-                Session performance
-              </p>
-              <h2 className="mt-2 text-lg font-semibold">
-                Equity curve · {scopeLabel}
-              </h2>
-            </div>
-            <div className={`rounded-full px-3 py-1 font-mono text-sm font-semibold ${
-              totalNet.isNegative()
-                ? "bg-bear/10 text-bear"
-                : "bg-brand-400/10 text-brand-300"
-            }`}>
-              {formatMoney(totalNet)}
-            </div>
-          </div>
-          <SessionPerformanceChart points={chartPoints} />
-        </article>
-
-        <aside className="panel p-5 sm:p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-            Testing health
-          </p>
-          <h2 className="mt-2 text-lg font-semibold">At a glance</h2>
-          <dl className="mt-5 space-y-4">
-            <div className="flex items-center justify-between border-b app-border pb-4">
-              <dt className="flex items-center gap-2 text-sm app-muted">
-                <CircleDollarSign size={16} aria-hidden /> Best trade
-              </dt>
-              <dd className="font-mono text-sm font-semibold text-brand-300">
-                {bestTrade ? formatMoney(new Decimal(bestTrade.pnl)) : "—"}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between border-b app-border pb-4">
-              <dt className="flex items-center gap-2 text-sm app-muted">
-                <TrendingDown size={16} aria-hidden /> Max drawdown
-              </dt>
-              <dd className="font-mono text-sm font-semibold text-bear">
-                ${maxDrawdown.toFixed(2)}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between border-b app-border pb-4">
-              <dt className="flex items-center gap-2 text-sm app-muted">
-                <BookOpenCheck size={16} aria-hidden /> Replay progress
-              </dt>
-              <dd className="font-mono text-sm font-semibold">
-                {selectedState?.totalCandles
-                  ? `${Math.min(100, ((selectedState.visibleIndex + 1) / selectedState.totalCandles) * 100).toFixed(0)}%`
-                  : "—"}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between">
-              <dt className="flex items-center gap-2 text-sm app-muted">
-                <Clock3 size={16} aria-hidden /> Last activity
-              </dt>
-              <dd className="text-right text-xs font-medium">
-                {selectedSession
-                  ? formatNewYorkDate(selectedSession.updatedAt, {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })
-                  : "No activity in this view"}
-              </dd>
-            </div>
-          </dl>
-        </aside>
-      </section>
-
-      <section className={sessions.length === 0 ? "hidden" : "mt-8"}>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-              Recent activity
-            </p>
-            <h2 className="mt-2 text-xl font-semibold">Your latest sessions</h2>
-          </div>
-          {sessions.length > 0 && (
-            <Link href="/app/history" className="text-sm font-semibold text-brand-300 hover:underline">
-              View all sessions
-            </Link>
-          )}
-        </div>
-
-        {sessions.length === 0 ? (
-          <div className="panel mt-4 flex flex-col items-center px-6 py-12 text-center">
-            <span className="grid h-14 w-14 place-items-center rounded-2xl border border-brand-400/20 bg-brand-400/10 text-brand-300">
-              <ChartNoAxesCombined size={25} aria-hidden />
-            </span>
-            <h3 className="mt-5 text-lg font-semibold">Start building your testing record</h3>
-            <Link href="/app/backtest" className="btn-primary mt-6">
-              Start first backtest <ArrowRight size={16} aria-hidden />
-            </Link>
-          </div>
-        ) : recentSessions.length === 0 ? (
-          <div className="panel mt-4 px-6 py-8 text-center text-sm app-muted">No current sessions. Archived sessions remain available in History.</div>
-        ) : (
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {recentSessions.map((session) => {
-              const net = new Decimal(session.balance).minus(session.startingBalance);
-              const positive = net.gte(0);
-              const sessionState = safeState(session.stateJson);
-              const sessionName =
-                sessionState?.config.name?.trim() || `${session.symbol} backtest`;
-              const sessionSymbols =
-                sessionState?.config.symbols?.length
-                  ? sessionState.config.symbols
-                  : [session.symbol];
-              const tags = sessionState?.config.tags ?? [];
-              const archived = sessionState?.config.archived === true;
-              return (
-                <article
-                  key={session.id}
-                  className="panel p-5 transition-colors hover:border-brand-400/30"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-base font-semibold">{sessionName}</h3>
-                      <p className="mt-2 flex items-center gap-1.5 text-xs app-muted">
-                        <CalendarDays size={13} aria-hidden />
-                        {formatNewYorkDate(Number(session.startTime), {
-                          day: "numeric", month: "short", year: "numeric",
-                        })}
-                        {" – "}
-                        {formatNewYorkDate(Number(session.endTime), {
-                          day: "numeric", month: "short", year: "numeric",
-                        })}
-                      </p>
-                    </div>
+            <div className="relative">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
+                    {selectedSession.status === "finished"
+                      ? "Review completed session"
+                      : "Continue where you stopped"}
+                  </p>
+                  <h2 className="mt-2 truncate text-2xl font-bold tracking-tight sm:text-3xl">
+                    {scopeLabel}
+                  </h2>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs app-muted">
                     <span
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold capitalize ${
-                        session.status === "finished"
+                      className={`rounded-full px-2.5 py-1 font-semibold ${
+                        selectedSession.status === "finished"
                           ? "bg-brand-400/10 text-brand-300"
                           : "bg-amber-400/10 text-amber-300"
                       }`}
                     >
-                      {session.status}
+                      {selectedSession.status === "finished" ? "Completed" : "Active"}
                     </span>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {sessionSymbols.map((symbol) => (
+                    {selectedSymbols.map((symbol) => (
                       <span
                         key={symbol}
-                        className="rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 font-mono text-[11px] font-semibold"
+                        className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold"
                       >
                         {formatSymbol(symbol)}
                       </span>
                     ))}
-                    {tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-md bg-brand-400/10 px-2 py-1 text-[11px] text-brand-300"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
+                    <span>
+                      {formatNewYorkDate(Number(selectedSession.startTime))} –{" "}
+                      {formatNewYorkDate(Number(selectedSession.endTime))}
+                    </span>
                   </div>
-                  <div className="mt-5 flex flex-col gap-4 border-t app-border pt-4">
-                    <div>
-                      <p className="text-xs app-muted">Net P/L</p>
-                      <p className={`mt-1 font-mono text-lg font-semibold ${
-                        positive ? "text-brand-300" : "text-bear"
-                      }`}>
-                        {formatMoney(net)}
-                      </p>
-                    </div>
-                    <SessionCardActions
-                      sessionId={session.id}
-                      status={session.status}
-                      archived={archived}
+                </div>
+                <DashboardSessionSwitcher
+                  selectedId={selectedSession.id}
+                  sessions={sessionOptions}
+                />
+              </div>
+
+              <div className="mt-6 grid gap-3 border-t app-border pt-5 sm:grid-cols-3">
+                <div className="rounded-xl bg-black/[0.08] p-4">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold app-muted">Replay progress</span>
+                    <span className="font-mono font-semibold">{progress.toFixed(0)}%</span>
+                  </div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                    <div
+                      className="h-full rounded-full bg-brand-500"
+                      style={{ width: `${progress}%` }}
                     />
                   </div>
-                </article>
-              );
-            })}
+                </div>
+                <div className="rounded-xl bg-black/[0.08] p-4">
+                  <p className="text-xs font-semibold app-muted">Last replay candle</p>
+                  <p className="mt-2 text-sm font-semibold">
+                    {lastReplayTime ? formatNewYorkDateTime(lastReplayTime) : "Not started"}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-black/[0.08] p-4">
+                  <p className="text-xs font-semibold app-muted">Last activity</p>
+                  <p className="mt-2 text-sm font-semibold">
+                    {formatNewYorkDateTime(selectedSession.updatedAt)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 border-t app-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs app-muted">
+                  Your replay position and trades are saved automatically.
+                </p>
+                <SessionCardActions
+                  sessionId={selectedSession.id}
+                  sessionName={scopeLabel}
+                  status={selectedSession.status}
+                  archived={selectedState?.config.archived === true}
+                  compact
+                />
+              </div>
+            </div>
+          </section>
+
+          <section
+            className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            aria-label="Selected session summary"
+          >
+            {summaryCards.map(({ label, value, detail, icon: Icon, tone }) => (
+              <article key={label} className="panel relative overflow-hidden p-5">
+                <div
+                  aria-hidden
+                  className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-brand-400/5 blur-2xl"
+                />
+                <div className="relative flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-medium app-muted">{label}</p>
+                    <p className={`mt-3 font-mono text-2xl font-semibold ${tone}`}>
+                      {value}
+                    </p>
+                    <p className="mt-2 text-xs app-muted">{detail}</p>
+                  </div>
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--app-panel-2)]">
+                    <Icon size={18} className={tone} aria-hidden />
+                  </span>
+                </div>
+              </article>
+            ))}
+          </section>
+
+          <section className="panel mt-4 p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
+                  Performance
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">Balance and equity</h2>
+              </div>
+              <Link
+                href={`/app/results/${selectedSession.id}`}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200"
+              >
+                Open full analytics <ArrowRight size={14} aria-hidden />
+              </Link>
+            </div>
+            <SessionPerformanceChart points={chartPoints} trades={chartTrades} />
+          </section>
+
+          <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+            <article className="panel p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
+                    Performance insights
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold">
+                    Patterns worth reviewing
+                  </h2>
+                </div>
+                <Sparkles size={20} className="text-brand-300" aria-hidden />
+              </div>
+              <div className="mt-5 grid gap-3 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                {insightCards.map(({ icon: Icon, title, detail }) => (
+                  <div
+                    key={title}
+                    className="rounded-xl bg-[var(--app-panel-2)]/65 p-4"
+                  >
+                    <Icon size={17} className="text-brand-300" aria-hidden />
+                    <h3 className="mt-3 text-sm font-semibold leading-5">{title}</h3>
+                    <p className="mt-2 text-xs leading-5 app-muted">{detail}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <aside className="panel p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
+                Recent activity
+              </p>
+              <h2 className="mt-2 text-xl font-semibold">Latest decisions</h2>
+              <div className="mt-5">
+                {recentTradeActivity.length ? (
+                  <ol className="space-y-1">
+                    {recentTradeActivity.map((trade) => {
+                      const pnl = new Decimal(trade.pnl);
+                      return (
+                        <li
+                          key={trade.id}
+                          className="flex items-center gap-3 rounded-xl px-2 py-3 hover:bg-white/[0.025]"
+                        >
+                          <span
+                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
+                              pnl.gte(0)
+                                ? "bg-brand-400/10 text-brand-300"
+                                : "bg-bear/10 text-bear"
+                            }`}
+                          >
+                            {pnl.gte(0) ? (
+                              <TrendingUp size={14} aria-hidden />
+                            ) : (
+                              <TrendingDown size={14} aria-hidden />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-semibold capitalize">
+                              {trade.direction} position · {trade.exitReason.replace("-", " ")}
+                            </span>
+                            <span className="mt-1 block text-[11px] app-muted">
+                              {formatNewYorkDateTime(trade.exitTime, {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </span>
+                          <span
+                            className={`font-mono text-xs font-semibold ${
+                              pnl.gte(0) ? "text-brand-300" : "text-bear"
+                            }`}
+                          >
+                            {formatMoney(pnl)}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                ) : (
+                  <div className="rounded-xl bg-[var(--app-panel-2)]/60 px-4 py-8 text-center">
+                    <Activity size={20} className="mx-auto text-brand-300" aria-hidden />
+                    <p className="mt-3 text-sm font-semibold">No closed trades yet</p>
+                    <p className="mt-1 text-xs app-muted">
+                      Your latest decisions will appear here.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </aside>
+          </section>
+        </>
+      )}
+
+      {sessionRows.length > 0 && (
+        <section className="mt-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
+                Saved sessions
+              </p>
+              <h2 className="mt-2 text-xl font-semibold">Continue or review</h2>
+            </div>
+            <Link
+              href="/app/history"
+              className="text-sm font-semibold text-brand-300 hover:text-brand-200"
+            >
+              View full history
+            </Link>
           </div>
-        )}
-      </section>
+          <DashboardSessionsTable sessions={sessionRows} />
+        </section>
+      )}
     </div>
   );
 }

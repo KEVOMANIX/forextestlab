@@ -512,6 +512,7 @@ export function Backtester({
         currentEndTime={state.config.endTime}
         sessionStartTime={state.config.startTime}
         maxSessionDays={entitlements.maxSessionDays}
+        isTrial={entitlements.plan === "free"}
         busy={bt.busy}
         error={bt.error}
         onAddData={actions.extendSessionData}

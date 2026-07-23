@@ -96,6 +96,8 @@ export const actionSchema = z.discriminatedUnion("type", [
       z.literal(1800),
       z.literal(3600),
       z.literal(7200),
+      z.literal(14400),
+      z.literal(28800),
     ]),
   }),
   z.object({

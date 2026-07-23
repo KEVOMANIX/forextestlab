@@ -24,7 +24,9 @@ Lightweight Charts™.
 - Currency-pair, timeframe, and historical-period selection.
 - Server-controlled market replay (candle-by-candle; **future candles are never
   sent to the browser**).
-- Start / pause / resume / next / previous / restart, with a 15×–600× real market-time speed slider.
+- Start / pause / resume / next / previous / restart, with real market-time
+  replay up to 1,200× on Free and 28,800× on Pro. Ultra-fast settings batch
+  candles per animation frame while preserving candle-by-candle execution.
 - Each chart preloads roughly six months of hourly context before the selected 1-minute replay start; context candles never affect execution or analytics.
 - Simulated Buy/Sell with stop-loss, take-profit, fixed-lot or risk-% sizing.
 - Manual close and automatic SL/TP close (with a conservative intrabar policy).

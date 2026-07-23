@@ -108,7 +108,7 @@ export async function POST(
         action.speed >
         (session.userId
           ? (await getUserEntitlements(session.userId)).maxReplaySpeed
-          : 300)
+          : 1200)
       ) {
         opError = "Upgrade to Pro to unlock the fastest replay speeds.";
       } else {

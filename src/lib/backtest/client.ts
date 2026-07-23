@@ -211,3 +211,17 @@ export function replayIntervalMs(
 ): number {
   return Math.max(16, (TIMEFRAME_MS[timeframe] * stepCount) / speed);
 }
+
+/**
+ * Browsers cannot reliably redraw faster than one frame every ~16 ms. At
+ * higher replay multipliers, process several replay steps in that frame so
+ * the requested market-time speed remains meaningful.
+ */
+export function replayBatchSize(
+  speed: ReplaySpeed,
+  timeframe: Timeframe,
+  stepCount = 1,
+): number {
+  const idealInterval = (TIMEFRAME_MS[timeframe] * stepCount) / speed;
+  return idealInterval >= 16 ? 1 : Math.max(1, Math.round(16 / idealInterval));
+}

@@ -18,7 +18,7 @@ const DEMO_ENTITLEMENTS: PlanEntitlements = {
   maxSavedSessions: 1,
   maxSessionDays: 31,
   maxPairsPerSession: 1,
-  maxReplaySpeed: 300,
+  maxReplaySpeed: 1200,
   fullAnalytics: false,
   csvExports: false,
   freeSessionUsed: false,

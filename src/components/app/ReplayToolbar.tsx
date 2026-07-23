@@ -23,7 +23,7 @@ import {
   type ReplayStepMinutes,
 } from "@/lib/backtest/types";
 import { TIMEFRAME_MS } from "@/lib/market-data/types";
-import { replayIntervalMs } from "@/lib/backtest/client";
+import { replayBatchSize, replayIntervalMs } from "@/lib/backtest/client";
 
 interface ReplayToolbarProps {
   state: PublicSessionState;
@@ -120,9 +120,14 @@ export function ReplayToolbar({
     state.config.timeframe,
     stepCount,
   );
-  const cadenceLabel = cadenceMs >= 1000
+  const batchSize = replayBatchSize(
+    state.speed,
+    state.config.timeframe,
+    stepCount,
+  );
+  const cadenceLabel = cadenceMs >= 1000 && batchSize === 1
     ? `1 step / ${(cadenceMs / 1000).toFixed(cadenceMs % 1000 === 0 ? 0 : 1)}s`
-    : `${(1000 / cadenceMs).toFixed(1)} steps/s`;
+    : `${((1000 / cadenceMs) * batchSize).toFixed(1)} steps/s`;
 
   function clampPosition(x: number, y: number) {
     const toolbox = toolboxRef.current;

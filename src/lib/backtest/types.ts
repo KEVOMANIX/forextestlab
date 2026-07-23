@@ -12,10 +12,22 @@ export type TradeDirection = "long" | "short";
 export type ReplayStatus = "idle" | "running" | "paused" | "finished";
 
 /** Market-time multiplier. At 60x, one 1-minute candle appears each second. */
-export type ReplaySpeed = 15 | 30 | 60 | 120 | 300 | 600 | 1200 | 1800 | 3600 | 7200;
+export type ReplaySpeed =
+  | 15
+  | 30
+  | 60
+  | 120
+  | 300
+  | 600
+  | 1200
+  | 1800
+  | 3600
+  | 7200
+  | 14400
+  | 28800;
 
 export const REPLAY_SPEEDS: ReplaySpeed[] = [
-  15, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200,
+  15, 30, 60, 120, 300, 600, 1200, 1800, 3600, 7200, 14400, 28800,
 ];
 export const DEFAULT_REPLAY_SPEED: ReplaySpeed = 60;
 export const REPLAY_STEP_MINUTES = [1, 5, 15, 30, 60, 240] as const;

@@ -26,7 +26,7 @@ export function planEntitlements(profile: BillingProfile): PlanEntitlements {
     maxSavedSessions: pro ? null : 1,
     maxSessionDays: pro ? null : 31,
     maxPairsPerSession: pro ? null : 1,
-    maxReplaySpeed: pro ? 7200 : 300,
+    maxReplaySpeed: pro ? 28800 : 1200,
     fullAnalytics: pro,
     csvExports: pro,
     freeSessionUsed: Boolean(profile.freeSessionUsedAt),

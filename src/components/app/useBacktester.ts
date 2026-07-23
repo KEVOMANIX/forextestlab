@@ -9,6 +9,7 @@ import {
   getChartHistory,
   getStateWithToken,
   sendAction,
+  replayBatchSize,
   replayIntervalMs,
   type CreateSessionBody,
   type PairChartData,
@@ -91,7 +92,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayStepRef = useRef<ReplayStepMinutes>(1);
   const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
-  const stepRef = useRef<() => Promise<void>>(async () => {});
+  const stepRef = useRef<(batchSize?: number) => Promise<void>>(async () => {});
   const replayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
   const localEngineRef = useRef<EngineContext | null>(null);
@@ -355,7 +356,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
   // Playback is browser-local for smooth ticks. Additional bounded candle
   // chunks are fetched only when playback reaches the current memory boundary.
-  stepRef.current = useCallback(async () => {
+  stepRef.current = useCallback(async (batchSize = 1) => {
     const engine = localEngineRef.current;
     if (!engine) return;
     const stepCount = Math.max(
@@ -364,7 +365,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         (replayStepRef.current * TIMEFRAME_MS["1m"]) /
           TIMEFRAME_MS[engine.state.config.timeframe],
       ),
-    );
+    ) * Math.max(1, batchSize);
     const advancedCandles: Candle[] = [];
     let extensionError: string | null = null;
     let finished = false;
@@ -462,9 +463,20 @@ export function useBacktester(resumeSessionId: string | null = null) {
           ),
         ),
       );
+      const batchSize = replayBatchSize(
+        engine.state.speed,
+        engine.state.config.timeframe,
+        Math.max(
+          1,
+          Math.round(
+            (replayStepRef.current * TIMEFRAME_MS["1m"]) /
+              TIMEFRAME_MS[engine.state.config.timeframe],
+          ),
+        ),
+      );
       replayTimerRef.current = setTimeout(async () => {
         const started = performance.now();
-        await stepRef.current();
+        await stepRef.current(batchSize);
         const current = localEngineRef.current;
         if (!current || current.state.status !== "running") return;
         const nextDelay = replayIntervalMs(

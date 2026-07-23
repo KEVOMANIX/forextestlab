@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { replayIntervalMs } from "@/lib/backtest/client";
+import { replayBatchSize, replayIntervalMs } from "@/lib/backtest/client";
 import {
   DEFAULT_REPLAY_SPEED,
   normalizeReplaySpeed,
@@ -14,6 +14,15 @@ describe("real market-time replay speed", () => {
     expect(replayIntervalMs(600, "1m")).toBe(100);
     expect(replayIntervalMs(3600, "1m")).toBeCloseTo(16.67, 2);
     expect(replayIntervalMs(7200, "1m")).toBe(16);
+    expect(replayIntervalMs(28800, "1m")).toBe(16);
+  });
+
+  it("batches ultra-fast replay speeds beyond the browser timer floor", () => {
+    expect(replayBatchSize(3600, "1m")).toBe(1);
+    expect(replayBatchSize(7200, "1m")).toBe(2);
+    expect(replayBatchSize(14400, "1m")).toBe(4);
+    expect(replayBatchSize(28800, "1m")).toBe(8);
+    expect(replayBatchSize(28800, "1m", 15)).toBe(1);
   });
 
   it("uses the candle duration when another base timeframe is restored", () => {

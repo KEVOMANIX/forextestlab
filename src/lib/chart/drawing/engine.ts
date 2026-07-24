@@ -637,10 +637,30 @@ export class DrawingEngine {
 
   // ---- rendering ----
 
+  /**
+   * A cheap fingerprint of the current view. Captures horizontal range AND the
+   * top/bottom visible prices, so vertical rescale / autoscale — which emit no
+   * time-range event — still trigger a redraw and keep objects anchored.
+   */
+  private viewSignature(): string {
+    const tr = this.chart.timeScale().getVisibleLogicalRange();
+    const top = this.mapper.yToPrice(0);
+    const bot = this.mapper.yToPrice(this.mapper.height);
+    return `${tr?.from ?? 0}|${tr?.to ?? 0}|${top ?? 0}|${bot ?? 0}|${this.mapper.width}|${this.mapper.height}`;
+  }
+
+  private lastSig = "";
+
   private loop = (): void => {
     if (this.objects.length !== this.lastCount) {
       this.lastCount = this.objects.length;
       this.onObjectsChange?.(this.lastCount);
+    }
+    const sig = this.viewSignature();
+    if (sig !== this.lastSig) {
+      this.lastSig = sig;
+      this.sceneDirty = true;
+      this.overlayDirty = true;
     }
     if (this.sceneDirty) {
       this.renderScene();

@@ -100,6 +100,36 @@ function chip(ctx: CanvasRenderingContext2D, x: number, y: number, text: string,
   ctx.restore();
 }
 
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** A pill of one or more centred text lines, centred on (cx,cy). */
+function centerChip(ctx: CanvasRenderingContext2D, cx: number, cy: number, lines: string[], bg: string, fg: string, font: number): void {
+  ctx.save();
+  ctx.font = `${font}px ui-sans-serif, system-ui, sans-serif`;
+  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
+  const lh = font + 4;
+  const h = lines.length * lh + 6;
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  ctx.setLineDash([]);
+  ctx.fillStyle = bg;
+  roundRectPath(ctx, x, y, w, h, 4);
+  ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  lines.forEach((l, i) => ctx.fillText(l, cx, y + 3 + lh * (i + 0.5)));
+  ctx.restore();
+}
+
 // ---- line family ----
 
 class TrendLine extends DrawingObject {
@@ -506,43 +536,85 @@ class Channel extends DrawingObject {
 
 // ---- long / short position ----
 
+/** Notional cash risk used to derive quantity / amounts for the position labels. */
+const POSITION_RISK_BUDGET = 1000;
+
 class PositionTool extends DrawingObject {
-  render({ ctx, mapper }: RenderCtx): void {
+  render({ ctx, mapper, precision, pipSize }: RenderCtx): void {
     const entry = this.points[0]!;
     const stop = this.points[1]!;
     const target = this.points[2]!;
-    const xL = mapper.timeToX(entry.time);
-    const xR = mapper.timeToX(target.time);
+    const xE = mapper.timeToX(entry.time);
+    const xT = mapper.timeToX(target.time);
     const yE = mapper.priceToY(entry.price);
     const yS = mapper.priceToY(stop.price);
     const yT = mapper.priceToY(target.price);
-    if (xL == null || xR == null || yE == null || yS == null || yT == null) return;
-    const left = Math.min(xL, xR);
-    const w = Math.max(Math.abs(xR - xL), 8);
+    if (xE == null || xT == null || yE == null || yS == null || yT == null) return;
+    const left = Math.min(xE, xT);
+    const right = Math.max(xE, xT);
+    const w = Math.max(right - left, 8);
+    const cx = left + w / 2;
     const green = "#22c3a0";
     const red = "#f4646c";
+
     ctx.save();
     ctx.setLineDash([]);
-    ctx.fillStyle = withAlpha(green, 0.14);
+    // profit (entry → target) and loss (entry → stop) zones
+    ctx.fillStyle = withAlpha(green, 0.16);
     ctx.fillRect(left, Math.min(yE, yT), w, Math.abs(yT - yE));
-    ctx.fillStyle = withAlpha(red, 0.14);
+    ctx.fillStyle = withAlpha(red, 0.16);
     ctx.fillRect(left, Math.min(yE, yS), w, Math.abs(yS - yE));
-    ctx.strokeStyle = this.strokeColor();
-    ctx.lineWidth = this.style.lineWidth;
+
+    // horizontal boundaries
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = withAlpha(green, 0.9);
+    ctx.beginPath();
+    ctx.moveTo(left, yT);
+    ctx.lineTo(right, yT);
+    ctx.stroke();
+    ctx.strokeStyle = withAlpha(red, 0.9);
+    ctx.beginPath();
+    ctx.moveTo(left, yS);
+    ctx.lineTo(right, yS);
+    ctx.stroke();
+    // entry line
+    ctx.strokeStyle = "#cbd5e1";
     ctx.setLineDash([4, 2]);
     ctx.beginPath();
     ctx.moveTo(left, yE);
-    ctx.lineTo(left + w, yE);
+    ctx.lineTo(right, yE);
     ctx.stroke();
-    const reward = Math.abs(target.price - entry.price);
-    const risk = Math.abs(entry.price - stop.price);
-    const rr = risk ? reward / risk : 0;
+    ctx.setLineDash([]);
+
     if (this.style.showLabels) {
-      ctx.setLineDash([]);
-      ctx.font = "9px ui-monospace, monospace";
-      ctx.fillStyle = this.strokeColor();
-      ctx.textBaseline = "bottom";
-      ctx.fillText(`${this.kind === "long" ? "LONG" : "SHORT"}  R/R ${rr.toFixed(2)}`, left + 4, yE - 3);
+      const rewardPU = Math.abs(target.price - entry.price);
+      const riskPU = Math.abs(entry.price - stop.price);
+      const rr = riskPU ? rewardPU / riskPU : 0;
+      const qty = riskPU ? POSITION_RISK_BUDGET / riskPU : 0;
+      const profit = POSITION_RISK_BUDGET * rr;
+      const pctT = entry.price ? (rewardPU / entry.price) * 100 : 0;
+      const pctS = entry.price ? (riskPU / entry.price) * 100 : 0;
+      const tPips = rewardPU / pipSize;
+      const sPips = riskPU / pipSize;
+      centerChip(
+        ctx,
+        cx,
+        yT,
+        [`Target: ${target.price.toFixed(precision)} (${pctT.toFixed(3)}%) ${tPips.toFixed(1)}  Amount: ${profit.toFixed(2)}`],
+        green,
+        "#04231b",
+        10,
+      );
+      centerChip(
+        ctx,
+        cx,
+        yS,
+        [`Stop: ${stop.price.toFixed(precision)} (${pctS.toFixed(3)}%) ${sPips.toFixed(1)}  Amount: ${POSITION_RISK_BUDGET.toFixed(2)}`],
+        red,
+        "#ffffff",
+        10,
+      );
+      centerChip(ctx, cx, yE, [`Qty: ${qty.toFixed(0)}`, `Risk/reward ratio: ${rr.toFixed(2)}`], withAlpha(red, 0.92), "#ffffff", 10);
     }
     ctx.restore();
   }

@@ -129,9 +129,28 @@ export function buildSessionContext(results: SessionResults): string {
   return lines.join("\n");
 }
 
-/** A markdown fact-sheet across all of a user's saved (non-archived) sessions. */
+interface PortfolioSession {
+  name: string;
+  symbol: string;
+  symbols: string;
+  timeframe: string;
+  status: string;
+  period: string;
+  trades: ClosedTrade[];
+  net: number;
+  winRate: string;
+  profitFactor: string;
+  maxDd: string;
+}
+
+/**
+ * A markdown fact-sheet across all of a user's saved (non-archived) sessions.
+ * Includes the same drill-down breakdowns the per-session analytics show —
+ * rolled up across sessions — so questions like "where am I losing the most"
+ * can be answered by instrument, weekday, session window, and exit reason.
+ */
 export function buildPortfolioContext(sessions: BacktestSession[]): string {
-  const rows = sessions
+  const parsed: PortfolioSession[] = sessions
     .map((session) => {
       let state: SessionState | null = null;
       try {
@@ -153,34 +172,108 @@ export function buildPortfolioContext(sessions: BacktestSession[]): string {
       const symbols = state?.config.symbols?.length ? state.config.symbols : [session.symbol];
       return {
         name: state?.config.name?.trim() || `${session.symbol} backtest`,
+        symbol: state?.config.symbol || session.symbol,
         symbols: symbols.map(formatSymbol).join(", "),
         timeframe: session.timeframe,
         status: session.status,
         period: `${formatNewYorkDate(Number(session.startTime), { day: "numeric", month: "short" })}–${formatNewYorkDate(Number(session.endTime), { day: "numeric", month: "short", year: "numeric" })}`,
-        trades: trades.length,
+        trades,
         net: net.toNumber(),
         winRate: stats?.winRate ?? "Not available",
         profitFactor: stats?.profitFactor ?? "Not available",
         maxDd: stats?.maxDrawdown ?? "$0.00",
       };
     })
-    .filter((row): row is NonNullable<typeof row> => row !== null)
-    .slice(0, 30);
+    .filter((row): row is PortfolioSession => row !== null);
 
-  const totalNet = rows.reduce((s, r) => s + r.net, 0);
-  const totalTrades = rows.reduce((s, r) => s + r.trades, 0);
+  // Roll up every trade across sessions. Trades are attributed to their
+  // session's primary instrument (sessions are single-pair on the trial tier).
+  const allTrades: ClosedTrade[] = [];
+  const bySymbol = new Map<string, { net: number; count: number; wins: number }>();
+  const tagged: Array<{ trade: ClosedTrade; symbol: string; session: string }> = [];
+  for (const s of parsed) {
+    const sym = formatSymbol(s.symbol);
+    for (const t of s.trades) {
+      allTrades.push(t);
+      tagged.push({ trade: t, symbol: sym, session: s.name });
+      const pnl = Number(t.pnl);
+      const e = bySymbol.get(sym) ?? { net: 0, count: 0, wins: 0 };
+      e.net += pnl;
+      e.count += 1;
+      if (pnl > 0) e.wins += 1;
+      bySymbol.set(sym, e);
+    }
+  }
+
+  const totalNet = parsed.reduce((s, r) => s + r.net, 0);
+  const grossWin = allTrades.reduce((s, t) => s + Math.max(0, Number(t.pnl)), 0);
+  const grossLoss = Math.abs(allTrades.reduce((s, t) => s + Math.min(0, Number(t.pnl)), 0));
+  const wins = allTrades.filter((t) => Number(t.pnl) > 0).length;
 
   const lines: string[] = [];
-  lines.push(`# Trader portfolio — ${rows.length} saved session(s)`);
-  lines.push(`Combined realised net P/L across sessions: ${money(totalNet)} over ${totalTrades} trades.`);
-  lines.push("\n## Sessions (newest first)");
-  rows.forEach((r, i) => {
+  lines.push(`# Trader portfolio — ${parsed.length} saved session(s)`);
+  lines.push("\n## Overall (all trades combined)");
+  lines.push(`- Realised net P/L: ${money(totalNet)}`);
+  lines.push(`- Total closed trades: ${allTrades.length} (${wins} wins / ${allTrades.length - wins} losses)`);
+  lines.push(`- Win rate: ${allTrades.length ? ((wins / allTrades.length) * 100).toFixed(1) : "0.0"}%`);
+  lines.push(`- Profit factor: ${grossLoss ? (grossWin / grossLoss).toFixed(2) : "n/a"}`);
+  lines.push(`- Expectancy per trade: ${allTrades.length ? money(totalNet / allTrades.length) : "n/a"}`);
+  lines.push(`- Gross profit: ${money(grossWin)} · Gross loss: ${money(-grossLoss)}`);
+
+  if (allTrades.length) {
+    lines.push("\n## Net P/L by instrument (worst first)");
+    for (const [sym, v] of [...bySymbol.entries()].sort((a, b) => a[1].net - b[1].net)) {
+      const wr = v.count ? ((v.wins / v.count) * 100).toFixed(0) : "0";
+      lines.push(`- ${sym}: net ${money(v.net)} over ${v.count} trades, ${wr}% win rate`);
+    }
+
+    lines.push("\n## Net P/L by weekday (New York entry)");
+    for (const row of aggregate(allTrades, (t) => getNewYorkDateParts(t.entryTime).weekday).sort((a, b) => a.key - b.key)) {
+      lines.push(`- ${WEEKDAYS[row.key]}: ${money(row.net)} over ${row.count} trades`);
+    }
+
+    lines.push("\n## Net P/L by trading session (New York entry)");
+    for (const row of aggregate(allTrades, (t) => getTradingSession(t.entryTime)).sort((a, b) => a.net - b.net)) {
+      lines.push(`- ${row.key}: ${money(row.net)} over ${row.count} trades`);
+    }
+
+    lines.push("\n## Net P/L by exit reason");
+    for (const row of aggregate(allTrades, (t) => t.exitReason).sort((a, b) => a.net - b.net)) {
+      lines.push(`- ${row.key}: ${money(row.net)} over ${row.count} trades`);
+    }
+
+    lines.push("\n## By direction");
+    for (const dir of ["long", "short"] as const) {
+      const g = allTrades.filter((t) => t.direction === dir);
+      const gnet = g.reduce((s, t) => s + Number(t.pnl), 0);
+      const gw = g.filter((t) => Number(t.pnl) > 0).length;
+      lines.push(`- ${dir === "long" ? "Buy" : "Sell"}: ${money(gnet)} over ${g.length} trades, ${g.length ? ((gw / g.length) * 100).toFixed(0) : "0"}% win rate`);
+    }
+
+    const worstTrades = [...tagged].sort((a, b) => Number(a.trade.pnl) - Number(b.trade.pnl)).slice(0, 5);
+    lines.push("\n## Biggest losing trades (across all sessions)");
+    for (const x of worstTrades) {
+      lines.push(`- ${x.symbol} ${x.trade.direction} ${money(Number(x.trade.pnl))} (${x.trade.pips} pips, exit ${x.trade.exitReason}) in "${x.session}"`);
+    }
+  }
+
+  const losers = [...parsed].filter((s) => s.net < 0).sort((a, b) => a.net - b.net).slice(0, 5);
+  if (losers.length) {
+    lines.push("\n## Worst sessions by net P/L");
+    for (const s of losers) {
+      lines.push(`- "${s.name}" (${s.symbols} ${s.timeframe}): net ${money(s.net)}, ${s.trades.length} trades, win rate ${s.winRate}%, max drawdown ${s.maxDd}`);
+    }
+  }
+
+  lines.push("\n## All sessions (newest first)");
+  parsed.slice(0, 30).forEach((r, i) => {
     lines.push(
       `${i + 1}. "${r.name}" — ${r.symbols} ${r.timeframe} (${r.period}), ${r.status}: ` +
-        `${r.trades} trades, net ${money(r.net)}, win rate ${r.winRate}%, ` +
+        `${r.trades.length} trades, net ${money(r.net)}, win rate ${r.winRate}%, ` +
         `profit factor ${r.profitFactor}, max drawdown ${r.maxDd}.`,
     );
   });
+
   return lines.join("\n");
 }
 

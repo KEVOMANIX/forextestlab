@@ -11,11 +11,15 @@ import {
   LocateFixed,
   Maximize2,
   Minus,
+  MousePointer2,
+  MoveVertical,
   Pencil,
-  PenLine,
   Ruler,
+  Spline,
+  Square,
   Target,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 import {
   ColorType,
@@ -87,8 +91,6 @@ const OVERLAYS: OverlayDef[] = [
   { id: "vwap", label: "VWAP", kind: "vwap", color: "#22c3a0" },
   { id: "volume", label: "Volume", kind: "volume", color: "#5b8bff" },
 ];
-
-const DRAW_TOOLS: DrawingTool[] = ["trend", "horizontal", "vertical", "rectangle", "fib"];
 
 function chartTimeMs(time: Time): number {
   if (typeof time === "number") return time * 1000;
@@ -322,7 +324,7 @@ export default function PriceChart({
   const [oscillator, setOscillator] = useState<Oscillator>("none");
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
-  const [menu, setMenu] = useState<"type" | "indicators" | "draw" | null>(null);
+  const [menu, setMenu] = useState<"type" | "indicators" | "lines" | null>(null);
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
   const [priceSeries, setPriceSeries] = useState<ISeriesApi<SeriesType> | null>(null);
   const [seriesEpoch, setSeriesEpoch] = useState(0);
@@ -881,110 +883,154 @@ export default function PriceChart({
           );
         })}
 
-        <div className="absolute left-2 right-16 top-2 z-30 flex items-center gap-1 overflow-x-auto rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Chart tools">
-          <div className="flex shrink-0 items-center border-r app-border pr-1" aria-label="Display timeframe">
-            {availableTimeframes.map((timeframe) => (
-              <ToolButton key={timeframe} label={`Display ${timeframe} candles`} active={displayTimeframe === timeframe} onClick={() => selectTimeframe(timeframe)}>
-                {timeframe}
+        {/* Click-away backdrop for open menus */}
+        {menu && <div className="absolute inset-0 z-20" onClick={() => setMenu(null)} aria-hidden />}
+
+        {/* Top bar: chart controls left, view utilities right */}
+        <div className="pointer-events-none absolute left-2 right-16 top-2 z-30 flex items-start justify-between gap-2">
+          <div className="pointer-events-auto flex items-center gap-1 rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Chart controls">
+            <div className="flex items-center border-r app-border pr-1" aria-label="Display timeframe">
+              {availableTimeframes.map((timeframe) => (
+                <ToolButton key={timeframe} label={`Display ${timeframe} candles`} active={displayTimeframe === timeframe} onClick={() => selectTimeframe(timeframe)}>
+                  {timeframe}
+                </ToolButton>
+              ))}
+            </div>
+
+            {/* Chart type */}
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Chart type"
+                title={CHART_TYPE_LABELS[chartType]}
+                onClick={() => setMenu(menu === "type" ? null : "type")}
+                className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "type" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+              >
+                {chartType === "line" || chartType === "area" ? <LineChart size={15} /> : <CandlestickChart size={15} />}
+                <span className="hidden sm:inline">{CHART_TYPE_LABELS[chartType]}</span>
+              </button>
+              {menu === "type" && (
+                <div className="absolute left-0 top-9 z-40 w-40 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
+                  {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((t) => (
+                    <button key={t} type="button" onClick={() => { setChartType(t); setMenu(null); }} className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${chartType === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}>
+                      {CHART_TYPE_LABELS[t]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Indicators */}
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Indicators"
+                onClick={() => setMenu(menu === "indicators" ? null : "indicators")}
+                className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "indicators" || activeOverlays.size > 0 || oscillator !== "none" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+              >
+                <Activity size={15} />
+                <span className="hidden sm:inline">Indicators</span>
+              </button>
+              {menu === "indicators" && (
+                <div className="absolute left-0 top-9 z-40 w-56 rounded-lg border app-border bg-[var(--app-panel)] p-2 shadow-xl">
+                  <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Overlays</p>
+                  {OVERLAYS.map((def) => (
+                    <label key={def.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
+                      <input type="checkbox" checked={activeOverlays.has(def.id)} onChange={() => toggleOverlay(def.id)} className="accent-brand-400" />
+                      <span className="h-2 w-2 rounded-full" style={{ background: def.color }} />
+                      {def.label}
+                    </label>
+                  ))}
+                  <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide app-muted">Oscillator pane</p>
+                  {(["none", "rsi", "macd"] as Oscillator[]).map((o) => (
+                    <label key={o} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
+                      <input type="radio" name="oscillator" checked={oscillator === o} onChange={() => setOscillator(o)} className="accent-brand-400" />
+                      {o === "none" ? "None" : o.toUpperCase()}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="pointer-events-auto flex items-center gap-1 rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Chart view">
+            {hasOlderHistory && (
+              <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
+                {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={15} aria-hidden />}
               </ToolButton>
-            ))}
-          </div>
-
-          {/* Chart type */}
-          <div className="relative shrink-0">
-            <ToolButton label="Chart type" active={menu === "type"} onClick={() => setMenu(menu === "type" ? null : "type")}>
-              {chartType === "line" || chartType === "area" ? <LineChart size={15} /> : <CandlestickChart size={15} />}
-            </ToolButton>
-            {menu === "type" && (
-              <div className="absolute left-0 top-9 z-40 w-40 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
-                {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((t) => (
-                  <button key={t} type="button" onClick={() => { setChartType(t); setMenu(null); }} className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${chartType === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}>
-                    {CHART_TYPE_LABELS[t]}
-                  </button>
-                ))}
-              </div>
             )}
-          </div>
-
-          {/* Indicators */}
-          <div className="relative shrink-0">
-            <ToolButton label="Indicators" active={menu === "indicators" || activeOverlays.size > 0 || oscillator !== "none"} onClick={() => setMenu(menu === "indicators" ? null : "indicators")}>
-              <Activity size={15} />
+            <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => setMagnetCrosshair((value) => !value)}>
+              <Crosshair size={15} aria-hidden />
             </ToolButton>
-            {menu === "indicators" && (
-              <div className="absolute left-0 top-9 z-40 w-56 rounded-lg border app-border bg-[var(--app-panel)] p-2 shadow-xl">
-                <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Overlays</p>
-                {OVERLAYS.map((def) => (
-                  <label key={def.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
-                    <input type="checkbox" checked={activeOverlays.has(def.id)} onChange={() => toggleOverlay(def.id)} className="accent-brand-400" />
-                    <span className="h-2 w-2 rounded-full" style={{ background: def.color }} />
-                    {def.label}
-                  </label>
-                ))}
-                <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide app-muted">Oscillator pane</p>
-                {(["none", "rsi", "macd"] as Oscillator[]).map((o) => (
-                  <label key={o} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
-                    <input type="radio" name="oscillator" checked={oscillator === o} onChange={() => setOscillator(o)} className="accent-brand-400" />
-                    {o === "none" ? "None" : o.toUpperCase()}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Drawing tools */}
-          <div className="relative shrink-0">
-            <ToolButton label="Drawing tools" active={menu === "draw" || (drawTool != null && drawTool !== "measure")} onClick={() => setMenu(menu === "draw" ? null : "draw")}>
-              <PenLine size={15} />
+            <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => setGridVisible((value) => !value)}>
+              <Grid3X3 size={15} aria-hidden />
             </ToolButton>
-            {menu === "draw" && (
-              <div className="absolute left-0 top-9 z-40 w-44 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
-                {DRAW_TOOLS.map((t) => (
-                  <button key={t} type="button" onClick={() => { setDrawTool(t); setMenu(null); }} className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}>
-                    {DRAWING_LABELS[t]}
-                  </button>
-                ))}
-                <button type="button" onClick={() => { setDrawTool(null); setMenu(null); }} className="mt-1 block w-full rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]">
-                  Cursor (select / delete)
-                </button>
-                {drawings.length > 0 && (
-                  <button type="button" onClick={() => { setDrawings([]); setMenu(null); }} className="mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-bear hover:bg-bear/10">
-                    <Trash2 size={12} /> Clear all ({drawings.length})
-                  </button>
-                )}
-              </div>
-            )}
+            <ToolButton label="Go to latest candle" onClick={goToLatest}>
+              <LocateFixed size={15} aria-hidden />
+            </ToolButton>
+            <ToolButton label="Fit chart data" onClick={() => chartRef.current?.timeScale().fitContent()}>
+              <Maximize2 size={15} aria-hidden />
+            </ToolButton>
+            <div className="flex items-center border-l app-border pl-1">
+              <ToolButton label={stopDraft == null ? "Add stop-loss line" : "Remove stop-loss line"} active={stopDraft != null} onClick={() => toggleProtection("stop")}>
+                <Minus size={15} aria-hidden />
+                <span className="ml-1">SL</span>
+              </ToolButton>
+              <ToolButton label={targetDraft == null ? "Add take-profit line" : "Remove take-profit line"} active={targetDraft != null} onClick={() => toggleProtection("target")}>
+                <Target size={15} aria-hidden />
+                <span className="ml-1">TP</span>
+              </ToolButton>
+            </div>
           </div>
+        </div>
 
-          <ToolButton label="Measure" active={drawTool === "measure"} onClick={() => setDrawTool(drawTool === "measure" ? null : "measure")}>
-            <Ruler size={15} />
+        {/* Left drawing pane (TradingView-style) */}
+        <div className="absolute left-2 top-14 z-30 flex flex-col items-center gap-1 rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Drawing tools">
+          <ToolButton label="Cursor (select & delete)" active={drawTool === null} onClick={() => { setDrawTool(null); setMenu(null); }}>
+            <MousePointer2 size={15} aria-hidden />
           </ToolButton>
 
-          {hasOlderHistory && (
-            <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
-              {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={15} aria-hidden />}
+          <div className="relative">
+            <ToolButton
+              label="Line tools"
+              active={menu === "lines" || drawTool === "trend" || drawTool === "horizontal" || drawTool === "vertical"}
+              onClick={() => setMenu(menu === "lines" ? null : "lines")}
+            >
+              <Spline size={15} aria-hidden />
             </ToolButton>
+            {menu === "lines" && (
+              <div className="absolute left-full top-0 z-40 ml-1 w-40 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
+                {([["trend", TrendingUp], ["horizontal", Minus], ["vertical", MoveVertical]] as const).map(([t, Icon]) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => { setDrawTool(t); setMenu(null); }}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
+                  >
+                    <Icon size={14} aria-hidden /> {DRAWING_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <ToolButton label={DRAWING_LABELS.fib} active={drawTool === "fib"} onClick={() => { setDrawTool(drawTool === "fib" ? null : "fib"); setMenu(null); }}>
+            <span className="text-[11px] font-bold">Fib</span>
+          </ToolButton>
+          <ToolButton label={DRAWING_LABELS.rectangle} active={drawTool === "rectangle"} onClick={() => { setDrawTool(drawTool === "rectangle" ? null : "rectangle"); setMenu(null); }}>
+            <Square size={15} aria-hidden />
+          </ToolButton>
+          <ToolButton label="Measure" active={drawTool === "measure"} onClick={() => { setDrawTool(drawTool === "measure" ? null : "measure"); setMenu(null); }}>
+            <Ruler size={15} aria-hidden />
+          </ToolButton>
+
+          {drawings.length > 0 && (
+            <div className="mt-0.5 border-t app-border pt-1">
+              <ToolButton label={`Clear all drawings (${drawings.length})`} onClick={() => setDrawings([])}>
+                <Trash2 size={15} className="text-bear" aria-hidden />
+              </ToolButton>
+            </div>
           )}
-          <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => setMagnetCrosshair((value) => !value)}>
-            <Crosshair size={15} aria-hidden />
-          </ToolButton>
-          <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => setGridVisible((value) => !value)}>
-            <Grid3X3 size={15} aria-hidden />
-          </ToolButton>
-          <ToolButton label="Go to latest candle" onClick={goToLatest}>
-            <LocateFixed size={15} aria-hidden />
-          </ToolButton>
-          <ToolButton label="Fit chart data" onClick={() => chartRef.current?.timeScale().fitContent()}>
-            <Maximize2 size={15} aria-hidden />
-          </ToolButton>
-          <ToolButton label={stopDraft == null ? "Add stop-loss line" : "Remove stop-loss line"} active={stopDraft != null} onClick={() => toggleProtection("stop")}>
-            <Minus size={15} aria-hidden />
-            <span className="ml-1">SL</span>
-          </ToolButton>
-          <ToolButton label={targetDraft == null ? "Add take-profit line" : "Remove take-profit line"} active={targetDraft != null} onClick={() => toggleProtection("target")}>
-            <Target size={15} aria-hidden />
-            <span className="ml-1">TP</span>
-          </ToolButton>
         </div>
 
         {stopDraft != null && lineCoordinates.stop != null && (

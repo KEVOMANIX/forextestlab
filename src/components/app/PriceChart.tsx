@@ -3,15 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Activity,
+  AlignJustify,
+  ArrowRight,
+  ArrowUpRight,
   CandlestickChart,
+  Circle,
   Crosshair,
+  Equal,
   Grid3X3,
   History,
+  Info,
   LineChart,
   LocateFixed,
   Maximize2,
+  MessageSquare,
   Minus,
   MousePointer2,
+  MoveDiagonal,
+  MoveUpRight,
   MoveVertical,
   Pencil,
   Ruler,
@@ -19,7 +28,11 @@ import {
   Square,
   Target,
   Trash2,
+  Triangle,
+  TrendingDown,
   TrendingUp,
+  Type,
+  type LucideIcon,
 } from "lucide-react";
 import {
   ColorType,
@@ -159,6 +172,39 @@ const PALETTES: Record<"dark" | "light", Palette> = {
 const BULL = "#22c3a0";
 const BEAR = "#f4646c";
 const DRAW_COLOR = "#5b8bff";
+
+/** Icon shown next to each drawing tool inside its flyout. */
+const DRAW_ICONS: Record<DrawingTool, LucideIcon> = {
+  trend: TrendingUp,
+  ray: MoveUpRight,
+  extended: MoveDiagonal,
+  arrow: ArrowUpRight,
+  info: Info,
+  horizontal: Minus,
+  hray: ArrowRight,
+  vertical: MoveVertical,
+  parallel: Equal,
+  fib: AlignJustify,
+  fibext: AlignJustify,
+  rectangle: Square,
+  ellipse: Circle,
+  triangle: Triangle,
+  long: TrendingUp,
+  short: TrendingDown,
+  text: Type,
+  callout: MessageSquare,
+};
+
+type DrawMenu = "lines" | "fib" | "shapes" | "trade" | "notes";
+
+/** Grouping of drawing tools into toolbar flyouts. */
+const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: LucideIcon; tools: DrawingTool[] }[] = [
+  { key: "lines", label: "Lines & channels", Icon: Spline, tools: ["trend", "ray", "extended", "arrow", "info", "horizontal", "hray", "vertical", "parallel"] },
+  { key: "fib", label: "Fibonacci", Icon: AlignJustify, tools: ["fib", "fibext"] },
+  { key: "shapes", label: "Shapes", Icon: Square, tools: ["rectangle", "ellipse", "triangle"] },
+  { key: "trade", label: "Positions", Icon: Target, tools: ["long", "short"] },
+  { key: "notes", label: "Text & notes", Icon: Type, tools: ["text", "callout"] },
+];
 
 function toOHLCV(candle: Candle): OHLCV {
   return {
@@ -324,7 +370,7 @@ export default function PriceChart({
   const [oscillator, setOscillator] = useState<Oscillator>("none");
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
-  const [menu, setMenu] = useState<"type" | "indicators" | "lines" | null>(null);
+  const [menu, setMenu] = useState<"type" | "indicators" | DrawMenu | null>(null);
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
   const [priceSeries, setPriceSeries] = useState<ISeriesApi<SeriesType> | null>(null);
   const [seriesEpoch, setSeriesEpoch] = useState(0);
@@ -990,36 +1036,34 @@ export default function PriceChart({
             <MousePointer2 size={15} aria-hidden />
           </ToolButton>
 
-          <div className="relative">
-            <ToolButton
-              label="Line tools"
-              active={menu === "lines" || drawTool === "trend" || drawTool === "horizontal" || drawTool === "vertical"}
-              onClick={() => setMenu(menu === "lines" ? null : "lines")}
-            >
-              <Spline size={15} aria-hidden />
-            </ToolButton>
-            {menu === "lines" && (
-              <div className="absolute left-full top-0 z-40 ml-1 w-40 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
-                {([["trend", TrendingUp], ["horizontal", Minus], ["vertical", MoveVertical]] as const).map(([t, Icon]) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => { setDrawTool(t); setMenu(null); }}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
-                  >
-                    <Icon size={14} aria-hidden /> {DRAWING_LABELS[t]}
-                  </button>
-                ))}
+          {DRAW_GROUPS.map((grp) => {
+            const active = menu === grp.key || grp.tools.includes(drawTool as DrawingTool);
+            return (
+              <div className="relative" key={grp.key}>
+                <ToolButton label={grp.label} active={active} onClick={() => setMenu(menu === grp.key ? null : grp.key)}>
+                  <grp.Icon size={15} aria-hidden />
+                </ToolButton>
+                {menu === grp.key && (
+                  <div className="absolute left-full top-0 z-40 ml-1 w-44 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
+                    {grp.tools.map((t) => {
+                      const Icon = DRAW_ICONS[t];
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => { setDrawTool(t); setMenu(null); }}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
+                        >
+                          <Icon size={14} aria-hidden /> {DRAWING_LABELS[t]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })}
 
-          <ToolButton label={DRAWING_LABELS.fib} active={drawTool === "fib"} onClick={() => { setDrawTool(drawTool === "fib" ? null : "fib"); setMenu(null); }}>
-            <span className="text-[11px] font-bold">Fib</span>
-          </ToolButton>
-          <ToolButton label={DRAWING_LABELS.rectangle} active={drawTool === "rectangle"} onClick={() => { setDrawTool(drawTool === "rectangle" ? null : "rectangle"); setMenu(null); }}>
-            <Square size={15} aria-hidden />
-          </ToolButton>
           <ToolButton label="Measure" active={drawTool === "measure"} onClick={() => { setDrawTool(drawTool === "measure" ? null : "measure"); setMenu(null); }}>
             <Ruler size={15} aria-hidden />
           </ToolButton>

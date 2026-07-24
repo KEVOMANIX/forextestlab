@@ -10,6 +10,7 @@ import {
 
 import { SignedInDashboard } from "@/components/app/SignedInDashboard";
 import { ensureUserProfile } from "@/lib/auth";
+import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -110,11 +111,14 @@ export default async function AppHome({
   if (!user) return <SignedOutDashboard />;
 
   await ensureUserProfile(user);
-  const sessions = await prisma.backtestSession.findMany({
-    where: { userId: user.id, anonymous: false },
-    orderBy: { updatedAt: "desc" },
-    take: 100,
-  });
+  const [sessions, entitlements] = await Promise.all([
+    prisma.backtestSession.findMany({
+      where: { userId: user.id, anonymous: false },
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+    }),
+    getUserEntitlements(user.id),
+  ]);
 
   const legacySelectedId = searchParams?.performance?.startsWith("session:")
     ? searchParams.performance.slice("session:".length)
@@ -132,6 +136,7 @@ export default async function AppHome({
       sessions={sessions}
       displayName={displayName}
       selectedId={selectedId}
+      aiEnabled={entitlements.fullAnalytics}
     />
   );
 }

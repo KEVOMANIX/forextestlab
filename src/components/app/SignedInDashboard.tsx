@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { BacktestSession } from "@prisma/client";
 
+import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
 import {
   DashboardSessionsTable,
@@ -23,6 +24,7 @@ import {
 } from "@/components/app/DashboardSessionsTable";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
+import { PORTFOLIO_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, SessionState } from "@/lib/backtest/types";
 import {
@@ -94,10 +96,12 @@ export function SignedInDashboard({
   sessions,
   displayName,
   selectedId,
+  aiEnabled = false,
 }: {
   sessions: BacktestSession[];
   displayName: string;
   selectedId?: string | null;
+  aiEnabled?: boolean;
 }) {
   const selectedSession =
     sessions.find((session) => session.id === selectedId) ?? sessions[0] ?? null;
@@ -619,6 +623,29 @@ export function SignedInDashboard({
                 )}
               </div>
             </aside>
+          </section>
+
+          <section className="mt-4">
+            {aiEnabled ? (
+              <AiInsightsPanel
+                scope="portfolio"
+                suggestions={PORTFOLIO_SUGGESTED_QUESTIONS}
+                title="Ask your trading data"
+                subtitle="AI analysis across all your saved sessions"
+              />
+            ) : (
+              <div className="flex flex-col gap-3 rounded-xl border border-brand-400/25 bg-brand-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold">Meet your AI trading analyst</p>
+                  <p className="mt-1 text-xs app-muted">
+                    Pro adds an assistant that reviews every session, spots patterns, and recommends what to improve.
+                  </p>
+                </div>
+                <Link href="/account/billing" className="btn-primary shrink-0 px-4 py-2 text-xs">
+                  View Pro plans
+                </Link>
+              </div>
+            )}
           </section>
         </>
       )}

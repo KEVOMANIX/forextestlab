@@ -3,10 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AlertTriangle, ChevronDown, LockKeyhole, Plus } from "lucide-react";
 
+import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
 import { BackLink } from "@/components/app/BackLink";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
 import { SessionAnalyticsWorkbench } from "@/components/app/SessionAnalyticsWorkbench";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
+import { SESSION_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { requireUser } from "@/lib/auth";
 import { getSessionResults } from "@/lib/backtest/results";
 import { formatNewYorkDate } from "@/lib/date-time";
@@ -81,6 +83,26 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
         startingBalance={state.config.startingBalance}
         fullAccess={entitlements.fullAnalytics}
       />
+
+      <div className="mt-6">
+        {entitlements.fullAnalytics ? (
+          <AiInsightsPanel
+            scope="session"
+            sessionId={results.sessionId}
+            suggestions={SESSION_SUGGESTED_QUESTIONS}
+            title="Ask this session"
+            subtitle="AI analysis grounded in this backtest"
+          />
+        ) : (
+          <div className="flex flex-col gap-3 rounded-xl border border-brand-400/25 bg-brand-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold">Ask your results with AI</p>
+              <p className="mt-1 text-xs app-muted">Pro adds an AI analyst that answers questions about this session and recommends improvements.</p>
+            </div>
+            <Link href="/account/billing" className="btn-primary shrink-0 px-4 py-2 text-xs">View Pro plans</Link>
+          </div>
+        )}
+      </div>
 
       <details className="panel group mt-6 overflow-hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-4 font-semibold">

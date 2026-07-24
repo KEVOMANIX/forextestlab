@@ -31,13 +31,36 @@ export interface DrawingPoint {
   price: number;
 }
 
+export type LineStyleName = "solid" | "dashed" | "dotted";
+
 export interface Drawing {
   id: string;
   tool: DrawingTool;
   points: DrawingPoint[];
   color: string;
+  /** Stroke width in px. Falls back to a per-tool default when omitted. */
+  width?: number;
+  /** Line style. Falls back to a per-tool default when omitted. */
+  style?: LineStyleName;
   /** Free text for the `text` and `callout` tools. */
   text?: string;
+}
+
+/** Colour palette offered in the inline edit toolbar. */
+export const DRAW_PALETTE = [
+  "#5b8bff",
+  "#22c3a0",
+  "#f4646c",
+  "#fbbf24",
+  "#c084fc",
+  "#e5e7eb",
+] as const;
+
+/** SVG dash pattern for a line style (undefined = solid). */
+export function dashArray(style: LineStyleName | undefined): string | undefined {
+  if (style === "dashed") return "6 4";
+  if (style === "dotted") return "2 4";
+  return undefined;
 }
 
 /** How many clicks a tool needs before it is complete. */

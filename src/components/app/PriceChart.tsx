@@ -887,6 +887,8 @@ export default function PriceChart({
           precision={precision}
           pipSize={pipSize}
           color={DRAW_COLOR}
+          magnet={magnetCrosshair}
+          candles={displayRef.current}
         />
 
         {legend && (

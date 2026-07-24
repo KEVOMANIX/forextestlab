@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Activity,
   AlignJustify,
@@ -150,6 +151,8 @@ interface PriceChartProps {
   loading?: boolean;
   error?: string | null;
   storageKey?: string;
+  /** Optional DOM node in the top header to portal the chart controls into. */
+  headerSlot?: HTMLElement | null;
 }
 
 interface Palette {
@@ -348,6 +351,7 @@ export default function PriceChart({
   loading = false,
   error = null,
   storageKey,
+  headerSlot = null,
 }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -877,8 +881,80 @@ export default function PriceChart({
 
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
 
+  // Chart controls (timeframes + chart type + indicators). Rendered into the top
+  // header via a portal when a slot is provided, otherwise docked above the chart.
+  const chartControls = (
+    <div className="flex items-center gap-1" role="toolbar" aria-label="Chart controls">
+      <div className="flex items-center border-r app-border pr-1" aria-label="Display timeframe">
+        {availableTimeframes.map((timeframe) => (
+          <ToolButton key={timeframe} label={`Display ${timeframe} candles`} active={displayTimeframe === timeframe} onClick={() => selectTimeframe(timeframe)}>
+            {timeframe}
+          </ToolButton>
+        ))}
+      </div>
+
+      {/* Chart type */}
+      <div className="relative">
+        <button
+          type="button"
+          aria-label="Chart type"
+          title={CHART_TYPE_LABELS[chartType]}
+          onClick={() => setMenu(menu === "type" ? null : "type")}
+          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "type" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+        >
+          {chartType === "line" || chartType === "area" ? <LineChart size={15} /> : <CandlestickChart size={15} />}
+          <span className="hidden sm:inline">{CHART_TYPE_LABELS[chartType]}</span>
+        </button>
+        {menu === "type" && (
+          <div className="absolute left-0 top-9 z-40 w-40 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
+            {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((t) => (
+              <button key={t} type="button" onClick={() => { setChartType(t); setMenu(null); }} className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${chartType === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}>
+                {CHART_TYPE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Indicators */}
+      <div className="relative">
+        <button
+          type="button"
+          aria-label="Indicators"
+          onClick={() => setMenu(menu === "indicators" ? null : "indicators")}
+          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "indicators" || activeOverlays.size > 0 || oscillator !== "none" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+        >
+          <Activity size={15} />
+          <span className="hidden sm:inline">Indicators</span>
+        </button>
+        {menu === "indicators" && (
+          <div className="absolute left-0 top-9 z-40 w-56 rounded-lg border app-border bg-[var(--app-panel)] p-2 shadow-xl">
+            <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Overlays</p>
+            {OVERLAYS.map((def) => (
+              <label key={def.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
+                <input type="checkbox" checked={activeOverlays.has(def.id)} onChange={() => toggleOverlay(def.id)} className="accent-brand-400" />
+                <span className="h-2 w-2 rounded-full" style={{ background: def.color }} />
+                {def.label}
+              </label>
+            ))}
+            <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide app-muted">Oscillator pane</p>
+            {(["none", "rsi", "macd"] as Oscillator[]).map((o) => (
+              <label key={o} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
+                <input type="radio" name="oscillator" checked={oscillator === o} onChange={() => setOscillator(o)} className="accent-brand-400" />
+                {o === "none" ? "None" : o.toUpperCase()}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="relative flex h-full w-full flex-col">
+      {headerSlot
+        ? createPortal(chartControls, headerSlot)
+        : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}</div>}
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="h-full w-full" role="img" aria-label="Candlestick price chart" />
 
@@ -900,7 +976,7 @@ export default function PriceChart({
         />
 
         {legend && (
-          <div className="pointer-events-none absolute left-2 top-12 z-10 rounded-md border app-border bg-[var(--app-panel)]/90 px-2 py-1 font-mono text-[10px] shadow backdrop-blur">
+          <div className="pointer-events-none absolute left-14 top-2 z-10 rounded-md border app-border bg-[var(--app-panel)]/90 px-2 py-1 font-mono text-[10px] shadow backdrop-blur">
             {legend.kind === "ohlc" ? (
               <span className="flex gap-2">
                 <span className="app-muted">O {legend.o.toFixed(precision)}</span>
@@ -942,106 +1018,8 @@ export default function PriceChart({
         {/* Click-away backdrop for open menus */}
         {menu && <div className="absolute inset-0 z-20" onClick={() => setMenu(null)} aria-hidden />}
 
-        {/* Top bar: chart controls left, view utilities right */}
-        <div className="pointer-events-none absolute left-2 right-16 top-2 z-30 flex items-start justify-between gap-2">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Chart controls">
-            <div className="flex items-center border-r app-border pr-1" aria-label="Display timeframe">
-              {availableTimeframes.map((timeframe) => (
-                <ToolButton key={timeframe} label={`Display ${timeframe} candles`} active={displayTimeframe === timeframe} onClick={() => selectTimeframe(timeframe)}>
-                  {timeframe}
-                </ToolButton>
-              ))}
-            </div>
-
-            {/* Chart type */}
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="Chart type"
-                title={CHART_TYPE_LABELS[chartType]}
-                onClick={() => setMenu(menu === "type" ? null : "type")}
-                className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "type" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
-              >
-                {chartType === "line" || chartType === "area" ? <LineChart size={15} /> : <CandlestickChart size={15} />}
-                <span className="hidden sm:inline">{CHART_TYPE_LABELS[chartType]}</span>
-              </button>
-              {menu === "type" && (
-                <div className="absolute left-0 top-9 z-40 w-40 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
-                  {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((t) => (
-                    <button key={t} type="button" onClick={() => { setChartType(t); setMenu(null); }} className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${chartType === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}>
-                      {CHART_TYPE_LABELS[t]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Indicators */}
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="Indicators"
-                onClick={() => setMenu(menu === "indicators" ? null : "indicators")}
-                className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "indicators" || activeOverlays.size > 0 || oscillator !== "none" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
-              >
-                <Activity size={15} />
-                <span className="hidden sm:inline">Indicators</span>
-              </button>
-              {menu === "indicators" && (
-                <div className="absolute left-0 top-9 z-40 w-56 rounded-lg border app-border bg-[var(--app-panel)] p-2 shadow-xl">
-                  <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Overlays</p>
-                  {OVERLAYS.map((def) => (
-                    <label key={def.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
-                      <input type="checkbox" checked={activeOverlays.has(def.id)} onChange={() => toggleOverlay(def.id)} className="accent-brand-400" />
-                      <span className="h-2 w-2 rounded-full" style={{ background: def.color }} />
-                      {def.label}
-                    </label>
-                  ))}
-                  <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide app-muted">Oscillator pane</p>
-                  {(["none", "rsi", "macd"] as Oscillator[]).map((o) => (
-                    <label key={o} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
-                      <input type="radio" name="oscillator" checked={oscillator === o} onChange={() => setOscillator(o)} className="accent-brand-400" />
-                      {o === "none" ? "None" : o.toUpperCase()}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="pointer-events-auto flex items-center gap-1 rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Chart view">
-            {hasOlderHistory && (
-              <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
-                {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={15} aria-hidden />}
-              </ToolButton>
-            )}
-            <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => setMagnetCrosshair((value) => !value)}>
-              <Crosshair size={15} aria-hidden />
-            </ToolButton>
-            <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => setGridVisible((value) => !value)}>
-              <Grid3X3 size={15} aria-hidden />
-            </ToolButton>
-            <ToolButton label="Go to latest candle" onClick={goToLatest}>
-              <LocateFixed size={15} aria-hidden />
-            </ToolButton>
-            <ToolButton label="Fit chart data" onClick={() => chartRef.current?.timeScale().fitContent()}>
-              <Maximize2 size={15} aria-hidden />
-            </ToolButton>
-            <div className="flex items-center border-l app-border pl-1">
-              <ToolButton label={stopDraft == null ? "Add stop-loss line" : "Remove stop-loss line"} active={stopDraft != null} onClick={() => toggleProtection("stop")}>
-                <Minus size={15} aria-hidden />
-                <span className="ml-1">SL</span>
-              </ToolButton>
-              <ToolButton label={targetDraft == null ? "Add take-profit line" : "Remove take-profit line"} active={targetDraft != null} onClick={() => toggleProtection("target")}>
-                <Target size={15} aria-hidden />
-                <span className="ml-1">TP</span>
-              </ToolButton>
-            </div>
-          </div>
-        </div>
-
-        {/* Left drawing pane (TradingView-style) */}
-        <div className="absolute left-2 top-14 z-30 flex flex-col items-center gap-1 rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Drawing tools">
+        {/* Left tool rail: drawing tools + chart-view utilities */}
+        <div className="absolute left-2 top-2 z-30 flex max-h-[calc(100%-1rem)] flex-col items-center gap-1 overflow-y-auto rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Drawing tools">
           <ToolButton label="Cursor (select & delete)" active={drawTool === null} onClick={() => { setDrawTool(null); setMenu(null); }}>
             <MousePointer2 size={15} aria-hidden />
           </ToolButton>
@@ -1098,6 +1076,33 @@ export default function PriceChart({
                 <Trash2 size={15} className="text-bear" aria-hidden />
               </ToolButton>
             )}
+          </div>
+
+          {/* Chart-view utilities */}
+          <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
+            {hasOlderHistory && (
+              <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
+                {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={15} aria-hidden />}
+              </ToolButton>
+            )}
+            <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => setMagnetCrosshair((value) => !value)}>
+              <Crosshair size={15} aria-hidden />
+            </ToolButton>
+            <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => setGridVisible((value) => !value)}>
+              <Grid3X3 size={15} aria-hidden />
+            </ToolButton>
+            <ToolButton label="Go to latest candle" onClick={goToLatest}>
+              <LocateFixed size={15} aria-hidden />
+            </ToolButton>
+            <ToolButton label="Fit chart data" onClick={() => chartRef.current?.timeScale().fitContent()}>
+              <Maximize2 size={15} aria-hidden />
+            </ToolButton>
+            <ToolButton label={stopDraft == null ? "Add stop-loss line" : "Remove stop-loss line"} active={stopDraft != null} onClick={() => toggleProtection("stop")}>
+              <span className="text-[11px] font-bold">SL</span>
+            </ToolButton>
+            <ToolButton label={targetDraft == null ? "Add take-profit line" : "Remove take-profit line"} active={targetDraft != null} onClick={() => toggleProtection("target")}>
+              <span className="text-[11px] font-bold">TP</span>
+            </ToolButton>
           </div>
         </div>
 

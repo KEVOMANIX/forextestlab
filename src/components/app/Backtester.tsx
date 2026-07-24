@@ -71,6 +71,7 @@ export function Backtester({
   );
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
+  const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
@@ -389,6 +390,7 @@ export function Backtester({
           onTemplateChange={setOrderTemplate}
           referencePair={referencePair}
         />
+        <div ref={setChartHeaderSlot} className="flex shrink-0 items-center gap-1" />
       </TerminalTopBar>
 
       {bt.error && (
@@ -446,6 +448,7 @@ export function Backtester({
             theme={theme}
             loading={bt.pairLoading}
             storageKey={`${state.sessionId}:${activeSymbol}`}
+            headerSlot={chartHeaderSlot}
           />
           <ReplayToolbar
             state={state}

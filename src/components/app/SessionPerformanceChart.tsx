@@ -17,11 +17,14 @@ export interface SessionChartTrade {
 
 type Range = "all" | "30d" | "7d";
 
+// Deterministic formatting: locale-dependent grouping/notation differs between
+// the server (Node ICU) and the browser, which breaks React hydration.
 function money(value: number) {
-  return `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  const sign = value < 0 ? "−" : "";
+  const abs = Math.abs(value);
+  const [whole, frac] = abs.toFixed(2).split(".");
+  const grouped = whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${sign}$${grouped}.${frac}`;
 }
 
 export function SessionPerformanceChart({
@@ -139,7 +142,7 @@ export function SessionPerformanceChart({
               showBalance ? "bg-white/[0.08]" : "app-muted"
             }`}
           >
-            <i className="h-2 w-2 rounded-full bg-blue-400" /> Balance
+            <i className="h-2 w-2 rounded-full bg-accent-400" /> Balance
           </button>
         </div>
         <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel-2)] p-1">
@@ -174,7 +177,7 @@ export function SessionPerformanceChart({
           <p className="truncate app-muted">{formatNewYorkDateTime(active.time)}</p>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-mono font-semibold">
             {showEquity && <span className="text-brand-300">Equity {money(active.equity)}</span>}
-            {showBalance && <span className="text-blue-300">Balance {money(active.balance)}</span>}
+            {showBalance && <span className="text-accent-400">Balance {money(active.balance)}</span>}
             <span className="text-bear">DD {money(activeDrawdown)}</span>
           </div>
         </div>
@@ -229,8 +232,9 @@ export function SessionPerformanceChart({
             <path
               d={path("balance")}
               fill="none"
-              stroke="#60a5fa"
+              stroke="#5b8bff"
               strokeWidth="2"
+              strokeDasharray="5 4"
               vectorEffect="non-scaling-stroke"
             />
           )}
@@ -240,7 +244,7 @@ export function SessionPerformanceChart({
               cx={x(trade.index)}
               cy={y(visible[trade.index]!.equity)}
               r="3.5"
-              fill={trade.pnl >= 0 ? "#22c3a0" : "#fb7185"}
+              fill={trade.pnl >= 0 ? "#22c3a0" : "#f4646c"}
               stroke="var(--app-panel)"
               strokeWidth="1.5"
               vectorEffect="non-scaling-stroke"
@@ -260,8 +264,8 @@ export function SessionPerformanceChart({
             cx={x(activeIndex)}
             cy={y(showEquity ? active.equity : active.balance)}
             r="4"
-            fill={showEquity ? "#22c3a0" : "#60a5fa"}
-            stroke="white"
+            fill={showEquity ? "#22c3a0" : "#5b8bff"}
+            stroke="var(--app-panel)"
             strokeWidth="1.5"
             vectorEffect="non-scaling-stroke"
           />

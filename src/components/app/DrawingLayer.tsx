@@ -95,7 +95,7 @@ export function DrawingLayer({
       if (engineRef) engineRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chart, series]);
+  }, [chart, series, storageKey]);
 
   // Push environment on every relevant change.
   useEffect(() => {

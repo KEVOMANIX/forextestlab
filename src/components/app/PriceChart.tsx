@@ -548,6 +548,8 @@ export default function PriceChart({
         secondsVisible: false,
         rightOffset: 4,
         barSpacing: 10,
+        // Pin the view to the oldest bar so there is no blank gap before the first candle.
+        fixLeftEdge: true,
         tickMarkFormatter: (time: Time) => chartTickFormatter.format(chartTimeMs(time)),
       },
       localization: {

@@ -4,34 +4,38 @@ import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   AlignJustify,
-  ArrowRight,
   ArrowUpRight,
   CandlestickChart,
   Circle,
+  Clock,
   Crosshair,
+  Egg,
   Equal,
   Grid3X3,
   History,
-  Info,
   LineChart,
   LocateFixed,
+  Magnet,
   Maximize2,
-  MessageSquare,
   Minus,
   MousePointer2,
   MoveDiagonal,
   MoveUpRight,
   MoveVertical,
   Pencil,
+  PenTool,
+  Redo2,
   Ruler,
   Spline,
   Square,
+  Tag,
   Target,
   Trash2,
   Triangle,
   TrendingDown,
   TrendingUp,
   Type,
+  Undo2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -62,8 +66,9 @@ import {
 } from "@/lib/market-data/types";
 import type { OpenPosition } from "@/lib/backtest/types";
 import { bollinger, ema, heikinAshi, sma, vwap, type OHLCV } from "@/lib/chart/indicators";
-import { DRAWING_LABELS, type Drawing, type DrawingTool } from "@/lib/chart/drawings";
-import { PriceChartDrawings } from "./PriceChartDrawings";
+import { TOOL_LABELS, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
+import type { DrawingEngine } from "@/lib/chart/drawing/engine";
+import { DrawingLayer } from "./DrawingLayer";
 import { PriceChartOscillator } from "./PriceChartOscillator";
 
 export interface ChartMarker {
@@ -76,7 +81,7 @@ export interface ChartMarker {
 
 type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area";
 type Oscillator = "none" | "rsi" | "macd";
-type DrawTool = DrawingTool | "measure" | null;
+type DrawTool = ToolKind | null;
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
   candles: "Candles",
@@ -171,40 +176,42 @@ const PALETTES: Record<"dark" | "light", Palette> = {
 
 const BULL = "#22c3a0";
 const BEAR = "#f4646c";
-const DRAW_COLOR = "#5b8bff";
 
 /** Icon shown next to each drawing tool inside its flyout. */
-const DRAW_ICONS: Record<DrawingTool, LucideIcon> = {
+const DRAW_ICONS: Record<ToolKind, LucideIcon> = {
   trend: TrendingUp,
   ray: MoveUpRight,
   extended: MoveDiagonal,
   arrow: ArrowUpRight,
-  info: Info,
   horizontal: Minus,
-  hray: ArrowRight,
   vertical: MoveVertical,
-  parallel: Equal,
+  channel: Equal,
   fib: AlignJustify,
-  fibext: AlignJustify,
   rectangle: Square,
-  ellipse: Circle,
+  session: Clock,
+  circle: Circle,
+  ellipse: Egg,
   triangle: Triangle,
+  path: PenTool,
   long: TrendingUp,
   short: TrendingDown,
+  measure: Ruler,
   text: Type,
-  callout: MessageSquare,
+  label: Tag,
 };
 
-type DrawMenu = "lines" | "fib" | "shapes" | "trade" | "notes";
+type DrawMenu = "lines" | "shapes" | "fib" | "trade" | "notes";
 
 /** Grouping of drawing tools into toolbar flyouts. */
-const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: LucideIcon; tools: DrawingTool[] }[] = [
-  { key: "lines", label: "Lines & channels", Icon: Spline, tools: ["trend", "ray", "extended", "arrow", "info", "horizontal", "hray", "vertical", "parallel"] },
-  { key: "fib", label: "Fibonacci", Icon: AlignJustify, tools: ["fib", "fibext"] },
-  { key: "shapes", label: "Shapes", Icon: Square, tools: ["rectangle", "ellipse", "triangle"] },
-  { key: "trade", label: "Positions", Icon: Target, tools: ["long", "short"] },
-  { key: "notes", label: "Text & notes", Icon: Type, tools: ["text", "callout"] },
+const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: LucideIcon; tools: ToolKind[] }[] = [
+  { key: "lines", label: "Lines & channels", Icon: Spline, tools: ["trend", "ray", "extended", "arrow", "horizontal", "vertical", "channel"] },
+  { key: "shapes", label: "Shapes", Icon: Square, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
+  { key: "fib", label: "Fibonacci", Icon: AlignJustify, tools: ["fib"] },
+  { key: "trade", label: "Positions & measure", Icon: Target, tools: ["long", "short", "measure"] },
+  { key: "notes", label: "Text & notes", Icon: Type, tools: ["text", "label"] },
 ];
+
+const MAGNET_MODES: MagnetMode[] = ["off", "weak", "strong"];
 
 function toOHLCV(candle: Candle): OHLCV {
   return {
@@ -369,7 +376,9 @@ export default function PriceChart({
   const [activeOverlays, setActiveOverlays] = useState<Set<string>>(new Set(["ema-21"]));
   const [oscillator, setOscillator] = useState<Oscillator>("none");
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
-  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
+  const [drawCount, setDrawCount] = useState(0);
+  const drawingEngineRef = useRef<DrawingEngine | null>(null);
   const [menu, setMenu] = useState<"type" | "indicators" | DrawMenu | null>(null);
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
   const [priceSeries, setPriceSeries] = useState<ISeriesApi<SeriesType> | null>(null);
@@ -565,7 +574,6 @@ export default function PriceChart({
           chartType?: ChartType;
           overlays?: string[];
           oscillator?: Oscillator;
-          drawings?: Drawing[];
         };
         if (saved.timeframe && availableTimeframes.includes(saved.timeframe)) setDisplayTimeframe(saved.timeframe);
         if (typeof saved.grid === "boolean") setGridVisible(saved.grid);
@@ -573,7 +581,6 @@ export default function PriceChart({
         if (saved.chartType) setChartType(saved.chartType);
         if (Array.isArray(saved.overlays)) setActiveOverlays(new Set(saved.overlays));
         if (saved.oscillator) setOscillator(saved.oscillator);
-        if (Array.isArray(saved.drawings)) setDrawings(saved.drawings);
         if (saved.range) {
           followLatestRef.current = false;
           savedRangeRef.current = saved.range;
@@ -740,13 +747,12 @@ export default function PriceChart({
           chartType,
           overlays: [...activeOverlays],
           oscillator,
-          drawings,
         }),
       );
     } catch {
       // Ignore local storage failures.
     }
-  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, activeOverlays, oscillator, drawings, storageKey]);
+  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, activeOverlays, oscillator, storageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -876,19 +882,21 @@ export default function PriceChart({
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="h-full w-full" role="img" aria-label="Candlestick price chart" />
 
-        <PriceChartDrawings
+        <DrawingLayer
           chart={chartApi}
           series={priceSeries}
           tool={drawTool}
-          drawings={drawings}
-          onDrawingsChange={setDrawings}
-          onToolComplete={() => setDrawTool(null)}
-          viewVersion={viewVersion}
+          magnet={drawMagnet}
           precision={precision}
           pipSize={pipSize}
-          color={DRAW_COLOR}
-          magnet={magnetCrosshair}
+          timeframe={displayTimeframe}
+          timeframes={availableTimeframes}
           candles={displayRef.current}
+          viewVersion={viewVersion}
+          onToolConsumed={() => setDrawTool(null)}
+          onCountChange={setDrawCount}
+          engineRef={drawingEngineRef}
+          storageKey={storageKey}
         />
 
         {legend && (
@@ -1039,7 +1047,7 @@ export default function PriceChart({
           </ToolButton>
 
           {DRAW_GROUPS.map((grp) => {
-            const active = menu === grp.key || grp.tools.includes(drawTool as DrawingTool);
+            const active = menu === grp.key || grp.tools.includes(drawTool as ToolKind);
             return (
               <div className="relative" key={grp.key}>
                 <ToolButton label={grp.label} active={active} onClick={() => setMenu(menu === grp.key ? null : grp.key)}>
@@ -1056,7 +1064,7 @@ export default function PriceChart({
                           onClick={() => { setDrawTool(t); setMenu(null); }}
                           className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
                         >
-                          <Icon size={14} aria-hidden /> {DRAWING_LABELS[t]}
+                          <Icon size={14} aria-hidden /> {TOOL_LABELS[t]}
                         </button>
                       );
                     })}
@@ -1066,17 +1074,31 @@ export default function PriceChart({
             );
           })}
 
-          <ToolButton label="Measure" active={drawTool === "measure"} onClick={() => { setDrawTool(drawTool === "measure" ? null : "measure"); setMenu(null); }}>
-            <Ruler size={15} aria-hidden />
-          </ToolButton>
-
-          {drawings.length > 0 && (
-            <div className="mt-0.5 border-t app-border pt-1">
-              <ToolButton label={`Clear all drawings (${drawings.length})`} onClick={() => setDrawings([])}>
+          <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
+            <ToolButton
+              label={`Magnet snapping: ${drawMagnet}`}
+              active={drawMagnet !== "off"}
+              onClick={() => setDrawMagnet((m) => MAGNET_MODES[(MAGNET_MODES.indexOf(m) + 1) % MAGNET_MODES.length]!)}
+            >
+              <span className="relative">
+                <Magnet size={15} aria-hidden />
+                {drawMagnet !== "off" && (
+                  <span className="absolute -right-1 -top-1 text-[7px] font-bold uppercase text-brand-300">{drawMagnet[0]}</span>
+                )}
+              </span>
+            </ToolButton>
+            <ToolButton label="Undo (Ctrl+Z)" onClick={() => drawingEngineRef.current?.undo()}>
+              <Undo2 size={15} aria-hidden />
+            </ToolButton>
+            <ToolButton label="Redo (Ctrl+Shift+Z)" onClick={() => drawingEngineRef.current?.redo()}>
+              <Redo2 size={15} aria-hidden />
+            </ToolButton>
+            {drawCount > 0 && (
+              <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
                 <Trash2 size={15} className="text-bear" aria-hidden />
               </ToolButton>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {stopDraft != null && lineCoordinates.stop != null && (

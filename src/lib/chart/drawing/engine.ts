@@ -100,6 +100,11 @@ export class DrawingEngine {
   onObjectsChange?: (count: number) => void;
   private lastCount = -1;
 
+  /** The chart's own root element — where we listen for drawing input. */
+  private chartEl: HTMLElement;
+  /** True while the chart's native pan/zoom is suspended for a drawing gesture. */
+  private frozen = false;
+
   constructor(
     private chart: IChartApi,
     series: ISeriesApi<SeriesType>,
@@ -110,19 +115,36 @@ export class DrawingEngine {
     this.overlay = this.makeCanvas(2);
     this.sceneCtx = this.scene.getContext("2d")!;
     this.overlayCtx = this.overlay.getContext("2d")!;
+    this.chartEl = chart.chartElement();
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
     this.resize();
 
-    host.addEventListener("pointerdown", this.onPointerDown);
-    host.addEventListener("dblclick", this.onDoubleClick);
-    host.addEventListener("contextmenu", this.onContext);
+    // The overlay never intercepts pointer events (host stays pointer-events:none).
+    // We listen on the chart element so empty-space gestures pan/zoom natively,
+    // and freeze the chart only while a drawing gesture is in progress.
+    this.chartEl.addEventListener("pointerdown", this.onPointerDown, true);
+    this.chartEl.addEventListener("dblclick", this.onDoubleClick);
+    this.chartEl.addEventListener("contextmenu", this.onContext);
     window.addEventListener("pointermove", this.onWindowMove);
     window.addEventListener("pointerup", this.onWindowUp);
+    window.addEventListener("pointercancel", this.onWindowUp);
     window.addEventListener("keydown", this.onKeyDown);
 
     this.loop();
+  }
+
+  private freezeChart(): void {
+    if (this.frozen) return;
+    this.frozen = true;
+    this.chart.applyOptions({ handleScroll: false, handleScale: false });
+  }
+
+  private unfreezeChart(): void {
+    if (!this.frozen) return;
+    this.frozen = false;
+    this.chart.applyOptions({ handleScroll: true, handleScale: true });
   }
 
   private makeCanvas(z: number): HTMLCanvasElement {
@@ -158,10 +180,9 @@ export class DrawingEngine {
     const prevTool = this.env.tool;
     this.env = { ...this.env, ...env };
     if (env.tool !== undefined && env.tool !== prevTool) {
-      // Tool changed: cancel any half-drawn object, ready the host for input.
+      // Tool changed: cancel any half-drawn object and reset cursor.
       this.cancelCreate();
-      this.host.style.pointerEvents = this.env.tool ? "auto" : "none";
-      this.host.style.cursor = this.env.tool ? "crosshair" : "default";
+      this.chartEl.style.cursor = this.env.tool ? "crosshair" : "";
       if (this.env.tool) this.select(null);
     }
     this.sceneDirty = true;
@@ -311,13 +332,15 @@ export class DrawingEngine {
   }
 
   destroy(): void {
+    this.unfreezeChart();
     this.ro.disconnect();
     cancelAnimationFrame(this.frame);
-    this.host.removeEventListener("pointerdown", this.onPointerDown);
-    this.host.removeEventListener("dblclick", this.onDoubleClick);
-    this.host.removeEventListener("contextmenu", this.onContext);
+    this.chartEl.removeEventListener("pointerdown", this.onPointerDown, true);
+    this.chartEl.removeEventListener("dblclick", this.onDoubleClick);
+    this.chartEl.removeEventListener("contextmenu", this.onContext);
     window.removeEventListener("pointermove", this.onWindowMove);
     window.removeEventListener("pointerup", this.onWindowUp);
+    window.removeEventListener("pointercancel", this.onWindowUp);
     window.removeEventListener("keydown", this.onKeyDown);
     this.scene.remove();
     this.overlay.remove();
@@ -384,15 +407,21 @@ export class DrawingEngine {
   private onPointerDown = (e: PointerEvent): void => {
     if (e.button === 2) return; // context menu handled separately
     const px = this.localPx(e);
+    if (px.x < 0 || px.y < 0 || px.x > this.mapper.width || px.y > this.mapper.height) return;
+
     if (this.env.tool) {
+      // Drawing gesture: suspend the chart's own pan/zoom while we place points.
+      this.freezeChart();
       this.beginCreateOrAdvance(px);
       return;
     }
-    // select mode — host is only 'auto' here when hovering an object
+    // Select mode. Grabbing an object / anchor freezes the chart so the drag
+    // moves the object rather than panning; empty clicks leave the chart free.
     const sel = this.objects.find((d) => d.id === this.selectedId) ?? null;
     if (sel && !sel.locked) {
       const ai = this.anchorAt(sel, px.x, px.y);
       if (ai != null) {
+        this.freezeChart();
         this.drag = { id: sel.id, kind: "anchor", index: ai, startPx: px, origin: sel.points.map((p) => ({ ...p })) };
         return;
       }
@@ -401,6 +430,7 @@ export class DrawingEngine {
     if (hit) {
       this.select(hit.id);
       if (!hit.locked) {
+        this.freezeChart();
         this.drag = { id: hit.id, kind: "move", index: -1, startPx: px, origin: hit.points.map((p) => ({ ...p })) };
       }
     } else {
@@ -470,6 +500,7 @@ export class DrawingEngine {
     const target = obj ?? this.create?.obj;
     this.create = null;
     this.snapDot = null;
+    this.unfreezeChart();
     if (target) {
       this.pushHistoryBefore(target.id);
     }
@@ -492,6 +523,7 @@ export class DrawingEngine {
     this.objects = this.objects.filter((o) => o.id !== id);
     this.create = null;
     this.snapDot = null;
+    this.unfreezeChart();
     this.sceneDirty = true;
     this.overlayDirty = true;
   }
@@ -506,10 +538,10 @@ export class DrawingEngine {
       this.updateDrag(px);
       return;
     }
-    // hover detection + host pointer-events toggle (only in select mode)
+    // Hover feedback in select mode (cursor + highlight). No pointer-events games.
     const inside = px.x >= 0 && px.y >= 0 && px.x <= this.mapper.width && px.y <= this.mapper.height;
     if (this.env.tool) {
-      if (inside) this.host.style.pointerEvents = "auto";
+      this.chartEl.style.cursor = inside ? "crosshair" : "";
       return;
     }
     if (!inside) {
@@ -517,12 +549,12 @@ export class DrawingEngine {
         this.hoverId = null;
         this.overlayDirty = true;
       }
+      this.chartEl.style.cursor = "";
       return;
     }
     const hit = this.hitObject(px.x, px.y);
     const id = hit?.id ?? null;
-    this.host.style.pointerEvents = id ? "auto" : "none";
-    this.host.style.cursor = id ? "move" : "default";
+    this.chartEl.style.cursor = id ? "move" : "";
     if (id !== this.hoverId) {
       this.hoverId = id;
       this.overlayDirty = true;
@@ -574,6 +606,7 @@ export class DrawingEngine {
       }
       this.snapDot = null;
       this.drag = null;
+      this.unfreezeChart();
       this.overlayDirty = true;
       this.emitSelection();
     }

@@ -50,7 +50,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40" onPointerDown={onClose}>
       <div
-        className="w-[320px] rounded-xl border app-border bg-[var(--app-panel)] shadow-2xl"
+        className="w-[320px] rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl"
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b app-border px-3 py-2">

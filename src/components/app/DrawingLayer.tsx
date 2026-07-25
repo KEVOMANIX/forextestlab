@@ -51,6 +51,8 @@ export function DrawingLayer({
   const [settings, setSettings] = useState<DrawingJSON | null>(null);
   const [menu, setMenu] = useState<ContextMenuRequest | null>(null);
   const [selection, setSelection] = useState<DrawingJSON | null>(null);
+  const [textEdit, setTextEdit] = useState<{ id: string; x: number; y: number } | null>(null);
+  const textDraftRef = useRef("");
 
   // Create / dispose the engine with the chart lifecycle.
   useEffect(() => {
@@ -92,6 +94,10 @@ export function DrawingLayer({
     };
     engine.onOpenSettings = (json) => setSettings(json);
     engine.onContextMenu = (req) => setMenu(req);
+    engine.onRequestTextEdit = (req) => {
+      textDraftRef.current = "";
+      setTextEdit(req);
+    };
     engine.onToolConsumed = () => onToolConsumed();
     engine.onSelectionChange = (json) => {
       setSelection(json);
@@ -136,15 +142,49 @@ export function DrawingLayer({
     });
   };
 
+  const commitText = (cancel: boolean) => {
+    if (!textEdit) return;
+    const value = textDraftRef.current.trim();
+    if (cancel || !value) eng()?.removeObject(textEdit.id);
+    else eng()?.setObjectText(textEdit.id, textDraftRef.current);
+    setTextEdit(null);
+  };
+
   return (
     <>
       <div ref={hostRef} className="absolute inset-0 z-10" style={{ pointerEvents: "none" }} />
+
+      {textEdit && (
+        <textarea
+          key={textEdit.id}
+          autoFocus
+          defaultValue=""
+          aria-label="Drawing text"
+          onChange={(e) => {
+            textDraftRef.current = e.target.value;
+            eng()?.setObjectText(textEdit.id, e.target.value);
+          }}
+          onBlur={() => commitText(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              commitText(true);
+            } else if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              commitText(false);
+            }
+          }}
+          className="absolute z-50 min-w-[80px] resize-none rounded border border-brand-400 bg-[var(--app-panel-solid)] px-1.5 py-1 text-xs text-[var(--app-text)] shadow-lg outline-none"
+          style={{ left: textEdit.x, top: textEdit.y, pointerEvents: "auto" }}
+          rows={1}
+        />
+      )}
 
       {menu && (
         <>
           <div className="fixed inset-0 z-40" onPointerDown={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
           <div
-            className="fixed z-50 w-44 rounded-lg border app-border bg-[var(--app-panel)] py-1 text-xs shadow-2xl"
+            className="fixed z-50 w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] py-1 text-xs shadow-2xl"
             style={{ left: menu.clientX, top: menu.clientY }}
           >
             <MenuItem icon={<Settings2 size={13} />} label="Settings" onClick={() => { const j = eng()?.getSelected(); if (j) setSettings(j); setMenu(null); }} />

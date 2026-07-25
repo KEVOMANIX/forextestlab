@@ -106,6 +106,8 @@ export class DrawingEngine {
   onSelectionChange?: (json: DrawingJSON | null) => void;
   onObjectsChange?: (count: number) => void;
   onToolDefaultsChange?: (defaults: ToolDefaults) => void;
+  /** Ask React to open an inline text editor at (x,y) for a just-placed text/label. */
+  onRequestTextEdit?: (req: { id: string; x: number; y: number }) => void;
   private lastCount = -1;
 
   /** Last-used style per tool kind; seeds new drawings so settings persist. */
@@ -210,6 +212,24 @@ export class DrawingEngine {
 
   loadToolDefaults(defaults: ToolDefaults): void {
     this.toolDefaults = defaults ?? {};
+  }
+
+  /** Live-update an object's text (used by the inline text editor; no history). */
+  setObjectText(id: string, text: string): void {
+    const o = this.objects.find((d) => d.id === id);
+    if (!o) return;
+    o.style.text = text;
+    this.sceneDirty = true;
+    this.emitSelection(); // persist through the selection-change hook
+  }
+
+  /** Remove an object by id (e.g. an empty text box the user abandoned). */
+  removeObject(id: string): void {
+    const before = this.objects.length;
+    this.objects = this.objects.filter((o) => o.id !== id);
+    if (this.objects.length === before) return;
+    if (this.selectedId === id) this.select(null);
+    this.sceneDirty = true;
   }
 
   getSelected(): DrawingJSON | null {
@@ -482,16 +502,8 @@ export class DrawingEngine {
     }
 
     const mode = creationMode(kind);
-    let text = "";
-    if (TOOLS_NEEDING_TEXT.has(kind)) {
-      text = window.prompt("Text:")?.trim() || "";
-      if (!text) {
-        this.onToolConsumed?.();
-        return;
-      }
-    }
     const count = kind === "path" ? 2 : Number.isFinite(TOOL_POINTS[kind]) ? TOOL_POINTS[kind] : 2;
-    const obj = newDrawing(kind, point, this.topZ() + 1, count, text);
+    const obj = newDrawing(kind, point, this.topZ() + 1, count, "");
     // Seed from the user's last-used style for this tool (text is never inherited).
     const saved = this.toolDefaults[kind];
     if (saved) {
@@ -505,6 +517,8 @@ export class DrawingEngine {
 
     if (mode === "single") {
       this.finalizeCreate(obj);
+      // Text/label: drop a cursor on the chart and let the user type directly.
+      if (TOOLS_NEEDING_TEXT.has(kind)) this.onRequestTextEdit?.({ id: obj.id, x: px.x, y: px.y });
       return;
     }
     this.create = { obj, mode, placed: 1 };

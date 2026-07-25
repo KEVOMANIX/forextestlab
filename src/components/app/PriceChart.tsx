@@ -17,7 +17,6 @@ import {
   LineChart,
   LocateFixed,
   Magnet,
-  Maximize2,
   Minus,
   MousePointer2,
   MoveDiagonal,
@@ -340,8 +339,6 @@ export default function PriceChart({
   onEditPosition,
   stopLoss,
   takeProfit,
-  positionDirection,
-  currentPrice,
   baseTimeframe,
   pipSize,
   precision,
@@ -382,6 +379,8 @@ export default function PriceChart({
   const [oscillator, setOscillator] = useState<Oscillator>("none");
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
+  const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
+  const favDragRef = useRef<{ dx: number; dy: number } | null>(null);
   const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
   const [drawCount, setDrawCount] = useState(0);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -825,26 +824,6 @@ export default function PriceChart({
     setDisplayTimeframe(timeframe);
   }
 
-  function defaultProtection(kind: "stop" | "target") {
-    if (currentPrice == null) return null;
-    const direction = positionDirection ?? "long";
-    const distance = pipSize * (kind === "stop" ? 20 : 40);
-    const price = direction === "long" ? currentPrice + (kind === "stop" ? -distance : distance) : currentPrice + (kind === "stop" ? distance : -distance);
-    return Number(price.toFixed(precision));
-  }
-
-  function toggleProtection(kind: "stop" | "target") {
-    if (kind === "stop") {
-      const next = stopDraft == null ? defaultProtection("stop") : null;
-      setStopDraft(next);
-      onStopLossChange(next == null ? null : next.toFixed(precision));
-    } else {
-      const next = targetDraft == null ? defaultProtection("target") : null;
-      setTargetDraft(next);
-      onTakeProfitChange(next == null ? null : next.toFixed(precision));
-    }
-  }
-
   function beginLineDrag(kind: "stop" | "target", event: React.PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -933,7 +912,7 @@ export default function PriceChart({
           <span className="hidden sm:inline">{CHART_TYPE_LABELS[chartType]}</span>
         </button>
         {menu === "type" && (
-          <div className="absolute left-0 top-9 z-40 w-40 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
+          <div className="absolute left-0 top-9 z-40 w-40 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl">
             {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((t) => (
               <button key={t} type="button" onClick={() => { setChartType(t); setMenu(null); }} className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${chartType === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}>
                 {CHART_TYPE_LABELS[t]}
@@ -955,7 +934,7 @@ export default function PriceChart({
           <span className="hidden sm:inline">Indicators</span>
         </button>
         {menu === "indicators" && (
-          <div className="absolute left-0 top-9 z-40 w-56 rounded-lg border app-border bg-[var(--app-panel)] p-2 shadow-xl">
+          <div className="absolute left-0 top-9 z-40 w-56 rounded-lg border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
             <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Overlays</p>
             {OVERLAYS.map((def) => (
               <label key={def.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
@@ -1042,10 +1021,36 @@ export default function PriceChart({
           );
         })}
 
-        {/* Favorites quick-access bar */}
+        {/* Favorites quick-access bar — draggable, opaque */}
         {favorites.size > 0 && (
-          <div className="absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel)]/95 px-1.5 py-1 shadow-xl backdrop-blur" role="toolbar" aria-label="Favorite tools">
-            <span className="mr-0.5 select-none text-[10px] leading-none app-muted" aria-hidden>⋮⋮</span>
+          <div
+            className="absolute z-30 flex items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
+            style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
+            role="toolbar"
+            aria-label="Favorite tools"
+          >
+            <button
+              type="button"
+              aria-label="Move favorites bar"
+              className="mr-0.5 cursor-move touch-none select-none px-0.5 text-[11px] leading-none app-muted hover:text-[var(--app-text)]"
+              onPointerDown={(e) => {
+                const bar = e.currentTarget.parentElement!.getBoundingClientRect();
+                favDragRef.current = { dx: e.clientX - bar.left, dy: e.clientY - bar.top };
+                e.currentTarget.setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                if (!favDragRef.current) return;
+                const cont = containerRef.current?.getBoundingClientRect();
+                if (!cont) return;
+                setFavBarPos({ x: e.clientX - cont.left - favDragRef.current.dx, y: e.clientY - cont.top - favDragRef.current.dy });
+              }}
+              onPointerUp={(e) => {
+                favDragRef.current = null;
+                if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+              }}
+            >
+              ⋮⋮
+            </button>
             {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
               const Icon = DRAW_ICONS[t];
               return (
@@ -1127,15 +1132,6 @@ export default function PriceChart({
             <ToolButton label="Go to latest candle" onClick={goToLatest}>
               <LocateFixed size={15} aria-hidden />
             </ToolButton>
-            <ToolButton label="Fit chart data" onClick={() => chartRef.current?.timeScale().fitContent()}>
-              <Maximize2 size={15} aria-hidden />
-            </ToolButton>
-            <ToolButton label={stopDraft == null ? "Add stop-loss line" : "Remove stop-loss line"} active={stopDraft != null} onClick={() => toggleProtection("stop")}>
-              <span className="text-[11px] font-bold">SL</span>
-            </ToolButton>
-            <ToolButton label={targetDraft == null ? "Add take-profit line" : "Remove take-profit line"} active={targetDraft != null} onClick={() => toggleProtection("target")}>
-              <span className="text-[11px] font-bold">TP</span>
-            </ToolButton>
           </div>
         </div>
 
@@ -1145,7 +1141,7 @@ export default function PriceChart({
           if (!grp || !menuAnchor) return null;
           return createPortal(
             <div
-              className="fixed z-[60] w-44 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl"
+              className="fixed z-[60] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl"
               style={{ left: menuAnchor.x, top: menuAnchor.y }}
             >
               {grp.tools.map((t) => {

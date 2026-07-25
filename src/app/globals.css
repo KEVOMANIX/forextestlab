@@ -75,6 +75,7 @@
   .app-shell {
     --app-bg: #070a12;
     --app-panel: rgba(17, 23, 37, 0.72);
+    --app-panel-solid: #111725;
     --app-panel-2: rgba(11, 15, 26, 0.72);
     --app-border: rgba(255, 255, 255, 0.10);
     --app-text: #e6ebf5;
@@ -86,6 +87,7 @@
   .app-shell.light {
     --app-bg: #f5f7fb;
     --app-panel: #ffffff;
+    --app-panel-solid: #ffffff;
     --app-panel-2: #eef2f8;
     --app-border: #d9e0ec;
     --app-text: #0b1220;

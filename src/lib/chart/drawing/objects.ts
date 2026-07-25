@@ -4,6 +4,7 @@
  * shared from ./object to keep the tools compact.
  */
 
+import { DISPLAY_TIME_ZONE } from "@/lib/date-time";
 import type { CoordinateMapper } from "./coords";
 import {
   DrawingObject,
@@ -25,6 +26,16 @@ import {
   type Point,
   type ToolKind,
 } from "./types";
+
+/** Time-axis label for vertical lines (weekday, date, time in the chart's zone). */
+const VLINE_TIME_FMT = new Intl.DateTimeFormat("en", {
+  timeZone: DISPLAY_TIME_ZONE,
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 // ---- local helpers ----
 
@@ -234,6 +245,11 @@ class VerticalLine extends DrawingObject {
     ctx.moveTo(x, 0);
     ctx.lineTo(x, mapper.height);
     ctx.stroke();
+    // Highlight the day/date/time on the bottom time scale, like TradingView.
+    if (this.style.showLabels && this.points[0]!.time) {
+      const label = VLINE_TIME_FMT.format(new Date(this.points[0]!.time * 1000));
+      centerChip(ctx, x, mapper.height - 11, [label], withAlpha(this.style.color, 1), "#0b0f1a", 10);
+    }
   }
   bbox(mapper: CoordinateMapper): Rect | null {
     const x = mapper.timeToX(this.points[0]!.time);
@@ -421,15 +437,19 @@ class TextObj extends DrawingObject {
   render({ ctx, mapper }: RenderCtx): void {
     const p = this.px(mapper, this.points[0]!);
     if (!p) return;
+    const text = this.style.text;
+    if (!text) return; // empty (e.g. mid inline-edit) → nothing to draw
     ctx.save();
     ctx.setLineDash([]);
-    ctx.font = `${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    const weight = this.style.bold ? "700 " : "";
+    const italic = this.style.italic ? "italic " : "";
+    ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "middle";
     if (this.style.background || this.kind === "label") {
-      chip(ctx, p.x, p.y - (this.style.fontSize + 6) / 2, this.style.text || "Text", withAlpha(this.style.fillColor, Math.max(0.15, this.style.fillOpacity)), this.style.color, this.style.fontSize);
+      chip(ctx, p.x, p.y - (this.style.fontSize + 6) / 2, text, withAlpha(this.style.fillColor, Math.max(0.15, this.style.fillOpacity)), this.style.textColor ?? this.style.color, this.style.fontSize);
     } else {
-      ctx.fillStyle = this.strokeColor();
-      ctx.fillText(this.style.text || "Text", p.x, p.y);
+      ctx.fillStyle = withAlpha(this.style.textColor ?? this.style.color, this.style.opacity);
+      ctx.fillText(text, p.x, p.y);
     }
     ctx.restore();
   }

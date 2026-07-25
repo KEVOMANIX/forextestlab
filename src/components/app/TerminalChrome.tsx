@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
   BookOpenText,
+  Check,
   ChevronDown,
   Expand,
   FolderOpen,
@@ -79,6 +80,8 @@ export function TerminalTopBar({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [pairMenuOpen, setPairMenuOpen] = useState(false);
+  const pairMenuRef = useRef<HTMLDivElement | null>(null);
   const symbols = state.config.symbols?.length
     ? state.config.symbols
     : [state.config.symbol];
@@ -98,6 +101,22 @@ export function TerminalTopBar({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!pairMenuOpen) return;
+    const closeMenu = (event: PointerEvent) => {
+      if (!pairMenuRef.current?.contains(event.target as Node)) setPairMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPairMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [pairMenuOpen]);
 
   const navigate = (href: string) => {
     setMenuOpen(false);
@@ -179,20 +198,42 @@ export function TerminalTopBar({
       </div>
 
       <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-      <div className="flex shrink-0 items-center gap-1">
-        <label className="sr-only" htmlFor="terminal-pair">Chart pair</label>
-        <select
-          id="terminal-pair"
-          value={activeSymbol}
-          onChange={(event) => onSwitchPair(event.target.value)}
-          className="h-8 rounded-md border app-border bg-[var(--app-panel-2)] px-2.5 font-mono text-xs font-bold outline-none hover:border-brand-400/25"
+      <div ref={pairMenuRef} className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => setPairMenuOpen((open) => !open)}
+          aria-haspopup="menu"
+          aria-expanded={pairMenuOpen}
+          className={`inline-flex h-8 items-center gap-2 rounded-md border px-2.5 font-mono text-xs font-bold outline-none transition-colors ${
+            pairMenuOpen ? "border-brand-400/40 bg-brand-400/10 text-brand-300" : "app-border bg-[var(--app-panel-2)] hover:border-brand-400/25"
+          }`}
         >
-          {symbols.map((symbol) => (
-            <option key={symbol} value={symbol}>
-              {symbol}
-            </option>
-          ))}
-        </select>
+          <span>{activeSymbol}</span>
+          <ChevronDown size={13} className={`shrink-0 app-muted transition-transform ${pairMenuOpen ? "rotate-180" : ""}`} aria-hidden />
+        </button>
+
+        {pairMenuOpen && (
+          <div
+            role="menu"
+            className="absolute left-0 top-full z-[120] mt-1.5 max-h-72 w-44 overflow-y-auto rounded-xl border app-border bg-[var(--app-panel)] p-1.5 shadow-2xl backdrop-blur-xl"
+          >
+            <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Session pairs</p>
+            {symbols.map((symbol) => (
+              <button
+                key={symbol}
+                type="button"
+                role="menuitem"
+                onClick={() => { setPairMenuOpen(false); if (symbol !== activeSymbol) onSwitchPair(symbol); }}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left font-mono text-xs font-bold ${
+                  symbol === activeSymbol ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
+                }`}
+              >
+                {symbol}
+                {symbol === activeSymbol && <Check size={13} aria-hidden />}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />

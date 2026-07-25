@@ -29,6 +29,15 @@ export function OrderTicket({
   const [mobileDetails, setMobileDetails] = useState(false);
   const unavailable = state.status === "finished" || !state.currentPrice || Boolean(referencePair);
 
+  // Live bid/ask for the active pair, derived from the mid price + configured spread.
+  const pair = state.config.symbol;
+  const precision = state.config.pricePrecision ?? 5;
+  const pip = Number(state.config.pipSize) || 0;
+  const spread = Number(state.config.spreadPips) || 0;
+  const mid = state.currentPrice != null ? Number(state.currentPrice) : null;
+  const ask = mid != null ? mid + (spread * pip) / 2 : null;
+  const bid = mid != null ? mid - (spread * pip) / 2 : null;
+
   useEffect(() => {
     onTemplateChange({
       sizingMode,
@@ -57,23 +66,32 @@ export function OrderTicket({
             {referencePair} · view only
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => submit("long")}
-          aria-disabled={unavailable}
-          className="inline-flex h-8 min-w-20 items-center justify-center gap-1.5 rounded-md bg-brand-500 px-3 text-xs font-bold text-surface-950 transition hover:bg-brand-400 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
-        >
-          <ArrowUpRight size={17} aria-hidden />
-          Buy
-        </button>
+        <span className="hidden px-1 text-xs font-semibold app-muted sm:inline" title="Active pair">
+          {pair}
+        </span>
         <button
           type="button"
           onClick={() => submit("short")}
           aria-disabled={unavailable}
-          className="inline-flex h-8 min-w-20 items-center justify-center gap-1.5 rounded-md bg-bear px-3 text-xs font-bold text-white transition hover:opacity-90 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+          className="inline-flex h-9 min-w-24 items-center justify-center gap-1.5 rounded-md bg-bear px-3 font-bold text-white transition hover:opacity-90 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
         >
-          <ArrowDownRight size={17} aria-hidden />
-          Sell
+          <ArrowDownRight size={16} aria-hidden />
+          <span className="flex flex-col items-center leading-none">
+            <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Sell</span>
+            {bid != null && <span className="mt-0.5 font-mono text-xs">{bid.toFixed(precision)}</span>}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => submit("long")}
+          aria-disabled={unavailable}
+          className="inline-flex h-9 min-w-24 items-center justify-center gap-1.5 rounded-md bg-brand-500 px-3 font-bold text-surface-950 transition hover:bg-brand-400 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+        >
+          <ArrowUpRight size={16} aria-hidden />
+          <span className="flex flex-col items-center leading-none">
+            <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Buy</span>
+            {ask != null && <span className="mt-0.5 font-mono text-xs">{ask.toFixed(precision)}</span>}
+          </span>
         </button>
         <button
           type="button"

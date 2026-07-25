@@ -29,6 +29,7 @@ import {
   Ruler,
   Spline,
   Square,
+  Star,
   Tag,
   Target,
   Trash2,
@@ -380,6 +381,7 @@ export default function PriceChart({
   const [activeOverlays, setActiveOverlays] = useState<Set<string>>(new Set(["ema-21"]));
   const [oscillator, setOscillator] = useState<Oscillator>("none");
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
+  const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
   const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
   const [drawCount, setDrawCount] = useState(0);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -871,6 +873,30 @@ export default function PriceChart({
     else onTakeProfitChange(price == null ? null : price.toFixed(precision));
   }
 
+  // Favorite drawing tools — persisted globally and shown in a quick-access bar.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("forextestlab:fav-tools");
+      if (raw) setFavorites(new Set(JSON.parse(raw) as ToolKind[]));
+    } catch {
+      // Ignore malformed favorites.
+    }
+  }, []);
+
+  function toggleFavorite(tool: ToolKind) {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(tool)) next.delete(tool);
+      else next.add(tool);
+      try {
+        window.localStorage.setItem("forextestlab:fav-tools", JSON.stringify([...next]));
+      } catch {
+        // Best-effort.
+      }
+      return next;
+    });
+  }
+
   function toggleOverlay(id: string) {
     setActiveOverlays((prev) => {
       const next = new Set(prev);
@@ -1016,6 +1042,21 @@ export default function PriceChart({
           );
         })}
 
+        {/* Favorites quick-access bar */}
+        {favorites.size > 0 && (
+          <div className="absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel)]/95 px-1.5 py-1 shadow-xl backdrop-blur" role="toolbar" aria-label="Favorite tools">
+            <span className="mr-0.5 select-none text-[10px] leading-none app-muted" aria-hidden>⋮⋮</span>
+            {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
+              const Icon = DRAW_ICONS[t];
+              return (
+                <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { setDrawTool(t); setMenu(null); }}>
+                  <Icon size={15} aria-hidden />
+                </ToolButton>
+              );
+            })}
+          </div>
+        )}
+
         {/* Click-away backdrop for open menus */}
         {menu && <div className="absolute inset-0 z-20" onClick={() => setMenu(null)} aria-hidden />}
 
@@ -1109,15 +1150,29 @@ export default function PriceChart({
             >
               {grp.tools.map((t) => {
                 const Icon = DRAW_ICONS[t];
+                const fav = favorites.has(t);
                 return (
-                  <button
+                  <div
                     key={t}
-                    type="button"
-                    onClick={() => { setDrawTool(t); setMenu(null); }}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
+                    className={`group flex w-full items-center gap-2 rounded-md pr-1 text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
                   >
-                    <Icon size={14} aria-hidden /> {TOOL_LABELS[t]}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => { setDrawTool(t); setMenu(null); }}
+                      className="flex flex-1 items-center gap-2 px-2 py-1.5 text-left"
+                    >
+                      <Icon size={14} aria-hidden /> {TOOL_LABELS[t]}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={fav ? `Unfavorite ${TOOL_LABELS[t]}` : `Favorite ${TOOL_LABELS[t]}`}
+                      aria-pressed={fav}
+                      onClick={(e) => { e.stopPropagation(); toggleFavorite(t); }}
+                      className={`shrink-0 rounded p-1 transition-opacity ${fav ? "text-amber-400 opacity-100" : "app-muted opacity-0 group-hover:opacity-100 hover:text-amber-400"}`}
+                    >
+                      <Star size={13} fill={fav ? "currentColor" : "none"} aria-hidden />
+                    </button>
+                  </div>
                 );
               })}
             </div>,

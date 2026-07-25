@@ -52,6 +52,12 @@ export interface DrawingStyle {
   background: boolean; // text/label background chip
   fontSize: number;
   text: string;
+  // Text (available on every tool):
+  bold?: boolean;
+  italic?: boolean;
+  textColor?: string;
+  textAlign?: "left" | "center" | "right";
+  textPlacement?: "inside" | "outside";
   // Position tools (long/short) only:
   accountSize?: number; // account currency size
   risk?: number; // risk per trade, interpreted by riskMode
@@ -82,7 +88,7 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
   const base: DrawingStyle = {
     color: "#5b8bff",
     opacity: 1,
-    lineWidth: kind === "fib" ? 1 : 2,
+    lineWidth: 1, // low-end default; the user's last-used style is remembered per tool
     lineStyle: kind === "horizontal" || kind === "vertical" ? "dashed" : "solid",
     fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle" || kind === "fib",
     fillColor: "#5b8bff",
@@ -93,6 +99,11 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     background: kind === "label",
     fontSize: 13,
     text: "",
+    bold: false,
+    italic: false,
+    textColor: "#e5e7eb",
+    textAlign: "center",
+    textPlacement: "inside",
   };
   if (kind === "session") base.fillColor = "#fbbf24";
   if (kind === "long" || kind === "short") {

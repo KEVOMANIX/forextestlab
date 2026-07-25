@@ -178,6 +178,35 @@ export abstract class DrawingObject {
     ctx.lineCap = "round";
   }
 
+  /**
+   * Draw the object's free-text label (available on every tool). Positioned
+   * relative to the bounding box per the text alignment / placement style.
+   * Text/label tools render their own text and skip this.
+   */
+  drawLabel({ ctx, mapper }: RenderCtx): void {
+    const text = this.style.text?.trim();
+    if (!text) return;
+    const b = this.bbox(mapper);
+    if (!b) return;
+    ctx.save();
+    ctx.setLineDash([]);
+    const weight = this.style.bold ? "700 " : "";
+    const italic = this.style.italic ? "italic " : "";
+    ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.fillStyle = withAlpha(this.style.textColor ?? "#e5e7eb", 1);
+    ctx.textBaseline = "middle";
+    const align = this.style.textAlign ?? "center";
+    ctx.textAlign = align;
+    const x = align === "left" ? b.x + 6 : align === "right" ? b.x + b.w - 6 : b.x + b.w / 2;
+    const lines = text.split("\n");
+    const lh = this.style.fontSize + 3;
+    const block = (lines.length - 1) * lh;
+    const cy = (this.style.textPlacement ?? "inside") === "outside" ? b.y - this.style.fontSize - block / 2 : b.y + b.h / 2;
+    const startY = cy - block / 2;
+    lines.forEach((ln, i) => ctx.fillText(ln, x, startY + i * lh));
+    ctx.restore();
+  }
+
   /** Project a chart point to pixels (time 0 → canvas centre for pure-horizontal anchors). */
   protected px(mapper: CoordinateMapper, p: Point): { x: number; y: number } | null {
     const x = p.time ? mapper.timeToX(p.time) : mapper.width / 2;

@@ -57,6 +57,21 @@ export function DrawingLayer({
     if (!chart || !series || !hostRef.current) return;
     const key = storageKey ? `forextestlab:drawings:${storageKey}` : null;
     const engine = new DrawingEngine(chart, series, hostRef.current);
+    // Per-tool style memory persists globally (shared across sessions/pairs).
+    const TOOL_DEFAULTS_KEY = "forextestlab:tool-defaults";
+    try {
+      const rawDefaults = window.localStorage.getItem(TOOL_DEFAULTS_KEY);
+      if (rawDefaults) engine.loadToolDefaults(JSON.parse(rawDefaults));
+    } catch {
+      // Ignore malformed tool defaults.
+    }
+    engine.onToolDefaultsChange = (defaults) => {
+      try {
+        window.localStorage.setItem(TOOL_DEFAULTS_KEY, JSON.stringify(defaults));
+      } catch {
+        // Best-effort.
+      }
+    };
     let initial = savedRef.current;
     if (key) {
       try {

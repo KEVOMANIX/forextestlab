@@ -11,7 +11,7 @@ import {
   type Point,
 } from "@/lib/chart/drawing/types";
 
-type Tab = "style" | "coords" | "visibility";
+type Tab = "style" | "text" | "coords" | "visibility";
 
 interface Props {
   value: DrawingJSON;
@@ -61,7 +61,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
         </div>
 
         <div className="flex gap-1 border-b app-border px-2 pt-2">
-          {(["style", "coords", "visibility"] as Tab[]).map((t) => (
+          {(["style", "text", "coords", "visibility"] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -171,15 +171,6 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               <Row label="Background">
                 <input type="checkbox" checked={s.background} onChange={(e) => setStyle({ background: e.target.checked })} />
               </Row>
-              {(value.kind === "text" || value.kind === "label") && (
-                <Row label="Text">
-                  <input
-                    value={s.text}
-                    onChange={(e) => setStyle({ text: e.target.value })}
-                    className="w-40 rounded border app-border bg-transparent px-1 py-0.5"
-                  />
-                </Row>
-              )}
               {(value.kind === "long" || value.kind === "short") && (
                 <>
                   <Row label="Account size">
@@ -211,6 +202,74 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                 </>
               )}
             </>
+          )}
+
+          {tab === "text" && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  type="color"
+                  aria-label="Text color"
+                  value={s.textColor ?? "#e5e7eb"}
+                  onChange={(e) => setStyle({ textColor: e.target.value })}
+                  className="h-7 w-8 cursor-pointer rounded border app-border bg-transparent p-0.5"
+                />
+                <select
+                  aria-label="Font size"
+                  value={s.fontSize}
+                  onChange={(e) => setStyle({ fontSize: Number(e.target.value) })}
+                  className="rounded border app-border bg-transparent px-1 py-1 text-xs"
+                >
+                  {[10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  aria-pressed={Boolean(s.bold)}
+                  onClick={() => setStyle({ bold: !s.bold })}
+                  className={`h-7 w-7 rounded border app-border text-xs font-bold ${s.bold ? "bg-brand-400/15 text-brand-300" : "app-muted"}`}
+                >
+                  B
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={Boolean(s.italic)}
+                  onClick={() => setStyle({ italic: !s.italic })}
+                  className={`h-7 w-7 rounded border app-border text-xs italic ${s.italic ? "bg-brand-400/15 text-brand-300" : "app-muted"}`}
+                >
+                  I
+                </button>
+              </div>
+              <textarea
+                value={s.text}
+                placeholder="Add text"
+                onChange={(e) => setStyle({ text: e.target.value })}
+                rows={4}
+                className="w-full resize-y rounded-md border app-border bg-transparent px-2 py-1.5 text-xs outline-none focus:border-brand-400"
+              />
+              <Row label="Text alignment">
+                <select
+                  value={s.textPlacement ?? "inside"}
+                  onChange={(e) => setStyle({ textPlacement: e.target.value as "inside" | "outside" })}
+                  className="rounded border app-border bg-transparent px-1 py-0.5"
+                >
+                  <option value="inside">Inside</option>
+                  <option value="outside">Outside</option>
+                </select>
+                <select
+                  value={s.textAlign ?? "center"}
+                  onChange={(e) => setStyle({ textAlign: e.target.value as "left" | "center" | "right" })}
+                  className="rounded border app-border bg-transparent px-1 py-0.5"
+                >
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </Row>
+            </div>
           )}
 
           {tab === "coords" && (

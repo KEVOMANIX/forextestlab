@@ -23,10 +23,14 @@ import {
   TOOLS_NEEDING_TEXT,
   nextId,
   type DrawingJSON,
+  type DrawingStyle,
   type MagnetMode,
   type Point,
   type ToolKind,
 } from "./types";
+
+/** Per-tool remembered styles: a new drawing starts from the last-used style. */
+export type ToolDefaults = Partial<Record<ToolKind, DrawingStyle>>;
 
 type CreateMode = "single" | "drag" | "click";
 
@@ -101,7 +105,11 @@ export class DrawingEngine {
   onToolConsumed?: () => void;
   onSelectionChange?: (json: DrawingJSON | null) => void;
   onObjectsChange?: (count: number) => void;
+  onToolDefaultsChange?: (defaults: ToolDefaults) => void;
   private lastCount = -1;
+
+  /** Last-used style per tool kind; seeds new drawings so settings persist. */
+  private toolDefaults: ToolDefaults = {};
 
   /** The chart's own root element — where we listen for drawing input. */
   private chartEl: HTMLElement;
@@ -200,6 +208,10 @@ export class DrawingEngine {
     this.overlayDirty = true;
   }
 
+  loadToolDefaults(defaults: ToolDefaults): void {
+    this.toolDefaults = defaults ?? {};
+  }
+
   getSelected(): DrawingJSON | null {
     const o = this.objects.find((d) => d.id === this.selectedId);
     return o ? o.serialize() : null;
@@ -209,7 +221,12 @@ export class DrawingEngine {
     const o = this.objects.find((d) => d.id === id);
     if (!o) return;
     this.pushHistory();
-    if (patch.style) Object.assign(o.style, patch.style);
+    if (patch.style) {
+      Object.assign(o.style, patch.style);
+      // Remember this style as the starting point for future drawings of this kind.
+      this.toolDefaults[o.kind] = { ...o.style };
+      this.onToolDefaultsChange?.(this.toolDefaults);
+    }
     if (patch.points) o.points = patch.points.map((p) => ({ ...p }));
     if (patch.locked !== undefined) o.locked = patch.locked;
     if (patch.hidden !== undefined) o.hidden = patch.hidden;
@@ -475,6 +492,12 @@ export class DrawingEngine {
     }
     const count = kind === "path" ? 2 : Number.isFinite(TOOL_POINTS[kind]) ? TOOL_POINTS[kind] : 2;
     const obj = newDrawing(kind, point, this.topZ() + 1, count, text);
+    // Seed from the user's last-used style for this tool (text is never inherited).
+    const saved = this.toolDefaults[kind];
+    if (saved) {
+      const ownText = obj.style.text; // never inherit the previous drawing's text
+      obj.style = { ...obj.style, ...saved, text: ownText };
+    }
     if (kind === "long" || kind === "short") this.applyDefaultPosition(obj, px, kind);
     this.objects.push(obj);
     this.select(obj.id);
@@ -765,6 +788,8 @@ export class DrawingEngine {
       };
       ctx.save();
       o.render(r);
+      // Text/label tools paint their own text; every other tool gets the shared label.
+      if (o.kind !== "text" && o.kind !== "label") o.drawLabel(r);
       ctx.restore();
     }
   }

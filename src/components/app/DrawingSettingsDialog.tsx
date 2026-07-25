@@ -80,7 +80,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
           {tab === "style" && (
             <>
               <Row label="Color">
-                <span className="flex gap-1">
+                <span className="flex items-center gap-1">
                   {DRAW_PALETTE.map((c) => (
                     <button
                       key={c}
@@ -91,6 +91,13 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                       style={{ backgroundColor: c, borderColor: s.color === c ? "#fff" : "transparent" }}
                     />
                   ))}
+                  <input
+                    type="color"
+                    aria-label="Custom color"
+                    value={s.color}
+                    onChange={(e) => setStyle({ color: e.target.value })}
+                    className="ml-1 h-5 w-5 cursor-pointer rounded border app-border bg-transparent p-0.5"
+                  />
                 </span>
               </Row>
               <Row label="Opacity">
@@ -130,7 +137,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               {s.fill && (
                 <>
                   <Row label="Fill color">
-                    <span className="flex gap-1">
+                    <span className="flex items-center gap-1">
                       {DRAW_PALETTE.map((c) => (
                         <button
                           key={c}
@@ -141,6 +148,13 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                           style={{ backgroundColor: c, borderColor: s.fillColor === c ? "#fff" : "transparent" }}
                         />
                       ))}
+                      <input
+                        type="color"
+                        aria-label="Custom fill color"
+                        value={s.fillColor}
+                        onChange={(e) => setStyle({ fillColor: e.target.value })}
+                        className="ml-1 h-5 w-5 cursor-pointer rounded border app-border bg-transparent p-0.5"
+                      />
                     </span>
                   </Row>
                   <Row label="Fill opacity">

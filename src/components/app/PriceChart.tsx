@@ -28,7 +28,6 @@ import {
   RectangleHorizontal,
   Redo2,
   Ruler,
-  Scale,
   Shapes,
   Spline,
   Star,
@@ -236,7 +235,7 @@ const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: LucideIcon; tools: Tool
   { key: "lines", label: "Lines & channels", Icon: Spline, tools: ["trend", "ray", "extended", "arrow", "horizontal", "vertical", "channel"] },
   { key: "shapes", label: "Shapes", Icon: Shapes, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
   { key: "fib", label: "Fibonacci", Icon: AlignJustify, tools: ["fib"] },
-  { key: "trade", label: "Positions & measure", Icon: Scale, tools: ["long", "short", "measure"] },
+  { key: "trade", label: "Positions & measure", Icon: LongPositionIcon as unknown as LucideIcon, tools: ["long", "short", "measure"] },
   { key: "notes", label: "Text & notes", Icon: Type, tools: ["text", "label"] },
 ];
 

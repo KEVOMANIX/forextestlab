@@ -35,6 +35,17 @@ export interface RenderCtx {
 
 export const HIT_TOLERANCE = 6;
 
+/** Tools that draw as a line/segment — their label breaks the line and sits in the gap. */
+const LINE_KINDS: ReadonlySet<ToolKind> = new Set<ToolKind>([
+  "trend",
+  "ray",
+  "extended",
+  "arrow",
+  "horizontal",
+  "vertical",
+  "channel",
+]);
+
 /** Radius of the blue selection anchor handles, in px. */
 export const SELECTION_HANDLE = 5;
 
@@ -179,32 +190,70 @@ export abstract class DrawingObject {
   }
 
   /**
-   * Draw the object's free-text label (available on every tool). Positioned
-   * relative to the bounding box per the text alignment / placement style.
+   * Draw the object's free-text label (available on every tool). On line tools
+   * the text breaks the line and sits in the resulting gap; on shapes it is
+   * placed relative to the bounding box per the alignment / placement style.
    * Text/label tools render their own text and skip this.
    */
   drawLabel({ ctx, mapper }: RenderCtx): void {
     const text = this.style.text?.trim();
     if (!text) return;
-    const b = this.bbox(mapper);
-    if (!b) return;
+    const lines = text.split("\n");
+    const lh = this.style.fontSize + 3;
     ctx.save();
     ctx.setLineDash([]);
     const weight = this.style.bold ? "700 " : "";
     const italic = this.style.italic ? "italic " : "";
     ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
-    ctx.fillStyle = withAlpha(this.style.textColor ?? "#e5e7eb", 1);
     ctx.textBaseline = "middle";
+    const color = withAlpha(this.style.textColor ?? "#e5e7eb", 1);
+
+    if (LINE_KINDS.has(this.kind)) {
+      const c = this.labelAnchor(mapper);
+      if (c) {
+        ctx.textAlign = "center";
+        const w = Math.max(...lines.map((l) => ctx.measureText(l).width));
+        const bh = lines.length * lh;
+        // Punch a transparent gap so the line visibly breaks around the text.
+        ctx.clearRect(c.x - w / 2 - 5, c.y - bh / 2 - 3, w + 10, bh + 6);
+        ctx.fillStyle = color;
+        const startY = c.y - ((lines.length - 1) * lh) / 2;
+        lines.forEach((ln, i) => ctx.fillText(ln, c.x, startY + i * lh));
+      }
+      ctx.restore();
+      return;
+    }
+
+    const b = this.bbox(mapper);
+    if (!b) {
+      ctx.restore();
+      return;
+    }
+    ctx.fillStyle = color;
     const align = this.style.textAlign ?? "center";
     ctx.textAlign = align;
     const x = align === "left" ? b.x + 6 : align === "right" ? b.x + b.w - 6 : b.x + b.w / 2;
-    const lines = text.split("\n");
-    const lh = this.style.fontSize + 3;
     const block = (lines.length - 1) * lh;
     const cy = (this.style.textPlacement ?? "inside") === "outside" ? b.y - this.style.fontSize - block / 2 : b.y + b.h / 2;
     const startY = cy - block / 2;
     lines.forEach((ln, i) => ctx.fillText(ln, x, startY + i * lh));
     ctx.restore();
+  }
+
+  /** Pixel centre used to place a line tool's label (on the segment/line). */
+  protected labelAnchor(mapper: CoordinateMapper): { x: number; y: number } | null {
+    if (this.kind === "horizontal") {
+      const y = mapper.priceToY(this.points[0]!.price);
+      return y == null ? null : { x: mapper.width / 2, y };
+    }
+    if (this.kind === "vertical") {
+      const x = this.points[0]!.time ? mapper.timeToX(this.points[0]!.time) : mapper.width / 2;
+      return x == null ? null : { x, y: mapper.height / 2 };
+    }
+    const a = this.px(mapper, this.points[0]!);
+    const b = this.px(mapper, this.points[1] ?? this.points[0]!);
+    if (!a || !b) return null;
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
 
   /** Project a chart point to pixels (time 0 → canvas centre for pure-horizontal anchors). */

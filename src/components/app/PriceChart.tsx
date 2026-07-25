@@ -35,7 +35,6 @@ import {
   Target,
   Trash2,
   Triangle,
-  TrendingDown,
   TrendingUp,
   Type,
   Undo2,
@@ -183,6 +182,30 @@ const PALETTES: Record<"dark" | "light", Palette> = {
 const BULL = "#22c3a0";
 const BEAR = "#f4646c";
 
+/** Custom "long position" glyph: green target on top, red stop below, up arrow. */
+function LongPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <line x1="4" y1="5" x2="20" y2="5" stroke="#22c3a0" />
+      <line x1="4" y1="19" x2="20" y2="19" stroke="#f4646c" />
+      <line x1="12" y1="18.5" x2="12" y2="5.5" stroke="currentColor" />
+      <path d="M8.5 9.5 L12 6 L15.5 9.5" stroke="#22c3a0" />
+    </svg>
+  );
+}
+
+/** Custom "short position" glyph: red stop on top, green target below, down arrow. */
+function ShortPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <line x1="4" y1="5" x2="20" y2="5" stroke="#f4646c" />
+      <line x1="4" y1="19" x2="20" y2="19" stroke="#22c3a0" />
+      <line x1="12" y1="5.5" x2="12" y2="18.5" stroke="currentColor" />
+      <path d="M8.5 14.5 L12 18 L15.5 14.5" stroke="#22c3a0" />
+    </svg>
+  );
+}
+
 /** Icon shown next to each drawing tool inside its flyout. */
 const DRAW_ICONS: Record<ToolKind, LucideIcon> = {
   trend: TrendingUp,
@@ -199,8 +222,8 @@ const DRAW_ICONS: Record<ToolKind, LucideIcon> = {
   ellipse: Egg,
   triangle: Triangle,
   path: Waypoints,
-  long: TrendingUp,
-  short: TrendingDown,
+  long: LongPositionIcon as unknown as LucideIcon,
+  short: ShortPositionIcon as unknown as LucideIcon,
   measure: Ruler,
   text: Type,
   label: Tag,

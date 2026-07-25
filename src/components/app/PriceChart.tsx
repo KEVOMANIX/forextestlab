@@ -28,6 +28,7 @@ import {
   RectangleHorizontal,
   Redo2,
   Ruler,
+  Settings2,
   Shapes,
   Spline,
   Star,
@@ -38,6 +39,7 @@ import {
   Type,
   Undo2,
   Waypoints,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -401,6 +403,9 @@ export default function PriceChart({
   const [gridVisible, setGridVisible] = useState(true);
   const [magnetCrosshair, setMagnetCrosshair] = useState(false);
   const [activeOverlays, setActiveOverlays] = useState<Set<string>>(new Set(["ema-21"]));
+  const [overlaySettings, setOverlaySettings] = useState<Record<string, { period?: number; color: string }>>({});
+  const [indicatorSearch, setIndicatorSearch] = useState("");
+  const [overlayEditing, setOverlayEditing] = useState<string | null>(null);
   const [oscillator, setOscillator] = useState<Oscillator>("none");
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
@@ -500,17 +505,21 @@ export default function PriceChart({
     const t = (i: number) => display[i]!.time as UTCTimestamp;
     for (const def of OVERLAYS) {
       if (!activeOverlays.has(def.id)) continue;
+      const cfg = overlaySettings[def.id] ?? { period: def.period, color: def.color };
+      const period = cfg.period ?? def.period ?? 20;
+      const color = cfg.color;
       let seriesList = map.get(def.id);
       if (def.kind === "bb") {
         if (!seriesList) {
           seriesList = [
-            chart.addLineSeries({ color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }),
-            chart.addLineSeries({ color: def.color, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }),
-            chart.addLineSeries({ color: def.color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }),
+            chart.addLineSeries({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }),
+            chart.addLineSeries({ color, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }),
+            chart.addLineSeries({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }),
           ];
           map.set(def.id, seriesList);
         }
-        const bands = bollinger(closes, def.period ?? 20, 2);
+        for (const s of seriesList) (s as ISeriesApi<"Line">).applyOptions({ color });
+        const bands = bollinger(closes, period, 2);
         const line = (pick: "upper" | "middle" | "lower") =>
           display.map((c, i) => (bands[i]![pick] == null ? { time: c.time as UTCTimestamp } : { time: c.time as UTCTimestamp, value: bands[i]![pick] as number }));
         (seriesList[0] as ISeriesApi<"Line">).setData(line("upper") as LineData<Time>[]);
@@ -532,11 +541,12 @@ export default function PriceChart({
       }
       // sma / ema / vwap — single line
       if (!seriesList) {
-        seriesList = [chart.addLineSeries({ color: def.color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false })];
+        seriesList = [chart.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false })];
         map.set(def.id, seriesList);
       }
+      (seriesList[0] as ISeriesApi<"Line">).applyOptions({ color });
       const values =
-        def.kind === "sma" ? sma(closes, def.period ?? 20) : def.kind === "ema" ? ema(closes, def.period ?? 20) : vwap(display);
+        def.kind === "sma" ? sma(closes, period) : def.kind === "ema" ? ema(closes, period) : vwap(display);
       (seriesList[0] as ISeriesApi<"Line">).setData(
         values.map((v, i) => (v == null ? { time: t(i) } : { time: t(i), value: v })) as LineData<Time>[],
       );
@@ -606,6 +616,7 @@ export default function PriceChart({
           magnet?: boolean;
           chartType?: ChartType;
           overlays?: string[];
+          overlaySettings?: Record<string, { period?: number; color: string }>;
           oscillator?: Oscillator;
         };
         if (saved.timeframe && availableTimeframes.includes(saved.timeframe)) setDisplayTimeframe(saved.timeframe);
@@ -613,6 +624,7 @@ export default function PriceChart({
         if (typeof saved.magnet === "boolean") setMagnetCrosshair(saved.magnet);
         if (saved.chartType) setChartType(saved.chartType);
         if (Array.isArray(saved.overlays)) setActiveOverlays(new Set(saved.overlays));
+        if (saved.overlaySettings) setOverlaySettings(saved.overlaySettings);
         if (saved.oscillator) setOscillator(saved.oscillator);
         if (saved.range) {
           followLatestRef.current = false;
@@ -711,7 +723,7 @@ export default function PriceChart({
   useEffect(() => {
     renderOverlays(displayRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOverlays, seriesEpoch]);
+  }, [activeOverlays, overlaySettings, seriesEpoch]);
 
   useEffect(() => {
     const incoming = lastCandles.length > 0 ? lastCandles : lastCandle ? [lastCandle] : [];
@@ -779,13 +791,14 @@ export default function PriceChart({
           magnet: magnetCrosshair,
           chartType,
           overlays: [...activeOverlays],
+          overlaySettings,
           oscillator,
         }),
       );
     } catch {
       // Ignore local storage failures.
     }
-  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, activeOverlays, oscillator, storageKey]);
+  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, activeOverlays, overlaySettings, oscillator, storageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -938,6 +951,20 @@ export default function PriceChart({
       else next.add(id);
       return next;
     });
+    // Seed editable settings from the indicator's defaults the first time it's added.
+    setOverlaySettings((prev) => {
+      if (prev[id]) return prev;
+      const def = OVERLAYS.find((d) => d.id === id);
+      return def ? { ...prev, [id]: { period: def.period, color: def.color } } : prev;
+    });
+  }
+
+  function updateOverlaySetting(id: string, patch: { period?: number; color?: string }) {
+    setOverlaySettings((prev) => {
+      const def = OVERLAYS.find((d) => d.id === id);
+      const base = prev[id] ?? { period: def?.period, color: def?.color ?? "#5b8bff" };
+      return { ...prev, [id]: { ...base, ...patch } };
+    });
   }
 
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
@@ -992,15 +1019,30 @@ export default function PriceChart({
           <span className="hidden sm:inline">Indicators</span>
         </button>
         {menu === "indicators" && (
-          <div className="absolute left-0 top-9 z-40 w-56 rounded-lg border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
+          <div className="absolute left-0 top-9 z-40 w-64 rounded-lg border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
+            <input
+              autoFocus
+              value={indicatorSearch}
+              onChange={(e) => setIndicatorSearch(e.target.value)}
+              placeholder="Search indicators…"
+              className="mb-2 w-full rounded-md border app-border bg-transparent px-2 py-1.5 text-xs outline-none focus:border-brand-400"
+            />
             <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Overlays</p>
-            {OVERLAYS.map((def) => (
-              <label key={def.id} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
-                <input type="checkbox" checked={activeOverlays.has(def.id)} onChange={() => toggleOverlay(def.id)} className="accent-brand-400" />
-                <span className="h-2 w-2 rounded-full" style={{ background: def.color }} />
-                {def.label}
-              </label>
-            ))}
+            <div className="max-h-56 overflow-y-auto">
+              {OVERLAYS.filter((def) => def.label.toLowerCase().includes(indicatorSearch.toLowerCase())).map((def) => {
+                const on = activeOverlays.has(def.id);
+                const dot = overlaySettings[def.id]?.color ?? def.color;
+                return (
+                  <div key={def.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
+                    <input type="checkbox" checked={on} onChange={() => toggleOverlay(def.id)} className="accent-brand-400" />
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} />
+                    <button type="button" className="flex-1 text-left" onClick={() => toggleOverlay(def.id)}>
+                      {def.label}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
             <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide app-muted">Oscillator pane</p>
             {(["none", "rsi", "macd"] as Oscillator[]).map((o) => (
               <label key={o} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
@@ -1057,6 +1099,45 @@ export default function PriceChart({
             ) : (
               <span className="app-muted">Price {legend.value.toFixed(precision)}</span>
             )}
+          </div>
+        )}
+
+        {/* Active-indicator legend with per-indicator settings (hover to reveal) */}
+        {OVERLAYS.some((d) => activeOverlays.has(d.id)) && (
+          <div className="absolute left-14 top-9 z-10 flex flex-col items-start gap-0.5">
+            {OVERLAYS.filter((d) => activeOverlays.has(d.id)).map((def) => {
+              const cfg = overlaySettings[def.id] ?? { period: def.period, color: def.color };
+              const editing = overlayEditing === def.id;
+              const showsPeriod = def.kind === "sma" || def.kind === "ema" || def.kind === "bb";
+              return (
+                <div key={def.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur">
+                  <span className="h-2 w-2 rounded-full" style={{ background: cfg.color }} />
+                  <span className="font-medium">{def.label}{showsPeriod && cfg.period ? ` ${cfg.period}` : ""}</span>
+                  <button type="button" aria-label={`Settings for ${def.label}`} onClick={() => setOverlayEditing(editing ? null : def.id)} className="ml-0.5 app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                    <Settings2 size={12} />
+                  </button>
+                  <button type="button" aria-label={`Remove ${def.label}`} onClick={() => { toggleOverlay(def.id); if (editing) setOverlayEditing(null); }} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
+                    <X size={12} />
+                  </button>
+                  {editing && (
+                    <div className="absolute left-0 top-7 z-20 w-44 rounded-md border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
+                      <div className="mb-1.5 text-[10px] font-semibold">{def.label}</div>
+                      {showsPeriod && (
+                        <label className="mb-1.5 flex items-center justify-between gap-2 text-[11px]">
+                          <span className="app-muted">Length</span>
+                          <input type="number" min={1} max={400} value={cfg.period ?? def.period ?? 20} onChange={(e) => updateOverlaySetting(def.id, { period: Math.max(1, Number(e.target.value)) })} className="w-16 rounded border app-border bg-transparent px-1 py-0.5 text-right" />
+                        </label>
+                      )}
+                      <label className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="app-muted">Color</span>
+                        <input type="color" value={cfg.color} onChange={(e) => updateOverlaySetting(def.id, { color: e.target.value })} className="h-6 w-8 cursor-pointer rounded border app-border bg-transparent p-0.5" />
+                      </label>
+                      <button type="button" onClick={() => setOverlayEditing(null)} className="mt-2 w-full rounded-md bg-brand-500/90 px-2 py-1 text-[11px] font-semibold text-surface-950 hover:bg-brand-500">Done</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

@@ -447,7 +447,15 @@ class TextObj extends DrawingObject {
 
 // ---- fibonacci ----
 
+// Level colours cycle like TradingView's default fib palette.
+const FIB_BAND_COLORS = ["#787b86", "#f23645", "#ff9800", "#4caf50", "#089981", "#00bcd4", "#3179f5", "#787b86"];
+
 class FibObj extends DrawingObject {
+  private priceAt(lvl: number): number {
+    const p0 = this.points[0]!;
+    const p1 = this.points[1]!;
+    return p0.price + (p1.price - p0.price) * lvl;
+  }
   render({ ctx, mapper, precision }: RenderCtx): void {
     const p0 = this.points[0]!;
     const p1 = this.points[1]!;
@@ -457,23 +465,49 @@ class FibObj extends DrawingObject {
     const left = Math.min(x1, x2);
     const right = Math.max(x1, x2);
     ctx.save();
+
+    // Filled bands between consecutive levels.
+    if (this.style.fill) {
+      for (let i = 0; i < FIB_LEVELS.length - 1; i++) {
+        const ya = mapper.priceToY(this.priceAt(FIB_LEVELS[i]!));
+        const yb = mapper.priceToY(this.priceAt(FIB_LEVELS[i + 1]!));
+        if (ya == null || yb == null) continue;
+        ctx.fillStyle = withAlpha(FIB_BAND_COLORS[i % FIB_BAND_COLORS.length]!, this.style.fillOpacity);
+        ctx.fillRect(left, Math.min(ya, yb), right - left, Math.abs(yb - ya));
+      }
+    }
+
+    // Level lines + labels.
     ctx.font = "9px ui-monospace, monospace";
     ctx.textBaseline = "middle";
-    for (const lvl of FIB_LEVELS) {
-      const price = p0.price + (p1.price - p0.price) * (1 - lvl);
+    ctx.lineWidth = this.style.lineWidth;
+    ctx.setLineDash([]);
+    FIB_LEVELS.forEach((lvl, i) => {
+      const price = this.priceAt(lvl);
       const y = mapper.priceToY(price);
-      if (y == null) continue;
-      this.applyStroke(ctx, this.style.lineWidth);
-      ctx.globalAlpha = 0.85;
+      if (y == null) return;
+      const col = FIB_BAND_COLORS[i % FIB_BAND_COLORS.length]!;
+      ctx.strokeStyle = withAlpha(col, this.style.opacity);
       ctx.beginPath();
       ctx.moveTo(left, y);
       ctx.lineTo(right, y);
       ctx.stroke();
-      ctx.globalAlpha = 1;
       if (this.style.showLabels) {
-        ctx.fillStyle = this.strokeColor();
+        ctx.fillStyle = withAlpha(col, this.style.opacity);
         ctx.fillText(`${lvl.toFixed(3)}  ${price.toFixed(precision)}`, right + 4, y);
       }
+    });
+
+    // Dashed connector between the two anchors.
+    const cy0 = mapper.priceToY(p0.price);
+    const cy1 = mapper.priceToY(p1.price);
+    if (cy0 != null && cy1 != null) {
+      ctx.strokeStyle = withAlpha(this.style.color, this.style.opacity * 0.8);
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x1, cy0);
+      ctx.lineTo(x2, cy1);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -487,7 +521,7 @@ class FibObj extends DrawingObject {
     const right = Math.max(x1, x2);
     if (x < left - HIT_TOLERANCE || x > right + HIT_TOLERANCE) return false;
     for (const lvl of FIB_LEVELS) {
-      const yy = mapper.priceToY(p0.price + (p1.price - p0.price) * (1 - lvl));
+      const yy = mapper.priceToY(this.priceAt(lvl));
       if (yy != null && Math.abs(y - yy) <= HIT_TOLERANCE) return true;
     }
     return false;
@@ -519,6 +553,14 @@ class Channel extends DrawingObject {
     ctx.moveTo(a.x + vx, a.y + vy);
     ctx.lineTo(b.x + vx, b.y + vy);
     ctx.stroke();
+    // Dashed midline halfway between the two parallel edges.
+    ctx.strokeStyle = withAlpha(this.style.color, this.style.opacity * 0.7);
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(a.x + vx / 2, a.y + vy / 2);
+    ctx.lineTo(b.x + vx / 2, b.y + vy / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
     const a = this.px(mapper, this.points[0]!);
@@ -535,9 +577,6 @@ class Channel extends DrawingObject {
 }
 
 // ---- long / short position ----
-
-/** Notional cash risk used to derive quantity / amounts for the position labels. */
-const POSITION_RISK_BUDGET = 1000;
 
 class PositionTool extends DrawingObject {
   render({ ctx, mapper, precision, pipSize }: RenderCtx): void {
@@ -590,8 +629,13 @@ class PositionTool extends DrawingObject {
       const rewardPU = Math.abs(target.price - entry.price);
       const riskPU = Math.abs(entry.price - stop.price);
       const rr = riskPU ? rewardPU / riskPU : 0;
-      const qty = riskPU ? POSITION_RISK_BUDGET / riskPU : 0;
-      const profit = POSITION_RISK_BUDGET * rr;
+      // Account / risk model: derive position size and cash amounts.
+      const accountSize = this.style.accountSize ?? 10000;
+      const riskMode = this.style.riskMode ?? "percent";
+      const riskInput = this.style.risk ?? 1;
+      const riskCash = riskMode === "percent" ? (accountSize * riskInput) / 100 : riskInput;
+      const qty = riskPU ? riskCash / riskPU : 0;
+      const profit = riskCash * rr;
       const pctT = entry.price ? (rewardPU / entry.price) * 100 : 0;
       const pctS = entry.price ? (riskPU / entry.price) * 100 : 0;
       const tPips = rewardPU / pipSize;
@@ -600,7 +644,7 @@ class PositionTool extends DrawingObject {
         ctx,
         cx,
         yT,
-        [`Target: ${target.price.toFixed(precision)} (${pctT.toFixed(3)}%) ${tPips.toFixed(1)}  Amount: ${profit.toFixed(2)}`],
+        [`Target: ${target.price.toFixed(precision)} (${pctT.toFixed(2)}%) ${tPips.toFixed(1)}  Amount: ${profit.toFixed(2)}`],
         green,
         "#04231b",
         10,
@@ -609,7 +653,7 @@ class PositionTool extends DrawingObject {
         ctx,
         cx,
         yS,
-        [`Stop: ${stop.price.toFixed(precision)} (${pctS.toFixed(3)}%) ${sPips.toFixed(1)}  Amount: ${POSITION_RISK_BUDGET.toFixed(2)}`],
+        [`Stop: ${stop.price.toFixed(precision)} (${pctS.toFixed(2)}%) ${sPips.toFixed(1)}  Amount: ${riskCash.toFixed(2)}`],
         red,
         "#ffffff",
         10,

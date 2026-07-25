@@ -175,6 +175,36 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                   />
                 </Row>
               )}
+              {(value.kind === "long" || value.kind === "short") && (
+                <>
+                  <Row label="Account size">
+                    <input
+                      type="number"
+                      value={s.accountSize ?? 10000}
+                      onChange={(e) => setStyle({ accountSize: Number(e.target.value) })}
+                      className="w-24 rounded border app-border bg-transparent px-1 py-0.5 text-right"
+                    />
+                  </Row>
+                  <Row label="Risk mode">
+                    <select
+                      value={s.riskMode ?? "percent"}
+                      onChange={(e) => setStyle({ riskMode: e.target.value as "percent" | "money" })}
+                      className="rounded border app-border bg-transparent px-1 py-0.5"
+                    >
+                      <option value="percent">Percent of account</option>
+                      <option value="money">Fixed money</option>
+                    </select>
+                  </Row>
+                  <Row label={`Risk (${s.riskMode === "money" ? "cash" : "%"})`}>
+                    <input
+                      type="number"
+                      value={s.risk ?? 1}
+                      onChange={(e) => setStyle({ risk: Number(e.target.value) })}
+                      className="w-24 rounded border app-border bg-transparent px-1 py-0.5 text-right"
+                    />
+                  </Row>
+                </>
+              )}
             </>
           )}
 

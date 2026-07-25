@@ -10,7 +10,6 @@ import { OrderTicket } from "./OrderTicket";
 import { ReplayToolbar } from "./ReplayToolbar";
 import { SessionSetup } from "./SessionSetup";
 import {
-  TerminalLeftRail,
   TerminalRightRail,
   TerminalTopBar,
 } from "./TerminalChrome";
@@ -267,26 +266,6 @@ export function Backtester({
     if (position) void actions.modifyTarget(price, position.id);
     else setPlannedTarget(price);
   };
-  const protectionPrice = (kind: "stop" | "target") => {
-    if (!state.currentPrice) return null;
-    const current = Number(state.currentPrice);
-    const pip = Number(state.config.pipSize);
-    const direction = position?.direction ?? "long";
-    const distance = pip * (kind === "stop" ? 20 : 40);
-    const price =
-      direction === "long"
-        ? current + (kind === "stop" ? -distance : distance)
-        : current + (kind === "stop" ? distance : -distance);
-    return price.toFixed(state.config.pricePrecision);
-  };
-  const toggleStop = () =>
-    changeStop(chartStop ? null : protectionPrice("stop"));
-  const toggleTarget = () =>
-    changeTarget(chartTarget ? null : protectionPrice("target"));
-  const clearProtection = () => {
-    changeStop(null);
-    changeTarget(null);
-  };
   const activeSymbol = bt.activeSymbol ?? state.config.symbol;
   const referencePair =
     activeSymbol === state.config.symbol ? null : activeSymbol;
@@ -381,6 +360,7 @@ export function Backtester({
         onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}
       >
+        <div ref={setChartHeaderSlot} className="flex shrink-0 items-center gap-1" />
         <OrderTicket
           state={state}
           busy={bt.busy}
@@ -390,7 +370,6 @@ export function Backtester({
           onTemplateChange={setOrderTemplate}
           referencePair={referencePair}
         />
-        <div ref={setChartHeaderSlot} className="flex shrink-0 items-center gap-1" />
       </TerminalTopBar>
 
       {bt.error && (
@@ -403,14 +382,6 @@ export function Backtester({
       )}
 
       <div className="flex min-h-0 flex-1">
-        <TerminalLeftRail
-          hasStop={Boolean(chartStop)}
-          hasTarget={Boolean(chartTarget)}
-          onToggleStop={toggleStop}
-          onToggleTarget={toggleTarget}
-          onClearProtection={clearProtection}
-        />
-
         <div className="relative min-w-0 flex-1 overflow-hidden">
           <PriceChart
             key={`${state.sessionId}-${activeSymbol}-${bt.resetNonce}`}

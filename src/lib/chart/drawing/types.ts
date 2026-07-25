@@ -52,6 +52,10 @@ export interface DrawingStyle {
   background: boolean; // text/label background chip
   fontSize: number;
   text: string;
+  // Position tools (long/short) only:
+  accountSize?: number; // account currency size
+  risk?: number; // risk per trade, interpreted by riskMode
+  riskMode?: "percent" | "money";
 }
 
 /** Serializable form of any drawing — the single source of truth persisted / cloned / undone. */
@@ -76,9 +80,9 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     opacity: 1,
     lineWidth: kind === "fib" ? 1 : 2,
     lineStyle: kind === "horizontal" || kind === "vertical" ? "dashed" : "solid",
-    fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle",
+    fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle" || kind === "fib",
     fillColor: "#5b8bff",
-    fillOpacity: 0.08,
+    fillOpacity: 0.12,
     showLabels: true,
     extendLeft: false,
     extendRight: kind === "ray" || kind === "extended",
@@ -87,6 +91,11 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     text: "",
   };
   if (kind === "session") base.fillColor = "#fbbf24";
+  if (kind === "long" || kind === "short") {
+    base.accountSize = 10000;
+    base.risk = 1;
+    base.riskMode = "percent";
+  }
   return base;
 }
 
@@ -137,7 +146,8 @@ export const TOOL_LABELS: Record<ToolKind, string> = {
 
 export const TOOLS_NEEDING_TEXT: ReadonlySet<ToolKind> = new Set<ToolKind>(["text", "label"]);
 
-export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const;
+/** TradingView's default visible Fibonacci retracement ratios (incl. extensions). */
+export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618, 4.236] as const;
 
 export const DRAW_PALETTE = ["#5b8bff", "#22c3a0", "#f4646c", "#fbbf24", "#c084fc", "#e5e7eb", "#f97316", "#38bdf8"] as const;
 

@@ -361,15 +361,6 @@ export function Backtester({
         onRetrySave={actions.retrySave}
       >
         <div ref={setChartHeaderSlot} className="flex shrink-0 items-center gap-1" />
-        <OrderTicket
-          state={state}
-          busy={bt.busy}
-          stopLoss={plannedStop}
-          takeProfit={plannedTarget}
-          onPlaceOrder={actions.placeOrder}
-          onTemplateChange={setOrderTemplate}
-          referencePair={referencePair}
-        />
       </TerminalTopBar>
 
       {bt.error && (
@@ -420,6 +411,17 @@ export function Backtester({
             loading={bt.pairLoading}
             storageKey={`${state.sessionId}:${activeSymbol}`}
             headerSlot={chartHeaderSlot}
+            orderTicket={
+              <OrderTicket
+                state={state}
+                busy={bt.busy}
+                stopLoss={plannedStop}
+                takeProfit={plannedTarget}
+                onPlaceOrder={actions.placeOrder}
+                onTemplateChange={setOrderTemplate}
+                referencePair={referencePair}
+              />
+            }
           />
           <ReplayToolbar
             state={state}

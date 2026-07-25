@@ -156,6 +156,8 @@ interface PriceChartProps {
   storageKey?: string;
   /** Optional DOM node in the top header to portal the chart controls into. */
   headerSlot?: HTMLElement | null;
+  /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
+  orderTicket?: React.ReactNode;
 }
 
 interface Palette {
@@ -377,6 +379,7 @@ export default function PriceChart({
   error = null,
   storageKey,
   headerSlot = null,
+  orderTicket = null,
 }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -1081,8 +1084,13 @@ export default function PriceChart({
           storageKey={storageKey}
         />
 
+        {/* Buy/Sell order ticket floated at the chart's top-left, TradingView-style. */}
+        {orderTicket && (
+          <div className="absolute left-14 top-2 z-30 max-w-[calc(100%-4.5rem)]">{orderTicket}</div>
+        )}
+
         {legend && (
-          <div className="pointer-events-none absolute left-14 top-2 z-10 rounded-md border app-border bg-[var(--app-panel)]/90 px-2 py-1 font-mono text-[10px] shadow backdrop-blur">
+          <div className="pointer-events-none absolute left-14 z-10 rounded-md border app-border bg-[var(--app-panel)]/90 px-2 py-1 font-mono text-[10px] shadow backdrop-blur" style={{ top: orderTicket ? 48 : 8 }}>
             {legend.kind === "ohlc" ? (
               <span className="flex gap-2">
                 <span className="app-muted">O {legend.o.toFixed(precision)}</span>
@@ -1104,7 +1112,7 @@ export default function PriceChart({
 
         {/* Active-indicator legend with per-indicator settings (hover to reveal) */}
         {OVERLAYS.some((d) => activeOverlays.has(d.id)) && (
-          <div className="absolute left-14 top-9 z-10 flex flex-col items-start gap-0.5">
+          <div className="absolute left-14 z-10 flex flex-col items-start gap-0.5" style={{ top: orderTicket ? 74 : 36 }}>
             {OVERLAYS.filter((d) => activeOverlays.has(d.id)).map((def) => {
               const cfg = overlaySettings[def.id] ?? { period: def.period, color: def.color };
               const editing = overlayEditing === def.id;

@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import {
   DRAW_PALETTE,
+  FIB_LEVELS,
   TOOL_LABELS,
   type DrawingJSON,
   type LineStyleName,
@@ -167,6 +168,30 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                 <Row label="Reverse">
                   <input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} />
                 </Row>
+              )}
+              {value.kind === "fib" && (
+                <div className="py-1">
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Levels</div>
+                  <div className="grid grid-cols-3 gap-x-2 gap-y-1">
+                    {FIB_LEVELS.map((lvl) => {
+                      const current = s.fibLevels ?? [...FIB_LEVELS];
+                      const on = current.includes(lvl);
+                      return (
+                        <label key={lvl} className="flex items-center gap-1.5 text-[11px]">
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => {
+                              const next = on ? current.filter((l) => l !== lvl) : [...current, lvl].sort((a, b) => a - b);
+                              setStyle({ fibLevels: next });
+                            }}
+                          />
+                          {lvl}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
               <Row label="Background">
                 <input type="checkbox" checked={s.background} onChange={(e) => setStyle({ background: e.target.checked })} />

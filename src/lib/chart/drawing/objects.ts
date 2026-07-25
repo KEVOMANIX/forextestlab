@@ -471,6 +471,17 @@ class TextObj extends DrawingObject {
 const FIB_BAND_COLORS = ["#787b86", "#f23645", "#ff9800", "#4caf50", "#089981", "#00bcd4", "#3179f5", "#787b86"];
 
 class FibObj extends DrawingObject {
+  /** Ratios to display — the user's chosen subset, or all defaults. */
+  private levels(): number[] {
+    const chosen = this.style.fibLevels;
+    if (chosen && chosen.length) return [...chosen].sort((a, b) => a - b);
+    return [...FIB_LEVELS];
+  }
+  /** Colour for a ratio, keyed to its position in the full default set (stable). */
+  private levelColor(lvl: number): string {
+    const idx = FIB_LEVELS.indexOf(lvl as (typeof FIB_LEVELS)[number]);
+    return FIB_BAND_COLORS[(idx < 0 ? 0 : idx) % FIB_BAND_COLORS.length]!;
+  }
   private priceAt(lvl: number): number {
     const p0 = this.points[0]!;
     const p1 = this.points[1]!;
@@ -484,15 +495,16 @@ class FibObj extends DrawingObject {
     if (x1 == null || x2 == null) return;
     const left = this.style.extendLeft ? 0 : Math.min(x1, x2);
     const right = this.style.extendRight ? mapper.width : Math.max(x1, x2);
+    const levels = this.levels();
     ctx.save();
 
     // Filled bands between consecutive levels.
     if (this.style.fill) {
-      for (let i = 0; i < FIB_LEVELS.length - 1; i++) {
-        const ya = mapper.priceToY(this.priceAt(FIB_LEVELS[i]!));
-        const yb = mapper.priceToY(this.priceAt(FIB_LEVELS[i + 1]!));
+      for (let i = 0; i < levels.length - 1; i++) {
+        const ya = mapper.priceToY(this.priceAt(levels[i]!));
+        const yb = mapper.priceToY(this.priceAt(levels[i + 1]!));
         if (ya == null || yb == null) continue;
-        ctx.fillStyle = withAlpha(FIB_BAND_COLORS[i % FIB_BAND_COLORS.length]!, this.style.fillOpacity);
+        ctx.fillStyle = withAlpha(this.levelColor(levels[i]!), this.style.fillOpacity);
         ctx.fillRect(left, Math.min(ya, yb), right - left, Math.abs(yb - ya));
       }
     }
@@ -502,11 +514,11 @@ class FibObj extends DrawingObject {
     ctx.textBaseline = "middle";
     ctx.lineWidth = this.style.lineWidth;
     ctx.setLineDash([]);
-    FIB_LEVELS.forEach((lvl, i) => {
+    levels.forEach((lvl) => {
       const price = this.priceAt(lvl);
       const y = mapper.priceToY(price);
       if (y == null) return;
-      const col = FIB_BAND_COLORS[i % FIB_BAND_COLORS.length]!;
+      const col = this.levelColor(lvl);
       ctx.strokeStyle = withAlpha(col, this.style.opacity);
       ctx.beginPath();
       ctx.moveTo(left, y);
@@ -540,7 +552,7 @@ class FibObj extends DrawingObject {
     const left = Math.min(x1, x2);
     const right = Math.max(x1, x2);
     if (x < left - HIT_TOLERANCE || x > right + HIT_TOLERANCE) return false;
-    for (const lvl of FIB_LEVELS) {
+    for (const lvl of this.levels()) {
       const yy = mapper.priceToY(this.priceAt(lvl));
       if (yy != null && Math.abs(y - yy) <= HIT_TOLERANCE) return true;
     }

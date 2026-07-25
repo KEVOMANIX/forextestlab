@@ -380,7 +380,8 @@ export default function PriceChart({
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
   const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
-  const favDragRef = useRef<{ dx: number; dy: number } | null>(null);
+  const favDragRef = useRef<{ sx: number; sy: number; bx: number; by: number; moved: boolean } | null>(null);
+  const favMovedRef = useRef(false);
   const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
   const [drawCount, setDrawCount] = useState(0);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -876,6 +877,34 @@ export default function PriceChart({
     });
   }
 
+  // Drag the favorites bar from anywhere on it (buttons still click if no drag).
+  function startFavDrag(e: React.PointerEvent<HTMLDivElement>) {
+    const cont = containerRef.current?.getBoundingClientRect();
+    const bar = e.currentTarget.getBoundingClientRect();
+    if (!cont) return;
+    favDragRef.current = { sx: e.clientX, sy: e.clientY, bx: bar.left - cont.left, by: bar.top - cont.top, moved: false };
+    favMovedRef.current = false;
+    const onMove = (ev: PointerEvent) => {
+      const d = favDragRef.current;
+      if (!d) return;
+      const dx = ev.clientX - d.sx;
+      const dy = ev.clientY - d.sy;
+      if (!d.moved && Math.hypot(dx, dy) < 4) return;
+      d.moved = true;
+      favMovedRef.current = true;
+      setFavBarPos({ x: d.bx + dx, y: d.by + dy });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      favDragRef.current = null;
+      // Clear after the click has fired so a real click still selects the tool.
+      window.setTimeout(() => { favMovedRef.current = false; }, 0);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
   function toggleOverlay(id: string) {
     setActiveOverlays((prev) => {
       const next = new Set(prev);
@@ -886,6 +915,9 @@ export default function PriceChart({
   }
 
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
+  // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
+  // reach them — use an explicit solid colour keyed to the theme.
+  const solidPanel = theme === "dark" ? "#111725" : "#ffffff";
 
   // Chart controls (timeframes + chart type + indicators). Rendered into the top
   // header via a portal when a slot is provided, otherwise docked above the chart.
@@ -1021,40 +1053,20 @@ export default function PriceChart({
           );
         })}
 
-        {/* Favorites quick-access bar — draggable, opaque */}
+        {/* Favorites quick-access bar — draggable from anywhere, opaque */}
         {favorites.size > 0 && (
           <div
-            className="absolute z-30 flex items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
+            className="absolute z-30 flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
             style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
             role="toolbar"
-            aria-label="Favorite tools"
+            aria-label="Favorite tools (drag to move)"
+            onPointerDown={startFavDrag}
           >
-            <button
-              type="button"
-              aria-label="Move favorites bar"
-              className="mr-0.5 cursor-move touch-none select-none px-0.5 text-[11px] leading-none app-muted hover:text-[var(--app-text)]"
-              onPointerDown={(e) => {
-                const bar = e.currentTarget.parentElement!.getBoundingClientRect();
-                favDragRef.current = { dx: e.clientX - bar.left, dy: e.clientY - bar.top };
-                e.currentTarget.setPointerCapture(e.pointerId);
-              }}
-              onPointerMove={(e) => {
-                if (!favDragRef.current) return;
-                const cont = containerRef.current?.getBoundingClientRect();
-                if (!cont) return;
-                setFavBarPos({ x: e.clientX - cont.left - favDragRef.current.dx, y: e.clientY - cont.top - favDragRef.current.dy });
-              }}
-              onPointerUp={(e) => {
-                favDragRef.current = null;
-                if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-              }}
-            >
-              ⋮⋮
-            </button>
+            <span className="mr-0.5 select-none text-[11px] leading-none app-muted" aria-hidden>⋮⋮</span>
             {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
               const Icon = DRAW_ICONS[t];
               return (
-                <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { setDrawTool(t); setMenu(null); }}>
+                <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
                   <Icon size={15} aria-hidden />
                 </ToolButton>
               );
@@ -1141,8 +1153,8 @@ export default function PriceChart({
           if (!grp || !menuAnchor) return null;
           return createPortal(
             <div
-              className="fixed z-[60] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl"
-              style={{ left: menuAnchor.x, top: menuAnchor.y }}
+              className="fixed z-[60] w-44 rounded-lg border app-border p-1 shadow-xl"
+              style={{ left: menuAnchor.x, top: menuAnchor.y, backgroundColor: solidPanel }}
             >
               {grp.tools.map((t) => {
                 const Icon = DRAW_ICONS[t];

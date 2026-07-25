@@ -66,6 +66,7 @@ export interface DrawingStyle {
   lotSize?: number; // contract/lot size
   // Fibonacci only:
   reverse?: boolean; // reflect levels vertically
+  fibLevels?: number[]; // which ratios to display (undefined = all default levels)
 }
 
 /** Serializable form of any drawing — the single source of truth persisted / cloned / undone. */

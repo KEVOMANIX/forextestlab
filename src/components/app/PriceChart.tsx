@@ -12,6 +12,8 @@ import {
   Crosshair,
   Egg,
   Equal,
+  Eye,
+  EyeOff,
   Grid3X3,
   History,
   LineChart,
@@ -23,11 +25,11 @@ import {
   MoveUpRight,
   MoveVertical,
   Pencil,
-  PenTool,
+  RectangleHorizontal,
   Redo2,
   Ruler,
+  Shapes,
   Spline,
-  Square,
   Star,
   Tag,
   Target,
@@ -37,6 +39,7 @@ import {
   TrendingUp,
   Type,
   Undo2,
+  Waypoints,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -190,12 +193,12 @@ const DRAW_ICONS: Record<ToolKind, LucideIcon> = {
   vertical: MoveVertical,
   channel: Equal,
   fib: AlignJustify,
-  rectangle: Square,
+  rectangle: RectangleHorizontal,
   session: Clock,
   circle: Circle,
   ellipse: Egg,
   triangle: Triangle,
-  path: PenTool,
+  path: Waypoints,
   long: TrendingUp,
   short: TrendingDown,
   measure: Ruler,
@@ -208,7 +211,7 @@ type DrawMenu = "lines" | "shapes" | "fib" | "trade" | "notes";
 /** Grouping of drawing tools into toolbar flyouts. */
 const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: LucideIcon; tools: ToolKind[] }[] = [
   { key: "lines", label: "Lines & channels", Icon: Spline, tools: ["trend", "ray", "extended", "arrow", "horizontal", "vertical", "channel"] },
-  { key: "shapes", label: "Shapes", Icon: Square, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
+  { key: "shapes", label: "Shapes", Icon: Shapes, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
   { key: "fib", label: "Fibonacci", Icon: AlignJustify, tools: ["fib"] },
   { key: "trade", label: "Positions & measure", Icon: Target, tools: ["long", "short", "measure"] },
   { key: "notes", label: "Text & notes", Icon: Type, tools: ["text", "label"] },
@@ -384,6 +387,7 @@ export default function PriceChart({
   const favMovedRef = useRef(false);
   const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
   const [drawCount, setDrawCount] = useState(0);
+  const [drawingsHidden, setDrawingsHidden] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const drawingEngineRef = useRef<DrawingEngine | null>(null);
   const [menu, setMenu] = useState<"type" | "indicators" | DrawMenu | null>(null);
@@ -1067,7 +1071,7 @@ export default function PriceChart({
               const Icon = DRAW_ICONS[t];
               return (
                 <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
-                  <Icon size={15} aria-hidden />
+                  <Icon size={18} aria-hidden />
                 </ToolButton>
               );
             })}
@@ -1080,7 +1084,7 @@ export default function PriceChart({
         {/* Left tool rail: drawing tools + chart-view utilities (docked, full height) */}
         <div className="absolute left-0 top-0 bottom-0 z-30 flex w-12 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2" role="toolbar" aria-label="Drawing tools">
           <ToolButton label="Cursor (select & delete)" active={drawTool === null} onClick={() => { setDrawTool(null); setMenu(null); }}>
-            <MousePointer2 size={15} aria-hidden />
+            <MousePointer2 size={18} aria-hidden />
           </ToolButton>
 
           {DRAW_GROUPS.map((grp) => {
@@ -1097,7 +1101,7 @@ export default function PriceChart({
                   setMenu(grp.key);
                 }}
               >
-                <grp.Icon size={15} aria-hidden />
+                <grp.Icon size={18} aria-hidden />
               </ToolButton>
             );
           })}
@@ -1109,18 +1113,27 @@ export default function PriceChart({
               onClick={() => setDrawMagnet((m) => MAGNET_MODES[(MAGNET_MODES.indexOf(m) + 1) % MAGNET_MODES.length]!)}
             >
               <span className="relative">
-                <Magnet size={15} aria-hidden />
+                <Magnet size={18} aria-hidden />
                 {drawMagnet !== "off" && (
                   <span className="absolute -right-1 -top-1 text-[7px] font-bold uppercase text-brand-300">{drawMagnet[0]}</span>
                 )}
               </span>
             </ToolButton>
             <ToolButton label="Undo (Ctrl+Z)" onClick={() => drawingEngineRef.current?.undo()}>
-              <Undo2 size={15} aria-hidden />
+              <Undo2 size={18} aria-hidden />
             </ToolButton>
             <ToolButton label="Redo (Ctrl+Shift+Z)" onClick={() => drawingEngineRef.current?.redo()}>
-              <Redo2 size={15} aria-hidden />
+              <Redo2 size={18} aria-hidden />
             </ToolButton>
+            {drawCount > 0 && (
+              <ToolButton
+                label={drawingsHidden ? "Show all drawings" : "Hide all drawings"}
+                active={drawingsHidden}
+                onClick={() => { const next = !drawingsHidden; setDrawingsHidden(next); drawingEngineRef.current?.setHideAll(next); }}
+              >
+                {drawingsHidden ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+              </ToolButton>
+            )}
             {drawCount > 0 && (
               <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
                 <Trash2 size={15} className="text-bear" aria-hidden />
@@ -1132,17 +1145,17 @@ export default function PriceChart({
           <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
             {hasOlderHistory && (
               <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
-                {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={15} aria-hidden />}
+                {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={18} aria-hidden />}
               </ToolButton>
             )}
             <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => setMagnetCrosshair((value) => !value)}>
-              <Crosshair size={15} aria-hidden />
+              <Crosshair size={18} aria-hidden />
             </ToolButton>
             <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => setGridVisible((value) => !value)}>
-              <Grid3X3 size={15} aria-hidden />
+              <Grid3X3 size={18} aria-hidden />
             </ToolButton>
             <ToolButton label="Go to latest candle" onClick={goToLatest}>
-              <LocateFixed size={15} aria-hidden />
+              <LocateFixed size={18} aria-hidden />
             </ToolButton>
           </div>
         </div>
@@ -1169,7 +1182,7 @@ export default function PriceChart({
                       onClick={() => { setDrawTool(t); setMenu(null); }}
                       className="flex flex-1 items-center gap-2 px-2 py-1.5 text-left"
                     >
-                      <Icon size={14} aria-hidden /> {TOOL_LABELS[t]}
+                      <Icon size={17} aria-hidden /> {TOOL_LABELS[t]}
                     </button>
                     <button
                       type="button"

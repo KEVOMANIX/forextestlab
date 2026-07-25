@@ -214,6 +214,18 @@ export class DrawingEngine {
     this.toolDefaults = defaults ?? {};
   }
 
+  /** Temporarily hide/show every drawing without deleting anything. */
+  private allHidden = false;
+  setHideAll(hidden: boolean): void {
+    if (this.allHidden === hidden) return;
+    this.allHidden = hidden;
+    this.sceneDirty = true;
+    this.overlayDirty = true;
+  }
+  isHiddenAll(): boolean {
+    return this.allHidden;
+  }
+
   /** Live-update an object's text (used by the inline text editor; no history). */
   setObjectText(id: string, text: string): void {
     const o = this.objects.find((d) => d.id === id);
@@ -787,6 +799,7 @@ export class DrawingEngine {
   private renderScene(): void {
     const ctx = this.sceneCtx;
     ctx.clearRect(0, 0, this.mapper.width, this.mapper.height);
+    if (this.allHidden) return;
     const sorted = [...this.objects].sort((a, b) => a.zIndex - b.zIndex);
     for (const o of sorted) {
       if (!o.visibleOn(this.env.timeframe)) continue;
@@ -811,6 +824,7 @@ export class DrawingEngine {
   private renderOverlay(): void {
     const ctx = this.overlayCtx;
     ctx.clearRect(0, 0, this.mapper.width, this.mapper.height);
+    if (this.allHidden) return;
 
     // hover highlight
     if (this.hoverId && this.hoverId !== this.selectedId) {

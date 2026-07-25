@@ -163,6 +163,11 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               <Row label="Extend right">
                 <input type="checkbox" checked={s.extendRight} onChange={(e) => setStyle({ extendRight: e.target.checked })} />
               </Row>
+              {value.kind === "fib" && (
+                <Row label="Reverse">
+                  <input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} />
+                </Row>
+              )}
               <Row label="Background">
                 <input type="checkbox" checked={s.background} onChange={(e) => setStyle({ background: e.target.checked })} />
               </Row>

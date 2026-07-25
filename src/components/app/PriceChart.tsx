@@ -307,7 +307,7 @@ function ToolButton({
 }: {
   label: string;
   active?: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   children: React.ReactNode;
 }) {
   return (
@@ -382,6 +382,7 @@ export default function PriceChart({
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
   const [drawCount, setDrawCount] = useState(0);
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const drawingEngineRef = useRef<DrawingEngine | null>(null);
   const [menu, setMenu] = useState<"type" | "indicators" | DrawMenu | null>(null);
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
@@ -1018,8 +1019,8 @@ export default function PriceChart({
         {/* Click-away backdrop for open menus */}
         {menu && <div className="absolute inset-0 z-20" onClick={() => setMenu(null)} aria-hidden />}
 
-        {/* Left tool rail: drawing tools + chart-view utilities */}
-        <div className="absolute left-2 top-2 z-30 flex max-h-[calc(100%-1rem)] flex-col items-center gap-1 overflow-y-auto rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-lg backdrop-blur" role="toolbar" aria-label="Drawing tools">
+        {/* Left tool rail: drawing tools + chart-view utilities (docked, full height) */}
+        <div className="absolute left-0 top-0 bottom-0 z-30 flex w-12 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2" role="toolbar" aria-label="Drawing tools">
           <ToolButton label="Cursor (select & delete)" active={drawTool === null} onClick={() => { setDrawTool(null); setMenu(null); }}>
             <MousePointer2 size={15} aria-hidden />
           </ToolButton>
@@ -1027,28 +1028,19 @@ export default function PriceChart({
           {DRAW_GROUPS.map((grp) => {
             const active = menu === grp.key || grp.tools.includes(drawTool as ToolKind);
             return (
-              <div className="relative" key={grp.key}>
-                <ToolButton label={grp.label} active={active} onClick={() => setMenu(menu === grp.key ? null : grp.key)}>
-                  <grp.Icon size={15} aria-hidden />
-                </ToolButton>
-                {menu === grp.key && (
-                  <div className="absolute left-full top-0 z-40 ml-1 w-44 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl">
-                    {grp.tools.map((t) => {
-                      const Icon = DRAW_ICONS[t];
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => { setDrawTool(t); setMenu(null); }}
-                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
-                        >
-                          <Icon size={14} aria-hidden /> {TOOL_LABELS[t]}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <ToolButton
+                key={grp.key}
+                label={grp.label}
+                active={active}
+                onClick={(e) => {
+                  if (menu === grp.key) { setMenu(null); return; }
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setMenuAnchor({ x: r.right + 6, y: r.top });
+                  setMenu(grp.key);
+                }}
+              >
+                <grp.Icon size={15} aria-hidden />
+              </ToolButton>
             );
           })}
 
@@ -1105,6 +1097,33 @@ export default function PriceChart({
             </ToolButton>
           </div>
         </div>
+
+        {/* Tool-group flyout — portaled so the rail never needs to scroll to show it */}
+        {(() => {
+          const grp = DRAW_GROUPS.find((g) => g.key === menu);
+          if (!grp || !menuAnchor) return null;
+          return createPortal(
+            <div
+              className="fixed z-[60] w-44 rounded-lg border app-border bg-[var(--app-panel)] p-1 shadow-xl"
+              style={{ left: menuAnchor.x, top: menuAnchor.y }}
+            >
+              {grp.tools.map((t) => {
+                const Icon = DRAW_ICONS[t];
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => { setDrawTool(t); setMenu(null); }}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${drawTool === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
+                  >
+                    <Icon size={14} aria-hidden /> {TOOL_LABELS[t]}
+                  </button>
+                );
+              })}
+            </div>,
+            document.body,
+          );
+        })()}
 
         {stopDraft != null && lineCoordinates.stop != null && (
           <button

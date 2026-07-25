@@ -104,6 +104,8 @@ export class DrawingEngine {
   private chartEl: HTMLElement;
   /** True while the chart's native pan/zoom is suspended for a drawing gesture. */
   private frozen = false;
+  /** Ctrl/Cmd held → temporarily invert magnet (off↔strong), like TradingView. */
+  private ctrlHeld = false;
 
   constructor(
     private chart: IChartApi,
@@ -131,6 +133,7 @@ export class DrawingEngine {
     window.addEventListener("pointerup", this.onWindowUp);
     window.addEventListener("pointercancel", this.onWindowUp);
     window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
 
     this.loop();
   }
@@ -342,6 +345,7 @@ export class DrawingEngine {
     window.removeEventListener("pointerup", this.onWindowUp);
     window.removeEventListener("pointercancel", this.onWindowUp);
     window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
     this.scene.remove();
     this.overlay.remove();
   }
@@ -399,7 +403,9 @@ export class DrawingEngine {
   }
 
   private snap(p: Point): Point {
-    return this.mapper.snapPrice(p, this.env.magnet, this.env.candles);
+    let mode = this.env.magnet;
+    if (this.ctrlHeld) mode = mode === "off" ? "strong" : "off";
+    return this.mapper.snapPrice(p, mode, this.env.candles);
   }
 
   // ---- interaction ----
@@ -632,7 +638,12 @@ export class DrawingEngine {
     }
   };
 
+  private onKeyUp = (e: KeyboardEvent): void => {
+    this.ctrlHeld = e.ctrlKey || e.metaKey;
+  };
+
   private onKeyDown = (e: KeyboardEvent): void => {
+    this.ctrlHeld = e.ctrlKey || e.metaKey;
     const el = document.activeElement;
     if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
     const ctrl = e.ctrlKey || e.metaKey;

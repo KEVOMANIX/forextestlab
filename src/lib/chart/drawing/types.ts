@@ -56,6 +56,10 @@ export interface DrawingStyle {
   accountSize?: number; // account currency size
   risk?: number; // risk per trade, interpreted by riskMode
   riskMode?: "percent" | "money";
+  leverage?: number; // caps position size
+  lotSize?: number; // contract/lot size
+  // Fibonacci only:
+  reverse?: boolean; // reflect levels vertically
 }
 
 /** Serializable form of any drawing — the single source of truth persisted / cloned / undone. */
@@ -95,6 +99,8 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     base.accountSize = 10000;
     base.risk = 1;
     base.riskMode = "percent";
+    base.leverage = 1;
+    base.lotSize = 1;
   }
   return base;
 }

@@ -454,7 +454,7 @@ class FibObj extends DrawingObject {
   private priceAt(lvl: number): number {
     const p0 = this.points[0]!;
     const p1 = this.points[1]!;
-    return p0.price + (p1.price - p0.price) * lvl;
+    return this.style.reverse ? p1.price + (p0.price - p1.price) * lvl : p0.price + (p1.price - p0.price) * lvl;
   }
   render({ ctx, mapper, precision }: RenderCtx): void {
     const p0 = this.points[0]!;
@@ -462,8 +462,8 @@ class FibObj extends DrawingObject {
     const x1 = mapper.timeToX(p0.time);
     const x2 = mapper.timeToX(p1.time);
     if (x1 == null || x2 == null) return;
-    const left = Math.min(x1, x2);
-    const right = Math.max(x1, x2);
+    const left = this.style.extendLeft ? 0 : Math.min(x1, x2);
+    const right = this.style.extendRight ? mapper.width : Math.max(x1, x2);
     ctx.save();
 
     // Filled bands between consecutive levels.
@@ -629,13 +629,20 @@ class PositionTool extends DrawingObject {
       const rewardPU = Math.abs(target.price - entry.price);
       const riskPU = Math.abs(entry.price - stop.price);
       const rr = riskPU ? rewardPU / riskPU : 0;
-      // Account / risk model: derive position size and cash amounts.
+      // Account / risk model (mirrors TradingView): size from risk, capped by leverage.
       const accountSize = this.style.accountSize ?? 10000;
       const riskMode = this.style.riskMode ?? "percent";
       const riskInput = this.style.risk ?? 1;
+      const leverage = this.style.leverage ?? 1;
+      const lotSize = this.style.lotSize ?? 1;
       const riskCash = riskMode === "percent" ? (accountSize * riskInput) / 100 : riskInput;
-      const qty = riskPU ? riskCash / riskPU : 0;
-      const profit = riskCash * rr;
+      const qtyRisk = riskPU ? riskCash / riskPU / lotSize : 0;
+      const qtyLvg = entry.price ? ((accountSize * leverage) / entry.price) / lotSize : Infinity;
+      const qty = Math.min(qtyRisk, qtyLvg);
+      const profitAmount = rewardPU * qty * lotSize;
+      const lossAmount = riskPU * qty * lotSize;
+      const balTarget = accountSize + profitAmount;
+      const balStop = accountSize - lossAmount;
       const pctT = entry.price ? (rewardPU / entry.price) * 100 : 0;
       const pctS = entry.price ? (riskPU / entry.price) * 100 : 0;
       const tPips = rewardPU / pipSize;
@@ -644,7 +651,7 @@ class PositionTool extends DrawingObject {
         ctx,
         cx,
         yT,
-        [`Target: ${target.price.toFixed(precision)} (${pctT.toFixed(2)}%) ${tPips.toFixed(1)}  Amount: ${profit.toFixed(2)}`],
+        [`Target: ${target.price.toFixed(precision)} (${pctT.toFixed(2)}%) ${tPips.toFixed(1)}  Amount: ${balTarget.toFixed(2)}`],
         green,
         "#04231b",
         10,
@@ -653,12 +660,12 @@ class PositionTool extends DrawingObject {
         ctx,
         cx,
         yS,
-        [`Stop: ${stop.price.toFixed(precision)} (${pctS.toFixed(2)}%) ${sPips.toFixed(1)}  Amount: ${riskCash.toFixed(2)}`],
+        [`Stop: ${stop.price.toFixed(precision)} (${pctS.toFixed(2)}%) ${sPips.toFixed(1)}  Amount: ${balStop.toFixed(2)}`],
         red,
         "#ffffff",
         10,
       );
-      centerChip(ctx, cx, yE, [`Qty: ${qty.toFixed(0)}`, `Risk/reward ratio: ${rr.toFixed(2)}`], withAlpha(red, 0.92), "#ffffff", 10);
+      centerChip(ctx, cx, yE, [`Qty: ${qty.toFixed(2)}`, `Risk/reward ratio: ${rr.toFixed(2)}`], withAlpha(red, 0.92), "#ffffff", 10);
     }
     ctx.restore();
   }

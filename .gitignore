@@ -52,3 +52,6 @@ next-env.d.ts
 /playwright/.cache
 /.tmp/
 /.npm-cache/
+
+.vercel
+.env*

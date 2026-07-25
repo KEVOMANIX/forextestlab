@@ -182,6 +182,7 @@ export class DrawingEngine {
   setEnv(env: Partial<EngineEnv>): void {
     const prevTool = this.env.tool;
     this.env = { ...this.env, ...env };
+    if (env.candles) this.mapper.setCandles(env.candles);
     if (env.tool !== undefined && env.tool !== prevTool) {
       // Tool changed: cancel any half-drawn object and reset cursor.
       this.cancelCreate();

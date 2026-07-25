@@ -579,7 +579,7 @@ class Channel extends DrawingObject {
 // ---- long / short position ----
 
 class PositionTool extends DrawingObject {
-  render({ ctx, mapper, precision, pipSize }: RenderCtx): void {
+  render({ ctx, mapper, precision, pipSize, selected }: RenderCtx): void {
     const entry = this.points[0]!;
     const stop = this.points[1]!;
     const target = this.points[2]!;
@@ -599,13 +599,28 @@ class PositionTool extends DrawingObject {
     ctx.save();
     ctx.setLineDash([]);
     // profit (entry → target) and loss (entry → stop) zones
-    ctx.fillStyle = withAlpha(green, 0.16);
+    ctx.fillStyle = withAlpha(green, selected ? 0.18 : 0.14);
     ctx.fillRect(left, Math.min(yE, yT), w, Math.abs(yT - yE));
-    ctx.fillStyle = withAlpha(red, 0.16);
+    ctx.fillStyle = withAlpha(red, selected ? 0.18 : 0.14);
     ctx.fillRect(left, Math.min(yE, yS), w, Math.abs(yS - yE));
 
-    // horizontal boundaries
+    // Entry divider — always visible so the two zones read as one position.
     ctx.lineWidth = 1;
+    ctx.strokeStyle = withAlpha("#cbd5e1", selected ? 0.9 : 0.45);
+    ctx.setLineDash(selected ? [4, 2] : []);
+    ctx.beginPath();
+    ctx.moveTo(left, yE);
+    ctx.lineTo(right, yE);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Target/stop boundaries + chips are only chrome for the selected state;
+    // unselected shows just the clean filled zones.
+    if (!selected) {
+      ctx.restore();
+      return;
+    }
+
     ctx.strokeStyle = withAlpha(green, 0.9);
     ctx.beginPath();
     ctx.moveTo(left, yT);
@@ -616,14 +631,6 @@ class PositionTool extends DrawingObject {
     ctx.moveTo(left, yS);
     ctx.lineTo(right, yS);
     ctx.stroke();
-    // entry line
-    ctx.strokeStyle = "#cbd5e1";
-    ctx.setLineDash([4, 2]);
-    ctx.beginPath();
-    ctx.moveTo(left, yE);
-    ctx.lineTo(right, yE);
-    ctx.stroke();
-    ctx.setLineDash([]);
 
     if (this.style.showLabels) {
       const rewardPU = Math.abs(target.price - entry.price);

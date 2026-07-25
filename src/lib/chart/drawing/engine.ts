@@ -32,6 +32,9 @@ type CreateMode = "single" | "drag" | "click";
 
 function creationMode(kind: ToolKind): CreateMode {
   if (kind === "horizontal" || kind === "vertical" || kind === "text" || kind === "label") return "single";
+  // Position tools drop a default 1:1 box on a single click, then the user
+  // drags the handles to place stop/target.
+  if (kind === "long" || kind === "short") return "single";
   if (kind === "triangle" || kind === "channel" || kind === "path") return "click";
   return "drag";
 }
@@ -372,6 +375,9 @@ export class DrawingEngine {
     if (this.selectedId === id) return;
     this.selectedId = id;
     this.overlayDirty = true;
+    // Some objects (e.g. position tool) render selection-dependent chrome in
+    // the scene layer, so a selection change must repaint the scene too.
+    this.sceneDirty = true;
     this.emitSelection();
   }
 
@@ -469,6 +475,7 @@ export class DrawingEngine {
     }
     const count = kind === "path" ? 2 : Number.isFinite(TOOL_POINTS[kind]) ? TOOL_POINTS[kind] : 2;
     const obj = newDrawing(kind, point, this.topZ() + 1, count, text);
+    if (kind === "long" || kind === "short") this.applyDefaultPosition(obj, px, kind);
     this.objects.push(obj);
     this.select(obj.id);
     this.snapDot = this.env.magnet !== "off" ? px : null;
@@ -480,6 +487,22 @@ export class DrawingEngine {
     this.create = { obj, mode, placed: 1 };
     this.sceneDirty = true;
     this.overlayDirty = true;
+  }
+
+  /** Seed a long/short position with a default 1:1 box (entry at click). */
+  private applyDefaultPosition(obj: DrawingObject, px: { x: number; y: number }, kind: ToolKind): void {
+    const entry = obj.points[0]!;
+    const yE = this.mapper.priceToY(entry.price);
+    const xE = this.mapper.timeToX(entry.time) ?? px.x;
+    if (yE == null) return;
+    const halfPx = 80; // default vertical half-height → equal risk & reward
+    const widthPx = 150; // default box width
+    const up = kind === "long";
+    const targetPrice = this.mapper.yToPrice(up ? yE - halfPx : yE + halfPx) ?? entry.price;
+    const stopPrice = this.mapper.yToPrice(up ? yE + halfPx : yE - halfPx) ?? entry.price;
+    const targetTime = this.mapper.xToTime(xE + widthPx) || entry.time;
+    obj.points[1] = { time: entry.time, price: stopPrice }; // stop
+    obj.points[2] = { time: targetTime, price: targetPrice }; // target
   }
 
   private updateCreate(px: { x: number; y: number }): void {

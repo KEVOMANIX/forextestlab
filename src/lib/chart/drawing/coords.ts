@@ -51,13 +51,15 @@ export class CoordinateMapper {
 
   timeToX(time: number): number | null {
     if (!time) return null;
-    const c = this.chart.timeScale().timeToCoordinate(time as UTCTimestamp);
-    if (typeof c === "number") return c;
-    // Off the data range (or between bars): go via logical index.
+    // Logical index is the primary path so points past the last bar map into
+    // the empty area (timeToCoordinate clamps/returns null out there).
     const logical = this.timeToLogical(time);
-    if (logical == null) return null;
-    const x = this.chart.timeScale().logicalToCoordinate(logical as Logical);
-    return typeof x === "number" ? x : null;
+    if (logical != null) {
+      const x = this.chart.timeScale().logicalToCoordinate(logical as Logical);
+      if (typeof x === "number") return x;
+    }
+    const c = this.chart.timeScale().timeToCoordinate(time as UTCTimestamp);
+    return typeof c === "number" ? c : null;
   }
 
   priceToY(price: number): number | null {
@@ -68,11 +70,14 @@ export class CoordinateMapper {
   /** Bar time for a pixel x — extrapolated past the data edges so drawings can
    * be placed in the empty future/past area (0 only when the interval is unknown). */
   xToTime(x: number): number {
-    const t = this.chart.timeScale().coordinateToTime(x) as Time | null | undefined;
-    if (typeof t === "number") return t;
+    // Logical is primary so pixels past the last candle extrapolate to a real
+    // future time instead of clamping onto the last bar.
     const logical = this.chart.timeScale().coordinateToLogical(x);
-    if (logical == null) return 0;
-    return this.logicalToTime(logical as number);
+    if (logical != null && this.candles.length && this.barSecs > 0) {
+      return this.logicalToTime(logical as number);
+    }
+    const t = this.chart.timeScale().coordinateToTime(x) as Time | null | undefined;
+    return typeof t === "number" ? t : 0;
   }
 
   yToPrice(y: number): number | null {

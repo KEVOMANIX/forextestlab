@@ -1,17 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { RotateCcw, X } from "lucide-react";
 
 import {
-  INDICATOR_CATALOG,
-  INDICATOR_SHORT,
-  INDICATOR_SOURCES,
+  CATEGORY_LABELS,
+  SOURCE_OPTIONS,
+  defaultInputs,
+  defaultStyle,
+  getDef,
   type IndicatorInstance,
-  type IndSource,
-} from "@/lib/chart/indicator-types";
+  type InputDef,
+  type InputSection,
+  type LineStyleName,
+  type PlotStyle,
+} from "@/lib/chart/indicator-defs";
 
-type Tab = "inputs" | "style" | "visibility";
+type Tab = "inputs" | "style" | "visibility" | "defaults";
 
 interface Props {
   value: IndicatorInstance;
@@ -19,134 +24,204 @@ interface Props {
   onClose: () => void;
 }
 
-function Row({ label, children, muted = false }: { label: string; children: React.ReactNode; muted?: boolean }) {
+const SECTION_LABELS: Record<InputSection, string> = {
+  inputs: "Inputs",
+  smoothing: "Smoothing",
+  calculation: "Calculation",
+};
+const SECTION_ORDER: InputSection[] = ["inputs", "smoothing", "calculation"];
+const LINE_STYLES: { value: LineStyleName; label: string }[] = [
+  { value: "solid", label: "Solid" },
+  { value: "dashed", label: "Dashed" },
+  { value: "dotted", label: "Dotted" },
+];
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className={`flex items-center justify-between gap-3 py-1.5 text-xs ${muted ? "opacity-40" : ""}`}>
+    <label className="flex items-center justify-between gap-3 py-1.5 text-xs">
       <span className="app-muted">{label}</span>
       <span className="flex items-center gap-2">{children}</span>
     </label>
   );
 }
 
+const inputCls = "rounded border app-border bg-transparent px-1.5 py-1 text-right";
+
 export function IndicatorSettingsDialog({ value, onChange, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("inputs");
-  const def = INDICATOR_CATALOG.find((d) => d.kind === value.kind)!;
+  const def = getDef(value.kind);
+  if (!def) return null;
+
+  const setInput = (key: string, v: number | string | boolean) => onChange({ inputs: { ...value.inputs, [key]: v } });
+  const setStyle = (plotKey: string, patch: Partial<PlotStyle>) =>
+    onChange({ style: { ...value.style, [plotKey]: { ...value.style[plotKey]!, ...patch } } });
+  const resetDefaults = () => onChange({ inputs: defaultInputs(def), style: defaultStyle(def), precision: def.precision ?? null });
+
+  const renderInput = (inp: InputDef) => {
+    const v = value.inputs[inp.key];
+    if (inp.type === "boolean") {
+      return <input type="checkbox" checked={Boolean(v)} onChange={(e) => setInput(inp.key, e.target.checked)} className="accent-brand-400" />;
+    }
+    if (inp.type === "source") {
+      return (
+        <select value={String(v)} onChange={(e) => setInput(inp.key, e.target.value)} className="rounded border app-border bg-transparent px-1.5 py-1">
+          {SOURCE_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
+      );
+    }
+    if (inp.type === "select") {
+      return (
+        <select value={String(v)} onChange={(e) => setInput(inp.key, e.target.value)} className="rounded border app-border bg-transparent px-1.5 py-1">
+          {(inp.options ?? []).map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      );
+    }
+    return (
+      <input
+        type="number"
+        min={inp.min}
+        max={inp.max}
+        step={inp.step ?? 1}
+        value={Number(v)}
+        onChange={(e) => {
+          let n = Number(e.target.value);
+          if (inp.min != null) n = Math.max(inp.min, n);
+          if (inp.max != null) n = Math.min(inp.max, n);
+          setInput(inp.key, n);
+        }}
+        className={`w-24 ${inputCls}`}
+      />
+    );
+  };
+
+  const sectionsPresent = SECTION_ORDER.filter((sec) => def.inputs.some((i) => (i.section ?? "inputs") === sec));
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/40" onPointerDown={onClose}>
-      <div
-        className="w-[320px] rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl"
-        onPointerDown={(e) => e.stopPropagation()}
-      >
+      <div className="flex max-h-[80vh] w-[340px] flex-col rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b app-border px-3 py-2">
-          <h3 className="text-sm font-semibold">{INDICATOR_SHORT[value.kind]}</h3>
+          <h3 className="truncate text-sm font-semibold">{def.name}</h3>
           <button type="button" aria-label="Close" onClick={onClose} className="app-muted hover:text-[var(--app-text)]">
             <X size={16} />
           </button>
         </div>
 
         <div className="flex gap-1 border-b app-border px-2 pt-2">
-          {(["inputs", "style", "visibility"] as Tab[]).map((t) => (
+          {(["inputs", "style", "visibility", "defaults"] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`rounded-t-md px-3 py-1.5 text-xs font-medium capitalize ${
-                tab === t ? "bg-[var(--app-panel-2)] text-[var(--app-text)]" : "app-muted hover:text-[var(--app-text)]"
-              }`}
+              className={`rounded-t-md px-3 py-1.5 text-xs font-medium capitalize ${tab === t ? "bg-[var(--app-panel-2)] text-[var(--app-text)]" : "app-muted hover:text-[var(--app-text)]"}`}
             >
               {t}
             </button>
           ))}
         </div>
 
-        <div className="max-h-[60vh] overflow-y-auto px-3 py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
           {tab === "inputs" && (
-            <>
-              {def.hasLength && (
-                <Row label="Length">
-                  <input
-                    type="number"
-                    min={1}
-                    max={500}
-                    value={value.length}
-                    onChange={(e) => onChange({ length: Math.max(1, Number(e.target.value)) })}
-                    className="w-20 rounded border app-border bg-transparent px-1.5 py-1 text-right"
-                  />
-                </Row>
-              )}
-              {def.hasSource && (
-                <Row label="Source">
-                  <select
-                    value={value.source}
-                    onChange={(e) => onChange({ source: e.target.value as IndSource })}
-                    className="rounded border app-border bg-transparent px-1.5 py-1"
-                  >
-                    {INDICATOR_SOURCES.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </Row>
-              )}
-              <Row label="Offset">
-                <input
-                  type="number"
-                  min={-500}
-                  max={500}
-                  value={value.offset}
-                  onChange={(e) => onChange({ offset: Number(e.target.value) })}
-                  className="w-20 rounded border app-border bg-transparent px-1.5 py-1 text-right"
-                />
-              </Row>
-              {value.kind === "bb" && (
-                <>
-                  <p className="pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide app-muted">Calculation</p>
-                  <Row label="StdDev">
-                    <input
-                      type="number"
-                      min={0.1}
-                      max={10}
-                      step={0.1}
-                      value={value.bbStdDev}
-                      onChange={(e) => onChange({ bbStdDev: Number(e.target.value) })}
-                      className="w-20 rounded border app-border bg-transparent px-1.5 py-1 text-right"
-                    />
-                  </Row>
-                </>
-              )}
-            </>
+            def.inputs.length === 0 ? (
+              <p className="py-4 text-center text-xs app-muted">This indicator has no inputs.</p>
+            ) : (
+              sectionsPresent.map((sec) => (
+                <div key={sec}>
+                  {sec !== "inputs" && <p className="pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide app-muted">{SECTION_LABELS[sec]}</p>}
+                  {def.inputs.filter((i) => (i.section ?? "inputs") === sec).map((inp) => (
+                    <Row key={inp.key} label={inp.label}>{renderInput(inp)}</Row>
+                  ))}
+                </div>
+              ))
+            )
           )}
 
-          {tab === "style" && (
-            <>
-              <Row label="Color">
-                <input
-                  type="color"
-                  aria-label="Color"
-                  value={value.color}
-                  onChange={(e) => onChange({ color: e.target.value })}
-                  className="h-6 w-8 cursor-pointer rounded border app-border bg-transparent p-0.5"
-                />
-              </Row>
-              <Row label="Line width">
-                <input
-                  type="number"
-                  min={1}
-                  max={4}
-                  value={value.lineWidth}
-                  onChange={(e) => onChange({ lineWidth: Math.min(4, Math.max(1, Number(e.target.value))) })}
-                  className="w-20 rounded border app-border bg-transparent px-1.5 py-1 text-right"
-                />
-              </Row>
-            </>
-          )}
+          {tab === "style" &&
+            def.plots.map((plot) => {
+              const s = value.style[plot.key]!;
+              return (
+                <div key={plot.key} className="border-b app-border py-2 last:border-0">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-xs font-medium">
+                      <input type="checkbox" checked={s.visible} onChange={(e) => setStyle(plot.key, { visible: e.target.checked })} className="accent-brand-400" />
+                      {plot.label}
+                    </label>
+                    <input
+                      type="color"
+                      aria-label={`${plot.label} color`}
+                      value={s.color}
+                      onChange={(e) => setStyle(plot.key, { color: e.target.value })}
+                      className="h-6 w-8 cursor-pointer rounded border app-border bg-transparent p-0.5"
+                    />
+                  </div>
+                  {plot.kind === "line" && (
+                    <div className="mt-1 flex items-center gap-2 pl-6">
+                      <select value={s.lineStyle} onChange={(e) => setStyle(plot.key, { lineStyle: e.target.value as LineStyleName })} className="rounded border app-border bg-transparent px-1 py-0.5 text-[11px]">
+                        {LINE_STYLES.map((ls) => (
+                          <option key={ls.value} value={ls.value}>{ls.label}</option>
+                        ))}
+                      </select>
+                      <select value={s.lineWidth} onChange={(e) => setStyle(plot.key, { lineWidth: Number(e.target.value) })} className="rounded border app-border bg-transparent px-1 py-0.5 text-[11px]">
+                        {[1, 2, 3, 4].map((w) => (
+                          <option key={w} value={w}>{w}px</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="mt-1 flex items-center gap-2 pl-6 text-[11px] app-muted">
+                    <span>Opacity</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={Math.round(s.opacity * 100)}
+                      onChange={(e) => setStyle(plot.key, { opacity: Number(e.target.value) / 100 })}
+                      className="flex-1 accent-brand-400"
+                    />
+                    <span className="w-8 text-right">{Math.round(s.opacity * 100)}%</span>
+                  </div>
+                </div>
+              );
+            })}
 
           {tab === "visibility" && (
-            <Row label="Visible on chart">
-              <input type="checkbox" checked={value.visible} onChange={(e) => onChange({ visible: e.target.checked })} />
-            </Row>
+            <>
+              <Row label="Visible on chart">
+                <input type="checkbox" checked={value.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="accent-brand-400" />
+              </Row>
+              <Row label="Price precision">
+                <input
+                  type="number"
+                  min={0}
+                  max={8}
+                  placeholder="auto"
+                  value={value.precision ?? ""}
+                  onChange={(e) => onChange({ precision: e.target.value === "" ? null : Math.max(0, Math.min(8, Number(e.target.value))) })}
+                  className={`w-24 ${inputCls}`}
+                />
+              </Row>
+              <p className="pt-2 text-[11px] app-muted">Precision blank = inherit the chart&apos;s decimals.</p>
+            </>
+          )}
+
+          {tab === "defaults" && (
+            <div className="py-1">
+              <p className="text-[11px] leading-relaxed app-muted">{def.description}</p>
+              <p className="pt-2 text-[11px] app-muted">
+                Category: <span className="text-[var(--app-text)]">{CATEGORY_LABELS[def.category]}</span> · Pane:{" "}
+                <span className="text-[var(--app-text)]">{def.pane === "own" ? "Separate" : "Overlay"}</span>
+              </p>
+              <button
+                type="button"
+                onClick={resetDefaults}
+                className="mt-4 inline-flex items-center gap-2 rounded-md border app-border px-3 py-1.5 text-xs font-medium hover:bg-[var(--app-panel-2)]"
+              >
+                <RotateCcw size={13} /> Reset to defaults
+              </button>
+            </div>
           )}
         </div>
 

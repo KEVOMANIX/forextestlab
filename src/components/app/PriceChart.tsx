@@ -52,7 +52,6 @@ import {
   type IPriceLine,
   type ISeriesApi,
   type LineData,
-  type LineWidth,
   type MouseEventParams,
   type SeriesMarker,
   type SeriesType,
@@ -69,20 +68,24 @@ import {
   type Timeframe,
 } from "@/lib/market-data/types";
 import type { OpenPosition } from "@/lib/backtest/types";
-import { bollinger, ema, heikinAshi, sma, vwap, type MaybeNumber, type OHLCV } from "@/lib/chart/indicators";
+import { heikinAshi, type OHLCV } from "@/lib/chart/indicators";
 import { TOOL_LABELS, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
 import {
-  INDICATOR_CATALOG,
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+  defsByCategory,
+  getDef,
+  hydrateInstance,
   indicatorLabel,
-  makeIndicator,
+  makeInstance,
+  type IndCategory,
   type IndicatorInstance,
-  type IndKind,
-  type IndSource,
-} from "@/lib/chart/indicator-types";
+} from "@/lib/chart/indicator-defs";
+import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
-import { PriceChartOscillator } from "./PriceChartOscillator";
+import { IndicatorPane } from "./IndicatorPane";
 
 export interface ChartMarker {
   time: number;
@@ -93,7 +96,6 @@ export interface ChartMarker {
 }
 
 type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area";
-type Oscillator = "none" | "rsi" | "macd";
 type DrawTool = ToolKind | null;
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
@@ -104,29 +106,6 @@ const CHART_TYPE_LABELS: Record<ChartType, string> = {
   line: "Line",
   area: "Area",
 };
-
-/** Pick the source series (close/open/high/low/hl2/hlc3) an indicator computes on. */
-function sourceValues(display: OHLCV[], source: IndSource): number[] {
-  switch (source) {
-    case "open": return display.map((c) => c.open);
-    case "high": return display.map((c) => c.high);
-    case "low": return display.map((c) => c.low);
-    case "hl2": return display.map((c) => (c.high + c.low) / 2);
-    case "hlc3": return display.map((c) => (c.high + c.low + c.close) / 3);
-    default: return display.map((c) => c.close);
-  }
-}
-
-/** Shift a series forward (offset > 0) / back (offset < 0) by N bars. */
-function applyOffset(values: MaybeNumber[], offset: number): MaybeNumber[] {
-  if (!offset) return values;
-  const out: MaybeNumber[] = new Array(values.length).fill(null);
-  for (let i = 0; i < values.length; i++) {
-    const src = i - offset;
-    if (src >= 0 && src < values.length) out[i] = values[src]!;
-  }
-  return out;
-}
 
 function chartTimeMs(time: Time): number {
   if (typeof time === "number") return time * 1000;
@@ -399,7 +378,7 @@ export default function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
-  const overlaySeriesRef = useRef<Map<string, ISeriesApi<SeriesType>[]>>(new Map());
+  const priceIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const positionLinesRef = useRef<IPriceLine[]>([]);
   const positionsRef = useRef<OpenPosition[]>(positions);
   const followLatestRef = useRef(true);
@@ -422,7 +401,7 @@ export default function PriceChart({
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
   const [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
-  const [oscillator, setOscillator] = useState<Oscillator>("none");
+  const [openCats, setOpenCats] = useState<Set<IndCategory>>(() => new Set(CATEGORY_ORDER));
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
   const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
@@ -506,66 +485,31 @@ export default function PriceChart({
     );
   }
 
-  function renderOverlays(display: OHLCV[]) {
+  /**
+   * Reconcile the price-pane indicator controllers with the current instance
+   * list: destroy removed ones, create new ones, and (re)draw the rest. Own-pane
+   * indicators render as separate synced sub-panes (see the JSX below).
+   */
+  function syncPriceIndicators(display: OHLCV[]) {
     const chart = chartRef.current;
     if (!chart) return;
-    const map = overlaySeriesRef.current;
-    // Remove series for indicators that were deleted.
-    const live = new Set(indicators.map((i) => i.id));
-    for (const [id, seriesList] of map.entries()) {
+    const map = priceIndicatorsRef.current;
+    const priceInsts = indicators.filter((i) => getDef(i.kind)?.pane === "price");
+    const live = new Set(priceInsts.map((i) => i.id));
+    for (const [id, ind] of map.entries()) {
       if (!live.has(id)) {
-        for (const s of seriesList) chart.removeSeries(s);
+        ind.destroy();
         map.delete(id);
       }
     }
-    const t = (i: number) => display[i]!.time as UTCTimestamp;
-    const toData = (values: MaybeNumber[]) =>
-      values.map((v, i) => (v == null ? { time: t(i) } : { time: t(i), value: v })) as LineData<Time>[];
-
-    for (const inst of indicators) {
-      const width = inst.lineWidth as LineWidth;
-      let seriesList = map.get(inst.id);
-
-      if (inst.kind === "volume") {
-        if (!seriesList) {
-          const hist = chart.addHistogramSeries({ priceScaleId: "vol", priceLineVisible: false, lastValueVisible: false });
-          chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-          seriesList = [hist];
-          map.set(inst.id, seriesList);
-        }
-        (seriesList[0] as ISeriesApi<"Histogram">).applyOptions({ visible: inst.visible });
-        (seriesList[0] as ISeriesApi<"Histogram">).setData(
-          display.map((c) => ({ time: c.time as UTCTimestamp, value: c.volume ?? 0, color: c.close >= c.open ? "rgba(34,195,160,0.4)" : "rgba(244,100,108,0.4)" })),
-        );
-        continue;
+    for (const inst of priceInsts) {
+      let ind = map.get(inst.id);
+      if (!ind) {
+        ind = new Indicator(chart, inst, precision);
+        ind.initialize();
+        map.set(inst.id, ind);
       }
-
-      const src = sourceValues(display, inst.source);
-      if (inst.kind === "bb") {
-        if (!seriesList) {
-          seriesList = [
-            chart.addLineSeries({ color: inst.color, lineWidth: width, priceLineVisible: false, lastValueVisible: false }),
-            chart.addLineSeries({ color: inst.color, lineWidth: width, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }),
-            chart.addLineSeries({ color: inst.color, lineWidth: width, priceLineVisible: false, lastValueVisible: false }),
-          ];
-          map.set(inst.id, seriesList);
-        }
-        for (const s of seriesList) (s as ISeriesApi<"Line">).applyOptions({ color: inst.color, lineWidth: width, visible: inst.visible });
-        const bands = bollinger(src, inst.length, inst.bbStdDev);
-        (seriesList[0] as ISeriesApi<"Line">).setData(toData(applyOffset(bands.map((b) => b.upper), inst.offset)));
-        (seriesList[1] as ISeriesApi<"Line">).setData(toData(applyOffset(bands.map((b) => b.middle), inst.offset)));
-        (seriesList[2] as ISeriesApi<"Line">).setData(toData(applyOffset(bands.map((b) => b.lower), inst.offset)));
-        continue;
-      }
-
-      // ema / sma / vwap — single line
-      if (!seriesList) {
-        seriesList = [chart.addLineSeries({ color: inst.color, lineWidth: width, priceLineVisible: false, lastValueVisible: false })];
-        map.set(inst.id, seriesList);
-      }
-      (seriesList[0] as ISeriesApi<"Line">).applyOptions({ color: inst.color, lineWidth: width, visible: inst.visible });
-      const raw = inst.kind === "sma" ? sma(src, inst.length) : inst.kind === "ema" ? ema(src, inst.length) : vwap(display);
-      (seriesList[0] as ISeriesApi<"Line">).setData(toData(applyOffset(raw, inst.offset)));
+      ind.update(inst, display);
     }
   }
 
@@ -575,7 +519,7 @@ export default function PriceChart({
     const display = candlesForDisplay(rawCandlesRef.current, baseTimeframe, displayTimeframeRef.current).map(toOHLCV);
     displayRef.current = display;
     applyData(series, chartTypeRef.current, display);
-    renderOverlays(display);
+    syncPriceIndicators(display);
     setDisplayCandles(display);
     requestAnimationFrame(updateLineCoordinates);
   }
@@ -631,15 +575,15 @@ export default function PriceChart({
           grid?: boolean;
           magnet?: boolean;
           chartType?: ChartType;
-          indicators?: IndicatorInstance[];
-          oscillator?: Oscillator;
+          indicators?: unknown[];
         };
         if (saved.timeframe && availableTimeframes.includes(saved.timeframe)) setDisplayTimeframe(saved.timeframe);
         if (typeof saved.grid === "boolean") setGridVisible(saved.grid);
         if (typeof saved.magnet === "boolean") setMagnetCrosshair(saved.magnet);
         if (saved.chartType) setChartType(saved.chartType);
-        if (Array.isArray(saved.indicators)) setIndicators(saved.indicators);
-        if (saved.oscillator) setOscillator(saved.oscillator);
+        if (Array.isArray(saved.indicators)) {
+          setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
+        }
         if (saved.range) {
           followLatestRef.current = false;
           savedRangeRef.current = saved.range;
@@ -700,7 +644,8 @@ export default function PriceChart({
       chartRef.current = null;
       seriesRef.current = null;
       contextSeriesRef.current = null;
-      overlaySeriesRef.current = new Map();
+      for (const ind of priceIndicatorsRef.current.values()) ind.destroy();
+      priceIndicatorsRef.current = new Map();
       positionLinesRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -710,9 +655,9 @@ export default function PriceChart({
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !seriesRef.current) return;
-    // Clear overlays so they re-attach cleanly on top of the new series.
-    for (const seriesList of overlaySeriesRef.current.values()) for (const s of seriesList) chart.removeSeries(s);
-    overlaySeriesRef.current = new Map();
+    // Destroy price-pane indicators so they re-attach cleanly on the new series.
+    for (const ind of priceIndicatorsRef.current.values()) ind.destroy();
+    priceIndicatorsRef.current = new Map();
     if (contextSeriesRef.current) chart.removeSeries(contextSeriesRef.current);
     if (seriesRef.current) chart.removeSeries(seriesRef.current);
     createSeriesPair(chartType);
@@ -733,9 +678,9 @@ export default function PriceChart({
     });
   }, [theme, gridVisible, magnetCrosshair]);
 
-  // Re-render overlays when the active set changes.
+  // Re-sync price-pane indicator controllers when the active set changes.
   useEffect(() => {
-    renderOverlays(displayRef.current);
+    syncPriceIndicators(displayRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators, seriesEpoch]);
 
@@ -805,13 +750,12 @@ export default function PriceChart({
           magnet: magnetCrosshair,
           chartType,
           indicators,
-          oscillator,
         }),
       );
     } catch {
       // Ignore local storage failures.
     }
-  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, indicators, oscillator, storageKey]);
+  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, indicators, storageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -957,12 +901,22 @@ export default function PriceChart({
     window.addEventListener("pointerup", onUp);
   }
 
-  function addIndicator(kind: IndKind) {
-    const inst = makeIndicator(kind);
+  function addIndicator(kind: string) {
+    const inst = makeInstance(kind);
+    if (!inst) return;
     setIndicators((prev) => [...prev, inst]);
     setMenu(null);
     setIndicatorSearch("");
     setIndicatorEditing(inst.id); // open settings so the user sets it themselves
+  }
+
+  function toggleCategory(cat: IndCategory) {
+    setOpenCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
   }
 
   function updateIndicator(id: string, patch: Partial<IndicatorInstance>) {
@@ -974,6 +928,8 @@ export default function PriceChart({
     setIndicatorEditing((cur) => (cur === id ? null : cur));
   }
 
+  const pricePaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "price");
+  const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
   // reach them — use an explicit solid colour keyed to the theme.
@@ -1020,13 +976,13 @@ export default function PriceChart({
           type="button"
           aria-label="Indicators"
           onClick={() => setMenu(menu === "indicators" ? null : "indicators")}
-          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "indicators" || indicators.length > 0 || oscillator !== "none" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "indicators" || indicators.length > 0 ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
         >
           <Activity size={15} />
           <span className="hidden sm:inline">Indicators</span>
         </button>
         {menu === "indicators" && (
-          <div className="absolute left-0 top-9 z-40 w-64 rounded-lg border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
+          <div className="absolute left-0 top-9 z-40 w-72 rounded-lg border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
             <input
               autoFocus
               value={indicatorSearch}
@@ -1034,27 +990,42 @@ export default function PriceChart({
               placeholder="Search indicators…"
               className="mb-2 w-full rounded-md border app-border bg-transparent px-2 py-1.5 text-xs outline-none focus:border-brand-400"
             />
-            <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Overlays</p>
-            <div className="max-h-56 overflow-y-auto">
-              {INDICATOR_CATALOG.filter((def) => def.label.toLowerCase().includes(indicatorSearch.toLowerCase())).map((def) => (
-                <button
-                  key={def.kind}
-                  type="button"
-                  onClick={() => addIndicator(def.kind)}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
-                >
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: def.defaultColor }} />
-                  {def.label}
-                </button>
-              ))}
+            <div className="max-h-72 overflow-y-auto">
+              {(() => {
+                const q = indicatorSearch.trim().toLowerCase();
+                return CATEGORY_ORDER.map((cat) => {
+                  const defs = defsByCategory(cat).filter((d) => !q || d.name.toLowerCase().includes(q));
+                  if (defs.length === 0) return null;
+                  const open = q !== "" || openCats.has(cat);
+                  return (
+                    <div key={cat} className="mb-0.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleCategory(cat)}
+                        className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wide app-muted hover:bg-[var(--app-panel-2)]"
+                      >
+                        <span>{CATEGORY_LABELS[cat]}</span>
+                        <span className="text-[9px]">{open ? "▾" : "▸"}</span>
+                      </button>
+                      {open &&
+                        defs.map((def) => (
+                          <button
+                            key={def.kind}
+                            type="button"
+                            onClick={() => addIndicator(def.kind)}
+                            title={def.description}
+                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
+                          >
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: def.plots[0]?.defaultColor ?? "#5b8bff" }} />
+                            <span className="truncate">{def.name}</span>
+                            {def.pane === "own" && <span className="ml-auto shrink-0 text-[9px] app-muted">pane</span>}
+                          </button>
+                        ))}
+                    </div>
+                  );
+                });
+              })()}
             </div>
-            <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide app-muted">Oscillator pane</p>
-            {(["none", "rsi", "macd"] as Oscillator[]).map((o) => (
-              <label key={o} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
-                <input type="radio" name="oscillator" checked={oscillator === o} onChange={() => setOscillator(o)} className="accent-brand-400" />
-                {o === "none" ? "None" : o.toUpperCase()}
-              </label>
-            ))}
           </div>
         )}
       </div>
@@ -1112,24 +1083,28 @@ export default function PriceChart({
           </div>
         )}
 
-        {/* Active-indicator legend — hover a row for settings / hide / remove. */}
-        {indicators.length > 0 && (
+        {/* Price-pane indicator legend — hover a row for settings / hide / remove.
+            Own-pane indicators show their own header inside their sub-pane. */}
+        {pricePaneIndicators.length > 0 && (
           <div className="absolute left-14 z-10 flex flex-col items-start gap-0.5" style={{ top: orderTicket ? 74 : 36 }}>
-            {indicators.map((inst) => (
-              <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur">
-                <span className="h-2 w-2 rounded-full" style={{ background: inst.color, opacity: inst.visible ? 1 : 0.3 }} />
-                <span className={`font-medium ${inst.visible ? "" : "app-muted line-through"}`}>{indicatorLabel(inst)} {inst.source}</span>
-                <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
-                  {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
-                </button>
-                <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
-                  <Settings2 size={12} />
-                </button>
-                <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            ))}
+            {pricePaneIndicators.map((inst) => {
+              const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#5b8bff";
+              return (
+                <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur">
+                  <span className="h-2 w-2 rounded-full" style={{ background: color, opacity: inst.visible ? 1 : 0.3 }} />
+                  <span className={`font-medium ${inst.visible ? "" : "app-muted line-through"}`}>{indicatorLabel(inst)}</span>
+                  <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                    {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+                  </button>
+                  <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                    <Settings2 size={12} />
+                  </button>
+                  <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -1348,9 +1323,21 @@ export default function PriceChart({
         )}
       </div>
 
-      {oscillator !== "none" && (
-        <PriceChartOscillator candles={displayCandles} type={oscillator} theme={theme} mainChart={chartApi} syncVersion={seriesEpoch} />
-      )}
+      {ownPaneIndicators.map((inst) => (
+        <IndicatorPane
+          key={inst.id}
+          instance={inst}
+          candles={displayCandles}
+          theme={theme}
+          precision={precision}
+          mainChart={chartApi}
+          syncVersion={seriesEpoch}
+          height={getDef(inst.kind)?.paneHeight ?? 130}
+          onEdit={() => setIndicatorEditing(inst.id)}
+          onToggleVisible={() => updateIndicator(inst.id, { visible: !inst.visible })}
+          onRemove={() => removeIndicator(inst.id)}
+        />
+      ))}
 
       {indicatorEditing && (() => {
         const inst = indicators.find((i) => i.id === indicatorEditing);

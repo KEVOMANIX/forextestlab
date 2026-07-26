@@ -93,6 +93,21 @@ export class Indicator {
     return this.def;
   }
 
+  /** First plot's series — used as the anchor for cross-pane crosshair sync. */
+  firstSeries(): AnySeries | null {
+    const key = this.def.plots[0]?.key;
+    return key ? this.series.get(key) ?? null : null;
+  }
+
+  /** Most recent finite value of the first plot (a sane price for crosshair sync). */
+  lastFiniteValue(): number | null {
+    const p = this.def.plots[0];
+    if (!p || !this.result) return null;
+    const arr = p.kind === "histogram" ? (this.result.histograms?.[p.key]?.map((b) => b.value) ?? []) : (this.result.lines?.[p.key] ?? []);
+    for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i]!;
+    return null;
+  }
+
   /** Create one series per plot (+ oscillator guide lines). */
   initialize(): void {
     const precision = this.inst.precision ?? this.fallbackPrecision;

@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ColorType, CrosshairMode, createChart, type IChartApi, type Time } from "lightweight-charts";
+import {
+  ColorType,
+  CrosshairMode,
+  createChart,
+  type IChartApi,
+  type ISeriesApi,
+  type MouseEventParams,
+  type SeriesType,
+  type Time,
+} from "lightweight-charts";
 import { Eye, EyeOff, Settings2, Trash2 } from "lucide-react";
 
 import { DISPLAY_TIME_ZONE, formatNewYorkDateTime } from "@/lib/date-time";
@@ -15,6 +24,8 @@ interface Props {
   theme: "dark" | "light";
   precision: number;
   mainChart: IChartApi | null;
+  /** Main price series — target for crosshair sync from this pane. */
+  mainSeries: ISeriesApi<SeriesType> | null;
   /** Bump to force a time-scale re-sync (e.g. main series rebuilt). */
   syncVersion: number;
   height: number;
@@ -42,7 +53,7 @@ const tickFmt = new Intl.DateTimeFormat("en", {
 const timeMs = (t: Time): number => (typeof t === "number" ? t * 1000 : typeof t === "string" ? Date.parse(t) : Date.UTC(t.year, t.month - 1, t.day, 12));
 const approxEq = (a: { from: number; to: number }, b: { from: number; to: number }) => Math.abs(a.from - b.from) < 0.01 && Math.abs(a.to - b.to) < 0.01;
 
-export function IndicatorPane({ instance, candles, theme, precision, mainChart, syncVersion, height, showTimeAxis, onEdit, onToggleVisible, onRemove }: Props) {
+export function IndicatorPane({ instance, candles, theme, precision, mainChart, mainSeries, syncVersion, height, showTimeAxis, onEdit, onToggleVisible, onRemove }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const indicatorRef = useRef<Indicator | null>(null);
@@ -133,6 +144,47 @@ export function IndicatorPane({ instance, candles, theme, precision, mainChart, 
       subScale.unsubscribeVisibleLogicalRangeChange(applyFromSub);
     };
   }, [mainChart, syncVersion]);
+
+  // Crosshair sync — hovering either the price pane or this pane drives a single
+  // crosshair (and the shared bottom axis label) across both. Guarded so the
+  // programmatic setCrosshairPosition can't echo into an infinite loop.
+  useEffect(() => {
+    const chart = chartRef.current;
+    const ind = indicatorRef.current;
+    if (!chart || !mainChart || !mainSeries || !ind) return;
+    const subSeries = ind.firstSeries();
+    if (!subSeries) return;
+    const guard = { on: false };
+    const fromMain = (param: MouseEventParams<Time>) => {
+      if (guard.on) return;
+      guard.on = true;
+      try {
+        if (param.time == null) chart.clearCrosshairPosition();
+        else chart.setCrosshairPosition(ind.lastFiniteValue() ?? 0, param.time, subSeries);
+      } finally {
+        guard.on = false;
+      }
+    };
+    const fromSub = (param: MouseEventParams<Time>) => {
+      if (guard.on) return;
+      guard.on = true;
+      try {
+        if (param.time == null) mainChart.clearCrosshairPosition();
+        else {
+          const c = candles.find((x) => x.time === (param.time as number));
+          mainChart.setCrosshairPosition(c ? c.close : 0, param.time, mainSeries);
+        }
+      } finally {
+        guard.on = false;
+      }
+    };
+    mainChart.subscribeCrosshairMove(fromMain);
+    chart.subscribeCrosshairMove(fromSub);
+    return () => {
+      mainChart.unsubscribeCrosshairMove(fromMain);
+      chart.unsubscribeCrosshairMove(fromSub);
+    };
+  }, [mainChart, mainSeries, candles, syncVersion]);
 
   return (
     <div className="group relative border-t app-border" style={{ height }}>

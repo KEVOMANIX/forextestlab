@@ -1404,6 +1404,7 @@ export default function PriceChart({
           theme={theme}
           precision={precision}
           mainChart={chartApi}
+          mainSeries={priceSeries}
           syncVersion={seriesEpoch}
           height={getDef(inst.kind)?.paneHeight ?? 130}
           showTimeAxis={idx === ownPaneIndicators.length - 1}

@@ -39,7 +39,6 @@ import {
   Type,
   Undo2,
   Waypoints,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -53,6 +52,7 @@ import {
   type IPriceLine,
   type ISeriesApi,
   type LineData,
+  type LineWidth,
   type MouseEventParams,
   type SeriesMarker,
   type SeriesType,
@@ -69,10 +69,19 @@ import {
   type Timeframe,
 } from "@/lib/market-data/types";
 import type { OpenPosition } from "@/lib/backtest/types";
-import { bollinger, ema, heikinAshi, sma, vwap, type OHLCV } from "@/lib/chart/indicators";
+import { bollinger, ema, heikinAshi, sma, vwap, type MaybeNumber, type OHLCV } from "@/lib/chart/indicators";
 import { TOOL_LABELS, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
+import {
+  INDICATOR_CATALOG,
+  indicatorLabel,
+  makeIndicator,
+  type IndicatorInstance,
+  type IndKind,
+  type IndSource,
+} from "@/lib/chart/indicator-types";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
 import { DrawingLayer } from "./DrawingLayer";
+import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { PriceChartOscillator } from "./PriceChartOscillator";
 
 export interface ChartMarker {
@@ -96,23 +105,28 @@ const CHART_TYPE_LABELS: Record<ChartType, string> = {
   area: "Area",
 };
 
-interface OverlayDef {
-  id: string;
-  label: string;
-  kind: "sma" | "ema" | "bb" | "vwap" | "volume";
-  period?: number;
-  color: string;
+/** Pick the source series (close/open/high/low/hl2/hlc3) an indicator computes on. */
+function sourceValues(display: OHLCV[], source: IndSource): number[] {
+  switch (source) {
+    case "open": return display.map((c) => c.open);
+    case "high": return display.map((c) => c.high);
+    case "low": return display.map((c) => c.low);
+    case "hl2": return display.map((c) => (c.high + c.low) / 2);
+    case "hlc3": return display.map((c) => (c.high + c.low + c.close) / 3);
+    default: return display.map((c) => c.close);
+  }
 }
 
-const OVERLAYS: OverlayDef[] = [
-  { id: "ema-9", label: "EMA 9", kind: "ema", period: 9, color: "#fbbf24" },
-  { id: "ema-21", label: "EMA 21", kind: "ema", period: 21, color: "#5b8bff" },
-  { id: "sma-50", label: "SMA 50", kind: "sma", period: 50, color: "#c084fc" },
-  { id: "sma-200", label: "SMA 200", kind: "sma", period: 200, color: "#f472b6" },
-  { id: "bb", label: "Bollinger Bands (20, 2)", kind: "bb", period: 20, color: "#93a1b8" },
-  { id: "vwap", label: "VWAP", kind: "vwap", color: "#22c3a0" },
-  { id: "volume", label: "Volume", kind: "volume", color: "#5b8bff" },
-];
+/** Shift a series forward (offset > 0) / back (offset < 0) by N bars. */
+function applyOffset(values: MaybeNumber[], offset: number): MaybeNumber[] {
+  if (!offset) return values;
+  const out: MaybeNumber[] = new Array(values.length).fill(null);
+  for (let i = 0; i < values.length; i++) {
+    const src = i - offset;
+    if (src >= 0 && src < values.length) out[i] = values[src]!;
+  }
+  return out;
+}
 
 function chartTimeMs(time: Time): number {
   if (typeof time === "number") return time * 1000;
@@ -405,10 +419,9 @@ export default function PriceChart({
   const [chartType, setChartType] = useState<ChartType>("candles");
   const [gridVisible, setGridVisible] = useState(true);
   const [magnetCrosshair, setMagnetCrosshair] = useState(false);
-  const [activeOverlays, setActiveOverlays] = useState<Set<string>>(new Set(["ema-21"]));
-  const [overlaySettings, setOverlaySettings] = useState<Record<string, { period?: number; color: string }>>({});
+  const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
   const [indicatorSearch, setIndicatorSearch] = useState("");
-  const [overlayEditing, setOverlayEditing] = useState<string | null>(null);
+  const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
   const [oscillator, setOscillator] = useState<Oscillator>("none");
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
@@ -497,62 +510,62 @@ export default function PriceChart({
     const chart = chartRef.current;
     if (!chart) return;
     const map = overlaySeriesRef.current;
-    // Remove series for overlays that are no longer active.
+    // Remove series for indicators that were deleted.
+    const live = new Set(indicators.map((i) => i.id));
     for (const [id, seriesList] of map.entries()) {
-      if (!activeOverlays.has(id)) {
+      if (!live.has(id)) {
         for (const s of seriesList) chart.removeSeries(s);
         map.delete(id);
       }
     }
-    const closes = display.map((c) => c.close);
     const t = (i: number) => display[i]!.time as UTCTimestamp;
-    for (const def of OVERLAYS) {
-      if (!activeOverlays.has(def.id)) continue;
-      const cfg = overlaySettings[def.id] ?? { period: def.period, color: def.color };
-      const period = cfg.period ?? def.period ?? 20;
-      const color = cfg.color;
-      let seriesList = map.get(def.id);
-      if (def.kind === "bb") {
-        if (!seriesList) {
-          seriesList = [
-            chart.addLineSeries({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }),
-            chart.addLineSeries({ color, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }),
-            chart.addLineSeries({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }),
-          ];
-          map.set(def.id, seriesList);
-        }
-        for (const s of seriesList) (s as ISeriesApi<"Line">).applyOptions({ color });
-        const bands = bollinger(closes, period, 2);
-        const line = (pick: "upper" | "middle" | "lower") =>
-          display.map((c, i) => (bands[i]![pick] == null ? { time: c.time as UTCTimestamp } : { time: c.time as UTCTimestamp, value: bands[i]![pick] as number }));
-        (seriesList[0] as ISeriesApi<"Line">).setData(line("upper") as LineData<Time>[]);
-        (seriesList[1] as ISeriesApi<"Line">).setData(line("middle") as LineData<Time>[]);
-        (seriesList[2] as ISeriesApi<"Line">).setData(line("lower") as LineData<Time>[]);
-        continue;
-      }
-      if (def.kind === "volume") {
+    const toData = (values: MaybeNumber[]) =>
+      values.map((v, i) => (v == null ? { time: t(i) } : { time: t(i), value: v })) as LineData<Time>[];
+
+    for (const inst of indicators) {
+      const width = inst.lineWidth as LineWidth;
+      let seriesList = map.get(inst.id);
+
+      if (inst.kind === "volume") {
         if (!seriesList) {
           const hist = chart.addHistogramSeries({ priceScaleId: "vol", priceLineVisible: false, lastValueVisible: false });
           chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
           seriesList = [hist];
-          map.set(def.id, seriesList);
+          map.set(inst.id, seriesList);
         }
+        (seriesList[0] as ISeriesApi<"Histogram">).applyOptions({ visible: inst.visible });
         (seriesList[0] as ISeriesApi<"Histogram">).setData(
           display.map((c) => ({ time: c.time as UTCTimestamp, value: c.volume ?? 0, color: c.close >= c.open ? "rgba(34,195,160,0.4)" : "rgba(244,100,108,0.4)" })),
         );
         continue;
       }
-      // sma / ema / vwap — single line
-      if (!seriesList) {
-        seriesList = [chart.addLineSeries({ color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false })];
-        map.set(def.id, seriesList);
+
+      const src = sourceValues(display, inst.source);
+      if (inst.kind === "bb") {
+        if (!seriesList) {
+          seriesList = [
+            chart.addLineSeries({ color: inst.color, lineWidth: width, priceLineVisible: false, lastValueVisible: false }),
+            chart.addLineSeries({ color: inst.color, lineWidth: width, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false }),
+            chart.addLineSeries({ color: inst.color, lineWidth: width, priceLineVisible: false, lastValueVisible: false }),
+          ];
+          map.set(inst.id, seriesList);
+        }
+        for (const s of seriesList) (s as ISeriesApi<"Line">).applyOptions({ color: inst.color, lineWidth: width, visible: inst.visible });
+        const bands = bollinger(src, inst.length, inst.bbStdDev);
+        (seriesList[0] as ISeriesApi<"Line">).setData(toData(applyOffset(bands.map((b) => b.upper), inst.offset)));
+        (seriesList[1] as ISeriesApi<"Line">).setData(toData(applyOffset(bands.map((b) => b.middle), inst.offset)));
+        (seriesList[2] as ISeriesApi<"Line">).setData(toData(applyOffset(bands.map((b) => b.lower), inst.offset)));
+        continue;
       }
-      (seriesList[0] as ISeriesApi<"Line">).applyOptions({ color });
-      const values =
-        def.kind === "sma" ? sma(closes, period) : def.kind === "ema" ? ema(closes, period) : vwap(display);
-      (seriesList[0] as ISeriesApi<"Line">).setData(
-        values.map((v, i) => (v == null ? { time: t(i) } : { time: t(i), value: v })) as LineData<Time>[],
-      );
+
+      // ema / sma / vwap — single line
+      if (!seriesList) {
+        seriesList = [chart.addLineSeries({ color: inst.color, lineWidth: width, priceLineVisible: false, lastValueVisible: false })];
+        map.set(inst.id, seriesList);
+      }
+      (seriesList[0] as ISeriesApi<"Line">).applyOptions({ color: inst.color, lineWidth: width, visible: inst.visible });
+      const raw = inst.kind === "sma" ? sma(src, inst.length) : inst.kind === "ema" ? ema(src, inst.length) : vwap(display);
+      (seriesList[0] as ISeriesApi<"Line">).setData(toData(applyOffset(raw, inst.offset)));
     }
   }
 
@@ -618,16 +631,14 @@ export default function PriceChart({
           grid?: boolean;
           magnet?: boolean;
           chartType?: ChartType;
-          overlays?: string[];
-          overlaySettings?: Record<string, { period?: number; color: string }>;
+          indicators?: IndicatorInstance[];
           oscillator?: Oscillator;
         };
         if (saved.timeframe && availableTimeframes.includes(saved.timeframe)) setDisplayTimeframe(saved.timeframe);
         if (typeof saved.grid === "boolean") setGridVisible(saved.grid);
         if (typeof saved.magnet === "boolean") setMagnetCrosshair(saved.magnet);
         if (saved.chartType) setChartType(saved.chartType);
-        if (Array.isArray(saved.overlays)) setActiveOverlays(new Set(saved.overlays));
-        if (saved.overlaySettings) setOverlaySettings(saved.overlaySettings);
+        if (Array.isArray(saved.indicators)) setIndicators(saved.indicators);
         if (saved.oscillator) setOscillator(saved.oscillator);
         if (saved.range) {
           followLatestRef.current = false;
@@ -726,7 +737,7 @@ export default function PriceChart({
   useEffect(() => {
     renderOverlays(displayRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOverlays, overlaySettings, seriesEpoch]);
+  }, [indicators, seriesEpoch]);
 
   useEffect(() => {
     const incoming = lastCandles.length > 0 ? lastCandles : lastCandle ? [lastCandle] : [];
@@ -793,15 +804,14 @@ export default function PriceChart({
           grid: gridVisible,
           magnet: magnetCrosshair,
           chartType,
-          overlays: [...activeOverlays],
-          overlaySettings,
+          indicators,
           oscillator,
         }),
       );
     } catch {
       // Ignore local storage failures.
     }
-  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, activeOverlays, overlaySettings, oscillator, storageKey]);
+  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, indicators, oscillator, storageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -947,27 +957,21 @@ export default function PriceChart({
     window.addEventListener("pointerup", onUp);
   }
 
-  function toggleOverlay(id: string) {
-    setActiveOverlays((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    // Seed editable settings from the indicator's defaults the first time it's added.
-    setOverlaySettings((prev) => {
-      if (prev[id]) return prev;
-      const def = OVERLAYS.find((d) => d.id === id);
-      return def ? { ...prev, [id]: { period: def.period, color: def.color } } : prev;
-    });
+  function addIndicator(kind: IndKind) {
+    const inst = makeIndicator(kind);
+    setIndicators((prev) => [...prev, inst]);
+    setMenu(null);
+    setIndicatorSearch("");
+    setIndicatorEditing(inst.id); // open settings so the user sets it themselves
   }
 
-  function updateOverlaySetting(id: string, patch: { period?: number; color?: string }) {
-    setOverlaySettings((prev) => {
-      const def = OVERLAYS.find((d) => d.id === id);
-      const base = prev[id] ?? { period: def?.period, color: def?.color ?? "#5b8bff" };
-      return { ...prev, [id]: { ...base, ...patch } };
-    });
+  function updateIndicator(id: string, patch: Partial<IndicatorInstance>) {
+    setIndicators((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  }
+
+  function removeIndicator(id: string) {
+    setIndicators((prev) => prev.filter((i) => i.id !== id));
+    setIndicatorEditing((cur) => (cur === id ? null : cur));
   }
 
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
@@ -1016,7 +1020,7 @@ export default function PriceChart({
           type="button"
           aria-label="Indicators"
           onClick={() => setMenu(menu === "indicators" ? null : "indicators")}
-          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "indicators" || activeOverlays.size > 0 || oscillator !== "none" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "indicators" || indicators.length > 0 || oscillator !== "none" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
         >
           <Activity size={15} />
           <span className="hidden sm:inline">Indicators</span>
@@ -1032,19 +1036,17 @@ export default function PriceChart({
             />
             <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Overlays</p>
             <div className="max-h-56 overflow-y-auto">
-              {OVERLAYS.filter((def) => def.label.toLowerCase().includes(indicatorSearch.toLowerCase())).map((def) => {
-                const on = activeOverlays.has(def.id);
-                const dot = overlaySettings[def.id]?.color ?? def.color;
-                return (
-                  <div key={def.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-[var(--app-panel-2)]">
-                    <input type="checkbox" checked={on} onChange={() => toggleOverlay(def.id)} className="accent-brand-400" />
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} />
-                    <button type="button" className="flex-1 text-left" onClick={() => toggleOverlay(def.id)}>
-                      {def.label}
-                    </button>
-                  </div>
-                );
-              })}
+              {INDICATOR_CATALOG.filter((def) => def.label.toLowerCase().includes(indicatorSearch.toLowerCase())).map((def) => (
+                <button
+                  key={def.kind}
+                  type="button"
+                  onClick={() => addIndicator(def.kind)}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
+                >
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: def.defaultColor }} />
+                  {def.label}
+                </button>
+              ))}
             </div>
             <p className="px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide app-muted">Oscillator pane</p>
             {(["none", "rsi", "macd"] as Oscillator[]).map((o) => (
@@ -1110,42 +1112,24 @@ export default function PriceChart({
           </div>
         )}
 
-        {/* Active-indicator legend with per-indicator settings (hover to reveal) */}
-        {OVERLAYS.some((d) => activeOverlays.has(d.id)) && (
+        {/* Active-indicator legend — hover a row for settings / hide / remove. */}
+        {indicators.length > 0 && (
           <div className="absolute left-14 z-10 flex flex-col items-start gap-0.5" style={{ top: orderTicket ? 74 : 36 }}>
-            {OVERLAYS.filter((d) => activeOverlays.has(d.id)).map((def) => {
-              const cfg = overlaySettings[def.id] ?? { period: def.period, color: def.color };
-              const editing = overlayEditing === def.id;
-              const showsPeriod = def.kind === "sma" || def.kind === "ema" || def.kind === "bb";
-              return (
-                <div key={def.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur">
-                  <span className="h-2 w-2 rounded-full" style={{ background: cfg.color }} />
-                  <span className="font-medium">{def.label}{showsPeriod && cfg.period ? ` ${cfg.period}` : ""}</span>
-                  <button type="button" aria-label={`Settings for ${def.label}`} onClick={() => setOverlayEditing(editing ? null : def.id)} className="ml-0.5 app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
-                    <Settings2 size={12} />
-                  </button>
-                  <button type="button" aria-label={`Remove ${def.label}`} onClick={() => { toggleOverlay(def.id); if (editing) setOverlayEditing(null); }} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
-                    <X size={12} />
-                  </button>
-                  {editing && (
-                    <div className="absolute left-0 top-7 z-20 w-44 rounded-md border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
-                      <div className="mb-1.5 text-[10px] font-semibold">{def.label}</div>
-                      {showsPeriod && (
-                        <label className="mb-1.5 flex items-center justify-between gap-2 text-[11px]">
-                          <span className="app-muted">Length</span>
-                          <input type="number" min={1} max={400} value={cfg.period ?? def.period ?? 20} onChange={(e) => updateOverlaySetting(def.id, { period: Math.max(1, Number(e.target.value)) })} className="w-16 rounded border app-border bg-transparent px-1 py-0.5 text-right" />
-                        </label>
-                      )}
-                      <label className="flex items-center justify-between gap-2 text-[11px]">
-                        <span className="app-muted">Color</span>
-                        <input type="color" value={cfg.color} onChange={(e) => updateOverlaySetting(def.id, { color: e.target.value })} className="h-6 w-8 cursor-pointer rounded border app-border bg-transparent p-0.5" />
-                      </label>
-                      <button type="button" onClick={() => setOverlayEditing(null)} className="mt-2 w-full rounded-md bg-brand-500/90 px-2 py-1 text-[11px] font-semibold text-surface-950 hover:bg-brand-500">Done</button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {indicators.map((inst) => (
+              <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur">
+                <span className="h-2 w-2 rounded-full" style={{ background: inst.color, opacity: inst.visible ? 1 : 0.3 }} />
+                <span className={`font-medium ${inst.visible ? "" : "app-muted line-through"}`}>{indicatorLabel(inst)} {inst.source}</span>
+                <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                  {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+                </button>
+                <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                  <Settings2 size={12} />
+                </button>
+                <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
@@ -1367,6 +1351,17 @@ export default function PriceChart({
       {oscillator !== "none" && (
         <PriceChartOscillator candles={displayCandles} type={oscillator} theme={theme} mainChart={chartApi} syncVersion={seriesEpoch} />
       )}
+
+      {indicatorEditing && (() => {
+        const inst = indicators.find((i) => i.id === indicatorEditing);
+        return inst ? (
+          <IndicatorSettingsDialog
+            value={inst}
+            onChange={(patch) => updateIndicator(inst.id, patch)}
+            onClose={() => setIndicatorEditing(null)}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

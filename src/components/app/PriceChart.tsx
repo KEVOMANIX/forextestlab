@@ -966,6 +966,12 @@ export default function PriceChart({
   });
   const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
+
+  // The shared time axis is drawn once, on the bottom-most pane. When sub-panes
+  // exist the main chart hides its axis and the last sub-pane shows it.
+  useEffect(() => {
+    chartRef.current?.applyOptions({ timeScale: { visible: ownPaneIndicators.length === 0 } });
+  }, [ownPaneIndicators.length]);
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
   // reach them — use an explicit solid colour keyed to the theme.
@@ -1390,7 +1396,7 @@ export default function PriceChart({
         )}
       </div>
 
-      {ownPaneIndicators.map((inst) => (
+      {ownPaneIndicators.map((inst, idx) => (
         <IndicatorPane
           key={inst.id}
           instance={inst}
@@ -1400,6 +1406,7 @@ export default function PriceChart({
           mainChart={chartApi}
           syncVersion={seriesEpoch}
           height={getDef(inst.kind)?.paneHeight ?? 130}
+          showTimeAxis={idx === ownPaneIndicators.length - 1}
           onEdit={() => setIndicatorEditing(inst.id)}
           onToggleVisible={() => updateIndicator(inst.id, { visible: !inst.visible })}
           onRemove={() => removeIndicator(inst.id)}

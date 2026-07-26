@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ColorType, CrosshairMode, createChart, type IChartApi } from "lightweight-charts";
+import { ColorType, CrosshairMode, createChart, type IChartApi, type Time } from "lightweight-charts";
 import { Eye, EyeOff, Settings2, Trash2 } from "lucide-react";
 
+import { DISPLAY_TIME_ZONE, formatNewYorkDateTime } from "@/lib/date-time";
 import { indicatorLabel, type IndicatorInstance } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { OHLCV } from "@/lib/chart/indicators";
@@ -17,6 +18,8 @@ interface Props {
   /** Bump to force a time-scale re-sync (e.g. main series rebuilt). */
   syncVersion: number;
   height: number;
+  /** Only the bottom-most pane renders the shared time axis (TradingView-style). */
+  showTimeAxis: boolean;
   onEdit: () => void;
   onToggleVisible: () => void;
   onRemove: () => void;
@@ -27,7 +30,19 @@ const TEXT = { dark: "#93a1b8", light: "#566179" };
 const BORDER = { dark: "rgba(255,255,255,0.10)", light: "#d9e0ec" };
 const BG = { dark: "#0b0f1a", light: "#ffffff" };
 
-export function IndicatorPane({ instance, candles, theme, precision, mainChart, syncVersion, height, onEdit, onToggleVisible, onRemove }: Props) {
+// Match the main chart's New-York-timezone axis formatting exactly, so the
+// shared bottom axis reads identically to the price pane.
+const tickFmt = new Intl.DateTimeFormat("en", {
+  timeZone: DISPLAY_TIME_ZONE,
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const timeMs = (t: Time): number => (typeof t === "number" ? t * 1000 : typeof t === "string" ? Date.parse(t) : Date.UTC(t.year, t.month - 1, t.day, 12));
+const approxEq = (a: { from: number; to: number }, b: { from: number; to: number }) => Math.abs(a.from - b.from) < 0.01 && Math.abs(a.to - b.to) < 0.01;
+
+export function IndicatorPane({ instance, candles, theme, precision, mainChart, syncVersion, height, showTimeAxis, onEdit, onToggleVisible, onRemove }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const indicatorRef = useRef<Indicator | null>(null);
@@ -41,7 +56,16 @@ export function IndicatorPane({ instance, candles, theme, precision, mainChart, 
       layout: { background: { type: ColorType.Solid, color: BG[theme] }, textColor: TEXT[theme], fontFamily: "inherit" },
       grid: { vertLines: { color: GRID[theme] }, horzLines: { color: GRID[theme] } },
       rightPriceScale: { borderColor: BORDER[theme], scaleMargins: { top: 0.18, bottom: 0.12 } },
-      timeScale: { borderColor: BORDER[theme], timeVisible: true, secondsVisible: false, visible: true },
+      timeScale: {
+        borderColor: BORDER[theme],
+        timeVisible: true,
+        secondsVisible: false,
+        visible: showTimeAxis,
+        tickMarkFormatter: (t: Time) => tickFmt.format(timeMs(t)),
+      },
+      localization: {
+        timeFormatter: (t: Time) => formatNewYorkDateTime(timeMs(t), { weekday: "long", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+      },
       crosshair: { mode: CrosshairMode.Normal },
       handleScroll: true,
       handleScale: true,
@@ -61,22 +85,23 @@ export function IndicatorPane({ instance, candles, theme, precision, mainChart, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Theme updates.
+  // Theme + axis-visibility updates.
   useEffect(() => {
     chartRef.current?.applyOptions({
       layout: { background: { type: ColorType.Solid, color: BG[theme] }, textColor: TEXT[theme] },
       grid: { vertLines: { color: GRID[theme] }, horzLines: { color: GRID[theme] } },
       rightPriceScale: { borderColor: BORDER[theme] },
-      timeScale: { borderColor: BORDER[theme] },
+      timeScale: { borderColor: BORDER[theme], visible: showTimeAxis },
     });
-  }, [theme]);
+  }, [theme, showTimeAxis]);
 
   // Re-run the indicator when its config or the candle data changes.
   useEffect(() => {
     indicatorRef.current?.update(instance, candles);
   }, [instance, candles]);
 
-  // Two-way time-range sync with the main chart.
+  // Two-way time-range sync with the main chart. Skip no-op sets so the two
+  // charts can't feed each other into a jitter loop while panning / zooming.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !mainChart) return;
@@ -85,7 +110,8 @@ export function IndicatorPane({ instance, candles, theme, precision, mainChart, 
     const applyFromMain = () => {
       if (syncingRef.current) return;
       const r = mainScale.getVisibleLogicalRange();
-      if (!r) return;
+      const cur = subScale.getVisibleLogicalRange();
+      if (!r || (cur && approxEq(cur, r))) return;
       syncingRef.current = true;
       subScale.setVisibleLogicalRange(r);
       syncingRef.current = false;
@@ -93,7 +119,8 @@ export function IndicatorPane({ instance, candles, theme, precision, mainChart, 
     const applyFromSub = () => {
       if (syncingRef.current) return;
       const r = subScale.getVisibleLogicalRange();
-      if (!r) return;
+      const cur = mainScale.getVisibleLogicalRange();
+      if (!r || (cur && approxEq(cur, r))) return;
       syncingRef.current = true;
       mainScale.setVisibleLogicalRange(r);
       syncingRef.current = false;

@@ -16,6 +16,8 @@
  */
 
 import {
+  HistogramSeries,
+  LineSeries,
   LineStyle,
   type HistogramData,
   type IChartApi,
@@ -69,6 +71,7 @@ function shift<T>(values: (T | null)[], offset: number, fill: T | null): (T | nu
 
 export class Indicator {
   readonly id: string;
+  readonly paneIndex: number;
   private def: IndicatorDef;
   private inst: IndicatorInstance;
   private chart: IChartApi;
@@ -79,7 +82,8 @@ export class Indicator {
   private result: ComputeResult | null = null;
   private inputsKey = "";
 
-  constructor(chart: IChartApi, inst: IndicatorInstance, fallbackPrecision: number) {
+  /** `paneIndex` 0 = the main price pane; >0 = a dedicated oscillator pane. */
+  constructor(chart: IChartApi, inst: IndicatorInstance, fallbackPrecision: number, paneIndex = 0) {
     const def = getDef(inst.kind);
     if (!def) throw new Error(`Unknown indicator kind: ${inst.kind}`);
     this.chart = chart;
@@ -87,6 +91,7 @@ export class Indicator {
     this.inst = inst;
     this.id = inst.id;
     this.fallbackPrecision = fallbackPrecision;
+    this.paneIndex = paneIndex;
   }
 
   getDef(): IndicatorDef {
@@ -115,8 +120,8 @@ export class Indicator {
     for (const plot of this.def.plots) {
       const series: AnySeries =
         plot.kind === "histogram"
-          ? this.chart.addHistogramSeries({ priceFormat, priceLineVisible: false, lastValueVisible: false })
-          : this.chart.addLineSeries({ priceFormat, priceLineVisible: false, lastValueVisible: false });
+          ? this.chart.addSeries(HistogramSeries, { priceFormat, priceLineVisible: false, lastValueVisible: false }, this.paneIndex)
+          : this.chart.addSeries(LineSeries, { priceFormat, priceLineVisible: false, lastValueVisible: false }, this.paneIndex);
       this.series.set(plot.key, series);
     }
     // Guide lines (overbought / oversold / zero) on the first plot's series.

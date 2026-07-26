@@ -42,15 +42,21 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  AreaSeries,
+  BarSeries,
+  CandlestickSeries,
   ColorType,
   CrosshairMode,
+  LineSeries,
   LineStyle,
   createChart,
+  createSeriesMarkers,
   type BarData,
   type CandlestickData,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type LineData,
   type MouseEventParams,
   type SeriesMarker,
@@ -85,7 +91,6 @@ import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
-import { IndicatorPane } from "./IndicatorPane";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
 
 export interface ChartMarker {
@@ -274,10 +279,10 @@ function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, pre
     priceFormat,
   };
   if (type === "line") {
-    return chart.addLineSeries({ color: context ? palette.text : BULL, lineWidth: 2, priceFormat, priceLineVisible: !context, lastValueVisible: !context });
+    return chart.addSeries(LineSeries, { color: context ? palette.text : BULL, lineWidth: 2, priceFormat, priceLineVisible: !context, lastValueVisible: !context });
   }
   if (type === "area") {
-    return chart.addAreaSeries({
+    return chart.addSeries(AreaSeries, {
       lineColor: BULL,
       topColor: "rgba(34,195,160,0.28)",
       bottomColor: "rgba(34,195,160,0.02)",
@@ -288,10 +293,10 @@ function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, pre
     });
   }
   if (type === "bars") {
-    return chart.addBarSeries({ upColor: BULL, downColor: BEAR, ...commonCandle });
+    return chart.addSeries(BarSeries, { upColor: BULL, downColor: BEAR, ...commonCandle });
   }
   if (type === "hollow") {
-    return chart.addCandlestickSeries({
+    return chart.addSeries(CandlestickSeries, {
       upColor: "rgba(0,0,0,0)",
       downColor: BEAR,
       borderUpColor: BULL,
@@ -302,7 +307,7 @@ function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, pre
     });
   }
   // candles + heikin (solid)
-  return chart.addCandlestickSeries({
+  return chart.addSeries(CandlestickSeries, {
     upColor: BULL,
     downColor: BEAR,
     borderUpColor: BULL,
@@ -380,6 +385,9 @@ export default function PriceChart({
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const priceIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
+  const ownIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
+  const ownOrderRef = useRef<string>("");
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const positionLinesRef = useRef<IPriceLine[]>([]);
   const positionsRef = useRef<OpenPosition[]>(positions);
   const followLatestRef = useRef(true);
@@ -488,33 +496,65 @@ export default function PriceChart({
   }
 
   /**
-   * Reconcile the price-pane indicator controllers with the current instance
-   * list: destroy removed ones, create new ones, and (re)draw the rest. Own-pane
-   * indicators render as separate synced sub-panes (see the JSX below).
+   * Reconcile indicator controllers with the current instance list. Price-pane
+   * indicators live on pane 0 (incremental create/update/destroy); own-pane
+   * indicators each get a native lightweight-charts pane (rebuilt only when the
+   * set/order changes, so one chart drives a single crosshair + shared axis).
    */
-  function syncPriceIndicators(display: OHLCV[]) {
+  function syncIndicators(display: OHLCV[]) {
     const chart = chartRef.current;
     if (!chart) return;
-    const map = priceIndicatorsRef.current;
+
+    // Pane 0 — price overlays.
+    const priceMap = priceIndicatorsRef.current;
     const priceInsts = indicators.filter((i) => {
       const d = getDef(i.kind);
       return d?.pane === "price" && d.render !== "overlay";
     });
-    const live = new Set(priceInsts.map((i) => i.id));
-    for (const [id, ind] of map.entries()) {
-      if (!live.has(id)) {
+    const priceLive = new Set(priceInsts.map((i) => i.id));
+    for (const [id, ind] of priceMap.entries()) {
+      if (!priceLive.has(id)) {
         ind.destroy();
-        map.delete(id);
+        priceMap.delete(id);
       }
     }
     for (const inst of priceInsts) {
-      let ind = map.get(inst.id);
+      let ind = priceMap.get(inst.id);
       if (!ind) {
-        ind = new Indicator(chart, inst, precision);
+        ind = new Indicator(chart, inst, precision, 0);
         ind.initialize();
-        map.set(inst.id, ind);
+        priceMap.set(inst.id, ind);
       }
       ind.update(inst, display);
+    }
+
+    // Panes 1..N — oscillators. Rebuild only on structural change.
+    const ownInsts = indicators.filter((i) => getDef(i.kind)?.pane === "own");
+    const ownKey = ownInsts.map((i) => i.id).join("|");
+    const ownMap = ownIndicatorsRef.current;
+    if (ownKey !== ownOrderRef.current) {
+      for (const ind of ownMap.values()) ind.destroy();
+      ownMap.clear();
+      try {
+        while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
+      } catch {
+        // Panes not ready yet — recreated below.
+      }
+      ownInsts.forEach((inst, i) => {
+        const paneIndex = i + 1;
+        const ind = new Indicator(chart, inst, inst.precision ?? 2, paneIndex);
+        ind.initialize();
+        ind.update(inst, display);
+        ownMap.set(inst.id, ind);
+        try {
+          chart.panes()[paneIndex]?.setHeight(getDef(inst.kind)?.paneHeight ?? 130);
+        } catch {
+          // Pane height applied on the next resize.
+        }
+      });
+      ownOrderRef.current = ownKey;
+    } else {
+      for (const inst of ownInsts) ownMap.get(inst.id)?.update(inst, display);
     }
   }
 
@@ -524,7 +564,7 @@ export default function PriceChart({
     const display = candlesForDisplay(rawCandlesRef.current, baseTimeframe, displayTimeframeRef.current).map(toOHLCV);
     displayRef.current = display;
     applyData(series, chartTypeRef.current, display);
-    syncPriceIndicators(display);
+    syncIndicators(display);
     setDisplayCandles(display);
     requestAnimationFrame(updateLineCoordinates);
   }
@@ -650,7 +690,11 @@ export default function PriceChart({
       seriesRef.current = null;
       contextSeriesRef.current = null;
       for (const ind of priceIndicatorsRef.current.values()) ind.destroy();
+      for (const ind of ownIndicatorsRef.current.values()) ind.destroy();
       priceIndicatorsRef.current = new Map();
+      ownIndicatorsRef.current = new Map();
+      ownOrderRef.current = "";
+      markersRef.current = null;
       positionLinesRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -660,9 +704,18 @@ export default function PriceChart({
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !seriesRef.current) return;
-    // Destroy price-pane indicators so they re-attach cleanly on the new series.
+    // Destroy all indicators so they re-attach cleanly on the rebuilt series/panes.
     for (const ind of priceIndicatorsRef.current.values()) ind.destroy();
+    for (const ind of ownIndicatorsRef.current.values()) ind.destroy();
     priceIndicatorsRef.current = new Map();
+    ownIndicatorsRef.current = new Map();
+    ownOrderRef.current = "";
+    markersRef.current = null;
+    try {
+      while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
+    } catch {
+      // No extra panes to remove.
+    }
     if (contextSeriesRef.current) chart.removeSeries(contextSeriesRef.current);
     if (seriesRef.current) chart.removeSeries(seriesRef.current);
     createSeriesPair(chartType);
@@ -683,9 +736,9 @@ export default function PriceChart({
     });
   }, [theme, gridVisible, magnetCrosshair]);
 
-  // Re-sync price-pane indicator controllers when the active set changes.
+  // Re-sync indicator controllers (both panes) when the active set changes.
   useEffect(() => {
-    syncPriceIndicators(displayRef.current);
+    syncIndicators(displayRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators, seriesEpoch]);
 
@@ -772,7 +825,9 @@ export default function PriceChart({
       shape: marker.shape,
       text: marker.text,
     }));
-    series.setMarkers(mapped);
+    // v5: markers are a series primitive, not a series method.
+    if (!markersRef.current) markersRef.current = createSeriesMarkers(series, mapped);
+    else markersRef.current.setMarkers(mapped);
   }, [markers, displayTimeframe, seriesEpoch]);
 
   useEffect(() => {
@@ -967,11 +1022,26 @@ export default function PriceChart({
   const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
 
-  // The shared time axis is drawn once, on the bottom-most pane. When sub-panes
-  // exist the main chart hides its axis and the last sub-pane shows it.
+  // Track each pane's top offset (container-relative px) so we can float an
+  // in-pane label at the top-left of every oscillator pane, TradingView-style.
+  const [paneTops, setPaneTops] = useState<number[]>([]);
   useEffect(() => {
-    chartRef.current?.applyOptions({ timeScale: { visible: ownPaneIndicators.length === 0 } });
-  }, [ownPaneIndicators.length]);
+    const chart = chartRef.current;
+    if (!chart) return;
+    try {
+      const panes = chart.panes();
+      const tops: number[] = [];
+      let acc = 0;
+      for (let i = 0; i < panes.length; i++) {
+        tops[i] = acc;
+        acc += panes[i]!.getHeight() + 1; // +1 for the pane separator
+      }
+      setPaneTops(tops);
+    } catch {
+      setPaneTops([]);
+    }
+  }, [indicators, viewVersion, seriesEpoch]);
+
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
   // reach them — use an explicit solid colour keyed to the theme.
@@ -1156,8 +1226,7 @@ export default function PriceChart({
           </div>
         )}
 
-        {/* Price-pane indicator legend — hover a row for settings / hide / remove.
-            Own-pane indicators show their own header inside their sub-pane. */}
+        {/* Price-pane indicator legend — hover a row for settings / hide / remove. */}
         {pricePaneIndicators.length > 0 && (
           <div className="absolute left-14 z-10 flex flex-col items-start gap-0.5" style={{ top: orderTicket ? 74 : 36 }}>
             {pricePaneIndicators.map((inst) => {
@@ -1180,6 +1249,30 @@ export default function PriceChart({
             })}
           </div>
         )}
+
+        {/* In-pane oscillator labels — floated at the top-left of each native pane. */}
+        {ownPaneIndicators.map((inst, i) => {
+          const top = paneTops[i + 1];
+          if (top == null) return null;
+          return (
+            <div
+              key={inst.id}
+              className="group absolute left-14 z-10 flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur"
+              style={{ top: top + 4 }}
+            >
+              <span className={`font-medium ${inst.visible ? "" : "app-muted line-through"}`}>{indicatorLabel(inst)}</span>
+              <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+              </button>
+              <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                <Settings2 size={12} />
+              </button>
+              <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
+                <Trash2 size={12} />
+              </button>
+            </div>
+          );
+        })}
 
         {positions.map((position) => {
           const top = entryCoordinates[position.id];
@@ -1395,24 +1488,6 @@ export default function PriceChart({
           </div>
         )}
       </div>
-
-      {ownPaneIndicators.map((inst, idx) => (
-        <IndicatorPane
-          key={inst.id}
-          instance={inst}
-          candles={displayCandles}
-          theme={theme}
-          precision={precision}
-          mainChart={chartApi}
-          mainSeries={priceSeries}
-          syncVersion={seriesEpoch}
-          height={getDef(inst.kind)?.paneHeight ?? 130}
-          showTimeAxis={idx === ownPaneIndicators.length - 1}
-          onEdit={() => setIndicatorEditing(inst.id)}
-          onToggleVisible={() => updateIndicator(inst.id, { visible: !inst.visible })}
-          onRemove={() => removeIndicator(inst.id)}
-        />
-      ))}
 
       {indicatorEditing && (() => {
         const inst = indicators.find((i) => i.id === indicatorEditing);

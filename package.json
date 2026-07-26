@@ -37,7 +37,7 @@
     "decimal.js": "^10.6.0",
     "hyparquet": "^1.26.2",
     "hyparquet-compressors": "^1.1.1",
-    "lightweight-charts": "^4.2.3",
+    "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.454.0",
     "next": "^14.2.35",
     "nodemailer": "^9.0.3",

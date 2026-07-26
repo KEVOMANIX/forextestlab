@@ -35,6 +35,11 @@ describe("real market-time replay speed", () => {
     expect(replayIntervalMs(7200, "1m", 15)).toBe(125);
   });
 
+  it("forms a 15-minute step in one second at 15m/s", () => {
+    expect(replayIntervalMs(900, "1m", 15)).toBe(1_000);
+    expect(replayIntervalMs(900, "15m", 1)).toBe(1_000);
+  });
+
   it("migrates legacy candles-per-second session speeds", () => {
     expect(normalizeReplaySpeed(0.5)).toBe(30);
     expect(normalizeReplaySpeed(1)).toBe(DEFAULT_REPLAY_SPEED);

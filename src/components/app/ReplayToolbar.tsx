@@ -73,8 +73,8 @@ function ControlBtn({
 }
 
 function speedLabel(speed: ReplaySpeed): string {
-  // Replay speeds are stored as timeframe multipliers per minute. Convert to
-  // the market-time rate users actually experience per wall-clock second.
+  // Speed values are seconds of market time per wall-clock second. Convert to
+  // minutes per second so the label matches the actual replay progression.
   const minutesPerSecond = speed / 60;
   if (minutesPerSecond >= 24 * 60) {
     const days = minutesPerSecond / (24 * 60);

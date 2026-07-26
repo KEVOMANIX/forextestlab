@@ -584,7 +584,6 @@ export default function PriceChart({
     renderRafRef.current = requestAnimationFrame(() => {
       renderRafRef.current = null;
       renderMain();
-      if (followLatestRef.current) chartRef.current?.timeScale().scrollToRealTime();
     });
   }
 

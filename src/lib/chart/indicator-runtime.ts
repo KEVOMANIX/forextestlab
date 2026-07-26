@@ -208,8 +208,10 @@ export class Indicator {
    */
   update(inst: IndicatorInstance, candles: OHLCV[]): void {
     const last = candles[candles.length - 1];
-    // Cheap data fingerprint: bar count + the last bar's time & (forming) close.
-    const dataKey = `${candles.length}:${last ? `${last.time}:${last.close}` : ""}`;
+    // Include the full latest bar because a forming candle can change its
+    // high/low/open while its close remains unchanged. ATR, Supertrend and
+    // range-based indicators must recalculate for those updates.
+    const dataKey = `${candles.length}:${last ? `${last.time}:${last.open}:${last.high}:${last.low}:${last.close}:${last.volume ?? ""}` : ""}`;
     const inputsKey = JSON.stringify(inst.inputs);
     const changed = inputsKey !== this.inputsKey || dataKey !== this.dataKey || !this.result;
     this.inst = inst;

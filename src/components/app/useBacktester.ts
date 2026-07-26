@@ -543,7 +543,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
         schedule(Math.max(0, nextDelay - (performance.now() - started)));
       }, delayOverride ?? delay);
     };
-    schedule();
+    // Render the first replay step immediately. Waiting for the first cadence
+    // interval makes Play and speed changes feel unresponsive at slower rates.
+    schedule(0);
   }, [stopLocalScheduler]);
 
   useEffect(() => stopLocalScheduler, [stopLocalScheduler]);

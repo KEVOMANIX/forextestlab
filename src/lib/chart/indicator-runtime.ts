@@ -81,6 +81,7 @@ export class Indicator {
   private priceLines: IPriceLine[] = [];
   private result: ComputeResult | null = null;
   private inputsKey = "";
+  private dataKey = "";
 
   /** `paneIndex` 0 = the main price pane; >0 = a dedicated oscillator pane. */
   constructor(chart: IChartApi, inst: IndicatorInstance, fallbackPrecision: number, paneIndex = 0) {
@@ -201,15 +202,20 @@ export class Indicator {
   }
 
   /**
-   * Reconcile with a new instance state + candles. Recomputes only when inputs
-   * changed (style / visibility toggles skip the math).
+   * Reconcile with a new instance state + candles. Recomputes when the inputs
+   * OR the candle data changed (new/updated bars during replay); a pure style /
+   * visibility toggle skips the math and only re-applies options.
    */
   update(inst: IndicatorInstance, candles: OHLCV[]): void {
-    const nextKey = JSON.stringify(inst.inputs);
-    const inputsChanged = nextKey !== this.inputsKey;
+    const last = candles[candles.length - 1];
+    // Cheap data fingerprint: bar count + the last bar's time & (forming) close.
+    const dataKey = `${candles.length}:${last ? `${last.time}:${last.close}` : ""}`;
+    const inputsKey = JSON.stringify(inst.inputs);
+    const changed = inputsKey !== this.inputsKey || dataKey !== this.dataKey || !this.result;
     this.inst = inst;
-    this.inputsKey = nextKey;
-    if (inputsChanged || !this.result) {
+    this.inputsKey = inputsKey;
+    this.dataKey = dataKey;
+    if (changed) {
       this.calculate(candles);
       this.draw(candles);
     } else {

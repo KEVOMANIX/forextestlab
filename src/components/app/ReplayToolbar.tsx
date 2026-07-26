@@ -23,7 +23,6 @@ import {
   type ReplayStepMinutes,
 } from "@/lib/backtest/types";
 import { TIMEFRAME_MS } from "@/lib/market-data/types";
-import { replayBatchSize, replayIntervalMs } from "@/lib/backtest/client";
 
 interface ReplayToolbarProps {
   state: PublicSessionState;
@@ -74,6 +73,19 @@ function ControlBtn({
   );
 }
 
+function speedLabel(speed: ReplaySpeed, timeframe: PublicSessionState["config"]["timeframe"]): string {
+  const minutesPerSecond = (speed * TIMEFRAME_MS[timeframe]) / 60_000;
+  if (minutesPerSecond >= 24 * 60) {
+    const days = minutesPerSecond / (24 * 60);
+    return `${days >= 10 ? Math.round(days) : days.toFixed(1)}d/s`;
+  }
+  if (minutesPerSecond >= 60) {
+    const hours = minutesPerSecond / 60;
+    return `${hours >= 10 ? Math.round(hours) : hours.toFixed(1)}h/s`;
+  }
+  return `${minutesPerSecond >= 10 ? Math.round(minutesPerSecond) : minutesPerSecond.toFixed(1)}m/s`;
+}
+
 export function ReplayToolbar({
   state,
   busy,
@@ -108,26 +120,7 @@ export function ReplayToolbar({
     state.visibleIndex > state.config.initialVisibleCount - 1;
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));
-  const stepCount = Math.max(
-    1,
-    Math.round(
-      (stepMinutes * TIMEFRAME_MS["1m"]) /
-        TIMEFRAME_MS[state.config.timeframe],
-    ),
-  );
-  const cadenceMs = replayIntervalMs(
-    state.speed,
-    state.config.timeframe,
-    stepCount,
-  );
-  const batchSize = replayBatchSize(
-    state.speed,
-    state.config.timeframe,
-    stepCount,
-  );
-  const cadenceLabel = cadenceMs >= 1000 && batchSize === 1
-    ? `1 step / ${(cadenceMs / 1000).toFixed(cadenceMs % 1000 === 0 ? 0 : 1)}s`
-    : `${((1000 / cadenceMs) * batchSize).toFixed(1)} steps/s`;
+  const cadenceLabel = speedLabel(state.speed, state.config.timeframe);
 
   function clampPosition(x: number, y: number) {
     const toolbox = toolboxRef.current;
@@ -305,7 +298,7 @@ export function ReplayToolbar({
           </label>
           <span className="h-4 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
           <label htmlFor="replay-speed" className="shrink-0 font-mono text-[10px] font-semibold text-brand-300">
-            {state.speed}x
+            {speedLabel(state.speed, state.config.timeframe)}
           </label>
           <input
             id="replay-speed"
@@ -319,16 +312,16 @@ export function ReplayToolbar({
               if (selected !== undefined) onSpeed(selected);
             }}
             aria-label="Replay speed"
-            aria-valuetext={`${state.speed} times real market time, ${cadenceLabel}`}
+            aria-valuetext={`${cadenceLabel} replay speed`}
             className="h-1.5 min-w-0 flex-1 cursor-pointer accent-emerald-400"
           />
           <span className="shrink-0 font-mono text-[9px] app-muted">{cadenceLabel}</span>
         </div>
 
         <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] app-muted">
-          <span>{availableSpeeds[0]}x</span>
+          <span>{speedLabel(availableSpeeds[0]!, state.config.timeframe)}</span>
           {finished && <span className="text-brand-300">Finished</span>}
-          <span>{availableSpeeds[availableSpeeds.length - 1]}x</span>
+          <span>{speedLabel(availableSpeeds[availableSpeeds.length - 1]!, state.config.timeframe)}</span>
         </div>
       </div>
     </div>

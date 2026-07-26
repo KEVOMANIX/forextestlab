@@ -385,6 +385,7 @@ export default function PriceChart({
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const renderRafRef = useRef<number | null>(null);
+  const lineCoordRafRef = useRef<number | null>(null);
   const priceIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const ownIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const ownOrderRef = useRef<string>("");
@@ -570,7 +571,7 @@ export default function PriceChart({
     // update otherwise avoids a full React re-render on every replay tick (which
     // made panning/zooming janky during fast playback).
     if (indicators.some((i) => getDef(i.kind)?.render === "overlay")) setDisplayCandles(display);
-    requestAnimationFrame(updateLineCoordinates);
+    scheduleLineCoordinates();
   }
 
   /**
@@ -584,6 +585,14 @@ export default function PriceChart({
     renderRafRef.current = requestAnimationFrame(() => {
       renderRafRef.current = null;
       renderMain();
+    });
+  }
+
+  function scheduleLineCoordinates() {
+    if (lineCoordRafRef.current != null) return;
+    lineCoordRafRef.current = requestAnimationFrame(() => {
+      lineCoordRafRef.current = null;
+      updateLineCoordinates();
     });
   }
 
@@ -683,6 +692,7 @@ export default function PriceChart({
     chart.timeScale().subscribeVisibleLogicalRangeChange(coordinateUpdate);
 
     const onCrosshair = (param: MouseEventParams<Time>) => {
+      scheduleLineCoordinates();
       const series = seriesRef.current;
       if (!series || !param.time) {
         setLegend(null);
@@ -703,6 +713,7 @@ export default function PriceChart({
     };
     container.addEventListener("pointerdown", detachFromLatest, true);
     container.addEventListener("wheel", detachFromLatest, { passive: true });
+    container.addEventListener("pointermove", scheduleLineCoordinates, { passive: true });
     const observer = new ResizeObserver(coordinateUpdate);
     observer.observe(container);
 
@@ -710,6 +721,8 @@ export default function PriceChart({
       observer.disconnect();
       container.removeEventListener("pointerdown", detachFromLatest, true);
       container.removeEventListener("wheel", detachFromLatest);
+      container.removeEventListener("pointermove", scheduleLineCoordinates);
+      if (lineCoordRafRef.current != null) cancelAnimationFrame(lineCoordRafRef.current);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(coordinateUpdate);
       chart.unsubscribeCrosshairMove(onCrosshair);
       if (renderRafRef.current != null) cancelAnimationFrame(renderRafRef.current);
@@ -866,7 +879,7 @@ export default function PriceChart({
   }, [takeProfit]);
 
   useEffect(() => {
-    requestAnimationFrame(updateLineCoordinates);
+    scheduleLineCoordinates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopDraft, targetDraft]);
 
@@ -888,7 +901,7 @@ export default function PriceChart({
         );
       }
     }
-    requestAnimationFrame(updateLineCoordinates);
+    scheduleLineCoordinates();
     return () => {
       if (!seriesRef.current) return;
       for (const line of positionLinesRef.current) seriesRef.current.removePriceLine(line);

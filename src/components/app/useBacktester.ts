@@ -11,7 +11,6 @@ import {
   getChartHistory,
   getStateWithToken,
   sendAction,
-  replayBatchSize,
   replayIntervalMs,
   type CreateSessionBody,
   type CreatedSession,
@@ -98,7 +97,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
   const stepRef = useRef<(batchSize?: number) => Promise<void>>(async () => {});
-  const replayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const replayFrameRef = useRef<number | null>(null);
+  const replayLastFrameRef = useRef<number | null>(null);
+  const replayAccumulatorRef = useRef(0);
+  const replayFrameBusyRef = useRef(false);
   const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
   const localEngineRef = useRef<EngineContext | null>(null);
 
@@ -476,8 +478,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
       error: extensionError ?? prev.error,
     }));
     if (finished) {
-      if (replayTimerRef.current) clearTimeout(replayTimerRef.current);
-      replayTimerRef.current = null;
+      if (replayFrameRef.current != null) cancelAnimationFrame(replayFrameRef.current);
+      replayFrameRef.current = null;
       setS((prev) => ({ ...prev, endOfData: true }));
       void runAction(
         {
@@ -493,59 +495,39 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const status = s.state?.status;
 
   const stopLocalScheduler = useCallback(() => {
-    if (replayTimerRef.current) clearTimeout(replayTimerRef.current);
-    replayTimerRef.current = null;
+    if (replayFrameRef.current != null) cancelAnimationFrame(replayFrameRef.current);
+    replayFrameRef.current = null;
+    replayLastFrameRef.current = null;
+    replayAccumulatorRef.current = 0;
+    replayFrameBusyRef.current = false;
   }, []);
 
   const startLocalScheduler = useCallback(() => {
     stopLocalScheduler();
-    const schedule = (delayOverride?: number) => {
+    const schedule = () => {
       const engine = localEngineRef.current;
       if (!engine || engine.state.status !== "running") return;
-      const delay = replayIntervalMs(
-        engine.state.speed,
-        engine.state.config.timeframe,
-        Math.max(
-          1,
-          Math.round(
-            (replayStepRef.current * TIMEFRAME_MS["1m"]) /
-              TIMEFRAME_MS[engine.state.config.timeframe],
-          ),
-        ),
-      );
-      const batchSize = replayBatchSize(
-        engine.state.speed,
-        engine.state.config.timeframe,
-        Math.max(
-          1,
-          Math.round(
-            (replayStepRef.current * TIMEFRAME_MS["1m"]) /
-              TIMEFRAME_MS[engine.state.config.timeframe],
-          ),
-        ),
-      );
-      replayTimerRef.current = setTimeout(async () => {
-        const started = performance.now();
-        await stepRef.current(batchSize);
+      replayFrameRef.current = requestAnimationFrame(async (now) => {
         const current = localEngineRef.current;
         if (!current || current.state.status !== "running") return;
-        const nextDelay = replayIntervalMs(
-          current.state.speed,
-          current.state.config.timeframe,
-          Math.max(
-            1,
-            Math.round(
-              (replayStepRef.current * TIMEFRAME_MS["1m"]) /
-                TIMEFRAME_MS[current.state.config.timeframe],
-            ),
-          ),
-        );
-        schedule(Math.max(0, nextDelay - (performance.now() - started)));
-      }, delayOverride ?? delay);
+        const previous = replayLastFrameRef.current ?? now;
+        replayLastFrameRef.current = now;
+        replayAccumulatorRef.current += Math.min(100, Math.max(0, now - previous));
+        const stepCount = Math.max(1, Math.round((replayStepRef.current * TIMEFRAME_MS["1m"]) / TIMEFRAME_MS[current.state.config.timeframe]));
+        const cadence = replayIntervalMs(current.state.speed, current.state.config.timeframe, stepCount);
+        const due = Math.floor(replayAccumulatorRef.current / cadence);
+        if (due > 0 && !replayFrameBusyRef.current) {
+          const batchSize = Math.min(64, due);
+          replayAccumulatorRef.current -= batchSize * cadence;
+          replayFrameBusyRef.current = true;
+          await stepRef.current(batchSize);
+          replayFrameBusyRef.current = false;
+        }
+        if (localEngineRef.current?.state.status === "running") schedule();
+      });
     };
-    // Render the first replay step immediately. Waiting for the first cadence
-    // interval makes Play and speed changes feel unresponsive at slower rates.
-    schedule(0);
+    replayLastFrameRef.current = null;
+    schedule();
   }, [stopLocalScheduler]);
 
   useEffect(() => stopLocalScheduler, [stopLocalScheduler]);

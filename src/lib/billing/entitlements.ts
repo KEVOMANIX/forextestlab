@@ -33,7 +33,7 @@ export function planEntitlements(
     maxSavedSessions: pro ? null : 3,
     maxSessionDays: pro ? null : 31,
     maxPairsPerSession: pro ? null : 1,
-    maxReplaySpeed: pro ? 28800 : 1200,
+    maxReplaySpeed: pro ? 115200 : 1200,
     fullAnalytics: pro,
     csvExports: pro,
     trialSessionsRemaining,

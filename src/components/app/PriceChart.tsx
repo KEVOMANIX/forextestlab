@@ -384,6 +384,7 @@ export default function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const renderRafRef = useRef<number | null>(null);
   const priceIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const ownIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const ownOrderRef = useRef<string>("");
@@ -572,6 +573,21 @@ export default function PriceChart({
     requestAnimationFrame(updateLineCoordinates);
   }
 
+  /**
+   * Coalesce renderMain to at most once per animation frame. Fast replay can
+   * emit new candles far faster than the screen refreshes; without this each
+   * tick re-aggregates history + re-feeds the series + recomputes indicators,
+   * saturating the main thread and making pan/zoom stutter.
+   */
+  function scheduleRender() {
+    if (renderRafRef.current != null) return;
+    renderRafRef.current = requestAnimationFrame(() => {
+      renderRafRef.current = null;
+      renderMain();
+      if (followLatestRef.current) chartRef.current?.timeScale().scrollToRealTime();
+    });
+  }
+
   function createSeriesPair(type: ChartType) {
     const chart = chartRef.current;
     if (!chart) return;
@@ -697,6 +713,7 @@ export default function PriceChart({
       container.removeEventListener("wheel", detachFromLatest);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(coordinateUpdate);
       chart.unsubscribeCrosshairMove(onCrosshair);
+      if (renderRafRef.current != null) cancelAnimationFrame(renderRafRef.current);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -762,8 +779,7 @@ export default function PriceChart({
       const existing = candles.findIndex((candle) => candle.timestamp === nextCandle.timestamp);
       rawCandlesRef.current = existing >= 0 ? candles.map((candle, index) => (index === existing ? nextCandle : candle)) : [...candles, nextCandle];
     }
-    renderMain();
-    if (followLatestRef.current) chartRef.current?.timeScale().scrollToRealTime();
+    scheduleRender();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastCandle, lastCandles]);
 

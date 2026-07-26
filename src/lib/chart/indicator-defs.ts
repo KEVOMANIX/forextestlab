@@ -275,29 +275,21 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
   {
     kind: "supertrend",
     name: "Supertrend",
-    description: "ATR-based trailing stop. Green support line in uptrends, red resistance in downtrends.",
+    description: "ATR-based trailing stop. A single continuous trailing line that flips sides on trend reversal.",
     category: "trend",
     pane: "price",
     inputs: [
       { key: "atrLength", label: "ATR Length", type: "number", default: 10, min: 1, max: 100, section: "inputs" },
       { key: "mult", label: "Factor", type: "number", default: 3, min: 0.5, max: 20, step: 0.1, section: "inputs" },
     ],
-    plots: [
-      { key: "up", label: "Uptrend", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 2 },
-      { key: "down", label: "Downtrend", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 2 },
-    ],
+    // One continuous line: lightweight-charts joins across null gaps, so two
+    // gappy up/down series produced a spurious diagonal across long trends.
+    plots: [{ key: "st", label: "Supertrend", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 2 }],
     precision: null,
     short: (i) => `Supertrend ${num(i.atrLength, 10)} ${num(i.mult, 3)}`,
     compute: (candles, i) => {
       const pts = supertrend(candles, num(i.atrLength, 10), num(i.mult, 3));
-      const up: MaybeNumber[] = pts.map((p) => (p.up === true ? p.value : null));
-      const down: MaybeNumber[] = pts.map((p) => (p.up === false ? p.value : null));
-      // Bridge the reversal bar so segments visually connect.
-      for (let k = 1; k < pts.length; k++) {
-        if (pts[k]!.up === true && pts[k - 1]!.up === false) up[k - 1] = pts[k]!.value;
-        if (pts[k]!.up === false && pts[k - 1]!.up === true) down[k - 1] = pts[k]!.value;
-      }
-      return { lines: { up, down } };
+      return { lines: { st: pts.map((p) => p.value) } };
     },
   },
   {

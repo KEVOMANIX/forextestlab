@@ -74,7 +74,9 @@ function ControlBtn({
 }
 
 function speedLabel(speed: ReplaySpeed, timeframe: PublicSessionState["config"]["timeframe"]): string {
-  const minutesPerSecond = (speed * TIMEFRAME_MS[timeframe]) / 60_000;
+  // Replay speeds are stored as timeframe multipliers per minute. Convert to
+  // the market-time rate users actually experience per wall-clock second.
+  const minutesPerSecond = (speed * TIMEFRAME_MS[timeframe]) / 3_600_000;
   if (minutesPerSecond >= 24 * 60) {
     const days = minutesPerSecond / (24 * 60);
     return `${days >= 10 ? Math.round(days) : days.toFixed(1)}d/s`;

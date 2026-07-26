@@ -565,7 +565,10 @@ export default function PriceChart({
     displayRef.current = display;
     applyData(series, chartTypeRef.current, display);
     syncIndicators(display);
-    setDisplayCandles(display);
+    // `displayCandles` only feeds the Volume Profile overlay; skipping this state
+    // update otherwise avoids a full React re-render on every replay tick (which
+    // made panning/zooming janky during fast playback).
+    if (indicators.some((i) => getDef(i.kind)?.render === "overlay")) setDisplayCandles(display);
     requestAnimationFrame(updateLineCoordinates);
   }
 
@@ -639,19 +642,28 @@ export default function PriceChart({
       }
     }
 
+    // Coalesce range-change bursts (e.g. auto-scroll during fast replay fires
+    // this per tick) into at most one update per animation frame, so React
+    // re-renders and localStorage writes don't storm and choke panning.
+    let coordScheduled = false;
     const coordinateUpdate = () => {
-      updateLineCoordinates();
-      setViewVersion((v) => v + 1);
-      const visible = chart.timeScale().getVisibleLogicalRange();
-      if (visible && visible.from < 100) loadOlderRef.current();
-      if (!storageKey) return;
-      const range = chart.timeScale().getVisibleLogicalRange();
-      try {
-        const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${storageKey}`) ?? "{}") as Record<string, unknown>;
-        window.localStorage.setItem(`forextestlab:chart:${storageKey}`, JSON.stringify({ ...existing, range }));
-      } catch {
-        // Local persistence is a convenience; chart interaction must still work.
-      }
+      if (coordScheduled) return;
+      coordScheduled = true;
+      requestAnimationFrame(() => {
+        coordScheduled = false;
+        updateLineCoordinates();
+        setViewVersion((v) => v + 1);
+        const visible = chart.timeScale().getVisibleLogicalRange();
+        if (visible && visible.from < 100) loadOlderRef.current();
+        if (!storageKey) return;
+        const range = chart.timeScale().getVisibleLogicalRange();
+        try {
+          const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${storageKey}`) ?? "{}") as Record<string, unknown>;
+          window.localStorage.setItem(`forextestlab:chart:${storageKey}`, JSON.stringify({ ...existing, range }));
+        } catch {
+          // Local persistence is a convenience; chart interaction must still work.
+        }
+      });
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(coordinateUpdate);
 

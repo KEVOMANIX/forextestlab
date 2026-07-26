@@ -86,6 +86,7 @@ import type { DrawingEngine } from "@/lib/chart/drawing/engine";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { IndicatorPane } from "./IndicatorPane";
+import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
 
 export interface ChartMarker {
   time: number;
@@ -402,6 +403,7 @@ export default function PriceChart({
   const [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
   const [openCats, setOpenCats] = useState<Set<IndCategory>>(() => new Set(CATEGORY_ORDER));
+  const [anchorPick, setAnchorPick] = useState<{ id: string; key: string } | null>(null);
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
   const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
@@ -494,7 +496,10 @@ export default function PriceChart({
     const chart = chartRef.current;
     if (!chart) return;
     const map = priceIndicatorsRef.current;
-    const priceInsts = indicators.filter((i) => getDef(i.kind)?.pane === "price");
+    const priceInsts = indicators.filter((i) => {
+      const d = getDef(i.kind);
+      return d?.pane === "price" && d.render !== "overlay";
+    });
     const live = new Set(priceInsts.map((i) => i.id));
     for (const [id, ind] of map.entries()) {
       if (!live.has(id)) {
@@ -810,6 +815,15 @@ export default function PriceChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positions, activePositionId, seriesEpoch]);
 
+  useEffect(() => {
+    if (!anchorPick) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAnchorPick(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [anchorPick]);
+
   function goToLatest() {
     followLatestRef.current = true;
     chartRef.current?.timeScale().scrollToRealTime();
@@ -907,7 +921,25 @@ export default function PriceChart({
     setIndicators((prev) => [...prev, inst]);
     setMenu(null);
     setIndicatorSearch("");
-    setIndicatorEditing(inst.id); // open settings so the user sets it themselves
+    const anchorInput = getDef(kind)?.inputs.find((i) => i.type === "anchor");
+    if (anchorInput) setAnchorPick({ id: inst.id, key: anchorInput.key }); // click chart to anchor
+    else setIndicatorEditing(inst.id); // open settings so the user sets it themselves
+  }
+
+  /** Resolve the chart x-coordinate of a pick click to a candle time. */
+  function commitAnchor(clientX: number) {
+    const rect = containerRef.current?.getBoundingClientRect();
+    const scale = chartRef.current?.timeScale();
+    if (!rect || !scale || !anchorPick) return;
+    const logical = scale.coordinateToLogical(clientX - rect.left);
+    const arr = displayRef.current;
+    if (logical == null || arr.length === 0) return;
+    const idx = Math.max(0, Math.min(arr.length - 1, Math.round(logical)));
+    const time = arr[idx]?.time;
+    if (time == null) return;
+    const { id, key } = anchorPick;
+    setIndicators((prev) => prev.map((i) => (i.id === id ? { ...i, inputs: { ...i.inputs, [key]: time } } : i)));
+    setAnchorPick(null);
   }
 
   function toggleCategory(cat: IndCategory) {
@@ -928,8 +960,12 @@ export default function PriceChart({
     setIndicatorEditing((cur) => (cur === id ? null : cur));
   }
 
-  const pricePaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "price");
+  const pricePaneIndicators = indicators.filter((i) => {
+    const d = getDef(i.kind);
+    return d?.pane === "price" && d.render !== "overlay";
+  });
   const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
+  const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
   // reach them — use an explicit solid colour keyed to the theme.
@@ -1056,6 +1092,37 @@ export default function PriceChart({
           engineRef={drawingEngineRef}
           storageKey={storageKey}
         />
+
+        {/* Volume Profile — custom canvas overlay (no lightweight-charts primitive). */}
+        {overlayIndicators.map((inst) => (
+          <VolumeProfileOverlay
+            key={inst.id}
+            instance={inst}
+            chart={chartApi}
+            series={priceSeries}
+            candles={displayCandles}
+            theme={theme}
+            viewVersion={viewVersion}
+            onEdit={() => setIndicatorEditing(inst.id)}
+            onRemove={() => removeIndicator(inst.id)}
+          />
+        ))}
+
+        {/* Anchor-pick mode — click a candle to set an anchored indicator's origin. */}
+        {anchorPick && (
+          <div className="absolute inset-0 z-40 cursor-crosshair" onClick={(e) => commitAnchor(e.clientX)}>
+            <div className="pointer-events-none absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-2 rounded-md bg-brand-500 px-3 py-1 text-xs font-semibold text-surface-950 shadow-lg">
+              Click a candle to set the anchor
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setAnchorPick(null); }}
+                className="pointer-events-auto rounded bg-black/20 px-1.5 py-0.5 text-[10px]"
+              >
+                Esc
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Buy/Sell order ticket floated at the chart's top-left, TradingView-style. */}
         {orderTicket && (
@@ -1346,6 +1413,7 @@ export default function PriceChart({
             value={inst}
             onChange={(patch) => updateIndicator(inst.id, patch)}
             onClose={() => setIndicatorEditing(null)}
+            onPickAnchor={(key) => { setIndicatorEditing(null); setAnchorPick({ id: inst.id, key }); }}
           />
         ) : null;
       })()}

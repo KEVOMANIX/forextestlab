@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { RotateCcw, X } from "lucide-react";
+import { Crosshair, RotateCcw, X } from "lucide-react";
 
+import { formatNewYorkDateTime } from "@/lib/date-time";
 import {
   CATEGORY_LABELS,
   SOURCE_OPTIONS,
@@ -22,6 +23,8 @@ interface Props {
   value: IndicatorInstance;
   onChange: (patch: Partial<IndicatorInstance>) => void;
   onClose: () => void;
+  /** Start "click the chart to set this input" mode (for anchor inputs). */
+  onPickAnchor?: (inputKey: string) => void;
 }
 
 const SECTION_LABELS: Record<InputSection, string> = {
@@ -47,7 +50,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 const inputCls = "rounded border app-border bg-transparent px-1.5 py-1 text-right";
 
-export function IndicatorSettingsDialog({ value, onChange, onClose }: Props) {
+export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor }: Props) {
   const [tab, setTab] = useState<Tab>("inputs");
   const def = getDef(value.kind);
   if (!def) return null;
@@ -59,6 +62,19 @@ export function IndicatorSettingsDialog({ value, onChange, onClose }: Props) {
 
   const renderInput = (inp: InputDef) => {
     const v = value.inputs[inp.key];
+    if (inp.type === "anchor") {
+      const t = Number(v);
+      return (
+        <button
+          type="button"
+          onClick={() => onPickAnchor?.(inp.key)}
+          className="inline-flex items-center gap-1.5 rounded border app-border px-2 py-1 text-[11px] hover:bg-[var(--app-panel-2)]"
+        >
+          <Crosshair size={12} />
+          {t > 0 ? formatNewYorkDateTime(t * 1000, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Pick on chart"}
+        </button>
+      );
+    }
     if (inp.type === "boolean") {
       return <input type="checkbox" checked={Boolean(v)} onChange={(e) => setInput(inp.key, e.target.checked)} className="accent-brand-400" />;
     }

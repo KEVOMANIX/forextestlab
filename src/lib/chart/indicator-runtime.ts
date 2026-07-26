@@ -143,7 +143,11 @@ export class Indicator {
       }
 
       const values = shift<number>(result.lines?.[plot.key] ?? [], offset, null);
-      const data = times.map((t, i) => (values[i] == null ? { time: t } : { time: t, value: values[i] as number }));
+      // Sparse plots (e.g. Zig Zag) omit undefined points so the line connects
+      // across gaps instead of breaking at every whitespace bar.
+      const data = plot.sparse
+        ? times.flatMap((t, i) => (values[i] == null ? [] : [{ time: t, value: values[i] as number }]))
+        : times.map((t, i) => (values[i] == null ? { time: t } : { time: t, value: values[i] as number }));
       (series as ISeriesApi<"Line">).setData(data as (LineData<Time> | WhitespaceData<Time>)[]);
     }
     this.applyStyle();

@@ -16,6 +16,7 @@
 
 import {
   adx,
+  anchoredVwap,
   atr,
   bollinger,
   cci,
@@ -30,6 +31,8 @@ import {
   movingAverage,
   obv,
   pickSource,
+  pivotPoints,
+  regressionChannel,
   roc,
   rsi,
   sessionVwap,
@@ -40,8 +43,10 @@ import {
   supertrend,
   williamsR,
   wma,
+  zigzag,
   type MaybeNumber,
   type OHLCV,
+  type PivotType,
   type PriceSource,
 } from "./indicators";
 
@@ -78,7 +83,7 @@ const MA_TYPE_OPTIONS = [
 
 // ── Schema types ───────────────────────────────────────────────────────────
 
-export type InputType = "number" | "source" | "select" | "boolean";
+export type InputType = "number" | "source" | "select" | "boolean" | "anchor";
 export type InputSection = "inputs" | "smoothing" | "calculation";
 
 export interface InputDef {
@@ -102,6 +107,8 @@ export interface PlotDef {
   defaultColor: string;
   defaultLineWidth?: number;
   defaultLineStyle?: LineStyleName;
+  /** Draw only defined points and connect across gaps (e.g. Zig Zag pivots). */
+  sparse?: boolean;
 }
 
 export interface HLine {
@@ -139,6 +146,8 @@ export interface IndicatorDef {
   description: string;
   category: IndCategory;
   pane: IndPane;
+  /** "series" → drawn via lightweight-charts (default). "overlay" → custom canvas (Volume Profile). */
+  render?: "series" | "overlay";
   inputs: InputDef[];
   plots: PlotDef[];
   /** Guide lines drawn on own-pane oscillators (overbought / zero / …). */
@@ -664,6 +673,168 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     precision: 2,
     short: (i) => `CMF ${num(i.length, 20)}`,
     compute: (candles, i) => ({ lines: { cmf: cmf(candles, num(i.length, 20)) } }),
+  },
+  {
+    kind: "volprofile",
+    name: "Volume Profile (Visible Range)",
+    description: "Horizontal volume-by-price histogram over the visible range, with POC and value area (VAH/VAL).",
+    category: "volume",
+    pane: "price",
+    render: "overlay",
+    inputs: [
+      { key: "rows", label: "Rows", type: "number", default: 24, min: 6, max: 120, section: "inputs" },
+      { key: "vaPercent", label: "Value area %", type: "number", default: 70, min: 30, max: 95, section: "inputs" },
+      { key: "side", label: "Placement", type: "select", default: "right", options: [{ value: "right", label: "Right" }, { value: "left", label: "Left" }], section: "inputs" },
+      { key: "widthPct", label: "Width %", type: "number", default: 30, min: 5, max: 90, section: "inputs" },
+      { key: "showPoc", label: "Show POC", type: "boolean", default: true, section: "inputs" },
+      { key: "showVa", label: "Show value area", type: "boolean", default: true, section: "inputs" },
+    ],
+    plots: [
+      { key: "va", label: "Value area", kind: "histogram", defaultColor: "#5b8bff" },
+      { key: "outside", label: "Outside value area", kind: "histogram", defaultColor: "#5b6b8a" },
+      { key: "poc", label: "POC line", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 1 },
+    ],
+    precision: null,
+    short: () => "Volume Profile",
+    compute: () => ({}),
+  },
+
+  // ── Trend — geometric / structural (price pane) ──
+  {
+    kind: "avwap",
+    name: "Anchored VWAP",
+    description: "VWAP accumulated from a user-selected anchor candle. Click the chart to set the anchor.",
+    category: "trend",
+    pane: "price",
+    inputs: [
+      { key: "anchorTime", label: "Anchor", type: "anchor", default: 0, section: "inputs" },
+      { key: "showBands", label: "Show bands", type: "boolean", default: false, section: "inputs" },
+      { key: "bandMult", label: "Band multiplier", type: "number", default: 1, min: 0.1, max: 10, step: 0.1, section: "calculation" },
+    ],
+    plots: [
+      { key: "avwap", label: "Anchored VWAP", kind: "line", defaultColor: "#e879f9", defaultLineWidth: 2 },
+      { key: "upper", label: "Upper band", kind: "line", defaultColor: "#93a1b8", defaultLineWidth: 1, defaultLineStyle: "dashed" },
+      { key: "lower", label: "Lower band", kind: "line", defaultColor: "#93a1b8", defaultLineWidth: 1, defaultLineStyle: "dashed" },
+    ],
+    precision: null,
+    short: () => "Anchored VWAP",
+    compute: (candles, i) => {
+      const anchorTime = num(i.anchorTime, 0);
+      let anchorIndex = 0;
+      if (anchorTime > 0) {
+        anchorIndex = candles.findIndex((c) => c.time >= anchorTime);
+        if (anchorIndex < 0) anchorIndex = candles.length - 1;
+      }
+      const line = anchoredVwap(candles, anchorIndex);
+      const lines: Record<string, MaybeNumber[]> = { avwap: line };
+      if (bool(i.showBands, false)) {
+        // ±σ of typical price around the running mean since the anchor.
+        const upper: MaybeNumber[] = new Array(candles.length).fill(null);
+        const lower: MaybeNumber[] = new Array(candles.length).fill(null);
+        let cumV = 0;
+        let cumPV2 = 0;
+        const mult = num(i.bandMult, 1);
+        for (let k = anchorIndex; k < candles.length; k++) {
+          const c = candles[k]!;
+          const tp = (c.high + c.low + c.close) / 3;
+          const v = c.volume && c.volume > 0 ? c.volume : 1;
+          cumV += v;
+          cumPV2 += tp * tp * v;
+          const mean = line[k];
+          if (mean == null || !cumV) continue;
+          const variance = Math.max(0, cumPV2 / cumV - mean * mean);
+          const sd = Math.sqrt(variance);
+          upper[k] = mean + mult * sd;
+          lower[k] = mean - mult * sd;
+        }
+        lines.upper = upper;
+        lines.lower = lower;
+      }
+      return { lines };
+    },
+  },
+  {
+    kind: "zigzag",
+    name: "Zig Zag",
+    description: "Connects confirmed swing highs and lows, filtering noise below the deviation threshold.",
+    category: "trend",
+    pane: "price",
+    inputs: [
+      { key: "deviation", label: "Deviation %", type: "number", default: 5, min: 0.1, max: 50, step: 0.1, section: "inputs" },
+      { key: "depth", label: "Depth", type: "number", default: 10, min: 1, max: 200, section: "inputs" },
+    ],
+    plots: [{ key: "zz", label: "Zig Zag", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 2, sparse: true }],
+    precision: null,
+    short: (i) => `Zig Zag ${num(i.deviation, 5)}%`,
+    compute: (candles, i) => {
+      const pivots = zigzag(candles, num(i.deviation, 5), num(i.depth, 10));
+      const zz: MaybeNumber[] = new Array(candles.length).fill(null);
+      for (const p of pivots) if (p.index >= 0 && p.index < zz.length) zz[p.index] = p.price;
+      return { lines: { zz } };
+    },
+  },
+  {
+    kind: "lrc",
+    name: "Linear Regression Channel",
+    description: "Least-squares trend line over the last N bars, with ±σ deviation channels.",
+    category: "trend",
+    pane: "price",
+    inputs: [
+      { key: "length", label: "Length", type: "number", default: 100, min: 5, max: 1000, section: "inputs" },
+      SOURCE_INPUT,
+      { key: "mult", label: "Deviation multiplier", type: "number", default: 2, min: 0.1, max: 10, step: 0.1, section: "calculation" },
+    ],
+    plots: [
+      { key: "upper", label: "Upper", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "mid", label: "Regression", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 2 },
+      { key: "lower", label: "Lower", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+    ],
+    precision: null,
+    short: (i) => `Regression ${num(i.length, 100)}`,
+    compute: (candles, i) => {
+      const src = pickSource(candles, str(i.source, "close") as PriceSource);
+      const r = regressionChannel(src, num(i.length, 100), num(i.mult, 2));
+      return { lines: { upper: r.upper, mid: r.mid, lower: r.lower } };
+    },
+  },
+  {
+    kind: "pivots",
+    name: "Pivot Points",
+    description: "Session pivot levels (PP / R1-3 / S1-3) from the prior session's OHLC.",
+    category: "trend",
+    pane: "price",
+    inputs: [
+      {
+        key: "type",
+        label: "Type",
+        type: "select",
+        default: "traditional",
+        options: [
+          { value: "traditional", label: "Traditional" },
+          { value: "classic", label: "Classic" },
+          { value: "fibonacci", label: "Fibonacci" },
+          { value: "woodie", label: "Woodie" },
+          { value: "camarilla", label: "Camarilla" },
+          { value: "demark", label: "DeMark" },
+        ],
+        section: "inputs",
+      },
+    ],
+    plots: [
+      { key: "pp", label: "PP", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 2 },
+      { key: "r1", label: "R1", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 1 },
+      { key: "r2", label: "R2", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 1, defaultLineStyle: "dashed" },
+      { key: "r3", label: "R3", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 1, defaultLineStyle: "dotted" },
+      { key: "s1", label: "S1", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 1 },
+      { key: "s2", label: "S2", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 1, defaultLineStyle: "dashed" },
+      { key: "s3", label: "S3", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 1, defaultLineStyle: "dotted" },
+    ],
+    precision: null,
+    short: () => "Pivots",
+    compute: (candles, i) => {
+      const p = pivotPoints(candles, str(i.type, "traditional") as PivotType);
+      return { lines: { pp: p.pp, r1: p.r1, r2: p.r2, r3: p.r3, s1: p.s1, s2: p.s2, s3: p.s3 } };
+    },
   },
 ];
 

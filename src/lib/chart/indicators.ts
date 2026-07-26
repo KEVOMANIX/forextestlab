@@ -601,6 +601,196 @@ export function cmf(candles: OHLCV[], period = 20): MaybeNumber[] {
   return out;
 }
 
+// ── Geometric / structural ───────────────────────────────────────────────────
+
+export interface ZigZagPivot {
+  index: number;
+  price: number;
+}
+
+/**
+ * Zig Zag — connects confirmed swing pivots. A reversal is confirmed when price
+ * retraces `deviationPct` from the running extreme, at least `depth` bars away.
+ */
+export function zigzag(candles: OHLCV[], deviationPct = 5, depth = 10): ZigZagPivot[] {
+  const n = candles.length;
+  if (!n) return [];
+  const pivots: ZigZagPivot[] = [];
+  const sep = Math.max(1, depth);
+  let dir: 1 | -1 | 0 = 0;
+  let extIdx = 0;
+  let extVal = candles[0]!.close;
+  for (let i = 1; i < n; i++) {
+    const c = candles[i]!;
+    if (dir === 1) {
+      if (c.high >= extVal) {
+        extVal = c.high;
+        extIdx = i;
+      } else if (((extVal - c.low) / extVal) * 100 >= deviationPct && i - extIdx >= sep) {
+        pivots.push({ index: extIdx, price: extVal });
+        dir = -1;
+        extVal = c.low;
+        extIdx = i;
+      }
+    } else if (dir === -1) {
+      if (c.low <= extVal) {
+        extVal = c.low;
+        extIdx = i;
+      } else if (((c.high - extVal) / extVal) * 100 >= deviationPct && i - extIdx >= sep) {
+        pivots.push({ index: extIdx, price: extVal });
+        dir = 1;
+        extVal = c.high;
+        extIdx = i;
+      }
+    } else {
+      if (((c.high - extVal) / extVal) * 100 >= deviationPct) {
+        pivots.push({ index: 0, price: candles[0]!.low });
+        dir = 1;
+        extVal = c.high;
+        extIdx = i;
+      } else if (((extVal - c.low) / extVal) * 100 >= deviationPct) {
+        pivots.push({ index: 0, price: candles[0]!.high });
+        dir = -1;
+        extVal = c.low;
+        extIdx = i;
+      }
+    }
+  }
+  pivots.push({ index: extIdx, price: extVal });
+  return pivots;
+}
+
+export interface RegChannel {
+  mid: MaybeNumber[];
+  upper: MaybeNumber[];
+  lower: MaybeNumber[];
+}
+
+/** Least-squares linear regression over the last `length` bars, ±`mult`·σ bands. */
+export function regressionChannel(values: number[], length: number, mult = 2): RegChannel {
+  const n = values.length;
+  const mid: MaybeNumber[] = new Array(n).fill(null);
+  const upper: MaybeNumber[] = new Array(n).fill(null);
+  const lower: MaybeNumber[] = new Array(n).fill(null);
+  if (n < length || length < 2) return { mid, upper, lower };
+  const start = n - length;
+  let sx = 0;
+  let sy = 0;
+  let sxx = 0;
+  let sxy = 0;
+  for (let k = 0; k < length; k++) {
+    const y = values[start + k]!;
+    sx += k;
+    sy += y;
+    sxx += k * k;
+    sxy += k * y;
+  }
+  const denom = length * sxx - sx * sx;
+  const slope = denom === 0 ? 0 : (length * sxy - sx * sy) / denom;
+  const intercept = (sy - slope * sx) / length;
+  let se = 0;
+  for (let k = 0; k < length; k++) se += (values[start + k]! - (intercept + slope * k)) ** 2;
+  const sd = Math.sqrt(se / length);
+  for (let k = 0; k < length; k++) {
+    const fit = intercept + slope * k;
+    mid[start + k] = fit;
+    upper[start + k] = fit + mult * sd;
+    lower[start + k] = fit - mult * sd;
+  }
+  return { mid, upper, lower };
+}
+
+export type PivotType = "traditional" | "classic" | "fibonacci" | "woodie" | "camarilla" | "demark";
+export interface PivotLevels {
+  pp: MaybeNumber[];
+  r1: MaybeNumber[];
+  r2: MaybeNumber[];
+  r3: MaybeNumber[];
+  s1: MaybeNumber[];
+  s2: MaybeNumber[];
+  s3: MaybeNumber[];
+}
+
+interface SessionAgg {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+type LevelSet = { pp: number | null; r1: number | null; r2: number | null; r3: number | null; s1: number | null; s2: number | null; s3: number | null };
+
+function computePivotLevels(prev: SessionAgg, type: PivotType): LevelSet {
+  const { high: h, low: l, close: c, open: o } = prev;
+  const range = h - l;
+  const empty: LevelSet = { pp: null, r1: null, r2: null, r3: null, s1: null, s2: null, s3: null };
+  if (type === "fibonacci") {
+    const pp = (h + l + c) / 3;
+    return { pp, r1: pp + 0.382 * range, r2: pp + 0.618 * range, r3: pp + range, s1: pp - 0.382 * range, s2: pp - 0.618 * range, s3: pp - range };
+  }
+  if (type === "woodie") {
+    const pp = (h + l + 2 * c) / 4;
+    return { pp, r1: 2 * pp - l, r2: pp + range, r3: h + 2 * (pp - l), s1: 2 * pp - h, s2: pp - range, s3: l - 2 * (h - pp) };
+  }
+  if (type === "camarilla") {
+    const f = (1.1 * range);
+    return { pp: (h + l + c) / 3, r1: c + f / 12, r2: c + f / 6, r3: c + f / 4, s1: c - f / 12, s2: c - f / 6, s3: c - f / 4 };
+  }
+  if (type === "demark") {
+    let x: number;
+    if (c < o) x = h + 2 * l + c;
+    else if (c > o) x = 2 * h + l + c;
+    else x = h + l + 2 * c;
+    const pp = x / 4;
+    return { ...empty, pp, r1: x / 2 - l, s1: x / 2 - h };
+  }
+  // traditional / classic
+  const pp = (h + l + c) / 3;
+  return { pp, r1: 2 * pp - l, r2: pp + range, r3: h + 2 * (pp - l), s1: 2 * pp - h, s2: pp - range, s3: l - 2 * (h - pp) };
+}
+
+/**
+ * Session pivot points. Each session's levels are derived from the *previous*
+ * session's OHLC (sessions bucketed by `sessionSecs`, default 1 day UTC).
+ */
+export function pivotPoints(candles: OHLCV[], type: PivotType = "traditional", sessionSecs = 86400): PivotLevels {
+  const n = candles.length;
+  const keys: (keyof PivotLevels)[] = ["pp", "r1", "r2", "r3", "s1", "s2", "s3"];
+  const out = {} as PivotLevels;
+  for (const k of keys) out[k] = new Array(n).fill(null);
+  if (!n) return out;
+
+  // Aggregate OHLC per session, keeping session order.
+  const order: number[] = [];
+  const agg = new Map<number, SessionAgg>();
+  const barSession: number[] = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const c = candles[i]!;
+    const sid = Math.floor(c.time / sessionSecs);
+    barSession[i] = sid;
+    const a = agg.get(sid);
+    if (!a) {
+      agg.set(sid, { open: c.open, high: c.high, low: c.low, close: c.close });
+      order.push(sid);
+    } else {
+      a.high = Math.max(a.high, c.high);
+      a.low = Math.min(a.low, c.low);
+      a.close = c.close;
+    }
+  }
+  // Levels for each session from the immediately-preceding session.
+  const levelsBySession = new Map<number, LevelSet>();
+  for (let p = 1; p < order.length; p++) {
+    const prev = agg.get(order[p - 1]!)!;
+    levelsBySession.set(order[p]!, computePivotLevels(prev, type));
+  }
+  for (let i = 0; i < n; i++) {
+    const lv = levelsBySession.get(barSession[i]!);
+    if (!lv) continue;
+    for (const k of keys) out[k][i] = lv[k];
+  }
+  return out;
+}
+
 // ── Chart transforms ────────────────────────────────────────────────────────
 
 /** Heikin-Ashi transform. Smooths noise; classic TradingView chart type. */

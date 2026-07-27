@@ -1554,7 +1554,8 @@ export default function PriceChart({
       {headerSlot
         ? createPortal(chartControls, headerSlot)
         : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}</div>}
-      <div className="relative min-h-0 flex-1">
+      {/* The drawing rail owns its own column; the chart begins after it instead of rendering underneath it. */}
+      <div className="relative min-h-0 flex-1 pl-12">
         <div
           ref={containerRef}
           className="h-full w-full"
@@ -1739,8 +1740,8 @@ export default function PriceChart({
         {/* Click-away backdrop for open menus */}
         {menu && <div className="absolute inset-0 z-20" onClick={() => setMenu(null)} aria-hidden />}
 
-        {/* Left tool rail: drawing tools + chart-view utilities (docked, full height) */}
-        <div className="absolute left-0 top-0 bottom-0 z-30 flex w-12 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2" role="toolbar" aria-label="Drawing tools">
+        {/* Drawing tools occupy the reserved pane to the left of the chart canvas. */}
+        <div className="absolute bottom-0 left-0 top-0 z-30 flex w-12 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2" role="toolbar" aria-label="Drawing tools">
           <ToolButton label="Cursor (select & delete)" active={drawTool === null} onClick={() => { setDrawTool(null); setMenu(null); }}>
             <MousePointer2 size={18} aria-hidden />
           </ToolButton>

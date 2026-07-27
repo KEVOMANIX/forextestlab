@@ -343,7 +343,7 @@ export function Backtester({
         onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}
       >
-        <div ref={setChartHeaderSlot} className="flex shrink-0 items-center gap-1" />
+        <div ref={setChartHeaderSlot} className="flex min-w-0 flex-1 items-center gap-1" />
       </TerminalTopBar>
 
       {bt.error && (

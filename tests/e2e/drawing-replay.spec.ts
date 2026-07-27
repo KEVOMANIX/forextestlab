@@ -114,12 +114,23 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 
-  await page.getByRole("button", { name: "Shapes", exact: true }).click();
+  const layoutButton = page.getByRole("button", { name: "Chart layout" });
+  await expect(layoutButton).toContainText("Layout");
+  await layoutButton.click();
+  await page.getByRole("button", { name: /Two columns/i }).click();
+  await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(2);
+
+  const firstCell = page.getByTestId("chart-cell-1");
+  await firstCell.getByRole("button", { name: "Shapes", exact: true }).click();
   await page.getByRole("button", { name: "Session box", exact: true }).click();
 
-  const bounds = await chart.boundingBox();
+  const bounds = await firstCell.getByRole("img", { name: "Candlestick price chart" }).boundingBox();
   expect(bounds).not.toBeNull();
   if (!bounds) return;
+  const drawingRailBounds = await firstCell.getByRole("toolbar", { name: "Drawing tools" }).boundingBox();
+  expect(drawingRailBounds).not.toBeNull();
+  if (!drawingRailBounds) return;
+  expect(bounds.x).toBeGreaterThanOrEqual(drawingRailBounds.x + drawingRailBounds.width - 1);
   await page.mouse.move(bounds.x + bounds.width * 0.45, bounds.y + bounds.height * 0.25);
   await page.mouse.down();
   await page.mouse.move(
@@ -128,6 +139,24 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
     { steps: 8 },
   );
   await page.mouse.up();
+
+  // A drawing committed in one layout cell is immediately painted in every
+  // other visible cell showing the same pair.
+  await expect.poll(async () => page.evaluate(() => {
+    const canvases = document.querySelectorAll<HTMLCanvasElement>(
+      '[data-testid="chart-cell-2"] div[style*="pointer-events: none"] > canvas',
+    );
+    let painted = 0;
+    for (const scene of canvases) {
+      const context = scene.getContext("2d");
+      if (!context) continue;
+      const pixels = context.getImageData(0, 0, scene.width, scene.height).data;
+      for (let offset = 3; offset < pixels.length; offset += 16) {
+        if (pixels[offset] !== 0) painted += 1;
+      }
+    }
+    return painted;
+  })).toBeGreaterThan(0);
 
   const speed = page.getByLabel("Replay speed");
   await speed.fill((await speed.getAttribute("max")) ?? "0");

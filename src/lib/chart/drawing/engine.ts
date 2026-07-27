@@ -105,6 +105,8 @@ export class DrawingEngine {
   onToolConsumed?: () => void;
   onSelectionChange?: (json: DrawingJSON | null) => void;
   onObjectsChange?: (count: number) => void;
+  /** Fired after a user action commits drawing data. Loading a shared snapshot does not fire it. */
+  onDrawingsChange?: () => void;
   onToolDefaultsChange?: (defaults: ToolDefaults) => void;
   /** Ask React to open an inline text editor at (x,y) for a just-placed text/label. */
   onRequestTextEdit?: (req: { id: string; x: number; y: number }) => void;
@@ -244,7 +246,8 @@ export class DrawingEngine {
     if (!o) return;
     o.style.text = text;
     this.sceneDirty = true;
-    this.emitSelection(); // persist through the selection-change hook
+    this.emitSelection();
+    this.onDrawingsChange?.();
   }
 
   /** Remove an object by id (e.g. an empty text box the user abandoned). */
@@ -254,6 +257,7 @@ export class DrawingEngine {
     if (this.objects.length === before) return;
     if (this.selectedId === id) this.select(null);
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   getSelected(): DrawingJSON | null {
@@ -279,6 +283,7 @@ export class DrawingEngine {
     this.sceneDirty = true;
     this.overlayDirty = true;
     this.emitSelection();
+    this.onDrawingsChange?.();
   }
 
   deleteSelected(): void {
@@ -287,6 +292,7 @@ export class DrawingEngine {
     this.objects = this.objects.filter((d) => d.id !== this.selectedId);
     this.select(null);
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   duplicateSelected(): void {
@@ -301,6 +307,7 @@ export class DrawingEngine {
     this.objects.push(clone);
     this.select(clone.id);
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   copy(): void {
@@ -323,6 +330,7 @@ export class DrawingEngine {
     }
     if (last) this.select(last);
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   bringToFront(): void {
@@ -331,6 +339,7 @@ export class DrawingEngine {
     this.pushHistory();
     o.zIndex = this.topZ() + 1;
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   sendToBack(): void {
@@ -339,6 +348,7 @@ export class DrawingEngine {
     this.pushHistory();
     o.zIndex = this.bottomZ() - 1;
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   toggleLock(): void {
@@ -348,6 +358,7 @@ export class DrawingEngine {
     o.locked = !o.locked;
     this.emitSelection();
     this.overlayDirty = true;
+    this.onDrawingsChange?.();
   }
 
   toggleHide(): void {
@@ -357,6 +368,7 @@ export class DrawingEngine {
     o.hidden = !o.hidden;
     this.select(null);
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   clearAll(): void {
@@ -365,6 +377,7 @@ export class DrawingEngine {
     this.objects = [];
     this.select(null);
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   count(): number {
@@ -378,6 +391,7 @@ export class DrawingEngine {
     this.objects = snap.map(createObject);
     this.select(null);
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   redo(): void {
@@ -387,6 +401,7 @@ export class DrawingEngine {
     this.objects = snap.map(createObject);
     this.select(null);
     this.sceneDirty = true;
+    this.onDrawingsChange?.();
   }
 
   serialize(): DrawingJSON[] {
@@ -599,6 +614,7 @@ export class DrawingEngine {
     this.overlayDirty = true;
     this.onToolConsumed?.();
     this.emitSelection();
+    this.onDrawingsChange?.();
   }
 
   /** Record a history snapshot that excludes the just-created object (so undo removes it). */
@@ -700,6 +716,7 @@ export class DrawingEngine {
       this.unfreezeChart();
       this.overlayDirty = true;
       this.emitSelection();
+      this.onDrawingsChange?.();
     }
   };
 

@@ -9,6 +9,14 @@ import type { Candle } from "@/lib/chart/drawing/coords";
 import type { DrawingJSON, MagnetMode, ToolKind } from "@/lib/chart/drawing/types";
 import { DrawingSettingsDialog } from "./DrawingSettingsDialog";
 
+const DRAWINGS_CHANGED_EVENT = "forextestlab:drawings-change";
+
+interface DrawingsChangedDetail {
+  key: string;
+  source: string;
+  drawings: DrawingJSON[];
+}
+
 interface Props {
   chart: IChartApi | null;
   series: ISeriesApi<SeriesType> | null;
@@ -45,6 +53,7 @@ export function DrawingLayer({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const engineInstance = useRef<DrawingEngine | null>(null);
   const savedRef = useRef<DrawingJSON[]>([]);
+  const sourceRef = useRef(`drawing-layer-${Math.random().toString(36).slice(2)}`);
   const candlesRef = useRef(candles);
   candlesRef.current = candles;
 
@@ -84,14 +93,25 @@ export function DrawingLayer({
       }
     }
     engine.load(initial);
-    const persist = () => {
+    const persistAndShare = () => {
       if (!key) return;
+      const drawings = engine.serialize();
       try {
-        window.localStorage.setItem(key, JSON.stringify(engine.serialize()));
+        window.localStorage.setItem(key, JSON.stringify(drawings));
       } catch {
         // Persistence is best-effort.
       }
+      window.dispatchEvent(new CustomEvent<DrawingsChangedDetail>(DRAWINGS_CHANGED_EVENT, {
+        detail: { key, source: sourceRef.current, drawings },
+      }));
     };
+    const receiveSharedDrawings = (event: Event) => {
+      const detail = (event as CustomEvent<DrawingsChangedDetail>).detail;
+      if (!detail || detail.key !== key || detail.source === sourceRef.current) return;
+      engine.load(detail.drawings);
+      onCountChange?.(detail.drawings.length);
+    };
+    window.addEventListener(DRAWINGS_CHANGED_EVENT, receiveSharedDrawings);
     engine.onOpenSettings = (json) => setSettings(json);
     engine.onContextMenu = (req) => setMenu(req);
     engine.onRequestTextEdit = (req) => {
@@ -101,15 +121,15 @@ export function DrawingLayer({
     engine.onToolConsumed = () => onToolConsumed();
     engine.onSelectionChange = (json) => {
       setSelection(json);
-      persist();
     };
     engine.onObjectsChange = (n) => {
       onCountChange?.(n);
-      persist();
     };
+    engine.onDrawingsChange = persistAndShare;
     engineInstance.current = engine;
     if (engineRef) engineRef.current = engine;
     return () => {
+      window.removeEventListener(DRAWINGS_CHANGED_EVENT, receiveSharedDrawings);
       savedRef.current = engine.serialize();
       engine.destroy();
       engineInstance.current = null;

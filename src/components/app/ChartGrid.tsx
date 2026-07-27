@@ -240,20 +240,21 @@ export default function ChartGrid({
   const multi = visibleCells.length > 1;
 
   const layoutPicker = (
-    <div className="relative" ref={layoutMenuRef}>
+    <div className="relative ml-auto shrink-0 border-l app-border pl-1.5" ref={layoutMenuRef}>
       <button
         type="button"
         aria-label="Chart layout"
         aria-expanded={layoutMenuOpen}
         title={spec.label}
         onClick={() => setLayoutMenuOpen((open) => !open)}
-        className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${
+        className={`inline-flex h-8 items-center gap-2 rounded-md border px-2.5 text-xs font-semibold transition-colors ${
           layoutMenuOpen || multi
-            ? "bg-brand-400/15 text-brand-300"
-            : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+            ? "border-brand-400/35 bg-brand-400/15 text-brand-300"
+            : "app-border bg-[var(--app-panel-2)] hover:border-brand-400/25 hover:text-[var(--app-text)]"
         }`}
       >
         <spec.Icon size={15} aria-hidden />
+        <span>Layout</span>
       </button>
       {layoutMenuOpen && (
         <div

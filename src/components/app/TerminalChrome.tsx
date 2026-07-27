@@ -65,6 +65,7 @@ export function TerminalTopBar({
   saveStatus,
   onNavigate,
   onRetrySave,
+  endControls,
   children,
 }: {
   state: PublicSessionState;
@@ -76,6 +77,8 @@ export function TerminalTopBar({
   saveStatus: "saved" | "saving" | "error";
   onNavigate: (href: string) => void;
   onRetrySave: () => void;
+  /** Controls that must stay pinned at the far-right end of the trading header. */
+  endControls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -240,6 +243,7 @@ export function TerminalTopBar({
       {children}
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5 border-l app-border pl-1.5">
+        {endControls}
         <button
           type="button"
           onClick={saveStatus === "error" ? onRetrySave : undefined}

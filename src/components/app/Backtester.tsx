@@ -71,6 +71,7 @@ export function Backtester({
   const [plannedStop, setPlannedStop] = useState<string | null>(null);
   const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
   const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
+  const [chartLayoutSlot, setChartLayoutSlot] = useState<HTMLDivElement | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
@@ -342,6 +343,7 @@ export function Backtester({
         saveStatus={bt.saveStatus}
         onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}
+        endControls={<div ref={setChartLayoutSlot} className="flex shrink-0 items-center" />}
       >
         <div ref={setChartHeaderSlot} className="flex min-w-0 flex-1 items-center gap-1" />
       </TerminalTopBar>
@@ -385,6 +387,7 @@ export function Backtester({
             focusedSymbol={activeSymbol}
             onFocusedSymbolChange={actions.switchPair}
             headerSlot={chartHeaderSlot}
+            layoutSlot={chartLayoutSlot}
             orderTicket={
               <OrderTicket
                 state={state}

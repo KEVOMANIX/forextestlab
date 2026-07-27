@@ -98,6 +98,8 @@ interface ChartGridProps {
   error?: string | null;
   storageKey: string;
   headerSlot?: HTMLElement | null;
+  /** Dedicated far-right header target for the layout picker. */
+  layoutSlot?: HTMLElement | null;
   orderTicket?: React.ReactNode;
   /** Focused cell's symbol, so the top bar's pair picker stays in step. */
   focusedSymbol: string;
@@ -128,6 +130,7 @@ export default function ChartGrid({
   error = null,
   storageKey,
   headerSlot = null,
+  layoutSlot = null,
   orderTicket = null,
   focusedSymbol,
   onFocusedSymbolChange,
@@ -240,7 +243,7 @@ export default function ChartGrid({
   const multi = visibleCells.length > 1;
 
   const layoutPicker = (
-    <div className="relative ml-auto shrink-0 border-l app-border pl-1.5" ref={layoutMenuRef}>
+    <div className="relative shrink-0" ref={layoutMenuRef}>
       <button
         type="button"
         aria-label="Chart layout"
@@ -284,8 +287,12 @@ export default function ChartGrid({
 
   return (
     <div className="flex h-full w-full flex-col">
-      {/* The layout picker rides in the top bar next to the focused cell's controls. */}
-      {headerSlot ? createPortal(layoutPicker, headerSlot) : null}
+      {/* Layout has its own far-right header slot, independent from timeframe controls. */}
+      {layoutSlot
+        ? createPortal(layoutPicker, layoutSlot)
+        : headerSlot
+          ? createPortal(layoutPicker, headerSlot)
+          : null}
       <div className={`grid min-h-0 flex-1 gap-px bg-[var(--app-border)] ${spec.className}`}>
         {visibleCells.map((cell, index) => {
           const isSession = cell.symbol === sessionSymbol;

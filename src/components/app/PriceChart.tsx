@@ -412,8 +412,13 @@ export default function PriceChart({
   const ownIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const ownOrderRef = useRef<string>("");
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  const positionLinesRef = useRef<IPriceLine[]>([]);
+  const positionLinesRef = useRef<Map<string, IPriceLine>>(new Map());
   const positionsRef = useRef<OpenPosition[]>(positions);
+  const stopLineElRef = useRef<HTMLButtonElement | null>(null);
+  const targetLineElRef = useRef<HTMLButtonElement | null>(null);
+  const entryLineElsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const stopDraftRef = useRef<number | null>(stopLoss);
+  const targetDraftRef = useRef<number | null>(takeProfit);
   const followLatestRef = useRef(true);
   const rawCandlesRef = useRef<Candle[]>(initialCandles);
   const syncedInitialCandlesRef = useRef<Candle[]>(initialCandles);
@@ -461,13 +466,13 @@ export default function PriceChart({
 
   const [stopDraft, setStopDraft] = useState<number | null>(stopLoss);
   const [targetDraft, setTargetDraft] = useState<number | null>(takeProfit);
-  const [lineCoordinates, setLineCoordinates] = useState<{ stop: number | null; target: number | null }>({ stop: null, target: null });
-  const [entryCoordinates, setEntryCoordinates] = useState<Record<string, number | null>>({});
   const [historyLoading, setHistoryLoading] = useState(contextCandles.length === 0);
   const [olderHistoryLoading, setOlderHistoryLoading] = useState(false);
   const [hasOlderHistory, setHasOlderHistory] = useState(true);
   positionsRef.current = positions;
   chartTypeRef.current = chartType;
+  stopDraftRef.current = stopDraft;
+  targetDraftRef.current = targetDraft;
 
   useEffect(() => {
     if (!historyLoading) return;
@@ -514,16 +519,39 @@ export default function PriceChart({
       TIMEFRAME_MS[timeframe] % TIMEFRAME_MS[baseTimeframe] === 0,
   );
 
-  function updateLineCoordinates() {
+  /** Pixel row for a price, or null when it is off-scale / the chart isn't ready. */
+  function priceCoordinate(price: number | null): number | null {
     const series = seriesRef.current;
-    if (!series) return;
-    setLineCoordinates({
-      stop: stopDraft == null ? null : series.priceToCoordinate(stopDraft),
-      target: targetDraft == null ? null : series.priceToCoordinate(targetDraft),
-    });
-    setEntryCoordinates(
-      Object.fromEntries(positionsRef.current.map((position) => [position.id, series.priceToCoordinate(Number(position.entryPrice))])),
-    );
+    if (!series || price == null || !Number.isFinite(price)) return null;
+    return series.priceToCoordinate(price);
+  }
+
+  /** Park an overlay line on a pixel row, hiding it while the row is unknown. */
+  function placeLine(element: HTMLElement | null, coordinate: number | null) {
+    if (!element) return;
+    if (coordinate == null) {
+      element.style.visibility = "hidden";
+      return;
+    }
+    element.style.top = `${coordinate}px`;
+    element.style.visibility = "visible";
+  }
+
+  /**
+   * Drive the SL/TP/entry overlays straight from the DOM. They used to live in
+   * React state, which meant every pan frame and every replay tick queued a
+   * render of the whole chart: the lines landed a commit behind the canvas, and
+   * the pan listener (registered once) fed them a stale drag draft, so they
+   * strobed between the old and new price. Reading refs and writing style.top
+   * inside the same frame that redraws the chart keeps them glued to the scale.
+   */
+  function updateLineCoordinates() {
+    if (!seriesRef.current) return;
+    placeLine(stopLineElRef.current, priceCoordinate(stopDraftRef.current));
+    placeLine(targetLineElRef.current, priceCoordinate(targetDraftRef.current));
+    for (const position of positionsRef.current) {
+      placeLine(entryLineElsRef.current.get(position.id) ?? null, priceCoordinate(Number(position.entryPrice)));
+    }
   }
 
   /**
@@ -799,7 +827,7 @@ export default function PriceChart({
       ownIndicatorsRef.current = new Map();
       ownOrderRef.current = "";
       markersRef.current = null;
-      positionLinesRef.current = [];
+      positionLinesRef.current = new Map();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -946,32 +974,61 @@ export default function PriceChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopDraft, targetDraft]);
 
+  /**
+   * Every replay tick hands us a freshly cloned `positions` array, so keying the
+   * price lines on array identity destroyed and re-created them dozens of times
+   * a second — that is what made the SL/TP lines flicker during playback.
+   * Reconcile on the values instead: a signature that only changes when a level
+   * actually moves.
+   */
+  const positionLineKey = positions
+    .filter((position) => position.id !== activePositionId)
+    .map((position) => `${position.id}:${position.stopLoss ?? ""}:${position.takeProfit ?? ""}`)
+    .join("|");
+
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    for (const line of positionLinesRef.current) series.removePriceLine(line);
-    positionLinesRef.current = [];
-    for (const position of positions) {
+    const wanted = new Map<string, number>();
+    for (const position of positionsRef.current) {
       if (position.id === activePositionId) continue;
-      if (position.stopLoss) {
-        positionLinesRef.current.push(
-          series.createPriceLine({ price: Number(position.stopLoss), color: BEAR, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "SL" }),
-        );
+      if (position.stopLoss) wanted.set(`${position.id}:sl`, Number(position.stopLoss));
+      if (position.takeProfit) wanted.set(`${position.id}:tp`, Number(position.takeProfit));
+    }
+    const lines = positionLinesRef.current;
+    for (const [key, line] of lines) {
+      if (wanted.has(key)) continue;
+      series.removePriceLine(line);
+      lines.delete(key);
+    }
+    for (const [key, price] of wanted) {
+      const existing = lines.get(key);
+      if (existing) {
+        existing.applyOptions({ price });
+        continue;
       }
-      if (position.takeProfit) {
-        positionLinesRef.current.push(
-          series.createPriceLine({ price: Number(position.takeProfit), color: BULL, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "TP" }),
-        );
-      }
+      const isStop = key.endsWith(":sl");
+      lines.set(
+        key,
+        series.createPriceLine({ price, color: isStop ? BEAR : BULL, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: isStop ? "SL" : "TP" }),
+      );
     }
     scheduleLineCoordinates();
-    return () => {
-      if (!seriesRef.current) return;
-      for (const line of positionLinesRef.current) seriesRef.current.removePriceLine(line);
-      positionLinesRef.current = [];
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positions, activePositionId, seriesEpoch]);
+  }, [positionLineKey, activePositionId, seriesEpoch]);
+
+  // Drop the lines when the series they belong to goes away (unmount / rebuild).
+  useEffect(() => {
+    return () => {
+      const series = seriesRef.current;
+      try {
+        if (series) for (const line of positionLinesRef.current.values()) series.removePriceLine(line);
+      } catch {
+        // The series was already disposed; the lines went with it.
+      }
+      positionLinesRef.current.clear();
+    };
+  }, [seriesEpoch]);
 
   useEffect(() => {
     if (!anchorPick) return;
@@ -1008,8 +1065,15 @@ export default function PriceChart({
     const bounds = container.getBoundingClientRect();
     const price = series.coordinateToPrice(event.clientY - bounds.top);
     if (price == null) return;
-    if (kind === "stop") setStopDraft(price);
-    else setTargetDraft(price);
+    if (kind === "stop") {
+      stopDraftRef.current = price;
+      setStopDraft(price);
+    } else {
+      targetDraftRef.current = price;
+      setTargetDraft(price);
+    }
+    // Follow the pointer in this frame rather than after React commits.
+    updateLineCoordinates();
   }
 
   function endLineDrag(kind: "stop" | "target", event: React.PointerEvent<HTMLButtonElement>) {
@@ -1378,11 +1442,22 @@ export default function PriceChart({
         })}
 
         {positions.map((position) => {
-          const top = entryCoordinates[position.id];
-          if (top == null) return null;
           const isLong = position.direction === "long";
           return (
-            <div key={position.id} data-testid="position-entry-line" className="group pointer-events-auto absolute left-0 right-16 z-20 h-3 -translate-y-1/2" style={{ top }}>
+            <div
+              key={position.id}
+              data-testid="position-entry-line"
+              ref={(el) => {
+                if (!el) {
+                  entryLineElsRef.current.delete(position.id);
+                  return;
+                }
+                entryLineElsRef.current.set(position.id, el);
+                placeLine(el, priceCoordinate(Number(position.entryPrice)));
+              }}
+              className="group pointer-events-auto absolute left-0 right-16 z-20 h-3 -translate-y-1/2"
+              style={{ top: 0, visibility: "hidden" }}
+            >
               <span className={`pointer-events-none absolute left-0 right-0 top-1/2 border-t border-dashed ${isLong ? "border-brand-400/80" : "border-bear/80"}`} />
               <div className="absolute left-2 -top-9 flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel)] px-2 py-1.5 text-[10px] opacity-0 shadow-xl transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                 <span className={`font-bold ${isLong ? "text-brand-300" : "text-bear"}`}>{isLong ? "BUY" : "SELL"} @ {position.entryPrice}</span>
@@ -1540,33 +1615,41 @@ export default function PriceChart({
           );
         })()}
 
-        {stopDraft != null && lineCoordinates.stop != null && (
+        {stopDraft != null && (
           <button
             type="button"
             data-testid="stop-loss-line"
+            ref={(el) => {
+              stopLineElRef.current = el;
+              placeLine(el, priceCoordinate(stopDraftRef.current));
+            }}
             aria-label={`Drag stop-loss line at ${stopDraft.toFixed(precision)}`}
             onPointerDown={(event) => beginLineDrag("stop", event)}
             onPointerMove={(event) => moveLine("stop", event)}
             onPointerUp={(event) => endLineDrag("stop", event)}
             onPointerCancel={(event) => endLineDrag("stop", event)}
             className="absolute left-0 right-16 z-20 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dashed border-bear text-left"
-            style={{ top: lineCoordinates.stop }}
+            style={{ top: 0, visibility: "hidden" }}
           >
             <span className="absolute left-2 -top-3 rounded bg-bear px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">SL {stopDraft.toFixed(precision)}</span>
           </button>
         )}
 
-        {targetDraft != null && lineCoordinates.target != null && (
+        {targetDraft != null && (
           <button
             type="button"
             data-testid="take-profit-line"
+            ref={(el) => {
+              targetLineElRef.current = el;
+              placeLine(el, priceCoordinate(targetDraftRef.current));
+            }}
             aria-label={`Drag take-profit line at ${targetDraft.toFixed(precision)}`}
             onPointerDown={(event) => beginLineDrag("target", event)}
             onPointerMove={(event) => moveLine("target", event)}
             onPointerUp={(event) => endLineDrag("target", event)}
             onPointerCancel={(event) => endLineDrag("target", event)}
             className="absolute left-0 right-16 z-20 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dashed border-brand-400 text-left"
-            style={{ top: lineCoordinates.target }}
+            style={{ top: 0, visibility: "hidden" }}
           >
             <span className="absolute left-2 -top-3 rounded bg-brand-500 px-1.5 py-0.5 font-mono text-[10px] font-bold text-surface-950">TP {targetDraft.toFixed(precision)}</span>
           </button>

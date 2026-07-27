@@ -110,9 +110,19 @@ export function visibleCandles(ctx: EngineContext): Candle[] {
   return ctx.candles.slice(0, ctx.state.visibleIndex + 1);
 }
 
+/**
+ * Chart data for one of the session's symbols.
+ *
+ * `full` returns the whole session series instead of the slice revealed so far,
+ * so a multi-chart layout can advance its extra cells on the browser's replay
+ * clock instead of a network round-trip per candle. This matches what the
+ * session symbol already ships (`replayCandles`), so it grants the client no
+ * look-ahead it did not already have.
+ */
 export async function visiblePairCandles(
   session: LoadedSession,
   symbol: string,
+  full = false,
 ): Promise<{
   candles: Candle[];
   contextCandles: Candle[];
@@ -130,7 +140,7 @@ export async function visiblePairCandles(
 
   if (symbol === session.ctx.state.config.symbol) {
     return {
-      candles: visibleCandles(session.ctx),
+      candles: full ? session.ctx.candles : visibleCandles(session.ctx),
       contextCandles: await getChartContext(session, symbol),
       pipSize: definition.pipSize,
       pricePrecision: definition.pricePrecision,
@@ -148,9 +158,11 @@ export async function visiblePairCandles(
     getChartContext(session, symbol),
   ]);
   return {
-    candles: current
-      ? series.filter((candle) => candle.timestamp <= current)
-      : series.slice(0, session.ctx.state.config.initialVisibleCount),
+    candles: full
+      ? series
+      : current
+        ? series.filter((candle) => candle.timestamp <= current)
+        : series.slice(0, session.ctx.state.config.initialVisibleCount),
     contextCandles,
     pipSize: definition.pipSize,
     pricePrecision: definition.pricePrecision,

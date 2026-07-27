@@ -23,9 +23,10 @@ export async function GET(
   if (!canAccessSession(session, user?.id ?? null, token)) {
     return NextResponse.json({ ok: false, error: "Unauthorised." }, { status: 403 });
   }
-  const symbol = new URL(request.url).searchParams.get("symbol") ?? "";
+  const query = new URL(request.url).searchParams;
+  const symbol = query.get("symbol") ?? "";
   try {
-    const pair = await visiblePairCandles(session, symbol);
+    const pair = await visiblePairCandles(session, symbol, query.get("full") === "1");
     return NextResponse.json({ ok: true, symbol, ...pair });
   } catch (error) {
     return NextResponse.json(

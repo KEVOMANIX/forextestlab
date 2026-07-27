@@ -34,7 +34,7 @@ type PendingConfirmation = {
   action: () => void;
 };
 
-const PriceChart = dynamic(() => import("./PriceChart"), {
+const ChartGrid = dynamic(() => import("./ChartGrid"), {
   ssr: false,
   loading: () => (
     <div className="grid h-full place-items-center text-sm app-muted">
@@ -277,23 +277,6 @@ export function Backtester({
       takeProfit: plannedTarget ?? undefined,
     });
   };
-  const chartCandles = referencePair
-    ? bt.pairChart?.candles ?? []
-    : bt.initialCandles;
-  const chartContextCandles = referencePair
-    ? bt.pairChart?.contextCandles ?? []
-    : bt.contextCandles;
-  const chartLastCandle = referencePair ? null : bt.lastCandle;
-  const chartLastCandles = referencePair ? [] : bt.lastCandles;
-  const chartCurrentCandle = referencePair
-    ? chartCandles[chartCandles.length - 1] ?? null
-    : null;
-  const chartPipSize = referencePair
-    ? Number(bt.pairChart?.pipSize ?? state.config.pipSize)
-    : Number(state.config.pipSize);
-  const chartPrecision = referencePair
-    ? bt.pairChart?.pricePrecision ?? state.config.pricePrecision
-    : state.config.pricePrecision;
   const navigateFromChart = (href: string) => {
     if (!hasMeaningfulActivity) {
       router.push(href);
@@ -374,42 +357,33 @@ export function Backtester({
 
       <div className="flex min-h-0 flex-1">
         <div className="relative min-w-0 flex-1 overflow-hidden">
-          <PriceChart
-            key={`${state.sessionId}-${activeSymbol}-${bt.resetNonce}`}
-            initialCandles={chartCandles}
-            contextCandles={chartContextCandles}
-            lastCandle={chartLastCandle}
-            lastCandles={chartLastCandles}
-            markers={referencePair ? [] : markers}
-            positions={referencePair ? [] : state.openPositions}
-            activePositionId={!referencePair ? position?.id ?? null : null}
+          <ChartGrid
+            key={`${state.sessionId}-${bt.resetNonce}`}
+            state={state}
+            sessionCandles={bt.initialCandles}
+            sessionContextCandles={bt.contextCandles}
+            lastCandle={bt.lastCandle}
+            lastCandles={bt.lastCandles}
+            pairs={bt.pairs}
+            pairLoadingSymbols={bt.pairLoadingSymbols}
+            onNeedSymbol={actions.ensurePair}
+            markers={markers}
+            positions={state.openPositions}
+            activePositionId={position?.id ?? null}
             onEditPosition={(positionId) => {
               setSelectedPositionId(positionId);
               setEditorPositionId(positionId);
             }}
-            stopLoss={!referencePair && chartStop ? Number(chartStop) : null}
-            takeProfit={!referencePair && chartTarget ? Number(chartTarget) : null}
-            positionDirection={!referencePair ? position?.direction ?? null : null}
-            currentPrice={
-              referencePair
-                ? chartCurrentCandle
-                  ? Number(chartCurrentCandle.close)
-                  : null
-                : state.currentPrice
-                  ? Number(state.currentPrice)
-                  : null
-            }
-            baseTimeframe={state.config.timeframe}
-            pipSize={chartPipSize}
-            onStopLossChange={referencePair ? () => {} : changeStop}
-            onTakeProfitChange={referencePair ? () => {} : changeTarget}
-            onLoadHistory={(timeframe, before) =>
-              actions.loadHistory(activeSymbol, timeframe, before)
-            }
-            precision={chartPrecision}
+            stopLoss={chartStop ? Number(chartStop) : null}
+            takeProfit={chartTarget ? Number(chartTarget) : null}
+            positionDirection={position?.direction ?? null}
+            onStopLossChange={changeStop}
+            onTakeProfitChange={changeTarget}
+            onLoadHistory={actions.loadHistory}
             theme={theme}
-            loading={bt.pairLoading}
-            storageKey={`${state.sessionId}:${activeSymbol}`}
+            storageKey={String(state.sessionId)}
+            focusedSymbol={activeSymbol}
+            onFocusedSymbolChange={actions.switchPair}
             headerSlot={chartHeaderSlot}
             orderTicket={
               <OrderTicket

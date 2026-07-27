@@ -89,6 +89,7 @@ import {
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
+import type { ChartSync } from "@/lib/chart/sync";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
@@ -152,7 +153,28 @@ interface PriceChartProps {
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading?: boolean;
   error?: string | null;
+  /**
+   * Identifies the *instrument*: drawings are stored under it, so the same
+   * trendlines appear in any grid cell showing this symbol.
+   */
   storageKey?: string;
+  /**
+   * Identifies the *grid cell*: timeframe, chart type, indicators and visible
+   * range are stored under it. Defaults to `storageKey` for a lone chart; a
+   * multi-chart layout must pass a distinct key per cell or the cells overwrite
+   * each other's view state.
+   */
+  viewKey?: string;
+  /** Timeframe for a cell with no saved view state yet. */
+  initialTimeframe?: Timeframe;
+  /** Cross-chart crosshair + time-range sync, when this chart is in a grid. */
+  sync?: ChartSync | null;
+  /** Stable id within the sync registry; required when `sync` is set. */
+  cellId?: string;
+  /** Called when the user interacts with this cell, so the grid can focus it. */
+  onFocus?: () => void;
+  /** Instrument name shown at the head of the cell's own toolbar, in a grid. */
+  instrumentLabel?: string;
   /** Optional DOM node in the top header to portal the chart controls into. */
   headerSlot?: HTMLElement | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
@@ -183,6 +205,9 @@ const PALETTES: Record<"dark" | "light", Palette> = {
 
 const BULL = "#22c3a0";
 const BEAR = "#f4646c";
+
+/** How long after a pan/zoom gesture this chart still drives its peers. */
+const INTERACTION_WINDOW_MS = 600;
 
 /** Custom "long position" glyph: green target on top, red stop below, up arrow. */
 function LongPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
@@ -399,9 +424,17 @@ export default function PriceChart({
   loading = false,
   error = null,
   storageKey,
+  viewKey,
+  initialTimeframe,
+  sync = null,
+  cellId,
+  onFocus,
+  instrumentLabel,
   headerSlot = null,
   orderTicket = null,
 }: PriceChartProps) {
+  // Drawings belong to the instrument; the rest of the view belongs to the cell.
+  const viewStorageKey = viewKey ?? storageKey;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
@@ -419,10 +452,14 @@ export default function PriceChart({
   const entryLineElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const stopDraftRef = useRef<number | null>(stopLoss);
   const targetDraftRef = useRef<number | null>(takeProfit);
+  const onFocusRef = useRef(onFocus);
+  onFocusRef.current = onFocus;
+  /** When the user last drove this chart, gating outbound range sync. */
+  const userInteractionRef = useRef(0);
   const followLatestRef = useRef(true);
   const rawCandlesRef = useRef<Candle[]>(initialCandles);
   const syncedInitialCandlesRef = useRef<Candle[]>(initialCandles);
-  const displayTimeframeRef = useRef<Timeframe>(baseTimeframe);
+  const displayTimeframeRef = useRef<Timeframe>(initialTimeframe ?? baseTimeframe);
   const chartTypeRef = useRef<ChartType>("candles");
   const displayRef = useRef<OHLCV[]>([]);
   const drawingCandlesRef = useRef<OHLCV[]>(
@@ -435,7 +472,7 @@ export default function PriceChart({
   const historyHasMoreRef = useRef(true);
   const loadOlderRef = useRef<() => void>(() => {});
 
-  const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(baseTimeframe);
+  const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(initialTimeframe ?? baseTimeframe);
   const [chartType, setChartType] = useState<ChartType>("candles");
   const [gridVisible, setGridVisible] = useState(true);
   const [magnetCrosshair, setMagnetCrosshair] = useState(false);
@@ -730,9 +767,9 @@ export default function PriceChart({
     createSeriesPair(chartTypeRef.current);
     chart.timeScale().scrollToRealTime();
 
-    if (storageKey) {
+    if (viewStorageKey) {
       try {
-        const saved = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${storageKey}`) ?? "{}") as {
+        const saved = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as {
           range?: { from: number; to: number };
           timeframe?: Timeframe;
           grid?: boolean;
@@ -760,6 +797,12 @@ export default function PriceChart({
     // Coalesce range-change bursts (e.g. auto-scroll during fast replay fires
     // this per tick) into at most one update per animation frame, so React
     // re-renders and localStorage writes don't storm and choke panning.
+    const syncId = cellId ?? "solo";
+    const unregisterSync = sync?.register(syncId, {
+      chart,
+      series: () => seriesRef.current,
+    });
+
     let coordScheduled = false;
     const coordinateUpdate = () => {
       if (coordScheduled) return;
@@ -768,13 +811,23 @@ export default function PriceChart({
         coordScheduled = false;
         updateLineCoordinates();
         setViewVersion((v) => v + 1);
+        // Move the peer cells to the same slice of time. By timestamp, not by
+        // logical index — a peer on another timeframe has different bar counts.
+        //
+        // Only a chart the user is actually driving may push. Range changes also
+        // come from replay auto-scroll and from data arriving, and broadcasting
+        // those lets a cell that has revealed only a handful of bars drag every
+        // other cell down to its two-minute window.
+        if (sync && performance.now() - userInteractionRef.current < INTERACTION_WINDOW_MS) {
+          sync.broadcastRange(syncId, chart.timeScale().getVisibleRange());
+        }
         const visible = chart.timeScale().getVisibleLogicalRange();
         if (visible && visible.from < 100) loadOlderRef.current();
-        if (!storageKey) return;
+        if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
         try {
-          const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${storageKey}`) ?? "{}") as Record<string, unknown>;
-          window.localStorage.setItem(`forextestlab:chart:${storageKey}`, JSON.stringify({ ...existing, range }));
+          const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as Record<string, unknown>;
+          window.localStorage.setItem(`forextestlab:chart:${viewStorageKey}`, JSON.stringify({ ...existing, range }));
         } catch {
           // Local persistence is a convenience; chart interaction must still work.
         }
@@ -785,6 +838,9 @@ export default function PriceChart({
     const onCrosshair = (param: MouseEventParams<Time>) => {
       scheduleLineCoordinates();
       const series = seriesRef.current;
+      // Mirror onto the peers, but only for a crosshair this cell owns —
+      // otherwise the position a peer just pushed here bounces straight back.
+      if (sync && !sync.busy) sync.broadcastCrosshair(syncId, param.time ?? null);
       if (!series || !param.time) {
         setLegend(null);
         return;
@@ -802,6 +858,16 @@ export default function PriceChart({
     const detachFromLatest = () => {
       followLatestRef.current = false;
     };
+    const markInteraction = (event: Event) => {
+      // Hovering is not driving: only presses, drags and wheel gestures count.
+      if (event.type === "pointermove" && (event as PointerEvent).buttons === 0) return;
+      userInteractionRef.current = performance.now();
+    };
+    const focusCell = () => onFocusRef.current?.();
+    container.addEventListener("pointerdown", focusCell, true);
+    container.addEventListener("pointerdown", markInteraction, true);
+    container.addEventListener("pointermove", markInteraction, { passive: true });
+    container.addEventListener("wheel", markInteraction, { passive: true });
     container.addEventListener("pointerdown", detachFromLatest, true);
     container.addEventListener("wheel", detachFromLatest, { passive: true });
     container.addEventListener("pointermove", scheduleLineCoordinates, { passive: true });
@@ -810,6 +876,11 @@ export default function PriceChart({
 
     return () => {
       observer.disconnect();
+      unregisterSync?.();
+      container.removeEventListener("pointerdown", focusCell, true);
+      container.removeEventListener("pointerdown", markInteraction, true);
+      container.removeEventListener("pointermove", markInteraction);
+      container.removeEventListener("wheel", markInteraction);
       container.removeEventListener("pointerdown", detachFromLatest, true);
       container.removeEventListener("wheel", detachFromLatest);
       container.removeEventListener("pointermove", scheduleLineCoordinates);
@@ -891,11 +962,18 @@ export default function PriceChart({
     syncedInitialCandlesRef.current = initialCandles;
     rawCandlesRef.current = initialCandles;
     const scale = chartRef.current?.timeScale();
-    const visibleRange = scale?.getVisibleLogicalRange() ?? null;
+    // Preserve the user's view across a data swap — but only if there was a view
+    // to preserve. A grid cell whose series arrives after mount would otherwise
+    // inherit the empty chart's logical range and open zoomed onto a few bars.
+    const hadData = displayRef.current.length > 0;
+    const visibleRange = hadData ? scale?.getVisibleLogicalRange() ?? null : null;
     renderMain(true);
     if (visibleRange) {
       followLatestRef.current = false;
       scale?.setVisibleLogicalRange(visibleRange);
+    } else {
+      followLatestRef.current = true;
+      scale?.scrollToRealTime();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCandles]);
@@ -927,11 +1005,11 @@ export default function PriceChart({
   }, [displayTimeframe]);
 
   useEffect(() => {
-    if (!storageKey) return;
+    if (!viewStorageKey) return;
     try {
-      const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${storageKey}`) ?? "{}") as Record<string, unknown>;
+      const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as Record<string, unknown>;
       window.localStorage.setItem(
-        `forextestlab:chart:${storageKey}`,
+        `forextestlab:chart:${viewStorageKey}`,
         JSON.stringify({
           ...existing,
           timeframe: displayTimeframe,
@@ -944,7 +1022,7 @@ export default function PriceChart({
     } catch {
       // Ignore local storage failures.
     }
-  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, indicators, storageKey]);
+  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, indicators, viewStorageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -1218,6 +1296,9 @@ export default function PriceChart({
   // header via a portal when a slot is provided, otherwise docked above the chart.
   const chartControls = (
     <div className="flex items-center gap-1" role="toolbar" aria-label="Chart controls">
+      {instrumentLabel && (
+        <span className="border-r app-border pr-2 text-xs font-bold">{instrumentLabel}</span>
+      )}
       <div className="flex items-center border-r app-border pr-1" aria-label="Display timeframe">
         {availableTimeframes.map((timeframe) => (
           <ToolButton key={timeframe} label={`Display ${timeframe} candles`} active={displayTimeframe === timeframe} onClick={() => selectTimeframe(timeframe)}>

@@ -50,8 +50,15 @@ interface BacktesterState {
   notice: string | null;
   notes: string;
   activeSymbol: string | null;
-  pairChart: PairChartData | null;
-  pairLoading: boolean;
+  /**
+   * Full session series for every symbol shown in a chart cell other than the
+   * session symbol, fetched once and revealed against the replay clock by the
+   * cell itself. Refetching a truncated snapshot per candle could never keep up
+   * with local playback.
+   */
+  pairs: Record<string, PairChartData>;
+  /** Symbols with a fetch in flight. */
+  pairLoadingSymbols: string[];
   saveStatus: "saved" | "saving" | "error";
   savedAt: number | null;
   endOfData: boolean;
@@ -73,8 +80,8 @@ const initial: BacktesterState = {
   notice: null,
   notes: "",
   activeSymbol: null,
-  pairChart: null,
-  pairLoading: false,
+  pairs: {},
+  pairLoadingSymbols: [],
   saveStatus: "saved",
   savedAt: null,
   endOfData: false,
@@ -103,6 +110,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayFrameBusyRef = useRef(false);
   const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
   const localEngineRef = useRef<EngineContext | null>(null);
+  /** Symbols with a pair fetch in flight, so duplicate cells share one request. */
+  const pairRequestsRef = useRef<Set<string>>(new Set());
 
   const hydrateLocalEngine = useCallback(
     (state: PublicSessionState, candles: Candle[]) => {
@@ -149,8 +158,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
           : null,
         notes: "",
         activeSymbol: res.state.config.symbol,
-        pairChart: null,
-        pairLoading: false,
+        pairs: {},
+        pairLoadingSymbols: [],
         endOfData: false,
         saveStatus: "saved",
         savedAt: Date.now(),
@@ -211,8 +220,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
         notice: `Session resumed: ${res.state.config.name || res.state.config.symbol}.`,
         notes: res.notes,
         activeSymbol: res.state.config.symbol,
-        pairChart: null,
-        pairLoading: false,
+        pairs: {},
+        pairLoadingSymbols: [],
         saveStatus: "saved",
         savedAt: Date.now(),
         endOfData: false,
@@ -307,17 +316,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
           return;
         }
 
-        const activeSymbol = s.activeSymbol;
-        let refreshedPair: PairChartData | null = null;
-        if (
-          activeSymbol &&
-          activeSymbol !== res.state.config.symbol &&
-          action.type === "next"
-        ) {
-          const pair = await getPairChart(id, token, activeSymbol);
-          if (pair.ok) refreshedPair = pair;
-        }
-
+        // Non-session symbols used to be re-fetched here on every persisted
+        // "next" — a round-trip per candle that local playback always outran.
+        // Their full series is now loaded once and revealed on the replay clock.
         setS((prev) => {
           let nextState = res.state;
           // A background save can finish after local playback has already
@@ -356,7 +357,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
               opts.captureCandle && res.newCandle
                 ? res.newCandle
                 : prev.lastCandle,
-            pairChart: refreshedPair ?? prev.pairChart,
             saveStatus: "saved",
             savedAt: Date.now(),
           };
@@ -381,7 +381,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
       await actionQueueRef.current;
     },
-    [patch, s.activeSymbol],
+    [patch],
   );
 
   // Playback is browser-local for smooth ticks. Additional bounded candle
@@ -655,7 +655,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
         resetNonce: prev.resetNonce + 1,
         notes: data.notes,
         activeSymbol: data.state.config.symbol,
-        pairChart: null,
+        // Restart rewinds the clock, so every cached pair series must be
+        // re-revealed from the session's opening candle.
+        pairs: {},
         saveStatus: "saved",
         savedAt: Date.now(),
       }));
@@ -838,29 +840,43 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [runAction],
   );
-  const switchPair = useCallback(
+  /**
+   * Load a non-session symbol's full series once, so a chart cell showing it can
+   * advance on the local replay clock. Concurrent callers (several cells asking
+   * for the same pair on the same frame) share the one in-flight request.
+   */
+  const ensurePair = useCallback(
     async (symbol: string) => {
       const id = sessionIdRef.current;
-      const state = s.state;
-      if (!id || !state) return;
-      if (symbol === state.config.symbol) {
-        patch({
-          activeSymbol: symbol,
-          pairChart: null,
-          pairLoading: false,
-          error: null,
-        });
-        return;
-      }
-      patch({ pairLoading: true, error: null });
-      const pair = await getPairChart(id, tokenRef.current, symbol);
-      if (!pair.ok) {
-        patch({ pairLoading: false, error: pair.error });
-        return;
-      }
-      patch({ activeSymbol: symbol, pairChart: pair, pairLoading: false });
+      if (!id || !symbol) return;
+      if (symbol === s.state?.config.symbol) return;
+      if (s.pairs[symbol] || pairRequestsRef.current.has(symbol)) return;
+      pairRequestsRef.current.add(symbol);
+      setS((prev) => ({
+        ...prev,
+        error: null,
+        pairLoadingSymbols: prev.pairLoadingSymbols.includes(symbol)
+          ? prev.pairLoadingSymbols
+          : [...prev.pairLoadingSymbols, symbol],
+      }));
+      const pair = await getPairChart(id, tokenRef.current, symbol, true);
+      pairRequestsRef.current.delete(symbol);
+      setS((prev) => ({
+        ...prev,
+        error: pair.ok ? prev.error : pair.error,
+        pairs: pair.ok ? { ...prev.pairs, [symbol]: pair } : prev.pairs,
+        pairLoadingSymbols: prev.pairLoadingSymbols.filter((item) => item !== symbol),
+      }));
     },
-    [patch, s.state],
+    [s.pairs, s.state?.config.symbol],
+  );
+
+  const switchPair = useCallback(
+    async (symbol: string) => {
+      patch({ activeSymbol: symbol, error: null });
+      await ensurePair(symbol);
+    },
+    [ensurePair, patch],
   );
   const retrySave = useCallback(() => {
     const action = lastActionRef.current;
@@ -923,6 +939,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       modifyTarget,
       saveNotes,
       switchPair,
+      ensurePair,
       retrySave,
       loadHistory,
       newSession,

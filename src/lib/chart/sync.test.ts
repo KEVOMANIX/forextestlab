@@ -1,43 +1,33 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { Time } from "lightweight-charts";
 
-import type { UTCTimestamp } from "lightweight-charts";
+import { ChartSync } from "./sync";
 
-import { alignedFrom } from "./sync";
-
-const ts = (seconds: number) => seconds as UTCTimestamp;
-
-/**
- * Scrolling is shared across a multi-chart layout; zooming is not. A peer must
- * land on the source's moment in time without inheriting its zoom level.
- */
-describe("alignedFrom", () => {
-  const source = { from: 1_000, to: 2_000 };
-
-  it("keeps the peer's own span and aligns the right edge", () => {
-    // Peer is zoomed out to four hours; source is showing a thousand seconds.
-    const from = alignedFrom({ from: ts(0), to: ts(14_400) }, source);
-    expect(source.to - from).toBe(14_400);
-    expect(from).toBe(2_000 - 14_400);
+describe("ChartSync", () => {
+  it("never exposes viewport synchronization", () => {
+    const sync = new ChartSync();
+    expect("broadcastRange" in sync).toBe(false);
   });
 
-  it("keeps a narrower peer narrow", () => {
-    const from = alignedFrom({ from: ts(900), to: ts(1_000) }, source);
-    expect(source.to - from).toBe(100);
-  });
+  it("can disable crosshair synchronization without touching chart viewports", () => {
+    const sync = new ChartSync();
+    const setCrosshairPosition = vi.fn();
+    const clearCrosshairPosition = vi.fn();
+    const chart = { setCrosshairPosition, clearCrosshairPosition };
+    const series = { data: () => [{ time: 100, value: 1 }] };
 
-  it("falls back to the source range when the peer has no view yet", () => {
-    expect(alignedFrom(null, source)).toBe(source.from);
-  });
+    sync.register("one", {
+      chart: chart as never,
+      series: () => series as never,
+    });
+    sync.register("two", {
+      chart: chart as never,
+      series: () => series as never,
+    });
+    sync.setCrosshairEnabled(false);
+    sync.broadcastCrosshair("one", 100 as Time);
 
-  it("falls back when the peer reports an empty span", () => {
-    expect(alignedFrom({ from: ts(500), to: ts(500) }, source)).toBe(source.from);
-  });
-
-  it("handles business-day times from the peer", () => {
-    const from = alignedFrom(
-      { from: { year: 2024, month: 3, day: 4 }, to: { year: 2024, month: 3, day: 5 } },
-      source,
-    );
-    expect(source.to - from).toBe(86_400);
+    expect(setCrosshairPosition).not.toHaveBeenCalled();
+    expect(clearCrosshairPosition).not.toHaveBeenCalled();
   });
 });

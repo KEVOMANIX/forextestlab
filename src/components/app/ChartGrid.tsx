@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Columns2, Crosshair, Grid2X2, Rows2, Square, LayoutPanelLeft, Link2, Link2Off } from "lucide-react";
+import { Check, Columns2, Crosshair, Grid2X2, Rows2, Square, LayoutPanelLeft } from "lucide-react";
 
 import type { PairChartData } from "@/lib/backtest/client";
 import type { OpenPosition, PublicSessionState } from "@/lib/backtest/types";
@@ -15,8 +15,8 @@ import PriceChart, { type ChartMarker } from "./PriceChart";
  * Multi-chart workspace.
  *
  * Lightweight Charts has panes but no multi-chart layout, so each cell is its
- * own chart instance; [ChartSync] keeps their time axis and crosshair together,
- * while each cell keeps its own zoom level.
+ * own chart instance; [ChartSync] mirrors only the crosshair. Every cell keeps
+ * its own pan and zoom so mixed timeframes remain usable.
  * The model is TradingView's: one focused cell receives the symbol picker, the
  * order ticket and the top-bar toolbar, while the rest are context views.
  */
@@ -52,7 +52,6 @@ interface StoredLayout {
   cells: ChartCell[];
   focusedId: string;
   syncCrosshair: boolean;
-  syncTime: boolean;
 }
 
 function readStoredLayout(storageKey: string): StoredLayout | null {
@@ -66,7 +65,6 @@ function readStoredLayout(storageKey: string): StoredLayout | null {
       cells: parsed.cells,
       focusedId: parsed.focusedId ?? parsed.cells[0]!.id,
       syncCrosshair: parsed.syncCrosshair ?? true,
-      syncTime: parsed.syncTime ?? true,
     };
   } catch {
     return null;
@@ -144,7 +142,6 @@ export default function ChartGrid({
   ]);
   const [focusedId, setFocusedId] = useState("cell-1");
   const [syncCrosshair, setSyncCrosshair] = useState(true);
-  const [syncTime, setSyncTime] = useState(true);
   const [restored, setRestored] = useState(false);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   // One registry for the workspace's lifetime — cells register on mount.
@@ -159,7 +156,6 @@ export default function ChartGrid({
       setCells(saved.cells);
       setFocusedId(saved.focusedId);
       setSyncCrosshair(saved.syncCrosshair);
-      setSyncTime(saved.syncTime);
     }
     setRestored(true);
   }, [storageKey]);
@@ -169,16 +165,16 @@ export default function ChartGrid({
     try {
       window.localStorage.setItem(
         `forextestlab:layout:${storageKey}`,
-        JSON.stringify({ layout, cells, focusedId, syncCrosshair, syncTime } satisfies StoredLayout),
+        JSON.stringify({ layout, cells, focusedId, syncCrosshair } satisfies StoredLayout),
       );
     } catch {
       // Layout persistence is a convenience, not a requirement.
     }
-  }, [restored, storageKey, layout, cells, focusedId, syncCrosshair, syncTime]);
+  }, [restored, storageKey, layout, cells, focusedId, syncCrosshair]);
 
   useEffect(() => {
-    sync.setModes({ crosshair: syncCrosshair, time: syncTime });
-  }, [sync, syncCrosshair, syncTime]);
+    sync.setCrosshairEnabled(syncCrosshair);
+  }, [sync, syncCrosshair]);
 
   const visibleCells = useMemo(() => {
     const count = layoutSpec(layout).cells;
@@ -303,16 +299,9 @@ export default function ChartGrid({
             Crosshair
             <Check size={14} aria-hidden className={`ml-auto ${syncCrosshair ? "text-brand-300" : "opacity-0"}`} />
           </button>
-          <button
-            type="button"
-            onClick={() => setSyncTime((value) => !value)}
-            aria-pressed={syncTime}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
-          >
-            {syncTime ? <Link2 size={15} aria-hidden /> : <Link2Off size={15} aria-hidden />}
-            Time
-            <Check size={14} aria-hidden className={`ml-auto ${syncTime ? "text-brand-300" : "opacity-0"}`} />
-          </button>
+          <p className="px-2 pb-1 pt-1 text-[10px] leading-4 app-muted">
+            Pan and zoom always stay independent per chart.
+          </p>
         </div>
       )}
     </div>
@@ -330,6 +319,7 @@ export default function ChartGrid({
           return (
             <div
               key={cell.id}
+              data-testid={`chart-${cell.id}`}
               className={`relative min-h-0 min-w-0 overflow-hidden bg-[var(--app-bg)] ${cellSpan(layout, index)} ${
                 multi && isFocused ? "outline outline-1 -outline-offset-1 outline-brand-400/50" : ""
               }`}

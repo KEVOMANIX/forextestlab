@@ -206,9 +206,6 @@ const PALETTES: Record<"dark" | "light", Palette> = {
 const BULL = "#22c3a0";
 const BEAR = "#f4646c";
 
-/** How long after a pan/zoom gesture this chart still drives its peers. */
-const INTERACTION_WINDOW_MS = 600;
-
 /** Custom "long position" glyph: green target on top, red stop below, up arrow. */
 function LongPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
   return (
@@ -436,6 +433,8 @@ export default function PriceChart({
   const contextSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const renderRafRef = useRef<number | null>(null);
   const lineCoordRafRef = useRef<number | null>(null);
+  const rangeSaveTimerRef = useRef<number | null>(null);
+  const pendingRangeRef = useRef<{ from: number; to: number } | null>(null);
   const priceIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const ownIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const ownOrderRef = useRef<string>("");
@@ -449,8 +448,6 @@ export default function PriceChart({
   const targetDraftRef = useRef<number | null>(takeProfit);
   const onFocusRef = useRef(onFocus);
   onFocusRef.current = onFocus;
-  /** When the user last drove this chart, gating outbound range sync. */
-  const userInteractionRef = useRef(0);
   /** Bumped whenever the candle series is replaced, invalidating render caches. */
   const dataGenerationRef = useRef(0);
   const drawingPrefixRef = useRef<{ history: Candle[]; boundary: number | null; prefix: OHLCV[] }>({
@@ -476,7 +473,7 @@ export default function PriceChart({
   /** Something on this chart is positioned in React from the viewport. */
   const viewportOverlaysRef = useRef(false);
   const followLatestRef = useRef(true);
-  const rawCandlesRef = useRef<Candle[]>(initialCandles);
+  const rawCandlesRef = useRef<Candle[]>([...initialCandles]);
   const syncedInitialCandlesRef = useRef<Candle[]>(initialCandles);
   const displayTimeframeRef = useRef<Timeframe>(initialTimeframe ?? baseTimeframe);
   const chartTypeRef = useRef<ChartType>("candles");
@@ -777,9 +774,6 @@ export default function PriceChart({
     const display = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
     const previous = displayRef.current;
     const scale = chartRef.current?.timeScale();
-    const preservedRange = !followLatestRef.current
-      ? scale?.getVisibleLogicalRange() ?? null
-      : null;
     displayRef.current = display;
     // Joining thousands of context candles onto the timeline is only worth doing
     // for a chart that has drawings on it, or is about to.
@@ -800,10 +794,15 @@ export default function PriceChart({
     // expensive and lets the time scale repeatedly recalculate its range,
     // which causes stuttering and apparent gaps while the user is dragging.
     const shared = Math.max(0, previous.length - 1);
-    let canUpdateTail = !force && previous.length > 0 && display.length >= previous.length;
-    for (let index = 0; canUpdateTail && index < shared; index += 1) {
-      if (display[index]?.time !== previous[index]?.time) canUpdateTail = false;
-    }
+    const prefixStillAligned =
+      shared === 0 ||
+      (display[0]?.time === previous[0]?.time &&
+        display[shared - 1]?.time === previous[shared - 1]?.time);
+    const canUpdateTail =
+      !force &&
+      previous.length > 0 &&
+      display.length >= previous.length &&
+      prefixStillAligned;
     if (canUpdateTail) {
       for (let index = shared; index < renderedDisplay.length; index += 1) {
         updateData(series, chartTypeRef.current, renderedDisplay[index]!);
@@ -816,8 +815,9 @@ export default function PriceChart({
     // update otherwise avoids a full React re-render on every replay tick (which
     // made panning/zooming janky during fast playback).
     if (indicators.some((i) => getDef(i.kind)?.render === "overlay")) setDisplayCandles(display);
-    if (preservedRange) scale?.setVisibleLogicalRange(preservedRange);
-    else if (followLatestRef.current) scale?.scrollToRealTime();
+    // New data must not issue viewport commands after the user has detached.
+    // This keeps an active pan/zoom gesture responsive while replay continues.
+    if (followLatestRef.current) scale?.scrollToRealTime();
     scheduleLineCoordinates();
   }
 
@@ -870,6 +870,7 @@ export default function PriceChart({
         secondsVisible: false,
         rightOffset: 4,
         barSpacing: 10,
+        shiftVisibleRangeOnNewBar: false,
         tickMarkFormatter: (time: Time) => chartTickFormatter.format(chartTimeMs(time)),
       },
       localization: {
@@ -932,26 +933,25 @@ export default function PriceChart({
         // Only overlays positioned in React care about the viewport. With none
         // on the chart this would be a full re-render per replay tick, per cell.
         if (viewportOverlaysRef.current) setViewVersion((v) => v + 1);
-        // Move the peer cells to the same slice of time. By timestamp, not by
-        // logical index — a peer on another timeframe has different bar counts.
-        //
-        // Only a chart the user is actually driving may push. Range changes also
-        // come from replay auto-scroll and from data arriving, and broadcasting
-        // those lets a cell that has revealed only a handful of bars drag every
-        // other cell down to its two-minute window.
-        if (sync && performance.now() - userInteractionRef.current < INTERACTION_WINDOW_MS) {
-          sync.broadcastRange(syncId, chart.timeScale().getVisibleRange());
-        }
+        drawingEngineRef.current?.onViewChanged();
         const visible = chart.timeScale().getVisibleLogicalRange();
         if (visible && visible.from < 100) loadOlderRef.current();
         if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
-        try {
-          const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as Record<string, unknown>;
-          window.localStorage.setItem(`forextestlab:chart:${viewStorageKey}`, JSON.stringify({ ...existing, range }));
-        } catch {
-          // Local persistence is a convenience; chart interaction must still work.
-        }
+        pendingRangeRef.current = range;
+        if (rangeSaveTimerRef.current != null) window.clearTimeout(rangeSaveTimerRef.current);
+        rangeSaveTimerRef.current = window.setTimeout(() => {
+          rangeSaveTimerRef.current = null;
+          try {
+            const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as Record<string, unknown>;
+            window.localStorage.setItem(
+              `forextestlab:chart:${viewStorageKey}`,
+              JSON.stringify({ ...existing, range: pendingRangeRef.current }),
+            );
+          } catch {
+            // Local persistence is a convenience; chart interaction must still work.
+          }
+        }, 250);
       });
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(coordinateUpdate);
@@ -979,16 +979,8 @@ export default function PriceChart({
     const detachFromLatest = () => {
       followLatestRef.current = false;
     };
-    const markInteraction = (event: Event) => {
-      // Hovering is not driving: only presses, drags and wheel gestures count.
-      if (event.type === "pointermove" && (event as PointerEvent).buttons === 0) return;
-      userInteractionRef.current = performance.now();
-    };
     const focusCell = () => onFocusRef.current?.();
     container.addEventListener("pointerdown", focusCell, true);
-    container.addEventListener("pointerdown", markInteraction, true);
-    container.addEventListener("pointermove", markInteraction, { passive: true });
-    container.addEventListener("wheel", markInteraction, { passive: true });
     container.addEventListener("pointerdown", detachFromLatest, true);
     container.addEventListener("wheel", detachFromLatest, { passive: true });
     container.addEventListener("pointermove", scheduleLineCoordinates, { passive: true });
@@ -999,13 +991,11 @@ export default function PriceChart({
       observer.disconnect();
       unregisterSync?.();
       container.removeEventListener("pointerdown", focusCell, true);
-      container.removeEventListener("pointerdown", markInteraction, true);
-      container.removeEventListener("pointermove", markInteraction);
-      container.removeEventListener("wheel", markInteraction);
       container.removeEventListener("pointerdown", detachFromLatest, true);
       container.removeEventListener("wheel", detachFromLatest);
       container.removeEventListener("pointermove", scheduleLineCoordinates);
       if (lineCoordRafRef.current != null) cancelAnimationFrame(lineCoordRafRef.current);
+      if (rangeSaveTimerRef.current != null) window.clearTimeout(rangeSaveTimerRef.current);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(coordinateUpdate);
       chart.unsubscribeCrosshairMove(onCrosshair);
       if (renderRafRef.current != null) cancelAnimationFrame(renderRafRef.current);
@@ -1071,8 +1061,16 @@ export default function PriceChart({
     if (incoming.length === 0) return;
     for (const nextCandle of incoming) {
       const candles = rawCandlesRef.current;
-      const existing = candles.findIndex((candle) => candle.timestamp === nextCandle.timestamp);
-      rawCandlesRef.current = existing >= 0 ? candles.map((candle, index) => (index === existing ? nextCandle : candle)) : [...candles, nextCandle];
+      const lastIndex = candles.length - 1;
+      const lastTimestamp = candles[lastIndex]?.timestamp;
+      if (lastTimestamp == null || nextCandle.timestamp > lastTimestamp) {
+        candles.push(nextCandle);
+      } else if (nextCandle.timestamp === lastTimestamp) {
+        candles[lastIndex] = nextCandle;
+      } else {
+        const existing = candles.findIndex((candle) => candle.timestamp === nextCandle.timestamp);
+        if (existing >= 0) candles[existing] = nextCandle;
+      }
     }
     scheduleRender();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1081,7 +1079,7 @@ export default function PriceChart({
   useEffect(() => {
     if (syncedInitialCandlesRef.current === initialCandles) return;
     syncedInitialCandlesRef.current = initialCandles;
-    rawCandlesRef.current = initialCandles;
+    rawCandlesRef.current = [...initialCandles];
     dataGenerationRef.current += 1;
     const scale = chartRef.current?.timeScale();
     // Preserve the user's view across a data swap — but only if there was a view
@@ -1281,7 +1279,7 @@ export default function PriceChart({
     if (draggingRef.current !== kind) return;
     draggingRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    const price = kind === "stop" ? stopDraft : targetDraft;
+    const price = kind === "stop" ? stopDraftRef.current : targetDraftRef.current;
     if (kind === "stop") onStopLossChange(price == null ? null : price.toFixed(precision));
     else onTakeProfitChange(price == null ? null : price.toFixed(precision));
   }
@@ -1391,7 +1389,7 @@ export default function PriceChart({
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
   drawingsActiveRef.current = drawTool != null || drawCount > 0;
   viewportOverlaysRef.current =
-    drawingsActiveRef.current || ownPaneIndicators.length > 0 || overlayIndicators.length > 0;
+    overlayIndicators.length > 0;
 
   // Picking up a tool or adding the first drawing needs the timeline the render
   // loop skips building while a chart has none.

@@ -1,12 +1,13 @@
-import type { IChartApi, ISeriesApi, SeriesType, Time, UTCTimestamp } from "lightweight-charts";
+import type { IChartApi, ISeriesApi, SeriesType, Time } from "lightweight-charts";
 
 /**
  * Cross-chart synchronisation for multi-chart layouts.
  *
  * Lightweight Charts has panes but no multi-chart layout, so a grid is N
  * independent chart instances. This registry is what makes them feel like one
- * workspace: scrolling any cell moves the others to the same moment, and the
- * crosshair is mirrored everywhere. Zoom stays per chart — see [alignedFrom].
+ * workspace: the crosshair is mirrored by timestamp while every chart keeps its
+ * own viewport. A 1D chart and a 1m chart have fundamentally different useful
+ * zoom levels, so pan and zoom are deliberately never broadcast.
  *
  * Sync is by *timestamp*, never by logical index — cells can be on different
  * timeframes, where bar 200 means a different moment on each chart.
@@ -16,12 +17,6 @@ export interface SyncMember {
   chart: IChartApi;
   /** Resolved late: the series is rebuilt whenever the chart type changes. */
   series: () => ISeriesApi<SeriesType> | null;
-}
-
-/** Seconds-based UTC timestamps, matching the series `time` values we feed. */
-export interface TimeRange {
-  from: number;
-  to: number;
 }
 
 function timeToSeconds(time: Time): number | null {
@@ -62,51 +57,22 @@ function valueAt(series: ISeriesApi<SeriesType>, seconds: number): { time: Time;
   return { time: bar.time, price };
 }
 
-/**
- * How long a chart ignores its own range-change events after a peer moved it.
- * Lightweight Charts reports the applied range on a later frame, and clamps it
- * to whole bars, so a pushed range never echoes back byte-identical — a value
- * comparison would oscillate where a short quiet window simply converges.
- */
-const ECHO_WINDOW_MS = 200;
-
-/**
- * Where a peer's view should start so that it ends at the same moment as the
- * source while keeping the span — the zoom level — it already had.
- *
- * Scrolling is shared, zooming is not: aligning the right edge puts every cell
- * on the same point in time, but a chart held at a wide higher-timeframe view
- * stays wide when another cell zooms into a few minutes.
- */
-export function alignedFrom(peerVisible: { from: Time; to: Time } | null, source: TimeRange): number {
-  if (!peerVisible) return source.from;
-  const from = timeToSeconds(peerVisible.from);
-  const to = timeToSeconds(peerVisible.to);
-  if (from == null || to == null) return source.from;
-  const span = to - from;
-  return span > 0 ? source.to - span : source.from;
-}
-
 export class ChartSync {
   private readonly members = new Map<string, SyncMember>();
-  /** Per-member timestamp until which its range events are peer-induced echoes. */
-  private readonly echoUntil = new Map<string, number>();
-  /** Re-entrancy guard: applying a range to a peer re-fires its own listener. */
+  /** Re-entrancy guard for mirrored crosshair updates. */
   private applying = false;
-  /** Crosshair and time sync are independent options, as they are in TradingView. */
-  private modes = { crosshair: true, time: true };
+  private crosshairEnabled = true;
 
   register(id: string, member: SyncMember): () => void {
     this.members.set(id, member);
     return () => {
       if (this.members.get(id) !== member) return;
       this.members.delete(id);
-      this.echoUntil.delete(id);
     };
   }
 
-  setModes(modes: { crosshair: boolean; time: boolean }) {
-    this.modes = modes;
+  setCrosshairEnabled(enabled: boolean) {
+    this.crosshairEnabled = enabled;
   }
 
   /** True while a peer update is being applied — callers skip their own work. */
@@ -114,37 +80,8 @@ export class ChartSync {
     return this.applying;
   }
 
-  broadcastRange(sourceId: string, visible: { from: Time; to: Time } | null) {
-    if (!this.modes.time || this.applying || !visible || this.members.size < 2) return;
-    const from = timeToSeconds(visible.from);
-    const to = timeToSeconds(visible.to);
-    if (from == null || to == null) return;
-    const range: TimeRange = { from, to };
-    const now = performance.now();
-    // This chart is only echoing a move a peer just pushed onto it.
-    if (now < (this.echoUntil.get(sourceId) ?? 0)) return;
-    this.applying = true;
-    try {
-      for (const [id, member] of this.members) {
-        if (id === sourceId) continue;
-        try {
-          const scale = member.chart.timeScale();
-          scale.setVisibleRange({
-            from: alignedFrom(scale.getVisibleRange(), range) as UTCTimestamp,
-            to: range.to as UTCTimestamp,
-          });
-          this.echoUntil.set(id, now + ECHO_WINDOW_MS);
-        } catch {
-          // A peer without data covering the range simply keeps its own view.
-        }
-      }
-    } finally {
-      this.applying = false;
-    }
-  }
-
   broadcastCrosshair(sourceId: string, time: Time | null) {
-    if (!this.modes.crosshair || this.applying || this.members.size < 2) return;
+    if (!this.crosshairEnabled || this.applying || this.members.size < 2) return;
     const seconds = time == null ? null : timeToSeconds(time);
     this.applying = true;
     try {

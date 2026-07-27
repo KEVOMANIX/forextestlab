@@ -23,6 +23,7 @@ async function openSession(page: Page) {
       window.localStorage.setItem("forextestlab:onboarding:trading", "done");
       window.localStorage.removeItem(`forextestlab:layout:${sessionId}`);
       window.localStorage.removeItem(`forextestlab:chart:${sessionId}:cell-1`);
+      window.localStorage.removeItem(`forextestlab:chart-settings:${sessionId}`);
     },
     { sessionId: body.sessionId, token: body.token },
   );

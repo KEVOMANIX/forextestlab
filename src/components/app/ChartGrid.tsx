@@ -9,6 +9,7 @@ import type { OpenPosition, PublicSessionState } from "@/lib/backtest/types";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
 
 import PriceChart, { type ChartMarker } from "./PriceChart";
+import type { ChartWorkspace } from "./useChartWorkspace";
 
 /**
  * Multi-chart workspace.
@@ -50,6 +51,21 @@ interface StoredLayout {
   layout: GridLayout;
   cells: ChartCell[];
   focusedId: string;
+}
+
+/**
+ * Seed a new cell's view state from the cell it was cloned from, unless it
+ * already has its own from an earlier visit to this layout.
+ */
+function cloneCellView(storageKey: string, fromCellId: string, toCellId: string) {
+  try {
+    const target = `forextestlab:chart:${storageKey}:${toCellId}`;
+    if (window.localStorage.getItem(target)) return;
+    const source = window.localStorage.getItem(`forextestlab:chart:${storageKey}:${fromCellId}`);
+    if (source) window.localStorage.setItem(target, source);
+  } catch {
+    // A cell without seeded state just opens on the defaults.
+  }
 }
 
 function readStoredLayout(storageKey: string): StoredLayout | null {
@@ -105,6 +121,8 @@ interface ChartGridProps {
   /** Focused cell's symbol, so the top bar's pair picker stays in step. */
   focusedSymbol: string;
   onFocusedSymbolChange: (symbol: string) => void;
+  /** Preferences every chart in the workspace shares. */
+  workspace: ChartWorkspace;
 }
 
 export default function ChartGrid({
@@ -133,6 +151,7 @@ export default function ChartGrid({
   orderTicket = null,
   focusedSymbol,
   onFocusedSymbolChange,
+  workspace,
 }: ChartGridProps) {
   const sessionSymbol = state.config.symbol;
   const [layout, setLayout] = useState<GridLayout>("1");
@@ -168,17 +187,21 @@ export default function ChartGrid({
   const visibleCells = useMemo(() => {
     const count = layoutSpec(layout).cells;
     const next = cells.slice(0, count);
-    // Growing the layout clones the focused cell's instrument, like TradingView.
+    // Growing the layout clones the focused cell, like TradingView: same
+    // instrument, and the same view state (timeframe, chart type, indicators)
+    // so the new pane opens as a copy of the chart you were just looking at.
     const template = cells.find((cell) => cell.id === focusedId) ?? cells[0];
     while (next.length < count) {
+      const id = `cell-${next.length + 1}`;
+      if (template) cloneCellView(storageKey, template.id, id);
       next.push({
-        id: `cell-${next.length + 1}`,
+        id,
         symbol: template?.symbol ?? sessionSymbol,
-        timeframe: null,
+        timeframe: template?.timeframe ?? null,
       });
     }
     return next;
-  }, [cells, layout, focusedId, sessionSymbol]);
+  }, [cells, layout, focusedId, sessionSymbol, storageKey]);
 
   // Persist cells the layout has grown into. Shrinking keeps the hidden cells'
   // configuration so switching back to a wider layout restores it.
@@ -328,6 +351,7 @@ export default function ChartGrid({
                 loading={loading}
                 error={error}
                 storageKey={storageKey}
+                workspace={workspace}
                 onFocus={() => focusCell(cell.id)}
                 headerSlot={!multi && isFocused ? headerSlot : null}
                 orderTicket={isSession && isFocused ? orderTicket : null}
@@ -370,6 +394,7 @@ interface ChartCellViewProps {
   onFocus: () => void;
   headerSlot: HTMLElement | null;
   orderTicket: React.ReactNode;
+  workspace: ChartWorkspace;
 }
 
 function ChartCellView({
@@ -398,6 +423,7 @@ function ChartCellView({
   onFocus,
   headerSlot,
   orderTicket,
+  workspace,
 }: ChartCellViewProps) {
   const reveal = useRevealedSeries(isSession ? sessionSeries : pair?.candles ?? null, state.currentTime);
   const noop = useCallback(() => {}, []);
@@ -447,6 +473,11 @@ function ChartCellView({
         headerSlot={headerSlot}
         orderTicket={orderTicket}
         instrumentLabel={multi ? `${cell.symbol}${tradable ? "" : " · reference"}` : undefined}
+        settings={workspace.settings}
+        onSettingsChange={workspace.updateSettings}
+        onSettingsReset={workspace.resetSettings}
+        favorites={workspace.favorites}
+        onToggleFavorite={workspace.toggleFavorite}
       />
   );
 }

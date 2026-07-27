@@ -17,6 +17,8 @@ import { EXCHANGE_ZONE } from "@/lib/chart/timezones";
 export interface ChartSettings {
   upColor: string;
   downColor: string;
+  /** Chart background, or "auto" to follow the app theme. */
+  background: string;
   grid: boolean;
   magnet: boolean;
   /** Entry/exit arrows for trades the session has already closed. */
@@ -30,9 +32,12 @@ export interface ChartSettings {
   timeZone: string;
 }
 
+export const AUTO_BACKGROUND = "auto";
+
 export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   upColor: "#22c3a0",
   downColor: "#f4646c",
+  background: AUTO_BACKGROUND,
   grid: true,
   magnet: false,
   tradeHistory: true,
@@ -45,10 +50,12 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
 /** Palettes people actually use for candles, plus the app default first. */
 const UP_SWATCHES = ["#22c3a0", "#26a69a", "#3fb950", "#2962ff", "#d1d4dc"];
 const DOWN_SWATCHES = ["#f4646c", "#ef5350", "#f85149", "#ff9800", "#787b86"];
+/** "auto" first: most people want the chart to follow the app theme. */
+const BACKGROUND_SWATCHES = [AUTO_BACKGROUND, "#0b0f1a", "#131722", "#000000", "#ffffff"];
 
 const PANEL_WIDTH = 232;
 /** Rough panel height, used to keep the menu on screen near the bottom edge. */
-const PANEL_HEIGHT = 360;
+const PANEL_HEIGHT = 400;
 
 export function ChartSettingsMenu({
   position,
@@ -121,6 +128,12 @@ export function ChartSettingsMenu({
         value={settings.downColor}
         swatches={DOWN_SWATCHES}
         onChange={(downColor) => onChange({ downColor })}
+      />
+      <ColorRow
+        label="Background"
+        value={settings.background}
+        swatches={BACKGROUND_SWATCHES}
+        onChange={(background) => onChange({ background })}
       />
       <ToggleRow label="Grid lines" checked={settings.grid} onToggle={() => onChange({ grid: !settings.grid })} />
       <ToggleRow
@@ -214,12 +227,17 @@ function ColorRow({
           <button
             key={color}
             type="button"
-            aria-label={`${label} ${color}`}
+            aria-label={`${label} ${color === AUTO_BACKGROUND ? "theme default" : color}`}
             aria-pressed={color === value}
             onClick={() => onChange(color)}
-            style={{ backgroundColor: color }}
-            className={`h-5 w-5 rounded ${color === value ? "ring-2 ring-white/70" : ""}`}
-          />
+            title={color === AUTO_BACKGROUND ? "Follow the app theme" : color}
+            style={color === AUTO_BACKGROUND ? undefined : { backgroundColor: color }}
+            className={`grid h-5 w-5 place-items-center rounded text-[8px] font-bold ${
+              color === AUTO_BACKGROUND ? "border border-current opacity-70" : ""
+            } ${color === value ? "ring-2 ring-white/70" : ""}`}
+          >
+            {color === AUTO_BACKGROUND ? "A" : ""}
+          </button>
         ))}
         <label className="ml-auto cursor-pointer" aria-label={`${label} custom`}>
           <span className="underline decoration-dotted opacity-60">Custom</span>

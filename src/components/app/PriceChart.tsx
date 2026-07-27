@@ -90,7 +90,7 @@ import {
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
 import { ChartClock } from "./ChartClock";
-import { ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
+import { AUTO_BACKGROUND, ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
@@ -180,6 +180,13 @@ interface PriceChartProps {
   onFocus?: () => void;
   /** Instrument name shown at the head of the cell's own toolbar, in a grid. */
   instrumentLabel?: string;
+  /** Chart preferences, shared by every chart in the workspace. */
+  settings: ChartSettings;
+  onSettingsChange: (patch: Partial<ChartSettings>) => void;
+  onSettingsReset: () => void;
+  /** Favourite drawing tools, likewise shared. */
+  favorites: Set<ToolKind>;
+  onToggleFavorite: (tool: ToolKind) => void;
   /** Optional DOM node in the top header to portal the chart controls into. */
   headerSlot?: HTMLElement | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
@@ -453,6 +460,11 @@ export default function PriceChart({
   initialTimeframe,
   onFocus,
   instrumentLabel,
+  settings,
+  onSettingsChange,
+  onSettingsReset,
+  favorites,
+  onToggleFavorite,
   headerSlot = null,
   orderTicket = null,
 }: PriceChartProps) {
@@ -528,7 +540,6 @@ export default function PriceChart({
 
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(initialTimeframe ?? baseTimeframe);
   const [chartType, setChartType] = useState<ChartType>("candles");
-  const [settings, setSettings] = useState<ChartSettings>(DEFAULT_CHART_SETTINGS);
   const [settingsMenu, setSettingsMenu] = useState<{ x: number; y: number } | null>(null);
   const gridVisible = settings.grid;
   const magnetCrosshair = settings.magnet;
@@ -539,13 +550,12 @@ export default function PriceChart({
   const [openCats, setOpenCats] = useState<Set<IndCategory>>(() => new Set(CATEGORY_ORDER));
   const [anchorPick, setAnchorPick] = useState<{ id: string; key: string } | null>(null);
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
-  const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
   const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
   const favDragRef = useRef<{ sx: number; sy: number; bx: number; by: number; moved: boolean } | null>(null);
   const favMovedRef = useRef(false);
   const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
   const [drawCount, setDrawCount] = useState(0);
-  const [drawingsHidden, setDrawingsHidden] = useState(false);
+  const drawingsHidden = !settings.drawings;
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const drawingEngineRef = useRef<DrawingEngine | null>(null);
   const [menu, setMenu] = useState<"type" | "indicators" | DrawMenu | null>(null);
@@ -620,18 +630,11 @@ export default function PriceChart({
    * owns its own canvas.
    */
   function updateSettings(patch: Partial<ChartSettings>) {
-    setSettings((current) => {
-      const next = { ...current, ...patch };
-      if (patch.drawings !== undefined) {
-        setDrawingsHidden(!patch.drawings);
-        drawingEngineRef.current?.setHideAll(!patch.drawings);
-      }
-      return next;
-    });
+    onSettingsChange(patch);
   }
 
   function resetSettings() {
-    updateSettings(DEFAULT_CHART_SETTINGS);
+    onSettingsReset();
   }
 
   /** Pixel row for a price, or null when it is off-scale / the chart isn't ready. */
@@ -961,22 +964,10 @@ export default function PriceChart({
         const saved = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as {
           range?: { from: number; to: number };
           timeframe?: Timeframe;
-          grid?: boolean;
-          magnet?: boolean;
-          settings?: Partial<ChartSettings>;
           chartType?: ChartType;
           indicators?: unknown[];
         };
         if (saved.timeframe && availableTimeframes.includes(saved.timeframe)) setDisplayTimeframe(saved.timeframe);
-        // `grid`/`magnet` predate the settings panel; keep reading them so an
-        // existing chart does not lose its preferences.
-        setSettings((current) => ({
-          ...current,
-          ...(typeof saved.grid === "boolean" ? { grid: saved.grid } : {}),
-          ...(typeof saved.magnet === "boolean" ? { magnet: saved.magnet } : {}),
-          ...(saved.settings ?? {}),
-        }));
-        if (saved.settings?.drawings === false) drawingEngineRef.current?.setHideAll(true);
         if (saved.chartType) setChartType(saved.chartType);
         if (Array.isArray(saved.indicators)) {
           setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
@@ -1134,13 +1125,19 @@ export default function PriceChart({
     if (!chart) return;
     const palette = PALETTES[theme];
     chart.applyOptions({
-      layout: { background: { type: ColorType.Solid, color: palette.background }, textColor: palette.text },
+      layout: {
+        background: {
+          type: ColorType.Solid,
+          color: settings.background === AUTO_BACKGROUND ? palette.background : settings.background,
+        },
+        textColor: palette.text,
+      },
       grid: { vertLines: { color: gridVisible ? palette.grid : "transparent" }, horzLines: { color: gridVisible ? palette.grid : "transparent" } },
       rightPriceScale: { borderColor: palette.border },
       timeScale: { borderColor: palette.border },
       crosshair: { mode: magnetCrosshair ? CrosshairMode.Magnet : CrosshairMode.Normal },
     });
-  }, [theme, gridVisible, magnetCrosshair]);
+  }, [theme, gridVisible, magnetCrosshair, settings.background]);
 
   // Re-sync indicator controllers (both panes) when the active set changes.
   useEffect(() => {
@@ -1224,9 +1221,6 @@ export default function PriceChart({
         JSON.stringify({
           ...existing,
           timeframe: displayTimeframe,
-          grid: gridVisible,
-          magnet: magnetCrosshair,
-          settings,
           chartType,
           indicators,
         }),
@@ -1234,7 +1228,7 @@ export default function PriceChart({
     } catch {
       // Ignore local storage failures.
     }
-  }, [displayTimeframe, gridVisible, magnetCrosshair, settings, chartType, indicators, viewStorageKey]);
+  }, [displayTimeframe, chartType, indicators, viewStorageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -1399,30 +1393,6 @@ export default function PriceChart({
     else onTakeProfitChange(price == null ? null : price.toFixed(precision));
   }
 
-  // Favorite drawing tools — persisted globally and shown in a quick-access bar.
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem("forextestlab:fav-tools");
-      if (raw) setFavorites(new Set(JSON.parse(raw) as ToolKind[]));
-    } catch {
-      // Ignore malformed favorites.
-    }
-  }, []);
-
-  function toggleFavorite(tool: ToolKind) {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(tool)) next.delete(tool);
-      else next.add(tool);
-      try {
-        window.localStorage.setItem("forextestlab:fav-tools", JSON.stringify([...next]));
-      } catch {
-        // Best-effort.
-      }
-      return next;
-    });
-  }
-
   // Drag the favorites bar from anywhere on it (buttons still click if no drag).
   function startFavDrag(e: React.PointerEvent<HTMLDivElement>) {
     const cont = containerRef.current?.getBoundingClientRect();
@@ -1505,6 +1475,10 @@ export default function PriceChart({
   drawingsActiveRef.current = drawTool != null || drawCount > 0;
   viewportOverlaysRef.current =
     overlayIndicators.length > 0;
+
+  useEffect(() => {
+    drawingEngineRef.current?.setHideAll(!settings.drawings);
+  }, [settings.drawings, drawCount]);
 
   // Picking up a tool or adding the first drawing needs the timeline the render
   // loop skips building while a chart has none.
@@ -1853,7 +1827,16 @@ export default function PriceChart({
         )}
 
         {/* Click-away backdrop for open menus */}
-        {menu && <div className="absolute inset-0 z-20" onClick={() => setMenu(null)} aria-hidden />}
+        {menu && (
+          <div
+            className="absolute inset-0 z-20"
+            onClick={() => setMenu(null)}
+            // Right-clicking away from a menu should dismiss it too, rather
+            // than leaving an invisible backdrop swallowing the click.
+            onContextMenu={() => setMenu(null)}
+            aria-hidden
+          />
+        )}
 
         {/* Drawing tools occupy the reserved pane to the left of the chart canvas. */}
         <div className="absolute bottom-0 left-0 top-0 z-30 flex w-12 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2" role="toolbar" aria-label="Drawing tools">
@@ -1903,7 +1886,7 @@ export default function PriceChart({
               <ToolButton
                 label={drawingsHidden ? "Show all drawings" : "Hide all drawings"}
                 active={drawingsHidden}
-                onClick={() => { const next = !drawingsHidden; setDrawingsHidden(next); drawingEngineRef.current?.setHideAll(next); }}
+                onClick={() => updateSettings({ drawings: drawingsHidden })}
               >
                 {drawingsHidden ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
               </ToolButton>
@@ -1962,7 +1945,7 @@ export default function PriceChart({
                       type="button"
                       aria-label={fav ? `Unfavorite ${TOOL_LABELS[t]}` : `Favorite ${TOOL_LABELS[t]}`}
                       aria-pressed={fav}
-                      onClick={(e) => { e.stopPropagation(); toggleFavorite(t); }}
+                      onClick={(e) => { e.stopPropagation(); onToggleFavorite(t); }}
                       className={`shrink-0 rounded p-1 transition-opacity ${fav ? "text-amber-400 opacity-100" : "app-muted opacity-0 group-hover:opacity-100 hover:text-amber-400"}`}
                     >
                       <Star size={13} fill={fav ? "currentColor" : "none"} aria-hidden />

@@ -6,8 +6,8 @@ import { useMemo, useState } from "react";
 
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { PublicSessionState } from "@/lib/backtest/types";
-import { formatNewYorkDateTime } from "@/lib/date-time";
 import { AccountSummary } from "./AccountSummary";
+import { SessionClock } from "./SessionClock";
 import { StatsGrid } from "./StatsGrid";
 import { TradesTable } from "./TradesTable";
 
@@ -23,6 +23,8 @@ const TABS: { id: Exclude<Tab, "statistics">; label: string }[] = [
 interface BottomPanelProps {
   state: PublicSessionState;
   currentTime?: number | null;
+  /** Zone the charts are displayed in, so every clock in the app agrees. */
+  timeZone: string;
   initialNotes?: string;
   onSaveNotes: (notes: string) => void;
   busy: boolean;
@@ -31,6 +33,7 @@ interface BottomPanelProps {
 export function BottomPanel({
   state,
   currentTime = null,
+  timeZone,
   initialNotes = "",
   onSaveNotes,
   busy,
@@ -51,9 +54,6 @@ export function BottomPanel({
   );
 
   const openCount = state.openPositions.length;
-  const timeLabel = currentTime
-    ? formatNewYorkDateTime(currentTime, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
-    : "—";
 
   const selectTab = (next: Tab) => {
     if (expanded && tab === next) {
@@ -170,11 +170,19 @@ export function BottomPanel({
               <Link href="/sign-up" className="font-semibold underline">Create a free account</Link>
             </span>
           )}
-          <span className="hidden border-l app-border px-3 font-mono text-[10px] app-muted lg:inline">
-            Time: {timeLabel}
-          </span>
           <div className="hidden h-full border-l app-border sm:flex">
-            <AccountSummary state={state} />
+            <AccountSummary
+              state={state}
+              clock={
+                <SessionClock
+                  candleTime={currentTime}
+                  timeframe={state.config.timeframe}
+                  speed={state.speed}
+                  running={state.status === "running"}
+                  zone={timeZone}
+                />
+              }
+            />
           </div>
           <button
             id="analytics-button"

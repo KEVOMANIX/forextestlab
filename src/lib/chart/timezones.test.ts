@@ -87,3 +87,31 @@ describe("zoneOptionsAt ordering", () => {
     expect(summer.indexOf("America/Denver")).toBeGreaterThan(summer.indexOf("America/Phoenix"));
   });
 });
+
+describe("catalogue coverage", () => {
+  it("covers the whole world, not a hand-picked shortlist", () => {
+    // The first cut was transcribed from a screenshot and quietly omitted
+    // places like Nairobi; the list now comes from the runtime's own database.
+    const ids = new Set(TIME_ZONES.map((zone) => zone.id));
+    for (const id of [
+      "Africa/Nairobi",
+      "Africa/Accra",
+      "Asia/Manila",
+      "America/Jamaica",
+      "Indian/Maldives",
+      "Pacific/Fiji",
+    ]) {
+      expect(ids.has(id)).toBe(true);
+    }
+    expect(TIME_ZONES.length).toBeGreaterThan(300);
+  });
+
+  it("labels a zone by its city", () => {
+    const nairobi = TIME_ZONES.find((zone) => zone.id === "Africa/Nairobi");
+    expect(nairobi?.label).toBe("Nairobi");
+    expect(zoneOffsetLabel("Africa/Nairobi", JANUARY)).toBe("UTC+3");
+    // Deeper ids keep only the city, and underscores become spaces.
+    const rioGallegos = TIME_ZONES.find((zone) => zone.id === "America/Argentina/Rio_Gallegos");
+    expect(rioGallegos?.label).toBe("Rio Gallegos");
+  });
+});

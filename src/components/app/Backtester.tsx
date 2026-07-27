@@ -15,6 +15,7 @@ import {
 } from "./TerminalChrome";
 import { useAppTheme } from "./ThemeContext";
 import { useBacktester } from "./useBacktester";
+import { useChartWorkspace } from "./useChartWorkspace";
 import { BackLink } from "./BackLink";
 import { TradingOnboarding } from "./TradingOnboarding";
 import type { OrderRequest } from "@/lib/backtest/types";
@@ -56,6 +57,8 @@ export function Backtester({
   const { theme, toggle } = useAppTheme();
   const bt = useBacktester(resumeSessionId);
   const { state, actions } = bt;
+  // Chart preferences are shared by every chart in the session's workspace.
+  const workspace = useChartWorkspace(String(bt.sessionId ?? "new"));
   const [trialSessionsRemaining, setTrialSessionsRemaining] = useState(
     entitlements.trialSessionsRemaining,
   );
@@ -384,6 +387,7 @@ export function Backtester({
             storageKey={String(state.sessionId)}
             focusedSymbol={activeSymbol}
             onFocusedSymbolChange={actions.switchPair}
+            workspace={workspace}
             headerSlot={chartHeaderSlot}
             layoutSlot={chartLayoutSlot}
             orderTicket={
@@ -430,7 +434,8 @@ export function Backtester({
 
       <BottomPanel
         state={state}
-        currentTime={bt.lastCandle?.timestamp ?? null}
+        currentTime={state.currentTime ?? bt.lastCandle?.timestamp ?? null}
+        timeZone={workspace.settings.timeZone}
         initialNotes={bt.notes}
         onSaveNotes={actions.saveNotes}
         busy={bt.busy}

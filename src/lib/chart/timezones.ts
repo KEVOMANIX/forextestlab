@@ -25,95 +25,57 @@ export function resolveZone(id: string): string {
   return id === EXCHANGE_ZONE ? DISPLAY_TIME_ZONE : id;
 }
 
-export const TIME_ZONES: TimeZoneOption[] = [
-  { id: UTC_ZONE, label: "UTC" },
-  { id: EXCHANGE_ZONE, label: "Exchange" },
-  { id: "Pacific/Honolulu", label: "Honolulu" },
-  { id: "America/Anchorage", label: "Anchorage" },
-  { id: "America/Juneau", label: "Juneau" },
-  { id: "America/Los_Angeles", label: "Los Angeles" },
-  { id: "America/Phoenix", label: "Phoenix" },
-  { id: "America/Vancouver", label: "Vancouver" },
-  { id: "America/Denver", label: "Denver" },
-  { id: "America/Mexico_City", label: "Mexico City" },
-  { id: "America/El_Salvador", label: "San Salvador" },
-  { id: "America/Bogota", label: "Bogota" },
-  { id: "America/Chicago", label: "Chicago" },
-  { id: "America/Lima", label: "Lima" },
-  { id: "America/Caracas", label: "Caracas" },
-  { id: "America/New_York", label: "New York" },
-  { id: "America/Santiago", label: "Santiago" },
-  { id: "America/Toronto", label: "Toronto" },
-  { id: "America/Argentina/Buenos_Aires", label: "Buenos Aires" },
-  { id: "America/Halifax", label: "Halifax" },
-  { id: "America/Sao_Paulo", label: "Sao Paulo" },
-  { id: "Atlantic/Azores", label: "Azores" },
-  { id: "Atlantic/Reykjavik", label: "Reykjavik" },
-  { id: "Africa/Casablanca", label: "Casablanca" },
-  { id: "Europe/Dublin", label: "Dublin" },
-  { id: "Africa/Lagos", label: "Lagos" },
-  { id: "Europe/Lisbon", label: "Lisbon" },
-  { id: "Europe/London", label: "London" },
-  { id: "Africa/Tunis", label: "Tunis" },
-  { id: "Europe/Amsterdam", label: "Amsterdam" },
-  { id: "Europe/Belgrade", label: "Belgrade" },
-  { id: "Europe/Berlin", label: "Berlin" },
-  { id: "Europe/Bratislava", label: "Bratislava" },
-  { id: "Europe/Brussels", label: "Brussels" },
-  { id: "Europe/Budapest", label: "Budapest" },
-  { id: "Europe/Copenhagen", label: "Copenhagen" },
-  { id: "Europe/Madrid", label: "Madrid" },
-  { id: "Europe/Malta", label: "Malta" },
-  { id: "Europe/Oslo", label: "Oslo" },
-  { id: "Europe/Paris", label: "Paris" },
-  { id: "Europe/Rome", label: "Rome" },
-  { id: "Europe/Stockholm", label: "Stockholm" },
-  { id: "Europe/Warsaw", label: "Warsaw" },
-  { id: "Europe/Zurich", label: "Zurich" },
-  { id: "Africa/Cairo", label: "Cairo" },
-  { id: "Europe/Athens", label: "Athens" },
-  { id: "Asia/Beirut", label: "Beirut" },
-  { id: "Europe/Bucharest", label: "Bucharest" },
-  { id: "Africa/Johannesburg", label: "Johannesburg" },
-  { id: "Europe/Helsinki", label: "Helsinki" },
-  { id: "Asia/Jerusalem", label: "Jerusalem" },
-  { id: "Europe/Kiev", label: "Kyiv" },
-  { id: "Europe/Riga", label: "Riga" },
-  { id: "Europe/Tallinn", label: "Tallinn" },
-  { id: "Europe/Vilnius", label: "Vilnius" },
-  { id: "Europe/Istanbul", label: "Istanbul" },
-  { id: "Asia/Bahrain", label: "Bahrain" },
-  { id: "Europe/Moscow", label: "Moscow" },
-  { id: "Asia/Kuwait", label: "Kuwait" },
-  { id: "Asia/Qatar", label: "Qatar" },
-  { id: "Asia/Riyadh", label: "Riyadh" },
-  { id: "Asia/Dubai", label: "Dubai" },
-  { id: "Asia/Muscat", label: "Muscat" },
-  { id: "Asia/Tehran", label: "Tehran" },
-  { id: "Asia/Karachi", label: "Karachi" },
-  { id: "Asia/Kolkata", label: "Kolkata" },
-  { id: "Asia/Kathmandu", label: "Kathmandu" },
-  { id: "Asia/Almaty", label: "Almaty" },
-  { id: "Asia/Dhaka", label: "Dhaka" },
-  { id: "Asia/Bangkok", label: "Bangkok" },
-  { id: "Asia/Ho_Chi_Minh", label: "Ho Chi Minh" },
-  { id: "Asia/Jakarta", label: "Jakarta" },
-  { id: "Asia/Chongqing", label: "Chongqing" },
-  { id: "Asia/Hong_Kong", label: "Hong Kong" },
-  { id: "Australia/Perth", label: "Perth" },
-  { id: "Asia/Shanghai", label: "Shanghai" },
-  { id: "Asia/Singapore", label: "Singapore" },
-  { id: "Asia/Taipei", label: "Taipei" },
-  { id: "Asia/Seoul", label: "Seoul" },
-  { id: "Asia/Tokyo", label: "Tokyo" },
-  { id: "Australia/Adelaide", label: "Adelaide" },
-  { id: "Australia/Brisbane", label: "Brisbane" },
-  { id: "Australia/Sydney", label: "Sydney" },
-  { id: "Pacific/Norfolk", label: "Norfolk Island" },
-  { id: "Pacific/Auckland", label: "Auckland" },
-  { id: "Pacific/Chatham", label: "Chatham Islands" },
-  { id: "Pacific/Fakaofo", label: "Tokelau" },
+/**
+ * Used only where the runtime cannot enumerate zones itself. Everything else
+ * comes from the ICU database, so the list is complete and stays current.
+ */
+const FALLBACK_ZONE_IDS = [
+  "Africa/Cairo",
+  "Africa/Johannesburg",
+  "Africa/Lagos",
+  "Africa/Nairobi",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/New_York",
+  "America/Sao_Paulo",
+  "Asia/Dubai",
+  "Asia/Hong_Kong",
+  "Asia/Kolkata",
+  "Asia/Shanghai",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+  "Europe/Berlin",
+  "Europe/London",
+  "Europe/Moscow",
+  "Europe/Zurich",
+  "Pacific/Auckland",
 ];
+
+/** "Africa/Nairobi" -> "Nairobi", "America/Argentina/Buenos_Aires" -> "Buenos Aires". */
+function zoneLabel(id: string): string {
+  const city = id.split("/").pop() ?? id;
+  return city.replace(/_/g, " ");
+}
+
+function catalogue(): TimeZoneOption[] {
+  const supported =
+    typeof Intl.supportedValuesOf === "function"
+      ? (Intl.supportedValuesOf("timeZone") as string[])
+      : FALLBACK_ZONE_IDS;
+  const zones = supported
+    // Region-less aliases (UTC, GMT, EST5EDT...) duplicate the pinned UTC entry.
+    .filter((id) => id.includes("/"))
+    .map((id) => ({ id, label: zoneLabel(id) }));
+  return [
+    { id: UTC_ZONE, label: "UTC" },
+    { id: EXCHANGE_ZONE, label: "Exchange" },
+    ...zones,
+  ];
+}
+
+export const TIME_ZONES: TimeZoneOption[] = catalogue();
 
 const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
 

@@ -55,7 +55,14 @@ export function accountMargin(state: PublicSessionState): number {
   return Number(total.toFixed(2));
 }
 
-export function AccountSummary({ state }: { state: PublicSessionState }) {
+export function AccountSummary({
+  state,
+  clock = null,
+}: {
+  state: PublicSessionState;
+  /** Session clock, shown ahead of the balances. */
+  clock?: React.ReactNode;
+}) {
   const metrics = useMemo(() => {
     const balance = Number(state.balance);
     const equity = Number(state.equity);
@@ -73,6 +80,7 @@ export function AccountSummary({ state }: { state: PublicSessionState }) {
       className="flex h-full shrink-0 items-center gap-4 px-3 xl:gap-6"
       aria-label="Account summary"
     >
+      {clock}
       <Metric label="Account balance" value={money(metrics.balance)} />
       <Metric label="Equity" value={money(metrics.equity)} className="hidden md:flex" />
       <Metric

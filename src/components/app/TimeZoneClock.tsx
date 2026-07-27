@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check } from "lucide-react";
+import { Check, ChevronDown, Clock } from "lucide-react";
 
 import { formatInZone, zoneOffsetLabel, zoneOptionsAt } from "@/lib/chart/timezones";
 
@@ -104,11 +104,21 @@ export function TimeZoneClock({
         // Left end of the time axis, not the right: the support bubble is pinned
         // to the bottom-right corner of the viewport and would swallow the click.
         // A backdrop, because this sits on the axis strip over the tick labels.
-        className={`rounded px-2 py-0.5 font-mono text-[11px] ${
-          open ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 transition-colors ${
+          open
+            ? "border-brand-400/40 bg-brand-400/10 text-brand-300"
+            : "app-border bg-[var(--app-panel-2)] app-muted hover:border-brand-400/25 hover:text-[var(--app-text)]"
         }`}
       >
-        {clock} {offset}
+        <Clock size={12} aria-hidden className="shrink-0 opacity-60" />
+        {/* Tabular figures: without them the width jitters every second. */}
+        <span className="font-mono text-[11px] font-semibold tabular-nums">{clock}</span>
+        <span className="font-mono text-[10px] opacity-60">{offset}</span>
+        <ChevronDown
+          size={11}
+          aria-hidden
+          className={`shrink-0 opacity-60 transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </button>
 
       {open && anchor &&

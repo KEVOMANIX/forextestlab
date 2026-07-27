@@ -61,6 +61,9 @@ export function DrawingLayer({
   const [menu, setMenu] = useState<ContextMenuRequest | null>(null);
   const [selection, setSelection] = useState<DrawingJSON | null>(null);
   const [textEdit, setTextEdit] = useState<{ id: string; x: number; y: number } | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
+  /** False until the editor owns focus for real; blurs before that are spurious. */
+  const textReadyRef = useRef(false);
   const textDraftRef = useRef("");
 
   // Create / dispose the engine with the chart lifecycle.
@@ -162,6 +165,20 @@ export function DrawingLayer({
     });
   };
 
+  // Take focus once the creating click has fully played out, then start
+  // honouring blur. Focusing during the click loses the editor immediately.
+  useEffect(() => {
+    if (!textEdit) return;
+    textReadyRef.current = false;
+    const focus = () => textAreaRef.current?.focus();
+    focus();
+    const settle = window.setTimeout(() => {
+      focus();
+      textReadyRef.current = true;
+    }, 150);
+    return () => window.clearTimeout(settle);
+  }, [textEdit]);
+
   const commitText = (cancel: boolean) => {
     if (!textEdit) return;
     const value = textDraftRef.current.trim();
@@ -176,15 +193,24 @@ export function DrawingLayer({
 
       {textEdit && (
         <textarea
+          ref={textAreaRef}
           key={textEdit.id}
-          autoFocus
           defaultValue=""
           aria-label="Drawing text"
           onChange={(e) => {
             textDraftRef.current = e.target.value;
             eng()?.setObjectText(textEdit.id, e.target.value);
           }}
-          onBlur={() => commitText(false)}
+          onBlur={() => {
+            // The click that created the drawing is still in flight when the
+            // editor mounts; its pointerup blurs us before a key can be typed,
+            // and an empty commit deletes the drawing. Ignore that one.
+            if (!textReadyRef.current) {
+              textAreaRef.current?.focus();
+              return;
+            }
+            commitText(false);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               e.preventDefault();

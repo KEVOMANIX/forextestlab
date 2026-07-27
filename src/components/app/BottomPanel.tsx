@@ -142,6 +142,14 @@ export function BottomPanel({
         </div>
       )}
 
+      {/* Centred on the bar, not on the space left between the two groups —
+          the guest notice moved left so nothing sits under it. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 hidden h-9 items-center justify-center md:flex">
+        <div className="pointer-events-auto">
+          <TimeZoneClock zone={timeZone} theme={theme} onChange={onTimeZoneChange} />
+        </div>
+      </div>
+
       <div className="flex h-9 shrink-0 items-center overflow-x-auto px-1.5 text-[11px]">
         <div role="tablist" aria-label="Session panels" className="flex h-full shrink-0 items-center">
           {TABS.map((item) => {
@@ -168,19 +176,15 @@ export function BottomPanel({
           })}
         </div>
 
-        {/* Centred in the space between the tabs and the balances. Absolute
-            centring on the bar itself would sit on top of the guest notice. */}
-        <div className="mx-auto hidden shrink-0 px-4 sm:block">
-          <TimeZoneClock zone={timeZone} theme={theme} onChange={onTimeZoneChange} />
-        </div>
+        {/* Left of centre, so it never sits under the centred clock. */}
+        {state.anonymous && (
+          <span className="hidden shrink-0 border-r app-border px-3 text-[10px] text-brand-300 xl:inline-flex">
+            Guest session&nbsp;·&nbsp;
+            <Link href="/sign-up" className="font-semibold underline">Create a free account</Link>
+          </span>
+        )}
 
-        <div className="flex h-full shrink-0 items-center">
-          {state.anonymous && (
-            <span className="hidden border-l app-border px-3 text-[10px] text-brand-300 xl:inline-flex">
-              Guest session&nbsp;·&nbsp;
-              <Link href="/sign-up" className="font-semibold underline">Create a free account</Link>
-            </span>
-          )}
+        <div className="ml-auto flex h-full shrink-0 items-center">
           <div className="hidden h-full border-l app-border sm:flex">
             <AccountSummary
               state={state}

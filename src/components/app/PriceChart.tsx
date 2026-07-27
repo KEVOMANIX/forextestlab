@@ -65,7 +65,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 
-import { DISPLAY_TIME_ZONE, formatNewYorkDateTime } from "@/lib/date-time";
+import { formatInZone, zoneOffsetLabel } from "@/lib/chart/timezones";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
   TIMEFRAMES,
@@ -89,6 +89,7 @@ import {
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
+import { ChartClock } from "./ChartClock";
 import { ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
@@ -120,13 +121,21 @@ function chartTimeMs(time: Time): number {
   return Date.UTC(time.year, time.month - 1, time.day, 12);
 }
 
-const chartTickFormatter = new Intl.DateTimeFormat("en", {
-  timeZone: DISPLAY_TIME_ZONE,
+const TICK_FORMAT: Intl.DateTimeFormatOptions = {
   month: "short",
   day: "numeric",
   hour: "2-digit",
   minute: "2-digit",
-});
+};
+
+const CROSSHAIR_FORMAT: Intl.DateTimeFormatOptions = {
+  weekday: "long",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+};
 
 interface PriceChartProps {
   initialCandles: Candle[];
@@ -471,6 +480,8 @@ export default function PriceChart({
   const targetDraftRef = useRef<number | null>(takeProfit);
   const onFocusRef = useRef(onFocus);
   onFocusRef.current = onFocus;
+  /** Read by the axis and crosshair formatters, which are bound once at creation. */
+  const timeZoneRef = useRef(DEFAULT_CHART_SETTINGS.timeZone);
   /** Bumped whenever the candle series is replaced, invalidating render caches. */
   const dataGenerationRef = useRef(0);
   const drawingPrefixRef = useRef<{ history: Candle[]; boundary: number | null; prefix: OHLCV[] }>({
@@ -521,6 +532,7 @@ export default function PriceChart({
   const [settingsMenu, setSettingsMenu] = useState<{ x: number; y: number } | null>(null);
   const gridVisible = settings.grid;
   const magnetCrosshair = settings.magnet;
+  timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
   const [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
@@ -928,11 +940,11 @@ export default function PriceChart({
         rightOffset: DEFAULT_RIGHT_OFFSET,
         barSpacing: DEFAULT_BAR_SPACING,
         shiftVisibleRangeOnNewBar: false,
-        tickMarkFormatter: (time: Time) => chartTickFormatter.format(chartTimeMs(time)),
+        tickMarkFormatter: (time: Time) => formatInZone(chartTimeMs(time), timeZoneRef.current, TICK_FORMAT),
       },
       localization: {
         timeFormatter: (time: Time) =>
-          formatNewYorkDateTime(chartTimeMs(time), { weekday: "long", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+          `${formatInZone(chartTimeMs(time), timeZoneRef.current, CROSSHAIR_FORMAT)} ${zoneOffsetLabel(timeZoneRef.current, chartTimeMs(time))}`,
       },
       crosshair: { mode: CrosshairMode.Normal },
       handleScroll: true,
@@ -1106,6 +1118,16 @@ export default function PriceChart({
     seriesRef.current?.applyOptions(options);
     contextSeriesRef.current?.applyOptions(options);
   }, [settings.upColor, settings.downColor, seriesEpoch, chartType]);
+
+  // The time scale caches tick labels, so it needs a nudge to re-run the
+  // formatter after a zone change.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.applyOptions({
+      timeScale: { tickMarkFormatter: (time: Time) => formatInZone(chartTimeMs(time), settings.timeZone, TICK_FORMAT) },
+    });
+  }, [settings.timeZone]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1637,6 +1659,13 @@ export default function PriceChart({
             onFocusRef.current?.();
             setSettingsMenu({ x: event.clientX, y: event.clientY });
           }}
+        />
+
+        <ChartClock
+          at={displayRef.current.length > 0 ? (displayRef.current[displayRef.current.length - 1]!.time as number) * 1000 : null}
+          zone={settings.timeZone}
+          theme={theme}
+          onChange={(timeZone) => updateSettings({ timeZone })}
         />
 
         {settingsMenu && (

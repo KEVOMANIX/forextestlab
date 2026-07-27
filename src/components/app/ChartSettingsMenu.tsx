@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Check, RotateCcw } from "lucide-react";
 
+import { EXCHANGE_ZONE } from "@/lib/chart/timezones";
+
 /**
  * Right-click settings for a single chart, opened from empty chart space.
  *
@@ -24,6 +26,8 @@ export interface ChartSettings {
   drawings: boolean;
   /** Dotted line and axis tag tracking the latest price. */
   priceLine: boolean;
+  /** IANA zone id, or "exchange". Labels the axis, crosshair and corner clock. */
+  timeZone: string;
 }
 
 export const DEFAULT_CHART_SETTINGS: ChartSettings = {
@@ -35,6 +39,7 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   positionLines: true,
   drawings: true,
   priceLine: true,
+  timeZone: EXCHANGE_ZONE,
 };
 
 /** Palettes people actually use for candles, plus the app default first. */

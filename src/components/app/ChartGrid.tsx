@@ -15,7 +15,8 @@ import PriceChart, { type ChartMarker } from "./PriceChart";
  * Multi-chart workspace.
  *
  * Lightweight Charts has panes but no multi-chart layout, so each cell is its
- * own chart instance; [ChartSync] keeps their time axis and crosshair together.
+ * own chart instance; [ChartSync] keeps their time axis and crosshair together,
+ * while each cell keeps its own zoom level.
  * The model is TradingView's: one focused cell receives the symbol picker, the
  * order ticket and the top-bar toolbar, while the rest are context views.
  */
@@ -309,7 +310,7 @@ export default function ChartGrid({
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
           >
             {syncTime ? <Link2 size={15} aria-hidden /> : <Link2Off size={15} aria-hidden />}
-            Time &amp; zoom
+            Time
             <Check size={14} aria-hidden className={`ml-auto ${syncTime ? "text-brand-300" : "opacity-0"}`} />
           </button>
         </div>

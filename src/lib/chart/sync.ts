@@ -5,8 +5,8 @@ import type { IChartApi, ISeriesApi, SeriesType, Time, UTCTimestamp } from "ligh
  *
  * Lightweight Charts has panes but no multi-chart layout, so a grid is N
  * independent chart instances. This registry is what makes them feel like one
- * workspace: scrolling or zooming any cell moves the others, and the crosshair
- * is mirrored everywhere.
+ * workspace: scrolling any cell moves the others to the same moment, and the
+ * crosshair is mirrored everywhere. Zoom stays per chart — see [alignedFrom].
  *
  * Sync is by *timestamp*, never by logical index — cells can be on different
  * timeframes, where bar 200 means a different moment on each chart.
@@ -70,17 +70,30 @@ function valueAt(series: ISeriesApi<SeriesType>, seconds: number): { time: Time;
  */
 const ECHO_WINDOW_MS = 200;
 
+/**
+ * Where a peer's view should start so that it ends at the same moment as the
+ * source while keeping the span — the zoom level — it already had.
+ *
+ * Scrolling is shared, zooming is not: aligning the right edge puts every cell
+ * on the same point in time, but a chart held at a wide higher-timeframe view
+ * stays wide when another cell zooms into a few minutes.
+ */
+export function alignedFrom(peerVisible: { from: Time; to: Time } | null, source: TimeRange): number {
+  if (!peerVisible) return source.from;
+  const from = timeToSeconds(peerVisible.from);
+  const to = timeToSeconds(peerVisible.to);
+  if (from == null || to == null) return source.from;
+  const span = to - from;
+  return span > 0 ? source.to - span : source.from;
+}
+
 export class ChartSync {
   private readonly members = new Map<string, SyncMember>();
   /** Per-member timestamp until which its range events are peer-induced echoes. */
   private readonly echoUntil = new Map<string, number>();
   /** Re-entrancy guard: applying a range to a peer re-fires its own listener. */
   private applying = false;
-  /**
-   * Crosshair and time sync are independent, as they are in TradingView: mirroring
-   * the cursor is nearly always wanted, while sharing the zoom span is not — it
-   * stops a cell being held at a wide higher-timeframe view while another zooms in.
-   */
+  /** Crosshair and time sync are independent options, as they are in TradingView. */
   private modes = { crosshair: true, time: true };
 
   register(id: string, member: SyncMember): () => void {
@@ -115,8 +128,9 @@ export class ChartSync {
       for (const [id, member] of this.members) {
         if (id === sourceId) continue;
         try {
-          member.chart.timeScale().setVisibleRange({
-            from: range.from as UTCTimestamp,
+          const scale = member.chart.timeScale();
+          scale.setVisibleRange({
+            from: alignedFrom(scale.getVisibleRange(), range) as UTCTimestamp,
             to: range.to as UTCTimestamp,
           });
           this.echoUntil.set(id, now + ECHO_WINDOW_MS);

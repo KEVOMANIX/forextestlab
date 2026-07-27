@@ -290,21 +290,16 @@ function toOhlcBar(c: OHLCV): CandlestickData<Time> & BarData<Time> {
   };
 }
 
-function candlesForDisplay(candles: Candle[], baseTimeframe: Timeframe, displayTimeframe: Timeframe) {
-  return displayTimeframe === baseTimeframe
-    ? candles
-    : aggregateCandles(candles, baseTimeframe, displayTimeframe);
-}
-
-function drawingTimeline(history: Candle[], replay: OHLCV[]): OHLCV[] {
-  const byTime = new Map<number, OHLCV>();
-  for (const candle of history) {
-    const mapped = toOHLCV(candle);
-    byTime.set(mapped.time, mapped);
-  }
-  // Revealed replay data wins if history overlaps its first aggregate bucket.
-  for (const candle of replay) byTime.set(candle.time, candle);
-  return [...byTime.values()].sort((a, b) => a.time - b.time);
+/**
+ * Context candles followed by revealed candles. Both are ascending, and the
+ * revealed side wins wherever it overlaps history's last bucket. Used for the
+ * one-off joins (mount, history page load); playback goes through the cached
+ * path inside the component.
+ */
+function joinTimeline(history: Candle[], replay: OHLCV[]): OHLCV[] {
+  const boundary = replay[0]?.time;
+  const prefix = history.map(toOHLCV);
+  return (boundary == null ? prefix : prefix.filter((candle) => candle.time < boundary)).concat(replay);
 }
 
 function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, precision: number, context: boolean): ISeriesApi<SeriesType> {
@@ -456,15 +451,43 @@ export default function PriceChart({
   onFocusRef.current = onFocus;
   /** When the user last drove this chart, gating outbound range sync. */
   const userInteractionRef = useRef(0);
+  /** Bumped whenever the candle series is replaced, invalidating render caches. */
+  const dataGenerationRef = useRef(0);
+  const drawingPrefixRef = useRef<{ history: Candle[]; boundary: number | null; prefix: OHLCV[] }>({
+    history: [],
+    boundary: null,
+    prefix: [],
+  });
+  const aggregateCacheRef = useRef<{
+    timeframe: Timeframe | null;
+    generation: number;
+    stable: Candle[];
+    stableCount: number;
+    anchorTime: number;
+  }>({ timeframe: null, generation: -1, stable: [], stableCount: 0, anchorTime: 0 });
+  const ohlcvCacheRef = useRef<{
+    timeframe: Timeframe | null;
+    generation: number;
+    mapped: OHLCV[];
+    anchorTime: number;
+  }>({ timeframe: null, generation: -1, mapped: [], anchorTime: 0 });
+  /** This chart has drawings on it, or a tool armed to create one. */
+  const drawingsActiveRef = useRef(false);
+  /** Something on this chart is positioned in React from the viewport. */
+  const viewportOverlaysRef = useRef(false);
   const followLatestRef = useRef(true);
   const rawCandlesRef = useRef<Candle[]>(initialCandles);
   const syncedInitialCandlesRef = useRef<Candle[]>(initialCandles);
   const displayTimeframeRef = useRef<Timeframe>(initialTimeframe ?? baseTimeframe);
   const chartTypeRef = useRef<ChartType>("candles");
   const displayRef = useRef<OHLCV[]>([]);
-  const drawingCandlesRef = useRef<OHLCV[]>(
-    drawingTimeline(contextCandles, initialCandles.map(toOHLCV)),
-  );
+  // Lazily: React evaluates a useRef argument on every render, so building this
+  // timeline inline re-converted the whole series on each replay tick, per cell,
+  // to produce an initial value that is used exactly once.
+  const drawingCandlesRef = useRef<OHLCV[] | null>(null);
+  if (drawingCandlesRef.current === null) {
+    drawingCandlesRef.current = joinTimeline(contextCandles, initialCandles.map(toOHLCV));
+  }
   const draggingRef = useRef<"stop" | "target" | null>(null);
   const savedRangeRef = useRef<{ from: number; to: number } | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
@@ -535,7 +558,7 @@ export default function PriceChart({
       for (const candle of [...page.candles, ...existing]) byTime.set(candle.timestamp, candle);
       const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
       historyCandlesRef.current = merged;
-      drawingCandlesRef.current = drawingTimeline(merged, displayRef.current);
+      drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
       drawingEngineRef.current?.setEnv({
         candles: drawingCandlesRef.current,
       });
@@ -589,6 +612,100 @@ export default function PriceChart({
     for (const position of positionsRef.current) {
       placeLine(entryLineElsRef.current.get(position.id) ?? null, priceCoordinate(Number(position.entryPrice)));
     }
+  }
+
+  /**
+   * Context candles and revealed candles as one timeline for the drawing engine.
+   *
+   * The context part runs to thousands of candles and only changes when history
+   * loads, so it is mapped once and reused. Rebuilding it — a map, a Map insert
+   * per candle and a full sort — on every replay frame, in every cell, was the
+   * single most expensive thing the chart did during playback.
+   */
+  function drawingTimelineCached(history: Candle[], display: OHLCV[]): OHLCV[] {
+    const boundary = display[0]?.time ?? null;
+    const cache = drawingPrefixRef.current;
+    if (cache.history !== history || cache.boundary !== boundary) {
+      const mapped = history.map(toOHLCV);
+      cache.history = history;
+      cache.boundary = boundary;
+      // Revealed data wins wherever it overlaps history's last bucket.
+      cache.prefix = boundary == null ? mapped : mapped.filter((candle) => candle.time < boundary);
+    }
+    // Both halves are ascending and disjoint, so the join needs no sort.
+    return cache.prefix.concat(display);
+  }
+
+  /**
+   * Revealed candles at the cell's display timeframe.
+   *
+   * Aggregation runs through decimal.js, so re-aggregating the whole series each
+   * frame is costly on a higher-timeframe cell. Only the bucket still being
+   * filled can change: everything before it is aggregated once, as it completes,
+   * and kept. The fingerprint check (length + the candle at the boundary) resets
+   * the cache whenever the underlying series is replaced or rewound.
+   */
+  function aggregatedForDisplay(raw: Candle[], timeframe: Timeframe): Candle[] {
+    if (timeframe === baseTimeframe) return raw;
+    const last = raw[raw.length - 1];
+    if (!last) return [];
+    const cache = aggregateCacheRef.current;
+    const anchorTime = cache.stableCount > 0 ? raw[cache.stableCount - 1]?.timestamp : 0;
+    if (
+      cache.timeframe !== timeframe ||
+      cache.generation !== dataGenerationRef.current ||
+      raw.length < cache.stableCount ||
+      anchorTime !== cache.anchorTime
+    ) {
+      cache.timeframe = timeframe;
+      cache.generation = dataGenerationRef.current;
+      cache.stable = [];
+      cache.stableCount = 0;
+      cache.anchorTime = 0;
+    }
+    // First candle of the bucket still being filled.
+    const lastBucket = candleBucketStart(last.timestamp, timeframe);
+    let tailStart = raw.length - 1;
+    while (tailStart > 0 && (raw[tailStart - 1]?.timestamp ?? 0) >= lastBucket) tailStart -= 1;
+    if (tailStart > cache.stableCount) {
+      cache.stable = cache.stable.concat(
+        aggregateCandles(raw.slice(cache.stableCount, tailStart), baseTimeframe, timeframe),
+      );
+      cache.stableCount = tailStart;
+      cache.anchorTime = raw[tailStart - 1]?.timestamp ?? 0;
+    }
+    return cache.stable.concat(aggregateCandles(raw.slice(tailStart), baseTimeframe, timeframe));
+  }
+
+  /**
+   * Display candles in the chart's numeric form.
+   *
+   * Converting the whole series each frame means thousands of allocations and
+   * string-to-number parses per cell per tick. Only the newest bar changes as
+   * the replay ticks, so previously converted bars are kept; the last one is
+   * always redone because it is still forming (and, on a higher timeframe, the
+   * bar before it finalises as a new bucket opens).
+   */
+  function displayOHLCV(candles: Candle[]): OHLCV[] {
+    const cache = ohlcvCacheRef.current;
+    const reusable =
+      cache.generation === dataGenerationRef.current &&
+      cache.timeframe === displayTimeframeRef.current &&
+      cache.mapped.length > 0 &&
+      cache.mapped.length <= candles.length &&
+      candles[cache.mapped.length - 1]?.timestamp === cache.anchorTime;
+    if (!reusable) {
+      cache.mapped = candles.map(toOHLCV);
+    } else {
+      for (let index = cache.mapped.length - 1; index < candles.length; index += 1) {
+        cache.mapped[index] = toOHLCV(candles[index]!);
+      }
+    }
+    cache.generation = dataGenerationRef.current;
+    cache.timeframe = displayTimeframeRef.current;
+    cache.anchorTime = candles[candles.length - 1]?.timestamp ?? 0;
+    // A copy: renderMain compares this frame's array against the previous one.
+    return cache.mapped.slice();
   }
 
   /**
@@ -657,20 +774,24 @@ export default function PriceChart({
   function renderMain(force = false) {
     const series = seriesRef.current;
     if (!series) return;
-    const display = candlesForDisplay(rawCandlesRef.current, baseTimeframe, displayTimeframeRef.current).map(toOHLCV);
+    const display = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
     const previous = displayRef.current;
     const scale = chartRef.current?.timeScale();
     const preservedRange = !followLatestRef.current
       ? scale?.getVisibleLogicalRange() ?? null
       : null;
     displayRef.current = display;
-    drawingCandlesRef.current = drawingTimeline(
-      historyCandlesRef.current,
-      display,
-    );
-    drawingEngineRef.current?.setEnv({
-      candles: drawingCandlesRef.current,
-    });
+    // Joining thousands of context candles onto the timeline is only worth doing
+    // for a chart that has drawings on it, or is about to.
+    if (drawingsActiveRef.current) {
+      drawingCandlesRef.current = drawingTimelineCached(
+        historyCandlesRef.current,
+        display,
+      );
+      drawingEngineRef.current?.setEnv({
+        candles: drawingCandlesRef.current,
+      });
+    }
     const renderedDisplay =
       chartTypeRef.current === "heikin" ? heikinAshi(display) : display;
 
@@ -678,16 +799,14 @@ export default function PriceChart({
     // bars. Feeding the entire history through setData on every frame is both
     // expensive and lets the time scale repeatedly recalculate its range,
     // which causes stuttering and apparent gaps while the user is dragging.
-    const canUpdateTail =
-      !force &&
-      previous.length > 0 &&
-      display.length >= previous.length &&
-      display
-        .slice(0, Math.max(0, previous.length - 1))
-        .every((candle, index) => candle.time === previous[index]?.time);
+    const shared = Math.max(0, previous.length - 1);
+    let canUpdateTail = !force && previous.length > 0 && display.length >= previous.length;
+    for (let index = 0; canUpdateTail && index < shared; index += 1) {
+      if (display[index]?.time !== previous[index]?.time) canUpdateTail = false;
+    }
     if (canUpdateTail) {
-      for (const candle of renderedDisplay.slice(Math.max(0, previous.length - 1))) {
-        updateData(series, chartTypeRef.current, candle);
+      for (let index = shared; index < renderedDisplay.length; index += 1) {
+        updateData(series, chartTypeRef.current, renderedDisplay[index]!);
       }
     } else {
       applyData(series, chartTypeRef.current, display);
@@ -810,7 +929,9 @@ export default function PriceChart({
       requestAnimationFrame(() => {
         coordScheduled = false;
         updateLineCoordinates();
-        setViewVersion((v) => v + 1);
+        // Only overlays positioned in React care about the viewport. With none
+        // on the chart this would be a full re-render per replay tick, per cell.
+        if (viewportOverlaysRef.current) setViewVersion((v) => v + 1);
         // Move the peer cells to the same slice of time. By timestamp, not by
         // logical index — a peer on another timeframe has different bar counts.
         //
@@ -961,6 +1082,7 @@ export default function PriceChart({
     if (syncedInitialCandlesRef.current === initialCandles) return;
     syncedInitialCandlesRef.current = initialCandles;
     rawCandlesRef.current = initialCandles;
+    dataGenerationRef.current += 1;
     const scale = chartRef.current?.timeScale();
     // Preserve the user's view across a data swap — but only if there was a view
     // to preserve. A grid cell whose series arrives after mount would otherwise
@@ -980,6 +1102,7 @@ export default function PriceChart({
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;
+    dataGenerationRef.current += 1;
     renderMain(true);
     if (displayTimeframe === baseTimeframe && contextCandles.length > 0) {
       historyCandlesRef.current = contextCandles;
@@ -1266,6 +1389,16 @@ export default function PriceChart({
   });
   const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
+  drawingsActiveRef.current = drawTool != null || drawCount > 0;
+  viewportOverlaysRef.current =
+    drawingsActiveRef.current || ownPaneIndicators.length > 0 || overlayIndicators.length > 0;
+
+  // Picking up a tool or adding the first drawing needs the timeline the render
+  // loop skips building while a chart has none.
+  useEffect(() => {
+    if (drawingsActiveRef.current) scheduleRender();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawTool, drawCount]);
 
   // Track each pane's top offset (container-relative px) so we can float an
   // in-pane label at the top-left of every oscillator pane, TradingView-style.

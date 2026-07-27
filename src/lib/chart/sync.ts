@@ -76,7 +76,12 @@ export class ChartSync {
   private readonly echoUntil = new Map<string, number>();
   /** Re-entrancy guard: applying a range to a peer re-fires its own listener. */
   private applying = false;
-  private enabled = true;
+  /**
+   * Crosshair and time sync are independent, as they are in TradingView: mirroring
+   * the cursor is nearly always wanted, while sharing the zoom span is not — it
+   * stops a cell being held at a wide higher-timeframe view while another zooms in.
+   */
+  private modes = { crosshair: true, time: true };
 
   register(id: string, member: SyncMember): () => void {
     this.members.set(id, member);
@@ -87,8 +92,8 @@ export class ChartSync {
     };
   }
 
-  setEnabled(enabled: boolean) {
-    this.enabled = enabled;
+  setModes(modes: { crosshair: boolean; time: boolean }) {
+    this.modes = modes;
   }
 
   /** True while a peer update is being applied — callers skip their own work. */
@@ -97,7 +102,7 @@ export class ChartSync {
   }
 
   broadcastRange(sourceId: string, visible: { from: Time; to: Time } | null) {
-    if (!this.enabled || this.applying || !visible || this.members.size < 2) return;
+    if (!this.modes.time || this.applying || !visible || this.members.size < 2) return;
     const from = timeToSeconds(visible.from);
     const to = timeToSeconds(visible.to);
     if (from == null || to == null) return;
@@ -125,7 +130,7 @@ export class ChartSync {
   }
 
   broadcastCrosshair(sourceId: string, time: Time | null) {
-    if (!this.enabled || this.applying || this.members.size < 2) return;
+    if (!this.modes.crosshair || this.applying || this.members.size < 2) return;
     const seconds = time == null ? null : timeToSeconds(time);
     this.applying = true;
     try {

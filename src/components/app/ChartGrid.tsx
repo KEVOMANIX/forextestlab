@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Columns2, Grid2X2, Rows2, Square, LayoutPanelLeft, Link2, Link2Off } from "lucide-react";
+import { Check, Columns2, Crosshair, Grid2X2, Rows2, Square, LayoutPanelLeft, Link2, Link2Off } from "lucide-react";
 
 import type { PairChartData } from "@/lib/backtest/client";
 import type { OpenPosition, PublicSessionState } from "@/lib/backtest/types";
@@ -50,7 +50,8 @@ interface StoredLayout {
   layout: GridLayout;
   cells: ChartCell[];
   focusedId: string;
-  linked: boolean;
+  syncCrosshair: boolean;
+  syncTime: boolean;
 }
 
 function readStoredLayout(storageKey: string): StoredLayout | null {
@@ -63,7 +64,8 @@ function readStoredLayout(storageKey: string): StoredLayout | null {
       layout: parsed.layout,
       cells: parsed.cells,
       focusedId: parsed.focusedId ?? parsed.cells[0]!.id,
-      linked: parsed.linked ?? true,
+      syncCrosshair: parsed.syncCrosshair ?? true,
+      syncTime: parsed.syncTime ?? true,
     };
   } catch {
     return null;
@@ -140,11 +142,14 @@ export default function ChartGrid({
     { id: "cell-1", symbol: sessionSymbol, timeframe: null },
   ]);
   const [focusedId, setFocusedId] = useState("cell-1");
-  const [linked, setLinked] = useState(true);
+  const [syncCrosshair, setSyncCrosshair] = useState(true);
+  const [syncTime, setSyncTime] = useState(true);
   const [restored, setRestored] = useState(false);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   // One registry for the workspace's lifetime — cells register on mount.
-  const syncRef = useRef<ChartSync>(new ChartSync());
+  const syncRef = useRef<ChartSync | null>(null);
+  syncRef.current ??= new ChartSync();
+  const sync = syncRef.current;
 
   useEffect(() => {
     const saved = readStoredLayout(storageKey);
@@ -152,7 +157,8 @@ export default function ChartGrid({
       setLayout(saved.layout);
       setCells(saved.cells);
       setFocusedId(saved.focusedId);
-      setLinked(saved.linked);
+      setSyncCrosshair(saved.syncCrosshair);
+      setSyncTime(saved.syncTime);
     }
     setRestored(true);
   }, [storageKey]);
@@ -162,16 +168,16 @@ export default function ChartGrid({
     try {
       window.localStorage.setItem(
         `forextestlab:layout:${storageKey}`,
-        JSON.stringify({ layout, cells, focusedId, linked } satisfies StoredLayout),
+        JSON.stringify({ layout, cells, focusedId, syncCrosshair, syncTime } satisfies StoredLayout),
       );
     } catch {
       // Layout persistence is a convenience, not a requirement.
     }
-  }, [restored, storageKey, layout, cells, focusedId, linked]);
+  }, [restored, storageKey, layout, cells, focusedId, syncCrosshair, syncTime]);
 
   useEffect(() => {
-    syncRef.current.setEnabled(linked);
-  }, [linked]);
+    sync.setModes({ crosshair: syncCrosshair, time: syncTime });
+  }, [sync, syncCrosshair, syncTime]);
 
   const visibleCells = useMemo(() => {
     const count = layoutSpec(layout).cells;
@@ -283,14 +289,28 @@ export default function ChartGrid({
               {item.label}
             </button>
           ))}
+          <p className="mt-1 border-t app-border px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide app-muted">
+            Sync across charts
+          </p>
           <button
             type="button"
-            onClick={() => setLinked((value) => !value)}
-            aria-pressed={linked}
-            className="mt-1 flex w-full items-center gap-2 rounded-md border-t app-border px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
+            onClick={() => setSyncCrosshair((value) => !value)}
+            aria-pressed={syncCrosshair}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
           >
-            {linked ? <Link2 size={15} aria-hidden /> : <Link2Off size={15} aria-hidden />}
-            {linked ? "Charts synced" : "Charts independent"}
+            <Crosshair size={15} aria-hidden />
+            Crosshair
+            <Check size={14} aria-hidden className={`ml-auto ${syncCrosshair ? "text-brand-300" : "opacity-0"}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setSyncTime((value) => !value)}
+            aria-pressed={syncTime}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
+          >
+            {syncTime ? <Link2 size={15} aria-hidden /> : <Link2Off size={15} aria-hidden />}
+            Time &amp; zoom
+            <Check size={14} aria-hidden className={`ml-auto ${syncTime ? "text-brand-300" : "opacity-0"}`} />
           </button>
         </div>
       )}
@@ -338,7 +358,7 @@ export default function ChartGrid({
                 loading={loading}
                 error={error}
                 storageKey={storageKey}
-                sync={syncRef.current}
+                sync={sync}
                 onFocus={() => focusCell(cell.id)}
                 headerSlot={!multi && isFocused ? headerSlot : null}
                 orderTicket={isSession && isFocused ? orderTicket : null}

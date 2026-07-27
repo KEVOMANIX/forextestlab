@@ -12,10 +12,18 @@ const securityHeaders = [
   },
 ];
 
+const buildVersion =
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  process.env.NEXT_PUBLIC_BUILD_VERSION ??
+  Date.now().toString(36);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  env: {
+    NEXT_PUBLIC_BUILD_VERSION: buildVersion,
+  },
   images: {
     formats: ["image/avif", "image/webp"],
   },
@@ -30,6 +38,20 @@ const nextConfig = {
         source: "/api/:path*",
         headers: [
           { key: "Cache-Control", value: "no-store, max-age=0" },
+          ...securityHeaders,
+        ],
+      },
+      {
+        // App HTML contains account entitlements and must always point at the
+        // JavaScript chunks from the currently deployed build.
+        source: "/app/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "private, no-store, no-cache, max-age=0, must-revalidate",
+          },
+          { key: "CDN-Cache-Control", value: "no-store" },
+          { key: "Vercel-CDN-Cache-Control", value: "no-store" },
           ...securityHeaders,
         ],
       },

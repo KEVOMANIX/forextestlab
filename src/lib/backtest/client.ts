@@ -250,3 +250,18 @@ export function replayBatchSize(
   const idealInterval = (TIMEFRAME_MS[timeframe] * stepCount) / speed;
   return idealInterval >= 16 ? 1 : Math.max(1, Math.round(16 / idealInterval));
 }
+
+/** Number of replay steps owed after an elapsed animation-frame interval. */
+export function replayStepsDue(
+  elapsedMs: number,
+  speed: ReplaySpeed,
+  timeframe: Timeframe,
+  stepCount = 1,
+  maxBatch = 64,
+): number {
+  const idealInterval = Math.max(
+    0.01,
+    (TIMEFRAME_MS[timeframe] * stepCount) / speed,
+  );
+  return Math.min(maxBatch, Math.max(0, Math.floor(elapsedMs / idealInterval)));
+}

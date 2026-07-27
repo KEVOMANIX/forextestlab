@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "/app/backtest" },
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const DEMO_ENTITLEMENTS: PlanEntitlements = {
   plan: "free",
   maxSavedSessions: 3,

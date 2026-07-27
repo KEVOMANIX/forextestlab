@@ -51,15 +51,18 @@ export class CoordinateMapper {
 
   timeToX(time: number): number | null {
     if (!time) return null;
-    // Logical index is the primary path so points past the last bar map into
-    // the empty area (timeToCoordinate clamps/returns null out there).
+    // Let the chart resolve real data times first. Its logical timeline can
+    // contain context/history series that are not present in the replay-only
+    // candle array, so a locally reconstructed index can drift as bars replay.
+    const c = this.chart.timeScale().timeToCoordinate(time as UTCTimestamp);
+    if (typeof c === "number") return c;
+    // Fall back to logical extrapolation only for empty future/past space.
     const logical = this.timeToLogical(time);
     if (logical != null) {
       const x = this.chart.timeScale().logicalToCoordinate(logical as Logical);
       if (typeof x === "number") return x;
     }
-    const c = this.chart.timeScale().timeToCoordinate(time as UTCTimestamp);
-    return typeof c === "number" ? c : null;
+    return null;
   }
 
   priceToY(price: number): number | null {
@@ -70,8 +73,10 @@ export class CoordinateMapper {
   /** Bar time for a pixel x — extrapolated past the data edges so drawings can
    * be placed in the empty future/past area (0 only when the interval is unknown). */
   xToTime(x: number): number {
-    // Logical is primary so pixels past the last candle extrapolate to a real
-    // future time instead of clamping onto the last bar.
+    // Drag placement must use logical time first. coordinateToTime can clamp
+    // empty space to the nearest real candle, which makes a released anchor
+    // jump back from where the user placed it. The mapper receives the full
+    // context + replay timeline, so its logical indexes match the chart.
     const logical = this.chart.timeScale().coordinateToLogical(x);
     if (logical != null && this.candles.length && this.barSecs > 0) {
       return this.logicalToTime(logical as number);

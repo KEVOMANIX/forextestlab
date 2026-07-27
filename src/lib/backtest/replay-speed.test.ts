@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { replayBatchSize, replayIntervalMs } from "@/lib/backtest/client";
+import {
+  replayBatchSize,
+  replayIntervalMs,
+  replayStepsDue,
+} from "@/lib/backtest/client";
 import {
   DEFAULT_REPLAY_SPEED,
   normalizeReplaySpeed,
@@ -23,6 +27,13 @@ describe("real market-time replay speed", () => {
     expect(replayBatchSize(14400, "1m")).toBe(4);
     expect(replayBatchSize(28800, "1m")).toBe(8);
     expect(replayBatchSize(28800, "1m", 15)).toBe(1);
+  });
+
+  it("advances every step owed within a high-speed animation frame", () => {
+    expect(replayStepsDue(16.67, 3600, "1m")).toBe(1);
+    expect(replayStepsDue(16.67, 28800, "1m")).toBe(8);
+    expect(replayStepsDue(16.67, 115200, "1m")).toBe(32);
+    expect(replayStepsDue(100, 115200, "1m")).toBe(64);
   });
 
   it("uses the candle duration when another base timeframe is restored", () => {

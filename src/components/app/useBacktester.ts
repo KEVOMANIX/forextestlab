@@ -11,7 +11,7 @@ import {
   getChartHistory,
   getStateWithToken,
   sendAction,
-  replayIntervalMs,
+  replayStepsDue,
   type CreateSessionBody,
   type CreatedSession,
   type PairChartData,
@@ -514,8 +514,22 @@ export function useBacktester(resumeSessionId: string | null = null) {
         replayLastFrameRef.current = now;
         replayAccumulatorRef.current += Math.min(100, Math.max(0, now - previous));
         const stepCount = Math.max(1, Math.round((replayStepRef.current * TIMEFRAME_MS["1m"]) / TIMEFRAME_MS[current.state.config.timeframe]));
-        const cadence = replayIntervalMs(current.state.speed, current.state.config.timeframe, stepCount);
-        const due = Math.floor(replayAccumulatorRef.current / cadence);
+        // Use the unclamped cadence here. `replayIntervalMs` intentionally
+        // bottoms out at one browser frame, but treating that floor as the
+        // actual market cadence caps every fast setting at one candle/frame.
+        // The scheduler can preserve the requested rate by advancing multiple
+        // candles in one frame while the chart coalesces them into one paint.
+        const cadence = Math.max(
+          0.01,
+          (TIMEFRAME_MS[current.state.config.timeframe] * stepCount) /
+            current.state.speed,
+        );
+        const due = replayStepsDue(
+          replayAccumulatorRef.current,
+          current.state.speed,
+          current.state.config.timeframe,
+          stepCount,
+        );
         if (due > 0 && !replayFrameBusyRef.current) {
           const batchSize = Math.min(64, due);
           replayAccumulatorRef.current -= batchSize * cadence;

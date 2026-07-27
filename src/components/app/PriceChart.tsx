@@ -271,6 +271,17 @@ function candlesForDisplay(candles: Candle[], baseTimeframe: Timeframe, displayT
     : aggregateCandles(candles, baseTimeframe, displayTimeframe);
 }
 
+function drawingTimeline(history: Candle[], replay: OHLCV[]): OHLCV[] {
+  const byTime = new Map<number, OHLCV>();
+  for (const candle of history) {
+    const mapped = toOHLCV(candle);
+    byTime.set(mapped.time, mapped);
+  }
+  // Revealed replay data wins if history overlaps its first aggregate bucket.
+  for (const candle of replay) byTime.set(candle.time, candle);
+  return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
 function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, precision: number, context: boolean): ISeriesApi<SeriesType> {
   const priceFormat = { type: "price" as const, precision, minMove: 1 / 10 ** precision };
   const commonCandle = {
@@ -325,6 +336,17 @@ function applyData(series: ISeriesApi<SeriesType>, type: ChartType, candles: OHL
   }
   const src = type === "heikin" ? heikinAshi(candles) : candles;
   (series as ISeriesApi<"Candlestick">).setData(src.map(toOhlcBar));
+}
+
+function updateData(series: ISeriesApi<SeriesType>, type: ChartType, candle: OHLCV) {
+  if (type === "line" || type === "area") {
+    (series as ISeriesApi<"Line">).update({
+      time: candle.time as UTCTimestamp,
+      value: candle.close,
+    });
+    return;
+  }
+  (series as ISeriesApi<"Candlestick">).update(toOhlcBar(candle));
 }
 
 function ToolButton({
@@ -398,6 +420,9 @@ export default function PriceChart({
   const displayTimeframeRef = useRef<Timeframe>(baseTimeframe);
   const chartTypeRef = useRef<ChartType>("candles");
   const displayRef = useRef<OHLCV[]>([]);
+  const drawingCandlesRef = useRef<OHLCV[]>(
+    drawingTimeline(contextCandles, initialCandles.map(toOHLCV)),
+  );
   const draggingRef = useRef<"stop" | "target" | null>(null);
   const savedRangeRef = useRef<{ from: number; to: number } | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
@@ -468,6 +493,10 @@ export default function PriceChart({
       for (const candle of [...page.candles, ...existing]) byTime.set(candle.timestamp, candle);
       const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
       historyCandlesRef.current = merged;
+      drawingCandlesRef.current = drawingTimeline(merged, displayRef.current);
+      drawingEngineRef.current?.setEnv({
+        candles: drawingCandlesRef.current,
+      });
       historyHasMoreRef.current = page.hasMore;
       setHasOlderHistory(page.hasMore);
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
@@ -560,17 +589,51 @@ export default function PriceChart({
     }
   }
 
-  function renderMain() {
+  function renderMain(force = false) {
     const series = seriesRef.current;
     if (!series) return;
     const display = candlesForDisplay(rawCandlesRef.current, baseTimeframe, displayTimeframeRef.current).map(toOHLCV);
+    const previous = displayRef.current;
+    const scale = chartRef.current?.timeScale();
+    const preservedRange = !followLatestRef.current
+      ? scale?.getVisibleLogicalRange() ?? null
+      : null;
     displayRef.current = display;
-    applyData(series, chartTypeRef.current, display);
+    drawingCandlesRef.current = drawingTimeline(
+      historyCandlesRef.current,
+      display,
+    );
+    drawingEngineRef.current?.setEnv({
+      candles: drawingCandlesRef.current,
+    });
+    const renderedDisplay =
+      chartTypeRef.current === "heikin" ? heikinAshi(display) : display;
+
+    // Replaying normally changes only the last aggregate bar and/or appends
+    // bars. Feeding the entire history through setData on every frame is both
+    // expensive and lets the time scale repeatedly recalculate its range,
+    // which causes stuttering and apparent gaps while the user is dragging.
+    const canUpdateTail =
+      !force &&
+      previous.length > 0 &&
+      display.length >= previous.length &&
+      display
+        .slice(0, Math.max(0, previous.length - 1))
+        .every((candle, index) => candle.time === previous[index]?.time);
+    if (canUpdateTail) {
+      for (const candle of renderedDisplay.slice(Math.max(0, previous.length - 1))) {
+        updateData(series, chartTypeRef.current, candle);
+      }
+    } else {
+      applyData(series, chartTypeRef.current, display);
+    }
     syncIndicators(display);
     // `displayCandles` only feeds the Volume Profile overlay; skipping this state
     // update otherwise avoids a full React re-render on every replay tick (which
     // made panning/zooming janky during fast playback).
     if (indicators.some((i) => getDef(i.kind)?.render === "overlay")) setDisplayCandles(display);
+    if (preservedRange) scale?.setVisibleLogicalRange(preservedRange);
+    else if (followLatestRef.current) scale?.scrollToRealTime();
     scheduleLineCoordinates();
   }
 
@@ -606,7 +669,7 @@ export default function PriceChart({
     const main = addPriceSeries(chart, type, palette, precision, false);
     seriesRef.current = main;
     setPriceSeries(main);
-    renderMain();
+    renderMain(true);
   }
 
   useEffect(() => {
@@ -801,7 +864,7 @@ export default function PriceChart({
     rawCandlesRef.current = initialCandles;
     const scale = chartRef.current?.timeScale();
     const visibleRange = scale?.getVisibleLogicalRange() ?? null;
-    renderMain();
+    renderMain(true);
     if (visibleRange) {
       followLatestRef.current = false;
       scale?.setVisibleLogicalRange(visibleRange);
@@ -811,7 +874,7 @@ export default function PriceChart({
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;
-    renderMain();
+    renderMain(true);
     if (displayTimeframe === baseTimeframe && contextCandles.length > 0) {
       historyCandlesRef.current = contextCandles;
       historyHasMoreRef.current = true;
@@ -1201,7 +1264,7 @@ export default function PriceChart({
           pipSize={pipSize}
           timeframe={displayTimeframe}
           timeframes={availableTimeframes}
-          candles={displayRef.current}
+          candles={drawingCandlesRef.current}
           viewVersion={viewVersion}
           onToolConsumed={() => setDrawTool(null)}
           onCountChange={setDrawCount}

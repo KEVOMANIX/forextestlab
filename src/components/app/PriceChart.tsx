@@ -89,6 +89,7 @@ import {
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
+import { ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
@@ -296,6 +297,31 @@ function joinTimeline(history: Candle[], replay: OHLCV[]): OHLCV[] {
   return (boundary == null ? prefix : prefix.filter((candle) => candle.time < boundary)).concat(replay);
 }
 
+/** Colour options for a price series of the given type. */
+function seriesColorOptions(type: ChartType, up: string, down: string) {
+  if (type === "line") return { color: up };
+  if (type === "area") return { lineColor: up };
+  if (type === "bars") return { upColor: up, downColor: down };
+  if (type === "hollow") {
+    return {
+      upColor: "rgba(0,0,0,0)",
+      downColor: down,
+      borderUpColor: up,
+      borderDownColor: down,
+      wickUpColor: up,
+      wickDownColor: down,
+    };
+  }
+  return {
+    upColor: up,
+    downColor: down,
+    borderUpColor: up,
+    borderDownColor: down,
+    wickUpColor: up,
+    wickDownColor: down,
+  };
+}
+
 function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, precision: number, context: boolean): ISeriesApi<SeriesType> {
   const priceFormat = { type: "price" as const, precision, minMove: 1 / 10 ** precision };
   const commonCandle = {
@@ -491,8 +517,10 @@ export default function PriceChart({
 
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(initialTimeframe ?? baseTimeframe);
   const [chartType, setChartType] = useState<ChartType>("candles");
-  const [gridVisible, setGridVisible] = useState(true);
-  const [magnetCrosshair, setMagnetCrosshair] = useState(false);
+  const [settings, setSettings] = useState<ChartSettings>(DEFAULT_CHART_SETTINGS);
+  const [settingsMenu, setSettingsMenu] = useState<{ x: number; y: number } | null>(null);
+  const gridVisible = settings.grid;
+  const magnetCrosshair = settings.magnet;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
   const [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
@@ -573,6 +601,26 @@ export default function PriceChart({
       TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS[baseTimeframe] &&
       TIMEFRAME_MS[timeframe] % TIMEFRAME_MS[baseTimeframe] === 0,
   );
+
+  /**
+   * Apply a settings change. Most of these are read during render or by an
+   * effect; hiding drawings has to be pushed into the drawing engine, which
+   * owns its own canvas.
+   */
+  function updateSettings(patch: Partial<ChartSettings>) {
+    setSettings((current) => {
+      const next = { ...current, ...patch };
+      if (patch.drawings !== undefined) {
+        setDrawingsHidden(!patch.drawings);
+        drawingEngineRef.current?.setHideAll(!patch.drawings);
+      }
+      return next;
+    });
+  }
+
+  function resetSettings() {
+    updateSettings(DEFAULT_CHART_SETTINGS);
+  }
 
   /** Pixel row for a price, or null when it is off-scale / the chart isn't ready. */
   function priceCoordinate(price: number | null): number | null {
@@ -903,12 +951,20 @@ export default function PriceChart({
           timeframe?: Timeframe;
           grid?: boolean;
           magnet?: boolean;
+          settings?: Partial<ChartSettings>;
           chartType?: ChartType;
           indicators?: unknown[];
         };
         if (saved.timeframe && availableTimeframes.includes(saved.timeframe)) setDisplayTimeframe(saved.timeframe);
-        if (typeof saved.grid === "boolean") setGridVisible(saved.grid);
-        if (typeof saved.magnet === "boolean") setMagnetCrosshair(saved.magnet);
+        // `grid`/`magnet` predate the settings panel; keep reading them so an
+        // existing chart does not lose its preferences.
+        setSettings((current) => ({
+          ...current,
+          ...(typeof saved.grid === "boolean" ? { grid: saved.grid } : {}),
+          ...(typeof saved.magnet === "boolean" ? { magnet: saved.magnet } : {}),
+          ...(saved.settings ?? {}),
+        }));
+        if (saved.settings?.drawings === false) drawingEngineRef.current?.setHideAll(true);
         if (saved.chartType) setChartType(saved.chartType);
         if (Array.isArray(saved.indicators)) {
           setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
@@ -1041,6 +1097,16 @@ export default function PriceChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartType]);
 
+  // Candle colours are per chart, so they are applied after the series exists
+  // (and re-applied whenever a chart-type change rebuilds it).
+  useEffect(() => {
+    const options = seriesColorOptions(chartTypeRef.current, settings.upColor, settings.downColor);
+    // The pre-session context bars are the same instrument, so they take the
+    // same colours; leaving them out split the chart in two at the session start.
+    seriesRef.current?.applyOptions(options);
+    contextSeriesRef.current?.applyOptions(options);
+  }, [settings.upColor, settings.downColor, seriesEpoch, chartType]);
+
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -1138,6 +1204,7 @@ export default function PriceChart({
           timeframe: displayTimeframe,
           grid: gridVisible,
           magnet: magnetCrosshair,
+          settings,
           chartType,
           indicators,
         }),
@@ -1145,12 +1212,12 @@ export default function PriceChart({
     } catch {
       // Ignore local storage failures.
     }
-  }, [displayTimeframe, gridVisible, magnetCrosshair, chartType, indicators, viewStorageKey]);
+  }, [displayTimeframe, gridVisible, magnetCrosshair, settings, chartType, indicators, viewStorageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    const mapped: SeriesMarker<Time>[] = markers.map((marker) => ({
+    const mapped: SeriesMarker<Time>[] = (settings.tradeHistory ? markers : []).map((marker) => ({
       time: (Math.floor(candleBucketStart(marker.time, displayTimeframe)) / 1000) as UTCTimestamp,
       position: marker.position,
       color: marker.color,
@@ -1160,12 +1227,12 @@ export default function PriceChart({
     // v5: markers are a series primitive, not a series method.
     if (!markersRef.current) markersRef.current = createSeriesMarkers(series, mapped);
     else markersRef.current.setMarkers(mapped);
-  }, [markers, displayTimeframe, seriesEpoch]);
+  }, [markers, settings.tradeHistory, displayTimeframe, seriesEpoch]);
 
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    if (currentPrice == null || !Number.isFinite(currentPrice)) {
+    if (currentPrice == null || !Number.isFinite(currentPrice) || !settings.priceLine) {
       if (livePriceLineRef.current) series.removePriceLine(livePriceLineRef.current);
       livePriceLineRef.current = null;
       return;
@@ -1184,7 +1251,7 @@ export default function PriceChart({
         title: "",
       });
     }
-  }, [currentPrice, seriesEpoch]);
+  }, [currentPrice, settings.priceLine, seriesEpoch]);
 
   useEffect(() => {
     if (draggingRef.current !== "stop") setStopDraft(stopLoss);
@@ -1215,7 +1282,7 @@ export default function PriceChart({
     const series = seriesRef.current;
     if (!series) return;
     const wanted = new Map<string, number>();
-    for (const position of positionsRef.current) {
+    for (const position of settings.positionLines ? positionsRef.current : []) {
       if (position.id === activePositionId) continue;
       if (position.stopLoss) wanted.set(`${position.id}:sl`, Number(position.stopLoss));
       if (position.takeProfit) wanted.set(`${position.id}:tp`, Number(position.takeProfit));
@@ -1240,7 +1307,7 @@ export default function PriceChart({
     }
     scheduleLineCoordinates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionLineKey, activePositionId, seriesEpoch]);
+  }, [positionLineKey, settings.positionLines, activePositionId, seriesEpoch]);
 
   // Drop the lines when the series they belong to goes away (unmount / rebuild).
   useEffect(() => {
@@ -1562,7 +1629,26 @@ export default function PriceChart({
           role="img"
           aria-label="Candlestick price chart"
           data-current-price={currentPrice ?? undefined}
+          onContextMenu={(event) => {
+            // A right-click on a drawing belongs to the drawing engine, which
+            // has already called preventDefault on the native event by now.
+            if (event.defaultPrevented) return;
+            event.preventDefault();
+            onFocusRef.current?.();
+            setSettingsMenu({ x: event.clientX, y: event.clientY });
+          }}
         />
+
+        {settingsMenu && (
+          <ChartSettingsMenu
+            position={settingsMenu}
+            settings={settings}
+            theme={theme}
+            onChange={updateSettings}
+            onReset={resetSettings}
+            onClose={() => setSettingsMenu(null)}
+          />
+        )}
 
         <DrawingLayer
           chart={chartApi}
@@ -1686,7 +1772,7 @@ export default function PriceChart({
           );
         })}
 
-        {positions.map((position) => {
+        {(settings.positionLines ? positions : []).map((position) => {
           const isLong = position.direction === "long";
           return (
             <div
@@ -1807,10 +1893,10 @@ export default function PriceChart({
                 {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={18} aria-hidden />}
               </ToolButton>
             )}
-            <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => setMagnetCrosshair((value) => !value)}>
+            <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => updateSettings({ magnet: !magnetCrosshair })}>
               <Crosshair size={18} aria-hidden />
             </ToolButton>
-            <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => setGridVisible((value) => !value)}>
+            <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => updateSettings({ grid: !gridVisible })}>
               <Grid3X3 size={18} aria-hidden />
             </ToolButton>
             <ToolButton label="Go to latest candle" onClick={goToLatest}>
@@ -1860,7 +1946,7 @@ export default function PriceChart({
           );
         })()}
 
-        {stopDraft != null && (
+        {settings.positionLines && stopDraft != null && (
           <button
             type="button"
             data-testid="stop-loss-line"
@@ -1880,7 +1966,7 @@ export default function PriceChart({
           </button>
         )}
 
-        {targetDraft != null && (
+        {settings.positionLines && targetDraft != null && (
           <button
             type="button"
             data-testid="take-profit-line"

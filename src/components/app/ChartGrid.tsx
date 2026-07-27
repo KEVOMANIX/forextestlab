@@ -70,11 +70,12 @@ function readStoredLayout(storageKey: string): StoredLayout | null {
 
 interface ChartGridProps {
   state: PublicSessionState;
-  /** Candles of the session symbol revealed so far. */
-  sessionCandles: Candle[];
+  /**
+   * The session symbol's whole series. Cells reveal it against the replay clock
+   * themselves, so one that appears mid-session still shows the full history.
+   */
+  sessionSeries: Candle[];
   sessionContextCandles: Candle[];
-  lastCandle: Candle | null;
-  lastCandles: Candle[];
   /** Full session series per non-session symbol, keyed by symbol. */
   pairs: Record<string, PairChartData>;
   pairLoadingSymbols: string[];
@@ -108,10 +109,8 @@ interface ChartGridProps {
 
 export default function ChartGrid({
   state,
-  sessionCandles,
+  sessionSeries,
   sessionContextCandles,
-  lastCandle,
-  lastCandles,
   pairs,
   pairLoadingSymbols,
   onNeedSymbol,
@@ -313,10 +312,8 @@ export default function ChartGrid({
                 multi={multi}
                 pair={pair}
                 pairLoading={!isSession && pairLoadingSymbols.includes(cell.symbol)}
-                sessionCandles={sessionCandles}
+                sessionSeries={sessionSeries}
                 sessionContextCandles={sessionContextCandles}
-                lastCandle={lastCandle}
-                lastCandles={lastCandles}
                 markers={markers}
                 positions={positions}
                 activePositionId={activePositionId}
@@ -350,10 +347,8 @@ interface ChartCellViewProps {
   multi: boolean;
   pair: PairChartData | null;
   pairLoading: boolean;
-  sessionCandles: Candle[];
+  sessionSeries: Candle[];
   sessionContextCandles: Candle[];
-  lastCandle: Candle | null;
-  lastCandles: Candle[];
   markers: ChartMarker[];
   positions: OpenPosition[];
   activePositionId: string | null;
@@ -384,10 +379,8 @@ function ChartCellView({
   multi,
   pair,
   pairLoading,
-  sessionCandles,
+  sessionSeries,
   sessionContextCandles,
-  lastCandle,
-  lastCandles,
   markers,
   positions,
   activePositionId,
@@ -406,7 +399,7 @@ function ChartCellView({
   headerSlot,
   orderTicket,
 }: ChartCellViewProps) {
-  const reveal = usePairReveal(pair, state.currentTime);
+  const reveal = useRevealedSeries(isSession ? sessionSeries : pair?.candles ?? null, state.currentTime);
   const noop = useCallback(() => {}, []);
   const loadHistory = useCallback(
     (timeframe: Timeframe, before: number) => onLoadHistory(cell.symbol, timeframe, before),
@@ -427,10 +420,10 @@ function ChartCellView({
       <PriceChart
         key={`${cell.id}-${cell.symbol}`}
         onFocus={onFocus}
-        initialCandles={isSession ? sessionCandles : reveal.initialCandles}
+        initialCandles={reveal.initialCandles}
         contextCandles={isSession ? sessionContextCandles : pair?.contextCandles ?? []}
-        lastCandle={isSession ? lastCandle : null}
-        lastCandles={isSession ? lastCandles : reveal.newCandles}
+        lastCandle={null}
+        lastCandles={reveal.newCandles}
         markers={tradable ? markers : []}
         positions={tradable ? positions : []}
         activePositionId={tradable ? activePositionId : null}
@@ -458,7 +451,23 @@ function ChartCellView({
   );
 }
 
-interface PairReveal {
+/**
+ * The portion of a series the replay has reached. Candles are ascending, so a
+ * binary search beats scanning a 1,500-bar series on every rewind.
+ */
+export function revealedUpTo(series: Candle[], clock: number | null): Candle[] {
+  if (clock == null) return [];
+  let low = 0;
+  let high = series.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if ((series[mid]?.timestamp ?? 0) <= clock) low = mid + 1;
+    else high = mid;
+  }
+  return series.slice(0, low);
+}
+
+interface RevealedSeries {
   /** Candles already revealed when this cell mounted. */
   initialCandles: Candle[];
   /** Only the candles revealed since the last tick, so the chart appends. */
@@ -467,22 +476,28 @@ interface PairReveal {
 }
 
 /**
- * Reveal a non-session symbol's series against the replay clock.
+ * Reveal a symbol's series against the replay clock.
  *
- * The full series is held here and sliced by timestamp, so an extra cell never
- * shows a bar the session has not reached. Only the delta since the previous
- * tick is handed to the chart: passing the whole revealed slice would re-feed
- * the entire history on every candle and defeat the chart's append fast path.
+ * Every cell derives its candles this way, including cells on the traded
+ * instrument. Feeding them the session's opening candles plus deltas only works
+ * for a chart that existed when the session started: a cell added mid-session
+ * would show the opening candles, then a hole, then whatever arrived after it
+ * mounted. Slicing a full series by timestamp makes mount time irrelevant, and
+ * nothing past the clock is ever drawn.
+ *
+ * Only the delta since the previous tick is handed to the chart; passing the
+ * whole revealed slice would re-feed the entire history on every candle and
+ * defeat the chart's append fast path.
  */
-function usePairReveal(pair: PairChartData | null, currentTime: number | null): PairReveal {
+function useRevealedSeries(series: Candle[] | null, currentTime: number | null): RevealedSeries {
   const [initialCandles, setInitialCandles] = useState<Candle[]>([]);
   const [newCandles, setNewCandles] = useState<Candle[]>([]);
   const cursorRef = useRef(0);
-  const sourceRef = useRef<PairChartData | null>(null);
+  const sourceRef = useRef<Candle[] | null>(null);
   const lastRef = useRef<Candle | null>(null);
 
   useEffect(() => {
-    if (!pair) {
+    if (!series) {
       sourceRef.current = null;
       cursorRef.current = 0;
       lastRef.current = null;
@@ -490,23 +505,23 @@ function usePairReveal(pair: PairChartData | null, currentTime: number | null): 
       setNewCandles([]);
       return;
     }
-    if (sourceRef.current === pair) return;
-    sourceRef.current = pair;
-    const clock = currentTime ?? 0;
-    const revealed = pair.candles.filter((candle) => candle.timestamp <= clock);
+    // Identity changes when the series is replaced or extended, not per tick.
+    if (sourceRef.current === series) return;
+    sourceRef.current = series;
+    const revealed = revealedUpTo(series, currentTime);
     cursorRef.current = revealed.length;
     lastRef.current = revealed[revealed.length - 1] ?? null;
     setInitialCandles(revealed);
     setNewCandles([]);
-  }, [pair, currentTime]);
+  }, [series, currentTime]);
 
   useEffect(() => {
-    const series = sourceRef.current?.candles;
-    if (!series || currentTime == null) return;
+    const source = sourceRef.current;
+    if (!source || currentTime == null) return;
     // Stepping back rewinds the clock, so re-slice instead of appending.
     const last = lastRef.current;
     if (last && currentTime < last.timestamp) {
-      const revealed = series.filter((candle) => candle.timestamp <= currentTime);
+      const revealed = revealedUpTo(source, currentTime);
       cursorRef.current = revealed.length;
       lastRef.current = revealed[revealed.length - 1] ?? null;
       setInitialCandles(revealed);
@@ -514,8 +529,8 @@ function usePairReveal(pair: PairChartData | null, currentTime: number | null): 
       return;
     }
     const delta: Candle[] = [];
-    while (cursorRef.current < series.length) {
-      const candle = series[cursorRef.current]!;
+    while (cursorRef.current < source.length) {
+      const candle = source[cursorRef.current]!;
       if (candle.timestamp > currentTime) break;
       delta.push(candle);
       cursorRef.current += 1;

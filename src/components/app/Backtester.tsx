@@ -362,10 +362,8 @@ export function Backtester({
           <ChartGrid
             key={`${state.sessionId}-${bt.resetNonce}`}
             state={state}
-            sessionCandles={bt.initialCandles}
+            sessionSeries={bt.replayCandles}
             sessionContextCandles={bt.contextCandles}
-            lastCandle={bt.lastCandle}
-            lastCandles={bt.lastCandles}
             pairs={bt.pairs}
             pairLoadingSymbols={bt.pairLoadingSymbols}
             onNeedSymbol={actions.ensurePair}

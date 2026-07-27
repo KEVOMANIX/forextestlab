@@ -205,6 +205,8 @@ const PALETTES: Record<"dark" | "light", Palette> = {
 
 const BULL = "#22c3a0";
 const BEAR = "#f4646c";
+const DEFAULT_BAR_SPACING = 10;
+const DEFAULT_RIGHT_OFFSET = 4;
 
 /** Custom "long position" glyph: green target on top, red stop below, up arrow. */
 function LongPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
@@ -302,12 +304,12 @@ function joinTimeline(history: Candle[], replay: OHLCV[]): OHLCV[] {
 function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, precision: number, context: boolean): ISeriesApi<SeriesType> {
   const priceFormat = { type: "price" as const, precision, minMove: 1 / 10 ** precision };
   const commonCandle = {
-    priceLineVisible: !context,
-    lastValueVisible: !context,
+    priceLineVisible: false,
+    lastValueVisible: false,
     priceFormat,
   };
   if (type === "line") {
-    return chart.addSeries(LineSeries, { color: context ? palette.text : BULL, lineWidth: 2, priceFormat, priceLineVisible: !context, lastValueVisible: !context });
+    return chart.addSeries(LineSeries, { color: context ? palette.text : BULL, lineWidth: 2, priceFormat, priceLineVisible: false, lastValueVisible: false });
   }
   if (type === "area") {
     return chart.addSeries(AreaSeries, {
@@ -316,8 +318,8 @@ function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, pre
       bottomColor: "rgba(34,195,160,0.02)",
       lineWidth: 2,
       priceFormat,
-      priceLineVisible: !context,
-      lastValueVisible: !context,
+      priceLineVisible: false,
+      lastValueVisible: false,
     });
   }
   if (type === "bars") {
@@ -406,6 +408,7 @@ export default function PriceChart({
   onEditPosition,
   stopLoss,
   takeProfit,
+  currentPrice,
   baseTimeframe,
   pipSize,
   precision,
@@ -439,6 +442,7 @@ export default function PriceChart({
   const ownIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
   const ownOrderRef = useRef<string>("");
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const livePriceLineRef = useRef<IPriceLine | null>(null);
   const positionLinesRef = useRef<Map<string, IPriceLine>>(new Map());
   const positionsRef = useRef<OpenPosition[]>(positions);
   const stopLineElRef = useRef<HTMLButtonElement | null>(null);
@@ -562,6 +566,7 @@ export default function PriceChart({
       historyHasMoreRef.current = page.hasMore;
       setHasOlderHistory(page.hasMore);
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
+      if (replace && followLatestRef.current) resetLatestViewport();
     } finally {
       historyLoadingRef.current = false;
       if (replace) setHistoryLoading(false);
@@ -843,6 +848,17 @@ export default function PriceChart({
     });
   }
 
+  function resetLatestViewport() {
+    const scale = chartRef.current?.timeScale();
+    if (!scale) return;
+    followLatestRef.current = true;
+    scale.applyOptions({
+      barSpacing: DEFAULT_BAR_SPACING,
+      rightOffset: DEFAULT_RIGHT_OFFSET,
+    });
+    scale.scrollToRealTime();
+  }
+
   function createSeriesPair(type: ChartType) {
     const chart = chartRef.current;
     if (!chart) return;
@@ -868,8 +884,8 @@ export default function PriceChart({
         borderColor: palette.border,
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 4,
-        barSpacing: 10,
+        rightOffset: DEFAULT_RIGHT_OFFSET,
+        barSpacing: DEFAULT_BAR_SPACING,
         shiftVisibleRangeOnNewBar: false,
         tickMarkFormatter: (time: Time) => chartTickFormatter.format(chartTimeMs(time)),
       },
@@ -885,7 +901,7 @@ export default function PriceChart({
     chartRef.current = chart;
     setChartApi(chart);
     createSeriesPair(chartTypeRef.current);
-    chart.timeScale().scrollToRealTime();
+    resetLatestViewport();
 
     if (viewStorageKey) {
       try {
@@ -935,6 +951,9 @@ export default function PriceChart({
         if (viewportOverlaysRef.current) setViewVersion((v) => v + 1);
         drawingEngineRef.current?.onViewChanged();
         const visible = chart.timeScale().getVisibleLogicalRange();
+        if (visible) {
+          container.dataset.visibleLogicalSpan = String(visible.to - visible.from);
+        }
         if (visible && visible.from < 100) loadOlderRef.current();
         if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
@@ -1025,6 +1044,7 @@ export default function PriceChart({
     ownIndicatorsRef.current = new Map();
     ownOrderRef.current = "";
     markersRef.current = null;
+    livePriceLineRef.current = null;
     try {
       while (chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
     } catch {
@@ -1032,6 +1052,7 @@ export default function PriceChart({
     }
     if (contextSeriesRef.current) chart.removeSeries(contextSeriesRef.current);
     if (seriesRef.current) chart.removeSeries(seriesRef.current);
+    livePriceLineRef.current = null;
     createSeriesPair(chartType);
     setSeriesEpoch((e) => e + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1092,8 +1113,7 @@ export default function PriceChart({
       followLatestRef.current = false;
       scale?.setVisibleLogicalRange(visibleRange);
     } else {
-      followLatestRef.current = true;
-      scale?.scrollToRealTime();
+      resetLatestViewport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCandles]);
@@ -1119,8 +1139,7 @@ export default function PriceChart({
       scale?.setVisibleLogicalRange(savedRangeRef.current);
       savedRangeRef.current = null;
     } else {
-      followLatestRef.current = true;
-      scale?.scrollToRealTime();
+      resetLatestViewport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayTimeframe]);
@@ -1159,6 +1178,30 @@ export default function PriceChart({
     if (!markersRef.current) markersRef.current = createSeriesMarkers(series, mapped);
     else markersRef.current.setMarkers(mapped);
   }, [markers, displayTimeframe, seriesEpoch]);
+
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    if (currentPrice == null || !Number.isFinite(currentPrice)) {
+      if (livePriceLineRef.current) series.removePriceLine(livePriceLineRef.current);
+      livePriceLineRef.current = null;
+      return;
+    }
+    const latest = displayRef.current[displayRef.current.length - 1];
+    const color = latest && currentPrice >= latest.open ? BULL : BEAR;
+    if (livePriceLineRef.current) {
+      livePriceLineRef.current.applyOptions({ price: currentPrice, color });
+    } else {
+      livePriceLineRef.current = series.createPriceLine({
+        price: currentPrice,
+        color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: "",
+      });
+    }
+  }, [currentPrice, seriesEpoch]);
 
   useEffect(() => {
     if (draggingRef.current !== "stop") setStopDraft(stopLoss);
@@ -1529,7 +1572,13 @@ export default function PriceChart({
         ? createPortal(chartControls, headerSlot)
         : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}</div>}
       <div className="relative min-h-0 flex-1">
-        <div ref={containerRef} className="h-full w-full" role="img" aria-label="Candlestick price chart" />
+        <div
+          ref={containerRef}
+          className="h-full w-full"
+          role="img"
+          aria-label="Candlestick price chart"
+          data-current-price={currentPrice ?? undefined}
+        />
 
         <DrawingLayer
           chart={chartApi}

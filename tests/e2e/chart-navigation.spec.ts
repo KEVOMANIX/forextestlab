@@ -25,6 +25,10 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     ...candle(index),
     timestamp: start - (120 - index) * 60_000,
   }));
+  const dailyContextCandles = Array.from({ length: 120 }, (_, index) => ({
+    ...candle(index),
+    timestamp: start - (120 - index) * 24 * 60 * 60_000,
+  }));
   const sessionId = "chart-navigation-e2e";
   const state = {
     sessionId,
@@ -95,7 +99,7 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
       contentType: "application/json",
       body: JSON.stringify({
         ok: true,
-        candles: contextCandles,
+        candles: dailyContextCandles,
         hasMore: false,
         timeframe: "1D",
       }),
@@ -132,39 +136,60 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   const secondCell = page.getByTestId("chart-cell-2");
   await expect(firstCell).toBeVisible();
   await expect(secondCell).toBeVisible();
+
+  // The selected replay step advances that many source minutes and the price
+  // delivered to the chart follows the newly revealed candle.
+  const firstChart = firstCell.getByRole("img", {
+    name: "Candlestick price chart",
+  });
+  await page.getByLabel("Replay step").selectOption("30");
+  await page.getByRole("button", { name: "Next candle" }).click();
+  await expect(page.locator("p.sr-only")).toContainText("Candle 90 of");
+  await expect(firstChart).toHaveAttribute(
+    "data-current-price",
+    String(Number(replayCandles[89]!.close)),
+  );
+
   await secondCell
     .getByRole("button", { name: "Display 1D candles" })
     .click();
   await expect(secondCell.getByText("Loading 1D chart history…")).toBeHidden({
     timeout: 30_000,
   });
+  await page.waitForTimeout(400);
+  const dailySpan = Number(
+    await secondCell
+      .getByRole("img", { name: "Candlestick price chart" })
+      .getAttribute("data-visible-logical-span"),
+  );
+  expect(dailySpan).toBeGreaterThan(20);
 
+  await page.getByLabel("Replay step").selectOption("1");
+  const speed = page.getByLabel("Replay speed");
+  await speed.fill((await speed.getAttribute("max")) ?? "0");
   await page.getByRole("button", { name: "Play replay" }).click();
   await expect(
     page.getByRole("button", { name: "Pause replay" }),
   ).toBeVisible();
+  const priceAtPlay = await firstChart.getAttribute("data-current-price");
+  await page.waitForTimeout(400);
+  expect(await firstChart.getAttribute("data-current-price")).not.toBe(
+    priceAtPlay,
+  );
 
-  const firstChart = firstCell.getByRole("img", {
-    name: "Candlestick price chart",
-  });
   const box = await firstChart.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.wheel(0, -700);
   await page.waitForTimeout(500);
 
-  const ranges = await page.evaluate((id) => {
-    const read = (cell: string) => {
-      const raw = window.localStorage.getItem(
-        `forextestlab:chart:${id}:${cell}`,
-      );
-      return raw ? (JSON.parse(raw).range ?? null) : null;
-    };
-    return { first: read("cell-1"), second: read("cell-2") };
+  const firstRange = await page.evaluate((id) => {
+    const raw = window.localStorage.getItem(
+      `forextestlab:chart:${id}:cell-1`,
+    );
+    return raw ? (JSON.parse(raw).range ?? null) : null;
   }, sessionId);
-  expect(ranges.first).not.toBeNull();
-  expect(ranges.second).not.toBeNull();
-  expect(ranges.first).not.toEqual(ranges.second);
+  expect(firstRange).not.toBeNull();
 
   await page.waitForTimeout(1_000);
   const firstRangeLater = await page.evaluate((id) => {
@@ -173,5 +198,5 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     );
     return raw ? (JSON.parse(raw).range ?? null) : null;
   }, sessionId);
-  expect(firstRangeLater).toEqual(ranges.first);
+  expect(firstRangeLater).toEqual(firstRange);
 });

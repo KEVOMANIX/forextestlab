@@ -7,28 +7,33 @@ import { Check } from "lucide-react";
 import { formatInZone, zoneOffsetLabel, zoneOptionsAt } from "@/lib/chart/timezones";
 
 /**
- * The clock in the corner of the time axis, and the time-zone picker it opens.
+ * The workspace clock, and the time-zone picker it opens.
  *
- * The time shown is the replay's, not the wall clock's: in a session replaying
- * 2015 the only clock that means anything is the simulated one. Picking a zone
- * re-labels this chart's axis, crosshair and this readout together.
+ * This one runs on real time — it is the "what time is it right now" clock, and
+ * the place the chart's zone is chosen. Simulated time has its own readout in
+ * the account strip. Picking a zone here re-labels every chart's axis and
+ * crosshair, and both clocks, together.
  */
 
 const PANEL_WIDTH = 208;
 const PANEL_MAX_HEIGHT = 440;
 
-export function ChartClock({
-  /** Current replay moment, in epoch ms. */
-  at,
+export function TimeZoneClock({
   zone,
   theme,
   onChange,
 }: {
-  at: number | null;
   zone: string;
   theme: "dark" | "light";
   onChange: (zone: string) => void;
 }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
+
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -59,7 +64,7 @@ export function ChartClock({
     if (open) selectedRef.current?.scrollIntoView({ block: "center" });
   }, [open]);
 
-  const reference = at ?? Date.now();
+  const reference = now;
   const allOptions = useMemo(() => zoneOptionsAt(reference), [reference]);
   const options = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -72,7 +77,12 @@ export function ChartClock({
     );
   }, [allOptions, query]);
 
-  const clock = at == null ? "--:--" : formatInZone(at, zone, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const clock = formatInZone(now, zone, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
   const offset = zoneOffsetLabel(zone, reference);
 
   return (
@@ -81,10 +91,10 @@ export function ChartClock({
         ref={buttonRef}
         type="button"
         data-testid="chart-clock"
-        aria-label={`Chart time zone: ${offset}`}
+        aria-label={`Time zone: ${offset}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="Change the chart's time zone"
+        title="Change the time zone used across the charts"
         onClick={() => {
           const box = buttonRef.current?.getBoundingClientRect();
           if (box) setAnchor({ x: box.left + PANEL_WIDTH, y: box.top });
@@ -94,8 +104,8 @@ export function ChartClock({
         // Left end of the time axis, not the right: the support bubble is pinned
         // to the bottom-right corner of the viewport and would swallow the click.
         // A backdrop, because this sits on the axis strip over the tick labels.
-        className={`pointer-events-auto absolute bottom-1 left-14 z-20 rounded border app-border bg-[var(--app-panel)] px-1.5 py-0.5 font-mono text-[10px] backdrop-blur ${
-          open ? "text-brand-300" : "app-muted hover:text-[var(--app-text)]"
+        className={`rounded px-2 py-0.5 font-mono text-[11px] ${
+          open ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
         }`}
       >
         {clock} {offset}

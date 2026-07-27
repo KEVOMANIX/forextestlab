@@ -436,6 +436,8 @@ export function Backtester({
         state={state}
         currentTime={state.currentTime ?? bt.lastCandle?.timestamp ?? null}
         timeZone={workspace.settings.timeZone}
+        onTimeZoneChange={(timeZone) => workspace.updateSettings({ timeZone })}
+        theme={theme}
         initialNotes={bt.notes}
         onSaveNotes={actions.saveNotes}
         busy={bt.busy}

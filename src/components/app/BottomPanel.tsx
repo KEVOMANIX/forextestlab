@@ -8,6 +8,7 @@ import { computeStatistics } from "@/lib/backtest/statistics";
 import type { PublicSessionState } from "@/lib/backtest/types";
 import { AccountSummary } from "./AccountSummary";
 import { SessionClock } from "./SessionClock";
+import { TimeZoneClock } from "./TimeZoneClock";
 import { StatsGrid } from "./StatsGrid";
 import { TradesTable } from "./TradesTable";
 
@@ -25,6 +26,8 @@ interface BottomPanelProps {
   currentTime?: number | null;
   /** Zone the charts are displayed in, so every clock in the app agrees. */
   timeZone: string;
+  onTimeZoneChange: (zone: string) => void;
+  theme: "dark" | "light";
   initialNotes?: string;
   onSaveNotes: (notes: string) => void;
   busy: boolean;
@@ -34,6 +37,8 @@ export function BottomPanel({
   state,
   currentTime = null,
   timeZone,
+  onTimeZoneChange,
+  theme,
   initialNotes = "",
   onSaveNotes,
   busy,
@@ -66,7 +71,7 @@ export function BottomPanel({
 
   return (
     <section
-      className={`flex shrink-0 flex-col overflow-hidden border-t app-border bg-[var(--app-panel)] transition-[height] duration-200 ease-out ${
+      className={`relative flex shrink-0 flex-col overflow-hidden border-t app-border bg-[var(--app-panel)] transition-[height] duration-200 ease-out ${
         expanded ? "h-44 md:h-48" : "h-11"
       }`}
       aria-label="Session details"
@@ -163,7 +168,13 @@ export function BottomPanel({
           })}
         </div>
 
-        <div className="ml-auto flex h-full shrink-0 items-center">
+        {/* Centred in the space between the tabs and the balances. Absolute
+            centring on the bar itself would sit on top of the guest notice. */}
+        <div className="mx-auto hidden shrink-0 px-4 sm:block">
+          <TimeZoneClock zone={timeZone} theme={theme} onChange={onTimeZoneChange} />
+        </div>
+
+        <div className="flex h-full shrink-0 items-center">
           {state.anonymous && (
             <span className="hidden border-l app-border px-3 text-[10px] text-brand-300 xl:inline-flex">
               Guest session&nbsp;·&nbsp;

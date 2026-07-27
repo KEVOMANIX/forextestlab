@@ -89,7 +89,6 @@ import {
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
-import { ChartClock } from "./ChartClock";
 import { AUTO_BACKGROUND, ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
@@ -1633,13 +1632,6 @@ export default function PriceChart({
             onFocusRef.current?.();
             setSettingsMenu({ x: event.clientX, y: event.clientY });
           }}
-        />
-
-        <ChartClock
-          at={displayRef.current.length > 0 ? (displayRef.current[displayRef.current.length - 1]!.time as number) * 1000 : null}
-          zone={settings.timeZone}
-          theme={theme}
-          onChange={(timeZone) => updateSettings({ timeZone })}
         />
 
         {settingsMenu && (

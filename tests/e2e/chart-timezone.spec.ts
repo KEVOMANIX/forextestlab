@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * The chart clock and its time-zone picker. Times shown are the replay's, so a
- * zone change must re-label the axis, the crosshair and the clock together.
+ * The workspace clock in the middle of the status bar and its time-zone picker.
+ * It runs on real time; picking a zone re-labels every chart and both clocks.
  */
 
 async function openSession(page: Page) {
@@ -38,8 +38,8 @@ test("the clock re-labels the chart in the chosen zone, and remembers it", async
   await openSession(page);
   const clock = page.getByTestId("chart-clock");
 
-  // Defaults to the exchange zone: New York, on standard time in early March.
-  await expect(clock).toHaveText(/UTC-5$/);
+  // Defaults to the exchange zone: New York.
+  await expect(clock).toHaveText(/UTC-[45]$/);
   const exchangeTime = await clock.textContent();
 
   await clock.click();
@@ -53,7 +53,7 @@ test("the clock re-labels the chart in the chosen zone, and remembers it", async
   await list.getByLabel("Search time zones").fill("Istanbul");
   await list.getByRole("option", { name: /Istanbul/ }).click();
 
-  // Same moment, eight hours further east.
+  // Same moment, further east.
   await expect(clock).toHaveText(/UTC\+3$/);
   expect(await clock.textContent()).not.toBe(exchangeTime);
 
@@ -66,22 +66,23 @@ test("the clock re-labels the chart in the chosen zone, and remembers it", async
   await expect(page.getByTestId("chart-clock")).toHaveText(/UTC\+3$/);
 });
 
-test("the zone is a workspace preference, so every chart follows it", async ({ page }) => {
+test("one clock serves the workspace, and the session clock agrees with it", async ({ page }) => {
   await openSession(page);
   await page.getByRole("button", { name: "Chart layout" }).click();
   await page.getByRole("button", { name: /Two columns/i }).click();
-  const clocks = page.getByTestId("chart-clock");
-  await expect(clocks).toHaveCount(2);
+  await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(2);
 
-  // Changed on the second chart; the first must follow immediately.
-  await clocks.nth(1).click();
+  // The clock lives on the status bar, so a layout has one of them, not one per pane.
+  const clock = page.getByTestId("chart-clock");
+  await expect(clock).toHaveCount(1);
+
+  await clock.click();
   const list = page.getByRole("listbox", { name: "Chart time zone" });
   // The catalogue is the runtime's full zone database, so search to reach one.
   await list.getByLabel("Search time zones").fill("Tokyo");
   await list.getByRole("option", { name: /Tokyo/ }).click();
 
-  await expect(clocks.nth(0)).toHaveText(/UTC\+9$/);
-  await expect(clocks.nth(1)).toHaveText(/UTC\+9$/);
-  // The status bar clock reads the same zone, so the app never shows two times.
+  await expect(clock).toHaveText(/UTC\+9$/);
+  // The simulated clock reads the same zone, so the app never shows two zones.
   await expect(page.getByTestId("session-clock")).toContainText("UTC+9");
 });

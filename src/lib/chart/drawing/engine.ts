@@ -194,7 +194,16 @@ export class DrawingEngine {
 
   setEnv(env: Partial<EngineEnv>): void {
     const prevTool = this.env.tool;
+    const geometryChanged =
+      (env.precision !== undefined && env.precision !== this.env.precision) ||
+      (env.pipSize !== undefined && env.pipSize !== this.env.pipSize) ||
+      (env.timeframe !== undefined && env.timeframe !== this.env.timeframe);
     this.env = { ...this.env, ...env };
+    // Candle updates happen before the chart completes its own replay paint.
+    // Updating the mapper is necessary for dragging/future extrapolation, but
+    // forcing an immediate scene repaint here races the chart and produces an
+    // alternating old/new frame. View-signature changes repaint the scene once
+    // the chart's time/price scales have settled.
     if (env.candles) this.mapper.setCandles(env.candles);
     if (env.tool !== undefined && env.tool !== prevTool) {
       // Tool changed: cancel any half-drawn object and reset cursor.
@@ -202,7 +211,10 @@ export class DrawingEngine {
       this.chartEl.style.cursor = this.env.tool ? "crosshair" : "";
       if (this.env.tool) this.select(null);
     }
-    this.sceneDirty = true;
+    if (geometryChanged) {
+      this.sceneDirty = true;
+      this.overlayDirty = true;
+    }
   }
 
   onViewChanged(): void {

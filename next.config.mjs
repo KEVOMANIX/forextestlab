@@ -15,7 +15,8 @@ const securityHeaders = [
 const buildVersion =
   process.env.VERCEL_GIT_COMMIT_SHA ??
   process.env.NEXT_PUBLIC_BUILD_VERSION ??
-  Date.now().toString(36);
+  process.env.npm_package_version ??
+  "local-development";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

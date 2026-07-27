@@ -36,7 +36,7 @@ async function seed(page: Page, layout: string) {
       ];
       window.localStorage.setItem(
         `forextestlab:layout:${sessionId}`,
-        JSON.stringify({ layout, cells, focusedId: "cell-1", syncCrosshair: true }),
+        JSON.stringify({ layout, cells, focusedId: "cell-1" }),
       );
       window.localStorage.setItem(
         `forextestlab:chart:${sessionId}:cell-3`,

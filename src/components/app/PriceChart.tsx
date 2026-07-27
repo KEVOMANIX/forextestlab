@@ -89,7 +89,6 @@ import {
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
-import type { ChartSync } from "@/lib/chart/sync";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
@@ -167,10 +166,6 @@ interface PriceChartProps {
   viewKey?: string;
   /** Timeframe for a cell with no saved view state yet. */
   initialTimeframe?: Timeframe;
-  /** Cross-chart crosshair + time-range sync, when this chart is in a grid. */
-  sync?: ChartSync | null;
-  /** Stable id within the sync registry; required when `sync` is set. */
-  cellId?: string;
   /** Called when the user interacts with this cell, so the grid can focus it. */
   onFocus?: () => void;
   /** Instrument name shown at the head of the cell's own toolbar, in a grid. */
@@ -421,8 +416,6 @@ export default function PriceChart({
   storageKey,
   viewKey,
   initialTimeframe,
-  sync = null,
-  cellId,
   onFocus,
   instrumentLabel,
   headerSlot = null,
@@ -933,12 +926,6 @@ export default function PriceChart({
     // Coalesce range-change bursts (e.g. auto-scroll during fast replay fires
     // this per tick) into at most one update per animation frame, so React
     // re-renders and localStorage writes don't storm and choke panning.
-    const syncId = cellId ?? "solo";
-    const unregisterSync = sync?.register(syncId, {
-      chart,
-      series: () => seriesRef.current,
-    });
-
     let coordScheduled = false;
     const coordinateUpdate = () => {
       if (coordScheduled) return;
@@ -978,9 +965,6 @@ export default function PriceChart({
     const onCrosshair = (param: MouseEventParams<Time>) => {
       scheduleLineCoordinates();
       const series = seriesRef.current;
-      // Mirror onto the peers, but only for a crosshair this cell owns —
-      // otherwise the position a peer just pushed here bounces straight back.
-      if (sync && !sync.busy) sync.broadcastCrosshair(syncId, param.time ?? null);
       if (!series || !param.time) {
         setLegend(null);
         return;
@@ -1008,7 +992,6 @@ export default function PriceChart({
 
     return () => {
       observer.disconnect();
-      unregisterSync?.();
       container.removeEventListener("pointerdown", focusCell, true);
       container.removeEventListener("pointerdown", detachFromLatest, true);
       container.removeEventListener("wheel", detachFromLatest);

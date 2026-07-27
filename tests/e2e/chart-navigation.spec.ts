@@ -120,6 +120,21 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     });
   });
 
+  // Simulate a profile carrying the removed synchronization preferences.
+  // Hydration must preserve the layout while automatically dropping both flags.
+  await page.addInitScript((id) => {
+    window.localStorage.setItem(
+      `forextestlab:layout:${id}`,
+      JSON.stringify({
+        layout: "1",
+        cells: [{ id: "cell-1", symbol: "EURUSD", timeframe: null }],
+        focusedId: "cell-1",
+        syncCrosshair: true,
+        syncTime: true,
+      }),
+    );
+  }, sessionId);
+
   await page.goto("/app/backtest?trial=instant");
   const closeTour = page.getByRole("button", {
     name: /Close trading tour/i,
@@ -130,7 +145,18 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   ).toHaveCount(1, { timeout: 30_000 });
 
   await page.getByRole("button", { name: "Chart layout" }).click();
-  await page.getByRole("button", { name: /Two columns/i }).click();
+  const layoutMenu = page.getByTestId("chart-layout-menu");
+  await expect(layoutMenu.getByText("Sync across charts")).toHaveCount(0);
+  await expect(layoutMenu.getByRole("button", { name: "Crosshair" })).toHaveCount(0);
+  await expect(layoutMenu.getByRole("button", { name: "Time" })).toHaveCount(0);
+  await layoutMenu.getByRole("button", { name: /Two columns/i }).click();
+
+  const savedLayout = await page.evaluate((id) => {
+    const raw = window.localStorage.getItem(`forextestlab:layout:${id}`);
+    return raw ? JSON.parse(raw) : null;
+  }, sessionId);
+  expect(savedLayout).not.toHaveProperty("syncCrosshair");
+  expect(savedLayout).not.toHaveProperty("syncTime");
 
   const firstCell = page.getByTestId("chart-cell-1");
   const secondCell = page.getByTestId("chart-cell-2");

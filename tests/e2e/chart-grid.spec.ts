@@ -41,14 +41,18 @@ async function chooseLayout(page: Page, label: RegExp) {
   await page.getByRole("button", { name: label }).click();
 }
 
-test("splits into a synced multi-chart layout and back", async ({ page }) => {
+test("splits into an independent multi-chart layout and back", async ({ page }) => {
   await openMultiSymbolSession(page);
 
   // Default is a single chart driving the top bar's toolbar.
   await expect(page.getByRole("toolbar", { name: "Chart controls" })).toHaveCount(1);
 
-
-  await chooseLayout(page, /Two columns/i);
+  await page.getByRole("button", { name: "Chart layout" }).click();
+  const layoutMenu = page.getByTestId("chart-layout-menu");
+  await expect(layoutMenu.getByText("Sync across charts")).toHaveCount(0);
+  await expect(layoutMenu.getByRole("button", { name: "Crosshair" })).toHaveCount(0);
+  await expect(layoutMenu.getByRole("button", { name: "Time" })).toHaveCount(0);
+  await layoutMenu.getByRole("button", { name: /Two columns/i }).click();
   // Each cell owns its own toolbar once the workspace is split.
   await expect(page.getByRole("toolbar", { name: "Chart controls" })).toHaveCount(2);
   await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(2);

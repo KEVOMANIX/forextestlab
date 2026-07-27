@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { PublicSessionState } from "@/lib/backtest/types";
 import { formatNewYorkDateTime } from "@/lib/date-time";
+import { AccountSummary } from "./AccountSummary";
 import { StatsGrid } from "./StatsGrid";
 import { TradesTable } from "./TradesTable";
 
@@ -25,13 +26,6 @@ interface BottomPanelProps {
   initialNotes?: string;
   onSaveNotes: (notes: string) => void;
   busy: boolean;
-}
-
-function money(value: number): string {
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 export function BottomPanel({
@@ -57,7 +51,6 @@ export function BottomPanel({
   );
 
   const openCount = state.openPositions.length;
-  const pnl = Number(state.equity) - Number(state.config.startingBalance);
   const timeLabel = currentTime
     ? formatNewYorkDateTime(currentTime, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
     : "—";
@@ -74,7 +67,7 @@ export function BottomPanel({
   return (
     <section
       className={`flex shrink-0 flex-col overflow-hidden border-t app-border bg-[var(--app-panel)] transition-[height] duration-200 ease-out ${
-        expanded ? "h-44 md:h-48" : "h-9"
+        expanded ? "h-44 md:h-48" : "h-11"
       }`}
       aria-label="Session details"
     >
@@ -180,15 +173,9 @@ export function BottomPanel({
           <span className="hidden border-l app-border px-3 font-mono text-[10px] app-muted lg:inline">
             Time: {timeLabel}
           </span>
-          <span className="hidden border-l app-border px-3 sm:inline">
-            Balance: <strong className="font-mono text-[var(--app-text)]">{money(Number(state.balance))}</strong>
-          </span>
-          <span className="hidden border-l app-border px-3 lg:inline">
-            Equity: <strong className="font-mono text-[var(--app-text)]">{money(Number(state.equity))}</strong>
-          </span>
-          <span className="hidden border-l app-border px-3 md:inline">
-            P&amp;L: <strong className={`font-mono ${pnl >= 0 ? "text-brand-300" : "text-bear"}`}>{pnl >= 0 ? "+" : ""}{money(pnl)}</strong>
-          </span>
+          <div className="hidden h-full border-l app-border sm:flex">
+            <AccountSummary state={state} />
+          </div>
           <button
             id="analytics-button"
             type="button"

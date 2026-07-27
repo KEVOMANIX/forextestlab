@@ -4,6 +4,7 @@
  */
 
 import type { Timeframe } from "@/lib/market-data/types";
+import { DEFAULT_LEVERAGE } from "./position-sizing";
 import type { ExecutionPolicy, SessionConfig } from "./types";
 
 export function simulationDefaults() {
@@ -13,6 +14,7 @@ export function simulationDefaults() {
     commissionPerLot: process.env.DEFAULT_COMMISSION_PER_LOT ?? "0",
     slippagePips: process.env.DEFAULT_SLIPPAGE_PIPS ?? "0",
     accountCurrency: "USD",
+    leverage: process.env.DEFAULT_LEVERAGE ?? DEFAULT_LEVERAGE,
   };
 }
 
@@ -58,5 +60,6 @@ export function buildSessionConfig(input: BuildConfigInput): SessionConfig {
     pipSize: input.pipSize,
     pricePrecision: input.pricePrecision,
     initialVisibleCount: INITIAL_VISIBLE_CANDLES,
+    leverage: defaults.leverage,
   };
 }

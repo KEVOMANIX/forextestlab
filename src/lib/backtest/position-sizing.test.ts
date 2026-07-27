@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_LEVERAGE,
   calculatePositionSize,
+  marginRequired,
   pipValuePerLot,
   type PositionSizingInput,
 } from "@/lib/backtest/position-sizing";
@@ -208,5 +210,73 @@ describe("calculatePositionSize", () => {
     expect(result.pipValuePerLot).toBe("0.00");
     expect(result.lots).toBe("0.01");
     expect(result.maxExpectedLoss).toBe("Not available");
+  });
+});
+
+describe("marginRequired", () => {
+  it("uses the notional in the account currency when the account is the quote", () => {
+    // 1 lot of EURUSD at 1.10 is 110,000 USD of notional; at 1:100 that is 1,100.
+    const result = marginRequired({
+      lots: "1",
+      price: "1.1000",
+      leverage: "100",
+      accountCurrency: "USD",
+      baseCurrency: "EUR",
+      quoteCurrency: "USD",
+    });
+    expect(result.value).toBe("1100.00");
+    expect(result.approx).toBe(false);
+  });
+
+  it("needs no price when the account currency is the base", () => {
+    // 0.5 lots of USDJPY is 50,000 USD of notional regardless of the rate.
+    const result = marginRequired({
+      lots: "0.5",
+      price: "150.00",
+      leverage: "50",
+      accountCurrency: "USD",
+      baseCurrency: "USD",
+      quoteCurrency: "JPY",
+    });
+    expect(result.value).toBe("1000.00");
+    expect(result.approx).toBe(false);
+  });
+
+  it("flags a cross against the account currency as approximate", () => {
+    const result = marginRequired({
+      lots: "1",
+      price: "0.8500",
+      leverage: "100",
+      accountCurrency: "USD",
+      baseCurrency: "EUR",
+      quoteCurrency: "GBP",
+    });
+    expect(result.approx).toBe(true);
+    expect(Number(result.value)).toBeGreaterThan(0);
+  });
+
+  it("defaults the leverage when a session predates the setting", () => {
+    const result = marginRequired({
+      lots: "1",
+      price: "1.1000",
+      accountCurrency: "USD",
+      baseCurrency: "EUR",
+      quoteCurrency: "USD",
+    });
+    expect(result.value).toBe(`${110000 / Number(DEFAULT_LEVERAGE)}.00`);
+  });
+
+  it("never emits NaN for a nonsensical leverage or lot size", () => {
+    for (const bad of [{ leverage: "0" }, { leverage: "-5" }, { lots: "abc" }]) {
+      const result = marginRequired({
+        lots: "1",
+        price: "1.1000",
+        accountCurrency: "USD",
+        baseCurrency: "EUR",
+        quoteCurrency: "USD",
+        ...bad,
+      });
+      expect(result.value).toBe("Not available");
+    }
   });
 });

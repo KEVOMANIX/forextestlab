@@ -83,6 +83,47 @@ export function pipValuePerLot(params: {
   return { value: money(pipValueQuote), approx: true };
 }
 
+/** Retail default when a session predates the leverage setting. */
+export const DEFAULT_LEVERAGE = "100";
+
+/**
+ * Margin the broker holds against an open position, in the ACCOUNT currency.
+ *
+ * Notional value is `lots * 100000` units of the BASE currency; margin is that
+ * notional divided by the leverage. Converting the notional to the account
+ * currency follows the same rules as [pipValuePerLot]:
+ *  - base === account  -> exact, the notional is already in account currency.
+ *  - quote === account -> multiply by the price (exact).
+ *  - otherwise         -> approximated as quote ~ account.
+ */
+export function marginRequired(params: {
+  lots: string;
+  price: string;
+  leverage?: string;
+  accountCurrency: string;
+  baseCurrency: string;
+  quoteCurrency: string;
+}): { value: string; approx: boolean } {
+  const { lots, price, accountCurrency, baseCurrency, quoteCurrency } = params;
+  const leverage = params.leverage ?? DEFAULT_LEVERAGE;
+  if (!isFiniteNumeric(lots) || !isFiniteNumeric(leverage) || d(leverage).lte(0)) {
+    return { value: NOT_AVAILABLE, approx: false };
+  }
+  const notionalBase = d(lots).times(STANDARD_LOT);
+  if (baseCurrency === accountCurrency) {
+    return { value: money(notionalBase.div(leverage)), approx: false };
+  }
+  if (!isFiniteNumeric(price) || d(price).lte(0)) {
+    return { value: NOT_AVAILABLE, approx: false };
+  }
+  const notionalQuote = notionalBase.times(price);
+  return {
+    value: money(notionalQuote.div(leverage)),
+    // A cross against the account currency is approximated as quote ~ account.
+    approx: quoteCurrency !== accountCurrency,
+  };
+}
+
 export function calculatePositionSize(
   input: PositionSizingInput,
 ): PositionSizingResult {

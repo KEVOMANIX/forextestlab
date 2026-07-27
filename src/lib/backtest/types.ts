@@ -88,6 +88,12 @@ export interface SessionConfig {
   pricePrecision: number;
   /** Number of candles shown before replay begins. */
   initialVisibleCount: number;
+  /**
+   * Account leverage as the ratio's second term ("100" = 1:100), used to report
+   * margin held against open positions. Absent on sessions created before the
+   * setting existed; readers fall back to DEFAULT_LEVERAGE.
+   */
+  leverage?: string;
 }
 
 export interface OrderRequest {

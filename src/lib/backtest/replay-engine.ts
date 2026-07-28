@@ -55,6 +55,8 @@ export function normalizeSessionState(state: SessionState): SessionState {
     position.initialStopLoss ??= position.stopLoss;
     position.initialTakeProfit ??= position.takeProfit;
     position.initialRiskAmount ??= null;
+    position.trailingStopPips ??= null;
+    position.trailingBestPrice ??= null;
     position.maxFavorablePnl ??= "0.00";
     position.maxAdversePnl ??= "0.00";
   }
@@ -188,6 +190,56 @@ function updateExcursion(ctx: EngineContext, pos: OpenPosition, candle: Candle):
   }).pnl;
   pos.maxFavorablePnl = Decimal.max(d(pos.maxFavorablePnl ?? 0), d(pnlAt(favorablePrice))).toFixed(2);
   pos.maxAdversePnl = Decimal.min(d(pos.maxAdversePnl ?? 0), d(pnlAt(adversePrice))).toFixed(2);
+}
+
+/**
+ * Tighten a trailing stop from the candle's executable close. Using the close
+ * avoids inventing an intrabar high/low sequence that OHLC data cannot prove.
+ */
+function tightenTrailingStop(
+  ctx: EngineContext,
+  position: OpenPosition,
+  candle: Candle,
+): void {
+  if (
+    !position.trailingStopPips ||
+    d(position.trailingStopPips).lessThanOrEqualTo(0)
+  ) {
+    return;
+  }
+  const reference = exitFillPrice(
+    position.direction,
+    candle,
+    ctx.state.config.spreadPips,
+    ctx.state.config.pipSize,
+  );
+  const previousBest = position.trailingBestPrice
+    ? d(position.trailingBestPrice)
+    : reference;
+  const best =
+    position.direction === "long"
+      ? Decimal.max(previousBest, reference)
+      : Decimal.min(previousBest, reference);
+  const distance = d(position.trailingStopPips).times(
+    ctx.state.config.pipSize,
+  );
+  const candidate =
+    position.direction === "long"
+      ? best.minus(distance)
+      : best.plus(distance);
+  const current = position.stopLoss ? d(position.stopLoss) : null;
+  const tighter =
+    !current ||
+    (position.direction === "long"
+      ? candidate.greaterThan(current)
+      : candidate.lessThan(current));
+
+  position.trailingBestPrice = best.toFixed(
+    ctx.state.config.pricePrecision,
+  );
+  if (tighter) {
+    position.stopLoss = candidate.toFixed(ctx.state.config.pricePrecision);
+  }
 }
 
 /** Recompute equity, running peak, and drawdown; append an equity-curve point. */
@@ -351,6 +403,8 @@ export function revealNext(ctx: EngineContext): boolean {
       );
       if (hit) {
         closeAt(ctx, position.id, hit.price, hit.reason, hit.intrabarAmbiguous);
+      } else {
+        tightenTrailingStop(ctx, position, candle);
       }
     }
   }
@@ -477,6 +531,8 @@ export function previewPosition(
       initialStopLoss: stopLoss,
       initialTakeProfit: takeProfit,
       initialRiskAmount,
+      trailingStopPips: null,
+      trailingBestPrice: null,
       maxFavorablePnl: "0.00",
       maxAdversePnl: "0.00",
       commission,
@@ -516,7 +572,12 @@ export function modifyStopLoss(
   if (!position) {
     return { ok: false, error: "No open position." };
   }
-  if (price && !position.initialStopLoss) {
+  const establishesRisk =
+    price != null &&
+    (position.direction === "long"
+      ? d(price).lessThan(position.entryPrice)
+      : d(price).greaterThan(position.entryPrice));
+  if (price && establishesRisk && !position.initialStopLoss) {
     position.initialStopLoss = price;
     position.initialRiskAmount = d(
       computePnl({
@@ -535,7 +596,61 @@ export function modifyStopLoss(
       .abs()
       .toFixed(2);
   }
+  if (price == null) {
+    position.trailingStopPips = null;
+    position.trailingBestPrice = null;
+  }
   position.stopLoss = price;
+  recomputeEquity(ctx, false);
+  return { ok: true };
+}
+
+export function modifyTrailingStop(
+  ctx: EngineContext,
+  pips: string | null,
+  positionId?: string,
+): PlaceOrderResult {
+  const position = positionId
+    ? ctx.state.openPositions.find((item) => item.id === positionId)
+    : ctx.state.openPositions[0];
+  if (!position) return { ok: false, error: "No open position." };
+  if (pips == null) {
+    position.trailingStopPips = null;
+    position.trailingBestPrice = null;
+    return { ok: true };
+  }
+  if (!d(pips).isFinite() || d(pips).lessThanOrEqualTo(0)) {
+    return { ok: false, error: "Trailing-stop distance must be greater than zero." };
+  }
+
+  position.trailingStopPips = d(pips).toString();
+  position.trailingBestPrice = null;
+  const candle = currentCandle(ctx);
+  if (candle) tightenTrailingStop(ctx, position, candle);
+  const establishesRisk =
+    position.stopLoss != null &&
+    (position.direction === "long"
+      ? d(position.stopLoss).lessThan(position.entryPrice)
+      : d(position.stopLoss).greaterThan(position.entryPrice));
+  if (position.stopLoss && establishesRisk && !position.initialStopLoss) {
+    position.initialStopLoss = position.stopLoss;
+    position.initialRiskAmount = d(
+      computePnl({
+        direction: position.direction,
+        entryPrice: position.entryPrice,
+        exitPrice: position.stopLoss,
+        lots: position.lots,
+        pipSize: ctx.state.config.pipSize,
+        pipValueAccountPerLot: pipValueAccountPerLot(
+          ctx.state.config,
+          position.stopLoss,
+        ),
+        commission: position.commission,
+      }).pnl,
+    )
+      .abs()
+      .toFixed(2);
+  }
   recomputeEquity(ctx, false);
   return { ok: true };
 }

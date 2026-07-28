@@ -93,6 +93,33 @@ async function dragProtectionHandle(
   await response;
 }
 
+async function dragActiveProtectionLine(
+  page: Page,
+  testId: "stop-loss-line" | "take-profit-line",
+  deltaY: number,
+  actionType: "modify-stop" | "modify-target",
+) {
+  const line = page.getByTestId(testId);
+  const box = await line.boundingBox();
+  expect(box).not.toBeNull();
+  const response = page.waitForResponse((candidate) => {
+    if (!candidate.url().includes("/action")) return false;
+    return (
+      (candidate.request().postDataJSON() as { type?: string } | null)?.type ===
+      actionType
+    );
+  });
+  await page.mouse.move(box!.x + box!.width * 0.4, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box!.x + box!.width * 0.4,
+    box!.y + box!.height / 2 + deltaY,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  await response;
+}
+
 test("builds and places a chart-connected trade plan", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   await startSession(page);
@@ -190,6 +217,12 @@ test("builds and places a chart-connected trade plan", async ({ page }, testInfo
     );
     await expect(page.getByTestId("take-profit-line")).toBeVisible();
     await expect(page.getByTestId("add-take-profit-handle")).toHaveCount(0);
+    await dragActiveProtectionLine(
+      page,
+      "take-profit-line",
+      -24,
+      "modify-target",
+    );
   }
 
   await page.getByRole("button", { name: "Manage buy position" }).click();
@@ -200,6 +233,48 @@ test("builds and places a chart-connected trade plan", async ({ page }, testInfo
   await expect(page.getByRole("button", { name: "50%" })).toBeVisible();
   await expect(page.getByRole("button", { name: "75%" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Close all" })).toBeVisible();
+  await expect(page.getByLabel("Live position performance")).toBeVisible();
+  await expect(page.getByText("Remaining risk")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Move to break-even" })).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Trailing stop" })).toBeVisible();
+  await expect(page.getByLabel("Custom lot amount")).toBeVisible();
+
+  await page.getByLabel("Custom lot amount").fill("0.02");
+  await Promise.all([
+    page.waitForResponse((response) => {
+      if (!response.url().includes("/action")) return false;
+      const action = response.request().postDataJSON() as {
+        type?: string;
+        lots?: string;
+      } | null;
+      return action?.type === "close" && action.lots === "0.02";
+    }),
+    page.getByRole("button", { name: "Close lots" }).click(),
+  ]);
+  await expect(
+    page.getByRole("heading", { name: "Manage position" }),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("position-entry-line")).toContainText("0.08");
+
+  await page.getByRole("button", { name: "Manage buy position" }).click();
+  await page.getByRole("switch", { name: "Trailing stop" }).click();
+  await page.getByLabel("Distance in pips").fill("12");
+  await Promise.all([
+    page.waitForResponse((response) => {
+      if (!response.url().includes("/action")) return false;
+      const action = response.request().postDataJSON() as {
+        type?: string;
+        pips?: string;
+      } | null;
+      return action?.type === "modify-trailing" && action.pips === "12";
+    }),
+    page.getByRole("button", { name: "Apply" }).click(),
+  ]);
+  await page.getByRole("button", { name: "Close position editor" }).click();
+  await expect(page.getByTestId("stop-loss-line")).toContainText("TRAIL");
+  await expect(page.getByTestId("trade-line-key")).toContainText("Planned");
+  await expect(page.getByTestId("trade-line-key")).toContainText("Pending");
+  await expect(page.getByTestId("trade-line-key")).toContainText("Active");
 });
 
 test("loads pre-start context without moving the replay start", async ({ page }) => {

@@ -80,7 +80,7 @@ export function TradePlanOverlay({
       element.style.visibility = "visible";
       const badge = element.querySelector<HTMLElement>("[data-level-badge]");
       if (badge) {
-        badge.textContent = `${LEVELS.find((level) => level.key === key)?.label ?? ""} ${price.toFixed(precision)}`;
+        badge.textContent = `PLAN ${LEVELS.find((level) => level.key === key)?.label ?? ""} ${price.toFixed(precision)}`;
       }
     }
   }
@@ -119,6 +119,7 @@ export function TradePlanOverlay({
       className="pointer-events-none absolute inset-0 z-20"
       data-testid="trade-plan-overlay"
       data-direction={plan.direction}
+      data-line-state="planned"
       aria-label={`${plan.direction === "long" ? "Buy" : "Sell"} trade plan`}
     >
       {LEVELS.filter(({ key }) => plan[key].trim() !== "").map(({ key, line, badge }) => (
@@ -130,6 +131,7 @@ export function TradePlanOverlay({
           }}
           type="button"
           data-testid={`trade-plan-${key}`}
+          data-line-state="planned"
           aria-label={`Drag planned ${key === "entryPrice" ? "entry" : key === "stopLoss" ? "stop loss" : "take profit"}`}
           onPointerDown={(event) => begin(key, event)}
           onPointerMove={(event) => move(key, event)}

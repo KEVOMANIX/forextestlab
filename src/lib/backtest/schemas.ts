@@ -119,6 +119,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("modify-stop"), positionId: z.string().min(1).optional(), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
   z.object({ type: z.literal("modify-target"), positionId: z.string().min(1).optional(), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
+  z.object({ type: z.literal("modify-trailing"), positionId: z.string().min(1).optional(), pips: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
   z.object({ type: z.literal("notes"), notes: z.string().max(5000) }),
 ]);
 

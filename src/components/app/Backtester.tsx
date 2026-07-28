@@ -464,12 +464,20 @@ export function Backtester({
       />
       <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
       <PositionEditorModal
+        state={state}
         position={state.openPositions.find((item) => item.id === editorPositionId) ?? null}
         onDismiss={() => setEditorPositionId(null)}
         onSave={(positionId, stopLoss, takeProfit) => {
           void actions.modifyStop(stopLoss, positionId);
           void actions.modifyTarget(takeProfit, positionId);
         }}
+        onBreakEven={(positionId) => {
+          const managed = state.openPositions.find((item) => item.id === positionId);
+          if (managed) void actions.modifyStop(managed.entryPrice, positionId);
+        }}
+        onTrailingStop={(positionId, pips) =>
+          void actions.modifyTrailing(pips, positionId)
+        }
         onClose={(positionId, lots) => void actions.closePosition(positionId, lots)}
       />
       <ConfirmModal

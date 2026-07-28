@@ -7,6 +7,7 @@ import {
   createSessionState,
   modifyStopLoss,
   modifyTakeProfit,
+  modifyTrailingStop,
   placeOrder,
   restart,
   revealNext,
@@ -123,6 +124,33 @@ describe("orders and step-back locking", () => {
     expect(position.initialTakeProfit).toBe("1.10200");
   });
 
+  it("tightens a trailing stop at favorable candle closes and executes it later", () => {
+    const candles = [
+      c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+      c(1, "1.10000", "1.10220", "1.09950", "1.10200"),
+      c(2, "1.10200", "1.10320", "1.10150", "1.10300"),
+      c(3, "1.10300", "1.10310", "1.10050", "1.10100"),
+    ];
+    const e = ctx(candles);
+    placeOrder(e, {
+      direction: "long",
+      sizingMode: "fixed-lots",
+      lots: "1.0",
+    });
+    const id = e.state.openPositions[0]!.id;
+
+    expect(modifyTrailingStop(e, "10", id).ok).toBe(true);
+    expect(e.state.openPositions[0]?.stopLoss).toBe("1.09900");
+    revealNext(e);
+    expect(e.state.openPositions[0]?.stopLoss).toBe("1.10100");
+    revealNext(e);
+    expect(e.state.openPositions[0]?.stopLoss).toBe("1.10200");
+    revealNext(e);
+    expect(e.state.openPositions).toHaveLength(0);
+    expect(e.state.closedTrades[0]?.exitReason).toBe("stop-loss");
+    expect(e.state.closedTrades[0]?.exitPrice).toBe("1.10200");
+  });
+
   it("disables step-back once a trade has been placed", () => {
     const e = ctx(FLAT, cfg({ initialVisibleCount: 1 }));
     revealNext(e); // index 1
@@ -207,11 +235,17 @@ describe("manual close and drawdown", () => {
 
   it("partially closes a position and leaves the remainder open", () => {
     const e = ctx(FLAT);
-    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    placeOrder(e, {
+      direction: "long",
+      sizingMode: "fixed-lots",
+      lots: "1.0",
+      stopLoss: "1.09900",
+    });
     const id = e.state.openPositions[0]?.id;
     expect(closePosition(e, id, "0.5").ok).toBe(true);
     expect(e.state.closedTrades[0]?.lots).toBe("0.5");
     expect(e.state.openPositions[0]?.lots).toBe("0.5");
+    expect(e.state.openPositions[0]?.initialRiskAmount).toBe("50.00");
   });
 
   it("tracks max drawdown from unrealised equity", () => {

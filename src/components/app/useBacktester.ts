@@ -28,6 +28,7 @@ import {
   engineStateFromPublic,
   modifyStopLoss as modifyLocalStopLoss,
   modifyTakeProfit as modifyLocalTakeProfit,
+  modifyTrailingStop as modifyLocalTrailingStop,
   placeOrder as placeLocalOrder,
   publicSessionState,
   revealNext,
@@ -833,6 +834,23 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [runAction, s.state],
   );
+  const modifyTrailing = useCallback(
+    (pips: string | null, positionId?: string) => {
+      const rollbackState = s.state;
+      const engine = localEngineRef.current;
+      if (engine && modifyLocalTrailingStop(engine, pips, positionId).ok) {
+        const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
+        setS((prev) => ({ ...prev, state }));
+      }
+      return runAction({
+        type: "modify-trailing",
+        positionId,
+        pips,
+        targetIndex: localEngineRef.current?.state.visibleIndex,
+      }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
+    },
+    [runAction, s.state],
+  );
   const saveNotes = useCallback(
     async (notes: string) => {
       await runAction({ type: "notes", notes });
@@ -937,6 +955,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       closePosition,
       modifyStop,
       modifyTarget,
+      modifyTrailing,
       saveNotes,
       switchPair,
       ensurePair,

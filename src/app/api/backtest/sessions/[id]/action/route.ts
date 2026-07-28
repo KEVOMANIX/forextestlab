@@ -11,6 +11,7 @@ import {
   closePosition,
   modifyStopLoss,
   modifyTakeProfit,
+  modifyTrailingStop,
   placeOrder,
   restart,
   revealNext,
@@ -165,6 +166,11 @@ export async function POST(
     }
     case "modify-target": {
       const r = modifyTakeProfit(ctx, action.price, action.positionId);
+      if (!r.ok) opError = r.error;
+      break;
+    }
+    case "modify-trailing": {
+      const r = modifyTrailingStop(ctx, action.pips, action.positionId);
       if (!r.ok) opError = r.error;
       break;
     }

@@ -122,6 +122,9 @@ export interface OpenPosition {
   initialStopLoss?: string | null;
   initialTakeProfit?: string | null;
   initialRiskAmount?: string | null;
+  /** Optional candle-close trailing distance and best executable price seen. */
+  trailingStopPips?: string | null;
+  trailingBestPrice?: string | null;
   /** Best and worst marked-to-market P&L observed while the position was open. */
   maxFavorablePnl?: string;
   maxAdversePnl?: string;

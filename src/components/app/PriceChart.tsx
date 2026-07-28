@@ -1901,14 +1901,57 @@ export default function PriceChart({
           );
         })}
 
+        {(tradePlan || positions.length > 0) && (
+          <div
+            data-testid="trade-line-key"
+            className="pointer-events-none absolute bottom-7 left-3 z-10 flex items-center gap-3 rounded border app-border bg-[var(--app-panel-solid)]/90 px-2 py-1 text-[9px] font-bold uppercase tracking-wide app-muted shadow"
+            aria-label="Trade line styles"
+          >
+            <span className="flex items-center gap-1">
+              <i className="w-5 border-t border-dashed border-sky-400" />
+              Planned
+            </span>
+            <span className="flex items-center gap-1">
+              <i className="w-5 border-t border-dotted border-amber-400" />
+              Pending
+            </span>
+            <span className="flex items-center gap-1 text-[var(--app-text)]">
+              <i className="w-5 border-t border-[#2962ff]" />
+              Active
+            </span>
+          </div>
+        )}
+
         {(settings.positionLines ? positions : []).map((position) => {
           const isLong = position.direction === "long";
           const positive = Number(position.unrealizedPnl) >= 0;
           const isActive = position.id === activePositionId;
+          const livePips =
+            currentPrice == null
+              ? null
+              : ((isLong
+                  ? currentPrice - Number(position.entryPrice)
+                  : Number(position.entryPrice) - currentPrice) /
+                pipSize);
+          const risk = Number(position.initialRiskAmount ?? Number.NaN);
+          const liveR =
+            Number.isFinite(risk) && risk > 0
+              ? Number(position.unrealizedPnl) / risk
+              : null;
+          const breakEvenAvailable =
+            isActive &&
+            position.stopLoss != null &&
+            currentPrice != null &&
+            (isLong
+              ? currentPrice > Number(position.entryPrice) &&
+                Number(position.stopLoss) < Number(position.entryPrice)
+              : currentPrice < Number(position.entryPrice) &&
+                Number(position.stopLoss) > Number(position.entryPrice));
           return (
             <div
               key={position.id}
               data-testid="position-entry-line"
+              data-line-state="active"
               ref={(el) => {
                 if (!el) {
                   entryLineElsRef.current.delete(position.id);
@@ -1917,13 +1960,13 @@ export default function PriceChart({
                 entryLineElsRef.current.set(position.id, el);
                 placeLine(el, priceCoordinate(Number(position.entryPrice)));
               }}
-              className="group pointer-events-auto absolute left-0 right-16 z-20 h-4 -translate-y-1/2"
+              className="group pointer-events-auto absolute left-0 right-16 z-30 h-4 -translate-y-1/2"
               style={{ top: 0, visibility: "hidden" }}
             >
               <span className={`pointer-events-none absolute left-0 right-0 top-1/2 border-t ${isLong ? "border-[#2962ff]" : "border-bear"}`} />
               <div className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-[#2962ff] bg-[var(--app-panel-solid)] text-[10px] shadow-lg">
                 <span className="grid h-full min-w-7 place-items-center border-r border-[#2962ff]/60 bg-[#2962ff]/15 font-bold text-[#5b8bff]">
-                  {isLong ? "↗" : "↘"}
+                  {isLong ? "B" : "S"}
                 </span>
                 {isActive && !position.takeProfit && (
                   <button
@@ -1969,12 +2012,28 @@ export default function PriceChart({
                     SL
                   </button>
                 )}
+                {breakEvenAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => onStopLossChange(position.entryPrice)}
+                    className="h-full border-r app-border px-2 font-bold text-sky-300 hover:bg-sky-400/10"
+                    aria-label={`Move ${isLong ? "buy" : "sell"} position to break-even`}
+                  >
+                    BE
+                  </button>
+                )}
                 <span className="h-full border-r app-border bg-[#2962ff] px-2 font-mono font-bold leading-7 text-white">
-                  {position.lots}
+                  ACTIVE · {position.lots}
                 </span>
-                <span className={`h-full min-w-[76px] border-r app-border px-2 font-mono font-bold leading-7 ${positive ? "text-brand-300" : "text-bear"}`}>
+                <span className={`h-full min-w-[164px] border-r app-border px-2 font-mono font-bold leading-7 ${positive ? "text-brand-300" : "text-bear"}`}>
                   {Number(position.unrealizedPnl) >= 0 ? "+" : "−"}
                   {Math.abs(Number(position.unrealizedPnl)).toFixed(2)} {accountCurrency}
+                  {livePips == null
+                    ? ""
+                    : ` · ${livePips >= 0 ? "+" : ""}${livePips.toFixed(1)}p`}
+                  {liveR == null
+                    ? ""
+                    : ` · ${liveR >= 0 ? "+" : ""}${liveR.toFixed(2)}R`}
                 </span>
                 <button type="button" onClick={() => onEditPosition(position.id)} className="grid h-full w-7 place-items-center hover:bg-bear/15 hover:text-bear" aria-label={`Manage ${isLong ? "buy" : "sell"} position`}>
                   <X size={12} aria-hidden />
@@ -2142,6 +2201,7 @@ export default function PriceChart({
             role="button"
             tabIndex={0}
             data-testid="stop-loss-line"
+            data-line-state="active"
             ref={(el) => {
               stopLineElRef.current = el;
               placeLine(el, priceCoordinate(stopDraftRef.current));
@@ -2151,12 +2211,12 @@ export default function PriceChart({
             onPointerMove={(event) => moveLine("stop", event)}
             onPointerUp={(event) => endLineDrag("stop", event)}
             onPointerCancel={(event) => endLineDrag("stop", event)}
-            className="absolute left-0 right-16 z-20 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-amber-400 text-left"
+            className="absolute left-0 right-16 z-30 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-amber-400 text-left"
             style={{ top: 0, visibility: "hidden" }}
           >
             <span className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[10px] font-bold shadow-lg">
               <span className="h-full border-r border-amber-400/50 bg-amber-400/10 px-2 leading-7 text-amber-400">
-                {activePosition?.lots ?? "—"}
+                {activePosition?.trailingStopPips ? "TRAIL" : "ACTIVE SL"} · {activePosition?.lots ?? "—"}
               </span>
               <span className="h-full min-w-[88px] border-r border-amber-400/50 px-2 leading-7 text-amber-400">
                 {signedAccountValue(
@@ -2188,6 +2248,7 @@ export default function PriceChart({
             role="button"
             tabIndex={0}
             data-testid="take-profit-line"
+            data-line-state="active"
             ref={(el) => {
               targetLineElRef.current = el;
               placeLine(el, priceCoordinate(targetDraftRef.current));
@@ -2197,12 +2258,12 @@ export default function PriceChart({
             onPointerMove={(event) => moveLine("target", event)}
             onPointerUp={(event) => endLineDrag("target", event)}
             onPointerCancel={(event) => endLineDrag("target", event)}
-            className="absolute left-0 right-16 z-20 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-brand-400 text-left"
+            className="absolute left-0 right-16 z-30 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-brand-400 text-left"
             style={{ top: 0, visibility: "hidden" }}
           >
             <span className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-brand-400 bg-[var(--app-panel-solid)] font-mono text-[10px] font-bold shadow-lg">
               <span className="h-full border-r border-brand-400/50 bg-brand-400/10 px-2 leading-7 text-brand-300">
-                {activePosition?.lots ?? "—"}
+                ACTIVE TP · {activePosition?.lots ?? "—"}
               </span>
               <span className="h-full min-w-[88px] border-r border-brand-400/50 px-2 leading-7 text-brand-300">
                 {signedAccountValue(

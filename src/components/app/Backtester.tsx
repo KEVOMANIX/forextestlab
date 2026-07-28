@@ -84,6 +84,11 @@ export function Backtester({
     [entitlements, trialSessionsRemaining],
   );
   const [tradePlan, setTradePlan] = useState<TradePlan | null>(null);
+  const [orderTicketActivation, setOrderTicketActivation] = useState<{
+    id: number;
+    direction: "long" | "short";
+  } | null>(null);
+  const orderTicketActivationIdRef = useRef(0);
   const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
   const [chartLayoutSlot, setChartLayoutSlot] = useState<HTMLDivElement | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
@@ -426,16 +431,12 @@ export function Backtester({
   const activeSymbol = bt.activeSymbol ?? state.config.symbol;
   const referencePair =
     activeSymbol === state.config.symbol ? null : activeSymbol;
-  const quickOrder = (direction: "long" | "short") => {
-    submitOrder({
-      ...orderTemplate,
+  const activateOrderTicket = (direction: "long" | "short") => {
+    orderTicketActivationIdRef.current += 1;
+    setOrderTicketActivation({
+      id: orderTicketActivationIdRef.current,
       direction,
-      stopLoss:
-        tradePlan?.direction === direction ? tradePlan.stopLoss : undefined,
-      takeProfit:
-        tradePlan?.direction === direction ? tradePlan.takeProfit : undefined,
-    }, { oneClick: true });
-    if (tradePlan?.direction === direction) setTradePlan(null);
+    });
   };
   const navigateFromChart = (href: string) => {
     if (!hasMeaningfulActivity) {
@@ -597,6 +598,12 @@ export function Backtester({
                 onTemplateChange={setOrderTemplate}
                 oneClickTrading={workspace.settings.oneClickTrading}
                 referencePair={referencePair}
+                activationRequest={orderTicketActivation}
+                onActivationHandled={(id) =>
+                  setOrderTicketActivation((current) =>
+                    current?.id === id ? null : current
+                  )
+                }
               />
             }
           />
@@ -613,8 +620,8 @@ export function Backtester({
             onSpeed={actions.setSpeed}
             stepMinutes={bt.replayStepMinutes}
             onStepMinutes={actions.setReplayStep}
-            onBuy={() => quickOrder("long")}
-            onSell={() => quickOrder("short")}
+            onBuy={() => activateOrderTicket("long")}
+            onSell={() => activateOrderTicket("short")}
             canTrade={Boolean(
               state.status !== "finished" &&
               state.currentPrice &&

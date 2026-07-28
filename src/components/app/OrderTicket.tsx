@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -41,6 +42,11 @@ interface OrderTicketProps {
   onTemplateChange: (template: Omit<OrderRequest, "direction">) => void;
   oneClickTrading: boolean;
   referencePair?: string | null;
+  activationRequest?: {
+    id: number;
+    direction: TradeDirection;
+  } | null;
+  onActivationHandled?: (id: number) => void;
 }
 
 function number(value: string) {
@@ -62,6 +68,8 @@ export function OrderTicket({
   onTemplateChange,
   oneClickTrading,
   referencePair = null,
+  activationRequest = null,
+  onActivationHandled,
 }: OrderTicketProps) {
   const [sizingMode, setSizingMode] = useState<
     "risk-percent" | "fixed-lots"
@@ -77,6 +85,7 @@ export function OrderTicket({
     y: number;
   } | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  const handledActivationRef = useRef<number | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     offsetX: number;
@@ -188,13 +197,13 @@ export function OrderTicket({
     };
   }
 
-  function openPlanner(direction: TradeDirection) {
+  const openPlanner = useCallback((direction: TradeDirection) => {
     onDirectionChange(direction);
     setPanelPosition(null);
     setPanelOpen(true);
-  }
+  }, [onDirectionChange]);
 
-  function activateQuote(direction: TradeDirection) {
+  const activateQuote = useCallback((direction: TradeDirection) => {
     if (!oneClickTrading) {
       openPlanner(direction);
       return;
@@ -207,7 +216,27 @@ export function OrderTicket({
     }, { oneClick: true });
     onClearPlan();
     setPanelOpen(false);
-  }
+  }, [
+    lots,
+    onClearPlan,
+    oneClickTrading,
+    onPlaceOrder,
+    openPlanner,
+    riskPercent,
+    sizingMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      !activationRequest ||
+      handledActivationRef.current === activationRequest.id
+    ) {
+      return;
+    }
+    handledActivationRef.current = activationRequest.id;
+    activateQuote(activationRequest.direction);
+    onActivationHandled?.(activationRequest.id);
+  }, [activateQuote, activationRequest, onActivationHandled]);
 
   function beginPanelDrag(event: ReactPointerEvent<HTMLElement>) {
     if (event.button !== 0) return;

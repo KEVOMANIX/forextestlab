@@ -13,6 +13,7 @@ const LINKS = [
   { label: "Dashboard", href: "/app" },
   { label: "Backtester", href: "/app/backtest" },
   { label: "Sessions", href: "/app/history" },
+  { label: "Support", href: "/app/support" },
   { label: "Pricing", href: "/pricing" },
 ];
 

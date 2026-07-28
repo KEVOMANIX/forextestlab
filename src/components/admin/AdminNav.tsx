@@ -7,6 +7,7 @@ import {
   Database,
   FileClock,
   Mail,
+  MessagesSquare,
   ReceiptText,
   ShieldCheck,
   Users,
@@ -23,6 +24,7 @@ const links = [
   { label: "Sessions", href: "/admin/sessions", icon: Activity },
   { label: "Market data", href: "/admin/market-data", icon: Database },
   { label: "Enquiries", href: "/admin/enquiries", icon: Mail },
+  { label: "Support inbox", href: "/support-team", icon: MessagesSquare },
   { label: "Audit log", href: "/admin/audit", icon: FileClock },
 ] as const;
 

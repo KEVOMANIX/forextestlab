@@ -6,6 +6,7 @@ import {
   Check,
   Clipboard,
   Gauge,
+  Headphones,
   MonitorCog,
   X,
 } from "lucide-react";
@@ -410,6 +411,21 @@ export function ReplayDiagnosticsPanel({
         >
           {copied ? <Check size={13} /> : <Clipboard size={13} />}
           {copied ? "Copied diagnostics" : "Copy diagnostics report"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(
+              new CustomEvent("forextestlab:support-context", {
+                detail: report,
+              }),
+            );
+            onClose();
+          }}
+          className="btn-primary w-full justify-center px-3 py-2 text-xs"
+        >
+          <Headphones size={13} />
+          Share diagnostics with support
         </button>
       </div>
     </aside>

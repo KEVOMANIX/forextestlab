@@ -36,24 +36,24 @@ model MarketInstrument {
 /// Authentication credentials remain in Supabase Auth; this table stores only
 /// ForexTestLab-owned profile data and relations.
 model UserProfile {
-  id                   String                @id
-  email                String                @unique
-  displayName          String?
-  billingPlan          String                @default("free")
-  billingStatus        String                @default("inactive")
-  proAccessUntil       DateTime?
+  id                     String                @id
+  email                  String                @unique
+  displayName            String?
+  billingPlan            String                @default("free")
+  billingStatus          String                @default("inactive")
+  proAccessUntil         DateTime?
   /// Legacy audit marker from the original account-level Free allowance.
   /// New trial enforcement uses TrialDevice.
-  freeSessionUsedAt    DateTime?
-  paystackCustomerCode String?               @unique
-  paddleCustomerId     String?               @unique
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  workspaceJson        String?
+  freeSessionUsedAt      DateTime?
+  paystackCustomerCode   String?               @unique
+  paddleCustomerId       String?               @unique
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  workspaceJson          String?
   workspaceTemplatesJson String?
-  sessions             BacktestSession[]
-  billingPayments      BillingPayment[]
-  billingSubscriptions BillingSubscription[]
+  sessions               BacktestSession[]
+  billingPayments        BillingPayment[]
+  billingSubscriptions   BillingSubscription[]
 
   @@index([createdAt])
 }
@@ -76,32 +76,129 @@ model ContactMessage {
 }
 
 model SupportConversation {
-  id               String            @id @default(cuid())
-  userId           String?
-  visitorId        String?
-  customerName     String?
-  customerEmail    String?
-  status           String            @default("open")
-  assignedAgentName String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  messages         SupportMessage[]
+  id                         String                   @id @default(cuid())
+  userId                     String?
+  visitorId                  String?
+  accessTokenHash            String?
+  customerName               String?
+  customerEmail              String?
+  subject                    String                   @default("Support request")
+  category                   String                   @default("other")
+  priority                   String                   @default("normal")
+  channel                    String                   @default("widget")
+  status                     String                   @default("open")
+  assignedAgent              SupportAgent?            @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  assignedAgentId            String?
+  assignedAgentName          String?
+  linkedSessionId            String?
+  contextJson                String?
+  customerUnreadCount        Int                      @default(0)
+  agentUnreadCount           Int                      @default(1)
+  customerLastReadAt         DateTime?
+  agentLastReadAt            DateTime?
+  firstResponseAt            DateTime?
+  lastMessageAt              DateTime                 @default(now())
+  snoozedUntil               DateTime?
+  resolvedAt                 DateTime?
+  closedAt                   DateTime?
+  satisfactionScore          Int?
+  satisfactionComment        String?
+  satisfactionAt             DateTime?
+  lastCustomerNotificationAt DateTime?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  messages                   SupportMessage[]
+  tags                       SupportConversationTag[]
 
   @@index([status, updatedAt])
+  @@index([assignedAgentId, status, updatedAt])
+  @@index([priority, status, updatedAt])
   @@index([visitorId, updatedAt])
   @@index([userId, updatedAt])
+  @@index([lastMessageAt])
 }
 
 model SupportMessage {
-  id           String             @id @default(cuid())
-  conversation SupportConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  conversationId String
-  senderType   String
-  senderName   String
-  body         String
-  createdAt    DateTime           @default(now())
+  id              String              @id @default(cuid())
+  conversation    SupportConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId  String
+  clientMessageId String?             @unique
+  senderType      String
+  senderId        String?
+  senderName      String
+  kind            String              @default("text")
+  visibility      String              @default("customer")
+  body            String
+  metadataJson    String?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  editedAt        DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime            @default(now())
+  attachments     SupportAttachment[]
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, visibility, createdAt])
+}
+
+model SupportAgent {
+  id                    String                @id @default(cuid())
+  userId                String                @unique
+  email                 String                @unique
+  displayName           String
+  role                  String                @default("agent")
+  active                Boolean               @default(true)
+  lastSeenAt            DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  assignedConversations SupportConversation[]
+
+  @@index([active, displayName])
+}
+
+model SupportAttachment {
+  id        String         @id @default(cuid())
+  message   SupportMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String
+  fileName  String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime       @default(now())
+
+  @@index([messageId, createdAt])
+}
+
+model SupportTag {
+  id            String                   @id @default(cuid())
+  name          String                   @unique
+  color         String                   @default("#22c3a0")
+  createdAt     DateTime                 @default(now())
+  conversations SupportConversationTag[]
+}
+
+model SupportConversationTag {
+  conversation   SupportConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  tag            SupportTag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId          String
+  createdAt      DateTime            @default(now())
+
+  @@id([conversationId, tagId])
+  @@index([tagId, createdAt])
+}
+
+model SupportSavedReply {
+  id        String   @id @default(cuid())
+  title     String   @unique
+  body      String
+  category  String?
+  active    Boolean  @default(true)
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, title])
 }
 
 /// Immutable record of privileged actions performed through the admin console.
@@ -142,18 +239,18 @@ model BillingPayment {
 }
 
 model BillingSubscription {
-  id                 String      @id @default(cuid())
-  user               UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId             String
-  subscriptionCode   String      @unique
-  planCode           String
-  productKey         String
-  provider           String      @default("paystack")
-  status             String
-  nextPaymentAt      DateTime?
-  cancelAtPeriodEnd  Boolean     @default(false)
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  id                String      @id @default(cuid())
+  user              UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  subscriptionCode  String      @unique
+  planCode          String
+  productKey        String
+  provider          String      @default("paystack")
+  status            String
+  nextPaymentAt     DateTime?
+  cancelAtPeriodEnd Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   @@index([userId, status])
   @@index([provider, status])
@@ -171,16 +268,16 @@ model BillingWebhookEvent {
 /// Holds Paddle ownership data for checkouts completed before an account is
 /// created. The matching email claims the subscription on first sign-in.
 model PaddleCustomerClaim {
-  customerId         String   @id
-  email              String?  @unique
-  subscriptionId     String?  @unique
-  priceId            String?
-  productKey         String?
-  status             String?
-  nextPaymentAt      DateTime?
-  cancelAtPeriodEnd  Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  customerId        String    @id
+  email             String?   @unique
+  subscriptionId    String?   @unique
+  priceId           String?
+  productKey        String?
+  status            String?
+  nextPaymentAt     DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([email, status])
 }
@@ -242,45 +339,45 @@ model DataImport {
 }
 
 model BacktestSession {
-  id                 String           @id @default(cuid())
+  id                 String            @id @default(cuid())
   /// Opaque token used to authorise an anonymous demonstration session.
-  token              String           @unique
-  user               UserProfile?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token              String            @unique
+  user               UserProfile?      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId             String?
-  trialDevice         TrialDevice?     @relation(fields: [trialDeviceId], references: [id], onDelete: SetNull)
-  trialDeviceId       String?
-  anonymous          Boolean          @default(true)
+  trialDevice        TrialDevice?      @relation(fields: [trialDeviceId], references: [id], onDelete: SetNull)
+  trialDeviceId      String?
+  anonymous          Boolean           @default(true)
   anonymousExpiresAt DateTime?
-  instrument         MarketInstrument @relation(fields: [instrumentId], references: [id])
+  instrument         MarketInstrument  @relation(fields: [instrumentId], references: [id])
   instrumentId       String
   symbol             String
   timeframe          String
   startTime          BigInt
   endTime            BigInt
-  status             String           @default("idle")
-  speed              Float            @default(1)
-  visibleIndex       Int              @default(-1)
-  totalCandles       Int              @default(0)
-  lockedBeforeIndex  Int              @default(0)
+  status             String            @default("idle")
+  speed              Float             @default(1)
+  visibleIndex       Int               @default(-1)
+  totalCandles       Int               @default(0)
+  lockedBeforeIndex  Int               @default(0)
   startingBalance    String
   balance            String
   equity             String
   maxEquity          String
-  maxDrawdown        String           @default("0")
-  maxDrawdownPercent String           @default("0")
-  accountCurrency    String           @default("USD")
+  maxDrawdown        String            @default("0")
+  maxDrawdownPercent String            @default("0")
+  accountCurrency    String            @default("USD")
   spreadPips         String
   commissionPerLot   String
   slippagePips       String
-  executionPolicy    String           @default("conservative")
+  executionPolicy    String            @default("conservative")
   dataSource         String
-  demoData           Boolean          @default(false)
+  demoData           Boolean           @default(false)
   notes              String?
   /// Serialised engine SessionState — the authoritative source for stepping.
   /// Relational trade/equity rows below are queryable projections of it.
-  stateJson          String           @default("{}")
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  stateJson          String            @default("{}")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
   orders             SimulatedOrder[]
   trades             SimulatedTrade[]
   equitySnapshots    EquitySnapshot[]

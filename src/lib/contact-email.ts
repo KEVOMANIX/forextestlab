@@ -112,3 +112,47 @@ export async function sendContactReceipt(submission: ContactSubmission): Promise
     html: `<p>Hi ${safeName},</p><p>We received your support request and our team is reviewing it.</p><p>We will reply to this email as soon as possible.</p><p>ForexTestLab Support</p>`,
   });
 }
+
+export async function sendSupportReplyNotification({
+  email,
+  name,
+  subject,
+  preview,
+}: {
+  email: string;
+  name: string;
+  subject: string;
+  preview: string;
+}): Promise<void> {
+  const config = getSmtpConfig();
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.username, pass: config.password },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+  });
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://www.forextestlab.com";
+  const safeName = escapeHtml(name);
+  const safeSubject = escapeHtml(subject);
+  const safePreview = escapeHtml(preview);
+  await transporter.sendMail({
+    from: `ForexTestLab Support <${config.from}>`,
+    to: email,
+    replyTo: config.to,
+    subject: `Support replied: ${subject}`,
+    text: [
+      `Hi ${name},`,
+      "",
+      "ForexTestLab Support replied to your conversation:",
+      preview,
+      "",
+      `Open your support inbox: ${baseUrl}/app/support`,
+    ].join("\n"),
+    html: `<p>Hi ${safeName},</p><p>ForexTestLab Support replied to <strong>${safeSubject}</strong>:</p><blockquote>${safePreview}</blockquote><p><a href="${baseUrl}/app/support">Open your support inbox</a></p>`,
+  });
+}

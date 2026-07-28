@@ -11,9 +11,14 @@ export function SupportTeamRefresh() {
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
       setConnected(navigator.onLine);
-      if (navigator.onLine) router.refresh();
+      const active = document.activeElement;
+      const editing =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLSelectElement;
+      if (navigator.onLine && !editing) router.refresh();
     };
-    const timer = window.setInterval(refresh, 3_000);
+    const timer = window.setInterval(refresh, 5_000);
     window.addEventListener("online", refresh);
     window.addEventListener("offline", refresh);
     return () => {

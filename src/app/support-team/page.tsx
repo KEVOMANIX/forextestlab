@@ -1,8 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import {
-  AlarmClock,
   CheckCircle2,
-  Clock3,
   Download,
   Headphones,
   Inbox,
@@ -12,6 +10,7 @@ import {
   StickyNote,
   Tag,
   UserRoundCheck,
+  UserPlus,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -90,7 +89,7 @@ export default async function SupportTeamPage({
   };
 }) {
   const { agent } = await requireSupportAgent();
-  const queue = searchParams?.queue ?? "unassigned";
+  const queue = searchParams?.queue ?? "waiting";
   const query = searchParams?.q?.trim().slice(0, 120) ?? "";
   const baseWhere: Prisma.SupportConversationWhereInput =
     queue === "mine"
@@ -258,10 +257,8 @@ export default async function SupportTeamPage({
   const context = parseContext(selected?.contextJson ?? null);
 
   const queueLinks = [
-    ["unassigned", "Unassigned", Inbox],
+    ["waiting", "Inbox", Inbox],
     ["mine", "Assigned to me", UserRoundCheck],
-    ["waiting", "Waiting on support", Clock3],
-    ["snoozed", "Snoozed", AlarmClock],
     ["resolved", "Resolved", CheckCircle2],
     ["all", "All conversations", MessageSquareText],
   ] as const;
@@ -435,25 +432,45 @@ export default async function SupportTeamPage({
                     <Download size={13} />
                     Export
                   </a>
-                  <form action={assignConversation} className="flex gap-2">
-                    <input type="hidden" name="conversationId" value={selected.id} />
-                    <select
-                      name="agentId"
-                      defaultValue={selected.assignedAgentId ?? ""}
-                      className="app-input py-2 text-xs"
-                    >
-                      <option value="">Unassigned</option>
-                      <option value="self">Assign to me</option>
-                      {agents.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.displayName}
-                        </option>
-                      ))}
-                    </select>
-                    <button className="btn-secondary px-3 py-2 text-xs">
-                      Assign
-                    </button>
-                  </form>
+                  {!selected.assignedAgentId ? (
+                    <form action={assignConversation}>
+                      <input type="hidden" name="conversationId" value={selected.id} />
+                      <input type="hidden" name="agentId" value="self" />
+                      <button className="btn-primary px-4 py-2 text-xs">
+                        <UserPlus size={14} />
+                        Join conversation
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-lg border app-border px-3 py-1.5">
+                      <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-400/15 text-[10px] font-bold text-brand-200">
+                        {selected.assignedAgent?.displayName
+                          .split(/\s+/)
+                          .slice(0, 2)
+                          .map((part) => part[0]?.toUpperCase())
+                          .join("") || "FT"}
+                      </span>
+                      <div>
+                        <p className="text-[10px] font-semibold">
+                          {selected.assignedAgentId === agent.id
+                            ? "You joined"
+                            : selected.assignedAgent?.displayName}
+                        </p>
+                        <p className="text-[9px] app-muted">Handling this conversation</p>
+                      </div>
+                    </div>
+                  )}
+                  {selected.status !== "resolved" &&
+                    selected.status !== "closed" && (
+                      <form action={updateConversation}>
+                        <input type="hidden" name="conversationId" value={selected.id} />
+                        <input type="hidden" name="status" value="resolved" />
+                        <button className="btn-secondary px-3 py-2 text-xs">
+                          <CheckCircle2 size={13} />
+                          Resolve
+                        </button>
+                      </form>
+                    )}
                 </div>
               </header>
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">

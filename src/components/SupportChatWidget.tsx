@@ -67,6 +67,17 @@ const categories = [
   ["other", "Other"],
 ] as const;
 
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "FT"
+  );
+}
+
 function tokenMap() {
   try {
     return JSON.parse(window.localStorage.getItem(TOKENS_KEY) ?? "{}") as Record<
@@ -393,15 +404,25 @@ export function SupportChatWidget() {
           aria-label="ForexTestLab support"
         >
           <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[linear-gradient(135deg,rgba(34,195,160,.18),rgba(17,23,37,.7))] px-4 py-3.5">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-400/15 text-brand-300">
-              <Headset size={18} />
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-brand-400/25 bg-brand-400/15 text-xs font-bold text-brand-200">
+              {conversation?.assignedAgentName ? (
+                initials(conversation.assignedAgentName)
+              ) : (
+                <Headset size={18} />
+              )}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white">
                 {conversation?.assignedAgentName || "ForexTestLab Support"}
               </p>
               <p className="mt-0.5 text-[10px] text-slate-400">
-                {online ? "Human support · live inbox" : "Offline · messages will remain here"}
+                {!online
+                  ? "Offline · messages will remain here"
+                  : conversationId && !conversation?.assignedAgentName
+                    ? "Waiting for a support agent to join"
+                    : conversation?.assignedAgentName
+                      ? "Support agent · joined"
+                      : "Human support · live inbox"}
               </p>
             </div>
             <button
@@ -498,6 +519,33 @@ export function SupportChatWidget() {
           ) : (
             <>
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+                {conversation && !conversation.assignedAgentName && (
+                  <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-3 py-3 text-center">
+                    <span className="mx-auto block h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                    <p className="mt-2 text-xs font-semibold text-amber-100">
+                      Waiting for a support agent to join
+                    </p>
+                    <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                      You can close this panel. Your conversation and replies
+                      will stay here.
+                    </p>
+                  </div>
+                )}
+                {conversation?.assignedAgentName && (
+                  <div className="flex items-center gap-3 rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-400/15 text-xs font-bold text-brand-200">
+                      {initials(conversation.assignedAgentName)}
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold text-white">
+                        {conversation.assignedAgentName}
+                      </p>
+                      <p className="text-[10px] text-brand-300">
+                        Support agent joined the conversation
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {conversation?.messages.map((message) => (
                   <div key={message.id} className={`flex ${message.senderType === "customer" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${message.senderType === "customer" ? "rounded-br-md bg-brand-500 text-surface-950" : "rounded-bl-md border border-brand-400/20 bg-brand-400/10 text-slate-200"}`}>

@@ -57,6 +57,7 @@ export async function replyToConversation(formData: FormData) {
     const conversation = await tx.supportConversation.findUnique({
       where: { id: conversationId },
       select: {
+        assignedAgentId: true,
         firstResponseAt: true,
         customerEmail: true,
         customerName: true,
@@ -66,6 +67,12 @@ export async function replyToConversation(formData: FormData) {
       },
     });
     if (!conversation) return null;
+    if (
+      conversation.assignedAgentId &&
+      conversation.assignedAgentId !== actor.agent.id
+    ) {
+      throw new Error("This conversation is being handled by another agent.");
+    }
     await tx.supportMessage.create({
       data: {
         conversationId,

@@ -23,18 +23,12 @@ export type ReplaySpeed =
   | 1200
   | 1800
   | 3600
-  | 7200
-  | 14400
-  | 28800
-  | 57600
-  | 115200;
+  | 7200;
 
 export const REPLAY_SPEEDS: ReplaySpeed[] = [
-  15, 30, 60, 120, 300, 600, 900, 1200, 1800, 3600, 7200, 14400, 28800, 57600, 115200,
+  15, 30, 60, 120, 300, 600, 900, 1200, 1800, 3600, 7200,
 ];
 export const DEFAULT_REPLAY_SPEED: ReplaySpeed = 60;
-export const REPLAY_STEP_MINUTES = [1, 5, 15, 30, 60, 240] as const;
-export type ReplayStepMinutes = (typeof REPLAY_STEP_MINUTES)[number];
 
 export function normalizeReplaySpeed(value: number): ReplaySpeed {
   if (REPLAY_SPEEDS.includes(value as ReplaySpeed)) return value as ReplaySpeed;

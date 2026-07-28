@@ -17,10 +17,8 @@ import {
 
 import {
   REPLAY_SPEEDS,
-  REPLAY_STEP_MINUTES,
   type PublicSessionState,
   type ReplaySpeed,
-  type ReplayStepMinutes,
 } from "@/lib/backtest/types";
 
 interface ReplayToolbarProps {
@@ -33,8 +31,6 @@ interface ReplayToolbarProps {
   onRestart: () => void;
   onEnd: () => void;
   onSpeed: (s: ReplaySpeed) => void;
-  stepMinutes: ReplayStepMinutes;
-  onStepMinutes: (step: ReplayStepMinutes) => void;
   onBuy: () => void;
   onSell: () => void;
   canTrade: boolean;
@@ -97,8 +93,6 @@ export function ReplayToolbar({
   onRestart,
   onEnd,
   onSpeed,
-  stepMinutes,
-  onStepMinutes,
   onBuy,
   onSell,
   canTrade,
@@ -295,24 +289,10 @@ export function ReplayToolbar({
 
       <div className="mt-1 border-t app-border px-1 pt-1">
         <div className="flex items-center gap-2">
-          <label htmlFor="replay-step" className="flex shrink-0 items-center gap-1 text-[9px] font-semibold uppercase tracking-wide app-muted">
+          <span className="flex shrink-0 items-center gap-1 text-[9px] font-semibold uppercase tracking-wide app-muted">
             Step
-            <select
-              id="replay-step"
-              aria-label="Replay step"
-              value={stepMinutes}
-              onChange={(event) =>
-                onStepMinutes(Number(event.target.value) as ReplayStepMinutes)
-              }
-              className="h-6 rounded border app-border bg-[var(--app-panel-2)] px-1 font-mono text-[10px] font-semibold text-[var(--app-text)] outline-none"
-            >
-              {REPLAY_STEP_MINUTES.map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
-                </option>
-              ))}
-            </select>
-          </label>
+            <strong className="rounded border app-border bg-[var(--app-panel-2)] px-2 py-1 font-mono text-[10px] text-[var(--app-text)]">1m</strong>
+          </span>
           <span className="h-4 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
           <label htmlFor="replay-speed" className="shrink-0 font-mono text-[10px] font-semibold text-brand-300">
             {speedLabel(state.speed)}

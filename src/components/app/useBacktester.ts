@@ -11,7 +11,6 @@ import {
   getChartHistory,
   getStateWithToken,
   sendAction,
-  replayStepsDue,
   type CreateSessionBody,
   type CreatedSession,
   type PairChartData,
@@ -21,7 +20,6 @@ import type {
   OrderRequest,
   PublicSessionState,
   ReplaySpeed,
-  ReplayStepMinutes,
   TradeJournalUpdate,
 } from "@/lib/backtest/types";
 import {
@@ -105,10 +103,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const autoStepPendingRef = useRef(false);
   const replayExtendPendingRef = useRef(false);
-  const replayStepRef = useRef<ReplayStepMinutes>(1);
-  const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
-  const stepRef = useRef<(batchSize?: number) => Promise<void>>(async () => {});
+  const stepRef = useRef<() => Promise<void>>(async () => {});
   const replayFrameRef = useRef<number | null>(null);
   const replayLastFrameRef = useRef<number | null>(null);
   const replayAccumulatorRef = useRef(0);
@@ -398,21 +394,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
   // Playback is browser-local for smooth ticks. Additional bounded candle
   // chunks are fetched only when playback reaches the current memory boundary.
-  stepRef.current = useCallback(async (batchSize = 1) => {
+  stepRef.current = useCallback(async () => {
     const engine = localEngineRef.current;
     if (!engine) return;
-    const stepCount = Math.max(
-      1,
-      Math.round(
-        (replayStepRef.current * TIMEFRAME_MS["1m"]) /
-          TIMEFRAME_MS[engine.state.config.timeframe],
-      ),
-    ) * Math.max(1, batchSize);
     const advancedCandles: Candle[] = [];
     let extensionError: string | null = null;
     let finished = false;
 
-    for (let index = 0; index < stepCount; index += 1) {
+    for (let index = 0; index < 1; index += 1) {
       const lastLoaded = engine.candles[engine.candles.length - 1];
       const atLoadedBoundary =
         engine.state.visibleIndex >= engine.state.totalCandles - 1;
@@ -525,28 +514,18 @@ export function useBacktester(resumeSessionId: string | null = null) {
         const previous = replayLastFrameRef.current ?? now;
         replayLastFrameRef.current = now;
         replayAccumulatorRef.current += Math.min(100, Math.max(0, now - previous));
-        const stepCount = Math.max(1, Math.round((replayStepRef.current * TIMEFRAME_MS["1m"]) / TIMEFRAME_MS[current.state.config.timeframe]));
-        // Use the unclamped cadence here. `replayIntervalMs` intentionally
-        // bottoms out at one browser frame, but treating that floor as the
-        // actual market cadence caps every fast setting at one candle/frame.
-        // The scheduler can preserve the requested rate by advancing multiple
-        // candles in one frame while the chart coalesces them into one paint.
+        // One animation frame may reveal at most one candle. Dropping excess
+        // elapsed cadence is intentional: batching several one-minute candles
+        // into a single paint makes the price line outrun the candle body.
         const cadence = Math.max(
-          0.01,
-          (TIMEFRAME_MS[current.state.config.timeframe] * stepCount) /
+          1,
+          TIMEFRAME_MS[current.state.config.timeframe] /
             current.state.speed,
         );
-        const due = replayStepsDue(
-          replayAccumulatorRef.current,
-          current.state.speed,
-          current.state.config.timeframe,
-          stepCount,
-        );
-        if (due > 0 && !replayFrameBusyRef.current) {
-          const batchSize = Math.min(64, due);
-          replayAccumulatorRef.current -= batchSize * cadence;
+        if (replayAccumulatorRef.current >= cadence && !replayFrameBusyRef.current) {
+          replayAccumulatorRef.current %= cadence;
           replayFrameBusyRef.current = true;
-          await stepRef.current(batchSize);
+          await stepRef.current();
           replayFrameBusyRef.current = false;
         }
         if (localEngineRef.current?.state.status === "running") schedule();
@@ -625,14 +604,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const stepPrev = useCallback(async () => {
     const engine = localEngineRef.current;
     if (!engine) return;
-    const steps = Math.max(
-      1,
-      Math.round(
-        (replayStepRef.current * TIMEFRAME_MS["1m"]) /
-          TIMEFRAME_MS[engine.state.config.timeframe],
-      ),
-    );
-    await runAction({ type: "prev", steps });
+    await runAction({ type: "prev", steps: 1 });
     const current = localEngineRef.current;
     if (!current) return;
     const visible = current.candles.slice(0, current.state.visibleIndex + 1);
@@ -756,16 +728,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
       );
     },
     [runAction, startLocalScheduler],
-  );
-  const setReplayStep = useCallback(
-    (value: ReplayStepMinutes) => {
-      replayStepRef.current = value;
-      setReplayStepMinutes(value);
-      if (localEngineRef.current?.state.status === "running") {
-        startLocalScheduler();
-      }
-    },
-    [startLocalScheduler],
   );
   const placeOrder = useCallback(
     (order: OrderRequest) => {
@@ -1051,8 +1013,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
     interactiveBusyRef.current = false;
     autoStepPendingRef.current = false;
     replayExtendPendingRef.current = false;
-    replayStepRef.current = 1;
-    setReplayStepMinutes(1);
     stopLocalScheduler();
     localEngineRef.current = null;
     actionQueueRef.current = Promise.resolve();
@@ -1062,7 +1022,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
   return {
     ...s,
-    replayStepMinutes,
     actions: {
       startSession,
       startTrialSession,
@@ -1074,7 +1033,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
       endSession,
       extendSessionData,
       setSpeed,
-      setReplayStep,
       placeOrder,
       modifyPending,
       cancelPending,

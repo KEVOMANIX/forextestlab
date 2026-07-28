@@ -327,11 +327,17 @@ export function Backtester({
     const gap = current.timestamp - previous.timestamp;
     const key = `${previous.timestamp}:${current.timestamp}`;
     if (
-      gap <= expected * 1.5 ||
+      // Sparse FX feeds can legitimately omit a few one-minute bars when no
+      // ticks were recorded. Warn only when at least ten expected bars are
+      // absent; 2–3 minute gaps are noise rather than actionable data loss.
+      gap < expected * 10 ||
       expectedMarketClosure(previous.timestamp, current.timestamp) ||
       warnedGapRef.current === key
     ) return;
     warnedGapRef.current = key;
+    setNotifications((currentNotifications) =>
+      currentNotifications.filter((item) => !item.id.startsWith("data-gap-")),
+    );
     notify({
       id: `data-gap-${key}`,
       title: "Market-data gap detected",

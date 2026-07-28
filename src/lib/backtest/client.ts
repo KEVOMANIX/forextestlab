@@ -236,5 +236,23 @@ export function replayIntervalMs(
   timeframe: Timeframe,
   stepCount = 1,
 ): number {
-  return Math.max(1, (TIMEFRAME_MS[timeframe] * stepCount) / speed);
+  return Math.max(16, (TIMEFRAME_MS[timeframe] * stepCount) / speed);
+}
+
+/**
+ * Number of logical replay ticks owed after elapsed wall time. A tick can
+ * contain the selected 1m/5m/15m/etc step, so speed remains market-time based.
+ */
+export function replayStepsDue(
+  elapsedMs: number,
+  speed: ReplaySpeed,
+  timeframe: Timeframe,
+  stepCount = 1,
+  maxBatch = 64,
+): number {
+  const idealInterval = Math.max(
+    0.01,
+    (TIMEFRAME_MS[timeframe] * stepCount) / speed,
+  );
+  return Math.min(maxBatch, Math.max(0, Math.floor(elapsedMs / idealInterval)));
 }

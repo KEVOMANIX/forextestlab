@@ -643,6 +643,8 @@ export function Backtester({
             onRestart={restart}
             onEnd={endSession}
             onSpeed={actions.setSpeed}
+            stepMinutes={bt.replayStepMinutes}
+            onStepMinutes={actions.setReplayStep}
             onBuy={() => quickOrder("long")}
             onSell={() => quickOrder("short")}
             canTrade={Boolean(

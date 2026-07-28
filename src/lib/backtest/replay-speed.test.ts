@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { replayIntervalMs } from "@/lib/backtest/client";
+import {
+  replayIntervalMs,
+  replayStepsDue,
+} from "@/lib/backtest/client";
 import {
   DEFAULT_REPLAY_SPEED,
   REPLAY_SPEEDS,
@@ -14,7 +17,7 @@ describe("real market-time replay speed", () => {
     expect(replayIntervalMs(300, "1m")).toBe(200);
     expect(replayIntervalMs(600, "1m")).toBe(100);
     expect(replayIntervalMs(3600, "1m")).toBeCloseTo(16.67, 2);
-    expect(replayIntervalMs(7200, "1m")).toBeCloseTo(8.33, 2);
+    expect(replayIntervalMs(7200, "1m")).toBe(16);
   });
 
   it("caps selectable replay at two market hours per second", () => {
@@ -22,8 +25,20 @@ describe("real market-time replay speed", () => {
     expect(normalizeReplaySpeed(115200)).toBe(7200);
   });
 
+  it("catches up to elapsed market time at fast speeds", () => {
+    expect(replayStepsDue(16.67, 3600, "1m")).toBe(1);
+    expect(replayStepsDue(16.67, 7200, "1m")).toBe(2);
+    expect(replayStepsDue(100, 7200, "1m")).toBe(12);
+  });
+
   it("uses the candle duration when another base timeframe is restored", () => {
     expect(replayIntervalMs(60, "5m")).toBe(5_000);
+  });
+
+  it("keeps speed honest for every selectable step size", () => {
+    expect(replayIntervalMs(3600, "1m", 1)).toBeCloseTo(16.67, 2);
+    expect(replayIntervalMs(3600, "1m", 15)).toBe(250);
+    expect(replayIntervalMs(7200, "1m", 60)).toBe(500);
   });
 
   it("migrates legacy candles-per-second session speeds", () => {

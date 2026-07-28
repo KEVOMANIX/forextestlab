@@ -25,6 +25,8 @@ export interface ChartSettings {
   tradeHistory: boolean;
   /** Entry, stop and target lines for positions that are still open. */
   positionLines: boolean;
+  /** Compact Buy/Sell buttons submit market orders without opening the planner. */
+  oneClickTrading: boolean;
   drawings: boolean;
   /** Dotted line and axis tag tracking the latest price. */
   priceLine: boolean;
@@ -42,6 +44,7 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   magnet: false,
   tradeHistory: true,
   positionLines: true,
+  oneClickTrading: false,
   drawings: true,
   priceLine: true,
   timeZone: EXCHANGE_ZONE,
@@ -55,7 +58,7 @@ const BACKGROUND_SWATCHES = [AUTO_BACKGROUND, "#0b0f1a", "#131722", "#000000", "
 
 const PANEL_WIDTH = 232;
 /** Rough panel height, used to keep the menu on screen near the bottom edge. */
-const PANEL_HEIGHT = 400;
+const PANEL_HEIGHT = 440;
 
 export function ChartSettingsMenu({
   position,
@@ -162,6 +165,15 @@ export function ChartSettingsMenu({
         label="Drawings"
         checked={settings.drawings}
         onToggle={() => onChange({ drawings: !settings.drawings })}
+      />
+
+      <Section label="Trading" />
+      <ToggleRow
+        label="One-click trading"
+        checked={settings.oneClickTrading}
+        onToggle={() =>
+          onChange({ oneClickTrading: !settings.oneClickTrading })
+        }
       />
 
       <button

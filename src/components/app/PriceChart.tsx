@@ -24,7 +24,6 @@ import {
   MoveDiagonal,
   MoveUpRight,
   MoveVertical,
-  Pencil,
   RectangleHorizontal,
   Redo2,
   Ruler,
@@ -39,6 +38,7 @@ import {
   Type,
   Undo2,
   Waypoints,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -147,6 +147,7 @@ interface PriceChartProps {
   positions: OpenPosition[];
   activePositionId: string | null;
   onEditPosition: (positionId: string) => void;
+  onClosePosition: (positionId: string) => void;
   stopLoss: number | null;
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
@@ -159,6 +160,7 @@ interface PriceChartProps {
   baseTimeframe: Timeframe;
   pipSize: number;
   precision: number;
+  accountCurrency: string;
   theme: "dark" | "light";
   onStopLossChange: (price: string | null) => void;
   onTakeProfitChange: (price: string | null) => void;
@@ -449,6 +451,7 @@ export default function PriceChart({
   positions,
   activePositionId,
   onEditPosition,
+  onClosePosition,
   stopLoss,
   takeProfit,
   tradePlan,
@@ -457,6 +460,7 @@ export default function PriceChart({
   baseTimeframe,
   pipSize,
   precision,
+  accountCurrency,
   theme,
   onStopLossChange,
   onTakeProfitChange,
@@ -1480,6 +1484,37 @@ export default function PriceChart({
   });
   const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
+  const activePosition =
+    positions.find((position) => position.id === activePositionId) ?? null;
+
+  function projectedPositionPnl(
+    position: OpenPosition | null,
+    exitPrice: number | null,
+  ): number | null {
+    if (!position || exitPrice == null) return null;
+    const entry = Number(position.entryPrice);
+    const initialStop = Number(
+      position.initialStopLoss ?? position.stopLoss ?? Number.NaN,
+    );
+    const initialRisk = Number(position.initialRiskAmount ?? Number.NaN);
+    const initialDistance = Math.abs(entry - initialStop);
+    if (
+      !Number.isFinite(entry) ||
+      !Number.isFinite(initialStop) ||
+      !Number.isFinite(initialRisk) ||
+      initialDistance <= 0
+    ) {
+      return null;
+    }
+    const move =
+      position.direction === "long" ? exitPrice - entry : entry - exitPrice;
+    return (move / initialDistance) * initialRisk;
+  }
+
+  function signedAccountValue(value: number | null): string {
+    if (value == null || !Number.isFinite(value)) return `— ${accountCurrency}`;
+    return `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)} ${accountCurrency}`;
+  }
   drawingsActiveRef.current = drawTool != null || drawCount > 0;
   viewportOverlaysRef.current =
     overlayIndicators.length > 0 || tradePlan != null;
@@ -1791,6 +1826,7 @@ export default function PriceChart({
 
         {(settings.positionLines ? positions : []).map((position) => {
           const isLong = position.direction === "long";
+          const positive = Number(position.unrealizedPnl) >= 0;
           return (
             <div
               key={position.id}
@@ -1803,16 +1839,33 @@ export default function PriceChart({
                 entryLineElsRef.current.set(position.id, el);
                 placeLine(el, priceCoordinate(Number(position.entryPrice)));
               }}
-              className="group pointer-events-auto absolute left-0 right-16 z-20 h-3 -translate-y-1/2"
+              className="group pointer-events-auto absolute left-0 right-16 z-20 h-4 -translate-y-1/2"
               style={{ top: 0, visibility: "hidden" }}
             >
-              <span className={`pointer-events-none absolute left-0 right-0 top-1/2 border-t border-dashed ${isLong ? "border-brand-400/80" : "border-bear/80"}`} />
-              <div className="absolute left-2 -top-9 flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel)] px-2 py-1.5 text-[10px] opacity-0 shadow-xl transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                <span className={`font-bold ${isLong ? "text-brand-300" : "text-bear"}`}>{isLong ? "BUY" : "SELL"} @ {position.entryPrice}</span>
-                <span className="font-mono app-muted">{position.lots} lot</span>
-                <span className={`font-mono ${Number(position.unrealizedPnl) >= 0 ? "text-brand-300" : "text-bear"}`}>{position.unrealizedPnl}</span>
-                <button type="button" onClick={() => onEditPosition(position.id)} className="grid h-6 w-6 place-items-center rounded bg-white/[0.06] hover:bg-white/[0.12]" aria-label={`Edit ${isLong ? "buy" : "sell"} position at ${position.entryPrice}`}>
-                  <Pencil size={12} aria-hidden />
+              <span className={`pointer-events-none absolute left-0 right-0 top-1/2 border-t ${isLong ? "border-[#2962ff]" : "border-bear"}`} />
+              <div className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-[#2962ff] bg-[var(--app-panel-solid)] text-[10px] shadow-lg">
+                <span className="grid h-full min-w-7 place-items-center border-r border-[#2962ff]/60 bg-[#2962ff]/15 font-bold text-[#5b8bff]">
+                  {isLong ? "↗" : "↘"}
+                </span>
+                {position.takeProfit && (
+                  <button type="button" onClick={() => onEditPosition(position.id)} className="h-full border-r app-border px-2 font-bold text-brand-300 hover:bg-white/[0.06]" aria-label={`Edit take profit for ${isLong ? "buy" : "sell"} position`}>
+                    TP
+                  </button>
+                )}
+                {position.stopLoss && (
+                  <button type="button" onClick={() => onEditPosition(position.id)} className="h-full border-r app-border px-2 font-bold text-amber-400 hover:bg-white/[0.06]" aria-label={`Edit stop loss for ${isLong ? "buy" : "sell"} position`}>
+                    SL
+                  </button>
+                )}
+                <span className="h-full border-r app-border bg-[#2962ff] px-2 font-mono font-bold leading-7 text-white">
+                  {position.lots}
+                </span>
+                <span className={`h-full min-w-[76px] border-r app-border px-2 font-mono font-bold leading-7 ${positive ? "text-brand-300" : "text-bear"}`}>
+                  {Number(position.unrealizedPnl) >= 0 ? "+" : "−"}
+                  {Math.abs(Number(position.unrealizedPnl)).toFixed(2)} {accountCurrency}
+                </span>
+                <button type="button" onClick={() => onClosePosition(position.id)} className="grid h-full w-7 place-items-center hover:bg-bear/15 hover:text-bear" aria-label={`Close ${isLong ? "buy" : "sell"} position`}>
+                  <X size={12} aria-hidden />
                 </button>
               </div>
             </div>
@@ -1985,10 +2038,38 @@ export default function PriceChart({
             onPointerMove={(event) => moveLine("stop", event)}
             onPointerUp={(event) => endLineDrag("stop", event)}
             onPointerCancel={(event) => endLineDrag("stop", event)}
-            className="absolute left-0 right-16 z-20 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dashed border-bear text-left"
+            className="absolute left-0 right-16 z-20 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-amber-400 text-left"
             style={{ top: 0, visibility: "hidden" }}
           >
-            <span className="absolute left-2 -top-3 rounded bg-bear px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">SL {stopDraft.toFixed(precision)}</span>
+            <span className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[10px] font-bold shadow-lg">
+              <span className="h-full border-r border-amber-400/50 bg-amber-400/10 px-2 leading-7 text-amber-400">
+                {activePosition?.lots ?? "—"}
+              </span>
+              <span className="h-full min-w-[88px] border-r border-amber-400/50 px-2 leading-7 text-amber-400">
+                {signedAccountValue(
+                  projectedPositionPnl(activePosition, stopDraft),
+                )}
+              </span>
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="Remove stop loss"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onStopLossChange(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onStopLossChange(null);
+                  }
+                }}
+                className="grid h-full w-7 cursor-pointer place-items-center hover:bg-amber-400/15"
+              >
+                <X size={12} aria-hidden />
+              </span>
+            </span>
           </button>
         )}
 
@@ -2005,10 +2086,38 @@ export default function PriceChart({
             onPointerMove={(event) => moveLine("target", event)}
             onPointerUp={(event) => endLineDrag("target", event)}
             onPointerCancel={(event) => endLineDrag("target", event)}
-            className="absolute left-0 right-16 z-20 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dashed border-brand-400 text-left"
+            className="absolute left-0 right-16 z-20 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-brand-400 text-left"
             style={{ top: 0, visibility: "hidden" }}
           >
-            <span className="absolute left-2 -top-3 rounded bg-brand-500 px-1.5 py-0.5 font-mono text-[10px] font-bold text-surface-950">TP {targetDraft.toFixed(precision)}</span>
+            <span className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-brand-400 bg-[var(--app-panel-solid)] font-mono text-[10px] font-bold shadow-lg">
+              <span className="h-full border-r border-brand-400/50 bg-brand-400/10 px-2 leading-7 text-brand-300">
+                {activePosition?.lots ?? "—"}
+              </span>
+              <span className="h-full min-w-[88px] border-r border-brand-400/50 px-2 leading-7 text-brand-300">
+                {signedAccountValue(
+                  projectedPositionPnl(activePosition, targetDraft),
+                )}
+              </span>
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="Remove take profit"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onTakeProfitChange(null);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onTakeProfitChange(null);
+                  }
+                }}
+                className="grid h-full w-7 cursor-pointer place-items-center hover:bg-brand-400/15"
+              >
+                <X size={12} aria-hidden />
+              </span>
+            </span>
           </button>
         )}
 

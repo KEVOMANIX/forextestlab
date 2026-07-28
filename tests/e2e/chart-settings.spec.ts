@@ -48,12 +48,30 @@ async function openSettings(page: Page) {
 test("right-click settings toggle what the chart draws, and survive a reload", async ({ page }) => {
   await openSession(page);
 
+  // One-click trading turns the compact quote buttons into immediate market
+  // orders; the preference is stored with the chart workspace.
+  let panel = await openSettings(page);
+  await panel.getByRole("switch", { name: "One-click trading" }).click();
+  await expect(
+    panel.getByRole("switch", { name: "One-click trading" }),
+  ).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByText("1-click", { exact: true })).toBeVisible();
+
   // An open position gives the position-line toggle something to act on.
-  await page.getByRole("button", { name: /^Buy/ }).click();
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().includes("/action") &&
+        response.request().method() === "POST",
+    ),
+    page.getByRole("button", { name: /Buy plan/i }).click(),
+  ]);
   await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
   await expect(page.getByTestId("stop-loss-line")).toHaveCount(1);
 
-  const panel = await openSettings(page);
+  panel = await openSettings(page);
   await panel.getByRole("switch", { name: "Open position lines" }).click();
   await expect(page.getByTestId("position-entry-line")).toHaveCount(0);
   await expect(page.getByTestId("stop-loss-line")).toHaveCount(0);
@@ -75,6 +93,7 @@ test("right-click settings toggle what the chart draws, and survive a reload", a
   // The reloaded session still holds the position; only its lines are hidden.
   await expect(page.locator("p.sr-only")).toContainText("1 open position");
   await expect(page.getByTestId("position-entry-line")).toHaveCount(0);
+  await expect(page.getByText("1-click", { exact: true })).toBeVisible();
 
   // Reset puts everything back.
   const reopened = await openSettings(page);

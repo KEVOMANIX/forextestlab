@@ -38,6 +38,7 @@ interface OrderTicketProps {
   onClearPlan: () => void;
   onPlaceOrder: (order: OrderRequest) => void;
   onTemplateChange: (template: Omit<OrderRequest, "direction">) => void;
+  oneClickTrading: boolean;
   referencePair?: string | null;
 }
 
@@ -57,6 +58,7 @@ export function OrderTicket({
   onClearPlan,
   onPlaceOrder,
   onTemplateChange,
+  oneClickTrading,
   referencePair = null,
 }: OrderTicketProps) {
   const [sizingMode, setSizingMode] = useState<
@@ -124,6 +126,7 @@ export function OrderTicket({
       takeProfit: tradePlan.takeProfit,
     });
     onClearPlan();
+    setPanelOpen(false);
   }
 
   function toggleExit(level: "stopLoss" | "takeProfit") {
@@ -164,6 +167,21 @@ export function OrderTicket({
     onDirectionChange(direction);
     setPanelPosition(null);
     setPanelOpen(true);
+  }
+
+  function activateQuote(direction: TradeDirection) {
+    if (!oneClickTrading) {
+      openPlanner(direction);
+      return;
+    }
+    onPlaceOrder({
+      direction,
+      sizingMode,
+      lots: sizingMode === "fixed-lots" ? lots : undefined,
+      riskPercent: sizingMode === "risk-percent" ? riskPercent : undefined,
+    });
+    onClearPlan();
+    setPanelOpen(false);
   }
 
   function beginPanelDrag(event: ReactPointerEvent<HTMLElement>) {
@@ -230,17 +248,22 @@ export function OrderTicket({
         <span className="hidden px-2 text-[11px] font-semibold text-[#c7c7c7] sm:inline">
           {state.config.symbol}
         </span>
+        {oneClickTrading && (
+          <span className="rounded bg-amber-400/15 px-1.5 py-1 text-[8px] font-bold uppercase tracking-wide text-amber-300">
+            1-click
+          </span>
+        )}
         <CompactQuoteButton
           direction="short"
           price={bid?.toFixed(precision) ?? "—"}
           disabled={unavailable}
-          onClick={() => openPlanner("short")}
+          onClick={() => activateQuote("short")}
         />
         <CompactQuoteButton
           direction="long"
           price={ask?.toFixed(precision) ?? "—"}
           disabled={unavailable}
-          onClick={() => openPlanner("long")}
+          onClick={() => activateQuote("long")}
         />
       </div>
     );

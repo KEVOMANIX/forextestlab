@@ -392,6 +392,9 @@ export function Backtester({
               setSelectedPositionId(positionId);
               setEditorPositionId(positionId);
             }}
+            onClosePosition={(positionId) =>
+              void actions.closePosition(positionId)
+            }
             stopLoss={chartStop ? Number(chartStop) : null}
             takeProfit={chartTarget ? Number(chartTarget) : null}
             positionDirection={position?.direction ?? null}
@@ -417,6 +420,7 @@ export function Backtester({
                 onClearPlan={() => setTradePlan(null)}
                 onPlaceOrder={actions.placeOrder}
                 onTemplateChange={setOrderTemplate}
+                oneClickTrading={workspace.settings.oneClickTrading}
                 referencePair={referencePair}
               />
             }

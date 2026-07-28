@@ -129,9 +129,18 @@ test("builds and places a chart-connected trade plan", async ({ page }, testInfo
     page.getByRole("button", { name: /Buy.*EURUSD MARKET/i }).click(),
   ]);
   await expect(page.getByText(/Buy position opened/i)).toBeVisible();
+  await expect(page.getByTestId("trade-order-panel")).toBeHidden();
+  await expect(page.getByRole("button", { name: /Buy plan/i })).toBeVisible();
   await expect(page.getByTestId("trade-plan-overlay")).toBeHidden();
   await expect(page.getByTestId("stop-loss-line")).toBeVisible();
   await expect(page.getByTestId("take-profit-line")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Close buy position" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove stop loss" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Remove take profit" }),
+  ).toBeVisible();
 });
 
 test("loads pre-start context without moving the replay start", async ({ page }) => {
@@ -273,7 +282,9 @@ test("completes a full public backtest workflow without login", async ({ page },
 
   // (9) manage the position from its chart entry line and close it manually
   await page.getByTestId("position-entry-line").first().hover();
-  await page.getByRole("button", { name: /Edit buy position/i }).click();
+  await page
+    .getByRole("button", { name: /Edit stop loss for buy position/i })
+    .click();
   await Promise.all([
     page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
     page.getByRole("button", { name: /Close all/i }).click(),

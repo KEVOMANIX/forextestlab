@@ -9,6 +9,7 @@ import { ExportTradesButton } from "@/components/app/ExportTradesButton";
 import { SessionAnalyticsWorkbench } from "@/components/app/SessionAnalyticsWorkbench";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionTradeJournal } from "@/components/app/SessionTradeJournal";
+import { BranchComparison } from "@/components/app/BranchComparison";
 import { SESSION_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { requireUser } from "@/lib/auth";
 import { getSessionResults } from "@/lib/backtest/results";
@@ -89,6 +90,7 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
         sessionId={results.sessionId}
         initialTrades={state.closedTrades}
       />
+      <BranchComparison currentId={results.sessionId} branches={results.branchComparison} />
 
       <div className="mt-6">
         {entitlements.fullAnalytics ? (

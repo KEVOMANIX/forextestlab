@@ -253,6 +253,14 @@ export interface EquityPoint {
   equity: string;
 }
 
+export interface SessionBookmark {
+  id: string;
+  index: number;
+  time: number;
+  note: string;
+  createdAt: number;
+}
+
 /** Full engine state. Serialisable — safe to persist and to sanitise. */
 export interface SessionState {
   sessionId: string;
@@ -269,6 +277,7 @@ export interface SessionState {
   maxDrawdownPercent: string;
   openPositions: OpenPosition[];
   pendingOrders: PendingOrder[];
+  bookmarks: SessionBookmark[];
   closedTrades: ClosedTrade[];
   equityCurve: EquityPoint[];
   /** Index after which stepping backwards is disallowed (a trade was placed). */
@@ -294,6 +303,7 @@ export interface PublicSessionState {
   currentTime: number | null;
   openPositions: OpenPosition[];
   pendingOrders: PendingOrder[];
+  bookmarks: SessionBookmark[];
   closedTrades: ClosedTrade[];
   equityCurve: EquityPoint[];
   lockedBeforeIndex: number;

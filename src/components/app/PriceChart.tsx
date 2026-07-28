@@ -1211,6 +1211,23 @@ export default function PriceChart({
     });
   }, [theme, gridVisible, magnetCrosshair, settings.background]);
 
+  useEffect(() => {
+    const jump = (event: Event) => {
+      const time = (event as CustomEvent<{ time?: number }>).detail?.time;
+      const scale = chartRef.current?.timeScale();
+      if (!time || !scale) return;
+      const bucket = Math.floor(candleBucketStart(time, displayTimeframeRef.current) / 1000);
+      const index = displayRef.current.findIndex((candle) => Number(candle.time) === bucket);
+      if (index < 0) return;
+      const range = scale.getVisibleLogicalRange();
+      const width = range ? Math.max(20, range.to - range.from) : 80;
+      followLatestRef.current = false;
+      scale.setVisibleLogicalRange({ from: index - width / 2, to: index + width / 2 });
+    };
+    window.addEventListener("forextestlab:jump-to-candle", jump);
+    return () => window.removeEventListener("forextestlab:jump-to-candle", jump);
+  }, []);
+
   // Re-sync indicator controllers (both panes) when the active set changes.
   useEffect(() => {
     syncIndicators(displayRef.current);

@@ -59,6 +59,7 @@ export function normalizeSessionState(state: SessionState): SessionState {
   }
   delete legacy.openPosition;
   state.pendingOrders ??= [];
+  state.bookmarks ??= [];
   for (const position of state.openPositions) {
     position.journalId ??= position.id;
     position.journal =
@@ -168,6 +169,7 @@ export function createSessionState(
     maxDrawdownPercent: "0.0",
     openPositions: [],
     pendingOrders: [],
+    bookmarks: [],
     closedTrades: [],
     equityCurve: startCandle
       ? [

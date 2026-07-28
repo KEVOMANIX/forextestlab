@@ -146,6 +146,21 @@ export const actionSchema = z.discriminatedUnion("type", [
     journalId: z.string().min(1).max(120),
     journal: tradeJournalUpdateSchema,
   }),
+  z.object({
+    type: z.literal("add-bookmark"),
+    bookmarkId: z.string().uuid(),
+    note: z.string().trim().max(280).optional(),
+    targetIndex: z.number().int().nonnegative().optional(),
+  }),
+  z.object({
+    type: z.literal("update-bookmark"),
+    bookmarkId: z.string().uuid(),
+    note: z.string().trim().max(280),
+  }),
+  z.object({
+    type: z.literal("delete-bookmark"),
+    bookmarkId: z.string().uuid(),
+  }),
   z.object({ type: z.literal("notes"), notes: z.string().max(5000) }),
 ]);
 

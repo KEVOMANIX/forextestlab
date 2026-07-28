@@ -123,6 +123,22 @@ export function ReplayToolbar({
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));
   const cadenceLabel = speedLabel(state.speed);
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("forextestlab:replay-position");
+      if (saved) {
+        const parsed = JSON.parse(saved) as { x: number; y: number };
+        requestAnimationFrame(() => setPosition(clampPosition(parsed.x, parsed.y)));
+      }
+    } catch {
+      // Keep the centred default.
+    }
+  }, []);
+  useEffect(() => {
+    if (position) window.localStorage.setItem("forextestlab:replay-position", JSON.stringify(position));
+    else window.localStorage.removeItem("forextestlab:replay-position");
+  }, [position]);
+
   function clampPosition(x: number, y: number) {
     const toolbox = toolboxRef.current;
     const parent = toolbox?.parentElement;

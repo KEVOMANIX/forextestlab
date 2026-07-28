@@ -684,6 +684,38 @@ test("creates a trade journal with an entry snapshot", async ({ page }, testInfo
   await expect(entryReason).toHaveValue("Breakout retest at London open");
 });
 
+test("bookmarks a decision candle and keeps replay unchanged", async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  await startSession(page);
+  if (testInfo.project.name === "mobile") {
+    const tour = page.getByRole("button", { name: /Close trading tour/i });
+    await tour.waitFor({ state: "visible" });
+    await tour.click();
+  }
+  const counter = page.getByText(/Candle \d+ of \d+/);
+  const before = await counter.textContent();
+  const bookmarksTab = page.getByRole("tab", { name: /Bookmarks/i });
+  if (testInfo.project.name === "mobile") await bookmarksTab.press("Enter");
+  else await bookmarksTab.click();
+  const saved = page.waitForResponse((response) => {
+    if (!response.url().includes("/action")) return false;
+    return (response.request().postDataJSON() as { type?: string } | null)?.type === "add-bookmark";
+  });
+  await page.getByRole("button", { name: /Bookmark candle/i }).click({ force: true });
+  await saved;
+  await expect(page.getByPlaceholder("Add a short decision note…")).toBeVisible();
+  await expect(counter).toHaveText(before ?? "");
+  const note = page.getByPlaceholder("Add a short decision note…");
+  await note.fill("Alternative entry decision");
+  const updated = page.waitForResponse((response) => {
+    if (!response.url().includes("/action")) return false;
+    return (response.request().postDataJSON() as { type?: string } | null)?.type === "update-bookmark";
+  });
+  await note.press("Tab");
+  await updated;
+  await expect(page.getByRole("button", { name: "Show on chart" })).toBeVisible();
+});
+
 test("replay advances locally and pause stays responsive during checkpoint saves", async ({ page }) => {
   test.setTimeout(45_000);
   await startSession(page);

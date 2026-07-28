@@ -938,6 +938,50 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [runAction],
   );
+  const addBookmark = useCallback(async (note = "") => {
+    const engine = localEngineRef.current;
+    const candle = engine?.candles[engine.state.visibleIndex];
+    if (!engine || !candle) return;
+    const bookmarkId = crypto.randomUUID();
+    engine.state.bookmarks.push({
+      id: bookmarkId,
+      index: engine.state.visibleIndex,
+      time: candle.timestamp,
+      note,
+      createdAt: Date.now(),
+    });
+    setS((prev) => ({
+      ...prev,
+      state: publicSessionState(engine, prev.state?.anonymous ?? false),
+    }));
+    await runAction(
+      { type: "add-bookmark", bookmarkId, note, targetIndex: engine.state.visibleIndex },
+      { showBusy: false, preserveLocalState: true },
+    );
+  }, [runAction]);
+  const updateBookmark = useCallback(async (bookmarkId: string, note: string) => {
+    const engine = localEngineRef.current;
+    const bookmark = engine?.state.bookmarks.find((item) => item.id === bookmarkId);
+    if (bookmark) bookmark.note = note;
+    if (engine) {
+      setS((prev) => ({ ...prev, state: publicSessionState(engine, prev.state?.anonymous ?? false) }));
+    }
+    await runAction(
+      { type: "update-bookmark", bookmarkId, note },
+      { showBusy: false, preserveLocalState: true },
+    );
+  }, [runAction]);
+  const deleteBookmark = useCallback(async (bookmarkId: string) => {
+    const engine = localEngineRef.current;
+    if (engine) {
+      engine.state.bookmarks = engine.state.bookmarks.filter((item) => item.id !== bookmarkId);
+      setS((prev) => ({ ...prev, state: publicSessionState(engine, prev.state?.anonymous ?? false) }));
+    }
+    await runAction(
+      { type: "delete-bookmark", bookmarkId },
+      { showBusy: false, preserveLocalState: true },
+    );
+  }, [runAction]);
   /**
    * Load a non-session symbol's full series once, so a chart cell showing it can
    * advance on the local replay clock. Concurrent callers (several cells asking
@@ -1040,6 +1084,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
       modifyTrailing,
       saveNotes,
       saveTradeJournal,
+      addBookmark,
+      updateBookmark,
+      deleteBookmark,
       switchPair,
       ensurePair,
       retrySave,

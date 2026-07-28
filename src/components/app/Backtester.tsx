@@ -30,6 +30,7 @@ import { TradeNotifications, type TradeNotification } from "./TradeNotifications
 import { EndOfDataModal } from "./EndOfDataModal";
 import { TrialSessionLauncher } from "./TrialSessionLauncher";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
+import { WorkspaceManager } from "./WorkspaceManager";
 
 type PendingConfirmation = {
   title: string;
@@ -61,8 +62,13 @@ export function Backtester({
   const { theme, toggle } = useAppTheme();
   const bt = useBacktester(resumeSessionId);
   const { state, actions } = bt;
+  const workspaceSymbols = useMemo(
+    () => state?.config.symbols?.length ? state.config.symbols : state ? [state.config.symbol] : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state?.config.symbol, state?.config.symbols?.join(",")],
+  );
   // Chart preferences are shared by every chart in the session's workspace.
-  const workspace = useChartWorkspace(String(bt.sessionId ?? "new"));
+  const workspace = useChartWorkspace(String(bt.sessionId ?? "new"), Boolean(state && !state.anonymous), workspaceSymbols);
   const [trialSessionsRemaining, setTrialSessionsRemaining] = useState(
     entitlements.trialSessionsRemaining,
   );
@@ -94,6 +100,17 @@ export function Backtester({
     sizingMode: "fixed-lots",
     lots: "0.10",
   });
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("forextestlab:order-defaults");
+      if (saved) setOrderTemplate(JSON.parse(saved) as Omit<OrderRequest, "direction">);
+    } catch {
+      // Invalid local defaults fall back to the safe fixed-lot template.
+    }
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem("forextestlab:order-defaults", JSON.stringify(orderTemplate));
+  }, [orderTemplate]);
   const hasMeaningfulActivity = Boolean(
     state?.openPositions.length || state?.closedTrades.length || state?.pendingOrders.length,
   );
@@ -369,6 +386,21 @@ export function Backtester({
       action: () => void actions.endSession(),
     });
   };
+  const forkSession = async () => {
+    if (!state || state.anonymous) return;
+    // Local playback is intentionally ahead of server checkpoints. Pause first
+    // so the fork is created from the exact candle visible to the trader.
+    await actions.pause();
+    const response = await fetch(`/api/backtest/sessions/${state.sessionId}/branch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: `${state.config.name || state.config.symbol} · alternative` }),
+    });
+    const result = await response.json() as { ok?: boolean; sessionId?: string; error?: string };
+    if (response.ok && result.sessionId) {
+      router.push(`/app/backtest?session=${encodeURIComponent(result.sessionId)}`);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[var(--app-bg)]">
@@ -389,7 +421,12 @@ export function Backtester({
         saveStatus={bt.saveStatus}
         onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}
-        endControls={<div ref={setChartLayoutSlot} className="flex shrink-0 items-center" />}
+        endControls={
+          <div className="flex shrink-0 items-center gap-1">
+            <WorkspaceManager workspace={workspace} signedIn={!state.anonymous} />
+            <div ref={setChartLayoutSlot} className="flex shrink-0 items-center" />
+          </div>
+        }
       >
         <div ref={setChartHeaderSlot} className="flex min-w-0 flex-1 items-center gap-1" />
       </TerminalTopBar>
@@ -498,6 +535,10 @@ export function Backtester({
         busy={bt.busy}
         onCancelPending={(orderId) => void actions.cancelPending(orderId)}
         onSaveTradeJournal={actions.saveTradeJournal}
+        onAddBookmark={() => void actions.addBookmark()}
+        onUpdateBookmark={(id, note) => void actions.updateBookmark(id, note)}
+        onDeleteBookmark={(id) => void actions.deleteBookmark(id)}
+        onForkSession={() => void forkSession()}
       />
       <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
       <PositionEditorModal

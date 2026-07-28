@@ -43,6 +43,7 @@ function state(
     currentTime: 1,
     openPositions: [],
     pendingOrders: [],
+    bookmarks: [],
     closedTrades: [],
     equityCurve: [],
     lockedBeforeIndex: -1,

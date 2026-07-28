@@ -49,6 +49,8 @@ model UserProfile {
   paddleCustomerId     String?               @unique
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
+  workspaceJson        String?
+  workspaceTemplatesJson String?
   sessions             BacktestSession[]
   billingPayments      BillingPayment[]
   billingSubscriptions BillingSubscription[]
@@ -282,11 +284,19 @@ model BacktestSession {
   orders             SimulatedOrder[]
   trades             SimulatedTrade[]
   equitySnapshots    EquitySnapshot[]
+  parentSessionId    String?
+  parentSession      BacktestSession?  @relation("SessionBranches", fields: [parentSessionId], references: [id], onDelete: SetNull)
+  branches           BacktestSession[] @relation("SessionBranches")
+  branchPointIndex   Int?
+  branchPointTime    BigInt?
+  branchRootId       String?
 
   @@index([createdAt])
   @@index([userId, createdAt])
   @@index([trialDeviceId, createdAt])
   @@index([anonymous, anonymousExpiresAt])
+  @@index([parentSessionId])
+  @@index([branchRootId])
 }
 
 model SimulatedOrder {

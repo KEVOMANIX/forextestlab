@@ -200,6 +200,34 @@ export async function POST(
         opError = "Trade journal not found.";
       }
       break;
+    case "add-bookmark": {
+      const candle = ctx.candles[ctx.state.visibleIndex];
+      if (!candle) {
+        opError = "No current candle to bookmark.";
+      } else if (!ctx.state.bookmarks.some((item) => item.id === action.bookmarkId)) {
+        ctx.state.bookmarks.push({
+          id: action.bookmarkId,
+          index: ctx.state.visibleIndex,
+          time: candle.timestamp,
+          note: action.note ?? "",
+          createdAt: Date.now(),
+        });
+      }
+      break;
+    }
+    case "update-bookmark": {
+      const bookmark = ctx.state.bookmarks.find((item) => item.id === action.bookmarkId);
+      if (!bookmark) opError = "Bookmark not found.";
+      else bookmark.note = action.note;
+      break;
+    }
+    case "delete-bookmark":
+      if (!ctx.state.bookmarks.some((item) => item.id === action.bookmarkId)) {
+        opError = "Bookmark not found.";
+      } else {
+        ctx.state.bookmarks = ctx.state.bookmarks.filter((item) => item.id !== action.bookmarkId);
+      }
+      break;
     case "notes":
       if (session.anonymous) {
         opError = "Sign in to save private session notes.";

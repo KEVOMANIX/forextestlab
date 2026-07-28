@@ -23,6 +23,18 @@ export interface SessionResults {
   state: SessionState;
   stats: PerformanceStats;
   hasAmbiguousTrades: boolean;
+  branchComparison: {
+    sessionId: string;
+    name: string;
+    parentSessionId: string | null;
+    branchPointIndex: number | null;
+    branchPointTime: number | null;
+    status: string;
+    trades: number;
+    balance: string;
+    netPnl: string;
+    winRate: string;
+  }[];
 }
 
 export async function getSessionResults(
@@ -41,6 +53,36 @@ export async function getSessionResults(
     trades: state.closedTrades,
     equityCurve: state.equityCurve,
   });
+  const rootId = row.branchRootId ?? row.id;
+  const familyRows = await prisma.backtestSession.findMany({
+    where: {
+      userId,
+      anonymous: false,
+      OR: [{ id: rootId }, { branchRootId: rootId }],
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const branchComparison = familyRows.map((family) => {
+    const familyState = normalizeSessionState(JSON.parse(family.stateJson) as SessionState);
+    const familyStats = computeStatistics({
+      startingBalance: familyState.config.startingBalance,
+      endingBalance: familyState.balance,
+      trades: familyState.closedTrades,
+      equityCurve: familyState.equityCurve,
+    });
+    return {
+      sessionId: family.id,
+      name: familyState.config.name?.trim() || `${family.symbol} backtest`,
+      parentSessionId: family.parentSessionId,
+      branchPointIndex: family.branchPointIndex,
+      branchPointTime: family.branchPointTime ? Number(family.branchPointTime) : null,
+      status: family.status,
+      trades: familyState.closedTrades.length,
+      balance: familyState.balance,
+      netPnl: familyStats.netProfit,
+      winRate: familyStats.winRate,
+    };
+  });
 
   return {
     sessionId: row.id,
@@ -57,5 +99,6 @@ export async function getSessionResults(
     state,
     stats,
     hasAmbiguousTrades: state.closedTrades.some((t) => t.intrabarAmbiguous),
+    branchComparison,
   };
 }

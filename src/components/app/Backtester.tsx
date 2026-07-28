@@ -497,6 +497,7 @@ export function Backtester({
         onSaveNotes={actions.saveNotes}
         busy={bt.busy}
         onCancelPending={(orderId) => void actions.cancelPending(orderId)}
+        onSaveTradeJournal={actions.saveTradeJournal}
       />
       <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
       <PositionEditorModal

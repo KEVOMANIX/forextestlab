@@ -63,6 +63,56 @@ export type PositionSizingMode = "fixed-lots" | "risk-percent";
 export type OrderType = "market" | "limit" | "stop";
 export type PendingOrderType = Exclude<OrderType, "market">;
 export type PendingOrderStatus = "pending" | "activated" | "cancelled" | "expired";
+export type TradeValidity = "valid" | "invalid" | "experimental";
+
+export interface JournalRule {
+  id: string;
+  label: string;
+  followed: boolean;
+}
+
+export interface SnapshotCandle {
+  timestamp: number;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+}
+
+export interface TradeChartSnapshot {
+  capturedAt: number;
+  index: number;
+  symbol: string;
+  timeframe: Timeframe;
+  candles: SnapshotCandle[];
+}
+
+export interface TradeJournal {
+  entryReason: string;
+  exitReview: string;
+  setupTags: string[];
+  mistakeTags: string[];
+  emotion: string;
+  confidence: number | null;
+  ruleChecklist: JournalRule[];
+  plannedRR: string | null;
+  realizedR: string | null;
+  validity: TradeValidity;
+  beforeEntrySnapshot: TradeChartSnapshot | null;
+  afterExitSnapshot: TradeChartSnapshot | null;
+  updatedAt: number;
+}
+
+export interface TradeJournalUpdate {
+  entryReason: string;
+  exitReview: string;
+  setupTags: string[];
+  mistakeTags: string[];
+  emotion: string;
+  confidence: number | null;
+  ruleChecklist: JournalRule[];
+  validity: TradeValidity;
+}
 
 /** Immutable configuration chosen when a session is created. */
 export interface SessionConfig {
@@ -141,6 +191,8 @@ export interface PendingOrder {
 
 export interface OpenPosition {
   id: string;
+  journalId?: string;
+  journal?: TradeJournal;
   direction: TradeDirection;
   /** Fill price after spread/slippage. */
   entryPrice: string;
@@ -167,6 +219,8 @@ export interface OpenPosition {
 
 export interface ClosedTrade {
   id: string;
+  journalId?: string;
+  journal?: TradeJournal;
   direction: TradeDirection;
   entryPrice: string;
   exitPrice: string;

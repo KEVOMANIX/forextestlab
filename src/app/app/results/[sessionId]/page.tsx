@@ -8,6 +8,7 @@ import { BackLink } from "@/components/app/BackLink";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
 import { SessionAnalyticsWorkbench } from "@/components/app/SessionAnalyticsWorkbench";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
+import { SessionTradeJournal } from "@/components/app/SessionTradeJournal";
 import { SESSION_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { requireUser } from "@/lib/auth";
 import { getSessionResults } from "@/lib/backtest/results";
@@ -82,6 +83,11 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
         equityCurve={state.equityCurve}
         startingBalance={state.config.startingBalance}
         fullAccess={entitlements.fullAnalytics}
+      />
+
+      <SessionTradeJournal
+        sessionId={results.sessionId}
+        initialTrades={state.closedTrades}
       />
 
       <div className="mt-6">

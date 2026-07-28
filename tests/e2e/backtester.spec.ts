@@ -639,6 +639,51 @@ test("shows a new market order immediately while it saves", async ({ page }) => 
   await response;
 });
 
+test("creates a trade journal with an entry snapshot", async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  await startSession(page);
+  if (testInfo.project.name === "mobile") {
+    const sessionId = new URL(page.url()).searchParams.get("session");
+    expect(sessionId).toBeTruthy();
+    const token = await page.evaluate((id) => window.sessionStorage.getItem(`forextestlab:session:${id}`), sessionId);
+    const response = await page.request.post(`/api/backtest/sessions/${sessionId}/action`, {
+      headers: token ? { "x-session-token": token } : undefined,
+      data: {
+        type: "place-order",
+        direction: "long",
+        sizingMode: "fixed-lots",
+        lots: "0.10",
+      },
+    });
+    expect(response.ok()).toBe(true);
+    await page.reload();
+    const tour = page.getByRole("button", { name: /Close trading tour/i });
+    await tour.waitFor({ state: "visible" });
+    await tour.click();
+  } else {
+    await Promise.all([
+      page.waitForResponse((response) => {
+        if (!response.url().includes("/action")) return false;
+        return (
+          (response.request().postDataJSON() as { type?: string } | null)?.type ===
+          "place-order"
+        );
+      }),
+      page.getByRole("button", { name: "Quick Buy", exact: true }).click({ force: true }),
+    ]);
+  }
+
+  await page.getByRole("tab", { name: /Journal/i }).click();
+  await expect(page.getByText("Trade journals", { exact: true })).toBeVisible();
+  await page.getByText("Chart snapshots", { exact: false }).click({ force: true });
+  await expect(page.getByLabel("Before entry candlestick snapshot")).toBeVisible();
+  await expect(page.getByText("Planned R:R", { exact: true })).toBeVisible();
+  await expect(page.getByText("Realized R", { exact: true })).toBeVisible();
+  const entryReason = page.getByPlaceholder("Why was this entry valid?");
+  await entryReason.fill("Breakout retest at London open");
+  await expect(entryReason).toHaveValue("Breakout retest at London open");
+});
+
 test("replay advances locally and pause stays responsive during checkpoint saves", async ({ page }) => {
   test.setTimeout(45_000);
   await startSession(page);

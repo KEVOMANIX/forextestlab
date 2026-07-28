@@ -64,6 +64,21 @@ export const extendSessionSchema = z.object({
 });
 
 const nullablePrice = z.union([positiveNumericString, z.null()]);
+const journalRuleSchema = z.object({
+  id: z.string().trim().min(1).max(40),
+  label: z.string().trim().min(1).max(100),
+  followed: z.boolean(),
+});
+const tradeJournalUpdateSchema = z.object({
+  entryReason: z.string().max(3000),
+  exitReview: z.string().max(3000),
+  setupTags: z.array(z.string().trim().min(1).max(32)).max(12),
+  mistakeTags: z.array(z.string().trim().min(1).max(32)).max(12),
+  emotion: z.string().trim().max(40),
+  confidence: z.number().int().min(1).max(5).nullable(),
+  ruleChecklist: z.array(journalRuleSchema).max(12),
+  validity: z.enum(["valid", "invalid", "experimental"]),
+});
 
 export const actionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -126,6 +141,11 @@ export const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("modify-stop"), positionId: z.string().min(1).optional(), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
   z.object({ type: z.literal("modify-target"), positionId: z.string().min(1).optional(), price: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
   z.object({ type: z.literal("modify-trailing"), positionId: z.string().min(1).optional(), pips: nullablePrice, targetIndex: z.number().int().nonnegative().optional() }),
+  z.object({
+    type: z.literal("update-journal"),
+    journalId: z.string().min(1).max(120),
+    journal: tradeJournalUpdateSchema,
+  }),
   z.object({ type: z.literal("notes"), notes: z.string().max(5000) }),
 ]);
 

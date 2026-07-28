@@ -22,6 +22,7 @@ import type {
   PublicSessionState,
   ReplaySpeed,
   ReplayStepMinutes,
+  TradeJournalUpdate,
 } from "@/lib/backtest/types";
 import {
   closePosition as closeLocalPosition,
@@ -36,6 +37,7 @@ import {
   revealNext,
 } from "@/lib/backtest/replay-engine";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
+import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 
 export type Phase = "setup" | "loading" | "active";
 
@@ -279,6 +281,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         preserveLocalState?: boolean;
       } = {},
     ) => {
+      let succeeded = true;
       const background = opts.background === true;
       const showBusy = opts.showBusy ?? !background;
 
@@ -302,10 +305,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
       const task = actionQueueRef.current.then(async () => {
         const id = sessionIdRef.current;
         const token = tokenRef.current;
-        if (!id) return;
+        if (!id) {
+          succeeded = false;
+          return;
+        }
 
         const res = await sendAction(id, token, action);
         if (!res.ok) {
+          succeeded = false;
           if (res.state) localEngineRef.current = {
             state: engineStateFromPublic(res.state),
             candles: localEngineRef.current?.candles ?? [],
@@ -368,6 +375,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
       actionQueueRef.current = task
         .catch(() => {
+          succeeded = false;
           patch({
             error: "The replay request failed. Please try again.",
             saveStatus: "error",
@@ -383,6 +391,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         });
 
       await actionQueueRef.current;
+      return succeeded;
     },
     [patch],
   );
@@ -911,6 +920,24 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [runAction],
   );
+  const saveTradeJournal = useCallback(
+    async (journalId: string, journal: TradeJournalUpdate) => {
+      const engine = localEngineRef.current;
+      if (engine) {
+        updateLocalTradeJournal(engine, journalId, journal);
+        setS((prev) => ({
+          ...prev,
+          state: publicSessionState(engine, prev.state?.anonymous ?? false),
+        }));
+      }
+      const saved = await runAction(
+        { type: "update-journal", journalId, journal },
+        { showBusy: false, preserveLocalState: true },
+      );
+      if (!saved) throw new Error("Trade journal could not be saved.");
+    },
+    [runAction],
+  );
   /**
    * Load a non-session symbol's full series once, so a chart cell showing it can
    * advance on the local replay clock. Concurrent callers (several cells asking
@@ -1012,6 +1039,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       modifyTarget,
       modifyTrailing,
       saveNotes,
+      saveTradeJournal,
       switchPair,
       ensurePair,
       retrySave,

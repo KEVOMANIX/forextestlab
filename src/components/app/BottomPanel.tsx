@@ -5,12 +5,13 @@ import { BarChart3, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { computeStatistics } from "@/lib/backtest/statistics";
-import type { PublicSessionState } from "@/lib/backtest/types";
+import type { PublicSessionState, TradeJournalUpdate } from "@/lib/backtest/types";
 import { AccountSummary } from "./AccountSummary";
 import { SessionClock } from "./SessionClock";
 import { TimeZoneClock } from "./TimeZoneClock";
 import { StatsGrid } from "./StatsGrid";
 import { TradesTable } from "./TradesTable";
+import { TradeJournalEditor } from "./TradeJournalEditor";
 
 type Tab = "position" | "trades" | "orders" | "statistics" | "notes";
 
@@ -32,6 +33,7 @@ interface BottomPanelProps {
   onSaveNotes: (notes: string) => void;
   busy: boolean;
   onCancelPending: (orderId: string) => void;
+  onSaveTradeJournal: (journalId: string, journal: TradeJournalUpdate) => Promise<void> | void;
 }
 
 export function BottomPanel({
@@ -44,6 +46,7 @@ export function BottomPanel({
   onSaveNotes,
   busy,
   onCancelPending,
+  onSaveTradeJournal,
 }: BottomPanelProps) {
   const [tab, setTab] = useState<Tab>("position");
   const [expanded, setExpanded] = useState(false);
@@ -74,7 +77,7 @@ export function BottomPanel({
   return (
     <section
       className={`relative flex shrink-0 flex-col overflow-hidden border-t app-border bg-[var(--app-panel)] transition-[height] duration-200 ease-out ${
-        expanded ? "h-44 md:h-48" : "h-11"
+        expanded ? (tab === "notes" ? "h-[min(72vh,620px)]" : "h-44 md:h-48") : "h-11"
       }`}
       aria-label="Session details"
     >
@@ -161,12 +164,15 @@ export function BottomPanel({
             </div>
           )}
 
-          {tab === "notes" && state.anonymous ? (
-            <div className="p-4 text-sm app-muted">
-              Create an account to save private session notes.
-            </div>
-          ) : tab === "notes" ? (
-            <div className="space-y-2 p-4">
+          {tab === "notes" ? (
+            <div>
+              <TradeJournalEditor
+                openPositions={state.openPositions}
+                closedTrades={state.closedTrades}
+                anonymous={state.anonymous}
+                onSave={onSaveTradeJournal}
+              />
+              <div className="space-y-2 border-t app-border p-4">
               <label htmlFor="session-notes" className="text-xs app-muted">Session notes</label>
               <textarea
                 id="session-notes"
@@ -176,9 +182,10 @@ export function BottomPanel({
                 onChange={(event) => setNotes(event.target.value)}
                 placeholder="Record your observations…"
               />
-              <button type="button" className="btn-secondary" onClick={() => onSaveNotes(notes)} disabled={busy}>
-                Save notes
+              <button type="button" className="btn-secondary" onClick={() => onSaveNotes(notes)} disabled={busy || state.anonymous}>
+                Save session notes
               </button>
+              </div>
             </div>
           ) : null}
         </div>

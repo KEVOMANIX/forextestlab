@@ -27,6 +27,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
+import { updateTradeJournal } from "@/lib/backtest/trade-journal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -192,6 +193,13 @@ export async function POST(
       if (!r.ok) opError = r.error;
       break;
     }
+    case "update-journal":
+      if (session.anonymous) {
+        opError = "Sign in to save a private trade journal.";
+      } else if (!updateTradeJournal(ctx, action.journalId, action.journal)) {
+        opError = "Trade journal not found.";
+      }
+      break;
     case "notes":
       if (session.anonymous) {
         opError = "Sign in to save private session notes.";

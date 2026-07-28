@@ -35,6 +35,12 @@ import type {
   SessionState,
 } from "./types";
 import { DEFAULT_REPLAY_SPEED } from "./types";
+import {
+  captureTradeSnapshot,
+  createTradeJournal,
+  emptyTradeJournal,
+  normalizeTradeJournal,
+} from "./trade-journal";
 
 /** Convert persisted/public state into a mutable replay state for local playback. */
 export function engineStateFromPublic(state: PublicSessionState): SessionState {
@@ -54,6 +60,14 @@ export function normalizeSessionState(state: SessionState): SessionState {
   delete legacy.openPosition;
   state.pendingOrders ??= [];
   for (const position of state.openPositions) {
+    position.journalId ??= position.id;
+    position.journal =
+      normalizeTradeJournal(position.journal) ??
+      emptyTradeJournal(
+        position.entryPrice,
+        position.initialStopLoss ?? position.stopLoss,
+        position.initialTakeProfit ?? position.takeProfit,
+      );
     position.initialStopLoss ??= position.stopLoss;
     position.initialTakeProfit ??= position.takeProfit;
     position.initialRiskAmount ??= null;
@@ -61,6 +75,25 @@ export function normalizeSessionState(state: SessionState): SessionState {
     position.trailingBestPrice ??= null;
     position.maxFavorablePnl ??= "0.00";
     position.maxAdversePnl ??= "0.00";
+  }
+  for (const trade of state.closedTrades) {
+    trade.journalId ??= trade.id;
+    trade.journal =
+      normalizeTradeJournal(trade.journal) ??
+      emptyTradeJournal(
+        trade.entryPrice,
+        trade.initialStopLoss ?? trade.stopLoss,
+        trade.initialTakeProfit ?? trade.takeProfit,
+      );
+    if (
+      trade.journal.realizedR === null &&
+      trade.initialRiskAmount &&
+      d(trade.initialRiskAmount).greaterThan(0)
+    ) {
+      trade.journal.realizedR = d(trade.pnl)
+        .dividedBy(trade.initialRiskAmount)
+        .toFixed(2);
+    }
   }
   return state;
 }
@@ -323,6 +356,8 @@ function closeAt(
 
   const trade: ClosedTrade = {
     id: makeId("trade"),
+    journalId: pos.journalId ?? pos.id,
+    journal: pos.journal ? structuredClone(pos.journal) : undefined,
     direction: pos.direction,
     entryPrice: pos.entryPrice,
     exitPrice: money(exitPrice) === "NaN" ? exitPrice : d(exitPrice).toFixed(state.config.pricePrecision),
@@ -349,6 +384,23 @@ function closeAt(
 
   state.balance = d(state.balance).plus(pnl).toFixed(2);
   state.closedTrades.push(trade);
+  const journalRecords = state.closedTrades.filter(
+    (item) => (item.journalId ?? item.id) === trade.journalId,
+  );
+  const totalRisk = journalRecords.reduce(
+    (sum, item) => sum.plus(item.initialRiskAmount ?? 0),
+    d(0),
+  );
+  const totalPnl = journalRecords.reduce((sum, item) => sum.plus(item.pnl), d(0));
+  const journal = trade.journal;
+  if (journal) {
+    if (closingAll) journal.afterExitSnapshot = captureTradeSnapshot(ctx);
+    journal.realizedR = totalRisk.greaterThan(0)
+      ? totalPnl.dividedBy(totalRisk).toFixed(2)
+      : null;
+    journal.updatedAt = Date.now();
+    for (const item of journalRecords) item.journal = structuredClone(journal);
+  }
   if (closingAll) {
     state.openPositions = state.openPositions.filter((position) => position.id !== pos.id);
   } else {
@@ -564,6 +616,7 @@ function activatePendingOrder(
     : null;
   const position: OpenPosition = {
     id: `${order.id}:position`,
+    journalId: `${order.id}:position`,
     direction: order.direction,
     entryPrice: fillPrice,
     entryIndex: ctx.state.visibleIndex,
@@ -581,6 +634,12 @@ function activatePendingOrder(
     commission,
     unrealizedPnl: "0.00",
   };
+  position.journal = createTradeJournal(
+    ctx,
+    fillPrice,
+    order.stopLoss,
+    order.takeProfit,
+  );
   ctx.state.openPositions.push(position);
   order.status = "activated";
   order.fillPrice = fillPrice;
@@ -667,6 +726,7 @@ export function previewPosition(
     ok: true,
     position: {
       id,
+      journalId: id,
       direction: req.direction,
       entryPrice: entry,
       entryIndex: state.visibleIndex,
@@ -767,6 +827,12 @@ export function placeOrder(
     req.clientOrderId ?? makeId("pos"),
   );
   if (!preview.ok || !preview.position) return preview;
+  preview.position.journal = createTradeJournal(
+    ctx,
+    preview.position.entryPrice,
+    preview.position.stopLoss,
+    preview.position.takeProfit,
+  );
   state.openPositions.push(preview.position);
   state.lockedBeforeIndex = state.visibleIndex;
   recomputeEquity(ctx, false);

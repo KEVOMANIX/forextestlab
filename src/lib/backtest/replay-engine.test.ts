@@ -15,6 +15,7 @@ import {
   revealNext,
   stepBack,
 } from "./replay-engine";
+import { updateTradeJournal } from "./trade-journal";
 
 function cfg(overrides: Partial<SessionConfig> = {}): SessionConfig {
   return {
@@ -282,6 +283,55 @@ describe("stop-loss / take-profit execution", () => {
 });
 
 describe("manual close and drawdown", () => {
+  it("captures entry and exit snapshots with planned and realized R", () => {
+    const candles = [
+      c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+      c(1, "1.10100", "1.10210", "1.10090", "1.10200"),
+    ];
+    const e = ctx(candles);
+    placeOrder(e, {
+      direction: "long",
+      sizingMode: "fixed-lots",
+      lots: "1.0",
+      stopLoss: "1.09900",
+      takeProfit: "1.10200",
+    });
+    const position = e.state.openPositions[0]!;
+    expect(position.journal?.plannedRR).toBe("2.00");
+    expect(position.journal?.beforeEntrySnapshot?.candles).toHaveLength(1);
+
+    revealNext(e);
+    const trade = e.state.closedTrades[0]!;
+    expect(trade.journalId).toBe(position.journalId);
+    expect(trade.journal?.realizedR).toBe("2.00");
+    expect(trade.journal?.afterExitSnapshot?.capturedAt).toBe(1);
+  });
+
+  it("updates one logical journal across partial-close records", () => {
+    const e = ctx(FLAT);
+    placeOrder(e, {
+      direction: "long",
+      sizingMode: "fixed-lots",
+      lots: "1",
+      stopLoss: "1.09900",
+      takeProfit: "1.10200",
+    });
+    const journalId = e.state.openPositions[0]!.journalId!;
+    closePosition(e, undefined, "0.5");
+    expect(updateTradeJournal(e, journalId, {
+      entryReason: "London breakout",
+      exitReview: "Followed the plan",
+      setupTags: ["breakout", "breakout"],
+      mistakeTags: [],
+      emotion: "Calm",
+      confidence: 4,
+      ruleChecklist: [{ id: "risk", label: "Risk defined", followed: true }],
+      validity: "valid",
+    })).toBe(true);
+    expect(e.state.openPositions[0]?.journal?.entryReason).toBe("London breakout");
+    expect(e.state.closedTrades[0]?.journal?.setupTags).toEqual(["breakout"]);
+  });
+
   it("closes manually and records realised P&L", () => {
     const candles = [
       c(0, "1.10000", "1.10010", "1.09990", "1.10000"),

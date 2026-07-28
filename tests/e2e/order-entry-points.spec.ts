@@ -1,0 +1,235 @@
+import { expect, test, type Page } from "@playwright/test";
+
+type TradingSettings = {
+  oneClickTrading?: boolean;
+  oneClickConfirmation?: boolean;
+};
+
+async function openSession(
+  page: Page,
+  settings: TradingSettings = {},
+) {
+  const sessionId = "order-entry-points-e2e";
+  const start = Date.UTC(2025, 0, 6, 8);
+  const replayCandles = Array.from({ length: 180 }, (_, index) => {
+    const open = 1.08 + index * 0.00001;
+    const close = open + (index % 2 ? -0.00004 : 0.00004);
+    return {
+      timestamp: start + index * 60_000,
+      open: open.toFixed(5),
+      high: (Math.max(open, close) + 0.00008).toFixed(5),
+      low: (Math.min(open, close) - 0.00008).toFixed(5),
+      close: close.toFixed(5),
+      volume: "100",
+      source: "e2e",
+    };
+  });
+  const state = {
+    sessionId,
+    config: {
+      name: "Order entry points",
+      symbols: ["EURUSD"],
+      symbol: "EURUSD",
+      baseCurrency: "EUR",
+      quoteCurrency: "USD",
+      timeframe: "1m",
+      startTime: start,
+      endTime: replayCandles.at(-1)!.timestamp,
+      startingBalance: "10000.00",
+      accountCurrency: "USD",
+      spreadPips: "1.0",
+      commissionPerLot: "0.00",
+      slippagePips: "0.0",
+      executionPolicy: "conservative",
+      pipSize: "0.0001",
+      pricePrecision: 5,
+      initialVisibleCount: 60,
+    },
+    status: "idle",
+    speed: 60,
+    visibleIndex: 59,
+    totalCandles: replayCandles.length,
+    balance: "10000.00",
+    equity: "10000.00",
+    maxEquity: "10000.00",
+    maxDrawdown: "0.00",
+    maxDrawdownPercent: "0.0",
+    currentPrice: replayCandles[59]!.close,
+    currentTime: replayCandles[59]!.timestamp,
+    openPositions: [],
+    closedTrades: [],
+    pendingOrders: [],
+    bookmarks: [],
+    equityCurve: [{
+      index: 59,
+      time: replayCandles[59]!.timestamp,
+      balance: "10000.00",
+      equity: "10000.00",
+    }],
+    lockedBeforeIndex: 0,
+    dataSource: "e2e",
+    demoData: false,
+    anonymous: true,
+  };
+
+  await page.route("**/api/backtest/trial", async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        sessionId,
+        token: "e2e-token",
+        state,
+        candles: replayCandles.slice(0, 60),
+        replayCandles,
+        contextCandles: [],
+      }),
+    });
+  });
+  await page.route("**/api/backtest/sessions/*/action", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, state, newCandle: null }),
+    });
+  });
+  await page.addInitScript(
+    ({ sessionId, settings }) => {
+      window.localStorage.setItem(
+        "forextestlab:onboarding:trading",
+        "done",
+      );
+      window.localStorage.setItem(
+        `forextestlab:chart-settings:${sessionId}`,
+        JSON.stringify(settings),
+      );
+    },
+    { sessionId, settings },
+  );
+  await page.setViewportSize({ width: 1500, height: 900 });
+  await page.goto("/app/backtest?trial=instant");
+  await expect(
+    page.getByRole("img", { name: "Candlestick price chart" }),
+  ).toBeVisible({ timeout: 30_000 });
+}
+
+test.beforeEach(({}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chromium",
+    "Desktop trading overlays are covered in Chromium.",
+  );
+});
+
+test("chart and replay quotes open the same draggable planner", async ({
+  page,
+}) => {
+  await openSession(page);
+
+  const panel = page.getByTestId("trade-order-panel");
+  await expect(panel).toBeHidden();
+
+  await page.getByRole("button", { name: /Buy plan at/i }).click();
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("trade-plan-overlay")).toHaveAttribute(
+    "data-direction",
+    "long",
+  );
+  await page.getByRole("button", { name: "Clear trade plan" }).click();
+
+  await page.getByRole("button", { name: "Quick Sell" }).click();
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("trade-plan-overlay")).toHaveAttribute(
+    "data-direction",
+    "short",
+  );
+  await expect(page.getByTestId("position-entry-line")).toHaveCount(0);
+  await page.getByRole("button", { name: "Clear trade plan" }).click();
+
+  await page.getByRole("button", { name: "Quick Buy" }).click();
+  await expect(panel).toBeVisible();
+  const placed = page.waitForResponse((response) => {
+    if (!response.url().includes("/action")) return false;
+    return (
+      response.request().postDataJSON() as {
+        type?: string;
+        direction?: string;
+      } | null
+    )?.type === "place-order" &&
+      (
+        response.request().postDataJSON() as {
+          direction?: string;
+        }
+      ).direction === "long";
+  });
+  await page
+    .getByRole("button", { name: /Buy.*EURUSD MARKET/i })
+    .click();
+  await placed;
+
+  await expect(panel).toBeHidden();
+  await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
+});
+
+test("replay quote honours one-click confirmation", async ({ page }) => {
+  await openSession(page, {
+    oneClickTrading: true,
+    oneClickConfirmation: true,
+  });
+
+  let orderRequests = 0;
+  page.on("request", (request) => {
+    if (!request.url().includes("/action")) return;
+    const action = request.postDataJSON() as { type?: string } | null;
+    if (action?.type === "place-order") orderRequests += 1;
+  });
+
+  await page.getByRole("button", { name: "Quick Sell" }).click();
+  const confirmation = page.getByRole("alertdialog");
+  await expect(confirmation).toBeVisible();
+  await expect(
+    confirmation.getByRole("heading", { name: "Sell at market?" }),
+  ).toBeVisible();
+  expect(orderRequests).toBe(0);
+  await expect(page.getByTestId("trade-order-panel")).toBeHidden();
+
+  const placed = page.waitForResponse((response) => {
+    if (!response.url().includes("/action")) return false;
+    const action = response.request().postDataJSON() as {
+      type?: string;
+      direction?: string;
+    } | null;
+    return action?.type === "place-order" && action.direction === "short";
+  });
+  await confirmation
+    .getByRole("button", { name: "Confirm sell" })
+    .click();
+  await placed;
+
+  await expect(confirmation).toBeHidden();
+  await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
+});
+
+test("replay quote places directly when confirmation is disabled", async ({
+  page,
+}) => {
+  await openSession(page, {
+    oneClickTrading: true,
+    oneClickConfirmation: false,
+  });
+
+  const placed = page.waitForResponse((response) => {
+    if (!response.url().includes("/action")) return false;
+    const action = response.request().postDataJSON() as {
+      type?: string;
+      direction?: string;
+    } | null;
+    return action?.type === "place-order" && action.direction === "long";
+  });
+  await page.getByRole("button", { name: "Quick Buy" }).click();
+  await placed;
+
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.getByTestId("trade-order-panel")).toBeHidden();
+  await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
+});

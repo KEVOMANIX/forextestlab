@@ -661,6 +661,10 @@ test("creates a trade journal with an entry snapshot", async ({ page }, testInfo
     await tour.waitFor({ state: "visible" });
     await tour.click();
   } else {
+    await page
+      .getByRole("button", { name: "Quick Buy", exact: true })
+      .click({ force: true });
+    await expect(page.getByTestId("trade-order-panel")).toBeVisible();
     await Promise.all([
       page.waitForResponse((response) => {
         if (!response.url().includes("/action")) return false;
@@ -669,7 +673,9 @@ test("creates a trade journal with an entry snapshot", async ({ page }, testInfo
           "place-order"
         );
       }),
-      page.getByRole("button", { name: "Quick Buy", exact: true }).click({ force: true }),
+      page
+        .getByRole("button", { name: /Buy.*EURUSD MARKET/i })
+        .click(),
     ]);
   }
 

@@ -13,7 +13,6 @@ import {
   Star,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Attachment = {
@@ -543,8 +542,7 @@ export function SupportChatWidget() {
                     <Send size={15} />
                   </button>
                 </form>
-                <div className="mt-2 flex items-center justify-between">
-                  <Link href="/app/support" className="text-[9px] text-brand-300 hover:underline">Open full support inbox</Link>
+                <div className="mt-2 flex items-center justify-end">
                   <button type="button" onClick={async () => {
                     if (typeof Notification === "undefined") return;
                     const permission = await Notification.requestPermission();

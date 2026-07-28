@@ -33,6 +33,7 @@ import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { WorkspaceManager } from "./WorkspaceManager";
 import { BacktestExperiencePanel } from "./BacktestExperiencePanel";
 import { tradingGuardMessage } from "@/lib/backtest/trade-guards";
+import type { ReplayDiagnosticsSource } from "./ReplayDiagnosticsPanel";
 
 type PendingConfirmation = {
   title: string;
@@ -407,6 +408,16 @@ export function Backtester({
   }
 
   const position = state.openPositions.find((item) => item.id === selectedPositionId) ?? state.openPositions.at(-1) ?? null;
+  const replayDiagnostics: ReplayDiagnosticsSource = {
+    sessionId: String(state.sessionId),
+    status: state.status,
+    speed: state.speed,
+    currentTime: state.currentTime,
+    visibleIndex: state.visibleIndex,
+    totalCandles: state.totalCandles,
+    stepMinutes: bt.replayStepMinutes,
+    saveStatus: bt.saveStatus,
+  };
   const chartStop = position?.stopLoss ?? null;
   const chartTarget = position?.takeProfit ?? null;
 
@@ -520,7 +531,7 @@ export function Backtester({
         onRetrySave={actions.retrySave}
         endControls={
           <div className="flex shrink-0 items-center gap-1">
-            <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
+            <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} diagnostics={replayDiagnostics} />
             <WorkspaceManager workspace={workspace} signedIn={!state.anonymous} />
             <div ref={setChartLayoutSlot} className="flex shrink-0 items-center" />
           </div>
@@ -531,7 +542,7 @@ export function Backtester({
 
       {workspace.settings.distractionFree && (
         <div className="absolute right-3 top-3 z-50 flex items-center gap-2">
-          <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
+          <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} diagnostics={replayDiagnostics} />
           <button type="button" onClick={() => workspace.updateSettings({ distractionFree: false })} className="rounded-lg border app-border bg-[var(--app-panel)]/90 px-3 py-2 text-xs font-semibold shadow-xl backdrop-blur">
             Exit focus mode
           </button>

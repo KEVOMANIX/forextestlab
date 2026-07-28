@@ -233,3 +233,49 @@ test("replay quote places directly when confirmation is disabled", async ({
   await expect(page.getByTestId("trade-order-panel")).toBeHidden();
   await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
 });
+
+test("diagnostics measures replay without replacing its controls", async ({
+  page,
+}) => {
+  await openSession(page);
+
+  const counter = page.getByText(/Candle \d+ of \d+/);
+  const before = await counter.textContent();
+  await page
+    .getByRole("button", { name: "Trading experience settings" })
+    .click();
+  const experience = page.getByRole("dialog", {
+    name: "Trading experience settings",
+  });
+  await expect(experience).toBeVisible();
+  await experience
+    .getByRole("button", { name: /Replay diagnostics/i })
+    .click();
+
+  const diagnostics = page.getByTestId("replay-diagnostics");
+  await expect(diagnostics).toBeVisible();
+  await expect(
+    diagnostics.getByTestId("diagnostics-requested-rate"),
+  ).toHaveText("1.0m/s");
+  await expect(
+    diagnostics.getByTestId("diagnostics-fps"),
+  ).toHaveText(/\d+ FPS/);
+  await expect(
+    page.getByRole("button", { name: "Play replay" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Play replay" }).click();
+  await expect(counter).not.toHaveText(before ?? "", { timeout: 4_000 });
+  await expect(
+    diagnostics.getByTestId("diagnostics-observed-rate"),
+  ).not.toHaveText(/Paused|Sampling/, { timeout: 4_000 });
+
+  await page.getByRole("button", { name: "Pause replay" }).click();
+  await expect(
+    page.getByRole("button", { name: "Play replay" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Close replay diagnostics" })
+    .click();
+  await expect(diagnostics).toBeHidden();
+});

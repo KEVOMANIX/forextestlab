@@ -42,6 +42,7 @@ function state(
     currentPrice: "1.10000",
     currentTime: 1,
     openPositions: [],
+    pendingOrders: [],
     closedTrades: [],
     equityCurve: [],
     lockedBeforeIndex: -1,

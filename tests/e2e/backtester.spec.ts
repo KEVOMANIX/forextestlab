@@ -277,6 +277,73 @@ test("builds and places a chart-connected trade plan", async ({ page }, testInfo
   await expect(page.getByTestId("trade-line-key")).toContainText("Active");
 });
 
+test("places, modifies and cancels a pending order from the chart", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  await startSession(page);
+
+  await page.getByRole("button", { name: /Buy plan/i }).click();
+  await page.getByRole("tab", { name: "limit" }).click();
+  await expect(page.getByLabel("Pending order expiry")).toBeVisible();
+  await page.getByLabel("Pending order expiry").selectOption("60");
+
+  const placeResponse = page.waitForResponse((response) => {
+    if (!response.url().includes("/action")) return false;
+    const action = response.request().postDataJSON() as {
+      type?: string;
+      orderType?: string;
+      expiresAt?: number;
+    } | null;
+    return action?.type === "place-order" &&
+      action.orderType === "limit" &&
+      typeof action.expiresAt === "number";
+  });
+  await page.getByRole("button", { name: /Buy.*EURUSD LIMIT/i }).click();
+  await placeResponse;
+
+  const line = page.getByTestId("pending-order-line");
+  await expect(line).toBeVisible();
+  await expect(line).toHaveAttribute("data-line-state", "pending");
+  await expect(line).toContainText("PENDING · BUY LIMIT");
+  await expect(page.getByTestId("position-entry-line")).toHaveCount(0);
+
+  if (testInfo.project.name === "chromium") {
+    const box = await line.boundingBox();
+    expect(box).not.toBeNull();
+    const modifyResponse = page.waitForResponse((response) => {
+      if (!response.url().includes("/action")) return false;
+      return (
+        response.request().postDataJSON() as { type?: string } | null
+      )?.type === "modify-pending";
+    });
+    await page.mouse.move(box!.x + box!.width * 0.4, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      box!.x + box!.width * 0.4,
+      box!.y + box!.height / 2 + 25,
+      { steps: 6 },
+    );
+    await page.mouse.up();
+    await modifyResponse;
+  }
+
+  await page.getByRole("tab", { name: /Pending Orders/i }).click();
+  await expect(page.getByRole("tabpanel")).toContainText("pending");
+  await expect(page.getByRole("tabpanel")).toContainText("limit");
+
+  const cancelResponse = page.waitForResponse((response) => {
+    if (!response.url().includes("/action")) return false;
+    return (
+      response.request().postDataJSON() as { type?: string } | null
+    )?.type === "cancel-pending";
+  });
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await cancelResponse;
+  await expect(page.getByTestId("pending-order-line")).toHaveCount(0);
+  await expect(page.getByRole("tabpanel")).toContainText("cancelled");
+});
+
 test("loads pre-start context without moving the replay start", async ({ page }) => {
   const selectedStart = Date.parse("2024-03-05T00:00:00Z");
   const response = await page.request.post("/api/backtest/sessions", {

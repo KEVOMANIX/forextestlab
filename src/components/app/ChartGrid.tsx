@@ -6,7 +6,7 @@ import { Columns2, Grid2X2, Rows2, Square, LayoutPanelLeft } from "lucide-react"
 
 import type { PairChartData } from "@/lib/backtest/client";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
-import type { OpenPosition, PublicSessionState } from "@/lib/backtest/types";
+import type { OpenPosition, PendingOrder, PublicSessionState } from "@/lib/backtest/types";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
 
 import PriceChart, { type ChartMarker } from "./PriceChart";
@@ -99,6 +99,9 @@ interface ChartGridProps {
   onNeedSymbol: (symbol: string) => void;
   markers: ChartMarker[];
   positions: OpenPosition[];
+  pendingOrders: PendingOrder[];
+  onModifyPendingOrder: (orderId: string, price: string) => void;
+  onCancelPendingOrder: (orderId: string) => void;
   activePositionId: string | null;
   onEditPosition: (positionId: string) => void;
   stopLoss: number | null;
@@ -140,6 +143,9 @@ export default function ChartGrid({
   onNeedSymbol,
   markers,
   positions,
+  pendingOrders,
+  onModifyPendingOrder,
+  onCancelPendingOrder,
   activePositionId,
   onEditPosition,
   stopLoss,
@@ -347,6 +353,9 @@ export default function ChartGrid({
                 sessionContextCandles={sessionContextCandles}
                 markers={markers}
                 positions={positions}
+                pendingOrders={pendingOrders}
+                onModifyPendingOrder={onModifyPendingOrder}
+                onCancelPendingOrder={onCancelPendingOrder}
                 activePositionId={activePositionId}
                 onEditPosition={onEditPosition}
                 stopLoss={stopLoss}
@@ -385,6 +394,9 @@ interface ChartCellViewProps {
   sessionContextCandles: Candle[];
   markers: ChartMarker[];
   positions: OpenPosition[];
+  pendingOrders: PendingOrder[];
+  onModifyPendingOrder: (orderId: string, price: string) => void;
+  onCancelPendingOrder: (orderId: string) => void;
   activePositionId: string | null;
   onEditPosition: (positionId: string) => void;
   stopLoss: number | null;
@@ -423,6 +435,9 @@ function ChartCellView({
   sessionContextCandles,
   markers,
   positions,
+  pendingOrders,
+  onModifyPendingOrder,
+  onCancelPendingOrder,
   activePositionId,
   onEditPosition,
   stopLoss,
@@ -469,6 +484,9 @@ function ChartCellView({
         lastCandles={reveal.newCandles}
         markers={tradable ? markers : []}
         positions={tradable ? positions : []}
+        pendingOrders={tradable ? pendingOrders : []}
+        onModifyPendingOrder={tradable ? onModifyPendingOrder : noop}
+        onCancelPendingOrder={tradable ? onCancelPendingOrder : noop}
         activePositionId={tradable ? activePositionId : null}
         onEditPosition={onEditPosition}
         stopLoss={tradable ? stopLoss : null}

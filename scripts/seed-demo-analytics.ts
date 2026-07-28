@@ -296,6 +296,7 @@ function generate() {
     maxDrawdown: maxDrawdown.toFixed(2),
     maxDrawdownPercent: maxDrawdownPercent.toFixed(1),
     openPositions: [],
+    pendingOrders: [],
     closedTrades: trades,
     equityCurve: equity,
     lockedBeforeIndex: trades[0]?.entryIndex ?? 0,

@@ -9,6 +9,9 @@ import {
 } from "@/lib/backtest/session-store";
 import {
   closePosition,
+  cancelPendingOrder,
+  expirePendingOrders,
+  modifyPendingOrder,
   modifyStopLoss,
   modifyTakeProfit,
   modifyTrailingStop,
@@ -121,6 +124,7 @@ export async function POST(
       break;
     case "end":
       while (ctx.state.openPositions.length > 0) closePosition(ctx);
+      expirePendingOrders(ctx);
       setStatus(ctx, "finished");
       ctx.state.status = "finished";
       break;
@@ -131,7 +135,11 @@ export async function POST(
     }
     case "place-order": {
       const r = placeOrder(ctx, {
+        clientOrderId: action.clientOrderId,
         direction: action.direction,
+        orderType: action.orderType,
+        entryPrice: action.entryPrice,
+        expiresAt: action.expiresAt,
         sizingMode: action.sizingMode,
         lots: action.lots,
         riskPercent: action.riskPercent,
@@ -142,7 +150,7 @@ export async function POST(
         opError = r.error;
       } else {
         const pos = ctx.state.openPositions.at(-1);
-        if (pos) {
+        if (pos && (action.orderType ?? "market") === "market") {
           orderProjection = prisma.simulatedOrder.create({
             data: {
               sessionId: session.id,
@@ -157,6 +165,16 @@ export async function POST(
           });
         }
       }
+      break;
+    }
+    case "modify-pending": {
+      const r = modifyPendingOrder(ctx, action.orderId, action.price);
+      if (!r.ok) opError = r.error;
+      break;
+    }
+    case "cancel-pending": {
+      const r = cancelPendingOrder(ctx, action.orderId);
+      if (!r.ok) opError = r.error;
       break;
     }
     case "modify-stop": {

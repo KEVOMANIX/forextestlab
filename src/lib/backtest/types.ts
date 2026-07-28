@@ -60,6 +60,9 @@ export type ExitReason =
   | "session-end";
 
 export type PositionSizingMode = "fixed-lots" | "risk-percent";
+export type OrderType = "market" | "limit" | "stop";
+export type PendingOrderType = Exclude<OrderType, "market">;
+export type PendingOrderStatus = "pending" | "activated" | "cancelled" | "expired";
 
 /** Immutable configuration chosen when a session is created. */
 export interface SessionConfig {
@@ -97,7 +100,14 @@ export interface SessionConfig {
 }
 
 export interface OrderRequest {
+  /** Shared by optimistic browser execution and the server checkpoint. */
+  clientOrderId?: string;
   direction: TradeDirection;
+  orderType?: OrderType;
+  /** Required for limit and stop orders. */
+  entryPrice?: string;
+  /** Market timestamp after which an unfilled order expires. */
+  expiresAt?: number;
   sizingMode: PositionSizingMode;
   /** Used when sizingMode === "fixed-lots". */
   lots?: string;
@@ -105,6 +115,28 @@ export interface OrderRequest {
   riskPercent?: string;
   stopLoss?: string;
   takeProfit?: string;
+}
+
+export interface PendingOrder {
+  id: string;
+  direction: TradeDirection;
+  orderType: PendingOrderType;
+  entryPrice: string;
+  sizingMode: PositionSizingMode;
+  lots: string;
+  riskPercent?: string;
+  stopLoss: string | null;
+  takeProfit: string | null;
+  expiresAt: number | null;
+  status: PendingOrderStatus;
+  createdIndex: number;
+  createdTime: number;
+  updatedTime: number;
+  activatedTime: number | null;
+  cancelledTime: number | null;
+  expiredTime: number | null;
+  fillPrice: string | null;
+  activatedPositionId: string | null;
 }
 
 export interface OpenPosition {
@@ -182,6 +214,7 @@ export interface SessionState {
   maxDrawdown: string;
   maxDrawdownPercent: string;
   openPositions: OpenPosition[];
+  pendingOrders: PendingOrder[];
   closedTrades: ClosedTrade[];
   equityCurve: EquityPoint[];
   /** Index after which stepping backwards is disallowed (a trade was placed). */
@@ -206,6 +239,7 @@ export interface PublicSessionState {
   currentPrice: string | null;
   currentTime: number | null;
   openPositions: OpenPosition[];
+  pendingOrders: PendingOrder[];
   closedTrades: ClosedTrade[];
   equityCurve: EquityPoint[];
   lockedBeforeIndex: number;

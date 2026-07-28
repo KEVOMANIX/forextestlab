@@ -4,10 +4,12 @@ import type { Candle } from "@/lib/market-data/types";
 import type { EngineContext, SessionConfig } from "./types";
 import {
   closePosition,
+  cancelPendingOrder,
   createSessionState,
   modifyStopLoss,
   modifyTakeProfit,
   modifyTrailingStop,
+  modifyPendingOrder,
   placeOrder,
   restart,
   revealNext,
@@ -73,6 +75,93 @@ describe("replay indexing", () => {
 });
 
 describe("orders and step-back locking", () => {
+  it("activates limit and stop orders only when their executable quote is touched", () => {
+    const candles = [
+      c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+      c(1, "1.10000", "1.10020", "1.09880", "1.09920"),
+      c(2, "1.09920", "1.10220", "1.09910", "1.10200"),
+    ];
+    const e = ctx(candles);
+    expect(placeOrder(e, {
+      direction: "long",
+      orderType: "limit",
+      entryPrice: "1.09900",
+      sizingMode: "fixed-lots",
+      lots: "0.5",
+    }).ok).toBe(true);
+    expect(placeOrder(e, {
+      direction: "long",
+      orderType: "stop",
+      entryPrice: "1.10100",
+      sizingMode: "fixed-lots",
+      lots: "0.25",
+    }).ok).toBe(true);
+    expect(e.state.openPositions).toHaveLength(0);
+
+    revealNext(e);
+    expect(e.state.pendingOrders[0]?.status).toBe("activated");
+    expect(e.state.pendingOrders[1]?.status).toBe("pending");
+    expect(e.state.openPositions[0]?.entryPrice).toBe("1.09900");
+    expect(e.state.openPositions[0]?.id).toBe(
+      `${e.state.pendingOrders[0]?.id}:position`,
+    );
+
+    revealNext(e);
+    expect(e.state.pendingOrders[1]?.status).toBe("activated");
+    expect(e.state.openPositions[1]?.entryPrice).toBe("1.10100");
+  });
+
+  it("fills a stop at the opening quote when a candle gaps through it", () => {
+    const e = ctx([
+      c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+      c(1, "1.10300", "1.10400", "1.10250", "1.10350"),
+    ]);
+    placeOrder(e, {
+      direction: "long",
+      orderType: "stop",
+      entryPrice: "1.10100",
+      sizingMode: "fixed-lots",
+      lots: "1",
+    });
+    revealNext(e);
+    expect(e.state.pendingOrders[0]?.fillPrice).toBe("1.10300");
+    expect(e.state.openPositions[0]?.entryPrice).toBe("1.10300");
+  });
+
+  it("modifies, cancels and expires pending orders with timestamps", () => {
+    const e = ctx([
+      c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+      c(60_000, "1.10000", "1.10010", "1.09990", "1.10000"),
+    ]);
+    placeOrder(e, {
+      direction: "long",
+      orderType: "limit",
+      entryPrice: "1.09800",
+      expiresAt: 60_000,
+      sizingMode: "fixed-lots",
+      lots: "1",
+    });
+    const expiring = e.state.pendingOrders[0]!;
+    expect(modifyPendingOrder(e, expiring.id, "1.09850").ok).toBe(true);
+    expect(expiring.entryPrice).toBe("1.09850");
+
+    placeOrder(e, {
+      direction: "short",
+      orderType: "limit",
+      entryPrice: "1.10200",
+      sizingMode: "fixed-lots",
+      lots: "1",
+    });
+    const cancelled = e.state.pendingOrders[1]!;
+    expect(cancelPendingOrder(e, cancelled.id).ok).toBe(true);
+    expect(cancelled.status).toBe("cancelled");
+    expect(cancelled.cancelledTime).toBe(0);
+
+    revealNext(e);
+    expect(expiring.status).toBe("expired");
+    expect(expiring.expiredTime).toBe(60_000);
+  });
+
   it("opens multiple independent positions", () => {
     const e = ctx(FLAT);
     expect(placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" }).ok).toBe(true);

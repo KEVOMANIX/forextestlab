@@ -82,7 +82,12 @@ export function Backtester({
   const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
   const autoTrialAttemptedRef = useRef(false);
-  const notificationStateRef = useRef<{ sessionId: string | null; openIds: Set<string>; closedCount: number }>({ sessionId: null, openIds: new Set(), closedCount: 0 });
+  const notificationStateRef = useRef<{
+    sessionId: string | null;
+    openIds: Set<string>;
+    closedCount: number;
+    pendingStatuses: Map<string, string>;
+  }>({ sessionId: null, openIds: new Set(), closedCount: 0, pendingStatuses: new Map() });
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
   const [orderTemplate, setOrderTemplate] = useState<Omit<OrderRequest, "direction">>({
@@ -90,7 +95,7 @@ export function Backtester({
     lots: "0.10",
   });
   const hasMeaningfulActivity = Boolean(
-    state?.openPositions.length || state?.closedTrades.length,
+    state?.openPositions.length || state?.closedTrades.length || state?.pendingOrders.length,
   );
   const launchTrial = useCallback(async () => {
     const started = await actions.startTrialSession();
@@ -167,8 +172,11 @@ export function Backtester({
     if (!state) return;
     const previous = notificationStateRef.current;
     const currentIds = new Set(state.openPositions.map((position) => position.id));
+    const pendingStatuses = new Map(
+      state.pendingOrders.map((order) => [order.id, order.status]),
+    );
     if (previous.sessionId !== state.sessionId) {
-      notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length };
+      notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length, pendingStatuses };
       return;
     }
     const added = state.openPositions.filter((position) => !previous.openIds.has(position.id));
@@ -186,6 +194,26 @@ export function Backtester({
         detail: `${state.config.symbol}, ${trade.lots} lot, exit ${trade.exitPrice}, P&L ${trade.pnl}`,
         tone: "closed" as const,
       })),
+      ...state.pendingOrders
+        .filter((order) => {
+          const oldStatus = previous.pendingStatuses.get(order.id);
+          return oldStatus === "pending" &&
+            (order.status === "activated" || order.status === "expired");
+        })
+        .map((order) => ({
+          id: `pending-${order.id}-${order.status}-${Date.now()}`,
+          title:
+            order.status === "activated"
+              ? `${order.direction === "long" ? "Buy" : "Sell"} ${order.orderType} activated`
+              : "Pending order expired",
+          detail:
+            order.status === "activated"
+              ? `${state.config.symbol}, ${order.lots} lot filled at ${order.fillPrice}`
+              : `${state.config.symbol} ${order.direction === "long" ? "buy" : "sell"} ${order.orderType} at ${order.entryPrice}`,
+          tone: (order.status === "activated"
+            ? order.direction
+            : "closed") as TradeNotification["tone"],
+        })),
     ];
     if (added.length > 0) setSelectedPositionId(added.at(-1)?.id ?? null);
     if (nextNotifications.length > 0) {
@@ -194,7 +222,7 @@ export function Backtester({
         window.setTimeout(() => setNotifications((current) => current.filter((item) => item.id !== notification.id)), 4_500);
       }
     }
-    notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length };
+    notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length, pendingStatuses };
   }, [state]);
 
   const markers = useMemo<ChartMarker[]>(() => {
@@ -387,6 +415,13 @@ export function Backtester({
             onNeedSymbol={actions.ensurePair}
             markers={markers}
             positions={state.openPositions}
+            pendingOrders={state.pendingOrders}
+            onModifyPendingOrder={(orderId, price) =>
+              void actions.modifyPending(orderId, price)
+            }
+            onCancelPendingOrder={(orderId) =>
+              void actions.cancelPending(orderId)
+            }
             activePositionId={position?.id ?? null}
             onEditPosition={(positionId) => {
               setSelectedPositionId(positionId);
@@ -461,6 +496,7 @@ export function Backtester({
         initialNotes={bt.notes}
         onSaveNotes={actions.saveNotes}
         busy={bt.busy}
+        onCancelPending={(orderId) => void actions.cancelPending(orderId)}
       />
       <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
       <PositionEditorModal

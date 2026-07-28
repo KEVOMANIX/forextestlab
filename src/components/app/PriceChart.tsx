@@ -73,7 +73,7 @@ import {
   type Candle,
   type Timeframe,
 } from "@/lib/market-data/types";
-import type { OpenPosition } from "@/lib/backtest/types";
+import type { OpenPosition, PendingOrder } from "@/lib/backtest/types";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
 import { heikinAshi, type OHLCV } from "@/lib/chart/indicators";
 import { TOOL_LABELS, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
@@ -145,6 +145,9 @@ interface PriceChartProps {
   lastCandles: Candle[];
   markers: ChartMarker[];
   positions: OpenPosition[];
+  pendingOrders: PendingOrder[];
+  onModifyPendingOrder: (orderId: string, price: string) => void;
+  onCancelPendingOrder: (orderId: string) => void;
   activePositionId: string | null;
   onEditPosition: (positionId: string) => void;
   stopLoss: number | null;
@@ -448,6 +451,9 @@ export default function PriceChart({
   lastCandles,
   markers,
   positions,
+  pendingOrders,
+  onModifyPendingOrder,
+  onCancelPendingOrder,
   activePositionId,
   onEditPosition,
   stopLoss,
@@ -495,9 +501,12 @@ export default function PriceChart({
   const livePriceLineRef = useRef<IPriceLine | null>(null);
   const positionLinesRef = useRef<Map<string, IPriceLine>>(new Map());
   const positionsRef = useRef<OpenPosition[]>(positions);
+  const pendingOrdersRef = useRef<PendingOrder[]>(pendingOrders);
   const stopLineElRef = useRef<HTMLElement | null>(null);
   const targetLineElRef = useRef<HTMLElement | null>(null);
   const entryLineElsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const pendingLineElsRef = useRef<Map<string, HTMLElement>>(new Map());
+  const pendingDragRef = useRef<{ orderId: string; price: number } | null>(null);
   const stopDraftRef = useRef<number | null>(stopLoss);
   const targetDraftRef = useRef<number | null>(takeProfit);
   const protectionDragRef = useRef<{
@@ -591,6 +600,7 @@ export default function PriceChart({
   const [olderHistoryLoading, setOlderHistoryLoading] = useState(false);
   const [hasOlderHistory, setHasOlderHistory] = useState(true);
   positionsRef.current = positions;
+  pendingOrdersRef.current = pendingOrders;
   chartTypeRef.current = chartType;
   stopDraftRef.current = stopDraft;
   targetDraftRef.current = targetDraft;
@@ -686,6 +696,17 @@ export default function PriceChart({
     placeLine(targetLineElRef.current, priceCoordinate(targetDraftRef.current));
     for (const position of positionsRef.current) {
       placeLine(entryLineElsRef.current.get(position.id) ?? null, priceCoordinate(Number(position.entryPrice)));
+    }
+    for (const order of pendingOrdersRef.current) {
+      if (order.status !== "pending") continue;
+      placeLine(
+        pendingLineElsRef.current.get(order.id) ?? null,
+        priceCoordinate(
+          pendingDragRef.current?.orderId === order.id
+            ? pendingDragRef.current.price
+            : Number(order.entryPrice),
+        ),
+      );
     }
   }
 
@@ -1410,6 +1431,38 @@ export default function PriceChart({
     else onTakeProfitChange(price == null ? null : price.toFixed(precision));
   }
 
+  function beginPendingDrag(
+    order: PendingOrder,
+    event: React.PointerEvent<HTMLElement>,
+  ) {
+    if (event.button !== 0 || (event.target as HTMLElement).closest("button")) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pendingDragRef.current = { orderId: order.id, price: Number(order.entryPrice) };
+  }
+
+  function movePendingDrag(event: React.PointerEvent<HTMLElement>) {
+    const drag = pendingDragRef.current;
+    const container = containerRef.current;
+    const series = seriesRef.current;
+    if (!drag || !container || !series) return;
+    const bounds = container.getBoundingClientRect();
+    const price = series.coordinateToPrice(event.clientY - bounds.top);
+    if (price == null) return;
+    drag.price = price;
+    updateLineCoordinates();
+  }
+
+  function endPendingDrag(event: React.PointerEvent<HTMLElement>) {
+    const drag = pendingDragRef.current;
+    if (!drag) return;
+    pendingDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    onModifyPendingOrder(drag.orderId, drag.price.toFixed(precision));
+  }
+
   function beginProtectionDrag(
     kind: "stop" | "target",
     position: OpenPosition,
@@ -1594,7 +1647,9 @@ export default function PriceChart({
   }
   drawingsActiveRef.current = drawTool != null || drawCount > 0;
   viewportOverlaysRef.current =
-    overlayIndicators.length > 0 || tradePlan != null;
+    overlayIndicators.length > 0 ||
+    tradePlan != null ||
+    pendingOrders.some((order) => order.status === "pending");
 
   useEffect(() => {
     drawingEngineRef.current?.setHideAll(!settings.drawings);
@@ -1901,7 +1956,7 @@ export default function PriceChart({
           );
         })}
 
-        {(tradePlan || positions.length > 0) && (
+        {(tradePlan || positions.length > 0 || pendingOrders.some((order) => order.status === "pending")) && (
           <div
             data-testid="trade-line-key"
             className="pointer-events-none absolute bottom-7 left-3 z-10 flex items-center gap-3 rounded border app-border bg-[var(--app-panel-solid)]/90 px-2 py-1 text-[9px] font-bold uppercase tracking-wide app-muted shadow"
@@ -1921,6 +1976,49 @@ export default function PriceChart({
             </span>
           </div>
         )}
+
+        {pendingOrders.filter((order) => order.status === "pending").map((order) => (
+          <div
+            key={order.id}
+            data-testid="pending-order-line"
+            data-line-state="pending"
+            ref={(element) => {
+              if (!element) {
+                pendingLineElsRef.current.delete(order.id);
+                return;
+              }
+              pendingLineElsRef.current.set(order.id, element);
+              placeLine(element, priceCoordinate(Number(order.entryPrice)));
+            }}
+            onPointerDown={(event) => beginPendingDrag(order, event)}
+            onPointerMove={movePendingDrag}
+            onPointerUp={endPendingDrag}
+            onPointerCancel={endPendingDrag}
+            className="absolute left-0 right-16 z-30 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dotted border-amber-400"
+            style={{ top: 0, visibility: "hidden" }}
+            aria-label={`Drag ${order.direction === "long" ? "buy" : "sell"} ${order.orderType} order at ${order.entryPrice}`}
+          >
+            <span className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[10px] font-bold shadow-lg">
+              <span className="h-full border-r border-amber-400/50 bg-amber-400/10 px-2 leading-7 text-amber-300">
+                PENDING · {order.direction === "long" ? "BUY" : "SELL"} {order.orderType.toUpperCase()}
+              </span>
+              <span className="h-full border-r border-amber-400/50 px-2 leading-7 text-amber-300">
+                {order.lots} · {order.entryPrice}
+              </span>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCancelPendingOrder(order.id);
+                }}
+                className="grid h-full w-7 place-items-center hover:bg-bear/15 hover:text-bear"
+                aria-label="Cancel pending order"
+              >
+                <X size={12} aria-hidden />
+              </button>
+            </span>
+          </div>
+        ))}
 
         {(settings.positionLines ? positions : []).map((position) => {
           const isLong = position.direction === "long";

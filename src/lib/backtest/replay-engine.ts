@@ -27,6 +27,7 @@ import type {
   EngineContext,
   ExitReason,
   OpenPosition,
+  PendingOrder,
   OrderRequest,
   ReplaySpeed,
   PublicSessionState,
@@ -51,6 +52,7 @@ export function normalizeSessionState(state: SessionState): SessionState {
     state.openPositions = legacy.openPosition ? [legacy.openPosition] : [];
   }
   delete legacy.openPosition;
+  state.pendingOrders ??= [];
   for (const position of state.openPositions) {
     position.initialStopLoss ??= position.stopLoss;
     position.initialTakeProfit ??= position.takeProfit;
@@ -132,6 +134,7 @@ export function createSessionState(
     maxDrawdown: "0.00",
     maxDrawdownPercent: "0.0",
     openPositions: [],
+    pendingOrders: [],
     closedTrades: [],
     equityCurve: startCandle
       ? [
@@ -381,6 +384,13 @@ export function revealNext(ctx: EngineContext): boolean {
         closeAt(ctx, position.id, price, "session-end", false);
       }
     }
+    const finalTime = currentCandle(ctx)?.timestamp ?? state.config.endTime;
+    for (const order of state.pendingOrders) {
+      if (order.status !== "pending") continue;
+      order.status = "expired";
+      order.expiredTime = finalTime;
+      order.updatedTime = finalTime;
+    }
     state.status = "finished";
     recomputeEquity(ctx, false);
     return false;
@@ -390,6 +400,7 @@ export function revealNext(ctx: EngineContext): boolean {
   const candle = candles[state.visibleIndex];
 
   if (candle) {
+    processPendingOrders(ctx, candle);
     for (const position of [...state.openPositions]) {
       updateExcursion(ctx, position, candle);
       const hit = checkStopTakeProfit(
@@ -423,6 +434,7 @@ export function stepBack(ctx: EngineContext): boolean {
   const canStep =
     state.closedTrades.length === 0 &&
     state.openPositions.length === 0 &&
+    !state.pendingOrders.some((order) => order.status === "pending") &&
     state.visibleIndex > floor &&
     state.visibleIndex > state.lockedBeforeIndex;
   if (!canStep) return false;
@@ -467,6 +479,140 @@ export interface PlaceOrderResult {
 
 export interface PositionPreviewResult extends PlaceOrderResult {
   position?: OpenPosition;
+}
+
+function pendingExecutablePrices(
+  ctx: EngineContext,
+  candle: Candle,
+  order: PendingOrder,
+): { touched: boolean; fillPrice: string | null } {
+  const prices = deriveBidAsk(
+    candle,
+    ctx.state.config.spreadPips,
+    ctx.state.config.pipSize,
+  );
+  const requested = d(order.entryPrice);
+  const isBuy = order.direction === "long";
+  const open = isBuy ? prices.askOpen : prices.bidOpen;
+  const high = isBuy ? prices.askHigh : prices.bidHigh;
+  const low = isBuy ? prices.askLow : prices.bidLow;
+  const gapThrough =
+    order.orderType === "limit"
+      ? isBuy
+        ? open.lessThanOrEqualTo(requested)
+        : open.greaterThanOrEqualTo(requested)
+      : isBuy
+        ? open.greaterThanOrEqualTo(requested)
+        : open.lessThanOrEqualTo(requested);
+  const touched =
+    gapThrough ||
+    (order.orderType === "limit"
+      ? isBuy
+        ? low.lessThanOrEqualTo(requested)
+        : high.greaterThanOrEqualTo(requested)
+      : isBuy
+        ? high.greaterThanOrEqualTo(requested)
+        : low.lessThanOrEqualTo(requested));
+  if (!touched) return { touched: false, fillPrice: null };
+
+  // Gap rule: execute at the first tradable opening quote. Intrabar touches
+  // execute at the requested level; stop orders therefore preserve realistic
+  // adverse gap slippage and limit orders receive favorable opening improvement.
+  const rawFill = gapThrough ? open : requested;
+  const slippage = d(ctx.state.config.slippagePips).times(
+    ctx.state.config.pipSize,
+  );
+  const fill =
+    order.orderType === "stop"
+      ? isBuy
+        ? rawFill.plus(slippage)
+        : rawFill.minus(slippage)
+      : rawFill;
+  return {
+    touched: true,
+    fillPrice: fill.toFixed(ctx.state.config.pricePrecision),
+  };
+}
+
+function activatePendingOrder(
+  ctx: EngineContext,
+  order: PendingOrder,
+  candle: Candle,
+  fillPrice: string,
+): void {
+  const commission = commissionForLots(
+    ctx.state.config.commissionPerLot,
+    order.lots,
+  );
+  const initialRiskAmount = order.stopLoss
+    ? d(
+        computePnl({
+          direction: order.direction,
+          entryPrice: fillPrice,
+          exitPrice: order.stopLoss,
+          lots: order.lots,
+          pipSize: ctx.state.config.pipSize,
+          pipValueAccountPerLot: pipValueAccountPerLot(
+            ctx.state.config,
+            order.stopLoss,
+          ),
+          commission,
+        }).pnl,
+      )
+        .abs()
+        .toFixed(2)
+    : null;
+  const position: OpenPosition = {
+    id: `${order.id}:position`,
+    direction: order.direction,
+    entryPrice: fillPrice,
+    entryIndex: ctx.state.visibleIndex,
+    entryTime: candle.timestamp,
+    lots: order.lots,
+    stopLoss: order.stopLoss,
+    takeProfit: order.takeProfit,
+    initialStopLoss: order.stopLoss,
+    initialTakeProfit: order.takeProfit,
+    initialRiskAmount,
+    trailingStopPips: null,
+    trailingBestPrice: null,
+    maxFavorablePnl: "0.00",
+    maxAdversePnl: "0.00",
+    commission,
+    unrealizedPnl: "0.00",
+  };
+  ctx.state.openPositions.push(position);
+  order.status = "activated";
+  order.fillPrice = fillPrice;
+  order.activatedTime = candle.timestamp;
+  order.updatedTime = candle.timestamp;
+  order.activatedPositionId = position.id;
+}
+
+function processPendingOrders(ctx: EngineContext, candle: Candle): void {
+  for (const order of ctx.state.pendingOrders) {
+    if (order.status !== "pending") continue;
+    if (order.expiresAt != null && candle.timestamp >= order.expiresAt) {
+      order.status = "expired";
+      order.expiredTime = candle.timestamp;
+      order.updatedTime = candle.timestamp;
+      continue;
+    }
+    const result = pendingExecutablePrices(ctx, candle, order);
+    if (result.touched && result.fillPrice) {
+      activatePendingOrder(ctx, order, candle, result.fillPrice);
+    }
+  }
+}
+
+export function expirePendingOrders(ctx: EngineContext): void {
+  const time = currentCandle(ctx)?.timestamp ?? ctx.state.config.endTime;
+  for (const order of ctx.state.pendingOrders) {
+    if (order.status !== "pending") continue;
+    order.status = "expired";
+    order.expiredTime = time;
+    order.updatedTime = time;
+  }
 }
 
 /** Build the exact server fill immediately for optimistic client feedback. */
@@ -552,12 +698,128 @@ export function placeOrder(
   }
   const candle = currentCandle(ctx);
   if (!candle) return { ok: false, error: "No current candle." };
+  const orderType = req.orderType ?? "market";
+  if (orderType !== "market") {
+    if (!req.entryPrice) {
+      return { ok: false, error: "Pending orders require an entry price." };
+    }
+    const market = d(candle.close);
+    const entry = d(req.entryPrice);
+    const validSide =
+      orderType === "limit"
+        ? req.direction === "long"
+          ? entry.lessThan(market)
+          : entry.greaterThan(market)
+        : req.direction === "long"
+          ? entry.greaterThan(market)
+          : entry.lessThan(market);
+    if (!validSide) {
+      return {
+        ok: false,
+        error: `${req.direction === "long" ? "Buy" : "Sell"} ${orderType} price is on the wrong side of market.`,
+      };
+    }
+    const sizing = calculatePositionSize({
+      accountBalance: state.balance,
+      accountCurrency: state.config.accountCurrency,
+      riskPercent: req.riskPercent,
+      entryPrice: req.entryPrice,
+      stopLoss: req.stopLoss,
+      pipSize: state.config.pipSize,
+      symbol: state.config.symbol,
+      quoteCurrency: state.config.quoteCurrency,
+      baseCurrency: state.config.baseCurrency,
+      fixedLots: req.sizingMode === "fixed-lots" ? req.lots : undefined,
+    });
+    if (d(sizing.lots).lessThanOrEqualTo(0)) {
+      return { ok: false, error: "Calculated position size is zero." };
+    }
+    const pending: PendingOrder = {
+      id: req.clientOrderId ?? makeId("ord"),
+      direction: req.direction,
+      orderType,
+      entryPrice: d(req.entryPrice).toFixed(state.config.pricePrecision),
+      sizingMode: req.sizingMode,
+      lots: sizing.lots,
+      riskPercent: req.riskPercent,
+      stopLoss: req.stopLoss ?? null,
+      takeProfit: req.takeProfit ?? null,
+      expiresAt: req.expiresAt ?? null,
+      status: "pending",
+      createdIndex: state.visibleIndex,
+      createdTime: candle.timestamp,
+      updatedTime: candle.timestamp,
+      activatedTime: null,
+      cancelledTime: null,
+      expiredTime: null,
+      fillPrice: null,
+      activatedPositionId: null,
+    };
+    state.pendingOrders.push(pending);
+    state.lockedBeforeIndex = state.visibleIndex;
+    return { ok: true };
+  }
 
-  const preview = previewPosition(state, candle, req, makeId("pos"));
+  const preview = previewPosition(
+    state,
+    candle,
+    req,
+    req.clientOrderId ?? makeId("pos"),
+  );
   if (!preview.ok || !preview.position) return preview;
   state.openPositions.push(preview.position);
   state.lockedBeforeIndex = state.visibleIndex;
   recomputeEquity(ctx, false);
+  return { ok: true };
+}
+
+export function modifyPendingOrder(
+  ctx: EngineContext,
+  orderId: string,
+  price: string,
+): PlaceOrderResult {
+  const order = ctx.state.pendingOrders.find((item) => item.id === orderId);
+  if (!order || order.status !== "pending") {
+    return { ok: false, error: "Pending order is no longer active." };
+  }
+  if (!d(price).isFinite() || d(price).lessThanOrEqualTo(0)) {
+    return { ok: false, error: "Order price must be greater than zero." };
+  }
+  const candle = currentCandle(ctx);
+  if (!candle) return { ok: false, error: "No current candle." };
+  const market = d(candle.close);
+  const entry = d(price);
+  const validSide =
+    order.orderType === "limit"
+      ? order.direction === "long"
+        ? entry.lessThan(market)
+        : entry.greaterThan(market)
+      : order.direction === "long"
+        ? entry.greaterThan(market)
+        : entry.lessThan(market);
+  if (!validSide) {
+    return {
+      ok: false,
+      error: `${order.direction === "long" ? "Buy" : "Sell"} ${order.orderType} price is on the wrong side of market.`,
+    };
+  }
+  order.entryPrice = d(price).toFixed(ctx.state.config.pricePrecision);
+  order.updatedTime = candle.timestamp;
+  return { ok: true };
+}
+
+export function cancelPendingOrder(
+  ctx: EngineContext,
+  orderId: string,
+): PlaceOrderResult {
+  const order = ctx.state.pendingOrders.find((item) => item.id === orderId);
+  if (!order || order.status !== "pending") {
+    return { ok: false, error: "Pending order is no longer active." };
+  }
+  const time = currentCandle(ctx)?.timestamp ?? order.updatedTime;
+  order.status = "cancelled";
+  order.cancelledTime = time;
+  order.updatedTime = time;
   return { ok: true };
 }
 

@@ -16,7 +16,7 @@ type Tab = "position" | "trades" | "orders" | "statistics" | "notes";
 
 const TABS: { id: Exclude<Tab, "statistics">; label: string }[] = [
   { id: "position", label: "Open Positions" },
-  { id: "orders", label: "Orders" },
+  { id: "orders", label: "Pending Orders" },
   { id: "trades", label: "Trades" },
   { id: "notes", label: "Journal" },
 ];
@@ -31,6 +31,7 @@ interface BottomPanelProps {
   initialNotes?: string;
   onSaveNotes: (notes: string) => void;
   busy: boolean;
+  onCancelPending: (orderId: string) => void;
 }
 
 export function BottomPanel({
@@ -42,6 +43,7 @@ export function BottomPanel({
   initialNotes = "",
   onSaveNotes,
   busy,
+  onCancelPending,
 }: BottomPanelProps) {
   const [tab, setTab] = useState<Tab>("position");
   const [expanded, setExpanded] = useState(false);
@@ -106,11 +108,51 @@ export function BottomPanel({
           {tab === "trades" && <TradesTable trades={state.closedTrades} />}
 
           {tab === "orders" && (
-            <p className="p-4 text-sm app-muted">
-              {state.closedTrades.length + openCount === 0
-                ? "No orders."
-                : `${state.closedTrades.length} closed · ${openCount} open`}
-            </p>
+            state.pendingOrders.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[920px] text-left text-xs">
+                  <thead className="app-muted">
+                    <tr className="border-b app-border">
+                      <th className="px-3 py-2">Status</th><th>Type</th><th>Side</th>
+                      <th>Lots</th><th>Price</th><th>Created</th><th>Updated</th>
+                      <th>Expiry</th><th aria-label="Actions" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...state.pendingOrders].reverse().map((order) => (
+                      <tr key={order.id} className="border-b app-border font-mono">
+                        <td className="px-3 py-2">
+                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                            order.status === "pending"
+                              ? "bg-amber-400/15 text-amber-300"
+                              : order.status === "activated"
+                                ? "bg-brand-400/15 text-brand-300"
+                                : "bg-white/[0.06] app-muted"
+                          }`}>{order.status}</span>
+                        </td>
+                        <td className="uppercase">{order.orderType}</td>
+                        <td className={order.direction === "long" ? "text-brand-300" : "text-bear"}>
+                          {order.direction === "long" ? "BUY" : "SELL"}
+                        </td>
+                        <td>{order.lots}</td><td>{order.fillPrice ?? order.entryPrice}</td>
+                        <td>{new Date(order.createdTime).toLocaleString()}</td>
+                        <td>{new Date(order.updatedTime).toLocaleString()}</td>
+                        <td>{order.expiresAt ? new Date(order.expiresAt).toLocaleString() : "GTC"}</td>
+                        <td className="pr-3 text-right">
+                          {order.status === "pending" && (
+                            <button type="button" onClick={() => onCancelPending(order.id)} disabled={busy} className="rounded border border-bear/30 px-2 py-1 text-[10px] font-semibold text-bear hover:bg-bear/10 disabled:opacity-50">
+                              Cancel
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="p-4 text-sm app-muted">No pending orders.</p>
+            )
           )}
 
           {tab === "statistics" && (
@@ -153,7 +195,13 @@ export function BottomPanel({
       <div className="flex h-9 shrink-0 items-center overflow-x-auto px-1.5 text-[11px]">
         <div role="tablist" aria-label="Session panels" className="flex h-full shrink-0 items-center">
           {TABS.map((item) => {
-            const count = item.id === "position" ? openCount : item.id === "trades" ? state.closedTrades.length : null;
+            const count = item.id === "position"
+              ? openCount
+              : item.id === "trades"
+                ? state.closedTrades.length
+                : item.id === "orders"
+                  ? state.pendingOrders.filter((order) => order.status === "pending").length
+                  : null;
             const active = expanded && tab === item.id;
             return (
               <button

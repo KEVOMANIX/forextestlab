@@ -29,6 +29,8 @@ import {
   modifyStopLoss as modifyLocalStopLoss,
   modifyTakeProfit as modifyLocalTakeProfit,
   modifyTrailingStop as modifyLocalTrailingStop,
+  modifyPendingOrder as modifyLocalPendingOrder,
+  cancelPendingOrder as cancelLocalPendingOrder,
   placeOrder as placeLocalOrder,
   publicSessionState,
   revealNext,
@@ -758,10 +760,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
   );
   const placeOrder = useCallback(
     (order: OrderRequest) => {
+      const sharedOrder = {
+        ...order,
+        clientOrderId: order.clientOrderId ?? crypto.randomUUID(),
+      };
       const rollbackState = s.state;
       const engine = localEngineRef.current;
       if (engine) {
-        const result = placeLocalOrder(engine, order);
+        const result = placeLocalOrder(engine, sharedOrder);
         if (result.ok) {
           const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
           setS((prev) => ({ ...prev, state }));
@@ -769,12 +775,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
       return runAction({
         type: "place-order",
-        direction: order.direction,
-        sizingMode: order.sizingMode,
-        lots: order.lots,
-        riskPercent: order.riskPercent,
-        stopLoss: order.stopLoss ?? undefined,
-        takeProfit: order.takeProfit ?? undefined,
+        clientOrderId: sharedOrder.clientOrderId,
+        direction: sharedOrder.direction,
+        orderType: sharedOrder.orderType,
+        entryPrice: sharedOrder.entryPrice,
+        expiresAt: sharedOrder.expiresAt,
+        sizingMode: sharedOrder.sizingMode,
+        lots: sharedOrder.lots,
+        riskPercent: sharedOrder.riskPercent,
+        stopLoss: sharedOrder.stopLoss ?? undefined,
+        takeProfit: sharedOrder.takeProfit ?? undefined,
         targetIndex: localEngineRef.current?.state.visibleIndex,
       }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
     },
@@ -831,6 +841,49 @@ export function useBacktester(resumeSessionId: string | null = null) {
         price,
         targetIndex: localEngineRef.current?.state.visibleIndex,
       }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
+    },
+    [runAction, s.state],
+  );
+  const modifyPending = useCallback(
+    (orderId: string, price: string) => {
+      const rollbackState = s.state;
+      const engine = localEngineRef.current;
+      if (engine && modifyLocalPendingOrder(engine, orderId, price).ok) {
+        setS((prev) => ({
+          ...prev,
+          state: publicSessionState(engine, rollbackState?.anonymous ?? false),
+        }));
+      }
+      return runAction(
+        {
+          type: "modify-pending",
+          orderId,
+          price,
+          targetIndex: localEngineRef.current?.state.visibleIndex,
+        },
+        { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true },
+      );
+    },
+    [runAction, s.state],
+  );
+  const cancelPending = useCallback(
+    (orderId: string) => {
+      const rollbackState = s.state;
+      const engine = localEngineRef.current;
+      if (engine && cancelLocalPendingOrder(engine, orderId).ok) {
+        setS((prev) => ({
+          ...prev,
+          state: publicSessionState(engine, rollbackState?.anonymous ?? false),
+        }));
+      }
+      return runAction(
+        {
+          type: "cancel-pending",
+          orderId,
+          targetIndex: localEngineRef.current?.state.visibleIndex,
+        },
+        { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true },
+      );
     },
     [runAction, s.state],
   );
@@ -952,6 +1005,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
       setSpeed,
       setReplayStep,
       placeOrder,
+      modifyPending,
+      cancelPending,
       closePosition,
       modifyStop,
       modifyTarget,

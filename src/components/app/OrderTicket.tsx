@@ -23,6 +23,7 @@ import {
 } from "@/lib/backtest/trade-plan";
 import type {
   OrderRequest,
+  OrderType,
   PublicSessionState,
   TradeDirection,
 } from "@/lib/backtest/types";
@@ -68,6 +69,8 @@ export function OrderTicket({
   const [riskPercent, setRiskPercent] = useState("1");
   const [lots, setLots] = useState("0.10");
   const [exitsOpen, setExitsOpen] = useState(true);
+  const [orderType, setOrderType] = useState<OrderType>("market");
+  const [expiryMinutes, setExpiryMinutes] = useState("0");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelPosition, setPanelPosition] = useState<{
     x: number;
@@ -120,6 +123,14 @@ export function OrderTicket({
     if (unavailable || !tradePlan || !metrics?.valid) return;
     onPlaceOrder({
       direction: tradePlan.direction,
+      orderType,
+      entryPrice: orderType === "market" ? undefined : tradePlan.entryPrice,
+      expiresAt:
+        orderType !== "market" &&
+        Number(expiryMinutes) > 0 &&
+        state.currentTime != null
+          ? state.currentTime + Number(expiryMinutes) * 60_000
+          : undefined,
       sizingMode,
       lots: sizingMode === "fixed-lots" ? lots : undefined,
       riskPercent: sizingMode === "risk-percent" ? riskPercent : undefined,
@@ -128,6 +139,19 @@ export function OrderTicket({
     });
     onClearPlan();
     setPanelOpen(false);
+  }
+
+  function selectOrderType(next: OrderType) {
+    setOrderType(next);
+    if (!tradePlan || next === "market" || mid == null) return;
+    const distance = pip * 10;
+    const above =
+      (next === "stop" && tradePlan.direction === "long") ||
+      (next === "limit" && tradePlan.direction === "short");
+    onPlanChange(
+      "entryPrice",
+      (mid + (above ? distance : -distance)).toFixed(precision),
+    );
   }
 
   function toggleExit(level: "stopLoss" | "takeProfit") {
@@ -355,23 +379,18 @@ export function OrderTicket({
             role="tablist"
             aria-label="Order type"
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected="true"
-              className="relative h-9 text-xs font-semibold text-white after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:rounded-full after:bg-white"
-            >
-              Market
-            </button>
-            {["Limit", "Stop"].map((type) => (
+            {(["market", "limit", "stop"] as const).map((type) => (
               <button
                 key={type}
                 type="button"
                 role="tab"
-                aria-selected="false"
-                disabled
-                title={`${type} orders are coming in the pending-orders phase`}
-                className="h-9 cursor-not-allowed text-xs text-[#9b9b9b]"
+                aria-selected={orderType === type}
+                onClick={() => selectOrderType(type)}
+                className={`relative h-9 text-xs font-semibold capitalize ${
+                  orderType === type
+                    ? "text-white after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:rounded-full after:bg-white"
+                    : "text-[#9b9b9b] hover:text-white"
+                }`}
               >
                 {type}
               </button>
@@ -394,6 +413,32 @@ export function OrderTicket({
             ) : (
               <>
                 <div className="pt-4">
+                  {orderType !== "market" && (
+                    <div className="mb-4 space-y-3">
+                      <DarkField
+                        label={`${tradePlan.direction === "long" ? "Buy" : "Sell"} ${orderType} price`}
+                        value={tradePlan.entryPrice}
+                        onChange={(value) => onPlanChange("entryPrice", value)}
+                        suffix={state.config.symbol}
+                      />
+                      <label className="block text-[11px] text-[#a8a8a8]">
+                        Expiry
+                        <select
+                          value={expiryMinutes}
+                          onChange={(event) =>
+                            setExpiryMinutes(event.target.value)
+                          }
+                          className="mt-1 h-10 w-full rounded border border-white/15 bg-[#252525] px-3 text-xs text-white outline-none focus:border-[#2962ff]"
+                          aria-label="Pending order expiry"
+                        >
+                          <option value="0">Good till cancelled</option>
+                          <option value="60">1 hour</option>
+                          <option value="240">4 hours</option>
+                          <option value="1440">24 hours</option>
+                        </select>
+                      </label>
+                    </div>
+                  )}
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-xs text-[#a8a8a8]">Position size</span>
                     <div className="flex rounded bg-[#2b2b2b] p-0.5">
@@ -532,7 +577,8 @@ export function OrderTicket({
                     {tradePlan.direction === "long" ? "Buy" : "Sell"}
                   </span>
                   <span className="mt-0.5 text-[10px] font-semibold">
-                    {metrics?.lots ?? "—"} lot {state.config.symbol} MARKET
+                    {metrics?.lots ?? "—"} lot {state.config.symbol}{" "}
+                    {orderType.toUpperCase()}
                   </span>
                 </button>
               </>

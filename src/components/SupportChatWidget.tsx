@@ -389,7 +389,7 @@ export function SupportChatWidget() {
       {open && (
         <section
           id="support-assistant-panel"
-          className="fixed bottom-24 right-4 z-[80] flex h-[620px] max-h-[calc(100vh-7rem)] w-[min(calc(100vw-2rem),400px)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-surface-900 shadow-2xl shadow-black/40"
+          className="fixed bottom-24 right-4 z-[120] flex h-[620px] max-h-[calc(100vh-7rem)] w-[min(calc(100vw-2rem),400px)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-surface-900 shadow-2xl shadow-black/40"
           aria-label="ForexTestLab support"
         >
           <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[linear-gradient(135deg,rgba(34,195,160,.18),rgba(17,23,37,.7))] px-4 py-3.5">
@@ -559,7 +559,7 @@ export function SupportChatWidget() {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="fixed bottom-5 right-4 z-[80] inline-flex items-center gap-2 rounded-full border border-brand-300/30 bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-transform hover:-translate-y-0.5 relative"
+        className="fixed bottom-5 right-4 z-[120] inline-flex items-center gap-2 rounded-full border border-brand-300/30 bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-transform hover:-translate-y-0.5"
         aria-expanded={open}
         aria-controls="support-assistant-panel"
       >

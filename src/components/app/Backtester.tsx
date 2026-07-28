@@ -33,7 +33,6 @@ import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { WorkspaceManager } from "./WorkspaceManager";
 import { BacktestExperiencePanel } from "./BacktestExperiencePanel";
 import { tradingGuardMessage } from "@/lib/backtest/trade-guards";
-import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
 type PendingConfirmation = {
   title: string;
@@ -51,14 +50,6 @@ const ChartGrid = dynamic(() => import("./ChartGrid"), {
     </div>
   ),
 });
-
-function expectedMarketClosure(previous: number, next: number) {
-  if (next - previous < 24 * 60 * 60_000) return false;
-  const previousDay = new Date(previous).getUTCDay();
-  const nextDay = new Date(next).getUTCDay();
-  return (previousDay === 5 || previousDay === 6) &&
-    (nextDay === 0 || nextDay === 1);
-}
 
 export function Backtester({
   resumeSessionId = null,
@@ -99,7 +90,6 @@ export function Backtester({
   const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
   const cancellationTimersRef = useRef<Map<string, number>>(new Map());
-  const warnedGapRef = useRef<string | null>(null);
   const autoTrialAttemptedRef = useRef(false);
   const notificationStateRef = useRef<{
     sessionId: string | null;
@@ -317,34 +307,6 @@ export function Backtester({
     }
     notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length, pendingStatuses };
   }, [state]);
-
-  useEffect(() => {
-    if (!state || state.visibleIndex < 1) return;
-    const previous = bt.replayCandles[state.visibleIndex - 1];
-    const current = bt.replayCandles[state.visibleIndex];
-    if (!previous || !current) return;
-    const expected = TIMEFRAME_MS[state.config.timeframe];
-    const gap = current.timestamp - previous.timestamp;
-    const key = `${previous.timestamp}:${current.timestamp}`;
-    if (
-      // Sparse FX feeds can legitimately omit a few one-minute bars when no
-      // ticks were recorded. Warn only when at least ten expected bars are
-      // absent; 2–3 minute gaps are noise rather than actionable data loss.
-      gap < expected * 10 ||
-      expectedMarketClosure(previous.timestamp, current.timestamp) ||
-      warnedGapRef.current === key
-    ) return;
-    warnedGapRef.current = key;
-    setNotifications((currentNotifications) =>
-      currentNotifications.filter((item) => !item.id.startsWith("data-gap-")),
-    );
-    notify({
-      id: `data-gap-${key}`,
-      title: "Market-data gap detected",
-      detail: `There is a ${Math.round(gap / 60_000)} minute gap before this candle. Review fills around this point carefully.`,
-      tone: "warning",
-    }, 8_000);
-  }, [bt.replayCandles, notify, state]);
 
   useEffect(() => () => {
     for (const timer of cancellationTimersRef.current.values()) window.clearTimeout(timer);

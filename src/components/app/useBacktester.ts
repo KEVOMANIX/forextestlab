@@ -109,15 +109,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
   const stepRef = useRef<(batchSize?: number) => Promise<void>>(async () => {});
-  const replayWorkerRef = useRef<Worker | null>(null);
-  const replayFallbackTimerRef = useRef<number | null>(null);
-  const replayLastTickRef = useRef<number | null>(null);
+  const replayFrameRef = useRef<number | null>(null);
+  const replayLastFrameRef = useRef<number | null>(null);
   const replayAccumulatorRef = useRef(0);
-  const replayTickBusyRef = useRef(false);
-  const replayRateWallStartRef = useRef(0);
-  const replayRateLastReportRef = useRef(0);
-  const replayRateMarketMsRef = useRef(0);
-  const [actualReplaySpeed, setActualReplaySpeed] = useState(0);
+  const replayFrameBusyRef = useRef(false);
   const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
   const localEngineRef = useRef<EngineContext | null>(null);
   /** Symbols with a pair fetch in flight, so duplicate cells share one request. */
@@ -495,14 +490,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
       error: extensionError ?? prev.error,
     }));
     if (finished) {
-      replayWorkerRef.current?.postMessage({ type: "stop" });
-      replayWorkerRef.current?.terminate();
-      replayWorkerRef.current = null;
-      if (replayFallbackTimerRef.current != null) {
-        window.clearInterval(replayFallbackTimerRef.current);
-        replayFallbackTimerRef.current = null;
-      }
-      setActualReplaySpeed(0);
+      if (replayFrameRef.current != null) cancelAnimationFrame(replayFrameRef.current);
+      replayFrameRef.current = null;
       setS((prev) => ({ ...prev, endOfData: true }));
       void runAction(
         {
@@ -518,107 +507,57 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const status = s.state?.status;
 
   const stopLocalScheduler = useCallback(() => {
-    replayWorkerRef.current?.postMessage({ type: "stop" });
-    replayWorkerRef.current?.terminate();
-    replayWorkerRef.current = null;
-    if (replayFallbackTimerRef.current != null) {
-      window.clearInterval(replayFallbackTimerRef.current);
-      replayFallbackTimerRef.current = null;
-    }
-    replayLastTickRef.current = null;
+    if (replayFrameRef.current != null) cancelAnimationFrame(replayFrameRef.current);
+    replayFrameRef.current = null;
+    replayLastFrameRef.current = null;
     replayAccumulatorRef.current = 0;
-    replayTickBusyRef.current = false;
-    replayRateWallStartRef.current = 0;
-    replayRateLastReportRef.current = 0;
-    replayRateMarketMsRef.current = 0;
+    replayFrameBusyRef.current = false;
   }, []);
 
   const startLocalScheduler = useCallback(() => {
     stopLocalScheduler();
-    setActualReplaySpeed(0);
-    replayRateWallStartRef.current = Date.now();
-    replayRateLastReportRef.current = replayRateWallStartRef.current;
-
-    const tick = async (now: number) => {
-      const current = localEngineRef.current;
-      if (!current || current.state.status !== "running") return;
-      const previous = replayLastTickRef.current ?? now;
-      replayLastTickRef.current = now;
-      replayAccumulatorRef.current += Math.max(0, now - previous);
-      const stepCount = Math.max(
-        1,
-        Math.round(
-          (replayStepRef.current * TIMEFRAME_MS["1m"]) /
-            TIMEFRAME_MS[current.state.config.timeframe],
-        ),
-      );
-      const cadence = Math.max(
-        0.01,
-        (TIMEFRAME_MS[current.state.config.timeframe] * stepCount) /
+    const schedule = () => {
+      const engine = localEngineRef.current;
+      if (!engine || engine.state.status !== "running") return;
+      replayFrameRef.current = requestAnimationFrame(async (now) => {
+        const current = localEngineRef.current;
+        if (!current || current.state.status !== "running") return;
+        const previous = replayLastFrameRef.current ?? now;
+        replayLastFrameRef.current = now;
+        replayAccumulatorRef.current += Math.min(100, Math.max(0, now - previous));
+        const stepCount = Math.max(
+          1,
+          Math.round(
+            (replayStepRef.current * TIMEFRAME_MS["1m"]) /
+              TIMEFRAME_MS[current.state.config.timeframe],
+          ),
+        );
+        // Preserve elapsed market time even when React cannot paint every
+        // underlying minute separately. The selected STEP controls each visible
+        // jump; the speed controls how many market minutes are owed per second.
+        const cadence = Math.max(
+          0.01,
+          (TIMEFRAME_MS[current.state.config.timeframe] * stepCount) /
+            current.state.speed,
+        );
+        const due = replayStepsDue(
+          replayAccumulatorRef.current,
           current.state.speed,
-      );
-      const due = replayStepsDue(
-        replayAccumulatorRef.current,
-        current.state.speed,
-        current.state.config.timeframe,
-        stepCount,
-      );
-      if (due > 0 && !replayTickBusyRef.current) {
-        const batchSize = Math.min(64, due);
-        replayAccumulatorRef.current = Math.max(
-          0,
-          replayAccumulatorRef.current - batchSize * cadence,
+          current.state.config.timeframe,
+          stepCount,
         );
-        replayTickBusyRef.current = true;
-        const beforeIndex = current.state.visibleIndex;
-        await stepRef.current(batchSize);
-        const after = localEngineRef.current;
-        const advanced = after
-          ? Math.max(0, after.state.visibleIndex - beforeIndex)
-          : 0;
-        replayRateMarketMsRef.current +=
-          advanced * TIMEFRAME_MS[current.state.config.timeframe];
-        replayTickBusyRef.current = false;
-      }
-
-      const wallElapsed = now - replayRateWallStartRef.current;
-      if (now - replayRateLastReportRef.current >= 1_000) {
-        setActualReplaySpeed(
-          replayRateMarketMsRef.current / Math.max(1, wallElapsed),
-        );
-        replayRateLastReportRef.current = now;
-      }
+        if (due > 0 && !replayFrameBusyRef.current) {
+          const batchSize = Math.min(64, due);
+          replayAccumulatorRef.current -= batchSize * cadence;
+          replayFrameBusyRef.current = true;
+          await stepRef.current(batchSize);
+          replayFrameBusyRef.current = false;
+        }
+        if (localEngineRef.current?.state.status === "running") schedule();
+      });
     };
-
-    replayLastTickRef.current = null;
-    if (typeof Worker !== "undefined") {
-      const worker = new Worker("/replay-clock-worker.js");
-      replayWorkerRef.current = worker;
-      worker.onmessage = (event: MessageEvent<{ type?: string; now?: number }>) => {
-        if (event.data.type === "tick" && typeof event.data.now === "number") {
-          void tick(event.data.now);
-        }
-      };
-      worker.onerror = () => {
-        worker.terminate();
-        if (replayWorkerRef.current === worker) replayWorkerRef.current = null;
-        if (
-          localEngineRef.current?.state.status === "running" &&
-          replayFallbackTimerRef.current == null
-        ) {
-          replayFallbackTimerRef.current = window.setInterval(
-            () => void tick(Date.now()),
-            8,
-          );
-        }
-      };
-      worker.postMessage({ type: "start", intervalMs: 8 });
-    } else {
-      replayFallbackTimerRef.current = window.setInterval(
-        () => void tick(Date.now()),
-        8,
-      );
-    }
+    replayLastFrameRef.current = null;
+    schedule();
   }, [stopLocalScheduler]);
 
   useEffect(() => stopLocalScheduler, [stopLocalScheduler]);
@@ -677,7 +616,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
     );
     if (localEngineRef.current) localEngineRef.current.state.status = "paused";
     stopLocalScheduler();
-    setActualReplaySpeed(0);
     return checkpoint("paused");
   }, [checkpoint, stopLocalScheduler]);
   const stepNext = useCallback(
@@ -1129,7 +1067,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
   return {
     ...s,
     replayStepMinutes,
-    actualReplaySpeed,
     actions: {
       startSession,
       startTrialSession,

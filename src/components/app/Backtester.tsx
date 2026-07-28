@@ -19,6 +19,10 @@ import { useChartWorkspace } from "./useChartWorkspace";
 import { BackLink } from "./BackLink";
 import { TradingOnboarding } from "./TradingOnboarding";
 import type { OrderRequest } from "@/lib/backtest/types";
+import {
+  defaultTradePlan,
+  type TradePlan,
+} from "@/lib/backtest/trade-plan";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { PageLoader } from "@/components/PageLoader";
 import { PositionEditorModal } from "./PositionEditorModal";
@@ -71,8 +75,7 @@ export function Backtester({
     }),
     [entitlements, trialSessionsRemaining],
   );
-  const [plannedStop, setPlannedStop] = useState<string | null>(null);
-  const [plannedTarget, setPlannedTarget] = useState<string | null>(null);
+  const [tradePlan, setTradePlan] = useState<TradePlan | null>(null);
   const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
   const [chartLayoutSlot, setChartLayoutSlot] = useState<HTMLDivElement | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
@@ -151,8 +154,7 @@ export function Backtester({
   }, [bt.phase, state?.status, actions]);
 
   useEffect(() => {
-    setPlannedStop(null);
-    setPlannedTarget(null);
+    setTradePlan(null);
   }, [state?.sessionId]);
 
   useEffect(() => {
@@ -259,16 +261,26 @@ export function Backtester({
   }
 
   const position = state.openPositions.find((item) => item.id === selectedPositionId) ?? state.openPositions.at(-1) ?? null;
-  const chartStop = position?.stopLoss ?? plannedStop;
-  const chartTarget = position?.takeProfit ?? plannedTarget;
+  const chartStop = position?.stopLoss ?? null;
+  const chartTarget = position?.takeProfit ?? null;
 
   const changeStop = (price: string | null) => {
     if (position) void actions.modifyStop(price, position.id);
-    else setPlannedStop(price);
   };
   const changeTarget = (price: string | null) => {
     if (position) void actions.modifyTarget(price, position.id);
-    else setPlannedTarget(price);
+  };
+  const choosePlanDirection = (direction: "long" | "short") => {
+    if (tradePlan?.direction === direction) return;
+    setTradePlan(defaultTradePlan(state, direction));
+  };
+  const changeTradePlan = (
+    level: keyof Omit<TradePlan, "direction">,
+    value: string,
+  ) => {
+    setTradePlan((current) =>
+      current ? { ...current, [level]: value } : current,
+    );
   };
   const activeSymbol = bt.activeSymbol ?? state.config.symbol;
   const referencePair =
@@ -277,9 +289,12 @@ export function Backtester({
     actions.placeOrder({
       ...orderTemplate,
       direction,
-      stopLoss: plannedStop ?? undefined,
-      takeProfit: plannedTarget ?? undefined,
+      stopLoss:
+        tradePlan?.direction === direction ? tradePlan.stopLoss : undefined,
+      takeProfit:
+        tradePlan?.direction === direction ? tradePlan.takeProfit : undefined,
     });
+    if (tradePlan?.direction === direction) setTradePlan(null);
   };
   const navigateFromChart = (href: string) => {
     if (!hasMeaningfulActivity) {
@@ -380,6 +395,8 @@ export function Backtester({
             stopLoss={chartStop ? Number(chartStop) : null}
             takeProfit={chartTarget ? Number(chartTarget) : null}
             positionDirection={position?.direction ?? null}
+            tradePlan={tradePlan}
+            onTradePlanChange={changeTradePlan}
             onStopLossChange={changeStop}
             onTakeProfitChange={changeTarget}
             onLoadHistory={actions.loadHistory}
@@ -394,8 +411,10 @@ export function Backtester({
               <OrderTicket
                 state={state}
                 busy={bt.busy}
-                stopLoss={plannedStop}
-                takeProfit={plannedTarget}
+                tradePlan={tradePlan}
+                onDirectionChange={choosePlanDirection}
+                onPlanChange={changeTradePlan}
+                onClearPlan={() => setTradePlan(null)}
                 onPlaceOrder={actions.placeOrder}
                 onTemplateChange={setOrderTemplate}
                 referencePair={referencePair}

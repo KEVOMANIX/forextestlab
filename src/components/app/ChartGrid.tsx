@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Columns2, Grid2X2, Rows2, Square, LayoutPanelLeft } from "lucide-react";
 
 import type { PairChartData } from "@/lib/backtest/client";
+import type { TradePlan } from "@/lib/backtest/trade-plan";
 import type { OpenPosition, PublicSessionState } from "@/lib/backtest/types";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
 
@@ -103,6 +104,11 @@ interface ChartGridProps {
   stopLoss: number | null;
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
+  tradePlan: TradePlan | null;
+  onTradePlanChange: (
+    level: keyof Omit<TradePlan, "direction">,
+    value: string,
+  ) => void;
   theme: "dark" | "light";
   onStopLossChange: (price: string | null) => void;
   onTakeProfitChange: (price: string | null) => void;
@@ -139,6 +145,8 @@ export default function ChartGrid({
   stopLoss,
   takeProfit,
   positionDirection,
+  tradePlan,
+  onTradePlanChange,
   theme,
   onStopLossChange,
   onTakeProfitChange,
@@ -344,6 +352,8 @@ export default function ChartGrid({
                 stopLoss={stopLoss}
                 takeProfit={takeProfit}
                 positionDirection={positionDirection}
+                tradePlan={tradePlan}
+                onTradePlanChange={onTradePlanChange}
                 theme={theme}
                 onStopLossChange={onStopLossChange}
                 onTakeProfitChange={onTakeProfitChange}
@@ -380,6 +390,11 @@ interface ChartCellViewProps {
   stopLoss: number | null;
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
+  tradePlan: TradePlan | null;
+  onTradePlanChange: (
+    level: keyof Omit<TradePlan, "direction">,
+    value: string,
+  ) => void;
   theme: "dark" | "light";
   onStopLossChange: (price: string | null) => void;
   onTakeProfitChange: (price: string | null) => void;
@@ -413,6 +428,8 @@ function ChartCellView({
   stopLoss,
   takeProfit,
   positionDirection,
+  tradePlan,
+  onTradePlanChange,
   theme,
   onStopLossChange,
   onTakeProfitChange,
@@ -457,6 +474,8 @@ function ChartCellView({
         stopLoss={tradable ? stopLoss : null}
         takeProfit={tradable ? takeProfit : null}
         positionDirection={tradable ? positionDirection : null}
+        tradePlan={tradable ? tradePlan : null}
+        onTradePlanChange={tradable ? onTradePlanChange : noop}
         currentPrice={currentPrice}
         baseTimeframe={state.config.timeframe}
         pipSize={Number(isSession ? state.config.pipSize : pair?.pipSize ?? state.config.pipSize)}

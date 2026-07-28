@@ -7,6 +7,37 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function startSession(page: Page) {
   await page.goto("/app/backtest");
+  const trialButton = page.getByRole("button", { name: /Start trial session/i });
+  if (await trialButton.isVisible()) {
+    const response = await page.request.post("/api/backtest/sessions", {
+      data: {
+        name: "E2E strategy session",
+        symbols: ["EURUSD"],
+        startTime: Date.parse("2024-03-05T00:00:00Z"),
+        endTime: Date.parse("2024-03-08T23:59:59Z"),
+      },
+    });
+    const body = await response.json();
+    expect(response.ok()).toBe(true);
+    expect(body.replayCandles.length).toBe(body.state.totalCandles);
+    await page.evaluate(
+      ({ sessionId, token }) => {
+        window.sessionStorage.setItem(
+          `forextestlab:session:${sessionId}`,
+          token,
+        );
+      },
+      { sessionId: body.sessionId, token: body.token },
+    );
+    await page.goto(
+      `/app/backtest?session=${encodeURIComponent(body.sessionId)}`,
+    );
+    const closeTour = page.getByRole("button", {
+      name: /Close trading tour/i,
+    });
+    if (await closeTour.isVisible()) await closeTour.click();
+    return;
+  }
   // Wait for the setup form and its prefilled symbol/dates.
   await expect(page.getByRole("heading", { name: /Start a backtest session/i })).toBeVisible();
   await page.getByLabel("Session name").fill("E2E strategy session");
@@ -34,6 +65,40 @@ async function startSession(page: Page) {
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 }
+
+test("builds and places a chart-connected trade plan", async ({ page }) => {
+  await startSession(page);
+
+  await page.getByRole("button", { name: /Buy plan/i }).click();
+  await expect(page.getByTestId("trade-planner")).toBeVisible();
+  await expect(page.getByTestId("trade-plan-overlay")).toHaveAttribute(
+    "data-direction",
+    "long",
+  );
+  await expect(page.getByTestId("trade-plan-entryPrice")).toBeVisible();
+  await expect(page.getByTestId("trade-plan-stopLoss")).toBeVisible();
+  await expect(page.getByTestId("trade-plan-takeProfit")).toBeVisible();
+  await expect(page.getByText("2.00R", { exact: true })).toBeVisible();
+
+  const stopInput = page.getByLabel("Planned stop price");
+  const originalStop = await stopInput.inputValue();
+  await stopInput.fill(String(Number(originalStop) + 0.0005));
+  await expect(page.getByText("1.00R", { exact: true })).not.toBeVisible();
+
+  await stopInput.fill(originalStop);
+  await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().includes("/action") &&
+        response.request().method() === "POST",
+    ),
+    page.getByRole("button", { name: "Place Buy", exact: true }).click(),
+  ]);
+  await expect(page.getByText(/Buy position opened/i)).toBeVisible();
+  await expect(page.getByTestId("trade-planner")).toBeHidden();
+  await expect(page.getByTestId("stop-loss-line")).toBeVisible();
+  await expect(page.getByTestId("take-profit-line")).toBeVisible();
+});
 
 test("loads pre-start context without moving the replay start", async ({ page }) => {
   const selectedStart = Date.parse("2024-03-05T00:00:00Z");
@@ -133,16 +198,23 @@ test("completes a full public backtest workflow without login", async ({ page },
   await expect(counter).not.toHaveText(before ?? "");
   await next.click();
 
-  // (6) place a Buy trade with (7) chart-based stop-loss and take-profit
-  await page.getByRole("button", { name: /Add stop-loss line/i }).click();
-  await page.getByRole("button", { name: /Add take-profit line/i }).click();
-  await expect(page.getByTestId("stop-loss-line")).toBeVisible();
-  await expect(page.getByTestId("take-profit-line")).toBeVisible();
+  // (6) build a Buy plan with draggable entry/SL/TP and live risk metrics.
+  await page.getByRole("button", { name: /Buy plan/i }).click();
+  await expect(page.getByTestId("trade-planner")).toBeVisible();
+  await expect(page.getByTestId("trade-plan-entryPrice")).toBeVisible();
+  await expect(page.getByTestId("trade-plan-stopLoss")).toBeVisible();
+  await expect(page.getByTestId("trade-plan-takeProfit")).toBeVisible();
+  await expect(page.getByText("2.00R", { exact: true })).toBeVisible();
+
+  // (7) place the planned market trade.
   await Promise.all([
     page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
-    page.getByRole("button", { name: "Buy", exact: true }).click(),
+    page.getByRole("button", { name: "Place Buy", exact: true }).click(),
   ]);
   await expect(page.getByText(/Buy position opened/i)).toBeVisible();
+  await expect(page.getByTestId("trade-planner")).toBeHidden();
+  await expect(page.getByTestId("stop-loss-line")).toBeVisible();
+  await expect(page.getByTestId("take-profit-line")).toBeVisible();
 
   // Protection levels remain interactive after entry and update the session.
   if (testInfo.project.name === "chromium") {

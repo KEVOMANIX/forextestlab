@@ -74,6 +74,7 @@ import {
   type Timeframe,
 } from "@/lib/market-data/types";
 import type { OpenPosition } from "@/lib/backtest/types";
+import type { TradePlan } from "@/lib/backtest/trade-plan";
 import { heikinAshi, type OHLCV } from "@/lib/chart/indicators";
 import { TOOL_LABELS, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
 import {
@@ -93,6 +94,7 @@ import { AUTO_BACKGROUND, ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartS
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
+import { TradePlanOverlay } from "./TradePlanOverlay";
 
 export interface ChartMarker {
   time: number;
@@ -148,6 +150,11 @@ interface PriceChartProps {
   stopLoss: number | null;
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
+  tradePlan: TradePlan | null;
+  onTradePlanChange: (
+    level: keyof Omit<TradePlan, "direction">,
+    value: string,
+  ) => void;
   currentPrice: number | null;
   baseTimeframe: Timeframe;
   pipSize: number;
@@ -444,6 +451,8 @@ export default function PriceChart({
   onEditPosition,
   stopLoss,
   takeProfit,
+  tradePlan,
+  onTradePlanChange,
   currentPrice,
   baseTimeframe,
   pipSize,
@@ -1473,7 +1482,7 @@ export default function PriceChart({
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
   drawingsActiveRef.current = drawTool != null || drawCount > 0;
   viewportOverlaysRef.current =
-    overlayIndicators.length > 0;
+    overlayIndicators.length > 0 || tradePlan != null;
 
   useEffect(() => {
     drawingEngineRef.current?.setHideAll(!settings.drawings);
@@ -1663,6 +1672,17 @@ export default function PriceChart({
         />
 
         {/* Volume Profile — custom canvas overlay (no lightweight-charts primitive). */}
+        {chartApi && priceSeries && tradePlan && (
+          <TradePlanOverlay
+            chart={chartApi}
+            series={priceSeries}
+            plan={tradePlan}
+            precision={precision}
+            viewVersion={viewVersion}
+            onChange={onTradePlanChange}
+          />
+        )}
+
         {overlayIndicators.map((inst) => (
           <VolumeProfileOverlay
             key={inst.id}

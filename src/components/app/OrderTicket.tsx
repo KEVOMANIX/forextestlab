@@ -43,6 +43,7 @@ interface OrderTicketProps {
 }
 
 function number(value: string) {
+  if (!Number.isFinite(Number(value))) return "—";
   return Number(value).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -122,8 +123,8 @@ export function OrderTicket({
       sizingMode,
       lots: sizingMode === "fixed-lots" ? lots : undefined,
       riskPercent: sizingMode === "risk-percent" ? riskPercent : undefined,
-      stopLoss: tradePlan.stopLoss,
-      takeProfit: tradePlan.takeProfit,
+      stopLoss: tradePlan.stopLoss || undefined,
+      takeProfit: tradePlan.takeProfit || undefined,
     });
     onClearPlan();
     setPanelOpen(false);

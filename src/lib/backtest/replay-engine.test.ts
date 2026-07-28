@@ -5,6 +5,8 @@ import type { EngineContext, SessionConfig } from "./types";
 import {
   closePosition,
   createSessionState,
+  modifyStopLoss,
+  modifyTakeProfit,
   placeOrder,
   restart,
   revealNext,
@@ -79,21 +81,46 @@ describe("orders and step-back locking", () => {
     expect(e.state.openPositions).toHaveLength(2);
   });
 
-  it("adds temporary 20-pip stop and 40-pip target to a new long", () => {
+  it("opens a new long without protection when none was requested", () => {
     const e = ctx(FLAT);
     placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
-    expect(e.state.openPositions[0]?.stopLoss).toBe("1.09800");
-    expect(e.state.openPositions[0]?.takeProfit).toBe("1.10400");
-    expect(e.state.openPositions[0]?.initialStopLoss).toBe("1.09800");
-    expect(e.state.openPositions[0]?.initialTakeProfit).toBe("1.10400");
-    expect(Number(e.state.openPositions[0]?.initialRiskAmount)).toBeGreaterThan(0);
+    expect(e.state.openPositions[0]?.stopLoss).toBeNull();
+    expect(e.state.openPositions[0]?.takeProfit).toBeNull();
+    expect(e.state.openPositions[0]?.initialStopLoss).toBeNull();
+    expect(e.state.openPositions[0]?.initialTakeProfit).toBeNull();
+    expect(e.state.openPositions[0]?.initialRiskAmount).toBeNull();
   });
 
-  it("adds temporary protection levels on the correct side of a short", () => {
+  it("opens a new short without protection when none was requested", () => {
     const e = ctx(FLAT);
     placeOrder(e, { direction: "short", sizingMode: "fixed-lots", lots: "1.0" });
-    expect(e.state.openPositions[0]?.stopLoss).toBe("1.10200");
-    expect(e.state.openPositions[0]?.takeProfit).toBe("1.09600");
+    expect(e.state.openPositions[0]?.stopLoss).toBeNull();
+    expect(e.state.openPositions[0]?.takeProfit).toBeNull();
+  });
+
+  it("captures first protection levels when they are added after entry", () => {
+    const e = ctx(FLAT);
+    placeOrder(e, {
+      direction: "long",
+      sizingMode: "fixed-lots",
+      lots: "1.0",
+    });
+    const position = e.state.openPositions[0]!;
+
+    expect(modifyStopLoss(e, "1.09900", position.id).ok).toBe(true);
+    expect(modifyTakeProfit(e, "1.10200", position.id).ok).toBe(true);
+    expect(position.stopLoss).toBe("1.09900");
+    expect(position.takeProfit).toBe("1.10200");
+    expect(position.initialStopLoss).toBe("1.09900");
+    expect(position.initialTakeProfit).toBe("1.10200");
+    expect(position.initialRiskAmount).toBe("100.00");
+
+    expect(modifyStopLoss(e, null, position.id).ok).toBe(true);
+    expect(modifyTakeProfit(e, null, position.id).ok).toBe(true);
+    expect(position.stopLoss).toBeNull();
+    expect(position.takeProfit).toBeNull();
+    expect(position.initialStopLoss).toBe("1.09900");
+    expect(position.initialTakeProfit).toBe("1.10200");
   });
 
   it("disables step-back once a trade has been placed", () => {

@@ -67,8 +67,9 @@ export function TradePlanOverlay({
   function placeLines() {
     for (const { key } of LEVELS) {
       const element = elements.current.get(key);
-      const price = Number(draft.current[key]);
-      const coordinate = Number.isFinite(price)
+      const rawPrice = draft.current[key].trim();
+      const price = Number(rawPrice);
+      const coordinate = rawPrice !== "" && Number.isFinite(price)
         ? series.priceToCoordinate(price)
         : null;
       if (!element || coordinate == null) {
@@ -120,7 +121,7 @@ export function TradePlanOverlay({
       data-direction={plan.direction}
       aria-label={`${plan.direction === "long" ? "Buy" : "Sell"} trade plan`}
     >
-      {LEVELS.map(({ key, line, badge }) => (
+      {LEVELS.filter(({ key }) => plan[key].trim() !== "").map(({ key, line, badge }) => (
         <button
           key={key}
           ref={(element) => {

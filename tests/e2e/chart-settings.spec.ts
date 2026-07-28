@@ -69,12 +69,14 @@ test("right-click settings toggle what the chart draws, and survive a reload", a
     page.getByRole("button", { name: /Buy plan/i }).click(),
   ]);
   await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
-  await expect(page.getByTestId("stop-loss-line")).toHaveCount(1);
+  await expect(page.getByTestId("stop-loss-line")).toHaveCount(0);
+  await expect(page.getByTestId("add-stop-loss-handle")).toHaveCount(1);
 
   panel = await openSettings(page);
   await panel.getByRole("switch", { name: "Open position lines" }).click();
   await expect(page.getByTestId("position-entry-line")).toHaveCount(0);
   await expect(page.getByTestId("stop-loss-line")).toHaveCount(0);
+  await expect(page.getByTestId("add-stop-loss-handle")).toHaveCount(0);
   await expect(panel.getByRole("switch", { name: "Open position lines" })).toHaveAttribute(
     "aria-checked",
     "false",

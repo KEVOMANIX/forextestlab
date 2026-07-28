@@ -53,21 +53,25 @@ function state(
 }
 
 describe("trade planner", () => {
-  it("estimates direction-aware market fills and creates a 20/40-pip plan", () => {
+  it("estimates direction-aware market fills and starts without exits", () => {
     const current = state();
     expect(estimatedMarketEntry(current, "long")).toBe("1.10005");
     expect(estimatedMarketEntry(current, "short")).toBe("1.09995");
     expect(defaultTradePlan(current, "long")).toEqual({
       direction: "long",
       entryPrice: "1.10005",
-      stopLoss: "1.09805",
-      takeProfit: "1.10405",
+      stopLoss: "",
+      takeProfit: "",
     });
   });
 
   it("reports fixed-lot risk, reward, spread, pips and R:R", () => {
     const current = state();
-    const plan = defaultTradePlan(current, "long")!;
+    const plan = {
+      ...defaultTradePlan(current, "long")!,
+      stopLoss: "1.09805",
+      takeProfit: "1.10405",
+    };
     expect(
       tradePlanMetrics({
         state: current,
@@ -95,7 +99,11 @@ describe("trade planner", () => {
 
   it("calculates lots from account risk and rejects inverted levels", () => {
     const current = state();
-    const plan = defaultTradePlan(current, "short")!;
+    const plan = {
+      ...defaultTradePlan(current, "short")!,
+      stopLoss: "1.10195",
+      takeProfit: "1.09595",
+    };
     const metrics = tradePlanMetrics({
       state: current,
       plan,

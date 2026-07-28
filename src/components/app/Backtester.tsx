@@ -392,9 +392,6 @@ export function Backtester({
               setSelectedPositionId(positionId);
               setEditorPositionId(positionId);
             }}
-            onClosePosition={(positionId) =>
-              void actions.closePosition(positionId)
-            }
             stopLoss={chartStop ? Number(chartStop) : null}
             takeProfit={chartTarget ? Number(chartTarget) : null}
             positionDirection={position?.direction ?? null}

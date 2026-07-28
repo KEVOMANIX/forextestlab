@@ -429,28 +429,15 @@ export function previewPosition(
     state.config.pipSize,
     state.config.slippagePips,
   ).toFixed(state.config.pricePrecision);
-  const entryDecimal = d(entry);
-  const temporaryStopDistance = d(state.config.pipSize).times(20);
-  const temporaryTargetDistance = d(state.config.pipSize).times(40);
-  const stopLoss =
-    req.stopLoss ??
-    (req.direction === "long"
-      ? entryDecimal.minus(temporaryStopDistance)
-      : entryDecimal.plus(temporaryStopDistance)
-    ).toFixed(state.config.pricePrecision);
-  const takeProfit =
-    req.takeProfit ??
-    (req.direction === "long"
-      ? entryDecimal.plus(temporaryTargetDistance)
-      : entryDecimal.minus(temporaryTargetDistance)
-    ).toFixed(state.config.pricePrecision);
+  const stopLoss = req.stopLoss ?? null;
+  const takeProfit = req.takeProfit ?? null;
 
   const sizing = calculatePositionSize({
     accountBalance: state.balance,
     accountCurrency: state.config.accountCurrency,
     riskPercent: req.riskPercent,
     entryPrice: entry,
-    stopLoss,
+    stopLoss: stopLoss ?? undefined,
     pipSize: state.config.pipSize,
     symbol: state.config.symbol,
     quoteCurrency: state.config.quoteCurrency,
@@ -529,6 +516,25 @@ export function modifyStopLoss(
   if (!position) {
     return { ok: false, error: "No open position." };
   }
+  if (price && !position.initialStopLoss) {
+    position.initialStopLoss = price;
+    position.initialRiskAmount = d(
+      computePnl({
+        direction: position.direction,
+        entryPrice: position.entryPrice,
+        exitPrice: price,
+        lots: position.lots,
+        pipSize: ctx.state.config.pipSize,
+        pipValueAccountPerLot: pipValueAccountPerLot(
+          ctx.state.config,
+          price,
+        ),
+        commission: position.commission,
+      }).pnl,
+    )
+      .abs()
+      .toFixed(2);
+  }
   position.stopLoss = price;
   recomputeEquity(ctx, false);
   return { ok: true };
@@ -544,6 +550,9 @@ export function modifyTakeProfit(
     : ctx.state.openPositions[0];
   if (!position) {
     return { ok: false, error: "No open position." };
+  }
+  if (price && !position.initialTakeProfit) {
+    position.initialTakeProfit = price;
   }
   position.takeProfit = price;
   recomputeEquity(ctx, false);

@@ -147,7 +147,6 @@ interface PriceChartProps {
   positions: OpenPosition[];
   activePositionId: string | null;
   onEditPosition: (positionId: string) => void;
-  onClosePosition: (positionId: string) => void;
   stopLoss: number | null;
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
@@ -451,7 +450,6 @@ export default function PriceChart({
   positions,
   activePositionId,
   onEditPosition,
-  onClosePosition,
   stopLoss,
   takeProfit,
   tradePlan,
@@ -497,11 +495,18 @@ export default function PriceChart({
   const livePriceLineRef = useRef<IPriceLine | null>(null);
   const positionLinesRef = useRef<Map<string, IPriceLine>>(new Map());
   const positionsRef = useRef<OpenPosition[]>(positions);
-  const stopLineElRef = useRef<HTMLButtonElement | null>(null);
-  const targetLineElRef = useRef<HTMLButtonElement | null>(null);
+  const stopLineElRef = useRef<HTMLElement | null>(null);
+  const targetLineElRef = useRef<HTMLElement | null>(null);
   const entryLineElsRef = useRef<Map<string, HTMLElement>>(new Map());
   const stopDraftRef = useRef<number | null>(stopLoss);
   const targetDraftRef = useRef<number | null>(takeProfit);
+  const protectionDragRef = useRef<{
+    kind: "stop" | "target";
+    startY: number;
+    entryPrice: number;
+    direction: "long" | "short";
+    moved: boolean;
+  } | null>(null);
   const onFocusRef = useRef(onFocus);
   onFocusRef.current = onFocus;
   /** Read by the axis and crosshair formatters, which are bound once at creation. */
@@ -1370,14 +1375,14 @@ export default function PriceChart({
     setDisplayTimeframe(timeframe);
   }
 
-  function beginLineDrag(kind: "stop" | "target", event: React.PointerEvent<HTMLButtonElement>) {
+  function beginLineDrag(kind: "stop" | "target", event: React.PointerEvent<HTMLElement>) {
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     draggingRef.current = kind;
   }
 
-  function moveLine(kind: "stop" | "target", event: React.PointerEvent<HTMLButtonElement>) {
+  function moveLine(kind: "stop" | "target", event: React.PointerEvent<HTMLElement>) {
     if (draggingRef.current !== kind) return;
     const container = containerRef.current;
     const series = seriesRef.current;
@@ -1396,13 +1401,85 @@ export default function PriceChart({
     updateLineCoordinates();
   }
 
-  function endLineDrag(kind: "stop" | "target", event: React.PointerEvent<HTMLButtonElement>) {
+  function endLineDrag(kind: "stop" | "target", event: React.PointerEvent<HTMLElement>) {
     if (draggingRef.current !== kind) return;
     draggingRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     const price = kind === "stop" ? stopDraftRef.current : targetDraftRef.current;
     if (kind === "stop") onStopLossChange(price == null ? null : price.toFixed(precision));
     else onTakeProfitChange(price == null ? null : price.toFixed(precision));
+  }
+
+  function beginProtectionDrag(
+    kind: "stop" | "target",
+    position: OpenPosition,
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) {
+    const entryPrice = Number(position.entryPrice);
+    if (!Number.isFinite(entryPrice)) return;
+    event.stopPropagation();
+    protectionDragRef.current = {
+      kind,
+      startY: event.clientY,
+      entryPrice,
+      direction: position.direction,
+      moved: false,
+    };
+    if (kind === "stop") {
+      stopDraftRef.current = entryPrice;
+      setStopDraft(entryPrice);
+    } else {
+      targetDraftRef.current = entryPrice;
+      setTargetDraft(entryPrice);
+    }
+    beginLineDrag(kind, event);
+  }
+
+  function moveProtectionDrag(
+    kind: "stop" | "target",
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) {
+    const drag = protectionDragRef.current;
+    if (!drag || drag.kind !== kind) return;
+    if (Math.abs(event.clientY - drag.startY) >= 4) drag.moved = true;
+    moveLine(kind, event);
+  }
+
+  function endProtectionDrag(
+    kind: "stop" | "target",
+    event: React.PointerEvent<HTMLButtonElement>,
+  ) {
+    const drag = protectionDragRef.current;
+    if (!drag || drag.kind !== kind) return;
+    event.stopPropagation();
+    draggingRef.current = null;
+    protectionDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const price =
+      kind === "stop" ? stopDraftRef.current : targetDraftRef.current;
+    const correctSide =
+      price != null &&
+      (kind === "stop"
+        ? drag.direction === "long"
+          ? price < drag.entryPrice
+          : price > drag.entryPrice
+        : drag.direction === "long"
+          ? price > drag.entryPrice
+          : price < drag.entryPrice);
+    if (drag.moved && correctSide && price != null) {
+      if (kind === "stop") onStopLossChange(price.toFixed(precision));
+      else onTakeProfitChange(price.toFixed(precision));
+      return;
+    }
+    if (kind === "stop") {
+      stopDraftRef.current = null;
+      setStopDraft(null);
+    } else {
+      targetDraftRef.current = null;
+      setTargetDraft(null);
+    }
   }
 
   // Drag the favorites bar from anywhere on it (buttons still click if no drag).
@@ -1827,6 +1904,7 @@ export default function PriceChart({
         {(settings.positionLines ? positions : []).map((position) => {
           const isLong = position.direction === "long";
           const positive = Number(position.unrealizedPnl) >= 0;
+          const isActive = position.id === activePositionId;
           return (
             <div
               key={position.id}
@@ -1847,13 +1925,47 @@ export default function PriceChart({
                 <span className="grid h-full min-w-7 place-items-center border-r border-[#2962ff]/60 bg-[#2962ff]/15 font-bold text-[#5b8bff]">
                   {isLong ? "↗" : "↘"}
                 </span>
-                {position.takeProfit && (
-                  <button type="button" onClick={() => onEditPosition(position.id)} className="h-full border-r app-border px-2 font-bold text-brand-300 hover:bg-white/[0.06]" aria-label={`Edit take profit for ${isLong ? "buy" : "sell"} position`}>
+                {isActive && !position.takeProfit && (
+                  <button
+                    type="button"
+                    data-testid="add-take-profit-handle"
+                    onPointerDown={(event) =>
+                      beginProtectionDrag("target", position, event)
+                    }
+                    onPointerMove={(event) =>
+                      moveProtectionDrag("target", event)
+                    }
+                    onPointerUp={(event) =>
+                      endProtectionDrag("target", event)
+                    }
+                    onPointerCancel={(event) =>
+                      endProtectionDrag("target", event)
+                    }
+                    className="h-full touch-none border-r app-border px-2 font-bold text-brand-300 hover:bg-white/[0.06]"
+                    aria-label={`Drag to add take profit for ${isLong ? "buy" : "sell"} position`}
+                  >
                     TP
                   </button>
                 )}
-                {position.stopLoss && (
-                  <button type="button" onClick={() => onEditPosition(position.id)} className="h-full border-r app-border px-2 font-bold text-amber-400 hover:bg-white/[0.06]" aria-label={`Edit stop loss for ${isLong ? "buy" : "sell"} position`}>
+                {isActive && !position.stopLoss && (
+                  <button
+                    type="button"
+                    data-testid="add-stop-loss-handle"
+                    onPointerDown={(event) =>
+                      beginProtectionDrag("stop", position, event)
+                    }
+                    onPointerMove={(event) =>
+                      moveProtectionDrag("stop", event)
+                    }
+                    onPointerUp={(event) =>
+                      endProtectionDrag("stop", event)
+                    }
+                    onPointerCancel={(event) =>
+                      endProtectionDrag("stop", event)
+                    }
+                    className="h-full touch-none border-r app-border px-2 font-bold text-amber-400 hover:bg-white/[0.06]"
+                    aria-label={`Drag to add stop loss for ${isLong ? "buy" : "sell"} position`}
+                  >
                     SL
                   </button>
                 )}
@@ -1864,7 +1976,7 @@ export default function PriceChart({
                   {Number(position.unrealizedPnl) >= 0 ? "+" : "−"}
                   {Math.abs(Number(position.unrealizedPnl)).toFixed(2)} {accountCurrency}
                 </span>
-                <button type="button" onClick={() => onClosePosition(position.id)} className="grid h-full w-7 place-items-center hover:bg-bear/15 hover:text-bear" aria-label={`Close ${isLong ? "buy" : "sell"} position`}>
+                <button type="button" onClick={() => onEditPosition(position.id)} className="grid h-full w-7 place-items-center hover:bg-bear/15 hover:text-bear" aria-label={`Manage ${isLong ? "buy" : "sell"} position`}>
                   <X size={12} aria-hidden />
                 </button>
               </div>
@@ -2026,8 +2138,9 @@ export default function PriceChart({
         })()}
 
         {settings.positionLines && stopDraft != null && (
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             data-testid="stop-loss-line"
             ref={(el) => {
               stopLineElRef.current = el;
@@ -2050,32 +2163,30 @@ export default function PriceChart({
                   projectedPositionPnl(activePosition, stopDraft),
                 )}
               </span>
-              <span
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 aria-label="Remove stop loss"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
+                onPointerDown={(event) => {
+                  event.preventDefault();
                   event.stopPropagation();
                   onStopLossChange(null);
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onStopLossChange(null);
-                  }
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (event.detail === 0) onStopLossChange(null);
                 }}
                 className="grid h-full w-7 cursor-pointer place-items-center hover:bg-amber-400/15"
               >
                 <X size={12} aria-hidden />
-              </span>
+              </button>
             </span>
-          </button>
+          </div>
         )}
 
         {settings.positionLines && targetDraft != null && (
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             data-testid="take-profit-line"
             ref={(el) => {
               targetLineElRef.current = el;
@@ -2098,27 +2209,24 @@ export default function PriceChart({
                   projectedPositionPnl(activePosition, targetDraft),
                 )}
               </span>
-              <span
-                role="button"
-                tabIndex={0}
+              <button
+                type="button"
                 aria-label="Remove take profit"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
+                onPointerDown={(event) => {
+                  event.preventDefault();
                   event.stopPropagation();
                   onTakeProfitChange(null);
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    onTakeProfitChange(null);
-                  }
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (event.detail === 0) onTakeProfitChange(null);
                 }}
                 className="grid h-full w-7 cursor-pointer place-items-center hover:bg-brand-400/15"
               >
                 <X size={12} aria-hidden />
-              </span>
+              </button>
             </span>
-          </button>
+          </div>
         )}
 
         {(loading || historyLoading) && (

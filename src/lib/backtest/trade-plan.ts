@@ -65,20 +65,11 @@ export function defaultTradePlan(
 ): TradePlan | null {
   const entryPrice = estimatedMarketEntry(state, direction);
   if (!entryPrice) return null;
-  const entry = d(entryPrice);
-  const stopDistance = d(state.config.pipSize).times(20);
-  const targetDistance = d(state.config.pipSize).times(40);
   return {
     direction,
     entryPrice,
-    stopLoss:
-      direction === "long"
-        ? entry.minus(stopDistance).toFixed(state.config.pricePrecision)
-        : entry.plus(stopDistance).toFixed(state.config.pricePrecision),
-    takeProfit:
-      direction === "long"
-        ? entry.plus(targetDistance).toFixed(state.config.pricePrecision)
-        : entry.minus(targetDistance).toFixed(state.config.pricePrecision),
+    stopLoss: "",
+    takeProfit: "",
   };
 }
 
@@ -91,7 +82,7 @@ export function tradePlanMetrics({
 }: TradePlanMetricInput): TradePlanMetrics {
   const unavailable: TradePlanMetrics = {
     valid: false,
-    error: "Enter valid entry, stop-loss and take-profit prices.",
+    error: "Enter a valid entry price.",
     lots: "—",
     stopPips: "—",
     targetPips: "—",
@@ -105,10 +96,12 @@ export function tradePlanMetrics({
     pipValue: "—",
     tradeValue: "—",
   };
+  const hasStop = plan.stopLoss.trim() !== "";
+  const hasTarget = plan.takeProfit.trim() !== "";
   if (
     !isFiniteNumeric(plan.entryPrice) ||
-    !isFiniteNumeric(plan.stopLoss) ||
-    !isFiniteNumeric(plan.takeProfit) ||
+    (hasStop && !isFiniteNumeric(plan.stopLoss)) ||
+    (hasTarget && !isFiniteNumeric(plan.takeProfit)) ||
     !isFiniteNumeric(state.config.pipSize) ||
     d(state.config.pipSize).lte(0)
   ) {
@@ -128,15 +121,23 @@ export function tradePlanMetrics({
   ) {
     return { ...unavailable, error: "Enter an account risk greater than zero." };
   }
+  if (sizingMode === "risk-percent" && !hasStop) {
+    return {
+      ...unavailable,
+      error: "Add a stop loss to calculate risk-based position size.",
+    };
+  }
 
   const entry = d(plan.entryPrice);
-  const stop = d(plan.stopLoss);
-  const target = d(plan.takeProfit);
-  const correctOrder =
-    plan.direction === "long"
-      ? stop.lt(entry) && target.gt(entry)
-      : stop.gt(entry) && target.lt(entry);
-  if (!correctOrder) {
+  const stop = hasStop ? d(plan.stopLoss) : null;
+  const target = hasTarget ? d(plan.takeProfit) : null;
+  const stopCorrect =
+    !stop ||
+    (plan.direction === "long" ? stop.lt(entry) : stop.gt(entry));
+  const targetCorrect =
+    !target ||
+    (plan.direction === "long" ? target.gt(entry) : target.lt(entry));
+  if (!stopCorrect || !targetCorrect) {
     return {
       ...unavailable,
       error:
@@ -151,7 +152,7 @@ export function tradePlanMetrics({
     accountCurrency: state.config.accountCurrency,
     riskPercent: sizingMode === "risk-percent" ? riskPercent : undefined,
     entryPrice: plan.entryPrice,
-    stopLoss: plan.stopLoss,
+    stopLoss: hasStop ? plan.stopLoss : undefined,
     pipSize: state.config.pipSize,
     symbol: state.config.symbol,
     quoteCurrency: state.config.quoteCurrency,
@@ -167,37 +168,45 @@ export function tradePlanMetrics({
     quoteCurrency: state.config.quoteCurrency,
     accountCurrency: state.config.accountCurrency,
     baseCurrency: state.config.baseCurrency,
-    price: plan.takeProfit,
+    price: hasTarget ? plan.takeProfit : plan.entryPrice,
     symbol: state.config.symbol,
   });
   if (!isFiniteNumeric(pipValue.value)) {
     return { ...unavailable, error: "The pip value could not be calculated." };
   }
 
-  const stopPips = entry.minus(stop).abs().div(state.config.pipSize);
-  const targetPips = target.minus(entry).abs().div(state.config.pipSize);
+  const stopPips = stop
+    ? entry.minus(stop).abs().div(state.config.pipSize)
+    : null;
+  const targetPips = target
+    ? target.minus(entry).abs().div(state.config.pipSize)
+    : null;
   const commission = commissionForLots(
     state.config.commissionPerLot,
     sizing.lots,
   );
-  const projected = computePnl({
-    direction: plan.direction,
-    entryPrice: plan.entryPrice,
-    exitPrice: plan.takeProfit,
-    lots: sizing.lots,
-    pipSize: state.config.pipSize,
-    pipValueAccountPerLot: pipValue.value,
-    commission,
-  });
-  const stopped = computePnl({
-    direction: plan.direction,
-    entryPrice: plan.entryPrice,
-    exitPrice: plan.stopLoss,
-    lots: sizing.lots,
-    pipSize: state.config.pipSize,
-    pipValueAccountPerLot: pipValue.value,
-    commission,
-  });
+  const projected = hasTarget
+    ? computePnl({
+        direction: plan.direction,
+        entryPrice: plan.entryPrice,
+        exitPrice: plan.takeProfit,
+        lots: sizing.lots,
+        pipSize: state.config.pipSize,
+        pipValueAccountPerLot: pipValue.value,
+        commission,
+      })
+    : null;
+  const stopped = hasStop
+    ? computePnl({
+        direction: plan.direction,
+        entryPrice: plan.entryPrice,
+        exitPrice: plan.stopLoss,
+        lots: sizing.lots,
+        pipSize: state.config.pipSize,
+        pipValueAccountPerLot: pipValue.value,
+        commission,
+      })
+    : null;
   const spreadCost = d(state.config.spreadPips)
     .times(pipValue.value)
     .times(sizing.lots)
@@ -226,11 +235,14 @@ export function tradePlanMetrics({
     valid: true,
     error: null,
     lots: sizing.lots,
-    stopPips: stopPips.toFixed(1),
-    targetPips: targetPips.toFixed(1),
-    riskReward: targetPips.div(stopPips).toFixed(2),
-    riskAmount: d(stopped.pnl).abs().toFixed(2),
-    projectedProfit: projected.pnl,
+    stopPips: stopPips?.toFixed(1) ?? "—",
+    targetPips: targetPips?.toFixed(1) ?? "—",
+    riskReward:
+      stopPips && targetPips && stopPips.gt(0)
+        ? targetPips.div(stopPips).toFixed(2)
+        : "—",
+    riskAmount: stopped ? d(stopped.pnl).abs().toFixed(2) : "—",
+    projectedProfit: projected?.pnl ?? "—",
     spreadCost,
     margin: margin.value,
     availableMargin,

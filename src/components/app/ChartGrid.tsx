@@ -101,7 +101,6 @@ interface ChartGridProps {
   positions: OpenPosition[];
   activePositionId: string | null;
   onEditPosition: (positionId: string) => void;
-  onClosePosition: (positionId: string) => void;
   stopLoss: number | null;
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
@@ -143,7 +142,6 @@ export default function ChartGrid({
   positions,
   activePositionId,
   onEditPosition,
-  onClosePosition,
   stopLoss,
   takeProfit,
   positionDirection,
@@ -351,7 +349,6 @@ export default function ChartGrid({
                 positions={positions}
                 activePositionId={activePositionId}
                 onEditPosition={onEditPosition}
-                onClosePosition={onClosePosition}
                 stopLoss={stopLoss}
                 takeProfit={takeProfit}
                 positionDirection={positionDirection}
@@ -390,7 +387,6 @@ interface ChartCellViewProps {
   positions: OpenPosition[];
   activePositionId: string | null;
   onEditPosition: (positionId: string) => void;
-  onClosePosition: (positionId: string) => void;
   stopLoss: number | null;
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
@@ -429,7 +425,6 @@ function ChartCellView({
   positions,
   activePositionId,
   onEditPosition,
-  onClosePosition,
   stopLoss,
   takeProfit,
   positionDirection,
@@ -476,7 +471,6 @@ function ChartCellView({
         positions={tradable ? positions : []}
         activePositionId={tradable ? activePositionId : null}
         onEditPosition={onEditPosition}
-        onClosePosition={onClosePosition}
         stopLoss={tradable ? stopLoss : null}
         takeProfit={tradable ? takeProfit : null}
         positionDirection={tradable ? positionDirection : null}

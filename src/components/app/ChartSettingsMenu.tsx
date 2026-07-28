@@ -27,6 +27,25 @@ export interface ChartSettings {
   positionLines: boolean;
   /** Compact Buy/Sell buttons submit market orders without opening the planner. */
   oneClickTrading: boolean;
+  /** Ask once before a one-click order is submitted. */
+  oneClickConfirmation: boolean;
+  /** Zero disables the corresponding trading safeguard. */
+  maxRiskPerTradePercent: number;
+  dailyLossLimitPercent: number;
+  maxDrawdownLimitPercent: number;
+  sessionTradeLimit: number;
+  sessionGoalAmount: number;
+  distractionFree: boolean;
+  shortcuts: {
+    toggleReplay: string;
+    stepForward: string;
+    stepBack: string;
+    buy: string;
+    sell: string;
+    bookmark: string;
+    distractionFree: string;
+    reference: string;
+  };
   drawings: boolean;
   /** Dotted line and axis tag tracking the latest price. */
   priceLine: boolean;
@@ -45,6 +64,23 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   tradeHistory: true,
   positionLines: true,
   oneClickTrading: false,
+  oneClickConfirmation: true,
+  maxRiskPerTradePercent: 0,
+  dailyLossLimitPercent: 0,
+  maxDrawdownLimitPercent: 0,
+  sessionTradeLimit: 0,
+  sessionGoalAmount: 0,
+  distractionFree: false,
+  shortcuts: {
+    toggleReplay: " ",
+    stepForward: "ArrowRight",
+    stepBack: "ArrowLeft",
+    buy: "b",
+    sell: "s",
+    bookmark: "m",
+    distractionFree: "f",
+    reference: "?",
+  },
   drawings: true,
   priceLine: true,
   timeZone: EXCHANGE_ZONE,
@@ -173,6 +209,13 @@ export function ChartSettingsMenu({
         checked={settings.oneClickTrading}
         onToggle={() =>
           onChange({ oneClickTrading: !settings.oneClickTrading })
+        }
+      />
+      <ToggleRow
+        label="Confirm one-click orders"
+        checked={settings.oneClickConfirmation}
+        onToggle={() =>
+          onChange({ oneClickConfirmation: !settings.oneClickConfirmation })
         }
       />
 

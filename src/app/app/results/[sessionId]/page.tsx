@@ -84,6 +84,8 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
         equityCurve={state.equityCurve}
         startingBalance={state.config.startingBalance}
         fullAccess={entitlements.fullAnalytics}
+        currentSessionId={results.sessionId}
+        sessions={results.reviewSessions}
       />
 
       <SessionTradeJournal

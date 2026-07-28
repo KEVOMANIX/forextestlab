@@ -23,6 +23,7 @@ export interface SessionResults {
   state: SessionState;
   stats: PerformanceStats;
   hasAmbiguousTrades: boolean;
+  reviewSessions: ReviewSession[];
   branchComparison: {
     sessionId: string;
     name: string;
@@ -35,6 +36,19 @@ export interface SessionResults {
     netPnl: string;
     winRate: string;
   }[];
+}
+
+export interface ReviewSession {
+  sessionId: string;
+  name: string;
+  symbol: string;
+  timeframe: string;
+  createdAt: string;
+  parentSessionId: string | null;
+  branchRootId: string | null;
+  startingBalance: string;
+  endingBalance: string;
+  trades: SessionState["closedTrades"];
 }
 
 export async function getSessionResults(
@@ -61,6 +75,39 @@ export async function getSessionResults(
       OR: [{ id: rootId }, { branchRootId: rootId }],
     },
     orderBy: { createdAt: "asc" },
+  });
+  const reviewRows = await prisma.backtestSession.findMany({
+    where: { userId, anonymous: false },
+    orderBy: { updatedAt: "desc" },
+    take: 60,
+  });
+  const reviewSessions = reviewRows.map((session) => {
+    const sessionState = normalizeSessionState(
+      JSON.parse(session.stateJson) as SessionState,
+    );
+    return {
+      sessionId: session.id,
+      name:
+        sessionState.config.name?.trim() ||
+        `${session.symbol} backtest`,
+      symbol: session.symbol,
+      timeframe: session.timeframe,
+      createdAt: session.createdAt.toISOString(),
+      parentSessionId: session.parentSessionId,
+      branchRootId: session.branchRootId,
+      startingBalance: sessionState.config.startingBalance,
+      endingBalance: sessionState.balance,
+      trades: sessionState.closedTrades.map((trade) => ({
+        ...trade,
+        journal: trade.journal
+          ? {
+              ...trade.journal,
+              beforeEntrySnapshot: null,
+              afterExitSnapshot: null,
+            }
+          : undefined,
+      })),
+    };
   });
   const branchComparison = familyRows.map((family) => {
     const familyState = normalizeSessionState(JSON.parse(family.stateJson) as SessionState);
@@ -99,6 +146,7 @@ export async function getSessionResults(
     state,
     stats,
     hasAmbiguousTrades: state.closedTrades.some((t) => t.intrabarAmbiguous),
+    reviewSessions,
     branchComparison,
   };
 }

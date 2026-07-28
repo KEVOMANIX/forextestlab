@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   Clock3,
   Filter,
@@ -18,6 +19,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import type { ReviewSession } from "@/lib/backtest/results";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import {
   formatNewYorkDateTime,
@@ -29,6 +31,13 @@ import { TradesTable } from "./TradesTable";
 
 type TradeFilter = "all" | "long" | "short" | "winners" | "losers";
 type AnalyticsTab = "overview" | "risk" | "timing" | "trades";
+type RuleFilter = "all" | "followed" | "broken" | "unreviewed";
+type ReviewTrade = ClosedTrade & {
+  reviewSessionId: string;
+  reviewSessionName: string;
+  reviewSymbol: string;
+  reviewTimeframe: string;
+};
 
 // Viewbox geometry shared by the SVG line/area charts.
 const W = 760;
@@ -826,33 +835,226 @@ function PeriodBars({ trades }: { trades: ClosedTrade[] }) {
 
 /* ─────────────────────────── Workbench ─────────────────────────── */
 
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: [string, string][];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="min-w-0 text-[10px] font-semibold uppercase tracking-wide app-muted">
+      {label}
+      <select className="app-input mt-1 h-9 w-full truncate px-2 text-xs normal-case" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function ruleResult(trade: ClosedTrade): Exclude<RuleFilter, "all"> {
+  const rules = trade.journal?.ruleChecklist ?? [];
+  if (!rules.length) return "unreviewed";
+  return rules.every((rule) => rule.followed) ? "followed" : "broken";
+}
+
+function OutcomeBreakdown({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { label: string; trades: number; net: number; winRate: number }[];
+}) {
+  return (
+    <ChartCard title={title} subtitle="Journal-linked performance for the current filters">
+      {rows.length ? (
+        <div className="space-y-2">
+          {rows.slice(0, 10).map((row) => (
+            <div key={row.label} className="grid grid-cols-[minmax(0,1fr)_55px_72px_62px] items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
+              <span className="truncate font-semibold">{row.label}</span>
+              <span className="text-right app-muted">{row.trades} trades</span>
+              <span className={`text-right font-mono ${row.net >= 0 ? "text-brand-300" : "text-bear"}`}>{money(row.net)}</span>
+              <span className="text-right font-mono">{pct(row.winRate)}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyChart text="Add setup tags or rule reviews to see this comparison." />
+      )}
+    </ChartCard>
+  );
+}
+
+function groupOutcomes(
+  trades: ReviewTrade[],
+  labels: (trade: ReviewTrade) => string[],
+) {
+  const groups = new Map<string, ReviewTrade[]>();
+  for (const trade of trades) {
+    for (const label of labels(trade)) {
+      groups.set(label, [...(groups.get(label) ?? []), trade]);
+    }
+  }
+  return [...groups.entries()]
+    .map(([label, records]) => ({
+      label,
+      trades: records.length,
+      net: records.reduce((sum, trade) => sum + Number(trade.pnl), 0),
+      winRate:
+        records.filter((trade) => Number(trade.pnl) > 0).length /
+        records.length *
+        100,
+    }))
+    .sort((left, right) => right.trades - left.trades || right.net - left.net);
+}
+
+function SessionComparison({
+  sessions,
+  leftId,
+  rightId,
+  onLeft,
+  onRight,
+}: {
+  sessions: ReviewSession[];
+  leftId: string;
+  rightId: string;
+  onLeft: (id: string) => void;
+  onRight: (id: string) => void;
+}) {
+  const summary = (id: string) => {
+    const session = sessions.find((item) => item.sessionId === id);
+    if (!session) return null;
+    const net = session.trades.reduce((sum, trade) => sum + Number(trade.pnl), 0);
+    const wins = session.trades.filter((trade) => Number(trade.pnl) > 0).length;
+    const realized = session.trades
+      .map((trade) => Number(trade.journal?.realizedR))
+      .filter(Number.isFinite);
+    return {
+      ...session,
+      net,
+      winRate: session.trades.length ? wins / session.trades.length * 100 : 0,
+      averageR: realized.length
+        ? realized.reduce((sum, value) => sum + value, 0) / realized.length
+        : null,
+    };
+  };
+  const left = summary(leftId);
+  const right = summary(rightId);
+  if (sessions.length < 2) return null;
+  return (
+    <ChartCard title="Compare sessions or branches" subtitle="Choose any two saved sessions, including forks">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[
+          { value: leftId, set: onLeft, result: left },
+          { value: rightId, set: onRight, result: right },
+        ].map((side, index) => (
+          <div key={index} className="rounded-xl border app-border p-3">
+            <select className="app-input w-full text-xs" value={side.value} onChange={(event) => side.set(event.target.value)}>
+              {sessions.map((session) => <option key={session.sessionId} value={session.sessionId}>{session.name}</option>)}
+            </select>
+            {side.result && (
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                <div><dt className="app-muted">Net P/L</dt><dd className={`mt-1 font-mono font-semibold ${side.result.net >= 0 ? "text-brand-300" : "text-bear"}`}>{money(side.result.net)}</dd></div>
+                <div><dt className="app-muted">Win rate</dt><dd className="mt-1 font-mono font-semibold">{pct(side.result.winRate)}</dd></div>
+                <div><dt className="app-muted">Trades</dt><dd className="mt-1 font-mono font-semibold">{side.result.trades.length}</dd></div>
+                <div><dt className="app-muted">Average R</dt><dd className="mt-1 font-mono font-semibold">{side.result.averageR == null ? "—" : `${side.result.averageR.toFixed(2)}R`}</dd></div>
+              </dl>
+            )}
+          </div>
+        ))}
+      </div>
+    </ChartCard>
+  );
+}
+
 export function SessionAnalyticsWorkbench({
   trades,
   equityCurve,
   startingBalance,
   fullAccess = true,
+  currentSessionId = "current",
+  sessions = [],
 }: {
   trades: ClosedTrade[];
   equityCurve: EquityPoint[];
   startingBalance: string;
   fullAccess?: boolean;
+  currentSessionId?: string;
+  sessions?: ReviewSession[];
 }) {
   const [tab, setTab] = useState<AnalyticsTab>("overview");
   const [filter, setFilter] = useState<TradeFilter>("all");
   const [query, setQuery] = useState("");
   const [hoveredTrade, setHoveredTrade] = useState<number | null>(null);
+  const [sessionFilter, setSessionFilter] = useState(currentSessionId);
+  const [pairFilter, setPairFilter] = useState("all");
+  const [timeframeFilter, setTimeframeFilter] = useState("all");
+  const [setupFilter, setSetupFilter] = useState("all");
+  const [mistakeFilter, setMistakeFilter] = useState("all");
+  const [ruleFilter, setRuleFilter] = useState<RuleFilter>("all");
+  const [compareLeft, setCompareLeft] = useState(currentSessionId);
+  const [compareRight, setCompareRight] = useState(
+    sessions.find((session) => session.sessionId !== currentSessionId)?.sessionId ??
+      currentSessionId,
+  );
+
+  const availableSessions = useMemo<ReviewSession[]>(
+    () =>
+      sessions.length
+        ? sessions
+        : [{
+            sessionId: currentSessionId,
+            name: "Current session",
+            symbol: "Current pair",
+            timeframe: "Current timeframe",
+            createdAt: "",
+            parentSessionId: null,
+            branchRootId: null,
+            startingBalance,
+            endingBalance: String(Number(startingBalance) + trades.reduce((sum, trade) => sum + Number(trade.pnl), 0)),
+            trades,
+          }],
+    [currentSessionId, sessions, startingBalance, trades],
+  );
+  const reviewTrades = useMemo<ReviewTrade[]>(
+    () =>
+      availableSessions.flatMap((session) =>
+        session.trades.map((trade) => ({
+          ...trade,
+          reviewSessionId: session.sessionId,
+          reviewSessionName: session.name,
+          reviewSymbol: session.symbol,
+          reviewTimeframe: session.timeframe,
+        })),
+      ),
+    [availableSessions],
+  );
+  const pairOptions = useMemo(() => [...new Set(availableSessions.map((session) => session.symbol))].sort(), [availableSessions]);
+  const timeframeOptions = useMemo(() => [...new Set(availableSessions.map((session) => session.timeframe))], [availableSessions]);
+  const setupOptions = useMemo(() => [...new Set(reviewTrades.flatMap((trade) => trade.journal?.setupTags ?? []))].sort(), [reviewTrades]);
+  const mistakeOptions = useMemo(() => [...new Set(reviewTrades.flatMap((trade) => trade.journal?.mistakeTags ?? []))].sort(), [reviewTrades]);
 
   const filtered = useMemo(
     () =>
-      trades.filter(
+      reviewTrades.filter(
         (t) =>
-          filter === "all" ||
-          (filter === "long" && t.direction === "long") ||
-          (filter === "short" && t.direction === "short") ||
-          (filter === "winners" && Number(t.pnl) > 0) ||
-          (filter === "losers" && Number(t.pnl) < 0),
+          (sessionFilter === "all" || t.reviewSessionId === sessionFilter) &&
+          (pairFilter === "all" || t.reviewSymbol === pairFilter) &&
+          (timeframeFilter === "all" || t.reviewTimeframe === timeframeFilter) &&
+          (setupFilter === "all" || t.journal?.setupTags.includes(setupFilter)) &&
+          (mistakeFilter === "all" || t.journal?.mistakeTags.includes(mistakeFilter)) &&
+          (ruleFilter === "all" || ruleResult(t) === ruleFilter) &&
+          (filter === "all" ||
+            (filter === "long" && t.direction === "long") ||
+            (filter === "short" && t.direction === "short") ||
+            (filter === "winners" && Number(t.pnl) > 0) ||
+            (filter === "losers" && Number(t.pnl) < 0)),
       ),
-    [trades, filter],
+    [reviewTrades, sessionFilter, pairFilter, timeframeFilter, setupFilter, mistakeFilter, ruleFilter, filter],
   );
   const searched = useMemo(
     () => filtered.filter((t) => `${t.id} ${t.direction} ${t.exitReason} ${t.entryPrice} ${t.exitPrice}`.toLowerCase().includes(query.toLowerCase())),
@@ -860,6 +1062,29 @@ export function SessionAnalyticsWorkbench({
   );
 
   const start = Number(startingBalance);
+  const analyticsEquityCurve = useMemo<EquityPoint[]>(() => {
+    const currentUnfiltered =
+      sessionFilter === currentSessionId &&
+      pairFilter === "all" &&
+      timeframeFilter === "all" &&
+      setupFilter === "all" &&
+      mistakeFilter === "all" &&
+      ruleFilter === "all" &&
+      filter === "all";
+    if (currentUnfiltered) return equityCurve;
+    let balance = start;
+    return [...filtered]
+      .sort((left, right) => left.exitTime - right.exitTime)
+      .map((trade, index) => {
+        balance += Number(trade.pnl);
+        return {
+          index,
+          time: trade.exitTime,
+          balance: balance.toFixed(2),
+          equity: balance.toFixed(2),
+        };
+      });
+  }, [currentSessionId, equityCurve, filter, filtered, mistakeFilter, pairFilter, ruleFilter, sessionFilter, setupFilter, start, timeframeFilter]);
   const wins = filtered.filter((t) => Number(t.pnl) > 0);
   const losses = filtered.filter((t) => Number(t.pnl) < 0);
   const net = filtered.reduce((s, t) => s + Number(t.pnl), 0);
@@ -874,13 +1099,26 @@ export function SessionAnalyticsWorkbench({
 
   let peak = start;
   let maxDd = 0;
-  equityCurve.forEach((p) => {
+  analyticsEquityCurve.forEach((p) => {
     const e = Number(p.equity);
     peak = Math.max(peak, e);
     maxDd = Math.max(maxDd, peak - e);
   });
   const rr = filtered.filter((t) => Number(t.initialRiskAmount) > 0).map((t) => Number(t.pnl) / Number(t.initialRiskAmount));
   const averageR = rr.length ? rr.reduce((a, b) => a + b, 0) / rr.length : null;
+  const strategyRows = groupOutcomes(filtered, (trade) =>
+    trade.journal?.setupTags.length ? trade.journal.setupTags : ["Unlabelled"],
+  );
+  const ruleRows = groupOutcomes(filtered, (trade) => {
+    const result = ruleResult(trade);
+    return [result === "followed" ? "Rules followed" : result === "broken" ? "Rules broken" : "Not reviewed"];
+  });
+  const plannedRealized = filtered
+    .map((trade) => ({
+      planned: Number(trade.journal?.plannedRR),
+      realized: Number(trade.journal?.realizedR),
+    }))
+    .filter((item) => Number.isFinite(item.planned) && Number.isFinite(item.realized));
 
   let currentStreak = 0;
   let streakType = "Flat";
@@ -948,6 +1186,22 @@ export function SessionAnalyticsWorkbench({
         </div>
       </div>
 
+      <div className="mt-3 grid gap-2 rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-3 sm:grid-cols-2 lg:grid-cols-6">
+        <FilterSelect label="Session" value={sessionFilter} onChange={setSessionFilter} options={[["all", "All sessions"], ...availableSessions.map((session) => [session.sessionId, session.name] as [string, string])]} />
+        <FilterSelect label="Pair" value={pairFilter} onChange={setPairFilter} options={[["all", "All pairs"], ...pairOptions.map((value) => [value, value] as [string, string])]} />
+        <FilterSelect label="Timeframe" value={timeframeFilter} onChange={setTimeframeFilter} options={[["all", "All timeframes"], ...timeframeOptions.map((value) => [value, value] as [string, string])]} />
+        <FilterSelect label="Setup" value={setupFilter} onChange={setSetupFilter} options={[["all", "All setups"], ...setupOptions.map((value) => [value, value] as [string, string])]} />
+        <FilterSelect label="Mistake" value={mistakeFilter} onChange={setMistakeFilter} options={[["all", "All mistakes"], ...mistakeOptions.map((value) => [value, value] as [string, string])]} />
+        <FilterSelect label="Rules" value={ruleFilter} onChange={(value) => setRuleFilter(value as RuleFilter)} options={[["all", "All reviews"], ["followed", "Rules followed"], ["broken", "Rules broken"], ["unreviewed", "Not reviewed"]]} />
+      </div>
+
+      {filtered.length < 30 && (
+        <div role="note" className="mt-3 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs text-amber-200">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <span><strong>Small sample:</strong> {filtered.length} filtered trade{filtered.length === 1 ? "" : "s"}. Treat strategy and rule comparisons as preliminary{filtered.length < 10 ? "; fewer than 10 trades is too weak for a reliable conclusion" : ""}.</span>
+        </div>
+      )}
+
       {!fullAccess && (
         <div className="mt-4 flex flex-col gap-3 rounded-xl border border-brand-400/25 bg-brand-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -962,7 +1216,7 @@ export function SessionAnalyticsWorkbench({
         <HeroSummary
           net={net}
           returnPct={returnPct}
-          points={equityCurve}
+          points={analyticsEquityCurve}
           startingBalance={start}
           endingBalance={endingBalance}
           trades={filtered.length}
@@ -989,8 +1243,22 @@ export function SessionAnalyticsWorkbench({
 
       {tab === "overview" && (
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <OutcomeBreakdown title="Performance by strategy" rows={strategyRows} />
+          <OutcomeBreakdown title="Rule-followed vs rule-broken" rows={ruleRows} />
+          <ChartCard title="Planned R vs realised R" subtitle="Compares the journal plan with the completed outcome">
+            {plannedRealized.length ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-white/[0.03] p-3"><p className="text-xs app-muted">Average planned</p><p className="mt-1 font-mono text-lg font-semibold">{(plannedRealized.reduce((sum, item) => sum + item.planned, 0) / plannedRealized.length).toFixed(2)}R</p></div>
+                  <div className="rounded-xl bg-white/[0.03] p-3"><p className="text-xs app-muted">Average realised</p><p className="mt-1 font-mono text-lg font-semibold">{(plannedRealized.reduce((sum, item) => sum + item.realized, 0) / plannedRealized.length).toFixed(2)}R</p></div>
+                </div>
+                <p className="text-xs app-muted">{plannedRealized.filter((item) => item.realized >= item.planned).length} of {plannedRealized.length} trades met or exceeded the plan.</p>
+              </div>
+            ) : <EmptyChart text="Planned and realised R will appear after journalled trades close." />}
+          </ChartCard>
+          <SessionComparison sessions={availableSessions} leftId={compareLeft} rightId={compareRight} onLeft={setCompareLeft} onRight={setCompareRight} />
           <ChartCard title="Equity, balance & drawdown" subtitle="Hover to inspect synchronized account values and trade exits" className="lg:col-span-2">
-            <EquityDrawdownChart points={equityCurve} trades={filtered} />
+            <EquityDrawdownChart points={analyticsEquityCurve} trades={filtered} />
           </ChartCard>
           <ChartCard title="Cumulative trade P/L" subtitle="Running realised profit across every filtered trade" legend={<Legend items={[{ label: net >= 0 ? "Net positive" : "Net negative", color: net >= 0 ? C.pos : C.neg }]} />}>
             <CumulativePnlChart trades={filtered} hovered={hoveredTrade} onHover={setHoveredTrade} />
@@ -1022,7 +1290,7 @@ export function SessionAnalyticsWorkbench({
       {tab === "risk" && (
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <ChartCard title="Drawdown & recovery" subtitle={`Recovery factor ${maxDd ? (net / maxDd).toFixed(2) : "—"} · Maximum drawdown ${money(-maxDd)}`} className="lg:col-span-2">
-            <EquityDrawdownChart points={equityCurve} trades={filtered} />
+            <EquityDrawdownChart points={analyticsEquityCurve} trades={filtered} />
           </ChartCard>
           <ChartCard title="Risk multiple vs duration" subtitle="Dot size represents lots; dashed lines mark ±1R">
             <RiskScatter trades={filtered} />

@@ -31,6 +31,9 @@ import { EndOfDataModal } from "./EndOfDataModal";
 import { TrialSessionLauncher } from "./TrialSessionLauncher";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { WorkspaceManager } from "./WorkspaceManager";
+import { BacktestExperiencePanel } from "./BacktestExperiencePanel";
+import { tradingGuardMessage } from "@/lib/backtest/trade-guards";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
 type PendingConfirmation = {
   title: string;
@@ -48,6 +51,14 @@ const ChartGrid = dynamic(() => import("./ChartGrid"), {
     </div>
   ),
 });
+
+function expectedMarketClosure(previous: number, next: number) {
+  if (next - previous < 24 * 60 * 60_000) return false;
+  const previousDay = new Date(previous).getUTCDay();
+  const nextDay = new Date(next).getUTCDay();
+  return (previousDay === 5 || previousDay === 6) &&
+    (nextDay === 0 || nextDay === 1);
+}
 
 export function Backtester({
   resumeSessionId = null,
@@ -87,6 +98,8 @@ export function Backtester({
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
+  const cancellationTimersRef = useRef<Map<string, number>>(new Map());
+  const warnedGapRef = useRef<string | null>(null);
   const autoTrialAttemptedRef = useRef(false);
   const notificationStateRef = useRef<{
     sessionId: string | null;
@@ -122,6 +135,49 @@ export function Backtester({
       );
     }
   }, [actions, trialSessionsRemaining]);
+
+  const notify = useCallback((notification: TradeNotification, timeout = 5_000) => {
+    setNotifications((current) => [...current.filter((item) => item.id !== notification.id), notification].slice(-5));
+    if (timeout > 0) {
+      window.setTimeout(() => {
+        setNotifications((current) => current.filter((item) => item.id !== notification.id));
+      }, timeout);
+    }
+  }, []);
+
+  const submitOrder = useCallback((
+    order: OrderRequest,
+    options?: { oneClick?: boolean },
+  ) => {
+    if (!state) return;
+    const guard = tradingGuardMessage(state, order, {
+      maxRiskPerTradePercent: workspace.settings.maxRiskPerTradePercent,
+      dailyLossLimitPercent: workspace.settings.dailyLossLimitPercent,
+      maxDrawdownLimitPercent: workspace.settings.maxDrawdownLimitPercent,
+      sessionTradeLimit: workspace.settings.sessionTradeLimit,
+      sessionGoalAmount: workspace.settings.sessionGoalAmount,
+    });
+    if (guard) {
+      notify({
+        id: `guard-${Date.now()}`,
+        title: "Order blocked by your safeguard",
+        detail: guard,
+        tone: "warning",
+      });
+      return;
+    }
+    const place = () => actions.placeOrder(order);
+    if (options?.oneClick && workspace.settings.oneClickConfirmation) {
+      setPendingConfirmation({
+        title: `${order.direction === "long" ? "Buy" : "Sell"} at market?`,
+        message: "This one-click order will be submitted using your saved order size.",
+        confirmLabel: order.direction === "long" ? "Confirm buy" : "Confirm sell",
+        action: place,
+      });
+      return;
+    }
+    place();
+  }, [actions, notify, state, workspace.settings]);
 
   useEffect(() => {
     if (
@@ -159,21 +215,39 @@ export function Backtester({
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
-      if (event.key === " ") {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const matches = (shortcut: string) =>
+        event.key.toLowerCase() === shortcut.toLowerCase();
+      if (matches(workspace.settings.shortcuts.toggleReplay)) {
         event.preventDefault();
         if (state?.status === "running") actions.pause();
         else actions.play();
-      } else if (event.key === "ArrowRight") {
+      } else if (matches(workspace.settings.shortcuts.stepForward)) {
         event.preventDefault();
         actions.stepNext();
-      } else if (event.key === "ArrowLeft") {
+      } else if (matches(workspace.settings.shortcuts.stepBack)) {
         event.preventDefault();
         actions.stepPrev();
+      } else if (matches(workspace.settings.shortcuts.buy)) {
+        event.preventDefault();
+        submitOrder({ ...orderTemplate, direction: "long" }, { oneClick: true });
+      } else if (matches(workspace.settings.shortcuts.sell)) {
+        event.preventDefault();
+        submitOrder({ ...orderTemplate, direction: "short" }, { oneClick: true });
+      } else if (matches(workspace.settings.shortcuts.bookmark)) {
+        event.preventDefault();
+        void actions.addBookmark();
+      } else if (matches(workspace.settings.shortcuts.distractionFree)) {
+        event.preventDefault();
+        workspace.updateSettings({ distractionFree: !workspace.settings.distractionFree });
+      } else if (matches(workspace.settings.shortcuts.reference)) {
+        event.preventDefault();
+        window.dispatchEvent(new Event("forextestlab:open-experience"));
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [bt.phase, state?.status, actions]);
+  }, [bt.phase, state?.status, actions, orderTemplate, submitOrder, workspace]);
 
   useEffect(() => {
     setTradePlan(null);
@@ -207,9 +281,11 @@ export function Backtester({
       })),
       ...newlyClosed.map((trade) => ({
         id: `close-${trade.id}-${Date.now()}`,
-        title: trade.exitReason === "take-profit" ? "Take profit filled" : trade.exitReason === "stop-loss" ? "Stop loss filled" : "Position closed",
-        detail: `${state.config.symbol}, ${trade.lots} lot, exit ${trade.exitPrice}, P&L ${trade.pnl}`,
-        tone: "closed" as const,
+        title: trade.intrabarAmbiguous ? "Ambiguous candle resolved" : trade.exitReason === "take-profit" ? "Take profit filled" : trade.exitReason === "stop-loss" ? "Stop loss filled" : "Position closed",
+        detail: trade.intrabarAmbiguous
+          ? `SL and TP were touched in one candle. The ${state.config.executionPolicy} policy selected ${trade.exitReason}.`
+          : `${state.config.symbol}, ${trade.lots} lot, exit ${trade.exitPrice}, P&L ${trade.pnl}`,
+        tone: (trade.intrabarAmbiguous ? "warning" : "closed") as TradeNotification["tone"],
       })),
       ...state.pendingOrders
         .filter((order) => {
@@ -241,6 +317,33 @@ export function Backtester({
     }
     notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length, pendingStatuses };
   }, [state]);
+
+  useEffect(() => {
+    if (!state || state.visibleIndex < 1) return;
+    const previous = bt.replayCandles[state.visibleIndex - 1];
+    const current = bt.replayCandles[state.visibleIndex];
+    if (!previous || !current) return;
+    const expected = TIMEFRAME_MS[state.config.timeframe];
+    const gap = current.timestamp - previous.timestamp;
+    const key = `${previous.timestamp}:${current.timestamp}`;
+    if (
+      gap <= expected * 1.5 ||
+      expectedMarketClosure(previous.timestamp, current.timestamp) ||
+      warnedGapRef.current === key
+    ) return;
+    warnedGapRef.current = key;
+    notify({
+      id: `data-gap-${key}`,
+      title: "Market-data gap detected",
+      detail: `There is a ${Math.round(gap / 60_000)} minute gap before this candle. Review fills around this point carefully.`,
+      tone: "warning",
+    }, 8_000);
+  }, [bt.replayCandles, notify, state]);
+
+  useEffect(() => () => {
+    for (const timer of cancellationTimersRef.current.values()) window.clearTimeout(timer);
+    cancellationTimersRef.current.clear();
+  }, []);
 
   const markers = useMemo<ChartMarker[]>(() => {
     if (!state) return [];
@@ -275,6 +378,31 @@ export function Backtester({
     }
     return result;
   }, [state]);
+
+  const requestCancelPending = useCallback((orderId: string) => {
+    if (cancellationTimersRef.current.has(orderId)) return;
+    const notificationId = `cancel-${orderId}`;
+    const undo = () => {
+      const timer = cancellationTimersRef.current.get(orderId);
+      if (timer != null) window.clearTimeout(timer);
+      cancellationTimersRef.current.delete(orderId);
+      setNotifications((current) => current.filter((item) => item.id !== notificationId));
+    };
+    const timer = window.setTimeout(() => {
+      cancellationTimersRef.current.delete(orderId);
+      setNotifications((current) => current.filter((item) => item.id !== notificationId));
+      void actions.cancelPending(orderId);
+    }, 6_000);
+    cancellationTimersRef.current.set(orderId, timer);
+    notify({
+      id: notificationId,
+      title: "Pending order cancellation queued",
+      detail: "The order will be cancelled in 6 seconds.",
+      tone: "warning",
+      actionLabel: "Undo cancellation",
+      onAction: undo,
+    }, 0);
+  }, [actions, notify]);
 
   if (bt.phase === "loading") {
     return <PageLoader />;
@@ -331,14 +459,14 @@ export function Backtester({
   const referencePair =
     activeSymbol === state.config.symbol ? null : activeSymbol;
   const quickOrder = (direction: "long" | "short") => {
-    actions.placeOrder({
+    submitOrder({
       ...orderTemplate,
       direction,
       stopLoss:
         tradePlan?.direction === direction ? tradePlan.stopLoss : undefined,
       takeProfit:
         tradePlan?.direction === direction ? tradePlan.takeProfit : undefined,
-    });
+    }, { oneClick: true });
     if (tradePlan?.direction === direction) setTradePlan(null);
   };
   const navigateFromChart = (href: string) => {
@@ -411,7 +539,7 @@ export function Backtester({
       </p>
       <TradingOnboarding />
 
-      <TerminalTopBar
+      {!workspace.settings.distractionFree && <TerminalTopBar
         state={state}
         theme={theme}
         onToggleTheme={toggle}
@@ -423,13 +551,23 @@ export function Backtester({
         onRetrySave={actions.retrySave}
         endControls={
           <div className="flex shrink-0 items-center gap-1">
+            <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
             <WorkspaceManager workspace={workspace} signedIn={!state.anonymous} />
             <div ref={setChartLayoutSlot} className="flex shrink-0 items-center" />
           </div>
         }
       >
         <div ref={setChartHeaderSlot} className="flex min-w-0 flex-1 items-center gap-1" />
-      </TerminalTopBar>
+      </TerminalTopBar>}
+
+      {workspace.settings.distractionFree && (
+        <div className="absolute right-3 top-3 z-50 flex items-center gap-2">
+          <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
+          <button type="button" onClick={() => workspace.updateSettings({ distractionFree: false })} className="rounded-lg border app-border bg-[var(--app-panel)]/90 px-3 py-2 text-xs font-semibold shadow-xl backdrop-blur">
+            Exit focus mode
+          </button>
+        </div>
+      )}
 
       {bt.error && (
         <p
@@ -457,7 +595,7 @@ export function Backtester({
               void actions.modifyPending(orderId, price)
             }
             onCancelPendingOrder={(orderId) =>
-              void actions.cancelPending(orderId)
+              requestCancelPending(orderId)
             }
             activePositionId={position?.id ?? null}
             onEditPosition={(positionId) => {
@@ -487,7 +625,7 @@ export function Backtester({
                 onDirectionChange={choosePlanDirection}
                 onPlanChange={changeTradePlan}
                 onClearPlan={() => setTradePlan(null)}
-                onPlaceOrder={actions.placeOrder}
+                onPlaceOrder={submitOrder}
                 onTemplateChange={setOrderTemplate}
                 oneClickTrading={workspace.settings.oneClickTrading}
                 referencePair={referencePair}
@@ -518,14 +656,14 @@ export function Backtester({
           />
         </div>
 
-        <TerminalRightRail
+        {!workspace.settings.distractionFree && <TerminalRightRail
           state={state}
           onNewSession={newSession}
           onNavigate={navigateFromChart}
-        />
+        />}
       </div>
 
-      <BottomPanel
+      {!workspace.settings.distractionFree && <BottomPanel
         state={state}
         currentTime={state.currentTime ?? bt.lastCandle?.timestamp ?? null}
         timeZone={workspace.settings.timeZone}
@@ -534,13 +672,13 @@ export function Backtester({
         initialNotes={bt.notes}
         onSaveNotes={actions.saveNotes}
         busy={bt.busy}
-        onCancelPending={(orderId) => void actions.cancelPending(orderId)}
+        onCancelPending={requestCancelPending}
         onSaveTradeJournal={actions.saveTradeJournal}
         onAddBookmark={() => void actions.addBookmark()}
         onUpdateBookmark={(id, note) => void actions.updateBookmark(id, note)}
         onDeleteBookmark={(id) => void actions.deleteBookmark(id)}
         onForkSession={() => void forkSession()}
-      />
+      />}
       <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
       <PositionEditorModal
         state={state}

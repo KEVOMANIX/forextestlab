@@ -39,6 +39,7 @@ interface ReplayToolbarProps {
   onSell: () => void;
   canTrade: boolean;
   maxReplaySpeed: number;
+  actualReplaySpeed: number;
 }
 
 function ControlBtn({
@@ -72,7 +73,7 @@ function ControlBtn({
   );
 }
 
-function speedLabel(speed: ReplaySpeed): string {
+function speedLabel(speed: number): string {
   // Speed values are seconds of market time per wall-clock second. Convert to
   // minutes per second so the label matches the actual replay progression.
   const minutesPerSecond = speed / 60;
@@ -103,6 +104,7 @@ export function ReplayToolbar({
   onSell,
   canTrade,
   maxReplaySpeed,
+  actualReplaySpeed,
 }: ReplayToolbarProps) {
   const toolboxRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
@@ -337,7 +339,13 @@ export function ReplayToolbar({
 
         <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] app-muted">
           <span>{speedLabel(availableSpeeds[0]!)}</span>
-          {finished && <span className="text-brand-300">Finished</span>}
+          <span
+            data-testid="actual-replay-speed"
+            className={running ? "text-brand-300" : ""}
+            title="Measured market time advanced per wall-clock second"
+          >
+            Actual {finished ? "finished" : running ? speedLabel(actualReplaySpeed) : "paused"}
+          </span>
           <span>{speedLabel(availableSpeeds[availableSpeeds.length - 1]!)}</span>
         </div>
       </div>

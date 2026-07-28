@@ -621,6 +621,7 @@ export function Backtester({
               !referencePair
             )}
             maxReplaySpeed={entitlements.maxReplaySpeed}
+            actualReplaySpeed={bt.actualReplaySpeed}
           />
         </div>
 

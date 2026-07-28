@@ -705,8 +705,8 @@ test("replay advances locally and pause stays responsive during checkpoint saves
   // Candles continue advancing while the deliberately slow save is in flight.
   await expect(counter).not.toHaveText(before ?? "", { timeout: 2_500 });
   await expect(pause).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Buy", exact: true })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Sell", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Quick Buy", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Quick Sell", exact: true })).toBeEnabled();
 
   const pauseResponse = page.waitForResponse((response) => {
     if (!response.url().includes("/action")) return false;

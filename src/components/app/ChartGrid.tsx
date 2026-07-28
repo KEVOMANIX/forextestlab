@@ -466,13 +466,12 @@ function ChartCellView({
 
   // Trading overlays only exist on cells showing the traded instrument.
   const tradable = isSession;
-  const currentPrice = isSession
-    ? state.currentPrice
-      ? Number(state.currentPrice)
-      : null
-    : reveal.lastCandle
-      ? Number(reveal.lastCandle.close)
-      : null;
+  // The chart body is driven by the revealed-series cursor, so its live price
+  // must come from that same cursor. Reading state.currentPrice directly makes
+  // the line render one React pass before the candle delta reaches the chart.
+  const currentPrice = reveal.lastCandle
+    ? Number(reveal.lastCandle.close)
+    : null;
 
   return (
       <PriceChart

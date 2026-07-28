@@ -499,6 +499,8 @@ export default function PriceChart({
   const ownOrderRef = useRef<string>("");
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const livePriceLineRef = useRef<IPriceLine | null>(null);
+  const currentPriceRef = useRef<number | null>(currentPrice);
+  const priceLineEnabledRef = useRef(settings.priceLine);
   const positionLinesRef = useRef<Map<string, IPriceLine>>(new Map());
   const positionsRef = useRef<OpenPosition[]>(positions);
   const pendingOrdersRef = useRef<PendingOrder[]>(pendingOrders);
@@ -909,6 +911,7 @@ export default function PriceChart({
     } else {
       applyData(series, chartTypeRef.current, display);
     }
+    syncLivePriceLine();
     syncIndicators(display);
     // `displayCandles` only feeds the Volume Profile overlay; skipping this state
     // update otherwise avoids a full React re-render on every replay tick (which
@@ -932,6 +935,37 @@ export default function PriceChart({
       renderRafRef.current = null;
       renderMain();
     });
+  }
+
+  function syncLivePriceLine() {
+    const series = seriesRef.current;
+    const price = currentPriceRef.current;
+    if (
+      !series ||
+      price == null ||
+      !Number.isFinite(price) ||
+      !priceLineEnabledRef.current
+    ) {
+      if (series && livePriceLineRef.current) {
+        series.removePriceLine(livePriceLineRef.current);
+      }
+      livePriceLineRef.current = null;
+      return;
+    }
+    const latest = displayRef.current[displayRef.current.length - 1];
+    const color = latest && price >= latest.open ? BULL : BEAR;
+    if (livePriceLineRef.current) {
+      livePriceLineRef.current.applyOptions({ price, color });
+    } else {
+      livePriceLineRef.current = series.createPriceLine({
+        price,
+        color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: "",
+      });
+    }
   }
 
   function scheduleLineCoordinates() {
@@ -1284,27 +1318,12 @@ export default function PriceChart({
   }, [markers, settings.tradeHistory, displayTimeframe, seriesEpoch]);
 
   useEffect(() => {
-    const series = seriesRef.current;
-    if (!series) return;
-    if (currentPrice == null || !Number.isFinite(currentPrice) || !settings.priceLine) {
-      if (livePriceLineRef.current) series.removePriceLine(livePriceLineRef.current);
-      livePriceLineRef.current = null;
-      return;
-    }
-    const latest = displayRef.current[displayRef.current.length - 1];
-    const color = latest && currentPrice >= latest.open ? BULL : BEAR;
-    if (livePriceLineRef.current) {
-      livePriceLineRef.current.applyOptions({ price: currentPrice, color });
-    } else {
-      livePriceLineRef.current = series.createPriceLine({
-        price: currentPrice,
-        color,
-        lineWidth: 1,
-        lineStyle: LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: "",
-      });
-    }
+    currentPriceRef.current = currentPrice;
+    priceLineEnabledRef.current = settings.priceLine;
+    // Candle deltas are also coalesced through renderMain. Updating the line in
+    // that same animation frame prevents it from visually leading the body.
+    scheduleRender();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPrice, settings.priceLine, seriesEpoch]);
 
   useEffect(() => {

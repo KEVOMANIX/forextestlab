@@ -107,7 +107,7 @@ export function Backtester({
     } catch {
       // Invalid local defaults fall back to the safe fixed-lot template.
     }
-  }, []);
+  }, [workspace.revision]);
   useEffect(() => {
     window.localStorage.setItem("forextestlab:order-defaults", JSON.stringify(orderTemplate));
   }, [orderTemplate]);
@@ -443,7 +443,7 @@ export function Backtester({
       <div className="flex min-h-0 flex-1">
         <div className="relative min-w-0 flex-1 overflow-hidden">
           <ChartGrid
-            key={`${state.sessionId}-${bt.resetNonce}`}
+            key={`${state.sessionId}-${bt.resetNonce}-${workspace.revision}`}
             state={state}
             sessionSeries={bt.replayCandles}
             sessionContextCandles={bt.contextCandles}
@@ -495,6 +495,7 @@ export function Backtester({
             }
           />
           <ReplayToolbar
+            key={`replay-toolbar-${workspace.revision}`}
             state={state}
             busy={bt.busy}
             onPlay={actions.play}

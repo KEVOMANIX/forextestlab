@@ -48,8 +48,21 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: true, workspace, templates });
   }
   if (body.action === "reset") {
-    await prisma.userProfile.update({ where: { id: row.id }, data: { workspaceJson: null } });
-    return NextResponse.json({ ok: true, workspace: null, templates });
+    const workspace: SavedWorkspace = {
+      payload: {
+        settings: {},
+        favorites: [],
+        layout: null,
+        cellViews: {},
+        drawings: {},
+        toolDefaults: null,
+        orderTicketDefaults: null,
+        replayToolbarPosition: null,
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    await prisma.userProfile.update({ where: { id: row.id }, data: { workspaceJson: JSON.stringify(workspace) } });
+    return NextResponse.json({ ok: true, workspace, templates });
   }
   if (body.action === "save-template") {
     if (!body.payload || !body.name?.trim()) return NextResponse.json({ ok: false, error: "Template name and workspace required." }, { status: 422 });

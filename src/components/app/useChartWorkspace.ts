@@ -26,6 +26,7 @@ export interface ChartWorkspace {
   deleteTemplate: (id: string) => Promise<void>;
   exportWorkspace: () => void;
   importWorkspace: (payload: WorkspacePayload) => Promise<void>;
+  revision: number;
 }
 
 function settingsKey(storageKey: string): string {
@@ -73,16 +74,31 @@ function captureWorkspace(
 function applyWorkspace(storageKey: string, payload: WorkspacePayload) {
   window.localStorage.setItem(settingsKey(storageKey), JSON.stringify(payload.settings ?? {}));
   window.localStorage.setItem(FAVOURITES_KEY, JSON.stringify(payload.favorites ?? []));
-  if (payload.layout) window.localStorage.setItem(`forextestlab:layout:${storageKey}`, JSON.stringify(payload.layout));
+  const layoutKey = `forextestlab:layout:${storageKey}`;
+  if (payload.layout) window.localStorage.setItem(layoutKey, JSON.stringify(payload.layout));
+  else window.localStorage.removeItem(layoutKey);
+
+  for (let index = 1; index <= 4; index += 1) {
+    window.localStorage.removeItem(`forextestlab:chart:${storageKey}:cell-${index}`);
+  }
   for (const [cell, view] of Object.entries(payload.cellViews ?? {})) {
     window.localStorage.setItem(`forextestlab:chart:${storageKey}:${cell}`, JSON.stringify(view));
+  }
+
+  const drawingsPrefix = `forextestlab:drawings:${storageKey}:`;
+  for (const key of Object.keys(window.localStorage)) {
+    if (key.startsWith(drawingsPrefix)) window.localStorage.removeItem(key);
   }
   for (const [symbol, drawings] of Object.entries(payload.drawings ?? {})) {
     window.localStorage.setItem(`forextestlab:drawings:${storageKey}:${symbol}`, JSON.stringify(drawings));
   }
+
   if (payload.toolDefaults) window.localStorage.setItem("forextestlab:tool-defaults", JSON.stringify(payload.toolDefaults));
+  else window.localStorage.removeItem("forextestlab:tool-defaults");
   if (payload.orderTicketDefaults) window.localStorage.setItem(ORDER_DEFAULTS_KEY, JSON.stringify(payload.orderTicketDefaults));
+  else window.localStorage.removeItem(ORDER_DEFAULTS_KEY);
   if (payload.replayToolbarPosition) window.localStorage.setItem(REPLAY_POSITION_KEY, JSON.stringify(payload.replayToolbarPosition));
+  else window.localStorage.removeItem(REPLAY_POSITION_KEY);
 }
 
 export function useChartWorkspace(
@@ -95,6 +111,7 @@ export function useChartWorkspace(
   const [restored, setRestored] = useState(false);
   const [syncStatus, setSyncStatus] = useState<ChartWorkspace["syncStatus"]>(signedIn ? "loading" : "local");
   const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
+  const [revision, setRevision] = useState(0);
   const lastSavedRef = useRef("");
 
   useEffect(() => {
@@ -120,13 +137,10 @@ export function useChartWorkspace(
       if (cancelled || !data.ok) { setSyncStatus("error"); return; }
       setTemplates(data.templates ?? []);
       if (data.workspace) {
-        const marker = `forextestlab:workspace-applied:${storageKey}`;
-        if (window.sessionStorage.getItem(marker) !== data.workspace.updatedAt) {
-          applyWorkspace(storageKey, data.workspace.payload);
-          window.sessionStorage.setItem(marker, data.workspace.updatedAt);
-          window.location.reload();
-          return;
-        }
+        applyWorkspace(storageKey, data.workspace.payload);
+        setSettings({ ...DEFAULT_CHART_SETTINGS, ...data.workspace.payload.settings });
+        setFavorites(new Set((data.workspace.payload.favorites ?? []) as ToolKind[]));
+        setRevision((value) => value + 1);
         lastSavedRef.current = JSON.stringify(data.workspace.payload);
       }
       setSyncStatus("saved");
@@ -176,7 +190,10 @@ export function useChartWorkspace(
       if (key.startsWith("forextestlab:chart:") || key.startsWith("forextestlab:chart-settings:") || key.startsWith("forextestlab:layout:") || key.startsWith("forextestlab:drawings:") || key === FAVOURITES_KEY || key === ORDER_DEFAULTS_KEY || key === REPLAY_POSITION_KEY) window.localStorage.removeItem(key);
     }
     if (signedIn) await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset" }) });
-    window.location.reload();
+    setSettings(DEFAULT_CHART_SETTINGS);
+    setFavorites(new Set());
+    lastSavedRef.current = JSON.stringify(EMPTY_WORKSPACE);
+    setRevision((value) => value + 1);
   }, [signedIn]);
   const saveTemplate = useCallback(async (name: string) => {
     const response = await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save-template", name, payload: payload() }) });
@@ -187,7 +204,10 @@ export function useChartWorkspace(
   const applyTemplate = useCallback(async (template: WorkspaceTemplate) => {
     applyWorkspace(storageKey, template.payload);
     if (signedIn) await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save", payload: template.payload }) });
-    window.location.reload();
+    setSettings({ ...DEFAULT_CHART_SETTINGS, ...template.payload.settings });
+    setFavorites(new Set((template.payload.favorites ?? []) as ToolKind[]));
+    lastSavedRef.current = JSON.stringify(template.payload);
+    setRevision((value) => value + 1);
   }, [signedIn, storageKey]);
   const deleteTemplate = useCallback(async (id: string) => {
     const response = await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete-template", templateId: id }) });
@@ -201,10 +221,14 @@ export function useChartWorkspace(
     URL.revokeObjectURL(link.href);
   }, [payload]);
   const importWorkspace = useCallback(async (next: WorkspacePayload) => {
-    applyWorkspace(storageKey, { ...EMPTY_WORKSPACE, ...next });
+    const imported = { ...EMPTY_WORKSPACE, ...next };
+    applyWorkspace(storageKey, imported);
     if (signedIn) await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "import", payload: next }) });
-    window.location.reload();
+    setSettings({ ...DEFAULT_CHART_SETTINGS, ...imported.settings });
+    setFavorites(new Set((imported.favorites ?? []) as ToolKind[]));
+    lastSavedRef.current = JSON.stringify(imported);
+    setRevision((value) => value + 1);
   }, [signedIn, storageKey]);
 
-  return { settings, updateSettings, resetSettings, favorites, toggleFavorite, syncStatus, templates, saveWorkspace, resetWorkspace, saveTemplate, applyTemplate, deleteTemplate, exportWorkspace, importWorkspace };
+  return { settings, updateSettings, resetSettings, favorites, toggleFavorite, syncStatus, templates, saveWorkspace, resetWorkspace, saveTemplate, applyTemplate, deleteTemplate, exportWorkspace, importWorkspace, revision };
 }

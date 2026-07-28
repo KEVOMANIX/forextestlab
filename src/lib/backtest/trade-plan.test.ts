@@ -85,6 +85,11 @@ describe("trade planner", () => {
       riskAmount: "100.00",
       projectedProfit: "200.00",
       spreadCost: "5.00",
+      margin: "550.03",
+      availableMargin: "9449.97",
+      leverage: "100",
+      pipValue: "5.00",
+      tradeValue: "55002.50",
     });
   });
 

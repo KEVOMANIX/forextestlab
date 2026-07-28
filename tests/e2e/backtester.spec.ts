@@ -70,7 +70,7 @@ test("builds and places a chart-connected trade plan", async ({ page }) => {
   await startSession(page);
 
   await page.getByRole("button", { name: /Buy plan/i }).click();
-  await expect(page.getByTestId("trade-planner")).toBeVisible();
+  await expect(page.getByTestId("trade-order-panel")).toBeVisible();
   await expect(page.getByTestId("trade-plan-overlay")).toHaveAttribute(
     "data-direction",
     "long",
@@ -78,12 +78,12 @@ test("builds and places a chart-connected trade plan", async ({ page }) => {
   await expect(page.getByTestId("trade-plan-entryPrice")).toBeVisible();
   await expect(page.getByTestId("trade-plan-stopLoss")).toBeVisible();
   await expect(page.getByTestId("trade-plan-takeProfit")).toBeVisible();
-  await expect(page.getByText("2.00R", { exact: true })).toBeVisible();
+  await expect(page.getByText(/2\.00R/)).toBeVisible();
 
-  const stopInput = page.getByLabel("Planned stop price");
+  const stopInput = page.getByLabel("Planned stop loss, price");
   const originalStop = await stopInput.inputValue();
   await stopInput.fill(String(Number(originalStop) + 0.0005));
-  await expect(page.getByText("1.00R", { exact: true })).not.toBeVisible();
+  await expect(page.getByText(/1\.00R/)).not.toBeVisible();
 
   await stopInput.fill(originalStop);
   await Promise.all([
@@ -92,10 +92,10 @@ test("builds and places a chart-connected trade plan", async ({ page }) => {
         response.url().includes("/action") &&
         response.request().method() === "POST",
     ),
-    page.getByRole("button", { name: "Place Buy", exact: true }).click(),
+    page.getByRole("button", { name: /Buy.*EURUSD MARKET/i }).click(),
   ]);
   await expect(page.getByText(/Buy position opened/i)).toBeVisible();
-  await expect(page.getByTestId("trade-planner")).toBeHidden();
+  await expect(page.getByTestId("trade-plan-overlay")).toBeHidden();
   await expect(page.getByTestId("stop-loss-line")).toBeVisible();
   await expect(page.getByTestId("take-profit-line")).toBeVisible();
 });
@@ -200,19 +200,19 @@ test("completes a full public backtest workflow without login", async ({ page },
 
   // (6) build a Buy plan with draggable entry/SL/TP and live risk metrics.
   await page.getByRole("button", { name: /Buy plan/i }).click();
-  await expect(page.getByTestId("trade-planner")).toBeVisible();
+  await expect(page.getByTestId("trade-order-panel")).toBeVisible();
   await expect(page.getByTestId("trade-plan-entryPrice")).toBeVisible();
   await expect(page.getByTestId("trade-plan-stopLoss")).toBeVisible();
   await expect(page.getByTestId("trade-plan-takeProfit")).toBeVisible();
-  await expect(page.getByText("2.00R", { exact: true })).toBeVisible();
+  await expect(page.getByText(/2\.00R/)).toBeVisible();
 
   // (7) place the planned market trade.
   await Promise.all([
     page.waitForResponse((r) => r.url().includes("/action") && r.request().method() === "POST"),
-    page.getByRole("button", { name: "Place Buy", exact: true }).click(),
+    page.getByRole("button", { name: /Buy.*EURUSD MARKET/i }).click(),
   ]);
   await expect(page.getByText(/Buy position opened/i)).toBeVisible();
-  await expect(page.getByTestId("trade-planner")).toBeHidden();
+  await expect(page.getByTestId("trade-plan-overlay")).toBeHidden();
   await expect(page.getByTestId("stop-loss-line")).toBeVisible();
   await expect(page.getByTestId("take-profit-line")).toBeVisible();
 

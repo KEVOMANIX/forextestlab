@@ -1,7 +1,11 @@
 import { d, isFiniteNumeric } from "@/lib/decimal";
 
 import { commissionForLots, computePnl } from "./execution";
-import { calculatePositionSize, pipValuePerLot } from "./position-sizing";
+import {
+  calculatePositionSize,
+  marginRequired,
+  pipValuePerLot,
+} from "./position-sizing";
 import type {
   PositionSizingMode,
   PublicSessionState,
@@ -25,6 +29,11 @@ export interface TradePlanMetrics {
   riskAmount: string;
   projectedProfit: string;
   spreadCost: string;
+  margin: string;
+  availableMargin: string;
+  leverage: string;
+  pipValue: string;
+  tradeValue: string;
 }
 
 interface TradePlanMetricInput {
@@ -90,6 +99,11 @@ export function tradePlanMetrics({
     riskAmount: "—",
     projectedProfit: "—",
     spreadCost: "—",
+    margin: "—",
+    availableMargin: "—",
+    leverage: state.config.leverage ?? "100",
+    pipValue: "—",
+    tradeValue: "—",
   };
   if (
     !isFiniteNumeric(plan.entryPrice) ||
@@ -188,6 +202,25 @@ export function tradePlanMetrics({
     .times(pipValue.value)
     .times(sizing.lots)
     .toFixed(2);
+  const margin = marginRequired({
+    lots: sizing.lots,
+    price: plan.entryPrice,
+    leverage: state.config.leverage,
+    accountCurrency: state.config.accountCurrency,
+    baseCurrency: state.config.baseCurrency,
+    quoteCurrency: state.config.quoteCurrency,
+  });
+  const remainingMargin = isFiniteNumeric(margin.value)
+    ? d(state.equity).minus(margin.value)
+    : null;
+  const availableMargin = remainingMargin
+    ? (remainingMargin.gt(0) ? remainingMargin : d(0)).toFixed(2)
+    : "—";
+  const notionalBase = d(sizing.lots).times(100000);
+  const tradeValue =
+    state.config.baseCurrency === state.config.accountCurrency
+      ? notionalBase
+      : notionalBase.times(plan.entryPrice);
 
   return {
     valid: true,
@@ -199,5 +232,10 @@ export function tradePlanMetrics({
     riskAmount: d(stopped.pnl).abs().toFixed(2),
     projectedProfit: projected.pnl,
     spreadCost,
+    margin: margin.value,
+    availableMargin,
+    leverage: state.config.leverage ?? "100",
+    pipValue: d(pipValue.value).times(sizing.lots).toFixed(2),
+    tradeValue: tradeValue.toFixed(2),
   };
 }

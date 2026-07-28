@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import {
   CandlestickChart,
   ChevronDown,
@@ -59,7 +65,17 @@ export function OrderTicket({
   const [riskPercent, setRiskPercent] = useState("1");
   const [lots, setLots] = useState("0.10");
   const [exitsOpen, setExitsOpen] = useState(true);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelPosition, setPanelPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const dragRef = useRef<{
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
   const unavailable =
     state.status === "finished" ||
     !state.currentPrice ||
@@ -127,27 +143,133 @@ export function OrderTicket({
     );
   }
 
+  function clampPosition(x: number, y: number) {
+    const panel = panelRef.current;
+    const parent = panel?.parentElement;
+    if (!panel || !parent) return { x, y };
+    const padding = 8;
+    return {
+      x: Math.min(
+        Math.max(padding, x),
+        Math.max(padding, parent.clientWidth - panel.offsetWidth - padding),
+      ),
+      y: Math.min(
+        Math.max(padding, y),
+        Math.max(padding, parent.clientHeight - panel.offsetHeight - padding),
+      ),
+    };
+  }
+
+  function openPlanner(direction: TradeDirection) {
+    onDirectionChange(direction);
+    setPanelPosition(null);
+    setPanelOpen(true);
+  }
+
+  function beginPanelDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("button")) return;
+    const panel = panelRef.current;
+    const parent = panel?.parentElement;
+    if (!panel || !parent) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const panelBounds = panel.getBoundingClientRect();
+    const parentBounds = parent.getBoundingClientRect();
+    dragRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - panelBounds.left,
+      offsetY: event.clientY - panelBounds.top,
+    };
+    setPanelPosition(
+      clampPosition(
+        panelBounds.left - parentBounds.left,
+        panelBounds.top - parentBounds.top,
+      ),
+    );
+  }
+
+  function movePanel(event: ReactPointerEvent<HTMLElement>) {
+    const drag = dragRef.current;
+    const panel = panelRef.current;
+    const parent = panel?.parentElement;
+    if (!drag || drag.pointerId !== event.pointerId || !parent) return;
+    const bounds = parent.getBoundingClientRect();
+    setPanelPosition(
+      clampPosition(
+        event.clientX - bounds.left - drag.offsetX,
+        event.clientY - bounds.top - drag.offsetY,
+      ),
+    );
+  }
+
+  function endPanelDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  useEffect(() => {
+    const keepInBounds = () => {
+      setPanelPosition((current) =>
+        current ? clampPosition(current.x, current.y) : current,
+      );
+    };
+    window.addEventListener("resize", keepInBounds);
+    return () => window.removeEventListener("resize", keepInBounds);
+  }, []);
+
   if (!panelOpen) {
     return (
-      <button
-        type="button"
-        onClick={() => setPanelOpen(true)}
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-white/10 bg-[#202020] px-3 text-xs font-semibold text-white shadow-xl hover:bg-[#292929]"
-        aria-label="Open trade order planner"
+      <div
+        className="pointer-events-auto absolute left-2 top-2 flex items-center gap-1 rounded-lg border border-white/10 bg-[#202020]/95 p-1 shadow-xl backdrop-blur"
+        aria-label="Quick order planner"
       >
-        <CandlestickChart size={15} />
-        New order
-      </button>
+        <span className="hidden px-2 text-[11px] font-semibold text-[#c7c7c7] sm:inline">
+          {state.config.symbol}
+        </span>
+        <CompactQuoteButton
+          direction="short"
+          price={bid?.toFixed(precision) ?? "—"}
+          disabled={unavailable}
+          onClick={() => openPlanner("short")}
+        />
+        <CompactQuoteButton
+          direction="long"
+          price={ask?.toFixed(precision) ?? "—"}
+          disabled={unavailable}
+          onClick={() => openPlanner("long")}
+        />
+      </div>
     );
   }
 
   return (
     <section
-      className="w-[360px] max-w-[calc(100vw-4rem)] overflow-hidden rounded-lg border border-white/10 bg-[#202020] text-[#e6e6e6] shadow-2xl"
+      ref={panelRef}
+      className="pointer-events-auto absolute flex max-h-[calc(100%-1rem)] w-[360px] max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-lg border border-white/10 bg-[#202020] text-[#e6e6e6] shadow-2xl"
+      style={
+        panelPosition
+          ? { left: panelPosition.x, top: panelPosition.y }
+          : {
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+            }
+      }
       aria-label="Trade order planner"
       data-testid="trade-order-panel"
     >
-      <header className="flex h-12 items-center gap-2 px-3">
+      <header
+        className="flex h-12 shrink-0 touch-none cursor-move select-none items-center gap-2 px-3"
+        data-testid="trade-order-drag-handle"
+        onPointerDown={beginPanelDrag}
+        onPointerMove={movePanel}
+        onPointerUp={endPanelDrag}
+        onPointerCancel={endPanelDrag}
+      >
         <span className="grid h-6 w-6 place-items-center rounded bg-white text-black">
           <CandlestickChart size={15} aria-hidden />
         </span>
@@ -232,7 +354,7 @@ export function OrderTicket({
             ))}
           </div>
 
-          <div className="max-h-[calc(100vh-12rem)] overflow-y-auto px-3 pb-3">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
             {!tradePlan ? (
               <div className="grid min-h-64 place-items-center px-6 text-center">
                 <div>
@@ -395,6 +517,36 @@ export function OrderTicket({
         </>
       )}
     </section>
+  );
+}
+
+function CompactQuoteButton({
+  direction,
+  price,
+  disabled,
+  onClick,
+}: {
+  direction: TradeDirection;
+  price: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const long = direction === "long";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={`${long ? "Buy" : "Sell"} plan at ${price}`}
+      className={`flex h-9 min-w-[92px] flex-col items-center justify-center rounded-md px-3 text-[10px] font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        long
+          ? "bg-[#2962ff] text-white hover:bg-[#3970ff]"
+          : "bg-bear text-white hover:opacity-90"
+      }`}
+    >
+      <span>{long ? "Buy" : "Sell"}</span>
+      <span className="mt-1 font-mono text-[10px] font-semibold">{price}</span>
+    </button>
   );
 }
 

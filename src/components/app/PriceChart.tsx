@@ -1715,7 +1715,9 @@ export default function PriceChart({
 
         {/* Buy/Sell order ticket floated at the chart's top-left, TradingView-style. */}
         {orderTicket && (
-          <div className="absolute left-14 top-2 z-30 max-w-[calc(100%-4.5rem)]">{orderTicket}</div>
+          <div className="pointer-events-none absolute inset-0 z-30">
+            {orderTicket}
+          </div>
         )}
 
         {legend && (

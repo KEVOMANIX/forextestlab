@@ -66,9 +66,10 @@ async function startSession(page: Page) {
   if (await closeTour.isVisible()) await closeTour.click();
 }
 
-test("builds and places a chart-connected trade plan", async ({ page }) => {
+test("builds and places a chart-connected trade plan", async ({ page }, testInfo) => {
   await startSession(page);
 
+  await expect(page.getByTestId("trade-order-panel")).toBeHidden();
   await page.getByRole("button", { name: /Buy plan/i }).click();
   await expect(page.getByTestId("trade-order-panel")).toBeVisible();
   await expect(page.getByTestId("trade-plan-overlay")).toHaveAttribute(
@@ -79,6 +80,39 @@ test("builds and places a chart-connected trade plan", async ({ page }) => {
   await expect(page.getByTestId("trade-plan-stopLoss")).toBeVisible();
   await expect(page.getByTestId("trade-plan-takeProfit")).toBeVisible();
   await expect(page.getByText(/2\.00R/)).toBeVisible();
+
+  if (testInfo.project.name === "chromium") {
+    const chartBox = await page.getByTestId("chart-cell-1").boundingBox();
+    const panel = page.getByTestId("trade-order-panel");
+    const centeredBox = await panel.boundingBox();
+    expect(chartBox).not.toBeNull();
+    expect(centeredBox).not.toBeNull();
+    expect(
+      Math.abs(
+        centeredBox!.x +
+          centeredBox!.width / 2 -
+          (chartBox!.x + chartBox!.width / 2),
+      ),
+    ).toBeLessThan(35);
+
+    const handle = page.getByTestId("trade-order-drag-handle");
+    const handleBox = await handle.boundingBox();
+    expect(handleBox).not.toBeNull();
+    await page.mouse.move(
+      handleBox!.x + handleBox!.width / 2,
+      handleBox!.y + handleBox!.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      handleBox!.x + handleBox!.width / 2 + 60,
+      handleBox!.y + handleBox!.height / 2 + 35,
+      { steps: 5 },
+    );
+    await page.mouse.up();
+    const movedBox = await panel.boundingBox();
+    expect(movedBox!.x).toBeGreaterThan(centeredBox!.x + 30);
+    expect(movedBox!.y).toBeGreaterThanOrEqual(centeredBox!.y);
+  }
 
   const stopInput = page.getByLabel("Planned stop loss, price");
   const originalStop = await stopInput.inputValue();

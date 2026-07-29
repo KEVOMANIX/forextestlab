@@ -2,7 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import type { ChartMarker } from "./PriceChart";
 import { BottomPanel } from "./BottomPanel";
@@ -34,6 +41,7 @@ import { WorkspaceManager } from "./WorkspaceManager";
 import { BacktestExperiencePanel } from "./BacktestExperiencePanel";
 import { tradingGuardMessage } from "@/lib/backtest/trade-guards";
 import type { ReplayDiagnosticsSource } from "./ReplayDiagnosticsPanel";
+import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 
 type PendingConfirmation = {
   title: string;
@@ -61,6 +69,7 @@ export function Backtester({
   entitlements: PlanEntitlements;
   autoStartTrial?: boolean;
 }) {
+  const renderStartedAt = performance.now();
   const router = useRouter();
   const { theme, toggle } = useAppTheme();
   const bt = useBacktester(resumeSessionId);
@@ -105,6 +114,9 @@ export function Backtester({
   }>({ sessionId: null, openIds: new Set(), closedCount: 0, pendingStatuses: new Map() });
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
+  useLayoutEffect(() => {
+    recordReplayMetric("react-commit", performance.now() - renderStartedAt);
+  });
   const [orderTemplate, setOrderTemplate] = useState<Omit<OrderRequest, "direction">>({
     sizingMode: "fixed-lots",
     lots: "0.10",

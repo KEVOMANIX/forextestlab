@@ -75,6 +75,50 @@ describe("replay indexing", () => {
   });
 });
 
+describe("batched replay equivalence", () => {
+  it("produces identical order, execution, and statistics state", () => {
+    const candles = [
+      c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+      c(1, "1.10000", "1.10020", "1.09880", "1.09900"),
+      c(2, "1.09900", "1.10100", "1.09890", "1.10080"),
+      c(3, "1.10080", "1.10320", "1.10050", "1.10300"),
+      c(4, "1.10300", "1.10310", "1.10280", "1.10290"),
+    ];
+    const base = ctx(candles);
+    expect(
+      placeOrder(base, {
+        direction: "long",
+        orderType: "limit",
+        entryPrice: "1.09900",
+        sizingMode: "fixed-lots",
+        lots: "1",
+        stopLoss: "1.09700",
+        takeProfit: "1.10300",
+      }).ok,
+    ).toBe(true);
+    const oneAtATime = structuredClone(base);
+    const batched = structuredClone(base);
+
+    for (let index = 0; index < 4; index += 1) revealNext(oneAtATime);
+    for (const batchSize of [2, 2]) {
+      for (let index = 0; index < batchSize; index += 1) revealNext(batched);
+    }
+
+    const comparable = (engine: EngineContext) => {
+      const state = structuredClone(engine.state);
+      for (const trade of state.closedTrades) {
+        trade.id = "generated-trade-id";
+        if (trade.journal) trade.journal.updatedAt = 0;
+      }
+      return state;
+    };
+    expect(comparable(batched)).toEqual(comparable(oneAtATime));
+    expect(batched.state.closedTrades).toHaveLength(1);
+    expect(batched.state.closedTrades[0]?.exitReason).toBe("take-profit");
+    expect(batched.state.equityCurve).toHaveLength(5);
+  });
+});
+
 describe("orders and step-back locking", () => {
   it("activates limit and stop orders only when their executable quote is touched", () => {
     const candles = [

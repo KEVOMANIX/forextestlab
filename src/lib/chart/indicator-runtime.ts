@@ -33,6 +33,7 @@ import {
 import type { ComputeResult, IndicatorDef, IndicatorInstance, LineStyleName, PlotStyle } from "./indicator-defs";
 import { getDef, hydrateInstance } from "./indicator-defs";
 import type { MaybeNumber, OHLCV } from "./indicators";
+import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 
 type AnySeries = ISeriesApi<"Line"> | ISeriesApi<"Histogram">;
 
@@ -139,7 +140,13 @@ export class Indicator {
 
   /** Recompute plot data from candles (pure; no drawing). */
   calculate(candles: OHLCV[]): void {
+    const startedAt = performance.now();
     this.result = this.def.compute(candles, this.inst.inputs);
+    recordReplayMetric(
+      "indicator-calculation",
+      performance.now() - startedAt,
+      candles.length,
+    );
   }
 
   /** Push cached data + current style into the series. */

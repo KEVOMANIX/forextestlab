@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  nextReplayBatch,
   replayIntervalMs,
   replayStepsDue,
 } from "@/lib/backtest/client";
@@ -29,6 +30,36 @@ describe("real market-time replay speed", () => {
     expect(replayStepsDue(16.67, 3600, "1m")).toBe(1);
     expect(replayStepsDue(16.67, 7200, "1m")).toBe(2);
     expect(replayStepsDue(100, 7200, "1m")).toBe(12);
+  });
+
+  it("batches overdue work without discarding accumulator debt", () => {
+    const first = nextReplayBatch(1_000, 7200, "1m");
+    expect(first.batchSize).toBe(64);
+    expect(first.remainingMs).toBeCloseTo(466.67, 1);
+    const second = nextReplayBatch(first.remainingMs, 7200, "1m");
+    expect(second.batchSize).toBe(56);
+    expect(second.remainingMs).toBeCloseTo(0, 5);
+  });
+
+  it("is deterministic across equivalent elapsed-time partitions", () => {
+    const drain = (parts: number[]) => {
+      let accumulator = 0;
+      let total = 0;
+      for (const elapsed of parts) {
+        accumulator += elapsed;
+        let batch = nextReplayBatch(accumulator, 7200, "1m");
+        while (batch.batchSize > 0) {
+          total += batch.batchSize;
+          accumulator = batch.remainingMs;
+          batch = nextReplayBatch(accumulator, 7200, "1m");
+        }
+      }
+      return { total, accumulator };
+    };
+    const single = drain([1_000]);
+    const partitioned = drain(Array.from({ length: 10 }, () => 100));
+    expect(partitioned.total).toBe(single.total);
+    expect(partitioned.accumulator).toBeCloseTo(single.accumulator, 5);
   });
 
   it("uses the candle duration when another base timeframe is restored", () => {

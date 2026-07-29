@@ -11,7 +11,7 @@ import {
   getChartHistory,
   getStateWithToken,
   sendAction,
-  replayStepsDue,
+  nextReplayBatch,
   type CreateSessionBody,
   type CreatedSession,
   type PairChartData,
@@ -38,6 +38,8 @@ import {
 } from "@/lib/backtest/replay-engine";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
+import { recordReplayMetric } from "@/lib/performance/replay-metrics";
+import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
 
 export type Phase = "setup" | "loading" | "active";
 
@@ -104,7 +106,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const interactiveBusyRef = useRef(false);
   const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
   const autoStepPendingRef = useRef(false);
-  const replayExtendPendingRef = useRef(false);
+  const replayExtendPromiseRef = useRef<ReturnType<typeof extendReplay> | null>(
+    null,
+  );
   const replayStepRef = useRef<ReplayStepMinutes>(1);
   const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
@@ -113,6 +117,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayLastFrameRef = useRef<number | null>(null);
   const replayAccumulatorRef = useRef(0);
   const replayFrameBusyRef = useRef(false);
+  const lastUiPublishRef = useRef(0);
   const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
   const localEngineRef = useRef<EngineContext | null>(null);
   /** Symbols with a pair fetch in flight, so duplicate cells share one request. */
@@ -120,10 +125,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
   const hydrateLocalEngine = useCallback(
     (state: PublicSessionState, candles: Candle[]) => {
-      localEngineRef.current = {
+      const engine = {
         state: engineStateFromPublic(state),
         candles,
       };
+      localEngineRef.current = engine;
+      return publicSessionState(engine, state.anonymous);
     },
     [],
   );
@@ -146,11 +153,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
         `/app/backtest?session=${encodeURIComponent(res.sessionId)}`,
       );
       wantsReplayRunningRef.current = false;
-      hydrateLocalEngine(res.state, res.replayCandles);
+      const normalizedState = hydrateLocalEngine(
+        res.state,
+        res.replayCandles,
+      );
       setS((prev) => ({
         phase: "active",
         sessionId: res.sessionId,
-        state: res.state,
+        state: normalizedState,
         initialCandles: res.candles,
         replayCandles: res.replayCandles,
         contextCandles: res.contextCandles,
@@ -158,11 +168,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lastCandles: [],
         busy: false,
         error: null,
-        notice: res.state.demoData
+        notice: normalizedState.demoData
           ? "This session uses generated demonstration data and does not represent an actual market feed."
           : null,
         notes: "",
-        activeSymbol: res.state.config.symbol,
+        activeSymbol: normalizedState.config.symbol,
         pairs: {},
         pairLoadingSymbols: [],
         endOfData: false,
@@ -210,11 +220,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
 
       if (cancelled) return;
-      hydrateLocalEngine(res.state, res.replayCandles);
+      const normalizedState = hydrateLocalEngine(
+        res.state,
+        res.replayCandles,
+      );
       setS((prev) => ({
         phase: "active",
         sessionId: resumeSessionId,
-        state: res.state,
+        state: normalizedState,
         initialCandles: res.candles,
         replayCandles: res.replayCandles,
         contextCandles: res.contextCandles,
@@ -222,9 +235,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lastCandles: [],
         busy: false,
         error: null,
-        notice: `Session resumed: ${res.state.config.name || res.state.config.symbol}.`,
+        notice: `Session resumed: ${normalizedState.config.name || normalizedState.config.symbol}.`,
         notes: res.notes,
-        activeSymbol: res.state.config.symbol,
+        activeSymbol: normalizedState.config.symbol,
         pairs: {},
         pairLoadingSymbols: [],
         saveStatus: "saved",
@@ -329,8 +342,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
         // Non-session symbols used to be re-fetched here on every persisted
         // "next" — a round-trip per candle that local playback always outran.
         // Their full series is now loaded once and revealed on the replay clock.
+        const responseEngineState = engineStateFromPublic(res.state);
+        const normalizedResponseState = publicSessionState(
+          {
+            state: responseEngineState,
+            candles: localEngineRef.current?.candles ?? [],
+          },
+          res.state.anonymous,
+        );
         setS((prev) => {
-          let nextState = res.state;
+          let nextState = normalizedResponseState;
           // A background save can finish after local playback has already
           // advanced further. Never rewind the browser to that older index.
           if (opts.preserveLocalState && localEngineRef.current) {
@@ -344,7 +365,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
           ) {
             nextState = prev.state;
           } else if (localEngineRef.current) {
-            localEngineRef.current.state = engineStateFromPublic(nextState);
+            localEngineRef.current.state = responseEngineState;
           }
           // Pause is optimistic so it remains responsive while an already
           // running "next" request finishes ahead of the queued pause command.
@@ -399,6 +420,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   // Playback is browser-local for smooth ticks. Additional bounded candle
   // chunks are fetched only when playback reaches the current memory boundary.
   stepRef.current = useCallback(async (batchSize = 1) => {
+    const engineStartedAt = performance.now();
     const engine = localEngineRef.current;
     if (!engine) return;
     const stepCount = Math.max(
@@ -414,6 +436,19 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
     for (let index = 0; index < stepCount; index += 1) {
       const lastLoaded = engine.candles[engine.candles.length - 1];
+      const loadedRemaining =
+        engine.state.totalCandles - 1 - engine.state.visibleIndex;
+      if (
+        loadedRemaining <= 256 &&
+        lastLoaded &&
+        lastLoaded.timestamp < engine.state.config.endTime &&
+        replayExtendPromiseRef.current === null
+      ) {
+        const id = sessionIdRef.current;
+        if (id) {
+          replayExtendPromiseRef.current = extendReplay(id, tokenRef.current);
+        }
+      }
       const atLoadedBoundary =
         engine.state.visibleIndex >= engine.state.totalCandles - 1;
       if (
@@ -431,12 +466,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lastLoaded &&
         lastLoaded.timestamp < engine.state.config.endTime
       ) {
-        if (replayExtendPendingRef.current) break;
         const id = sessionIdRef.current;
         if (!id) break;
-        replayExtendPendingRef.current = true;
-        const extension = await extendReplay(id, tokenRef.current);
-        replayExtendPendingRef.current = false;
+        const request =
+          replayExtendPromiseRef.current ??
+          extendReplay(id, tokenRef.current);
+        replayExtendPromiseRef.current = request;
+        const extension = await request;
+        if (replayExtendPromiseRef.current === request) {
+          replayExtendPromiseRef.current = null;
+        }
 
         if (!extension.ok) {
           extensionError = extension.error;
@@ -480,15 +519,42 @@ export function useBacktester(resumeSessionId: string | null = null) {
     ) {
       engine.state.status = "running";
     }
-    const state = publicSessionState(engine, s.state?.anonymous ?? false);
-    const candle = engine.candles[state.visibleIndex] ?? null;
-    setS((prev) => ({
-      ...prev,
-      state,
-      lastCandle: candle,
-      lastCandles: advancedCandles,
-      error: extensionError ?? prev.error,
-    }));
+    recordReplayMetric(
+      "replay-engine",
+      performance.now() - engineStartedAt,
+      advancedCandles.length,
+    );
+    const currentCandle = engine.candles[engine.state.visibleIndex] ?? null;
+    if (currentCandle) {
+      publishReplayVisual({
+        sessionId: engine.state.sessionId,
+        currentTime: currentCandle.timestamp,
+        visibleIndex: engine.state.visibleIndex,
+      });
+    }
+    const now = performance.now();
+    const shouldPublishUi =
+      finished ||
+      extensionError !== null ||
+      now - lastUiPublishRef.current >= 100;
+    if (shouldPublishUi) {
+      lastUiPublishRef.current = now;
+      const publicationStartedAt = performance.now();
+      const state = publicSessionState(engine, s.state?.anonymous ?? false);
+      recordReplayMetric(
+        "state-publication",
+        performance.now() - publicationStartedAt,
+        1,
+      );
+      const candle = engine.candles[state.visibleIndex] ?? null;
+      setS((prev) => ({
+        ...prev,
+        state,
+        lastCandle: candle,
+        lastCandles: advancedCandles,
+        error: extensionError ?? prev.error,
+      }));
+    }
     if (finished) {
       if (replayFrameRef.current != null) cancelAnimationFrame(replayFrameRef.current);
       replayFrameRef.current = null;
@@ -535,22 +601,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
         // Preserve elapsed market time even when React cannot paint every
         // underlying minute separately. The selected STEP controls each visible
         // jump; the speed controls how many market minutes are owed per second.
-        const cadence = Math.max(
-          0.01,
-          (TIMEFRAME_MS[current.state.config.timeframe] * stepCount) /
-            current.state.speed,
-        );
-        const due = replayStepsDue(
+        const batch = nextReplayBatch(
           replayAccumulatorRef.current,
           current.state.speed,
           current.state.config.timeframe,
           stepCount,
         );
-        if (due > 0 && !replayFrameBusyRef.current) {
-          const batchSize = Math.min(64, due);
-          replayAccumulatorRef.current -= batchSize * cadence;
+        if (batch.batchSize > 0 && !replayFrameBusyRef.current) {
+          replayAccumulatorRef.current = batch.remainingMs;
           replayFrameBusyRef.current = true;
-          await stepRef.current(batchSize);
+          await stepRef.current(batch.batchSize);
           replayFrameBusyRef.current = false;
         }
         if (localEngineRef.current?.state.status === "running") schedule();
@@ -569,11 +629,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const targetIndex = engine.state.visibleIndex;
     patch({ saveStatus: "saving" });
     const task = actionQueueRef.current.then(async () => {
+      const saveStartedAt = performance.now();
       const res = await sendAction(id, tokenRef.current, {
         type: "sync",
         targetIndex,
         status: statusOverride,
       });
+      recordReplayMetric(
+        "session-save",
+        performance.now() - saveStartedAt,
+      );
       patch(
         res.ok
           ? { saveStatus: "saved", savedAt: Date.now() }
@@ -609,12 +674,17 @@ export function useBacktester(resumeSessionId: string | null = null) {
     wantsReplayRunningRef.current = false;
     // Stop the local timer immediately. The server pause command is serialized
     // behind any candle request that is already in flight.
-    setS((prev) =>
-      prev.state
-        ? { ...prev, state: { ...prev.state, status: "paused" } }
-        : prev,
-    );
-    if (localEngineRef.current) localEngineRef.current.state.status = "paused";
+    const engine = localEngineRef.current;
+    if (engine) engine.state.status = "paused";
+    setS((prev) => {
+      if (!prev.state) return prev;
+      return {
+        ...prev,
+        state: engine
+          ? publicSessionState(engine, prev.state.anonymous)
+          : { ...prev.state, status: "paused" },
+      };
+    });
     stopLocalScheduler();
     return checkpoint("paused");
   }, [checkpoint, stopLocalScheduler]);
@@ -660,9 +730,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
     if (!id) return;
     const data = await getStateWithToken(id, tokenRef.current);
     if (data.ok) {
+      const normalizedState = hydrateLocalEngine(
+        data.state,
+        data.replayCandles,
+      );
       setS((prev) => ({
         ...prev,
-        state: data.state,
+        state: normalizedState,
         initialCandles: data.candles,
         replayCandles: data.replayCandles,
         contextCandles: data.contextCandles,
@@ -670,14 +744,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lastCandles: [],
         resetNonce: prev.resetNonce + 1,
         notes: data.notes,
-        activeSymbol: data.state.config.symbol,
+        activeSymbol: normalizedState.config.symbol,
         // Restart rewinds the clock, so every cached pair series must be
         // re-revealed from the session's opening candle.
         pairs: {},
         saveStatus: "saved",
         savedAt: Date.now(),
       }));
-      hydrateLocalEngine(data.state, data.replayCandles);
     }
   }, [hydrateLocalEngine, runAction, s.sessionId]);
   const endSession = useCallback(() => {
@@ -1054,7 +1127,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     wantsReplayRunningRef.current = false;
     interactiveBusyRef.current = false;
     autoStepPendingRef.current = false;
-    replayExtendPendingRef.current = false;
+    replayExtendPromiseRef.current = null;
     replayStepRef.current = 1;
     setReplayStepMinutes(1);
     stopLocalScheduler();

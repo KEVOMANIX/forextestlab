@@ -254,5 +254,32 @@ export function replayStepsDue(
     0.01,
     (TIMEFRAME_MS[timeframe] * stepCount) / speed,
   );
-  return Math.min(maxBatch, Math.max(0, Math.floor(elapsedMs / idealInterval)));
+  return Math.min(
+    maxBatch,
+    Math.max(0, Math.floor(elapsedMs / idealInterval + 1e-9)),
+  );
+}
+
+export function nextReplayBatch(
+  accumulatorMs: number,
+  speed: ReplaySpeed,
+  timeframe: Timeframe,
+  stepCount = 1,
+  maxBatch = 64,
+): { batchSize: number; remainingMs: number } {
+  const cadenceMs = Math.max(
+    0.01,
+    (TIMEFRAME_MS[timeframe] * stepCount) / speed,
+  );
+  const batchSize = replayStepsDue(
+    accumulatorMs,
+    speed,
+    timeframe,
+    stepCount,
+    maxBatch,
+  );
+  return {
+    batchSize,
+    remainingMs: Math.max(0, accumulatorMs - batchSize * cadenceMs),
+  };
 }

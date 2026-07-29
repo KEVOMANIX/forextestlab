@@ -89,6 +89,8 @@ import {
   type IndicatorInstance,
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
+import { recordReplayMetric } from "@/lib/performance/replay-metrics";
+import { subscribeReplayVisual } from "@/lib/backtest/replay-visual-bus";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
 import { AUTO_BACKGROUND, ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
 import { DrawingLayer } from "./DrawingLayer";
@@ -143,6 +145,8 @@ interface PriceChartProps {
   contextCandles: Candle[];
   lastCandle: Candle | null;
   lastCandles: Candle[];
+  replaySeries?: Candle[];
+  replaySessionId?: string;
   markers: ChartMarker[];
   positions: OpenPosition[];
   pendingOrders: PendingOrder[];
@@ -449,6 +453,8 @@ export default function PriceChart({
   contextCandles,
   lastCandle,
   lastCandles,
+  replaySeries,
+  replaySessionId,
   markers,
   positions,
   pendingOrders,
@@ -491,6 +497,7 @@ export default function PriceChart({
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const renderRafRef = useRef<number | null>(null);
+  const forceRenderRef = useRef(false);
   const lineCoordRafRef = useRef<number | null>(null);
   const rangeSaveTimerRef = useRef<number | null>(null);
   const pendingRangeRef = useRef<{ from: number; to: number } | null>(null);
@@ -548,6 +555,7 @@ export default function PriceChart({
   const viewportOverlaysRef = useRef(false);
   const followLatestRef = useRef(true);
   const rawCandlesRef = useRef<Candle[]>([...initialCandles]);
+  const replaySeriesRef = useRef<Candle[] | undefined>(replaySeries);
   const syncedInitialCandlesRef = useRef<Candle[]>(initialCandles);
   const displayTimeframeRef = useRef<Timeframe>(initialTimeframe ?? baseTimeframe);
   const chartTypeRef = useRef<ChartType>("candles");
@@ -745,6 +753,7 @@ export default function PriceChart({
    */
   function aggregatedForDisplay(raw: Candle[], timeframe: Timeframe): Candle[] {
     if (timeframe === baseTimeframe) return raw;
+    const startedAt = performance.now();
     const last = raw[raw.length - 1];
     if (!last) return [];
     const cache = aggregateCacheRef.current;
@@ -772,7 +781,15 @@ export default function PriceChart({
       cache.stableCount = tailStart;
       cache.anchorTime = raw[tailStart - 1]?.timestamp ?? 0;
     }
-    return cache.stable.concat(aggregateCandles(raw.slice(tailStart), baseTimeframe, timeframe));
+    const result = cache.stable.concat(
+      aggregateCandles(raw.slice(tailStart), baseTimeframe, timeframe),
+    );
+    recordReplayMetric(
+      "candle-aggregation",
+      performance.now() - startedAt,
+      raw.length - tailStart,
+    );
+    return result;
   }
 
   /**
@@ -870,6 +887,7 @@ export default function PriceChart({
   }
 
   function renderMain(force = false) {
+    const startedAt = performance.now();
     const series = seriesRef.current;
     if (!series) return;
     const display = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
@@ -921,6 +939,11 @@ export default function PriceChart({
     // This keeps an active pan/zoom gesture responsive while replay continues.
     if (followLatestRef.current) scale?.scrollToRealTime();
     scheduleLineCoordinates();
+    recordReplayMetric(
+      "chart-update",
+      performance.now() - startedAt,
+      1,
+    );
   }
 
   /**
@@ -929,11 +952,14 @@ export default function PriceChart({
    * tick re-aggregates history + re-feeds the series + recomputes indicators,
    * saturating the main thread and making pan/zoom stutter.
    */
-  function scheduleRender() {
+  function scheduleRender(force = false) {
+    forceRenderRef.current ||= force;
     if (renderRafRef.current != null) return;
     renderRafRef.current = requestAnimationFrame(() => {
       renderRafRef.current = null;
-      renderMain();
+      const shouldForce = forceRenderRef.current;
+      forceRenderRef.current = false;
+      renderMain(shouldForce);
     });
   }
 
@@ -1253,6 +1279,44 @@ export default function PriceChart({
     scheduleRender();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastCandle, lastCandles]);
+
+  useEffect(() => {
+    replaySeriesRef.current = replaySeries;
+  }, [replaySeries]);
+
+  useEffect(() => {
+    if (!replaySessionId) return;
+    return subscribeReplayVisual(replaySessionId, ({ currentTime }) => {
+      const source = replaySeriesRef.current;
+      if (!source) return;
+      const raw = rawCandlesRef.current;
+      const lastTime = raw[raw.length - 1]?.timestamp ?? -Infinity;
+      if (currentTime < lastTime) {
+        rawCandlesRef.current = source.filter(
+          (candle) => candle.timestamp <= currentTime,
+        );
+        currentPriceRef.current = Number(
+          rawCandlesRef.current.at(-1)?.close ?? 0,
+        );
+        dataGenerationRef.current += 1;
+        scheduleRender(true);
+        return;
+      }
+      let cursor = raw.length;
+      let appended = false;
+      while (cursor < source.length) {
+        const candle = source[cursor]!;
+        if (candle.timestamp > currentTime) break;
+        raw.push(candle);
+        currentPriceRef.current = Number(candle.close);
+        cursor += 1;
+        appended = true;
+      }
+      if (appended) scheduleRender();
+    });
+    // The listener reads changing series data through replaySeriesRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replaySessionId]);
 
   useEffect(() => {
     if (syncedInitialCandlesRef.current === initialCandles) return;

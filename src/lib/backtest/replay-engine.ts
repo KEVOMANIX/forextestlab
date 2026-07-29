@@ -105,8 +105,13 @@ export function publicSessionState(
   anonymous = false,
 ): PublicSessionState {
   const candle = currentCandle(ctx);
+  const { equityCurve, ...stateWithoutEquityCurve } = ctx.state;
   return {
-    ...structuredClone(ctx.state),
+    ...structuredClone(stateWithoutEquityCurve),
+    // Equity points are append-only during forward replay. Copy the array so
+    // React receives an immutable snapshot without deep-cloning thousands of
+    // already-immutable points on every visual publication.
+    equityCurve: equityCurve.slice(),
     currentPrice: candle?.close ?? null,
     currentTime: candle?.timestamp ?? null,
     anonymous,

@@ -6,6 +6,7 @@ import type { ToolKind } from "@/lib/chart/drawing/types";
 import type { WorkspacePayload, WorkspaceTemplate } from "@/lib/workspace";
 import { EMPTY_WORKSPACE } from "@/lib/workspace";
 import { DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
+import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 
 const FAVOURITES_KEY = "forextestlab:fav-tools";
 const ORDER_DEFAULTS_KEY = "forextestlab:order-defaults";
@@ -154,6 +155,7 @@ export function useChartWorkspace(
   );
   const saveWorkspace = useCallback(async () => {
     if (!signedIn) { setSyncStatus("local"); return; }
+    const saveStartedAt = performance.now();
     const next = payload();
     setSyncStatus("saving");
     const response = await fetch("/api/workspace", {
@@ -161,6 +163,7 @@ export function useChartWorkspace(
       body: JSON.stringify({ action: "save", payload: next }),
     });
     if (!response.ok) { setSyncStatus("error"); throw new Error("Workspace save failed."); }
+    recordReplayMetric("workspace-save", performance.now() - saveStartedAt);
     lastSavedRef.current = JSON.stringify(next);
     setSyncStatus("saved");
   }, [payload, signedIn]);

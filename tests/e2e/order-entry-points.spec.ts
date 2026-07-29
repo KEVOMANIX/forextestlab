@@ -2,7 +2,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 type TradingSettings = {
   oneClickTrading?: boolean;
-  oneClickConfirmation?: boolean;
 };
 
 async function openSession(
@@ -171,27 +170,10 @@ test("chart and replay quotes open the same draggable planner", async ({
   await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
 });
 
-test("replay quote honours one-click confirmation", async ({ page }) => {
-  await openSession(page, {
-    oneClickTrading: true,
-    oneClickConfirmation: true,
-  });
-
-  let orderRequests = 0;
-  page.on("request", (request) => {
-    if (!request.url().includes("/action")) return;
-    const action = request.postDataJSON() as { type?: string } | null;
-    if (action?.type === "place-order") orderRequests += 1;
-  });
-
-  await page.getByRole("button", { name: "Quick Sell" }).click();
-  const confirmation = page.getByRole("alertdialog");
-  await expect(confirmation).toBeVisible();
-  await expect(
-    confirmation.getByRole("heading", { name: "Sell at market?" }),
-  ).toBeVisible();
-  expect(orderRequests).toBe(0);
-  await expect(page.getByTestId("trade-order-panel")).toBeHidden();
+test("a one-click replay quote places the order with a single click", async ({
+  page,
+}) => {
+  await openSession(page, { oneClickTrading: true });
 
   const placed = page.waitForResponse((response) => {
     if (!response.url().includes("/action")) return false;
@@ -201,34 +183,10 @@ test("replay quote honours one-click confirmation", async ({ page }) => {
     } | null;
     return action?.type === "place-order" && action.direction === "short";
   });
-  await confirmation
-    .getByRole("button", { name: "Confirm sell" })
-    .click();
+  await page.getByRole("button", { name: "Quick Sell" }).click();
   await placed;
 
-  await expect(confirmation).toBeHidden();
-  await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
-});
-
-test("replay quote places directly when confirmation is disabled", async ({
-  page,
-}) => {
-  await openSession(page, {
-    oneClickTrading: true,
-    oneClickConfirmation: false,
-  });
-
-  const placed = page.waitForResponse((response) => {
-    if (!response.url().includes("/action")) return false;
-    const action = response.request().postDataJSON() as {
-      type?: string;
-      direction?: string;
-    } | null;
-    return action?.type === "place-order" && action.direction === "long";
-  });
-  await page.getByRole("button", { name: "Quick Buy" }).click();
-  await placed;
-
+  // One click means one click: no confirmation, and no planner in between.
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(page.getByTestId("trade-order-panel")).toBeHidden();
   await expect(page.getByTestId("position-entry-line")).toHaveCount(1);

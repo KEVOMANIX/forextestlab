@@ -47,7 +47,7 @@ interface OrderTicketProps {
   onDirectionChange: (direction: TradeDirection) => void;
   onPlanChange: (level: PlanLevel, value: string) => void;
   onClearPlan: () => void;
-  onPlaceOrder: (order: OrderRequest, options?: { oneClick?: boolean }) => void;
+  onPlaceOrder: (order: OrderRequest) => void;
   onTemplateChange: (template: Omit<OrderRequest, "direction">) => void;
   oneClickTrading: boolean;
   referencePair?: string | null;
@@ -223,7 +223,7 @@ export function OrderTicket({
       sizingMode,
       lots: sizingMode === "fixed-lots" ? lots : undefined,
       riskPercent: sizingMode === "risk-percent" ? riskPercent : undefined,
-    }, { oneClick: true });
+    });
     onClearPlan();
     setPanelOpen(false);
   }, [

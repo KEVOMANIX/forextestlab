@@ -70,7 +70,6 @@ export function BacktestExperiencePanel({
                 <h3 className="flex items-center gap-2 text-sm font-semibold"><ShieldCheck size={15} className="text-brand-300" /> Trading safeguards</h3>
                 <div className="mt-3 space-y-3">
                   <Toggle label="One-click trading" checked={settings.oneClickTrading} onChange={(oneClickTrading) => onChange({ oneClickTrading })} />
-                  <Toggle label="Confirm one-click orders" checked={settings.oneClickConfirmation} onChange={(oneClickConfirmation) => onChange({ oneClickConfirmation })} />
                   <NumberSetting label="Maximum risk per trade" suffix="%" value={settings.maxRiskPerTradePercent} onChange={(maxRiskPerTradePercent) => onChange({ maxRiskPerTradePercent })} />
                   <NumberSetting label="Daily loss limit" suffix="%" value={settings.dailyLossLimitPercent} onChange={(dailyLossLimitPercent) => onChange({ dailyLossLimitPercent })} />
                   <NumberSetting label="Maximum drawdown" suffix="%" value={settings.maxDrawdownLimitPercent} onChange={(maxDrawdownLimitPercent) => onChange({ maxDrawdownLimitPercent })} />

@@ -170,10 +170,13 @@ export function Backtester({
     expireNotification(notification.id, timeout);
   }, [expireNotification]);
 
-  const submitOrder = useCallback((
-    order: OrderRequest,
-    options?: { oneClick?: boolean },
-  ) => {
+  /**
+   * One-click trading is one click: a quote button or a buy/sell shortcut sends
+   * the order straight through. The safeguards below (risk, daily loss,
+   * drawdown, trade count) are what stand between a stray click and a bad
+   * position — not a prompt.
+   */
+  const submitOrder = useCallback((order: OrderRequest) => {
     if (!state) return;
     const guard = tradingGuardMessage(state, order, {
       maxRiskPerTradePercent: workspace.settings.maxRiskPerTradePercent,
@@ -191,17 +194,7 @@ export function Backtester({
       });
       return;
     }
-    const place = () => actions.placeOrder(order);
-    if (options?.oneClick && workspace.settings.oneClickConfirmation) {
-      setPendingConfirmation({
-        title: `${order.direction === "long" ? "Buy" : "Sell"} at market?`,
-        message: "This one-click order will be submitted using your saved order size.",
-        confirmLabel: order.direction === "long" ? "Confirm buy" : "Confirm sell",
-        action: place,
-      });
-      return;
-    }
-    place();
+    actions.placeOrder(order);
   }, [actions, notify, state, workspace.settings]);
 
   useEffect(() => {
@@ -260,10 +253,10 @@ export function Backtester({
         actions.stepPrev();
       } else if (matches(workspace.settings.shortcuts.buy)) {
         event.preventDefault();
-        submitOrder({ ...orderTemplate, direction: "long" }, { oneClick: true });
+        submitOrder({ ...orderTemplate, direction: "long" });
       } else if (matches(workspace.settings.shortcuts.sell)) {
         event.preventDefault();
-        submitOrder({ ...orderTemplate, direction: "short" }, { oneClick: true });
+        submitOrder({ ...orderTemplate, direction: "short" });
       } else if (matches(workspace.settings.shortcuts.bookmark)) {
         event.preventDefault();
         void actions.addBookmark();

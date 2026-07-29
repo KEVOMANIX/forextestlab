@@ -25,10 +25,11 @@ export interface ChartSettings {
   tradeHistory: boolean;
   /** Entry, stop and target lines for positions that are still open. */
   positionLines: boolean;
-  /** Compact Buy/Sell buttons submit market orders without opening the planner. */
+  /**
+   * Compact Buy/Sell buttons submit market orders without opening the planner.
+   * One click means one click: there is no confirmation step behind it.
+   */
   oneClickTrading: boolean;
-  /** Ask once before a one-click order is submitted. */
-  oneClickConfirmation: boolean;
   /** Zero disables the corresponding trading safeguard. */
   maxRiskPerTradePercent: number;
   dailyLossLimitPercent: number;
@@ -64,7 +65,6 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   tradeHistory: true,
   positionLines: true,
   oneClickTrading: false,
-  oneClickConfirmation: true,
   maxRiskPerTradePercent: 0,
   dailyLossLimitPercent: 0,
   maxDrawdownLimitPercent: 0,
@@ -209,13 +209,6 @@ export function ChartSettingsMenu({
         checked={settings.oneClickTrading}
         onToggle={() =>
           onChange({ oneClickTrading: !settings.oneClickTrading })
-        }
-      />
-      <ToggleRow
-        label="Confirm one-click orders"
-        checked={settings.oneClickConfirmation}
-        onToggle={() =>
-          onChange({ oneClickConfirmation: !settings.oneClickConfirmation })
         }
       />
 

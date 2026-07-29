@@ -90,6 +90,7 @@ import {
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
+import { renderedLivePrice } from "@/lib/chart/live-price";
 import { subscribeReplayVisual } from "@/lib/backtest/replay-visual-bus";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
 import { AUTO_BACKGROUND, ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
@@ -507,6 +508,7 @@ export default function PriceChart({
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const livePriceLineRef = useRef<IPriceLine | null>(null);
   const currentPriceRef = useRef<number | null>(currentPrice);
+  const replayCurrentTimeRef = useRef<number | null>(null);
   const priceLineEnabledRef = useRef(settings.priceLine);
   const positionLinesRef = useRef<Map<string, IPriceLine>>(new Map());
   const positionsRef = useRef<OpenPosition[]>(positions);
@@ -965,7 +967,11 @@ export default function PriceChart({
 
   function syncLivePriceLine() {
     const series = seriesRef.current;
-    const price = currentPriceRef.current;
+    const latest = displayRef.current[displayRef.current.length - 1];
+    // During replay the line belongs to the candle that was actually painted.
+    // A throttled React currentPrice prop can legitimately trail the visual bus
+    // and must never pull the line back to an older close.
+    const price = renderedLivePrice(latest?.close, currentPriceRef.current);
     if (
       !series ||
       price == null ||
@@ -978,7 +984,6 @@ export default function PriceChart({
       livePriceLineRef.current = null;
       return;
     }
-    const latest = displayRef.current[displayRef.current.length - 1];
     const color = latest && price >= latest.open ? BULL : BEAR;
     if (livePriceLineRef.current) {
       livePriceLineRef.current.applyOptions({ price, color });
@@ -1282,11 +1287,31 @@ export default function PriceChart({
 
   useEffect(() => {
     replaySeriesRef.current = replaySeries;
+    // A chunk can resolve in the same frame that its first candle is revealed.
+    // Consume the enlarged source through the latest visual cursor immediately;
+    // otherwise no later message is guaranteed (for example when STEP lands
+    // exactly on the new candle and playback is paused).
+    const currentTime = replayCurrentTimeRef.current;
+    if (!replaySeries || currentTime == null) return;
+    const raw = rawCandlesRef.current;
+    let cursor = raw.length;
+    let appended = false;
+    while (cursor < replaySeries.length) {
+      const candle = replaySeries[cursor]!;
+      if (candle.timestamp > currentTime) break;
+      raw.push(candle);
+      currentPriceRef.current = Number(candle.close);
+      cursor += 1;
+      appended = true;
+    }
+    if (appended) scheduleRender();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replaySeries]);
 
   useEffect(() => {
     if (!replaySessionId) return;
     return subscribeReplayVisual(replaySessionId, ({ currentTime }) => {
+      replayCurrentTimeRef.current = currentTime;
       const source = replaySeriesRef.current;
       if (!source) return;
       const raw = rawCandlesRef.current;

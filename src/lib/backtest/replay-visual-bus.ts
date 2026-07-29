@@ -2,6 +2,7 @@ export interface ReplayVisualUpdate {
   sessionId: string;
   currentTime: number;
   visibleIndex: number;
+  currentPrice: number;
 }
 
 type ReplayVisualListener = (update: ReplayVisualUpdate) => void;

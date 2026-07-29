@@ -16,6 +16,7 @@ describe("replay visual update messages", () => {
       sessionId: "session-a",
       currentTime: 1_700_000_000_000,
       visibleIndex: 42,
+      currentPrice: 1.12345,
     });
 
     expect(first).toHaveBeenCalledOnce();
@@ -23,6 +24,7 @@ describe("replay visual update messages", () => {
       sessionId: "session-a",
       currentTime: 1_700_000_000_000,
       visibleIndex: 42,
+      currentPrice: 1.12345,
     });
     expect(second).not.toHaveBeenCalled();
     unsubscribeFirst();
@@ -37,6 +39,7 @@ describe("replay visual update messages", () => {
       sessionId: "session-a",
       currentTime: 1,
       visibleIndex: 1,
+      currentPrice: 1.1,
     });
     expect(listener).not.toHaveBeenCalled();
   });

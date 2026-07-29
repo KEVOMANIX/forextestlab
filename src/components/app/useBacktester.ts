@@ -40,6 +40,11 @@ import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/typ
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
+import {
+  replayBufferTargetCandles,
+  retryReplayChunk,
+  updateReplayFetchLatency,
+} from "@/lib/backtest/replay-buffer";
 
 export type Phase = "setup" | "loading" | "active";
 
@@ -109,6 +114,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayExtendPromiseRef = useRef<ReturnType<typeof extendReplay> | null>(
     null,
   );
+  const replayFetchLatencyRef = useRef(4_500);
   const replayStepRef = useRef<ReplayStepMinutes>(1);
   const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
@@ -134,6 +140,54 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [],
   );
+
+  const startReplayExtension = useCallback(() => {
+    const engine = localEngineRef.current;
+    const id = sessionIdRef.current;
+    if (!engine || !id) return null;
+    if (replayExtendPromiseRef.current) {
+      return replayExtendPromiseRef.current;
+    }
+
+    const startedAt = performance.now();
+    const request = retryReplayChunk(() =>
+      extendReplay(id, tokenRef.current),
+    ).then((extension) => {
+      if (
+        !extension.ok ||
+        localEngineRef.current !== engine ||
+        sessionIdRef.current !== id
+      ) {
+        return extension;
+      }
+
+      replayFetchLatencyRef.current = updateReplayFetchLatency(
+        replayFetchLatencyRef.current,
+        performance.now() - startedAt,
+      );
+      const newestTimestamp =
+        engine.candles[engine.candles.length - 1]?.timestamp ?? 0;
+      const newCandles = extension.candles.filter(
+        (candle) => candle.timestamp > newestTimestamp,
+      );
+      if (newCandles.length > 0) {
+        engine.candles.push(...newCandles);
+        engine.state.totalCandles = engine.candles.length;
+        setS((prev) => ({
+          ...prev,
+          replayCandles: [...prev.replayCandles, ...newCandles],
+        }));
+      }
+      return { ...extension, candles: newCandles };
+    });
+    replayExtendPromiseRef.current = request;
+    void request.finally(() => {
+      if (replayExtendPromiseRef.current === request) {
+        replayExtendPromiseRef.current = null;
+      }
+    });
+    return request;
+  }, []);
 
   const patch = useCallback((p: Partial<BacktesterState>) => {
     setS((prev) => ({ ...prev, ...p }));
@@ -417,8 +471,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
     [patch],
   );
 
-  // Playback is browser-local for smooth ticks. Additional bounded candle
-  // chunks are fetched only when playback reaches the current memory boundary.
+  // Playback is browser-local for smooth ticks. Keep an adaptive reservoir in
+  // front of the replay cursor so normal R2/server latency never reaches the
+  // playback boundary.
   stepRef.current = useCallback(async (batchSize = 1) => {
     const engineStartedAt = performance.now();
     const engine = localEngineRef.current;
@@ -431,23 +486,24 @@ export function useBacktester(resumeSessionId: string | null = null) {
       ),
     ) * Math.max(1, batchSize);
     const advancedCandles: Candle[] = [];
-    let extensionError: string | null = null;
     let finished = false;
 
     for (let index = 0; index < stepCount; index += 1) {
       const lastLoaded = engine.candles[engine.candles.length - 1];
       const loadedRemaining =
         engine.state.totalCandles - 1 - engine.state.visibleIndex;
+      const bufferTarget = replayBufferTargetCandles(
+        engine.state.speed,
+        engine.state.config.timeframe,
+        replayFetchLatencyRef.current,
+      );
       if (
-        loadedRemaining <= 256 &&
+        loadedRemaining <= bufferTarget &&
         lastLoaded &&
         lastLoaded.timestamp < engine.state.config.endTime &&
         replayExtendPromiseRef.current === null
       ) {
-        const id = sessionIdRef.current;
-        if (id) {
-          replayExtendPromiseRef.current = extendReplay(id, tokenRef.current);
-        }
+        startReplayExtension();
       }
       const atLoadedBoundary =
         engine.state.visibleIndex >= engine.state.totalCandles - 1;
@@ -469,34 +525,23 @@ export function useBacktester(resumeSessionId: string | null = null) {
         const id = sessionIdRef.current;
         if (!id) break;
         const request =
-          replayExtendPromiseRef.current ??
-          extendReplay(id, tokenRef.current);
-        replayExtendPromiseRef.current = request;
+          replayExtendPromiseRef.current ?? startReplayExtension();
+        if (!request) break;
         const extension = await request;
-        if (replayExtendPromiseRef.current === request) {
-          replayExtendPromiseRef.current = null;
-        }
 
         if (!extension.ok) {
-          extensionError = extension.error;
-          wantsReplayRunningRef.current = false;
-          engine.state.status = "paused";
+          // A transient network/R2 failure must not turn into a terminal replay
+          // error. Leave playback running and retain the unprocessed market-time
+          // debt; the next frame starts another background attempt.
+          const unprocessedCandles = stepCount - index;
+          replayAccumulatorRef.current +=
+            (unprocessedCandles *
+              TIMEFRAME_MS[engine.state.config.timeframe]) /
+            engine.state.speed;
           break;
         }
 
-        const newestTimestamp =
-          engine.candles[engine.candles.length - 1]?.timestamp ?? 0;
-        const newCandles = extension.candles.filter(
-          (candle) => candle.timestamp > newestTimestamp,
-        );
-        if (newCandles.length > 0) {
-          engine.candles.push(...newCandles);
-          engine.state.totalCandles = engine.candles.length;
-          setS((prev) => ({
-            ...prev,
-            replayCandles: [...prev.replayCandles, ...newCandles],
-          }));
-        } else if (!extension.hasMore) {
+        if (extension.candles.length === 0 && !extension.hasMore) {
           finished = true;
           wantsReplayRunningRef.current = false;
           engine.state.status = "paused";
@@ -530,12 +575,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
         sessionId: engine.state.sessionId,
         currentTime: currentCandle.timestamp,
         visibleIndex: engine.state.visibleIndex,
+        currentPrice: Number(currentCandle.close),
       });
     }
     const now = performance.now();
     const shouldPublishUi =
       finished ||
-      extensionError !== null ||
       now - lastUiPublishRef.current >= 100;
     if (shouldPublishUi) {
       lastUiPublishRef.current = now;
@@ -552,7 +597,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
         state,
         lastCandle: candle,
         lastCandles: advancedCandles,
-        error: extensionError ?? prev.error,
       }));
     }
     if (finished) {
@@ -568,7 +612,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         { background: true, showBusy: false, preserveLocalState: true },
       );
     }
-  }, [runAction, s.state?.anonymous]);
+  }, [runAction, s.state?.anonymous, startReplayExtension]);
 
   const status = s.state?.status;
 
@@ -1128,6 +1172,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     interactiveBusyRef.current = false;
     autoStepPendingRef.current = false;
     replayExtendPromiseRef.current = null;
+    replayFetchLatencyRef.current = 4_500;
     replayStepRef.current = 1;
     setReplayStepMinutes(1);
     stopLocalScheduler();

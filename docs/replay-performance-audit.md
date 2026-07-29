@@ -32,10 +32,15 @@ follow-latest flag. No cross-chart time/crosshair synchronization is present.
    queues a `sync` action. The action queue prevents overlapping checkpoint
    requests. Playback does not await that request.
 
-Chunk extension is the only network operation on the logical path. It occurs at
-the loaded boundary. Upcoming-chunk prefetch and persistent browser chunk cache
-remain follow-up work; they are not implicated in the measured steady-state
-long tasks.
+Chunk extension is the only market-data network operation near the logical
+path. An adaptive reservoir now starts fetching before the loaded boundary,
+appends completed 1,500-candle pages immediately, and retries transient
+failures with backoff. At 7,200x on one-minute data it targets at least 3,600
+ready candles (30 seconds); the target expands to four observed fetch
+round-trips when latency is worse. If the reservoir is ever exhausted by a
+longer outage, playback retains its market-time debt and catches up after data
+returns instead of skipping candles or turning the fetch into a terminal
+replay error. Persistent browser chunk caching remains follow-up work.
 
 ## Work frequency
 
@@ -91,6 +96,14 @@ validates non-overlap and local-clock independence only; it is not a production
 R2/database latency claim. The supplied real-profile save latencies (2.3 s
 healthy and 4.5 s slow) remain the production baseline until the deployed
 version is sampled from those same authenticated profiles.
+
+The chunked acceptance harness starts with only ten candles beyond the replay
+cursor and injects one failed extension request. It retried without displaying
+the former data-load error, issued three extension requests to fill the
+reservoir, and advanced 397 candles in 20 seconds (20 candles/s). Its measured
+44 FPS, 33.4 ms p95 frame time, five long tasks and 336 ms total long-task time
+include the deliberately undersized initial buffer and injected failure; real
+sessions begin with a complete 1,500-candle page.
 
 ## Instrumentation
 

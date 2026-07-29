@@ -1,4 +1,4 @@
-import { test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
  * Replay smoothness harness. Opt in with PERF=1; measures frame pacing,
@@ -12,6 +12,7 @@ const THROTTLE = Number(process.env.PERF_THROTTLE ?? "4");
 const RUN_MS = Number(process.env.PERF_RUN_MS ?? "20000");
 const PROFILE = process.env.PERF_PROFILE === "1";
 const WITH_INDICATORS = process.env.PERF_INDICATORS === "1";
+const CHUNKED = process.env.PERF_CHUNKED === "1";
 const START = Date.UTC(2025, 0, 6, 8);
 const CANDLE_COUNT = 7_200;
 
@@ -44,6 +45,10 @@ async function seed(page: Page, layout: string) {
   }));
   const sessionId = "replay-perf";
   const initialVisibleCount = 300;
+  let servedCandleCount = CHUNKED
+    ? initialVisibleCount + 10
+    : replayCandles.length;
+  let extensionAttempts = 0;
   const state = {
     sessionId,
     config: {
@@ -68,7 +73,7 @@ async function seed(page: Page, layout: string) {
     status: "idle",
     speed: 60,
     visibleIndex: initialVisibleCount - 1,
-    totalCandles: replayCandles.length,
+    totalCandles: servedCandleCount,
     balance: "10000.00",
     equity: "10000.00",
     maxEquity: "10000.00",
@@ -97,8 +102,37 @@ async function seed(page: Page, layout: string) {
         token: "perf-token",
         state,
         candles: replayCandles.slice(0, initialVisibleCount),
-        replayCandles,
+        replayCandles: replayCandles.slice(0, servedCandleCount),
         contextCandles,
+      }),
+    });
+  });
+  await page.route("**/api/backtest/sessions/*/extend", async (route) => {
+    extensionAttempts += 1;
+    // Exercise the retry path once before allowing the reservoir to fill.
+    if (CHUNKED && extensionAttempts === 1) {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: false,
+          error: "More replay data could not be loaded.",
+        }),
+      });
+      return;
+    }
+    const candles = replayCandles.slice(
+      servedCandleCount,
+      servedCandleCount + 1_500,
+    );
+    servedCandleCount += candles.length;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        candles,
+        hasMore: servedCandleCount < replayCandles.length,
       }),
     });
   });
@@ -172,11 +206,14 @@ async function seed(page: Page, layout: string) {
     { sessionId, layout, withIndicators: WITH_INDICATORS },
   );
   await page.goto("/app/backtest?trial=instant");
+  return {
+    extensionAttempts: () => extensionAttempts,
+  };
 }
 
 test("replay perf", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 950 });
-  await seed(page, LAYOUT);
+  const replaySeed = await seed(page, LAYOUT);
   await page
     .getByRole("img", { name: "Candlestick price chart" })
     .first()
@@ -267,6 +304,13 @@ test("replay perf", async ({ page }) => {
   );
   const advanced =
     Number(/Candle (\d+) of/.exec(after)?.[1] ?? 0) - startCandle;
+  if (CHUNKED) {
+    expect(replaySeed.extensionAttempts()).toBeGreaterThanOrEqual(2);
+    await expect(
+      page.getByText("More replay data could not be loaded.", { exact: true }),
+    ).toHaveCount(0);
+    expect(advanced).toBeGreaterThan((RUN_MS / 1_000) * 15);
+  }
   let profileRows:
     | { ms: number; fn: string; at: string }[]
     | undefined;
@@ -309,11 +353,12 @@ test("replay perf", async ({ page }) => {
       .slice(0, 30);
   }
   console.log(
-    `PERF layout=${LAYOUT} throttle=${THROTTLE}x`,
+    `PERF layout=${LAYOUT} throttle=${THROTTLE}x chunked=${CHUNKED}`,
     JSON.stringify({
       ...stats,
       candlesAdvanced: advanced,
       candlesPerSec: Math.round((advanced / RUN_MS) * 1000),
+      extensionAttempts: replaySeed.extensionAttempts(),
     }),
   );
   if (profileRows) {

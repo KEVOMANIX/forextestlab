@@ -123,6 +123,7 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   // Simulate a profile carrying the removed synchronization preferences.
   // Hydration must preserve the layout while automatically dropping both flags.
   await page.addInitScript((id) => {
+    if (window.localStorage.getItem(`forextestlab:layout:${id}`)) return;
     window.localStorage.setItem(
       `forextestlab:layout:${id}`,
       JSON.stringify({
@@ -189,6 +190,13 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
       .getAttribute("data-visible-logical-span"),
   );
   expect(dailySpan).toBeGreaterThan(20);
+  const dailyChart = secondCell.getByRole("img", {
+    name: "Candlestick price chart",
+  });
+  await expect(dailyChart).toHaveAttribute(
+    "data-latest-candle-visible",
+    "true",
+  );
 
   await page.getByLabel("Replay step").selectOption("1");
   const speed = page.getByLabel("Replay speed");
@@ -225,4 +233,59 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     return raw ? (JSON.parse(raw).range ?? null) : null;
   }, sessionId);
   expect(firstRangeLater).toEqual(firstRange);
+
+  // Old builds stored only logical indices. Those indices are not portable
+  // between a 1m series and a 1D series and could reopen a populated cell in
+  // empty space. Reloading must ignore that legacy range and show latest data.
+  await page.evaluate((id) => {
+    const staleView = (cell: string, timeframe: "1m" | "1h" | "1d") => {
+      const key = `forextestlab:chart:${id}:${cell}`;
+      const saved = JSON.parse(window.localStorage.getItem(key) ?? "{}");
+      delete saved.timeRange;
+      saved.timeframe = timeframe;
+      saved.range = { from: 10_000, to: 10_050 };
+      window.localStorage.setItem(key, JSON.stringify(saved));
+    };
+    staleView("cell-1", "1h");
+    staleView("cell-2", "1d");
+    staleView("cell-3", "1m");
+    staleView("cell-4", "1m");
+    window.localStorage.setItem(
+      `forextestlab:layout:${id}`,
+      JSON.stringify({
+        layout: "4",
+        cells: [
+          { id: "cell-1", symbol: "EURUSD", timeframe: null },
+          { id: "cell-2", symbol: "EURUSD", timeframe: null },
+          { id: "cell-3", symbol: "EURUSD", timeframe: null },
+          { id: "cell-4", symbol: "EURUSD", timeframe: null },
+        ],
+        focusedId: "cell-1",
+      }),
+    );
+  }, sessionId);
+  await page.reload();
+  await expect(page.getByTestId("chart-cell-1")).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId("chart-cell-4")).toBeVisible();
+  for (const cell of ["chart-cell-1", "chart-cell-2", "chart-cell-3", "chart-cell-4"]) {
+    await expect(
+      page.getByTestId(cell).getByRole("img", {
+        name: "Candlestick price chart",
+      }),
+    ).toHaveAttribute("data-latest-candle-visible", "true", {
+      timeout: 30_000,
+    });
+  }
+  await expect(
+    page.getByTestId("chart-cell-2").getByRole("button", {
+      name: "Display 1D candles",
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByTestId("chart-cell-1").getByRole("button", {
+      name: "Display 1h candles",
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
 });

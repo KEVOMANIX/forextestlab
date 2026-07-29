@@ -570,7 +570,13 @@ export default function PriceChart({
     drawingCandlesRef.current = joinTimeline(contextCandles, initialCandles.map(toOHLCV));
   }
   const draggingRef = useRef<"stop" | "target" | null>(null);
-  const savedRangeRef = useRef<{ from: number; to: number } | null>(null);
+  const savedTimeRangeRef = useRef<{
+    timeframe: Timeframe;
+    range: {
+      from: UTCTimestamp;
+      to: UTCTimestamp;
+    };
+  } | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
   const historyLoadingRef = useRef(false);
   const historyHasMoreRef = useRef(true);
@@ -1018,6 +1024,21 @@ export default function PriceChart({
     scale.scrollToRealTime();
   }
 
+  function updateViewportDiagnostics() {
+    const container = containerRef.current;
+    const scale = chartRef.current?.timeScale();
+    if (!container || !scale) return;
+    const latest = displayRef.current[displayRef.current.length - 1];
+    const coordinate = latest
+      ? scale.timeToCoordinate(latest.time as UTCTimestamp)
+      : null;
+    container.dataset.latestCandleVisible = String(
+      coordinate != null &&
+        coordinate >= 0 &&
+        coordinate <= container.clientWidth,
+    );
+  }
+
   function createSeriesPair(type: ChartType) {
     const chart = chartRef.current;
     if (!chart) return;
@@ -1066,6 +1087,7 @@ export default function PriceChart({
       try {
         const saved = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as {
           range?: { from: number; to: number };
+          timeRange?: { from: number; to: number };
           timeframe?: Timeframe;
           chartType?: ChartType;
           indicators?: unknown[];
@@ -1075,10 +1097,22 @@ export default function PriceChart({
         if (Array.isArray(saved.indicators)) {
           setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
         }
-        if (saved.range) {
-          followLatestRef.current = false;
-          savedRangeRef.current = saved.range;
-          chart.timeScale().setVisibleLogicalRange(saved.range);
+        if (
+          saved.timeRange &&
+          Number.isFinite(saved.timeRange.from) &&
+          Number.isFinite(saved.timeRange.to) &&
+          saved.timeRange.from < saved.timeRange.to
+        ) {
+          savedTimeRangeRef.current = {
+            timeframe:
+              saved.timeframe && availableTimeframes.includes(saved.timeframe)
+                ? saved.timeframe
+                : displayTimeframeRef.current,
+            range: {
+              from: saved.timeRange.from as UTCTimestamp,
+              to: saved.timeRange.to as UTCTimestamp,
+            },
+          };
         }
       } catch {
         // Ignore malformed local chart preferences.
@@ -1103,6 +1137,7 @@ export default function PriceChart({
         if (visible) {
           container.dataset.visibleLogicalSpan = String(visible.to - visible.from);
         }
+        updateViewportDiagnostics();
         if (visible && visible.from < 100) loadOlderRef.current();
         if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
@@ -1112,9 +1147,14 @@ export default function PriceChart({
           rangeSaveTimerRef.current = null;
           try {
             const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as Record<string, unknown>;
+            const timeRange = chart.timeScale().getVisibleRange();
             window.localStorage.setItem(
               `forextestlab:chart:${viewStorageKey}`,
-              JSON.stringify({ ...existing, range: pendingRangeRef.current }),
+              JSON.stringify({
+                ...existing,
+                range: pendingRangeRef.current,
+                timeRange,
+              }),
             );
           } catch {
             // Local persistence is a convenience; chart interaction must still work.
@@ -1380,13 +1420,14 @@ export default function PriceChart({
       void loadHistoryPage(true);
     }
     const scale = chartRef.current?.timeScale();
-    if (savedRangeRef.current) {
+    if (savedTimeRangeRef.current?.timeframe === displayTimeframe) {
       followLatestRef.current = false;
-      scale?.setVisibleLogicalRange(savedRangeRef.current);
-      savedRangeRef.current = null;
+      scale?.setVisibleRange(savedTimeRangeRef.current.range);
+      savedTimeRangeRef.current = null;
     } else {
       resetLatestViewport();
     }
+    requestAnimationFrame(updateViewportDiagnostics);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayTimeframe]);
 

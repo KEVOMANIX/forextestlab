@@ -110,6 +110,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const sessionIdRef = useRef<string | null>(null);
   const interactiveBusyRef = useRef(false);
   const actionQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const checkpointPendingRef = useRef<Promise<void> | null>(null);
+  const checkpointLatestRef = useRef<{
+    targetIndex: number;
+    statusOverride?: "running" | "paused";
+  } | null>(null);
   const autoStepPendingRef = useRef(false);
   const replayExtendPromiseRef = useRef<ReturnType<typeof extendReplay> | null>(
     null,
@@ -150,36 +155,45 @@ export function useBacktester(resumeSessionId: string | null = null) {
     }
 
     const startedAt = performance.now();
-    const request = retryReplayChunk(() =>
-      extendReplay(id, tokenRef.current),
-    ).then((extension) => {
-      if (
-        !extension.ok ||
-        localEngineRef.current !== engine ||
-        sessionIdRef.current !== id
-      ) {
-        return extension;
-      }
+    // Chunk persistence and checkpoints update the same session row. Keeping
+    // them on one client-side mutation queue avoids competing for the single
+    // Prisma connection configured for each serverless function.
+    const request = actionQueueRef.current
+      .then(() =>
+        retryReplayChunk(() => extendReplay(id, tokenRef.current)),
+      )
+      .then((extension) => {
+        if (
+          !extension.ok ||
+          localEngineRef.current !== engine ||
+          sessionIdRef.current !== id
+        ) {
+          return extension;
+        }
 
-      replayFetchLatencyRef.current = updateReplayFetchLatency(
-        replayFetchLatencyRef.current,
-        performance.now() - startedAt,
-      );
-      const newestTimestamp =
-        engine.candles[engine.candles.length - 1]?.timestamp ?? 0;
-      const newCandles = extension.candles.filter(
-        (candle) => candle.timestamp > newestTimestamp,
-      );
-      if (newCandles.length > 0) {
-        engine.candles.push(...newCandles);
-        engine.state.totalCandles = engine.candles.length;
-        setS((prev) => ({
-          ...prev,
-          replayCandles: [...prev.replayCandles, ...newCandles],
-        }));
-      }
-      return { ...extension, candles: newCandles };
-    });
+        replayFetchLatencyRef.current = updateReplayFetchLatency(
+          replayFetchLatencyRef.current,
+          performance.now() - startedAt,
+        );
+        const newestTimestamp =
+          engine.candles[engine.candles.length - 1]?.timestamp ?? 0;
+        const newCandles = extension.candles.filter(
+          (candle) => candle.timestamp > newestTimestamp,
+        );
+        if (newCandles.length > 0) {
+          engine.candles.push(...newCandles);
+          engine.state.totalCandles = engine.candles.length;
+          setS((prev) => ({
+            ...prev,
+            replayCandles: [...prev.replayCandles, ...newCandles],
+          }));
+        }
+        return { ...extension, candles: newCandles };
+      });
+    actionQueueRef.current = request.then(
+      () => undefined,
+      () => undefined,
+    );
     replayExtendPromiseRef.current = request;
     void request.finally(() => {
       if (replayExtendPromiseRef.current === request) {
@@ -670,29 +684,61 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const id = sessionIdRef.current;
     const engine = localEngineRef.current;
     if (!id || !engine) return;
-    const targetIndex = engine.state.visibleIndex;
+    checkpointLatestRef.current = {
+      targetIndex: engine.state.visibleIndex,
+      statusOverride,
+    };
     patch({ saveStatus: "saving" });
-    const task = actionQueueRef.current.then(async () => {
-      const saveStartedAt = performance.now();
-      const res = await sendAction(id, tokenRef.current, {
-        type: "sync",
-        targetIndex,
-        status: statusOverride,
+
+    // A slow database must not build an unbounded queue of stale 3-second
+    // checkpoints. One request runs at a time and any calls received while it
+    // is pending collapse into the newest index/status.
+    if (!checkpointPendingRef.current) {
+      const drain = async () => {
+        let lastSaveSucceeded = true;
+        while (checkpointLatestRef.current) {
+          const requested = checkpointLatestRef.current;
+          checkpointLatestRef.current = null;
+          const saveStartedAt = performance.now();
+          const task = actionQueueRef.current.then(() =>
+            sendAction(id, tokenRef.current, {
+              type: "sync",
+              targetIndex: requested.targetIndex,
+              status: requested.statusOverride,
+            }),
+          );
+          actionQueueRef.current = task.then(
+            () => undefined,
+            () => undefined,
+          );
+          try {
+            const res = await task;
+            lastSaveSucceeded = res.ok;
+            recordReplayMetric(
+              "session-save",
+              performance.now() - saveStartedAt,
+            );
+            if (res.ok) {
+              patch({ saveStatus: "saved", savedAt: Date.now() });
+            }
+          } catch {
+            lastSaveSucceeded = false;
+          }
+        }
+        if (!lastSaveSucceeded) {
+          // Saving is non-blocking: keep the chart and replay usable. The next
+          // interval or explicit retry will attempt the newest local index.
+          patch({ saveStatus: "error" });
+        }
+      };
+      const pending = drain().finally(() => {
+        if (checkpointPendingRef.current === pending) {
+          checkpointPendingRef.current = null;
+        }
       });
-      recordReplayMetric(
-        "session-save",
-        performance.now() - saveStartedAt,
-      );
-      patch(
-        res.ok
-          ? { saveStatus: "saved", savedAt: Date.now() }
-          : { saveStatus: "error", error: res.error },
-      );
-    });
-    actionQueueRef.current = task.catch(() => {
-      patch({ saveStatus: "error", error: "Replay progress could not be saved." });
-    });
-    await actionQueueRef.current;
+      checkpointPendingRef.current = pending;
+    }
+    await checkpointPendingRef.current;
   }, [patch]);
 
   // Persist progress in batches. Closing/pausing also checkpoints immediately.
@@ -1142,10 +1188,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
     [ensurePair, patch],
   );
   const retrySave = useCallback(() => {
-    const action = lastActionRef.current;
-    if (!action) return Promise.resolve();
-    return runAction(action);
-  }, [runAction]);
+    const status = localEngineRef.current?.state.status;
+    return checkpoint(status === "running" ? "running" : "paused");
+  }, [checkpoint]);
   const loadHistory = useCallback(
     async (symbol: string, timeframe: Timeframe, before: number) => {
       const id = sessionIdRef.current;
@@ -1178,6 +1223,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
     stopLocalScheduler();
     localEngineRef.current = null;
     actionQueueRef.current = Promise.resolve();
+    checkpointPendingRef.current = null;
+    checkpointLatestRef.current = null;
     window.history.replaceState(null, "", "/app/backtest");
     setS(initial);
   }, [stopLocalScheduler]);

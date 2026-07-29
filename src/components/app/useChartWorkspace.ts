@@ -114,6 +114,8 @@ export function useChartWorkspace(
   const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
   const [revision, setRevision] = useState(0);
   const lastSavedRef = useRef("");
+  const savePendingRef = useRef<Promise<void> | null>(null);
+  const retryAfterRef = useRef(0);
 
   useEffect(() => {
     const saved = parse<Partial<ChartSettings> | null>(
@@ -155,25 +157,50 @@ export function useChartWorkspace(
   );
   const saveWorkspace = useCallback(async () => {
     if (!signedIn) { setSyncStatus("local"); return; }
-    const saveStartedAt = performance.now();
-    const next = payload();
-    setSyncStatus("saving");
-    const response = await fetch("/api/workspace", {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "save", payload: next }),
+    if (savePendingRef.current) return savePendingRef.current;
+    const task = (async () => {
+      const saveStartedAt = performance.now();
+      const next = payload();
+      setSyncStatus("saving");
+      try {
+        const response = await fetch("/api/workspace", {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "save", payload: next }),
+        });
+        if (!response.ok) throw new Error("Workspace save failed.");
+        recordReplayMetric("workspace-save", performance.now() - saveStartedAt);
+        lastSavedRef.current = JSON.stringify(next);
+        retryAfterRef.current = 0;
+        setSyncStatus("saved");
+      } catch {
+        // Do not hammer a saturated database every two seconds. Local storage
+        // remains authoritative until a later background retry succeeds.
+        retryAfterRef.current = Date.now() + 15_000;
+        setSyncStatus("error");
+        // The visible sync status is the error channel. Keeping this promise
+        // resolved prevents ignored toolbar saves from becoming unhandled
+        // browser rejections.
+      }
+    })();
+    savePendingRef.current = task.finally(() => {
+      savePendingRef.current = null;
     });
-    if (!response.ok) { setSyncStatus("error"); throw new Error("Workspace save failed."); }
-    recordReplayMetric("workspace-save", performance.now() - saveStartedAt);
-    lastSavedRef.current = JSON.stringify(next);
-    setSyncStatus("saved");
+    return savePendingRef.current;
   }, [payload, signedIn]);
 
   useEffect(() => {
     if (!signedIn || syncStatus === "loading") return;
     const timer = window.setInterval(() => {
+      if (
+        document.visibilityState !== "visible" ||
+        savePendingRef.current ||
+        Date.now() < retryAfterRef.current
+      ) return;
       const next = payload();
-      if (JSON.stringify(next) !== lastSavedRef.current) void saveWorkspace();
-    }, 2_000);
+      if (JSON.stringify(next) !== lastSavedRef.current) {
+        void saveWorkspace().catch(() => {});
+      }
+    }, 5_000);
     return () => window.clearInterval(timer);
   }, [payload, saveWorkspace, signedIn, syncStatus]);
 

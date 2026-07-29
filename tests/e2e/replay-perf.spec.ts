@@ -13,6 +13,7 @@ const RUN_MS = Number(process.env.PERF_RUN_MS ?? "20000");
 const PROFILE = process.env.PERF_PROFILE === "1";
 const WITH_INDICATORS = process.env.PERF_INDICATORS === "1";
 const CHUNKED = process.env.PERF_CHUNKED === "1";
+const SAVE_FAILURE = process.env.PERF_SAVE_FAILURE === "1";
 const START = Date.UTC(2025, 0, 6, 8);
 const CANDLE_COUNT = 7_200;
 
@@ -49,6 +50,7 @@ async function seed(page: Page, layout: string) {
     ? initialVisibleCount + 10
     : replayCandles.length;
   let extensionAttempts = 0;
+  let syncAttempts = 0;
   const state = {
     sessionId,
     config: {
@@ -141,6 +143,17 @@ async function seed(page: Page, layout: string) {
       type?: string;
       speed?: number;
     };
+    if (action.type === "sync") {
+      syncAttempts += 1;
+      if (SAVE_FAILURE && syncAttempts === 1) {
+        await route.fulfill({
+          status: 500,
+          contentType: "text/html",
+          body: "temporary database pool timeout",
+        });
+        return;
+      }
+    }
     const responseState =
       action.type === "set-speed" && action.speed
         ? { ...state, speed: action.speed }
@@ -208,6 +221,7 @@ async function seed(page: Page, layout: string) {
   await page.goto("/app/backtest?trial=instant");
   return {
     extensionAttempts: () => extensionAttempts,
+    syncAttempts: () => syncAttempts,
   };
 }
 
@@ -311,6 +325,15 @@ test("replay perf", async ({ page }) => {
     ).toHaveCount(0);
     expect(advanced).toBeGreaterThan((RUN_MS / 1_000) * 15);
   }
+  if (SAVE_FAILURE) {
+    expect(replaySeed.syncAttempts()).toBeGreaterThanOrEqual(2);
+    await expect(
+      page.getByText("Request failed (500).", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("img", { name: "Candlestick price chart" }).first(),
+    ).toBeVisible();
+  }
   let profileRows:
     | { ms: number; fn: string; at: string }[]
     | undefined;
@@ -353,12 +376,13 @@ test("replay perf", async ({ page }) => {
       .slice(0, 30);
   }
   console.log(
-    `PERF layout=${LAYOUT} throttle=${THROTTLE}x chunked=${CHUNKED}`,
+    `PERF layout=${LAYOUT} throttle=${THROTTLE}x chunked=${CHUNKED} saveFailure=${SAVE_FAILURE}`,
     JSON.stringify({
       ...stats,
       candlesAdvanced: advanced,
       candlesPerSec: Math.round((advanced / RUN_MS) * 1000),
       extensionAttempts: replaySeed.extensionAttempts(),
+      syncAttempts: replaySeed.syncAttempts(),
     }),
   );
   if (profileRows) {

@@ -438,7 +438,7 @@ function ToolButton({
       title={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors ${
+      className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors ${
         active
           ? "bg-brand-400/15 text-brand-300"
           : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
@@ -1856,11 +1856,14 @@ export default function PriceChart({
   // Chart controls (timeframes + chart type + indicators). Rendered into the top
   // header via a portal when a slot is provided, otherwise docked above the chart.
   const chartControls = (
-    <div className="flex items-center gap-1" role="toolbar" aria-label="Chart controls">
+    <div className="flex min-w-0 items-center gap-1" role="toolbar" aria-label="Chart controls">
       {instrumentLabel && (
-        <span className="border-r app-border pr-2 text-xs font-bold">{instrumentLabel}</span>
+        <span className="shrink-0 border-r app-border pr-2 text-xs font-bold">{instrumentLabel}</span>
       )}
-      <div className="flex items-center border-r app-border pr-1" aria-label="Display timeframe">
+      {/* The timeframe list is the widest thing in the header and the only part
+          that may overflow, so it scrolls inside itself. Menus live outside this
+          box because a scroll container would clip their dropdowns. */}
+      <div className="scroll-x-thin flex items-center border-r app-border pr-1" aria-label="Display timeframe">
         {availableTimeframes.map((timeframe) => (
           <ToolButton key={timeframe} label={`Display ${timeframe} candles`} active={displayTimeframe === timeframe} onClick={() => selectTimeframe(timeframe)}>
             {timeframe}
@@ -1869,7 +1872,7 @@ export default function PriceChart({
       </div>
 
       {/* Chart type */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <button
           type="button"
           aria-label="Chart type"
@@ -1892,7 +1895,7 @@ export default function PriceChart({
       </div>
 
       {/* Indicators */}
-      <div className="relative">
+      <div className="relative shrink-0">
         <button
           type="button"
           aria-label="Indicators"

@@ -20,7 +20,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <main
       id="main"
-      className="app-shell relative min-h-screen overflow-hidden bg-[var(--app-bg)]"
+      className="app-shell relative min-h-[100dvh] overflow-hidden bg-[var(--app-bg)]"
     >
       <div
         aria-hidden
@@ -31,7 +31,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         className="pointer-events-none absolute -left-52 top-10 h-[38rem] w-[38rem] rounded-full bg-brand-400/[0.09] blur-[130px]"
       />
 
-      <div className="relative z-10 grid min-h-screen lg:grid-cols-[minmax(0,1.12fr)_minmax(31rem,.88fr)]">
+      <div className="relative z-10 grid min-h-[100dvh] lg:grid-cols-[minmax(0,1.12fr)_minmax(31rem,.88fr)]">
         <section className="relative hidden overflow-hidden border-r app-border px-10 pb-10 pt-28 lg:flex lg:flex-col xl:px-16">
           <div className="absolute left-10 top-8 xl:left-16">
             <Logo className="h-9" priority />
@@ -99,7 +99,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           </div>
         </section>
 
-        <section className="relative flex min-h-screen flex-col px-5 pb-10 pt-24 sm:px-8 lg:px-12 lg:py-16 xl:px-20">
+        <section className="relative flex min-h-[100dvh] flex-col px-5 pb-10 pt-24 sm:px-8 lg:px-12 lg:py-16 xl:px-20">
           <div className="absolute left-5 right-5 top-6 flex items-center justify-between sm:left-8 sm:right-8 lg:left-12 lg:right-12 xl:left-20 xl:right-20">
             <div className="lg:hidden">
               <Logo className="h-8" priority />

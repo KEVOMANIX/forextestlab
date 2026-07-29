@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 export function SessionCardActions({
   sessionId,
@@ -37,6 +38,11 @@ export function SessionCardActions({
   const [renameOpen, setRenameOpen] = useState(false);
   const [name, setName] = useState(sessionName);
   const [renameError, setRenameError] = useState<string | null>(null);
+  const renameDialogRef = useModalBehavior<HTMLFormElement>({
+    open: renameOpen,
+    onClose: () => setRenameOpen(false),
+    closeOnEscape: !busy,
+  });
   const finished = status === "finished";
 
   async function setArchived(value: boolean) {
@@ -206,8 +212,10 @@ export function SessionCardActions({
         }}
       >
         <form
+          ref={renameDialogRef}
+          tabIndex={-1}
           onSubmit={rename}
-          className="w-full max-w-md rounded-2xl border app-border bg-[var(--app-panel)] p-5 shadow-2xl"
+          className="w-full max-w-md rounded-2xl border app-border bg-[var(--app-panel)] p-5 shadow-2xl outline-none"
           role="dialog"
           aria-modal="true"
           aria-labelledby={`rename-session-${sessionId}`}

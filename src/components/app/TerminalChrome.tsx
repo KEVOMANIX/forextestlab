@@ -126,6 +126,13 @@ export function TerminalTopBar({
     onNavigate(href);
   };
 
+  const saveLabel =
+    saveStatus === "saving"
+      ? "Saving…"
+      : saveStatus === "error"
+        ? "Save failed — retry"
+        : "Saved";
+
   const toggleFullscreen = async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -156,7 +163,7 @@ export function TerminalTopBar({
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
-          className={`inline-flex h-8 max-w-28 items-center gap-2 rounded-md border px-2.5 text-xs font-semibold transition-colors sm:max-w-48 lg:max-w-56 ${
+          className={`inline-flex h-8 max-w-24 items-center gap-2 rounded-md border px-2.5 text-xs font-semibold transition-colors sm:max-w-48 lg:max-w-56 ${
             menuOpen
               ? "border-brand-400/40 bg-brand-400/10 text-brand-300"
               : "app-border bg-[var(--app-panel-2)] hover:border-brand-400/25"
@@ -239,8 +246,10 @@ export function TerminalTopBar({
         )}
       </div>
 
-      <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-      {children}
+      <span className="hidden h-6 w-px shrink-0 bg-[var(--app-border)] md:block" aria-hidden />
+      {/* `min-w-0` lets the chart controls shrink (their timeframe row scrolls
+          internally) so the cluster on the right is never pushed off the edge. */}
+      <div className="flex min-w-0 flex-1 items-center">{children}</div>
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5 border-l app-border pl-1.5">
         {endControls}
@@ -248,22 +257,29 @@ export function TerminalTopBar({
           type="button"
           onClick={saveStatus === "error" ? onRetrySave : undefined}
           disabled={saveStatus !== "error"}
-          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-[10px] hover:bg-[var(--app-panel-2)] ${
-            saveStatus === "error" ? "text-bear" : "app-muted"
+          title={saveLabel}
+          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-[11px] font-semibold ${
+            saveStatus === "error"
+              ? "border border-bear/40 bg-bear/10 text-bear hover:bg-bear/20"
+              : "app-muted hover:bg-[var(--app-panel-2)]"
           }`}
-          aria-live="polite"
         >
           {saveStatus === "saving" ? (
-            <Loader2 size={12} className="animate-spin" aria-hidden />
+            <Loader2 size={13} className="animate-spin" aria-hidden />
           ) : saveStatus === "error" ? (
-            <CloudOff size={12} aria-hidden />
+            <CloudOff size={13} aria-hidden />
           ) : (
-            <Save size={12} aria-hidden />
+            <Save size={13} aria-hidden />
           )}
-          <span className="hidden xl:inline">
-            {saveStatus === "saving" ? "Saving…" : saveStatus === "error" ? "Retry save" : "Saved"}
+          {/* A failed save always shows its label — losing work is not something
+              to communicate with a 13px icon. Success stays icon-only when narrow. */}
+          <span className={saveStatus === "error" ? "inline" : "hidden lg:inline"}>
+            {saveLabel}
           </span>
         </button>
+        <span className="sr-only" role="status" aria-live="polite">
+          {saveLabel}
+        </span>
         <button
           type="button"
           onClick={onNewSession}

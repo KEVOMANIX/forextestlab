@@ -34,7 +34,7 @@ export function TradesTable({ trades }: { trades: ClosedTrade[] }) {
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <caption className="sr-only">Simulated trade history</caption>
-          <thead className="app-muted">
+          <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted">
             <tr className="border-b app-border">
               <th scope="col" className="px-3 py-2 font-medium">Direction</th>
               <th scope="col" className="px-3 py-2 font-medium">Entry</th>

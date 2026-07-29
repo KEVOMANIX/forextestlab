@@ -284,7 +284,7 @@ export function ReplayDiagnosticsPanel({
         </button>
       </header>
 
-      <div className="max-h-[calc(100vh-8rem)] space-y-4 overflow-y-auto p-4 text-xs">
+      <div className="max-h-[calc(100dvh-8rem)] space-y-4 overflow-y-auto p-4 text-xs">
         <section>
           <h3 className="flex items-center gap-2 font-semibold">
             <Activity size={14} className="text-brand-300" /> Replay

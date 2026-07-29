@@ -264,9 +264,9 @@ export default async function SupportTeamPage({
   ] as const;
 
   return (
-    <main className="min-h-[calc(100vh-4rem)]">
+    <main className="min-h-[calc(100dvh-4rem)]">
       <section className="grid gap-px bg-[var(--app-border)] xl:grid-cols-[260px_minmax(420px,1fr)_330px]">
-        <aside className="min-h-[calc(100vh-4rem)] bg-[var(--app-panel-2)] p-4">
+        <aside className="min-h-[calc(100dvh-4rem)] bg-[var(--app-panel-2)] p-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="font-semibold">Team inbox</h1>
@@ -343,13 +343,13 @@ export default async function SupportTeamPage({
           </div>
         </aside>
 
-        <section className="grid min-h-[calc(100vh-4rem)] bg-[var(--app-bg)] lg:grid-cols-[300px_1fr]">
+        <section className="grid min-h-[calc(100dvh-4rem)] bg-[var(--app-bg)] lg:grid-cols-[300px_1fr]">
           <div className="border-r app-border">
             <div className="border-b app-border px-4 py-3 text-xs font-semibold">
               {conversations.length} conversation
               {conversations.length === 1 ? "" : "s"}
             </div>
-            <div className="max-h-[calc(100vh-7rem)] overflow-y-auto">
+            <div className="max-h-[calc(100dvh-7rem)] overflow-y-auto">
               {conversations.map((conversation) => {
                 const overdue =
                   !conversation.firstResponseAt &&
@@ -574,7 +574,7 @@ export default async function SupportTeamPage({
           )}
         </section>
 
-        <aside className="min-h-[calc(100vh-4rem)] bg-[var(--app-panel-2)] p-4">
+        <aside className="min-h-[calc(100dvh-4rem)] bg-[var(--app-panel-2)] p-4">
           {selected ? (
             <div className="space-y-5">
               <section>

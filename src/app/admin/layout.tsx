@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await requireAdmin();
   return (
     <AppThemeProvider>
-      <div className="app-shell min-h-screen lg:flex">
+      <div className="app-shell min-h-[100dvh] lg:flex">
         <AdminNav email={user.email ?? "Administrator"} />
         <main id="main" className="min-w-0 flex-1">
           <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 lg:px-8 lg:py-9">

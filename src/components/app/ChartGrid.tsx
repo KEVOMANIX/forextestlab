@@ -9,6 +9,7 @@ import type { TradePlan } from "@/lib/backtest/trade-plan";
 import type { OpenPosition, PendingOrder, PublicSessionState } from "@/lib/backtest/types";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
 
+import { useCompactViewport } from "@/lib/ui/use-media-query";
 import PriceChart, { type ChartMarker } from "./PriceChart";
 import type { ChartWorkspace } from "./useChartWorkspace";
 
@@ -168,6 +169,7 @@ export default function ChartGrid({
   workspace,
 }: ChartGridProps) {
   const sessionSymbol = state.config.symbol;
+  const compact = useCompactViewport();
   const [layout, setLayout] = useState<GridLayout>("1");
   const [cells, setCells] = useState<ChartCell[]>([
     { id: "cell-1", symbol: sessionSymbol, timeframe: null },
@@ -329,7 +331,18 @@ export default function ChartGrid({
         : headerSlot
           ? createPortal(layoutPicker, headerSlot)
           : null}
-      <div className={`grid min-h-0 flex-1 gap-px bg-[var(--app-border)] ${spec.className}`}>
+      {/*
+        A 2-column grid on a phone gives each pane about 180px of width, which is
+        not a chart. Narrow viewports keep every cell the layout asked for but
+        stack them full-width in a scrollable column, so each one stays readable.
+      */}
+      <div
+        className={`grid min-h-0 flex-1 gap-px bg-[var(--app-border)] ${
+          compact
+            ? "auto-rows-[minmax(15rem,1fr)] grid-cols-1 overflow-y-auto"
+            : spec.className
+        }`}
+      >
         {visibleCells.map((cell, index) => {
           const isSession = cell.symbol === sessionSymbol;
           const isFocused = cell.id === focused.id;
@@ -338,7 +351,7 @@ export default function ChartGrid({
             <div
               key={cell.id}
               data-testid={`chart-${cell.id}`}
-              className={`relative min-h-0 min-w-0 overflow-hidden bg-[var(--app-bg)] ${cellSpan(layout, index)} ${
+              className={`relative min-h-0 min-w-0 overflow-hidden bg-[var(--app-bg)] ${compact ? "" : cellSpan(layout, index)} ${
                 multi && isFocused ? "outline outline-1 -outline-offset-1 outline-brand-400/50" : ""
               }`}
             >

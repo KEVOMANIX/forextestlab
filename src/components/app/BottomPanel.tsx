@@ -87,14 +87,14 @@ export function BottomPanel({
   return (
     <section
       className={`relative flex shrink-0 flex-col overflow-hidden border-t app-border bg-[var(--app-panel)] transition-[height] duration-200 ease-out ${
-        expanded ? (tab === "notes" || tab === "bookmarks" ? "h-[min(72vh,620px)]" : "h-44 md:h-48") : "h-11"
+        expanded ? (tab === "notes" || tab === "bookmarks" ? "h-[min(72dvh,620px)]" : "h-44 md:h-48") : "h-11"
       }`}
       aria-label="Session details"
     >
       {expanded && (
         <div
           id={`panel-${tab}`}
-          role="tabpanel"
+          role="group"
           aria-labelledby={tab === "statistics" ? "analytics-button" : `tab-${tab}`}
           className="min-h-0 flex-1 overflow-auto border-b app-border"
         >
@@ -102,7 +102,8 @@ export function BottomPanel({
             (state.openPositions.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-xs">
-                  <thead className="app-muted"><tr className="border-b app-border"><th className="px-3 py-2">Side</th><th>Lots</th><th>Entry</th><th>SL</th><th>TP</th><th>Commission</th><th>Unrealised</th></tr></thead>
+                  {/* The dock is short, so headers stick instead of scrolling away. */}
+                  <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted"><tr className="border-b app-border"><th scope="col" className="px-3 py-2">Side</th><th scope="col">Lots</th><th scope="col">Entry</th><th scope="col">SL</th><th scope="col">TP</th><th scope="col">Commission</th><th scope="col">Unrealised</th></tr></thead>
                   <tbody>
                     {state.openPositions.map((position) => (
                       <tr key={position.id} className="border-b app-border font-mono">
@@ -124,11 +125,11 @@ export function BottomPanel({
             state.pendingOrders.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[920px] text-left text-xs">
-                  <thead className="app-muted">
+                  <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted">
                     <tr className="border-b app-border">
-                      <th className="px-3 py-2">Status</th><th>Type</th><th>Side</th>
-                      <th>Lots</th><th>Price</th><th>Created</th><th>Updated</th>
-                      <th>Expiry</th><th aria-label="Actions" />
+                      <th scope="col" className="px-3 py-2">Status</th><th scope="col">Type</th><th scope="col">Side</th>
+                      <th scope="col">Lots</th><th scope="col">Price</th><th scope="col">Created</th><th scope="col">Updated</th>
+                      <th scope="col">Expiry</th><th scope="col"><span className="sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -213,16 +214,10 @@ export function BottomPanel({
         </div>
       )}
 
-      {/* Centred on the bar, not on the space left between the two groups —
-          the guest notice moved left so nothing sits under it. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 hidden h-9 items-center justify-center md:flex">
-        <div className="pointer-events-auto">
-          <TimeZoneClock zone={timeZone} theme={theme} onChange={onTimeZoneChange} />
-        </div>
-      </div>
-
-      <div className="flex h-9 shrink-0 items-center overflow-x-auto px-1.5 text-[11px]">
-        <div role="tablist" aria-label="Session panels" className="flex h-full shrink-0 items-center">
+      <div className="scroll-x-thin flex h-9 shrink-0 items-center px-1.5 text-[11px]">
+        {/* These are disclosure buttons, not tabs: the dock can be fully closed,
+            and a tablist with nothing selected is invalid. */}
+        <div aria-label="Session panels" className="flex h-full shrink-0 items-center">
           {TABS.map((item) => {
             const count = item.id === "position"
               ? openCount
@@ -237,15 +232,15 @@ export function BottomPanel({
             return (
               <button
                 key={item.id}
-                role="tab"
-                aria-selected={active}
                 aria-expanded={active}
                 id={`tab-${item.id}`}
                 aria-controls={`panel-${item.id}`}
                 type="button"
                 onClick={() => selectTab(item.id)}
                 className={`inline-flex h-full shrink-0 items-center gap-1.5 border-r app-border px-2.5 font-semibold transition-colors ${
-                  active ? "bg-white/[0.04] text-blue-400" : "app-muted hover:text-[var(--app-text)]"
+                  active
+                    ? "bg-brand-400/10 text-brand-300"
+                    : "app-muted hover:text-[var(--app-text)]"
                 }`}
               >
                 {item.label}
@@ -255,7 +250,6 @@ export function BottomPanel({
           })}
         </div>
 
-        {/* Left of centre, so it never sits under the centred clock. */}
         {state.anonymous && (
           <span className="hidden shrink-0 border-r app-border px-3 text-[10px] text-brand-300 xl:inline-flex">
             Guest session&nbsp;·&nbsp;
@@ -264,7 +258,14 @@ export function BottomPanel({
         )}
 
         <div className="ml-auto flex h-full shrink-0 items-center">
-          <div className="hidden h-full border-l app-border sm:flex">
+          {/* The timezone clock sits in the flow rather than absolutely centred,
+              where it used to collide with the tab row on mid-width screens. */}
+          <div className="hidden h-full items-center border-l app-border px-2 lg:flex">
+            <TimeZoneClock zone={timeZone} theme={theme} onChange={onTimeZoneChange} />
+          </div>
+          {/* Balance and equity matter on every screen size, so the read-out is
+              always mounted and drops metrics by breakpoint instead of vanishing. */}
+          <div className="flex h-full border-l app-border">
             <AccountSummary
               state={state}
               clock={
@@ -282,12 +283,13 @@ export function BottomPanel({
             id="analytics-button"
             type="button"
             onClick={() => selectTab("statistics")}
-            className="ml-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-blue-600 px-2.5 font-semibold text-white transition-colors hover:bg-blue-500"
+            className="ml-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-brand-500 px-2.5 font-semibold text-surface-950 transition-colors hover:bg-brand-400"
             aria-expanded={expanded && tab === "statistics"}
             aria-controls="panel-statistics"
+            aria-label="Analytics"
           >
             <BarChart3 size={13} aria-hidden />
-            Analytics
+            <span className="hidden sm:inline">Analytics</span>
           </button>
           <ChevronUp
             size={13}

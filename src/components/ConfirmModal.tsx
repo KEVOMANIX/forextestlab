@@ -1,7 +1,9 @@
 "use client";
 
 import { AlertTriangle, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+
+import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 export function ConfirmModal({
   open,
@@ -23,16 +25,12 @@ export function ConfirmModal({
   onConfirm: () => void;
 }) {
   const cancelRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    cancelRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) onCancel();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, busy, onCancel]);
+  const dialogRef = useModalBehavior<HTMLElement>({
+    open,
+    onClose: onCancel,
+    closeOnEscape: !busy,
+    initialFocus: cancelRef,
+  });
 
   if (!open) return null;
 
@@ -44,11 +42,13 @@ export function ConfirmModal({
       }}
     >
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
         aria-describedby="confirm-modal-message"
-        className="w-full max-w-md overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl"
+        className="w-full max-w-md overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl outline-none"
       >
         <div className="flex items-start gap-4 p-5 sm:p-6">
           <span

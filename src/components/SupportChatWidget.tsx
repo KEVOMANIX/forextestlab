@@ -13,6 +13,7 @@ import {
   Star,
   X,
 } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Attachment = {
@@ -103,7 +104,15 @@ function supportHeaders(conversationId: string, json = false) {
   };
 }
 
+/**
+ * Routes that own the whole viewport and have their own bottom-right chrome. A
+ * floating launcher there would sit on top of the trading dock's account
+ * read-out, so the widget stands down and those pages link to /app/support.
+ */
+const HIDDEN_ROUTES = ["/app/backtest", "/app/support", "/support-team"];
+
 export function SupportChatWidget() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -395,12 +404,14 @@ export function SupportChatWidget() {
     window.localStorage.setItem(ACTIVE_KEY, id);
   }
 
+  if (HIDDEN_ROUTES.some((route) => pathname?.startsWith(route))) return null;
+
   return (
     <>
       {open && (
         <section
           id="support-assistant-panel"
-          className="fixed bottom-24 right-4 z-[120] flex h-[620px] max-h-[calc(100vh-7rem)] w-[min(calc(100vw-2rem),400px)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-surface-900 shadow-2xl shadow-black/40"
+          className="fixed bottom-24 right-4 z-[120] flex h-[620px] max-h-[calc(100dvh-7rem)] w-[min(calc(100vw-2rem),400px)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-surface-900 shadow-2xl shadow-black/40"
           aria-label="ForexTestLab support"
         >
           <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[linear-gradient(135deg,rgba(34,195,160,.18),rgba(17,23,37,.7))] px-4 py-3.5">

@@ -42,6 +42,11 @@ import { BacktestExperiencePanel } from "./BacktestExperiencePanel";
 import { tradingGuardMessage } from "@/lib/backtest/trade-guards";
 import type { ReplayDiagnosticsSource } from "./ReplayDiagnosticsPanel";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
+import { useCompactViewport } from "@/lib/ui/use-media-query";
+import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
+
+/** Toasts float over the chart, so the stack is capped at a readable few. */
+const MAX_NOTIFICATIONS = 4;
 
 type PendingConfirmation = {
   title: string;
@@ -71,6 +76,7 @@ export function Backtester({
 }) {
   const renderStartedAt = performance.now();
   const router = useRouter();
+  const compact = useCompactViewport();
   const { theme, toggle } = useAppTheme();
   const bt = useBacktester(resumeSessionId);
   const { state, actions } = bt;
@@ -104,6 +110,7 @@ export function Backtester({
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
+  const notificationTimersRef = useRef<Set<number>>(new Set());
   const cancellationTimersRef = useRef<Map<string, number>>(new Map());
   const autoTrialAttemptedRef = useRef(false);
   const notificationStateRef = useRef<{
@@ -144,14 +151,24 @@ export function Backtester({
     }
   }, [actions, trialSessionsRemaining]);
 
-  const notify = useCallback((notification: TradeNotification, timeout = 5_000) => {
-    setNotifications((current) => [...current.filter((item) => item.id !== notification.id), notification].slice(-5));
-    if (timeout > 0) {
-      window.setTimeout(() => {
-        setNotifications((current) => current.filter((item) => item.id !== notification.id));
-      }, timeout);
-    }
+  /** Toasts expire on a timer, so every timer is tracked and cancelled on unmount. */
+  const expireNotification = useCallback((id: string, timeout: number) => {
+    if (timeout <= 0) return;
+    const timer = window.setTimeout(() => {
+      notificationTimersRef.current.delete(timer);
+      setNotifications((current) => current.filter((item) => item.id !== id));
+    }, timeout);
+    notificationTimersRef.current.add(timer);
   }, []);
+
+  const notify = useCallback((notification: TradeNotification, timeout = 5_000) => {
+    setNotifications((current) =>
+      [...current.filter((item) => item.id !== notification.id), notification].slice(
+        -MAX_NOTIFICATIONS,
+      ),
+    );
+    expireNotification(notification.id, timeout);
+  }, [expireNotification]);
 
   const submitOrder = useCallback((
     order: OrderRequest,
@@ -223,7 +240,12 @@ export function Backtester({
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (target?.isContentEditable) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
+      // Buy and sell are single, unmodified keys. A dialog on screen means the
+      // trader is answering a question, not trading, so nothing behind it may
+      // act on a keystroke — least of all a market order.
+      if (modalIsOpen()) return;
       const matches = (shortcut: string) =>
         event.key.toLowerCase() === shortcut.toLowerCase();
       if (matches(workspace.settings.shortcuts.toggleReplay)) {
@@ -318,17 +340,21 @@ export function Backtester({
     ];
     if (added.length > 0) setSelectedPositionId(added.at(-1)?.id ?? null);
     if (nextNotifications.length > 0) {
-      setNotifications((current) => [...current, ...nextNotifications].slice(-4));
+      setNotifications((current) =>
+        [...current, ...nextNotifications].slice(-MAX_NOTIFICATIONS),
+      );
       for (const notification of nextNotifications) {
-        window.setTimeout(() => setNotifications((current) => current.filter((item) => item.id !== notification.id)), 4_500);
+        expireNotification(notification.id, 4_500);
       }
     }
     notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length, pendingStatuses };
-  }, [state]);
+  }, [state, expireNotification]);
 
   useEffect(() => () => {
     for (const timer of cancellationTimersRef.current.values()) window.clearTimeout(timer);
     cancellationTimersRef.current.clear();
+    for (const timer of notificationTimersRef.current) window.clearTimeout(timer);
+    notificationTimersRef.current.clear();
   }, []);
 
   const markers = useMemo<ChartMarker[]>(() => {
@@ -544,12 +570,18 @@ export function Backtester({
         endControls={
           <div className="flex shrink-0 items-center gap-1">
             <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} diagnostics={replayDiagnostics} />
-            <WorkspaceManager workspace={workspace} signedIn={!state.anonymous} />
+            {/* Workspace templates are a wide-screen convenience. Below `lg` the
+                header's width goes to the controls needed while trading. */}
+            <div className="hidden lg:block">
+              <WorkspaceManager workspace={workspace} signedIn={!state.anonymous} />
+            </div>
             <div ref={setChartLayoutSlot} className="flex shrink-0 items-center" />
           </div>
         }
       >
-        <div ref={setChartHeaderSlot} className="flex min-w-0 flex-1 items-center gap-1" />
+        {!compact && (
+          <div ref={setChartHeaderSlot} className="flex min-w-0 flex-1 items-center gap-1" />
+        )}
       </TerminalTopBar>}
 
       {workspace.settings.distractionFree && (
@@ -561,10 +593,12 @@ export function Backtester({
         </div>
       )}
 
+      {/* Centred, and above the panels that also claim the top-right corner
+          (focus-mode controls, replay diagnostics) so an error is never buried. */}
       {bt.error && (
         <p
           role="alert"
-          className="absolute right-3 top-12 z-40 max-w-md rounded-lg border border-bear/30 bg-[var(--app-panel)] px-3 py-2 text-sm text-bear shadow-xl"
+          className="absolute left-1/2 top-14 z-[95] w-[min(28rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-bear/30 bg-[var(--app-panel-solid)] px-3 py-2 text-center text-sm text-bear shadow-2xl"
         >
           {bt.error}
         </p>

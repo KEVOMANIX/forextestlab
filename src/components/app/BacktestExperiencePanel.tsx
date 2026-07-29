@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Focus, Gauge, Keyboard, ShieldCheck, SlidersHorizontal, X } from "lucide-react";
 
+import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import type { ChartSettings } from "./ChartSettingsMenu";
 import {
   ReplayDiagnosticsPanel,
@@ -44,14 +45,13 @@ export function BacktestExperiencePanel({
     return () => window.removeEventListener("forextestlab:open-experience", show);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !capturing) setOpen(false);
-    };
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [capturing, open]);
+  // Escape stands down while a shortcut is being captured, so pressing Escape to
+  // abandon a rebind doesn't also close the dialog.
+  const dialogRef = useModalBehavior<HTMLElement>({
+    open,
+    onClose: () => setOpen(false),
+    closeOnEscape: !capturing,
+  });
 
   return (
     <>
@@ -60,7 +60,7 @@ export function BacktestExperiencePanel({
       </button>
       {open && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-label="Trading experience settings" className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl">
+          <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Trading experience settings" className="max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl outline-none">
             <header className="sticky top-0 z-10 flex items-center justify-between border-b app-border bg-[var(--app-panel)] px-5 py-4">
               <div><h2 className="font-semibold">Trading experience</h2><p className="mt-1 text-xs app-muted">Shortcuts, execution protection, and session discipline.</p></div>
               <button type="button" onClick={() => setOpen(false)} className="grid h-8 w-8 place-items-center rounded-md app-muted hover:bg-white/[0.06]" aria-label="Close"><X size={16} /></button>

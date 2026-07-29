@@ -28,8 +28,17 @@ import type {
   PublicSessionState,
   TradeDirection,
 } from "@/lib/backtest/types";
+import { useCompactViewport } from "@/lib/ui/use-media-query";
 
 type PlanLevel = keyof Omit<TradePlan, "direction">;
+
+/**
+ * Direction colour is the one thing in a trading UI that must never be
+ * ambiguous: long is the brand teal and short is `bear` red everywhere — chart
+ * markers, the replay toolbox, the blotter and this ticket.
+ */
+const LONG_SOLID = "bg-brand-500 text-surface-950 hover:bg-brand-400";
+const SHORT_SOLID = "bg-bear text-white hover:opacity-90";
 
 interface OrderTicketProps {
   state: PublicSessionState;
@@ -71,6 +80,7 @@ export function OrderTicket({
   activationRequest = null,
   onActivationHandled,
 }: OrderTicketProps) {
+  const compact = useCompactViewport();
   const [sizingMode, setSizingMode] = useState<
     "risk-percent" | "fixed-lots"
   >("fixed-lots");
@@ -296,10 +306,10 @@ export function OrderTicket({
   if (!panelOpen) {
     return (
       <div
-        className="pointer-events-auto absolute left-2 top-2 flex items-center gap-1 rounded-lg border border-white/10 bg-[#202020]/95 p-1 shadow-xl backdrop-blur"
+        className="pointer-events-auto absolute left-2 top-2 flex items-center gap-1 rounded-lg border border-[var(--ticket-border)] bg-[var(--ticket-bg)]/95 p-1 shadow-xl backdrop-blur"
         aria-label="Quick order planner"
       >
-        <span className="hidden px-2 text-[11px] font-semibold text-[#c7c7c7] sm:inline">
+        <span className="hidden px-2 text-[11px] font-semibold text-[var(--ticket-muted)] sm:inline">
           {state.config.symbol}
         </span>
         {oneClickTrading && (
@@ -326,40 +336,50 @@ export function OrderTicket({
   return (
     <section
       ref={panelRef}
-      className="pointer-events-auto absolute flex max-h-[calc(100%-1rem)] w-[360px] max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-lg border border-white/10 bg-[#202020] text-[#e6e6e6] shadow-2xl"
+      className={`pointer-events-auto absolute flex flex-col overflow-hidden border border-[var(--ticket-border)] bg-[var(--ticket-bg)] text-[var(--ticket-text)] shadow-2xl ${
+        compact
+          ? "inset-x-1 top-1 max-h-[calc(100%-4.5rem)] rounded-lg"
+          : "max-h-[calc(100%-1rem)] w-[360px] max-w-[calc(100%-1rem)] rounded-lg"
+      }`}
       style={
-        panelPosition
-          ? { left: panelPosition.x, top: panelPosition.y }
-          : {
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-            }
+        // On a phone the ticket is pinned to the top so the docked replay
+        // controls at the bottom stay visible and usable behind it.
+        compact
+          ? undefined
+          : panelPosition
+            ? { left: panelPosition.x, top: panelPosition.y }
+            : {
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+              }
       }
       aria-label="Trade order planner"
       data-testid="trade-order-panel"
     >
       <header
-        className="flex h-12 shrink-0 touch-none cursor-move select-none items-center gap-2 px-3"
+        className={`flex h-12 shrink-0 select-none items-center gap-2 px-3 ${
+          compact ? "" : "touch-none cursor-move"
+        }`}
         data-testid="trade-order-drag-handle"
-        onPointerDown={beginPanelDrag}
-        onPointerMove={movePanel}
-        onPointerUp={endPanelDrag}
-        onPointerCancel={endPanelDrag}
+        onPointerDown={compact ? undefined : beginPanelDrag}
+        onPointerMove={compact ? undefined : movePanel}
+        onPointerUp={compact ? undefined : endPanelDrag}
+        onPointerCancel={compact ? undefined : endPanelDrag}
       >
-        <span className="grid h-6 w-6 place-items-center rounded bg-white text-black">
+        <span className="grid h-6 w-6 place-items-center rounded bg-brand-500 text-surface-950">
           <CandlestickChart size={15} aria-hidden />
         </span>
         <strong className="text-xs">{state.config.symbol}</strong>
         <div className="ml-auto flex items-center gap-1">
           <span
-            className="grid h-8 w-8 place-items-center text-[#777]"
+            className="grid h-8 w-8 place-items-center text-[var(--ticket-subtle)]"
             aria-hidden
           >
             <SlidersHorizontal size={15} />
           </span>
           <span
-            className="grid h-8 w-8 place-items-center text-[#777]"
+            className="grid h-8 w-8 place-items-center text-[var(--ticket-subtle)]"
             aria-hidden
           >
             <MoreHorizontal size={17} />
@@ -370,7 +390,7 @@ export function OrderTicket({
               onClearPlan();
               setPanelOpen(false);
             }}
-            className="grid h-8 w-8 place-items-center rounded text-[#b6b6b6] hover:bg-white/5 hover:text-white"
+            className="grid h-8 w-8 place-items-center rounded text-[var(--ticket-muted)] hover:bg-[var(--ticket-raised)] hover:text-[var(--ticket-text)]"
             aria-label="Clear trade plan"
             title="Clear trade plan"
           >
@@ -404,7 +424,7 @@ export function OrderTicket({
           </div>
 
           <div
-            className="mx-3 mt-3 grid grid-cols-3 border-b border-white/20"
+            className="mx-3 mt-3 grid grid-cols-3 border-b border-[var(--ticket-border)]"
             role="tablist"
             aria-label="Order type"
           >
@@ -417,8 +437,8 @@ export function OrderTicket({
                 onClick={() => selectOrderType(type)}
                 className={`relative h-9 text-xs font-semibold capitalize ${
                   orderType === type
-                    ? "text-white after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:rounded-full after:bg-white"
-                    : "text-[#9b9b9b] hover:text-white"
+                    ? "text-brand-300 after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:rounded-full after:bg-brand-400"
+                    : "text-[var(--ticket-subtle)] hover:text-[var(--ticket-text)]"
                 }`}
               >
                 {type}
@@ -430,10 +450,8 @@ export function OrderTicket({
             {!tradePlan ? (
               <div className="grid min-h-64 place-items-center px-6 text-center">
                 <div>
-                  <p className="text-sm font-semibold text-white">
-                    Choose Sell or Buy
-                  </p>
-                  <p className="mt-2 text-xs leading-relaxed text-[#929292]">
+                  <p className="text-sm font-semibold">Choose Sell or Buy</p>
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--ticket-muted)]">
                     A market plan will appear with draggable entry, stop and
                     target levels.
                   </p>
@@ -450,14 +468,14 @@ export function OrderTicket({
                         onChange={(value) => onPlanChange("entryPrice", value)}
                         suffix={state.config.symbol}
                       />
-                      <label className="block text-[11px] text-[#a8a8a8]">
+                      <label className="block text-[11px] text-[var(--ticket-muted)]">
                         Expiry
                         <select
                           value={expiryMinutes}
                           onChange={(event) =>
                             setExpiryMinutes(event.target.value)
                           }
-                          className="mt-1 h-10 w-full rounded border border-white/15 bg-[#252525] px-3 text-xs text-white outline-none focus:border-[#2962ff]"
+                          className="mt-1 h-10 w-full rounded border border-[var(--ticket-border)] bg-[var(--ticket-surface)] px-3 text-xs text-[var(--ticket-text)] outline-none focus:border-brand-400"
                           aria-label="Pending order expiry"
                         >
                           <option value="0">Good till cancelled</option>
@@ -469,18 +487,18 @@ export function OrderTicket({
                     </div>
                   )}
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs text-[#a8a8a8]">Position size</span>
-                    <div className="flex rounded bg-[#2b2b2b] p-0.5">
+                    <span className="text-xs text-[var(--ticket-muted)]">Position size</span>
+                    <div className="flex rounded bg-[var(--ticket-raised)] p-0.5">
                       {(["fixed-lots", "risk-percent"] as const).map((mode) => (
                         <button
                           key={mode}
                           type="button"
                           onClick={() => setSizingMode(mode)}
                           aria-pressed={sizingMode === mode}
-                          className={`rounded px-2 py-1 text-[10px] font-semibold ${
+                          className={`rounded px-2 py-1 text-[11px] font-semibold ${
                             sizingMode === mode
-                              ? "bg-white text-black"
-                              : "text-[#a8a8a8]"
+                              ? "bg-brand-500 text-surface-950"
+                              : "text-[var(--ticket-muted)]"
                           }`}
                         >
                           {mode === "fixed-lots" ? "Lots" : "Risk %"}
@@ -508,11 +526,11 @@ export function OrderTicket({
                   />
                 </div>
 
-                <div className="mt-5 border-t border-white/10 pt-3">
+                <div className="mt-5 border-t border-[var(--ticket-border)] pt-3">
                   <button
                     type="button"
                     onClick={() => setExitsOpen((open) => !open)}
-                    className="flex w-full items-center justify-between text-left text-xs font-semibold text-white"
+                    className="flex w-full items-center justify-between text-left text-xs font-semibold"
                     aria-expanded={exitsOpen}
                   >
                     Exits
@@ -546,12 +564,10 @@ export function OrderTicket({
                   )}
                 </div>
 
-                <div className="mt-5 border-t border-white/10 pt-4">
-                  <h3 className="text-xs font-semibold text-white">
-                    Order info
-                  </h3>
+                <div className="mt-5 border-t border-[var(--ticket-border)] pt-4">
+                  <h3 className="text-xs font-semibold">Order info</h3>
                   <div className="mt-3 flex items-center justify-between text-[11px]">
-                    <span className="flex items-center gap-1 text-[#b4b4b4]">
+                    <span className="flex items-center gap-1 text-[var(--ticket-muted)]">
                       Margin <CircleHelp size={11} />
                     </span>
                     <strong>
@@ -559,9 +575,9 @@ export function OrderTicket({
                       {number(state.equity)} {state.config.accountCurrency}
                     </strong>
                   </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#3c3c3c]">
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--ticket-track)]">
                     <div
-                      className="h-full rounded-full bg-[#2962ff]"
+                      className="h-full rounded-full bg-brand-400"
                       style={{ width: `${marginPercent}%` }}
                     />
                   </div>
@@ -587,7 +603,7 @@ export function OrderTicket({
                 </div>
 
                 {metrics?.error && (
-                  <p className="mt-3 rounded border border-bear/30 bg-bear/10 px-2 py-1.5 text-[10px] text-bear">
+                  <p className="mt-3 rounded border border-bear/30 bg-bear/10 px-2 py-1.5 text-[11px] text-bear" role="alert">
                     {metrics.error}
                   </p>
                 )}
@@ -596,10 +612,8 @@ export function OrderTicket({
                   type="button"
                   onClick={submit}
                   disabled={unavailable || !metrics?.valid}
-                  className={`mt-5 flex min-h-12 w-full flex-col items-center justify-center rounded-lg text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:bg-[#454545] disabled:text-[#777] ${
-                    tradePlan.direction === "long"
-                      ? "bg-[#2962ff] hover:bg-[#3970ff]"
-                      : "bg-bear hover:opacity-90"
+                  className={`mt-5 flex min-h-12 w-full flex-col items-center justify-center rounded-lg text-xs font-bold transition disabled:cursor-not-allowed disabled:bg-[var(--ticket-track)] disabled:text-[var(--ticket-subtle)] ${
+                    tradePlan.direction === "long" ? LONG_SOLID : SHORT_SOLID
                   }`}
                 >
                   <span>
@@ -637,14 +651,12 @@ function CompactQuoteButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={`${long ? "Buy" : "Sell"} plan at ${price}`}
-      className={`flex h-9 min-w-[92px] flex-col items-center justify-center rounded-md px-3 text-[10px] font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
-        long
-          ? "bg-[#2962ff] text-white hover:bg-[#3970ff]"
-          : "bg-bear text-white hover:opacity-90"
+      className={`flex h-9 min-w-[92px] flex-col items-center justify-center rounded-md px-3 text-[11px] font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        long ? LONG_SOLID : SHORT_SOLID
       }`}
     >
       <span>{long ? "Buy" : "Sell"}</span>
-      <span className="mt-1 font-mono text-[10px] font-semibold">{price}</span>
+      <span className="mt-1 font-mono text-[11px] font-semibold">{price}</span>
     </button>
   );
 }
@@ -670,16 +682,14 @@ function QuoteSide({
       disabled={disabled}
       aria-pressed={selected}
       aria-label={`${long ? "Buy" : "Sell"} plan at ${price}`}
-      className={`flex h-12 flex-col justify-center px-2 text-xs transition disabled:opacity-40 ${
-        long ? "items-end bg-[#17366f]" : "items-start bg-[#393939]"
-      } ${selected ? "ring-1 ring-inset ring-white/30" : ""}`}
+      className={`flex h-12 flex-col justify-center px-2 text-xs font-semibold transition disabled:opacity-40 ${
+        long
+          ? "items-end bg-brand-500/15 text-brand-300"
+          : "items-start bg-bear/15 text-bear"
+      } ${selected ? "ring-1 ring-inset ring-[var(--ticket-text)]/40" : ""}`}
     >
-      <span className={long ? "text-[#4f82ff]" : "text-[#dadada]"}>
-        {long ? "Buy" : "Sell"}
-      </span>
-      <span className={long ? "text-[#2f6fff]" : "text-[#d7e5ff]"}>
-        {price}
-      </span>
+      <span>{long ? "Buy" : "Sell"}</span>
+      <span className="font-mono">{price}</span>
     </button>
   );
 }
@@ -698,16 +708,16 @@ function DarkField({
   return (
     <label>
       <span className="sr-only">{label}</span>
-      <div className="flex h-10 items-center rounded-md border border-[#4a4a4a] bg-[#202020] px-2 focus-within:border-[#777]">
+      <div className="flex h-10 items-center rounded-md border border-[var(--ticket-field-border)] bg-[var(--ticket-bg)] px-2 focus-within:border-brand-400">
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
           inputMode="decimal"
-          className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-white outline-none"
+          className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-[var(--ticket-text)] outline-none"
           aria-label={label}
         />
-        <span className="text-[10px] text-[#919191]">{suffix}</span>
-        <ChevronDown size={12} className="ml-1 text-[#777]" />
+        <span className="text-[11px] text-[var(--ticket-subtle)]">{suffix}</span>
+        <ChevronDown size={12} className="ml-1 text-[var(--ticket-subtle)]" aria-hidden />
       </div>
     </label>
   );
@@ -731,7 +741,7 @@ function ExitField({
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] text-[#9f9f9f]">{label}</span>
+        <span className="text-[11px] text-[var(--ticket-muted)]">{label}</span>
         <button
           type="button"
           role="switch"
@@ -739,11 +749,11 @@ function ExitField({
           aria-label={`Toggle ${label}`}
           onClick={onToggle}
           className={`relative h-5 w-9 rounded-full transition ${
-            enabled ? "bg-[#2962ff]" : "bg-[#555]"
+            enabled ? "bg-brand-500" : "bg-[var(--ticket-track)]"
           }`}
         >
           <span
-            className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#c8c8c8] transition ${
+            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition ${
               enabled ? "left-[18px]" : "left-0.5"
             }`}
           />
@@ -752,8 +762,8 @@ function ExitField({
       <div
         className={`flex h-10 items-center rounded-md border px-2 ${
           enabled
-            ? "border-[#4a4a4a] text-white"
-            : "border-[#3a3a3a] text-[#666]"
+            ? "border-[var(--ticket-field-border)] text-[var(--ticket-text)]"
+            : "border-[var(--ticket-border)] text-[var(--ticket-subtle)]"
         }`}
       >
         <input
@@ -761,11 +771,11 @@ function ExitField({
           onChange={(event) => onChange(event.target.value)}
           disabled={!enabled}
           inputMode="decimal"
-          className="min-w-0 flex-1 bg-transparent text-xs outline-none disabled:text-[#666]"
+          className="min-w-0 flex-1 bg-transparent text-xs outline-none disabled:text-[var(--ticket-subtle)]"
           aria-label={`Planned ${label.toLowerCase()}`}
         />
-        <span className="text-[10px] text-[#818181]">{pips} pips</span>
-        <ChevronDown size={12} className="ml-1 text-[#666]" />
+        <span className="text-[11px] text-[var(--ticket-subtle)]">{pips} pips</span>
+        <ChevronDown size={12} className="ml-1 text-[var(--ticket-subtle)]" aria-hidden />
       </div>
     </div>
   );
@@ -782,8 +792,8 @@ function InfoRow({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <dt className="text-[#b4b4b4]">{label}</dt>
-      <dd className={`font-semibold text-white ${valueClass}`}>{value}</dd>
+      <dt className="text-[var(--ticket-muted)]">{label}</dt>
+      <dd className={`font-semibold ${valueClass}`}>{value}</dd>
     </div>
   );
 }

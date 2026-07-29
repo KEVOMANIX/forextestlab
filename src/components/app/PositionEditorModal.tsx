@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, ShieldCheck, X } from "lucide-react";
 
+import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { livePositionMetrics } from "@/lib/backtest/position-management";
 import type { OpenPosition, PublicSessionState } from "@/lib/backtest/types";
 
@@ -59,6 +60,10 @@ export function PositionEditorModal({
     () => (position ? livePositionMetrics(state, position) : null),
     [position, state],
   );
+  const dialogRef = useModalBehavior<HTMLElement>({
+    open: Boolean(position),
+    onClose: onDismiss,
+  });
 
   if (!position || !metrics) return null;
 
@@ -110,7 +115,9 @@ export function PositionEditorModal({
       }
     >
       <section
-        className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-xl border app-border bg-[var(--app-panel)] p-4 shadow-2xl"
+        ref={dialogRef}
+        tabIndex={-1}
+        className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-xl border app-border bg-[var(--app-panel)] p-4 shadow-2xl outline-none"
         role="dialog"
         aria-modal="true"
         aria-labelledby="position-editor-title"
@@ -273,11 +280,11 @@ export function PositionEditorModal({
               />
             </button>
           </div>
-          <p className="mt-1 text-[10px] leading-relaxed app-muted">
+          <p className="mt-1 text-[11px] leading-relaxed app-muted">
             Tightens at each candle close and never moves away from price.
           </p>
           <div className="mt-2 flex gap-2">
-            <label className="min-w-0 flex-1 text-[10px] app-muted">
+            <label className="min-w-0 flex-1 text-[11px] app-muted">
               Distance in pips
               <input
                 className="app-input mt-1 w-full font-mono text-xs"
@@ -316,7 +323,7 @@ export function PositionEditorModal({
             ))}
           </div>
           <div className="mt-2 flex gap-2">
-            <label className="min-w-0 flex-1 text-[10px] app-muted">
+            <label className="min-w-0 flex-1 text-[11px] app-muted">
               Custom lot amount
               <input
                 className="app-input mt-1 w-full font-mono text-xs"
@@ -339,7 +346,7 @@ export function PositionEditorModal({
             </button>
           </div>
           {closeError && (
-            <p className="mt-1 text-[10px] text-bear" role="alert">
+            <p className="mt-1 text-[11px] text-bear" role="alert">
               {closeError}
             </p>
           )}
@@ -360,7 +367,7 @@ function Metric({
 }) {
   return (
     <div className="rounded-lg border app-border bg-black/10 px-2 py-2">
-      <p className="text-[9px] font-semibold uppercase tracking-wide app-muted">
+      <p className="text-[10px] font-semibold uppercase tracking-wide app-muted">
         {label}
       </p>
       <p

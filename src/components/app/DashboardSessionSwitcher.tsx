@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 interface SessionOption {
   id: string;
@@ -34,14 +36,10 @@ export function DashboardSessionSwitcher({
     );
   }, [query, sessions]);
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [open]);
+  const dialogRef = useModalBehavior<HTMLElement>({
+    open,
+    onClose: () => setOpen(false),
+  });
 
   const choose = (id: string) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -68,7 +66,7 @@ export function DashboardSessionSwitcher({
 
       {open && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
-          <section className="flex max-h-[min(620px,85vh)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="session-picker-title">
+          <section ref={dialogRef} tabIndex={-1} className="flex max-h-[min(620px,85dvh)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl outline-none" role="dialog" aria-modal="true" aria-labelledby="session-picker-title">
             <div className="flex items-center justify-between border-b app-border p-4">
               <div>
                 <h2 id="session-picker-title" className="font-semibold">Choose dashboard session</h2>

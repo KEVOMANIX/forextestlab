@@ -66,6 +66,17 @@ async function startSession(page: Page) {
   if (await closeTour.isVisible()) await closeTour.click();
 }
 
+/**
+ * The bottom dock's panel switches are disclosure buttons, not tabs: the dock can
+ * be closed with nothing selected. Scope the lookup to the dock so names like
+ * "Journal" can't collide with buttons inside the panel itself.
+ */
+function sessionPanelButton(page: Page, name: RegExp) {
+  return page
+    .locator('[aria-label="Session panels"]')
+    .getByRole("button", { name });
+}
+
 async function dragProtectionHandle(
   page: Page,
   testId: "add-stop-loss-handle" | "add-take-profit-handle",
@@ -328,9 +339,10 @@ test("places, modifies and cancels a pending order from the chart", async ({
     await modifyResponse;
   }
 
-  await page.getByRole("tab", { name: /Pending Orders/i }).click();
-  await expect(page.getByRole("tabpanel")).toContainText("pending");
-  await expect(page.getByRole("tabpanel")).toContainText("limit");
+  await sessionPanelButton(page, /Pending Orders/i).click();
+  const ordersPanel = page.locator("#panel-orders");
+  await expect(ordersPanel).toContainText("pending");
+  await expect(ordersPanel).toContainText("limit");
 
   const cancelResponse = page.waitForResponse((response) => {
     if (!response.url().includes("/action")) return false;
@@ -341,7 +353,7 @@ test("places, modifies and cancels a pending order from the chart", async ({
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await cancelResponse;
   await expect(page.getByTestId("pending-order-line")).toHaveCount(0);
-  await expect(page.getByRole("tabpanel")).toContainText("cancelled");
+  await expect(page.locator("#panel-orders")).toContainText("cancelled");
 });
 
 test("loads pre-start context without moving the replay start", async ({ page }) => {
@@ -476,7 +488,7 @@ test("completes a full public backtest workflow without login", async ({ page })
     .getByRole("button", { name: /Analytics/i })
     .evaluate((button: HTMLButtonElement) => button.click());
   await expect(page.getByText(/Total trades/i)).toBeVisible();
-  await page.getByRole("tab", { name: /^Trades/ }).click();
+  await sessionPanelButton(page, /^Trades/).click();
   await expect(page.getByRole("cell", { name: /Long|Short/ }).first()).toBeVisible();
 
 });
@@ -526,7 +538,7 @@ test("resumes a saved session at the last revealed candle", async ({ page }) => 
   await expect(counter).not.toHaveText(savedCounter ?? "");
 });
 
-test("shows trading actions above the chart and moves the replay toolbox", async ({ page }) => {
+test("shows trading actions above the chart and moves the replay toolbox", async ({ page }, testInfo) => {
   await startSession(page);
 
   const tradingHeader = page.locator('[aria-label="Trading header"]');
@@ -589,6 +601,21 @@ test("shows trading actions above the chart and moves the replay toolbox", async
   await page.getByRole("button", { name: /Fit chart data/i }).click();
 
   const toolbox = page.getByTestId("replay-toolbox");
+
+  if (testInfo.project.name !== "chromium") {
+    // On a phone the toolbox is docked to the bottom of the chart rather than
+    // floating over its middle, and it cannot be dragged with a finger.
+    await expect(page.getByTestId("replay-toolbox-handle")).toHaveCount(0);
+    const docked = await toolbox.boundingBox();
+    const chartArea = await chart.boundingBox();
+    expect(docked).not.toBeNull();
+    expect(chartArea).not.toBeNull();
+    expect(docked!.y + docked!.height).toBeGreaterThan(
+      chartArea!.y + chartArea!.height * 0.6,
+    );
+    return;
+  }
+
   const handle = page.getByTestId("replay-toolbox-handle");
   await handle.hover();
   const before = await toolbox.boundingBox();
@@ -679,7 +706,7 @@ test("creates a trade journal with an entry snapshot", async ({ page }, testInfo
     ]);
   }
 
-  await page.getByRole("tab", { name: /Journal/i }).click();
+  await sessionPanelButton(page, /Journal/i).click();
   await expect(page.getByText("Trade journals", { exact: true })).toBeVisible();
   await page.getByText("Chart snapshots", { exact: false }).click({ force: true });
   await expect(page.getByLabel("Before entry candlestick snapshot")).toBeVisible();
@@ -700,7 +727,7 @@ test("bookmarks a decision candle and keeps replay unchanged", async ({ page }, 
   }
   const counter = page.getByText(/Candle \d+ of \d+/);
   const before = await counter.textContent();
-  const bookmarksTab = page.getByRole("tab", { name: /Bookmarks/i });
+  const bookmarksTab = sessionPanelButton(page, /Bookmarks/i);
   if (testInfo.project.name === "mobile") await bookmarksTab.press("Enter");
   else await bookmarksTab.click();
   const saved = page.waitForResponse((response) => {

@@ -199,6 +199,8 @@ export function AuthForm({
               type="email"
               autoComplete="email"
               required
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "auth-form-error" : undefined}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
@@ -224,6 +226,8 @@ export function AuthForm({
                       : "current-password"
                   }
                   required
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "auth-form-error" : undefined}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                 />
@@ -246,7 +250,7 @@ export function AuthForm({
         </div>
 
         {error && (
-          <p role="alert" className="mt-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
+          <p id="auth-form-error" role="alert" className="mt-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
             {error}
           </p>
         )}

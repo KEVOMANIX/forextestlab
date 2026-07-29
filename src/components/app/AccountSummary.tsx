@@ -77,7 +77,7 @@ export function AccountSummary({
 
   return (
     <dl
-      className="flex h-full shrink-0 items-center gap-4 px-3 xl:gap-6"
+      className="flex h-full shrink-0 items-center gap-2.5 px-2 sm:gap-4 sm:px-3 xl:gap-6"
       aria-label="Account summary"
     >
       {clock}

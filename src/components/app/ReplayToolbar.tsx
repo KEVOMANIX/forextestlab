@@ -22,6 +22,7 @@ import {
   type ReplaySpeed,
   type ReplayStepMinutes,
 } from "@/lib/backtest/types";
+import { useCompactViewport } from "@/lib/ui/use-media-query";
 
 interface ReplayToolbarProps {
   state: PublicSessionState;
@@ -104,6 +105,7 @@ export function ReplayToolbar({
   canTrade,
   maxReplaySpeed,
 }: ReplayToolbarProps) {
+  const compact = useCompactViewport();
   const toolboxRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
     pointerId: number;
@@ -124,6 +126,12 @@ export function ReplayToolbar({
   const cadenceLabel = speedLabel(state.speed);
 
   useEffect(() => {
+    // On a phone the toolbox is docked to the bottom edge and a stored desktop
+    // position would drop it over the middle of the chart.
+    if (compact) {
+      setPosition(null);
+      return;
+    }
     try {
       const saved = window.localStorage.getItem("forextestlab:replay-position");
       if (saved) {
@@ -133,11 +141,13 @@ export function ReplayToolbar({
     } catch {
       // Keep the centred default.
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact]);
   useEffect(() => {
+    if (compact) return;
     if (position) window.localStorage.setItem("forextestlab:replay-position", JSON.stringify(position));
     else window.localStorage.removeItem("forextestlab:replay-position");
-  }, [position]);
+  }, [compact, position]);
 
   function clampPosition(x: number, y: number) {
     const toolbox = toolboxRef.current;
@@ -221,26 +231,33 @@ export function ReplayToolbar({
     <div
       ref={toolboxRef}
       data-testid="replay-toolbox"
-      onPointerDown={startDrag}
-      className="absolute z-20 w-[calc(100%-1.5rem)] max-w-[390px] touch-none cursor-move rounded-lg border app-border bg-[var(--app-panel)]/94 p-1 shadow-2xl shadow-black/30 backdrop-blur"
+      onPointerDown={compact ? undefined : startDrag}
+      className={`absolute z-20 w-[calc(100%-1.5rem)] max-w-[390px] rounded-lg border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-2xl shadow-black/30 backdrop-blur ${
+        compact ? "" : "touch-none cursor-move"
+      }`}
       style={
-        position
-          ? { left: position.x, top: position.y }
-          : {
-              left: "50%",
-              top: "55%",
-              transform: "translate(-50%, -50%)",
-            }
+        compact
+          ? { left: "50%", bottom: "0.5rem", transform: "translateX(-50%)" }
+          : position
+            ? { left: position.x, top: position.y }
+            : {
+                left: "50%",
+                top: "55%",
+                transform: "translate(-50%, -50%)",
+              }
       }
     >
       <div className="flex items-center gap-1.5">
-        <span
-          data-testid="replay-toolbox-handle"
-          aria-hidden
-          className="inline-flex h-7 w-5 shrink-0 items-center justify-center app-muted"
-        >
-          <GripHorizontal size={15} />
-        </span>
+        {/* The docked mobile toolbox cannot be dragged, so it shows no handle. */}
+        {!compact && (
+          <span
+            data-testid="replay-toolbox-handle"
+            aria-hidden
+            className="inline-flex h-7 w-5 shrink-0 items-center justify-center app-muted"
+          >
+            <GripHorizontal size={15} />
+          </span>
+        )}
         <div className="flex items-center gap-1" role="group" aria-label="Replay controls">
           <ControlBtn label="Step back one candle" onClick={onPrev} disabled={!canPrev || busy}>
             <ChevronLeft size={15} aria-hidden />
@@ -269,7 +286,7 @@ export function ReplayToolbar({
           aria-label="Quick Sell"
           onClick={onSell}
           disabled={!canTrade}
-          className="ml-auto inline-flex h-7 items-center gap-1 rounded-md bg-bear px-2 text-[10px] font-bold text-white hover:opacity-90 disabled:opacity-35"
+          className="ml-auto inline-flex h-7 items-center gap-1 rounded-md bg-bear px-2 text-[11px] font-bold text-white hover:opacity-90 disabled:opacity-35"
         >
           <ArrowDownRight size={12} aria-hidden /> Sell
         </button>
@@ -278,24 +295,26 @@ export function ReplayToolbar({
           aria-label="Quick Buy"
           onClick={onBuy}
           disabled={!canTrade}
-          className="inline-flex h-7 items-center gap-1 rounded-md bg-brand-500 px-2 text-[10px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35"
+          className="inline-flex h-7 items-center gap-1 rounded-md bg-brand-500 px-2 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35"
         >
           <ArrowUpRight size={12} aria-hidden /> Buy
         </button>
-        <button
-          type="button"
-          aria-label="Reset replay controls position"
-          title="Reset toolbox position"
-          onClick={() => setPosition(null)}
-          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md app-muted hover:bg-brand-400/10 hover:text-brand-300"
-        >
-          <LocateFixed size={14} aria-hidden />
-        </button>
+        {!compact && (
+          <button
+            type="button"
+            aria-label="Reset replay controls position"
+            title="Reset toolbox position"
+            onClick={() => setPosition(null)}
+            className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md app-muted hover:bg-brand-400/10 hover:text-brand-300"
+          >
+            <LocateFixed size={14} aria-hidden />
+          </button>
+        )}
       </div>
 
       <div className="mt-1 border-t app-border px-1 pt-1">
         <div className="flex items-center gap-2">
-          <label htmlFor="replay-step" className="flex shrink-0 items-center gap-1 text-[9px] font-semibold uppercase tracking-wide app-muted">
+          <label htmlFor="replay-step" className="flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide app-muted">
             Step
             <select
               id="replay-step"
@@ -304,7 +323,7 @@ export function ReplayToolbar({
               onChange={(event) =>
                 onStepMinutes(Number(event.target.value) as ReplayStepMinutes)
               }
-              className="h-6 rounded border app-border bg-[var(--app-panel-2)] px-1 font-mono text-[10px] font-semibold text-[var(--app-text)] outline-none"
+              className="h-7 rounded border app-border bg-[var(--app-panel-2)] px-1 font-mono text-[11px] font-semibold text-[var(--app-text)] outline-none"
             >
               {REPLAY_STEP_MINUTES.map((minutes) => (
                 <option key={minutes} value={minutes}>
@@ -314,7 +333,7 @@ export function ReplayToolbar({
             </select>
           </label>
           <span className="h-4 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-          <label htmlFor="replay-speed" className="shrink-0 font-mono text-[10px] font-semibold text-brand-300">
+          <label htmlFor="replay-speed" className="shrink-0 font-mono text-[11px] font-semibold text-brand-300">
             {speedLabel(state.speed)}
           </label>
           <input
@@ -332,10 +351,10 @@ export function ReplayToolbar({
             aria-valuetext={`${cadenceLabel} replay speed`}
             className="h-1.5 min-w-0 flex-1 cursor-pointer accent-emerald-400"
           />
-          <span className="shrink-0 font-mono text-[9px] app-muted">{cadenceLabel}</span>
+          <span className="shrink-0 font-mono text-[11px] app-muted">{cadenceLabel}</span>
         </div>
 
-        <div className="mt-0.5 flex items-center justify-between font-mono text-[9px] app-muted">
+        <div className="mt-0.5 flex items-center justify-between font-mono text-[10px] app-muted">
           <span>{speedLabel(availableSpeeds[0]!)}</span>
           {finished && <span className="text-brand-300">Finished</span>}
           <span>{speedLabel(availableSpeeds[availableSpeeds.length - 1]!)}</span>

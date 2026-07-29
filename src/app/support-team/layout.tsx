@@ -20,7 +20,7 @@ export default async function SupportTeamLayout({
   const { agent } = await requireSupportAgent();
   return (
     <AppThemeProvider>
-      <div className="app-shell min-h-screen">
+      <div className="app-shell min-h-[100dvh]">
         <header className="flex h-16 items-center gap-4 border-b app-border bg-[var(--app-panel)] px-4 sm:px-6">
           <Logo className="h-7" />
           <span className="h-6 w-px bg-[var(--app-border)]" />

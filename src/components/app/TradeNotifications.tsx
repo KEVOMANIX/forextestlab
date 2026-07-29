@@ -13,10 +13,12 @@ export interface TradeNotification {
 
 export function TradeNotifications({ notifications, onDismiss }: { notifications: TradeNotification[]; onDismiss: (id: string) => void }) {
   return (
-    <div className="pointer-events-none absolute bottom-12 left-3 z-50 flex w-[min(330px,calc(100vw-24px))] flex-col gap-2" aria-live="polite">
+    // Clears the replay toolbox, which is docked to the bottom of the chart on
+    // narrow viewports instead of floating over its middle.
+    <div className="pointer-events-none absolute bottom-32 left-3 z-50 flex w-[min(330px,calc(100vw-24px))] flex-col gap-2 md:bottom-12" aria-live="polite">
       {notifications.map((notification) => (
         <article key={notification.id} className="pointer-events-auto flex overflow-hidden rounded-xl border app-border bg-[var(--app-panel)]/97 shadow-2xl backdrop-blur">
-          <div className={`w-2 shrink-0 ${notification.tone === "long" ? "bg-brand-500" : notification.tone === "short" ? "bg-bear" : notification.tone === "warning" ? "bg-amber-400" : "bg-blue-500"}`} />
+          <div className={`w-2 shrink-0 ${notification.tone === "long" ? "bg-brand-500" : notification.tone === "short" ? "bg-bear" : notification.tone === "warning" ? "bg-amber-400" : "bg-accent-400"}`} />
           <div className="flex min-w-0 flex-1 gap-2 p-3">
             <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-brand-400/50 text-brand-300"><Check size={12} /></span>
             <div className="min-w-0">

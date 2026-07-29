@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { newYorkDateEnd, toNewYorkDateInput } from "@/lib/date-time";
 
 function addMonths(timestamp: number, months: number): number {
@@ -63,6 +64,9 @@ export function EndOfDataModal({
     return maximum && nextMonth > maximum ? maximum : nextMonth;
   }, [currentEndTime, maximum]);
   const [date, setDate] = useState(suggested);
+  // Reaching the end of the data needs a decision — extend or finish — so this
+  // dialog traps focus and locks scrolling but deliberately ignores Escape.
+  const dialogRef = useModalBehavior<HTMLElement>({ open, closeOnEscape: false });
 
   useEffect(() => {
     if (open) setDate(suggested);
@@ -76,10 +80,12 @@ export function EndOfDataModal({
     return (
       <div className="fixed inset-0 z-[1100] grid place-items-center bg-surface-950/85 p-4 backdrop-blur-md">
         <section
+          ref={dialogRef}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-labelledby="trial-complete-title"
-          className="w-full max-w-lg overflow-hidden rounded-2xl border border-brand-400/25 bg-[var(--app-panel)] shadow-2xl"
+          className="w-full max-w-lg overflow-hidden rounded-2xl border border-brand-400/25 bg-[var(--app-panel)] shadow-2xl outline-none"
         >
           <div className="relative overflow-hidden p-6 sm:p-8">
             <div
@@ -157,10 +163,12 @@ export function EndOfDataModal({
   return (
     <div className="fixed inset-0 z-[1100] grid place-items-center bg-surface-950/80 p-4 backdrop-blur-md">
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="end-of-data-title"
-        className="w-full max-w-lg overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl"
+        className="w-full max-w-lg overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl outline-none"
       >
         <div className="p-6 sm:p-7">
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">

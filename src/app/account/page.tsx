@@ -55,7 +55,7 @@ export default async function AccountPage() {
   const verified = Boolean(user.email_confirmed_at);
 
   return (
-    <main id="main" className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden px-4 py-8 sm:py-10">
+    <main id="main" className="relative min-h-[calc(100dvh-3.5rem)] overflow-hidden px-4 py-8 sm:py-10">
       <div aria-hidden className="pointer-events-none absolute left-1/2 top-0 h-80 w-[54rem] -translate-x-1/2 rounded-full bg-brand-500/[0.07] blur-3xl" />
       <div className="relative mx-auto max-w-6xl">
         <BackLink label="Back to dashboard" fallback="/app" />

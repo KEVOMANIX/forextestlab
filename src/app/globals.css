@@ -5,6 +5,9 @@
 @layer base {
   :root {
     color-scheme: dark;
+    /* Colour the focus ring's gap is punched out of. The app shell overrides it
+       per theme so light mode doesn't draw a dark halo around focused controls. */
+    --focus-ring-offset: #070a12;
   }
 
   html {
@@ -20,7 +23,8 @@
 
   /* Visible, consistent focus ring for keyboard users. */
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-400 ring-offset-2 ring-offset-surface-950;
+    @apply outline-none ring-2 ring-brand-400 ring-offset-2;
+    --tw-ring-offset-color: var(--focus-ring-offset);
   }
 
   ::selection {
@@ -80,6 +84,23 @@
     --app-border: rgba(255, 255, 255, 0.10);
     --app-text: #e6ebf5;
     --app-muted: #93a1b8;
+    --focus-ring-offset: #070a12;
+    /*
+     * The order ticket is a dense, self-contained surface with its own greys.
+     * They live here as variables so it follows the theme toggle instead of
+     * staying a dark slab on a light chart.
+     */
+    --ticket-bg: #202020;
+    --ticket-surface: #252525;
+    --ticket-raised: #2b2b2b;
+    --ticket-track: #3c3c3c;
+    --ticket-border: rgba(255, 255, 255, 0.14);
+    --ticket-field-border: #575757;
+    --ticket-text: #f2f2f2;
+    --ticket-muted: #bcbcbc;
+    --ticket-subtle: #9d9d9d;
+    /* Colour "sell" is drawn in; "buy" uses the brand accent. */
+    color-scheme: dark;
     background-color: var(--app-bg);
     color: var(--app-text);
   }
@@ -92,6 +113,17 @@
     --app-border: #d9e0ec;
     --app-text: #0b1220;
     --app-muted: #566179;
+    --focus-ring-offset: #f5f7fb;
+    --ticket-bg: #ffffff;
+    --ticket-surface: #f4f6fa;
+    --ticket-raised: #e9eef6;
+    --ticket-track: #d9e0ec;
+    --ticket-border: #d4dbe8;
+    --ticket-field-border: #b4bfd2;
+    --ticket-text: #0b1220;
+    --ticket-muted: #4a566d;
+    --ticket-subtle: #5d6a82;
+    color-scheme: light;
   }
 
   .panel {
@@ -119,6 +151,21 @@
     border: 1px solid var(--app-border);
     color: var(--app-text);
     @apply rounded-lg px-3 py-2 text-sm transition-colors focus:border-brand-400/60;
+  }
+
+  /*
+   * Horizontal overflow for the dense toolbars in the trading header. A visible
+   * scrollbar would eat most of a 32px-tall control row, so it is hidden while
+   * the row stays scrollable by wheel, drag and keyboard.
+   */
+  .scroll-x-thin {
+    @apply min-w-0 overflow-x-auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scroll-x-thin::-webkit-scrollbar {
+    display: none;
   }
 }
 

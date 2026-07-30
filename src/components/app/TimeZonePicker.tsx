@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Globe } from "lucide-react";
+import { Check } from "lucide-react";
 
 import { zoneOffsetLabel, zoneOptionsAt } from "@/lib/chart/timezones";
 
@@ -103,23 +103,20 @@ export function TimeZonePicker({
           setQuery("");
           setOpen((value) => !value);
         }}
-        // Seated into the corner cell the two scales form: flush to the bottom
-        // and right edges, with only the inner corner rounded and only the inner
-        // edges bordered, so it reads as part of the axis furniture rather than a
-        // chip floating on top of it. Opaque, because it covers the axis strip.
-        className={`inline-flex h-[26px] items-center gap-1.5 rounded-tl-md border-l border-t bg-[var(--app-panel-solid)] pl-2 pr-2.5 transition-colors ${
+        // Seated into the corner cell below the price scale, flush to the bottom
+        // and right edges with only the inner corner rounded and only the inner
+        // edges bordered, so it reads as axis furniture rather than a chip on top
+        // of it. The offset carries it alone — an icon or a chevron would push the
+        // badge out of the scale's column and onto the time axis, where it would
+        // clip the tick labels and the crosshair's date tooltip. Opaque, because
+        // the cell it covers is transparent.
+        className={`flex h-[26px] w-full items-center justify-center overflow-hidden whitespace-nowrap rounded-tl-md border-l border-t bg-[var(--app-panel-solid)] px-1 font-mono text-[10px] font-semibold transition-colors ${
           open
             ? "border-brand-400/60 text-[var(--app-accent-text)]"
-            : "app-border text-[var(--app-text)] hover:border-brand-400/40"
+            : "app-border text-[var(--app-text)] hover:border-brand-400/50 hover:text-[var(--app-accent-text)]"
         }`}
       >
-        <Globe size={12} aria-hidden className="shrink-0 app-muted" />
-        <span className="font-mono text-[11px] font-semibold">{offset}</span>
-        <ChevronDown
-          size={11}
-          aria-hidden
-          className={`shrink-0 app-muted transition-transform ${open ? "rotate-180" : ""}`}
-        />
+        {offset}
       </button>
 
       {open && anchor &&

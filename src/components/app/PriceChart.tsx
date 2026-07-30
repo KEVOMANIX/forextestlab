@@ -1859,6 +1859,34 @@ export default function PriceChart({
     }
   }, [indicators, viewVersion, seriesEpoch]);
 
+  /**
+   * Width of the price scale, which is the width of the corner cell the zone
+   * badge sits in. Measured rather than assumed: the scale is as wide as its
+   * widest price label, so a 5-decimal FX pair and a 2-decimal crypto quote give
+   * different corners.
+   */
+  const [priceScaleWidth, setPriceScaleWidth] = useState(64);
+  useEffect(() => {
+    if (!axisCorner) return;
+    const measure = () => {
+      try {
+        const width = chartRef.current?.priceScale("right").width();
+        if (typeof width === "number" && width > 0) setPriceScaleWidth(width);
+      } catch {
+        // Keep the last known width; the chart is mid-teardown.
+      }
+    };
+    measure();
+    const frame = requestAnimationFrame(measure);
+    const container = containerRef.current;
+    const observer = container ? new ResizeObserver(measure) : null;
+    if (container) observer?.observe(container);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [axisCorner, viewVersion, seriesEpoch]);
+
 
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
@@ -2082,14 +2110,18 @@ export default function PriceChart({
         )}
 
         {/*
-          The clock is seated in the corner cell where the time axis meets the
-          price scale, flush to both edges so it spans the junction rather than
-          floating inside the plot. Hidden on phone widths, where the docked
-          replay controls already occupy the bottom of the chart.
+          Seated in the blank corner cell below the price scale, and kept inside
+          that column: the crosshair's date tooltip travels the full width of the
+          time axis, so anything overhanging the axis eventually collides with it.
+          Hidden on phone widths, where the docked replay controls already occupy
+          the bottom of the chart.
         */}
         {axisCorner && (
-          <div className="pointer-events-none absolute bottom-0 right-0 z-20 hidden items-end md:flex">
-            <div className="pointer-events-auto">{axisCorner}</div>
+          <div
+            className="pointer-events-none absolute bottom-0 right-0 z-20 hidden items-end md:flex"
+            style={{ width: priceScaleWidth }}
+          >
+            <div className="pointer-events-auto w-full">{axisCorner}</div>
           </div>
         )}
 

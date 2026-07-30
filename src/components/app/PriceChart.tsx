@@ -127,6 +127,36 @@ function chartTimeMs(time: Time): number {
   return Date.UTC(time.year, time.month - 1, time.day, 12);
 }
 
+/**
+ * Date stamp on the legend's bar readout. A named month rather than a numeric
+ * one: "02/29" and "29/02" are the same six characters to different readers.
+ */
+const LEGEND_DATE_FORMAT: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+};
+
+/** Volume in the legend, where the column is a few characters wide. */
+function formatVolume(volume: number): string {
+  if (!Number.isFinite(volume)) return "—";
+  const units: [number, string][] = [
+    [1e9, "B"],
+    [1e6, "M"],
+    [1e3, "K"],
+  ];
+  for (const [size, suffix] of units) {
+    if (Math.abs(volume) >= size) {
+      const scaled = volume / size;
+      return `${scaled >= 100 ? Math.round(scaled) : scaled.toFixed(1)}${suffix}`;
+    }
+  }
+  return String(Math.round(volume));
+}
+
 const CROSSHAIR_FORMAT: Intl.DateTimeFormatOptions = {
   weekday: "long",
   day: "numeric",
@@ -192,9 +222,12 @@ interface PriceChartProps {
   /** Called when the user interacts with this cell, so the grid can focus it. */
   onFocus?: () => void;
   /** Instrument name shown at the head of the cell's own toolbar, in a grid. */
-  instrumentLabel?: string;
-  /** Opens the symbol picker for this cell. Omitted when the cell owns the header. */
+  /** Instrument this cell charts, shown in the legend and opening the picker. */
+  symbolLabel: string;
+  /** Opens the symbol picker for this cell. */
   onSelectInstrument?: () => void;
+  /** This cell charts a reference pair, so trading does not follow it. */
+  referenceOnly?: boolean;
   /** Chart preferences, shared by every chart in the workspace. */
   settings: ChartSettings;
   onSettingsChange: (patch: Partial<ChartSettings>) => void;
@@ -487,8 +520,9 @@ export default function PriceChart({
   viewKey,
   initialTimeframe,
   onFocus,
-  instrumentLabel,
+  symbolLabel,
   onSelectInstrument,
+  referenceOnly = false,
   settings,
   onSettingsChange,
   onSettingsReset,
@@ -616,7 +650,9 @@ export default function PriceChart({
   const [viewVersion, setViewVersion] = useState(0);
   const [displayCandles, setDisplayCandles] = useState<OHLCV[]>([]);
   const [legend, setLegend] = useState<
-    { kind: "ohlc"; o: number; h: number; l: number; c: number } | { kind: "value"; value: number } | null
+    | { kind: "ohlc"; at: number; o: number; h: number; l: number; c: number; volume?: number }
+    | { kind: "value"; at: number; value: number }
+    | null
   >(null);
 
   const [stopDraft, setStopDraft] = useState<number | null>(stopLoss);
@@ -1031,6 +1067,36 @@ export default function PriceChart({
     scale.scrollToRealTime();
   }
 
+  /**
+   * Apply a stored time range, but only once the chart has bars.
+   *
+   * Lightweight Charts throws when asked to convert times to coordinates on an
+   * empty series, and an uncaught throw in an effect takes the whole workspace
+   * down — every cell, not just this one. A cell cloned into a new grid layout is
+   * exactly that case: it mounts with a stored range and its candles arrive a
+   * frame or two later. So the range waits for its data rather than being applied
+   * to an empty chart, and a range the series can't honour falls back to the
+   * default viewport instead of failing.
+   *
+   * Returns whether the stored range was applied.
+   */
+  function restoreSavedTimeRange(): boolean {
+    const saved = savedTimeRangeRef.current;
+    const scale = chartRef.current?.timeScale();
+    if (!saved || !scale) return false;
+    if (saved.timeframe !== displayTimeframeRef.current) return false;
+    if (displayRef.current.length === 0) return false;
+    savedTimeRangeRef.current = null;
+    try {
+      followLatestRef.current = true;
+      scale.setVisibleRange(saved.range);
+      followLatestRef.current = false;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function updateViewportDiagnostics() {
     const container = containerRef.current;
     const scale = chartRef.current?.timeScale();
@@ -1184,8 +1250,23 @@ export default function PriceChart({
         setLegend(null);
         return;
       }
-      if ("close" in point) setLegend({ kind: "ohlc", o: point.open, h: point.high, l: point.low, c: point.close });
-      else if ("value" in point) setLegend({ kind: "value", value: point.value });
+      const at = chartTimeMs(param.time);
+      if ("close" in point) {
+        // Volume is not carried on the series' own data, so it comes from the
+        // aggregated bars. Only a crosshair move reaches here, never a replay
+        // tick, so the lookup costs nothing during playback.
+        const seconds = Number(param.time);
+        const bar = displayRef.current.find((candle) => Number(candle.time) === seconds);
+        setLegend({
+          kind: "ohlc",
+          at,
+          o: point.open,
+          h: point.high,
+          l: point.low,
+          c: point.close,
+          volume: bar?.volume,
+        });
+      } else if ("value" in point) setLegend({ kind: "value", at, value: point.value });
     };
     chart.subscribeCrosshairMove(onCrosshair);
 
@@ -1409,7 +1490,9 @@ export default function PriceChart({
     if (visibleRange) {
       followLatestRef.current = false;
       scale?.setVisibleLogicalRange(visibleRange);
-    } else {
+    } else if (!restoreSavedTimeRange()) {
+      // The series has only just arrived, so this is where a cell cloned into a
+      // new layout finally gets the view it was stored with.
       resetLatestViewport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1430,12 +1513,9 @@ export default function PriceChart({
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, []);
       void loadHistoryPage(true);
     }
-    const scale = chartRef.current?.timeScale();
-    if (savedTimeRangeRef.current?.timeframe === displayTimeframe) {
-      followLatestRef.current = false;
-      scale?.setVisibleRange(savedTimeRangeRef.current.range);
-      savedTimeRangeRef.current = null;
-    } else {
+    // A stored range that cannot be applied yet stays pending for the effect
+    // above, which runs as soon as this cell's candles land.
+    if (!restoreSavedTimeRange() && savedTimeRangeRef.current === null) {
       resetLatestViewport();
     }
     requestAnimationFrame(updateViewportDiagnostics);
@@ -1897,22 +1977,6 @@ export default function PriceChart({
   // header via a portal when a slot is provided, otherwise docked above the chart.
   const chartControls = (
     <div className="flex min-w-0 items-center gap-1" role="toolbar" aria-label="Chart controls">
-      {instrumentLabel && (
-        onSelectInstrument ? (
-          <button
-            type="button"
-            onClick={onSelectInstrument}
-            aria-haspopup="dialog"
-            title="Select a symbol"
-            className="mr-1 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border-r app-border pr-2 text-xs font-bold transition-colors hover:text-brand-300"
-          >
-            {instrumentLabel}
-            <ChevronDown size={12} className="app-muted" aria-hidden />
-          </button>
-        ) : (
-          <span className="shrink-0 border-r app-border pr-2 text-xs font-bold">{instrumentLabel}</span>
-        )
-      )}
       {/* The timeframe list is the widest thing in the header and the only part
           that may overflow, so it scrolls inside itself. Menus live outside this
           box because a scroll container would clip their dropdowns. */}
@@ -2125,30 +2189,93 @@ export default function PriceChart({
           </div>
         )}
 
+        {/*
+          Chart legend, stacked down the top-left corner: the instrument (which
+          opens the symbol picker), then the quote strip, then the hovered bar's
+          values. The instrument lives here rather than in the terminal header
+          because it belongs to the chart it labels — in a split layout each cell
+          names its own.
+        */}
+        <div
+          className="pointer-events-auto absolute left-14 top-2 z-20 flex items-center gap-1 rounded-md border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-lg"
+          data-testid="chart-legend"
+        >
+          {onSelectInstrument ? (
+            <button
+              type="button"
+              data-testid="symbol-picker-trigger"
+              onClick={onSelectInstrument}
+              aria-haspopup="dialog"
+              aria-label={`${symbolLabel}. Select a symbol`}
+              title="Select a symbol"
+              className="inline-flex h-6 items-center gap-1.5 rounded px-1.5 font-mono text-xs font-bold transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-accent-text)]"
+            >
+              {symbolLabel}
+              <ChevronDown size={12} className="app-muted" aria-hidden />
+            </button>
+          ) : (
+            <span className="px-1.5 font-mono text-xs font-bold">{symbolLabel}</span>
+          )}
+          <span className="h-4 w-px bg-[var(--app-border)]" aria-hidden />
+          <span className="px-1 font-mono text-[11px] font-semibold app-muted">
+            {displayTimeframe}
+          </span>
+          {referenceOnly && (
+            <span
+              title="Reference chart: orders follow the session's traded instrument"
+              className="rounded bg-amber-400/15 px-1 text-[10px] font-bold uppercase text-amber-300"
+            >
+              Ref
+            </span>
+          )}
+        </div>
+
         {legend && (
-          <div className="pointer-events-none absolute left-14 z-10 rounded-md border app-border bg-[var(--app-panel)]/90 px-2 py-1 font-mono text-[10px] shadow backdrop-blur" style={{ top: orderTicket ? 48 : 8 }}>
+          <div
+            className="pointer-events-none absolute left-14 z-10 flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-1 font-mono text-[10px] shadow"
+            style={{ top: orderTicket ? 78 : 36 }}
+          >
+            <span className="app-muted">
+              {formatInZone(legend.at, settings.timeZone, LEGEND_DATE_FORMAT)}
+            </span>
+            <span className="h-3 w-px bg-[var(--app-border)]" aria-hidden />
             {legend.kind === "ohlc" ? (
-              <span className="flex gap-2">
-                <span className="app-muted">O {legend.o.toFixed(precision)}</span>
-                <span className="app-muted">H {legend.h.toFixed(precision)}</span>
-                <span className="app-muted">L {legend.l.toFixed(precision)}</span>
-                <span className="app-muted">C {legend.c.toFixed(precision)}</span>
+              <>
+                <span className="app-muted">
+                  O <span className="text-[var(--app-text)]">{legend.o.toFixed(precision)}</span>
+                </span>
+                <span className="app-muted">
+                  H <span className="text-[var(--app-text)]">{legend.h.toFixed(precision)}</span>
+                </span>
+                <span className="app-muted">
+                  L <span className="text-[var(--app-text)]">{legend.l.toFixed(precision)}</span>
+                </span>
+                <span className="app-muted">
+                  C <span className="text-[var(--app-text)]">{legend.c.toFixed(precision)}</span>
+                </span>
+                {legend.volume != null && (
+                  <span className="app-muted">
+                    V <span className="text-[var(--app-text)]">{formatVolume(legend.volume)}</span>
+                  </span>
+                )}
                 {legendChange != null && (
-                  <span className={legendChange >= 0 ? "text-brand-300" : "text-bear"}>
+                  <span className={legendChange >= 0 ? "text-[var(--app-accent-text)]" : "text-bear"}>
                     {legendChange >= 0 ? "+" : ""}
                     {(legendChange / pipSize).toFixed(1)}p
                   </span>
                 )}
-              </span>
+              </>
             ) : (
-              <span className="app-muted">Price {legend.value.toFixed(precision)}</span>
+              <span className="app-muted">
+                Price <span className="text-[var(--app-text)]">{legend.value.toFixed(precision)}</span>
+              </span>
             )}
           </div>
         )}
 
         {/* Price-pane indicator legend — hover a row for settings / hide / remove. */}
         {pricePaneIndicators.length > 0 && (
-          <div className="absolute left-14 z-10 flex flex-col items-start gap-0.5" style={{ top: orderTicket ? 74 : 36 }}>
+          <div className="absolute left-14 z-10 flex flex-col items-start gap-0.5" style={{ top: orderTicket ? 104 : 62 }}>
             {pricePaneIndicators.map((inst) => {
               const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#5b8bff";
               return (

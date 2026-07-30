@@ -603,9 +603,6 @@ export function Backtester({
         theme={theme}
         onToggleTheme={toggle}
         onNewSession={newSession}
-        activeSymbol={activeSymbol}
-        onOpenSymbolPicker={() => setSymbolPickerOpen(true)}
-        referenceOnly={Boolean(referencePair)}
         saveStatus={bt.saveStatus}
         onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}

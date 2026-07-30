@@ -365,7 +365,6 @@ export default function ChartGrid({
                 cell={cell}
                 state={state}
                 isSession={isSession}
-                multi={multi}
                 pair={pair}
                 pairLoading={!isSession && pairLoadingSymbols.includes(cell.symbol)}
                 sessionSeries={sessionSeries}
@@ -395,16 +394,12 @@ export default function ChartGrid({
                 orderTicket={isSession && isFocused ? orderTicket : null}
                 // One clock for the workspace, on the chart being driven.
                 axisCorner={isFocused ? axisCorner : null}
-                onSelectInstrument={
-                  multi
-                    ? () => {
-                        // Clicking a cell's symbol focuses that cell first, so the
-                        // picker acts on the chart the trader just pointed at.
-                        focusCell(cell.id);
-                        onOpenSymbolPicker();
-                      }
-                    : undefined
-                }
+                onSelectInstrument={() => {
+                  // Clicking a cell's symbol focuses that cell first, so the
+                  // picker acts on the chart the trader just pointed at.
+                  focusCell(cell.id);
+                  onOpenSymbolPicker();
+                }}
               />
             </div>
           );
@@ -418,7 +413,6 @@ interface ChartCellViewProps {
   cell: ChartCell;
   state: PublicSessionState;
   isSession: boolean;
-  multi: boolean;
   pair: PairChartData | null;
   pairLoading: boolean;
   sessionSeries: Candle[];
@@ -461,7 +455,6 @@ function ChartCellView({
   cell,
   state,
   isSession,
-  multi,
   pair,
   pairLoading,
   sessionSeries,
@@ -547,7 +540,8 @@ function ChartCellView({
         headerSlot={headerSlot}
         orderTicket={orderTicket}
         axisCorner={axisCorner}
-        instrumentLabel={multi ? `${cell.symbol}${tradable ? "" : " · reference"}` : undefined}
+        symbolLabel={cell.symbol}
+        referenceOnly={!tradable}
         onSelectInstrument={onSelectInstrument}
         settings={workspace.settings}
         onSettingsChange={workspace.updateSettings}

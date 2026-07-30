@@ -76,7 +76,8 @@ test("a reference cell loads its pair once and keeps the traded cell tradable", 
   const pairRequest = page.waitForRequest((request) => request.url().includes("/pair?"));
   // Click past the cell's drawing rail so the chart itself takes focus.
   await charts.nth(1).click({ position: { x: 220, y: 120 } });
-  await page.getByTestId("symbol-picker-trigger").click();
+  // Each cell's legend names its own instrument, so scope the trigger to the cell.
+  await page.getByTestId("chart-cell-2").getByTestId("symbol-picker-trigger").click();
   const picker = page.getByTestId("symbol-picker");
   await expect(picker).toBeVisible();
   await picker.getByTestId("symbol-row-GBPUSD").click();
@@ -85,7 +86,10 @@ test("a reference cell loads its pair once and keeps the traded cell tradable", 
   // The whole series is fetched once; playback then reveals it locally.
   const request = await pairRequest;
   expect(request.url()).toContain("full=1");
-  await expect(page.getByText(/GBPUSD · reference/)).toBeVisible();
+  const referenceLegend = page.getByTestId("chart-cell-2").getByTestId("chart-legend");
+  await expect(referenceLegend).toContainText("GBPUSD");
+  // Tagged as a reference so the disabled Buy/Sell buttons are explained.
+  await expect(referenceLegend).toContainText("Ref");
 
   // Trading follows focus: the reference cell has no order ticket at all.
   await expect(page.getByRole("button", { name: /^Buy/ })).toHaveCount(0);

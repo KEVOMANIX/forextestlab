@@ -585,6 +585,15 @@ export default function PriceChart({
   /** Something on this chart is positioned in React from the viewport. */
   const viewportOverlaysRef = useRef(false);
   const followLatestRef = useRef(true);
+  const viewportInteractionRef = useRef<{
+    active: boolean;
+    startTo: number | null;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  }>({ active: false, startTo: null, startX: 0, startY: 0, moved: false });
+  const pointerInteractionTimerRef = useRef<number | null>(null);
+  const wheelInteractionTimerRef = useRef<number | null>(null);
   const rawCandlesRef = useRef<Candle[]>([...initialCandles]);
   const replaySeriesRef = useRef<Candle[] | undefined>(replaySeries);
   const syncedInitialCandlesRef = useRef<Candle[]>(initialCandles);
@@ -931,7 +940,6 @@ export default function PriceChart({
     if (!series) return;
     const display = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
     const previous = displayRef.current;
-    const scale = chartRef.current?.timeScale();
     displayRef.current = display;
     // Joining thousands of context candles onto the timeline is only worth doing
     // for a chart that has drawings on it, or is about to.
@@ -976,7 +984,7 @@ export default function PriceChart({
     if (indicators.some((i) => getDef(i.kind)?.render === "overlay")) setDisplayCandles(display);
     // New data must not issue viewport commands after the user has detached.
     // This keeps an active pan/zoom gesture responsive while replay continues.
-    if (followLatestRef.current) scale?.scrollToRealTime();
+    if (followLatestRef.current) keepLatestPriceVisible();
     scheduleLineCoordinates();
     recordReplayMetric(
       "chart-update",
@@ -1044,15 +1052,52 @@ export default function PriceChart({
     });
   }
 
+  function keepLatestPriceVisible() {
+    const chart = chartRef.current;
+    const scale = chart?.timeScale();
+    const series = seriesRef.current;
+    const container = containerRef.current;
+    if (!chart || !scale || !series || !container) return;
+    // `scrollToRealTime()` animates. At fast replay rates each new candle can
+    // restart that animation before it reaches the edge, leaving the live
+    // candle progressively farther behind. Follow mode must move immediately.
+    scale.scrollToPosition(DEFAULT_RIGHT_OFFSET, false);
+
+    const latest = displayRef.current.at(-1);
+    if (!latest) return;
+    const y = series.priceToCoordinate(latest.close);
+    const edgePadding = Math.min(24, Math.max(8, container.clientHeight * 0.05));
+    if (
+      y == null ||
+      y < edgePadding ||
+      y > container.clientHeight - edgePadding
+    ) {
+      chart.priceScale("right").applyOptions({ autoScale: true });
+    }
+  }
+
+  function setFollowLatest(value: boolean, reason?: string) {
+    followLatestRef.current = value;
+    const container = containerRef.current;
+    if (!container) return;
+    container.dataset.followLatest = String(value);
+    if (value) {
+      delete container.dataset.followDetachReason;
+    } else if (reason) {
+      container.dataset.followDetachReason = reason;
+    }
+  }
+
   function resetLatestViewport() {
     const scale = chartRef.current?.timeScale();
     if (!scale) return;
-    followLatestRef.current = true;
+    setFollowLatest(true);
     scale.applyOptions({
       barSpacing: DEFAULT_BAR_SPACING,
       rightOffset: DEFAULT_RIGHT_OFFSET,
     });
-    scale.scrollToRealTime();
+    chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
+    keepLatestPriceVisible();
   }
 
   /**
@@ -1076,9 +1121,9 @@ export default function PriceChart({
     if (displayRef.current.length === 0) return false;
     savedTimeRangeRef.current = null;
     try {
-      followLatestRef.current = true;
+      setFollowLatest(true);
       scale.setVisibleRange(saved.range);
-      followLatestRef.current = false;
+      setFollowLatest(false, "saved-range");
       return true;
     } catch {
       return false;
@@ -1206,6 +1251,26 @@ export default function PriceChart({
           container.dataset.visibleLogicalSpan = String(visible.to - visible.from);
         }
         updateViewportDiagnostics();
+        const interaction = viewportInteractionRef.current;
+        if (interaction.active && interaction.moved && visible) {
+          const latest = displayRef.current.at(-1);
+          const latestCoordinate = latest
+            ? chart.timeScale().timeToCoordinate(latest.time as UTCTimestamp)
+            : null;
+          const movedBackward =
+            interaction.startTo != null &&
+            visible.to < interaction.startTo - 0.25;
+          const latestIsOutside =
+            latestCoordinate == null ||
+            latestCoordinate < 0 ||
+            latestCoordinate > container.clientWidth;
+          if (movedBackward || latestIsOutside) {
+            setFollowLatest(
+              false,
+              movedBackward ? "backward-interaction" : "latest-outside",
+            );
+          }
+        }
         if (visible && visible.from < 100) loadOlderRef.current();
         if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
@@ -1264,13 +1329,79 @@ export default function PriceChart({
     };
     chart.subscribeCrosshairMove(onCrosshair);
 
-    const detachFromLatest = () => {
-      followLatestRef.current = false;
+    const beginViewportInteraction = (event: PointerEvent) => {
+      if (pointerInteractionTimerRef.current != null) {
+        window.clearTimeout(pointerInteractionTimerRef.current);
+        pointerInteractionTimerRef.current = null;
+      }
+      const range = chart.timeScale().getVisibleLogicalRange();
+      viewportInteractionRef.current = {
+        active: true,
+        startTo: range?.to ?? null,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
+      };
+    };
+    const markViewportMovement = (event: PointerEvent) => {
+      const interaction = viewportInteractionRef.current;
+      if (!interaction.active || interaction.moved) return;
+      if (
+        Math.abs(event.clientX - interaction.startX) >= 4 ||
+        Math.abs(event.clientY - interaction.startY) >= 4
+      ) {
+        interaction.moved = true;
+      }
+    };
+    const endViewportInteraction = () => {
+      viewportInteractionRef.current = {
+        active: false,
+        startTo: null,
+        startX: 0,
+        startY: 0,
+        moved: false,
+      };
+    };
+    const scheduleEndViewportInteraction = () => {
+      if (pointerInteractionTimerRef.current != null) {
+        window.clearTimeout(pointerInteractionTimerRef.current);
+      }
+      // Lightweight Charts publishes the final logical range on the next
+      // animation frame. Keep the gesture marked active until that callback
+      // has had a chance to classify an actual backward pan.
+      pointerInteractionTimerRef.current = window.setTimeout(() => {
+        pointerInteractionTimerRef.current = null;
+        endViewportInteraction();
+      }, 80);
+    };
+    const beginWheelInteraction = (event: WheelEvent) => {
+      if (!viewportInteractionRef.current.active) {
+        const range = chart.timeScale().getVisibleLogicalRange();
+        viewportInteractionRef.current = {
+          active: true,
+          startTo: range?.to ?? null,
+          startX: event.clientX,
+          startY: event.clientY,
+          moved: true,
+        };
+      } else {
+        viewportInteractionRef.current.moved = true;
+      }
+      if (wheelInteractionTimerRef.current != null) {
+        window.clearTimeout(wheelInteractionTimerRef.current);
+      }
+      wheelInteractionTimerRef.current = window.setTimeout(() => {
+        wheelInteractionTimerRef.current = null;
+        endViewportInteraction();
+      }, 180);
     };
     const focusCell = () => onFocusRef.current?.();
     container.addEventListener("pointerdown", focusCell, true);
-    container.addEventListener("pointerdown", detachFromLatest, true);
-    container.addEventListener("wheel", detachFromLatest, { passive: true });
+    container.addEventListener("pointerdown", beginViewportInteraction, true);
+    container.addEventListener("pointermove", markViewportMovement, true);
+    window.addEventListener("pointerup", scheduleEndViewportInteraction, true);
+    window.addEventListener("pointercancel", scheduleEndViewportInteraction, true);
+    container.addEventListener("wheel", beginWheelInteraction, { passive: true });
     container.addEventListener("pointermove", scheduleLineCoordinates, { passive: true });
     const observer = new ResizeObserver(coordinateUpdate);
     observer.observe(container);
@@ -1278,9 +1409,20 @@ export default function PriceChart({
     return () => {
       observer.disconnect();
       container.removeEventListener("pointerdown", focusCell, true);
-      container.removeEventListener("pointerdown", detachFromLatest, true);
-      container.removeEventListener("wheel", detachFromLatest);
+      container.removeEventListener("pointerdown", beginViewportInteraction, true);
+      container.removeEventListener("pointermove", markViewportMovement, true);
+      window.removeEventListener("pointerup", scheduleEndViewportInteraction, true);
+      window.removeEventListener("pointercancel", scheduleEndViewportInteraction, true);
+      container.removeEventListener("wheel", beginWheelInteraction);
       container.removeEventListener("pointermove", scheduleLineCoordinates);
+      if (pointerInteractionTimerRef.current != null) {
+        window.clearTimeout(pointerInteractionTimerRef.current);
+        pointerInteractionTimerRef.current = null;
+      }
+      if (wheelInteractionTimerRef.current != null) {
+        window.clearTimeout(wheelInteractionTimerRef.current);
+        wheelInteractionTimerRef.current = null;
+      }
       if (lineCoordRafRef.current != null) cancelAnimationFrame(lineCoordRafRef.current);
       if (rangeSaveTimerRef.current != null) window.clearTimeout(rangeSaveTimerRef.current);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(coordinateUpdate);
@@ -1378,7 +1520,7 @@ export default function PriceChart({
       if (index < 0) return;
       const range = scale.getVisibleLogicalRange();
       const width = range ? Math.max(20, range.to - range.from) : 80;
-      followLatestRef.current = false;
+      setFollowLatest(false, "jump-to-candle");
       scale.setVisibleLogicalRange({ from: index - width / 2, to: index + width / 2 });
     };
     window.addEventListener("forextestlab:jump-to-candle", jump);
@@ -1482,7 +1624,7 @@ export default function PriceChart({
     const visibleRange = hadData ? scale?.getVisibleLogicalRange() ?? null : null;
     renderMain(true);
     if (visibleRange) {
-      followLatestRef.current = false;
+      setFollowLatest(false, "preserved-range");
       scale?.setVisibleLogicalRange(visibleRange);
     } else if (!restoreSavedTimeRange()) {
       // The series has only just arrived, so this is where a cell cloned into a
@@ -1637,8 +1779,9 @@ export default function PriceChart({
   }, [anchorPick]);
 
   function goToLatest() {
-    followLatestRef.current = true;
-    chartRef.current?.timeScale().scrollToRealTime();
+    setFollowLatest(true);
+    chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
+    keepLatestPriceVisible();
   }
 
   function selectTimeframe(timeframe: Timeframe) {

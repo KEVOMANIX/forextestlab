@@ -210,12 +210,39 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   expect(await firstChart.getAttribute("data-current-price")).not.toBe(
     priceAtPlay,
   );
+  await expect(firstChart).toHaveAttribute(
+    "data-latest-candle-visible",
+    "true",
+  );
 
   const box = await firstChart.boundingBox();
   expect(box).not.toBeNull();
+  // A simple crosshair click is not a request to leave live replay. The chart
+  // must keep following and keep the current candle visible as replay advances.
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.waitForTimeout(3_500);
+  await expect(firstChart).toHaveAttribute("data-follow-latest", "true");
+  await expect(firstChart).toHaveAttribute(
+    "data-latest-candle-visible",
+    "true",
+  );
+
+  // Moving the viewport backward is deliberate history navigation and
+  // must detach this cell from live follow without affecting the other cells.
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
-  await page.mouse.wheel(0, -700);
+  await page.mouse.down();
+  await page.mouse.move(
+    box!.x + box!.width / 2 + Math.min(220, box!.width / 3),
+    box!.y + box!.height / 2,
+    { steps: 8 },
+  );
+  await page.mouse.up();
   await page.waitForTimeout(500);
+  await expect(firstChart).toHaveAttribute("data-follow-latest", "false");
+  await expect(firstChart).toHaveAttribute(
+    "data-follow-detach-reason",
+    "backward-interaction",
+  );
 
   const firstRange = await page.evaluate((id) => {
     const raw = window.localStorage.getItem(
@@ -269,6 +296,14 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     timeout: 30_000,
   });
   await expect(page.getByTestId("chart-cell-4")).toBeVisible();
+  await page
+    .getByTestId("chart-cell-1")
+    .getByRole("button", { name: "Display 1h candles" })
+    .click();
+  await page
+    .getByTestId("chart-cell-2")
+    .getByRole("button", { name: "Display 1D candles" })
+    .click();
   for (const cell of ["chart-cell-1", "chart-cell-2", "chart-cell-3", "chart-cell-4"]) {
     await expect(
       page.getByTestId(cell).getByRole("img", {

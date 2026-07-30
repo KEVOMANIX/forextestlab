@@ -128,7 +128,7 @@ interface ChartGridProps {
   /** Dedicated far-right header target for the layout picker. */
   layoutSlot?: HTMLElement | null;
   orderTicket?: React.ReactNode;
-  /** Clock and time-zone picker, seated in the focused chart's axis corner. */
+  /** Clock and time-zone picker, seated in the workspace's outer axis corner. */
   axisCorner?: React.ReactNode;
   /** Focused cell's symbol, so the top bar's pair picker stays in step. */
   focusedSymbol: string;
@@ -392,8 +392,11 @@ export default function ChartGrid({
                 onFocus={() => focusCell(cell.id)}
                 headerSlot={!multi && isFocused ? headerSlot : null}
                 orderTicket={isSession && isFocused ? orderTicket : null}
-                // One clock for the workspace, on the chart being driven.
-                axisCorner={isFocused ? axisCorner : null}
+                // One clock for the workspace, always in its outer bottom-right
+                // corner regardless of which independently movable cell is focused.
+                axisCorner={
+                  index === visibleCells.length - 1 ? axisCorner : null
+                }
                 onSelectInstrument={() => {
                   // Clicking a cell's symbol focuses that cell first, so the
                   // picker acts on the chart the trader just pointed at.

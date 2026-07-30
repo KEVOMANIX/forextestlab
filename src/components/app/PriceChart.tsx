@@ -64,6 +64,7 @@ import {
   type SeriesType,
   type Time,
   type UTCTimestamp,
+  type WhitespaceData,
 } from "lightweight-charts";
 
 import { formatInZone } from "@/lib/chart/timezones";
@@ -530,6 +531,11 @@ export default function PriceChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const futureTimeSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const futureTimeRangeRef = useRef<{
+    timeframe: Timeframe | null;
+    through: number;
+  }>({ timeframe: null, through: 0 });
   const renderRafRef = useRef<number | null>(null);
   const forceRenderRef = useRef(false);
   const lineCoordRafRef = useRef<number | null>(null);
@@ -945,6 +951,7 @@ export default function PriceChart({
     const display = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
     const previous = displayRef.current;
     displayRef.current = display;
+    syncFutureTimeScale(display.at(-1)?.time);
     // Joining thousands of context candles onto the timeline is only worth doing
     // for a chart that has drawings on it, or is about to.
     if (drawingsActiveRef.current) {
@@ -1068,17 +1075,18 @@ export default function PriceChart({
     // every layout width. `scrollToRealTime()` is intentionally avoided because
     // its animation can be restarted by fast replay before reaching the target.
     const range = scale.getVisibleLogicalRange();
-    if (range) {
+    const latest = displayRef.current.at(-1);
+    const latestIndex = latest
+      ? scale.timeToIndex(latest.time as UTCTimestamp, true)
+      : null;
+    if (range && latestIndex != null) {
       const visibleBars = Math.max(1, range.to - range.from);
-      scale.scrollToPosition(
-        visibleBars * (1 - LIVE_CANDLE_POSITION),
-        false,
-      );
+      const from = Number(latestIndex) - visibleBars * LIVE_CANDLE_POSITION;
+      scale.setVisibleLogicalRange({ from, to: from + visibleBars });
     } else {
       scale.scrollToPosition(DEFAULT_RIGHT_OFFSET, false);
     }
 
-    const latest = displayRef.current.at(-1);
     if (!latest) return;
     const y = series.priceToCoordinate(latest.close);
     const edgePadding = Math.min(24, Math.max(8, container.clientHeight * 0.05));
@@ -1088,6 +1096,39 @@ export default function PriceChart({
       y > container.clientHeight - edgePadding
     ) {
       chart.priceScale("right").applyOptions({ autoScale: true });
+    }
+  }
+
+  function syncFutureTimeScale(latestTime?: number) {
+    const series = futureTimeSeriesRef.current;
+    const container = containerRef.current;
+    if (!series || latestTime == null) return;
+    const latestSeconds = Number(latestTime);
+    const timeframe = displayTimeframeRef.current;
+    const stepSeconds = TIMEFRAME_MS[timeframe] / 1000;
+    const cached = futureTimeRangeRef.current;
+    // Keep a generous invisible time-only runway. Refresh only after half of it
+    // has been consumed, so the time axis continues through the blank quarter
+    // without rebuilding whitespace data on every replay candle.
+    if (
+      cached.timeframe === timeframe &&
+      cached.through - latestSeconds >= stepSeconds * 100
+    ) {
+      return;
+    }
+    const whitespace: WhitespaceData<Time>[] = Array.from(
+      { length: 200 },
+      (_, index) => ({
+        time: (latestSeconds + stepSeconds * (index + 1)) as UTCTimestamp,
+      }),
+    );
+    series.setData(whitespace);
+    futureTimeRangeRef.current = {
+      timeframe,
+      through: latestSeconds + stepSeconds * whitespace.length,
+    };
+    if (container) {
+      container.dataset.forwardScalePoints = String(whitespace.length);
     }
   }
 
@@ -1203,10 +1244,13 @@ export default function PriceChart({
       rightPriceScale: { borderColor: palette.border, scaleMargins: { top: 0.12, bottom: 0.08 } },
       timeScale: {
         borderColor: palette.border,
+        borderVisible: true,
+        ticksVisible: true,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: DEFAULT_RIGHT_OFFSET,
         barSpacing: DEFAULT_BAR_SPACING,
+        ignoreWhitespaceIndices: false,
         shiftVisibleRangeOnNewBar: false,
         tickMarkFormatter: (time: Time, tickMarkType: number) =>
           formatTickMark(chartTimeMs(time), tickMarkType, timeZoneRef.current),
@@ -1227,6 +1271,13 @@ export default function PriceChart({
       autoSize: true,
     });
     chartRef.current = chart;
+    futureTimeSeriesRef.current = chart.addSeries(LineSeries, {
+      color: "transparent",
+      lineVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
     setChartApi(chart);
     createSeriesPair(chartTypeRef.current);
     resetLatestViewport();
@@ -1409,6 +1460,8 @@ export default function PriceChart({
       chartRef.current = null;
       seriesRef.current = null;
       contextSeriesRef.current = null;
+      futureTimeSeriesRef.current = null;
+      futureTimeRangeRef.current = { timeframe: null, through: 0 };
       for (const ind of priceIndicatorsRef.current.values()) ind.destroy();
       for (const ind of ownIndicatorsRef.current.values()) ind.destroy();
       priceIndicatorsRef.current = new Map();
@@ -2316,6 +2369,7 @@ export default function PriceChart({
         */}
         {axisCorner && (
           <div
+            data-testid="chart-axis-corner"
             className="pointer-events-none absolute bottom-0 right-0 z-20 hidden items-end md:flex"
             style={{ width: priceScaleWidth }}
           >

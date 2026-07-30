@@ -268,7 +268,14 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
         "true",
       );
       await expectLivePosition(chart);
+      await expect(chart).toHaveAttribute("data-forward-scale-points", "200");
     }
+    await expect(page.getByTestId("chart-axis-corner")).toHaveCount(1);
+    await expect(
+      page
+        .getByTestId(`chart-cell-${count}`)
+        .getByTestId("chart-axis-corner"),
+    ).toBeVisible();
   };
   await assertLiveLayout(/^Two rows$/, 2);
   await assertLiveLayout(/^Main chart with two side charts$/, 3);
@@ -282,6 +289,10 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   // must keep following and keep the current candle visible as replay advances.
   await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.waitForTimeout(3_500);
+  await expect(page.getByTestId("chart-axis-corner")).toHaveCount(1);
+  await expect(
+    secondCell.getByTestId("chart-axis-corner"),
+  ).toBeVisible();
   await expect(firstChart).toHaveAttribute("data-follow-latest", "true");
   await expect(firstChart).toHaveAttribute(
     "data-latest-candle-visible",

@@ -264,6 +264,16 @@ const BEAR = "#f4646c";
 const DEFAULT_BAR_SPACING = 10;
 const DEFAULT_RIGHT_OFFSET = 4;
 const LIVE_CANDLE_POSITION = 0.75;
+/**
+ * How far right of the plot the live candle may be parked while replay runs.
+ *
+ * `LIVE_CANDLE_POSITION` is where it rests. Anything past 1 means it is
+ * off-screen because the trader panned back to read history — which is bounded
+ * rather than forbidden, so a running chart can never be stranded arbitrarily
+ * far from the market, but can still be walked back a few screens. Pressing
+ * Play re-anchors to the resting position.
+ */
+const MAX_LIVE_CANDLE_POSITION = 4;
 
 /** Custom "long position" glyph: green target on top, red stop below, up arrow. */
 function LongPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
@@ -674,12 +684,20 @@ export default function PriceChart({
   stopDraftRef.current = stopDraft;
   targetDraftRef.current = targetDraft;
 
+  /**
+   * Stop covering the chart after 8s, so a slow provider cannot leave the plot
+   * behind a spinner forever.
+   *
+   * This only hides the overlay. It must not clear `historyLoadingRef`, which is
+   * the single-flight guard: the client aborts a history fetch at 12s, so
+   * releasing the guard at 8s opens a window where a second request starts while
+   * the first is still running, and whichever resolves last overwrites
+   * `historyCandlesRef` — dropping pages and re-rendering the context series
+   * repeatedly. Only `loadHistoryPage` releases the guard, in its `finally`.
+   */
   useEffect(() => {
     if (!historyLoading) return;
-    const timeout = window.setTimeout(() => {
-      historyLoadingRef.current = false;
-      setHistoryLoading(false);
-    }, 8_000);
+    const timeout = window.setTimeout(() => setHistoryLoading(false), 8_000);
     return () => window.clearTimeout(timeout);
   }, [historyLoading, displayTimeframe]);
 
@@ -1175,12 +1193,19 @@ export default function PriceChart({
     const latest = displayRef.current.at(-1);
     const container = containerRef.current;
     if (!scale || !latest) return;
-    const coordinate = scale.timeToCoordinate(latest.time as UTCTimestamp);
-    const width = scale.width();
-    if (coordinate == null || width <= 0) return;
+    // Read the anchor from the logical range rather than a pixel coordinate.
+    // Panning back puts the live candle off the right edge, where
+    // `timeToCoordinate` stops being dependable — and off the right edge is
+    // exactly the case this has to measure. This is the inverse of the range
+    // `keepLatestPriceVisible` sets, so the two round-trip exactly.
+    const range = scale.getVisibleLogicalRange();
+    const latestIndex = scale.timeToIndex(latest.time as UTCTimestamp, true);
+    if (!range || latestIndex == null) return;
+    const visibleBars = range.to - range.from;
+    if (visibleBars <= 0) return;
     liveCandlePositionRef.current = Math.min(
-      LIVE_CANDLE_POSITION,
-      Math.max(0, Number(coordinate) / width),
+      MAX_LIVE_CANDLE_POSITION,
+      Math.max(0, (Number(latestIndex) - range.from) / visibleBars),
     );
     if (container) {
       container.dataset.liveCandleAnchor = String(

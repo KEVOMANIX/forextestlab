@@ -247,8 +247,24 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     "true",
   );
 
-  // Moving the viewport is deliberate history navigation and
-  // must detach this cell from live follow without affecting the other cells.
+  // Live replay always owns the viewport. Gestures must not release it until
+  // the user pauses, and the other cells remain independently live.
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box!.x + box!.width / 2 + Math.min(220, box!.width / 3),
+    box!.y + box!.height / 2,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  await expect(firstChart).toHaveAttribute("data-follow-latest", "true");
+  await expect(firstChart).toHaveAttribute(
+    "data-latest-candle-visible",
+    "true",
+  );
+
+  await page.getByRole("button", { name: "Pause replay" }).click();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.down();
   await page.mouse.move(

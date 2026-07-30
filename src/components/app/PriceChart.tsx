@@ -589,6 +589,8 @@ export default function PriceChart({
   const viewportOverlaysRef = useRef(false);
   const followLatestRef = useRef(true);
   const replayWasRunningRef = useRef(false);
+  const replayRunningRef = useRef(replayRunning);
+  replayRunningRef.current = replayRunning;
   const viewportInteractionRef = useRef<{
     active: boolean;
     startX: number;
@@ -1326,9 +1328,11 @@ export default function PriceChart({
         Math.abs(event.clientY - interaction.startY) >= 4
       ) {
         interaction.moved = true;
-        // A genuine drag belongs to this chart cell. Release it immediately so
-        // replay cannot fight the gesture by snapping the viewport back.
-        setFollowLatest(false, "manual-interaction");
+        // Live replay always owns the viewport. Pause first to inspect history;
+        // once paused, the interacted cell is independently movable.
+        if (!replayRunningRef.current) {
+          setFollowLatest(false, "manual-interaction");
+        }
       }
     };
     const endViewportInteraction = () => {
@@ -1340,8 +1344,9 @@ export default function PriceChart({
       };
     };
     const beginWheelInteraction = () => {
-      // Wheel zoom/scroll is also an explicit request to control this cell.
-      setFollowLatest(false, "manual-interaction");
+      if (!replayRunningRef.current) {
+        setFollowLatest(false, "manual-interaction");
+      }
     };
     const focusCell = () => onFocusRef.current?.();
     container.addEventListener("pointerdown", focusCell, true);

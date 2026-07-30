@@ -23,6 +23,35 @@ const TIME_WITH_SECONDS: Intl.DateTimeFormatOptions = {
   second: "2-digit",
 };
 
+const CROSSHAIR_DATE: Intl.DateTimeFormatOptions = {
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+  year: "2-digit",
+};
+const CROSSHAIR_TIME: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+};
+
+/**
+ * Label for the bar under the crosshair, at the precision its timeframe carries.
+ *
+ * A daily or weekly bar has no meaningful time of day, so printing "00:00" next
+ * to it invents precision the bar does not have. Intraday bars get the clock;
+ * anything from a day up gets the date alone.
+ */
+export function formatCrosshairLabel(
+  at: number,
+  zone: string,
+  timeframeMs: number,
+): string {
+  const date = formatInZone(at, zone, CROSSHAIR_DATE);
+  if (timeframeMs >= 24 * 60 * 60 * 1000) return date;
+  return `${date} ${formatInZone(at, zone, CROSSHAIR_TIME)}`;
+}
+
 /**
  * Label for one tick on the time axis.
  *

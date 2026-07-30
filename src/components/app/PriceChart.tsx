@@ -66,8 +66,8 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 
-import { formatInZone, zoneOffsetLabel } from "@/lib/chart/timezones";
-import { formatTickMark } from "@/lib/chart/tick-marks";
+import { formatInZone } from "@/lib/chart/timezones";
+import { formatCrosshairLabel, formatTickMark } from "@/lib/chart/tick-marks";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
   TIMEFRAMES,
@@ -156,18 +156,6 @@ function formatVolume(volume: number): string {
   }
   return String(Math.round(volume));
 }
-
-const CROSSHAIR_FORMAT: Intl.DateTimeFormatOptions = {
-  weekday: "long",
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  // 24-hour, matching the axis. Reading "18:00" on the axis and "06:00 PM" in
-  // the crosshair for the same candle is a needless translation.
-  hour12: false,
-};
 
 interface PriceChartProps {
   initialCandles: Candle[];
@@ -1144,8 +1132,14 @@ export default function PriceChart({
           formatTickMark(chartTimeMs(time), tickMarkType, timeZoneRef.current),
       },
       localization: {
+        // The zone is named once, in the axis corner, so the label does not
+        // repeat an offset on every hover.
         timeFormatter: (time: Time) =>
-          `${formatInZone(chartTimeMs(time), timeZoneRef.current, CROSSHAIR_FORMAT)} ${zoneOffsetLabel(timeZoneRef.current, chartTimeMs(time))}`,
+          formatCrosshairLabel(
+            chartTimeMs(time),
+            timeZoneRef.current,
+            TIMEFRAME_MS[displayTimeframeRef.current],
+          ),
       },
       crosshair: { mode: CrosshairMode.Normal },
       handleScroll: true,
@@ -2224,7 +2218,11 @@ export default function PriceChart({
               {referenceOnly && (
                 <span
                   title="Reference chart: orders follow the session's traded instrument"
-                  className="rounded bg-amber-400/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300"
+                  className="rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  style={{
+                    color: "var(--app-warn-text)",
+                    background: "var(--app-warn-wash)",
+                  }}
                 >
                   Ref
                 </span>

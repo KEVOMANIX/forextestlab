@@ -91,6 +91,10 @@
      */
     --app-accent-text: #4fd8ba;
     --app-accent-wash: rgba(34, 195, 160, 0.15);
+    /* Caution colour for text, for the same reason as the accent above: amber
+       that reads on a dark panel drops to about 1.7:1 on a light one. */
+    --app-warn-text: #fcd34d;
+    --app-warn-wash: rgba(251, 191, 36, 0.15);
     --focus-ring-offset: #070a12;
     /*
      * The order ticket is a dense, self-contained surface with its own greys.
@@ -122,6 +126,8 @@
     --app-muted: #566179;
     --app-accent-text: #0b7a63;
     --app-accent-wash: rgba(18, 168, 136, 0.14);
+    --app-warn-text: #92610a;
+    --app-warn-wash: rgba(180, 130, 10, 0.14);
     --focus-ring-offset: #f5f7fb;
     --ticket-bg: #ffffff;
     --ticket-surface: #f4f6fa;

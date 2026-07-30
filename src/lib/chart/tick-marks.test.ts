@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatCrosshairLabel,
   TICK_DAY_OF_MONTH,
   TICK_MONTH,
   TICK_TIME,
@@ -43,5 +44,26 @@ describe("formatTickMark", () => {
 
   it("uses 24-hour time at midnight rather than 12 AM", () => {
     expect(formatTickMark(Date.UTC(2024, 2, 29, 0, 0), TICK_TIME, "UTC")).toBe("00:00");
+  });
+});
+
+describe("formatCrosshairLabel", () => {
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+
+  it("includes the clock for an intraday bar", () => {
+    expect(formatCrosshairLabel(at, "UTC", 15 * 60 * 1000)).toBe("Fri, Mar 29, 24 18:30");
+  });
+
+  it("drops the clock from a daily bar, which has no time of day", () => {
+    expect(formatCrosshairLabel(at, "UTC", DAY)).toBe("Fri, Mar 29, 24");
+  });
+
+  it("drops it for anything longer than a day too", () => {
+    expect(formatCrosshairLabel(at, "UTC", 7 * DAY)).toBe("Fri, Mar 29, 24");
+  });
+
+  it("reads in the chart's zone", () => {
+    expect(formatCrosshairLabel(at, "Asia/Tokyo", HOUR)).toBe("Sat, Mar 30, 24 03:30");
   });
 });

@@ -232,7 +232,9 @@ export function ReplayToolbar({
       ref={toolboxRef}
       data-testid="replay-toolbox"
       onPointerDown={compact ? undefined : startDrag}
-      className={`absolute z-20 w-[calc(100%-1.5rem)] max-w-[390px] rounded-lg border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-2xl shadow-black/30 backdrop-blur ${
+      // No backdrop blur: blurring the chart canvas underneath smears candles
+      // around the toolbox. The panel colour is opaque enough on its own.
+      className={`absolute z-20 w-[calc(100%-1.5rem)] max-w-[390px] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl shadow-black/40 ${
         compact ? "" : "touch-none cursor-move"
       }`}
       style={

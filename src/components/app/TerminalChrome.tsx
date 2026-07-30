@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
   BookOpenText,
-  Check,
   ChevronDown,
   Expand,
   FolderOpen,
@@ -61,7 +60,8 @@ export function TerminalTopBar({
   onToggleTheme,
   onNewSession,
   activeSymbol,
-  onSwitchPair,
+  onOpenSymbolPicker,
+  referenceOnly,
   saveStatus,
   onNavigate,
   onRetrySave,
@@ -73,7 +73,9 @@ export function TerminalTopBar({
   onToggleTheme: () => void;
   onNewSession: () => void;
   activeSymbol: string;
-  onSwitchPair: (symbol: string) => void;
+  onOpenSymbolPicker: () => void;
+  /** The focused chart is on a reference pair, so trading is unavailable. */
+  referenceOnly: boolean;
   saveStatus: "saved" | "saving" | "error";
   onNavigate: (href: string) => void;
   onRetrySave: () => void;
@@ -83,11 +85,7 @@ export function TerminalTopBar({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pairMenuOpen, setPairMenuOpen] = useState(false);
-  const pairMenuRef = useRef<HTMLDivElement | null>(null);
-  const symbols = state.config.symbols?.length
-    ? state.config.symbols
-    : [state.config.symbol];
+  const symbolCount = state.config.symbols?.length || 1;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -104,22 +102,6 @@ export function TerminalTopBar({
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [menuOpen]);
-
-  useEffect(() => {
-    if (!pairMenuOpen) return;
-    const closeMenu = (event: PointerEvent) => {
-      if (!pairMenuRef.current?.contains(event.target as Node)) setPairMenuOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPairMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", closeMenu);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeMenu);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [pairMenuOpen]);
 
   const navigate = (href: string) => {
     setMenuOpen(false);
@@ -208,43 +190,40 @@ export function TerminalTopBar({
       </div>
 
       <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-      <div ref={pairMenuRef} className="relative shrink-0">
-        <button
-          type="button"
-          onClick={() => setPairMenuOpen((open) => !open)}
-          aria-haspopup="menu"
-          aria-expanded={pairMenuOpen}
-          className={`inline-flex h-8 items-center gap-2 rounded-md border px-2.5 font-mono text-xs font-bold outline-none transition-colors ${
-            pairMenuOpen ? "border-brand-400/40 bg-brand-400/10 text-brand-300" : "app-border bg-[var(--app-panel-2)] hover:border-brand-400/25"
-          }`}
-        >
-          <span>{activeSymbol}</span>
-          <ChevronDown size={13} className={`shrink-0 app-muted transition-transform ${pairMenuOpen ? "rotate-180" : ""}`} aria-hidden />
-        </button>
-
-        {pairMenuOpen && (
-          <div
-            role="menu"
-            className="absolute left-0 top-full z-[120] mt-1.5 max-h-72 w-44 overflow-y-auto rounded-xl border app-border bg-[var(--app-panel)] p-1.5 shadow-2xl backdrop-blur-xl"
-          >
-            <p className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Session pairs</p>
-            {symbols.map((symbol) => (
-              <button
-                key={symbol}
-                type="button"
-                role="menuitem"
-                onClick={() => { setPairMenuOpen(false); if (symbol !== activeSymbol) onSwitchPair(symbol); }}
-                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left font-mono text-xs font-bold ${
-                  symbol === activeSymbol ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
-                }`}
-              >
-                {symbol}
-                {symbol === activeSymbol && <Check size={13} aria-hidden />}
-              </button>
-            ))}
-          </div>
+      {/* The instrument is the most-read value in the header, so it opens the
+          full picker rather than a cramped dropdown of the session's pairs. */}
+      <button
+        type="button"
+        onClick={onOpenSymbolPicker}
+        aria-haspopup="dialog"
+        aria-label={`${activeSymbol}. Select a symbol`}
+        title="Select a symbol"
+        data-testid="symbol-picker-trigger"
+        className="group inline-flex h-8 shrink-0 items-center gap-2 rounded-md border app-border bg-[var(--app-panel-2)] px-2.5 font-mono text-xs font-bold outline-none transition-colors hover:border-brand-400/40 hover:text-brand-300"
+      >
+        <span>{activeSymbol}</span>
+        {/* Trading follows the traded instrument, so a reference chart says so
+            here rather than leaving the disabled Buy/Sell buttons unexplained. */}
+        {referenceOnly ? (
+          <span className="rounded bg-amber-400/15 px-1 font-sans text-[10px] font-bold uppercase text-amber-300">
+            Ref
+          </span>
+        ) : (
+          symbolCount > 1 && (
+            <span
+              className="rounded px-1 font-sans text-[10px] font-bold text-[var(--app-accent-text)]"
+              style={{ background: "var(--app-accent-wash)" }}
+            >
+              {symbolCount}
+            </span>
+          )
         )}
-      </div>
+        <ChevronDown
+          size={13}
+          className="shrink-0 app-muted transition-colors group-hover:text-brand-300"
+          aria-hidden
+        />
+      </button>
 
       <span className="hidden h-6 w-px shrink-0 bg-[var(--app-border)] md:block" aria-hidden />
       {/* `min-w-0` lets the chart controls shrink (their timeframe row scrolls

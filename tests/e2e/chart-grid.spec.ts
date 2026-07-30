@@ -72,12 +72,15 @@ test("a reference cell loads its pair once and keeps the traded cell tradable", 
   const charts = page.getByRole("img", { name: "Candlestick price chart" });
   await expect(charts).toHaveCount(2);
 
-  // Focus the second cell, then point it at the other pair from the top bar.
+  // Focus the second cell, then point it at the other pair from the symbol picker.
   const pairRequest = page.waitForRequest((request) => request.url().includes("/pair?"));
   // Click past the cell's drawing rail so the chart itself takes focus.
   await charts.nth(1).click({ position: { x: 220, y: 120 } });
-  await page.getByRole("button", { expanded: false }).filter({ hasText: /EURUSD/ }).first().click();
-  await page.getByRole("menuitem", { name: /GBPUSD/i }).click();
+  await page.getByTestId("symbol-picker-trigger").click();
+  const picker = page.getByTestId("symbol-picker");
+  await expect(picker).toBeVisible();
+  await picker.getByTestId("symbol-row-GBPUSD").click();
+  await expect(picker).toBeHidden();
 
   // The whole series is fetched once; playback then reveals it locally.
   const request = await pairRequest;

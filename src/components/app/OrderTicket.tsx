@@ -306,7 +306,9 @@ export function OrderTicket({
   if (!panelOpen) {
     return (
       <div
-        className="pointer-events-auto absolute left-2 top-2 flex items-center gap-1 rounded-lg border border-[var(--ticket-border)] bg-[var(--ticket-bg)]/95 p-1 shadow-xl backdrop-blur"
+        // `left-14` clears the chart's drawing rail, the same offset the OHLC
+        // legend uses. At `left-2` the symbol label sat underneath the rail.
+        className="pointer-events-auto absolute left-14 top-2 flex items-center gap-1 rounded-lg border border-[var(--ticket-border)] bg-[var(--ticket-bg)]/95 p-1 shadow-xl backdrop-blur"
         aria-label="Quick order planner"
       >
         <span className="hidden px-2 text-[11px] font-semibold text-[var(--ticket-muted)] sm:inline">

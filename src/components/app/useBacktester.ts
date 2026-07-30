@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  addSessionPair,
   createSession,
   createTrialSession,
   extendReplay,
@@ -1187,6 +1188,47 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [ensurePair, patch],
   );
+
+  /**
+   * Add a symbol to the session's chartable set, then focus it. The traded
+   * instrument is unchanged; the new symbol charts as a reference.
+   */
+  const addPair = useCallback(
+    async (symbol: string): Promise<boolean> => {
+      const id = sessionIdRef.current;
+      const engine = localEngineRef.current;
+      if (!id || !engine) return false;
+      const config = engine.state.config;
+      const existing = config.symbols?.length ? config.symbols : [config.symbol];
+      if (existing.includes(symbol)) {
+        patch({ activeSymbol: symbol, error: null });
+        void ensurePair(symbol);
+        return true;
+      }
+
+      patch({ busy: true, error: null });
+      const result = await addSessionPair(id, tokenRef.current, symbol);
+      if (!result.ok) {
+        patch({ busy: false, error: result.error });
+        return false;
+      }
+
+      config.symbols = result.symbols;
+      setS((prev) => ({
+        ...prev,
+        busy: false,
+        error: null,
+        activeSymbol: symbol,
+        state: publicSessionState(engine, prev.state?.anonymous ?? false),
+      }));
+      // Resolve as soon as the session owns the symbol. Its series is a few
+      // thousand candles, and holding the picker open behind a spinner while it
+      // downloads hides the chart that is already switching to it.
+      void ensurePair(symbol);
+      return true;
+    },
+    [ensurePair, patch],
+  );
   const retrySave = useCallback(() => {
     const status = localEngineRef.current?.state.status;
     return checkpoint(status === "running" ? "running" : "paused");
@@ -1257,6 +1299,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       updateBookmark,
       deleteBookmark,
       switchPair,
+      addPair,
       ensurePair,
       retrySave,
       loadHistory,

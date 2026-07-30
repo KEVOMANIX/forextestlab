@@ -84,6 +84,13 @@
     --app-border: rgba(255, 255, 255, 0.10);
     --app-text: #e6ebf5;
     --app-muted: #93a1b8;
+    /*
+     * Brand colour for text. `brand-300` reads well on a dark panel but drops to
+     * about 1.9:1 on a light one, so accented text uses this instead of a fixed
+     * shade and darkens with the light theme.
+     */
+    --app-accent-text: #4fd8ba;
+    --app-accent-wash: rgba(34, 195, 160, 0.15);
     --focus-ring-offset: #070a12;
     /*
      * The order ticket is a dense, self-contained surface with its own greys.
@@ -113,6 +120,8 @@
     --app-border: #d9e0ec;
     --app-text: #0b1220;
     --app-muted: #566179;
+    --app-accent-text: #0b7a63;
+    --app-accent-wash: rgba(18, 168, 136, 0.14);
     --focus-ring-offset: #f5f7fb;
     --ticket-bg: #ffffff;
     --ticket-surface: #f4f6fa;

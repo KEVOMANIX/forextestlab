@@ -133,6 +133,8 @@ interface ChartGridProps {
   onFocusedSymbolChange: (symbol: string) => void;
   /** Preferences every chart in the workspace shares. */
   workspace: ChartWorkspace;
+  /** Opens the session's symbol picker for the focused cell. */
+  onOpenSymbolPicker: () => void;
 }
 
 export default function ChartGrid({
@@ -167,6 +169,7 @@ export default function ChartGrid({
   focusedSymbol,
   onFocusedSymbolChange,
   workspace,
+  onOpenSymbolPicker,
 }: ChartGridProps) {
   const sessionSymbol = state.config.symbol;
   const compact = useCompactViewport();
@@ -387,6 +390,16 @@ export default function ChartGrid({
                 onFocus={() => focusCell(cell.id)}
                 headerSlot={!multi && isFocused ? headerSlot : null}
                 orderTicket={isSession && isFocused ? orderTicket : null}
+                onSelectInstrument={
+                  multi
+                    ? () => {
+                        // Clicking a cell's symbol focuses that cell first, so the
+                        // picker acts on the chart the trader just pointed at.
+                        focusCell(cell.id);
+                        onOpenSymbolPicker();
+                      }
+                    : undefined
+                }
               />
             </div>
           );
@@ -435,6 +448,7 @@ interface ChartCellViewProps {
   headerSlot: HTMLElement | null;
   orderTicket: React.ReactNode;
   workspace: ChartWorkspace;
+  onSelectInstrument: (() => void) | undefined;
 }
 
 function ChartCellView({
@@ -469,6 +483,7 @@ function ChartCellView({
   headerSlot,
   orderTicket,
   workspace,
+  onSelectInstrument,
 }: ChartCellViewProps) {
   const reveal = useRevealedSeries(isSession ? sessionSeries : pair?.candles ?? null, state.currentTime);
   const noop = useCallback(() => {}, []);
@@ -525,6 +540,7 @@ function ChartCellView({
         headerSlot={headerSlot}
         orderTicket={orderTicket}
         instrumentLabel={multi ? `${cell.symbol}${tradable ? "" : " · reference"}` : undefined}
+        onSelectInstrument={onSelectInstrument}
         settings={workspace.settings}
         onSettingsChange={workspace.updateSettings}
         onSettingsReset={workspace.resetSettings}

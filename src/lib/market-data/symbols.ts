@@ -130,3 +130,35 @@ export function getSymbolDefinition(
 export function formatSymbol(symbol: string): string {
   return getSymbolDefinition(symbol)?.displayName ?? symbol;
 }
+
+const CURRENCY_NAMES: Record<string, string> = {
+  AUD: "Australian Dollar",
+  BTC: "Bitcoin",
+  CAD: "Canadian Dollar",
+  CHF: "Swiss Franc",
+  EUR: "Euro",
+  GBP: "British Pound",
+  JPY: "Japanese Yen",
+  NZD: "New Zealand Dollar",
+  USD: "US Dollar",
+  XAG: "Silver",
+  XAU: "Gold",
+};
+
+/**
+ * Long-form name for a symbol, e.g. "Australian Dollar / Canadian Dollar".
+ *
+ * Used where a symbol needs to be recognisable rather than compact — the symbol
+ * picker in particular, where a trader may be choosing an instrument they have
+ * never charted before.
+ */
+export function describeSymbol(symbol: string): string {
+  const definition = getSymbolDefinition(symbol);
+  if (!definition) return symbol;
+  const base = CURRENCY_NAMES[definition.baseCurrency];
+  const quote = CURRENCY_NAMES[definition.quoteCurrency];
+  if (!base || !quote) return definition.displayName;
+  // An index quotes against a basket, so a "base / quote" reading would mislead.
+  if (definition.baseCurrency === definition.symbol) return definition.displayName;
+  return `${base} / ${quote}`;
+}

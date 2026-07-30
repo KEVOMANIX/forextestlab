@@ -44,6 +44,9 @@ import type { ReplayDiagnosticsSource } from "./ReplayDiagnosticsPanel";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
+import { SymbolPickerModal } from "./SymbolPickerModal";
+import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
+import { getSymbolDefinition } from "@/lib/market-data/symbols";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
@@ -121,6 +124,7 @@ export function Backtester({
   }>({ sessionId: null, openIds: new Set(), closedCount: 0, pendingStatuses: new Map() });
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
+  const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   useLayoutEffect(() => {
     recordReplayMetric("react-commit", performance.now() - renderStartedAt);
   });
@@ -384,6 +388,49 @@ export function Backtester({
     return result;
   }, [state]);
 
+  /**
+   * A symbol's quote at the replay clock. The traded symbol reads from the
+   * session series; reference pairs from their own loaded series, which is null
+   * until a chart (or the picker) has asked for it.
+   */
+  const symbolQuote = useCallback(
+    (symbol: string) => {
+      if (!state) return null;
+      const series =
+        symbol === state.config.symbol
+          ? bt.replayCandles
+          : bt.pairs[symbol]?.candles;
+      if (!series?.length) return null;
+      return symbolQuoteAt(
+        series,
+        state.currentTime ?? bt.lastCandle?.timestamp ?? null,
+      );
+    },
+    [state, bt.replayCandles, bt.pairs, bt.lastCandle],
+  );
+
+  const symbolPrecision = useCallback(
+    (symbol: string) => {
+      if (state && symbol === state.config.symbol) return state.config.pricePrecision;
+      return (
+        bt.pairs[symbol]?.pricePrecision ??
+        getSymbolDefinition(symbol)?.pricePrecision ??
+        5
+      );
+    },
+    [state, bt.pairs],
+  );
+
+  const sessionSymbolKey = workspaceSymbols.join(",");
+  // Opening the picker loads any session pair no chart has asked for yet, so its
+  // row shows a real quote instead of a dash.
+  useEffect(() => {
+    if (!symbolPickerOpen) return;
+    for (const symbol of sessionSymbolKey.split(",")) {
+      if (symbol) void actions.ensurePair(symbol);
+    }
+  }, [symbolPickerOpen, sessionSymbolKey, actions]);
+
   const requestCancelPending = useCallback((orderId: string) => {
     if (cancellationTimersRef.current.has(orderId)) return;
     const notificationId = `cancel-${orderId}`;
@@ -556,7 +603,8 @@ export function Backtester({
         onToggleTheme={toggle}
         onNewSession={newSession}
         activeSymbol={activeSymbol}
-        onSwitchPair={actions.switchPair}
+        onOpenSymbolPicker={() => setSymbolPickerOpen(true)}
+        referenceOnly={Boolean(referencePair)}
         saveStatus={bt.saveStatus}
         onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}
@@ -634,6 +682,7 @@ export function Backtester({
             focusedSymbol={activeSymbol}
             onFocusedSymbolChange={actions.switchPair}
             workspace={workspace}
+            onOpenSymbolPicker={() => setSymbolPickerOpen(true)}
             headerSlot={chartHeaderSlot}
             layoutSlot={chartLayoutSlot}
             orderTicket={
@@ -721,6 +770,27 @@ export function Backtester({
           void actions.modifyTrailing(pips, positionId)
         }
         onClose={(positionId, lots) => void actions.closePosition(positionId, lots)}
+      />
+      <SymbolPickerModal
+        open={symbolPickerOpen}
+        onClose={() => setSymbolPickerOpen(false)}
+        sessionSymbols={workspaceSymbols}
+        tradedSymbol={state.config.symbol}
+        activeSymbol={activeSymbol}
+        quoteFor={symbolQuote}
+        precisionFor={symbolPrecision}
+        loadingSymbols={bt.pairLoadingSymbols}
+        // Mirrors the server: the pair cap applies to signed-in plans, while an
+        // anonymous demonstration session is limited by expiry instead.
+        canAddSymbols={state.anonymous || entitlements.maxPairsPerSession === null}
+        busy={bt.busy}
+        error={bt.error}
+        onSelect={actions.switchPair}
+        onAdd={(symbol) => {
+          void actions.addPair(symbol).then((added) => {
+            if (added) setSymbolPickerOpen(false);
+          });
+        }}
       />
       <ConfirmModal
         open={Boolean(pendingConfirmation)}

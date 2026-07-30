@@ -7,6 +7,7 @@ import {
   AlignJustify,
   ArrowUpRight,
   CandlestickChart,
+  ChevronDown,
   Circle,
   Clock,
   Crosshair,
@@ -66,6 +67,7 @@ import {
 } from "lightweight-charts";
 
 import { formatInZone, zoneOffsetLabel } from "@/lib/chart/timezones";
+import { formatTickMark } from "@/lib/chart/tick-marks";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
   TIMEFRAMES,
@@ -125,13 +127,6 @@ function chartTimeMs(time: Time): number {
   return Date.UTC(time.year, time.month - 1, time.day, 12);
 }
 
-const TICK_FORMAT: Intl.DateTimeFormatOptions = {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-};
-
 const CROSSHAIR_FORMAT: Intl.DateTimeFormatOptions = {
   weekday: "long",
   day: "numeric",
@@ -139,6 +134,9 @@ const CROSSHAIR_FORMAT: Intl.DateTimeFormatOptions = {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  // 24-hour, matching the axis. Reading "18:00" on the axis and "06:00 PM" in
+  // the crosshair for the same candle is a needless translation.
+  hour12: false,
 };
 
 interface PriceChartProps {
@@ -195,6 +193,8 @@ interface PriceChartProps {
   onFocus?: () => void;
   /** Instrument name shown at the head of the cell's own toolbar, in a grid. */
   instrumentLabel?: string;
+  /** Opens the symbol picker for this cell. Omitted when the cell owns the header. */
+  onSelectInstrument?: () => void;
   /** Chart preferences, shared by every chart in the workspace. */
   settings: ChartSettings;
   onSettingsChange: (patch: Partial<ChartSettings>) => void;
@@ -483,6 +483,7 @@ export default function PriceChart({
   initialTimeframe,
   onFocus,
   instrumentLabel,
+  onSelectInstrument,
   settings,
   onSettingsChange,
   onSettingsReset,
@@ -1067,7 +1068,8 @@ export default function PriceChart({
         rightOffset: DEFAULT_RIGHT_OFFSET,
         barSpacing: DEFAULT_BAR_SPACING,
         shiftVisibleRangeOnNewBar: false,
-        tickMarkFormatter: (time: Time) => formatInZone(chartTimeMs(time), timeZoneRef.current, TICK_FORMAT),
+        tickMarkFormatter: (time: Time, tickMarkType: number) =>
+          formatTickMark(chartTimeMs(time), tickMarkType, timeZoneRef.current),
       },
       localization: {
         timeFormatter: (time: Time) =>
@@ -1259,7 +1261,10 @@ export default function PriceChart({
     const chart = chartRef.current;
     if (!chart) return;
     chart.applyOptions({
-      timeScale: { tickMarkFormatter: (time: Time) => formatInZone(chartTimeMs(time), settings.timeZone, TICK_FORMAT) },
+      timeScale: {
+        tickMarkFormatter: (time: Time, tickMarkType: number) =>
+          formatTickMark(chartTimeMs(time), tickMarkType, settings.timeZone),
+      },
     });
   }, [settings.timeZone]);
 
@@ -1858,7 +1863,20 @@ export default function PriceChart({
   const chartControls = (
     <div className="flex min-w-0 items-center gap-1" role="toolbar" aria-label="Chart controls">
       {instrumentLabel && (
-        <span className="shrink-0 border-r app-border pr-2 text-xs font-bold">{instrumentLabel}</span>
+        onSelectInstrument ? (
+          <button
+            type="button"
+            onClick={onSelectInstrument}
+            aria-haspopup="dialog"
+            title="Select a symbol"
+            className="mr-1 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border-r app-border pr-2 text-xs font-bold transition-colors hover:text-brand-300"
+          >
+            {instrumentLabel}
+            <ChevronDown size={12} className="app-muted" aria-hidden />
+          </button>
+        ) : (
+          <span className="shrink-0 border-r app-border pr-2 text-xs font-bold">{instrumentLabel}</span>
+        )
       )}
       {/* The timeframe list is the widest thing in the header and the only part
           that may overflow, so it scrolls inside itself. Menus live outside this

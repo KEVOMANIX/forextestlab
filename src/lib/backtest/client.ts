@@ -201,6 +201,29 @@ export async function getPairChart(
   >;
 }
 
+/** Widen a running session's chartable symbols. Returns the new symbol list. */
+export async function addSessionPair(
+  sessionId: string,
+  token: string | null,
+  symbol: string,
+): Promise<{ ok: true; symbols: string[] } | ApiErr> {
+  try {
+    const res = await fetch(`/api/backtest/sessions/${sessionId}/pair`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "x-session-token": token } : {}),
+      },
+      body: JSON.stringify({ symbol }),
+    });
+    return parse<{ ok: true; symbols: string[] }>(res) as Promise<
+      { ok: true; symbols: string[] } | ApiErr
+    >;
+  } catch {
+    return { ok: false, error: "That symbol could not be added to this session." };
+  }
+}
+
 export async function getChartHistory(
   sessionId: string,
   token: string | null,

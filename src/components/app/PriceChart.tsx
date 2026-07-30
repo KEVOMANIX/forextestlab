@@ -262,6 +262,7 @@ const BULL = "#22c3a0";
 const BEAR = "#f4646c";
 const DEFAULT_BAR_SPACING = 10;
 const DEFAULT_RIGHT_OFFSET = 4;
+const LIVE_CANDLE_POSITION = 0.75;
 
 /** Custom "long position" glyph: green target on top, red stop below, up arrow. */
 function LongPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
@@ -1061,10 +1062,21 @@ export default function PriceChart({
     const series = seriesRef.current;
     const container = containerRef.current;
     if (!chart || !scale || !series || !container) return;
-    // `scrollToRealTime()` animates. At fast replay rates each new candle can
-    // restart that animation before it reaches the edge, leaving the live
-    // candle progressively farther behind. Follow mode must move immediately.
-    scale.scrollToPosition(DEFAULT_RIGHT_OFFSET, false);
+    // Keep the live candle around three-quarters across the plot, leaving the
+    // final quarter as forward space. Deriving the offset from the current
+    // logical span preserves each cell's independent zoom level and works at
+    // every layout width. `scrollToRealTime()` is intentionally avoided because
+    // its animation can be restarted by fast replay before reaching the target.
+    const range = scale.getVisibleLogicalRange();
+    if (range) {
+      const visibleBars = Math.max(1, range.to - range.from);
+      scale.scrollToPosition(
+        visibleBars * (1 - LIVE_CANDLE_POSITION),
+        false,
+      );
+    } else {
+      scale.scrollToPosition(DEFAULT_RIGHT_OFFSET, false);
+    }
 
     const latest = displayRef.current.at(-1);
     if (!latest) return;
@@ -1153,11 +1165,19 @@ export default function PriceChart({
     const coordinate = latest
       ? scale.timeToCoordinate(latest.time as UTCTimestamp)
       : null;
+    const plotWidth = scale.width();
     container.dataset.latestCandleVisible = String(
       coordinate != null &&
         coordinate >= 0 &&
-        coordinate <= container.clientWidth,
+        coordinate <= plotWidth,
     );
+    if (coordinate != null && plotWidth > 0) {
+      container.dataset.latestCandlePosition = String(
+        Number(coordinate) / plotWidth,
+      );
+    } else {
+      delete container.dataset.latestCandlePosition;
+    }
   }
 
   function createSeriesPair(type: ChartType) {

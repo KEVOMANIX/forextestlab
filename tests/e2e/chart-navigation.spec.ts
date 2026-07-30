@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 test("1m and 1D charts pan and zoom independently during replay", async ({
   page,
@@ -238,6 +238,18 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   // Every supported layout must mount all of its cells into the same live
   // replay invariant. Changing layout during playback must not restore a saved
   // viewport or leave a newly mounted cell behind.
+  const expectLivePosition = async (chart: Locator) => {
+    await expect
+      .poll(async () =>
+        Number(await chart.getAttribute("data-latest-candle-position")),
+      )
+      .toBeGreaterThan(0.7);
+    await expect
+      .poll(async () =>
+        Number(await chart.getAttribute("data-latest-candle-position")),
+      )
+      .toBeLessThan(0.8);
+  };
   const assertLiveLayout = async (name: RegExp, count: number) => {
     await page.getByRole("button", { name: "Chart layout" }).click();
     await page
@@ -255,6 +267,7 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
         "data-latest-candle-visible",
         "true",
       );
+      await expectLivePosition(chart);
     }
   };
   await assertLiveLayout(/^Two rows$/, 2);

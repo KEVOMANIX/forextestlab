@@ -45,7 +45,7 @@ import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
 import { SymbolPickerModal } from "./SymbolPickerModal";
-import { TimeZoneClock } from "./TimeZoneClock";
+import { TimeZonePicker } from "./TimeZonePicker";
 import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 
@@ -707,7 +707,7 @@ export function Backtester({
               />
             }
             axisCorner={
-              <TimeZoneClock
+              <TimeZonePicker
                 zone={workspace.settings.timeZone}
                 theme={theme}
                 onChange={(timeZone) => workspace.updateSettings({ timeZone })}

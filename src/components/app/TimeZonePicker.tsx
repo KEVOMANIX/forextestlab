@@ -2,23 +2,23 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Clock } from "lucide-react";
+import { Check, ChevronDown, Globe } from "lucide-react";
 
-import { formatInZone, zoneOffsetLabel, zoneOptionsAt } from "@/lib/chart/timezones";
+import { zoneOffsetLabel, zoneOptionsAt } from "@/lib/chart/timezones";
 
 /**
- * The workspace clock, and the time-zone picker it opens.
+ * The zone every chart is read in, and the picker for changing it.
  *
- * This one runs on real time — it is the "what time is it right now" clock, and
- * the place the chart's zone is chosen. Simulated time has its own readout in
- * the account strip. Picking a zone here re-labels every chart's axis and
- * crosshair, and both clocks, together.
+ * It shows the offset alone. A wall clock is the least relevant time on a
+ * historical replay — the trader cares what time it is *in the session*, and
+ * that readout lives in the account strip. Picking a zone here re-labels every
+ * chart's axis and crosshair, and the session clock, together.
  */
 
 const PANEL_WIDTH = 208;
 const PANEL_MAX_HEIGHT = 440;
 
-export function TimeZoneClock({
+export function TimeZonePicker({
   zone,
   theme,
   onChange,
@@ -27,10 +27,16 @@ export function TimeZoneClock({
   theme: "dark" | "light";
   onChange: (zone: string) => void;
 }) {
+  /**
+   * Moment the offsets are resolved against. An offset only changes when a zone
+   * crosses a daylight-saving boundary, so this ticks once a minute rather than
+   * once a second — a 1 Hz re-render over a chart mid-replay bought nothing once
+   * the time itself stopped being displayed.
+   */
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    const tick = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(tick);
   }, []);
 
@@ -77,12 +83,6 @@ export function TimeZoneClock({
     );
   }, [allOptions, query]);
 
-  const clock = formatInZone(now, zone, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  });
   const offset = zoneOffsetLabel(zone, reference);
 
   return (
@@ -90,14 +90,14 @@ export function TimeZoneClock({
       <button
         ref={buttonRef}
         type="button"
-        data-testid="chart-clock"
-        aria-label={`Time zone: ${offset}`}
+        data-testid="chart-timezone"
+        aria-label={`Chart time zone: ${offset}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="Change the time zone used across the charts"
+        title="Change the time zone every chart is read in"
         onClick={() => {
           const box = buttonRef.current?.getBoundingClientRect();
-          // Anchored by its right edge: the clock sits at the right of the axis,
+          // Anchored by its right edge: this sits at the right end of the axis,
           // so a list growing rightwards would run off the chart.
           if (box) setAnchor({ x: box.right, y: box.top });
           setQuery("");
@@ -113,10 +113,8 @@ export function TimeZoneClock({
             : "app-border text-[var(--app-text)] hover:border-brand-400/40"
         }`}
       >
-        <Clock size={11} aria-hidden className="shrink-0 app-muted" />
-        {/* Tabular figures: without them the width jitters every second. */}
-        <span className="font-mono text-[11px] font-semibold tabular-nums">{clock}</span>
-        <span className="font-mono text-[10px] font-medium app-muted">{offset}</span>
+        <Globe size={12} aria-hidden className="shrink-0 app-muted" />
+        <span className="font-mono text-[11px] font-semibold">{offset}</span>
         <ChevronDown
           size={11}
           aria-hidden

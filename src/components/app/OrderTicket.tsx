@@ -192,7 +192,10 @@ export function OrderTicket({
 
   function clampPosition(x: number, y: number) {
     const panel = panelRef.current;
-    const parent = panel?.parentElement;
+    // `offsetParent`, not `parentElement`: the panel's left/top resolve against
+    // its nearest positioned ancestor — the chart-sized overlay — while its DOM
+    // parent is the legend row the collapsed strip flows in.
+    const parent = panel?.offsetParent as HTMLElement | null;
     if (!panel || !parent) return { x, y };
     const padding = 8;
     return {
@@ -252,7 +255,7 @@ export function OrderTicket({
     if (event.button !== 0) return;
     if ((event.target as HTMLElement).closest("button")) return;
     const panel = panelRef.current;
-    const parent = panel?.parentElement;
+    const parent = panel?.offsetParent as HTMLElement | null;
     if (!panel || !parent) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -274,7 +277,7 @@ export function OrderTicket({
   function movePanel(event: ReactPointerEvent<HTMLElement>) {
     const drag = dragRef.current;
     const panel = panelRef.current;
-    const parent = panel?.parentElement;
+    const parent = panel?.offsetParent as HTMLElement | null;
     if (!drag || drag.pointerId !== event.pointerId || !parent) return;
     const bounds = parent.getBoundingClientRect();
     setPanelPosition(
@@ -305,15 +308,14 @@ export function OrderTicket({
 
   if (!panelOpen) {
     return (
-      <div
-        // `left-14` clears the chart's drawing rail; `top-9` seats the strip
-        // under the legend's instrument row, which names the symbol — so this no
-        // longer repeats it.
-        className="pointer-events-auto absolute left-14 top-9 flex items-center gap-1 rounded-lg border border-[var(--ticket-border)] bg-[var(--ticket-bg)]/95 p-1 shadow-xl backdrop-blur"
-        aria-label="Quick order planner"
-      >
+      // Sits inline in the chart legend's first row, which already carries the
+      // card, so this contributes buttons rather than a second panel.
+      <div className="flex items-center gap-1" aria-label="Quick order planner">
         {oneClickTrading && (
-          <span className="rounded bg-amber-400/15 px-1.5 py-1 text-[8px] font-bold uppercase tracking-wide text-amber-300">
+          <span
+            title="One-click trading: a quote button places the order immediately"
+            className="rounded border border-amber-400/40 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300"
+          >
             1-click
           </span>
         )}
@@ -651,12 +653,12 @@ function CompactQuoteButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={`${long ? "Buy" : "Sell"} plan at ${price}`}
-      className={`flex h-9 min-w-[92px] flex-col items-center justify-center rounded-md px-3 text-[11px] font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`flex h-8 min-w-[88px] flex-col items-center justify-center gap-0.5 rounded-md px-3 text-[10px] font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
         long ? LONG_SOLID : SHORT_SOLID
       }`}
     >
       <span>{long ? "Buy" : "Sell"}</span>
-      <span className="mt-1 font-mono text-[11px] font-semibold">{price}</span>
+      <span className="font-mono text-[11px] font-semibold">{price}</span>
     </button>
   );
 }

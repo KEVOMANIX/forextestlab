@@ -2166,13 +2166,6 @@ export default function PriceChart({
           </div>
         )}
 
-        {/* Buy/Sell order ticket floated at the chart's top-left, TradingView-style. */}
-        {orderTicket && (
-          <div className="pointer-events-none absolute inset-0 z-30">
-            {orderTicket}
-          </div>
-        )}
-
         {/*
           Seated in the blank corner cell below the price scale, and kept inside
           that column: the crosshair's date tooltip travels the full width of the
@@ -2190,93 +2183,104 @@ export default function PriceChart({
         )}
 
         {/*
-          Chart legend, stacked down the top-left corner: the instrument (which
-          opens the symbol picker), then the quote strip, then the hovered bar's
-          values. The instrument lives here rather than in the terminal header
-          because it belongs to the chart it labels — in a split layout each cell
-          names its own.
+          Chart legend: two rows in the top-left corner.
+
+          Row one is the chart's identity and its dealing prices — instrument
+          (which opens the symbol picker), display timeframe, and the quote strip
+          rendered inline so it reads as one bar rather than a second panel. Row
+          two is the bar under the crosshair.
+
+          The rows are a flow column inside a chart-sized overlay, not absolutely
+          placed at hand-computed offsets, so adding or removing a row cannot
+          leave two of them overlapping. The overlay stays the positioned ancestor
+          so the order ticket's expanded panel still centres and drags against the
+          whole chart.
         */}
-        <div
-          className="pointer-events-auto absolute left-14 top-2 z-20 flex items-center gap-1 rounded-md border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-lg"
-          data-testid="chart-legend"
-        >
-          {onSelectInstrument ? (
-            <button
-              type="button"
-              data-testid="symbol-picker-trigger"
-              onClick={onSelectInstrument}
-              aria-haspopup="dialog"
-              aria-label={`${symbolLabel}. Select a symbol`}
-              title="Select a symbol"
-              className="inline-flex h-6 items-center gap-1.5 rounded px-1.5 font-mono text-xs font-bold transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-accent-text)]"
+        <div className="pointer-events-none absolute inset-0 z-30">
+          <div className="flex w-fit flex-col items-start gap-1 pl-14 pt-2">
+            <div
+              className="pointer-events-auto flex items-center gap-1 rounded-lg border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-lg"
+              data-testid="chart-legend"
             >
-              {symbolLabel}
-              <ChevronDown size={12} className="app-muted" aria-hidden />
-            </button>
-          ) : (
-            <span className="px-1.5 font-mono text-xs font-bold">{symbolLabel}</span>
-          )}
-          <span className="h-4 w-px bg-[var(--app-border)]" aria-hidden />
-          <span className="px-1 font-mono text-[11px] font-semibold app-muted">
-            {displayTimeframe}
-          </span>
-          {referenceOnly && (
-            <span
-              title="Reference chart: orders follow the session's traded instrument"
-              className="rounded bg-amber-400/15 px-1 text-[10px] font-bold uppercase text-amber-300"
-            >
-              Ref
-            </span>
-          )}
-        </div>
-
-        {legend && (
-          <div
-            className="pointer-events-none absolute left-14 z-10 flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-1 font-mono text-[10px] shadow"
-            style={{ top: orderTicket ? 78 : 36 }}
-          >
-            <span className="app-muted">
-              {formatInZone(legend.at, settings.timeZone, LEGEND_DATE_FORMAT)}
-            </span>
-            <span className="h-3 w-px bg-[var(--app-border)]" aria-hidden />
-            {legend.kind === "ohlc" ? (
-              <>
-                <span className="app-muted">
-                  O <span className="text-[var(--app-text)]">{legend.o.toFixed(precision)}</span>
-                </span>
-                <span className="app-muted">
-                  H <span className="text-[var(--app-text)]">{legend.h.toFixed(precision)}</span>
-                </span>
-                <span className="app-muted">
-                  L <span className="text-[var(--app-text)]">{legend.l.toFixed(precision)}</span>
-                </span>
-                <span className="app-muted">
-                  C <span className="text-[var(--app-text)]">{legend.c.toFixed(precision)}</span>
-                </span>
-                {legend.volume != null && (
-                  <span className="app-muted">
-                    V <span className="text-[var(--app-text)]">{formatVolume(legend.volume)}</span>
-                  </span>
-                )}
-                {legendChange != null && (
-                  <span className={legendChange >= 0 ? "text-[var(--app-accent-text)]" : "text-bear"}>
-                    {legendChange >= 0 ? "+" : ""}
-                    {(legendChange / pipSize).toFixed(1)}p
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="app-muted">
-                Price <span className="text-[var(--app-text)]">{legend.value.toFixed(precision)}</span>
+              {onSelectInstrument ? (
+                <button
+                  type="button"
+                  data-testid="symbol-picker-trigger"
+                  onClick={onSelectInstrument}
+                  aria-haspopup="dialog"
+                  aria-label={`${symbolLabel}. Select a symbol`}
+                  title="Select a symbol"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-mono text-xs font-bold transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-accent-text)]"
+                >
+                  {symbolLabel}
+                  <ChevronDown size={12} className="app-muted" aria-hidden />
+                </button>
+              ) : (
+                <span className="px-2 font-mono text-xs font-bold">{symbolLabel}</span>
+              )}
+              <span className="font-mono text-[11px] font-semibold app-muted">
+                {displayTimeframe}
               </span>
-            )}
-          </div>
-        )}
+              {referenceOnly && (
+                <span
+                  title="Reference chart: orders follow the session's traded instrument"
+                  className="rounded bg-amber-400/15 px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300"
+                >
+                  Ref
+                </span>
+              )}
+              {orderTicket && (
+                <>
+                  <span className="mx-0.5 h-6 w-px bg-[var(--app-border)]" aria-hidden />
+                  {orderTicket}
+                </>
+              )}
+            </div>
 
-        {/* Price-pane indicator legend — hover a row for settings / hide / remove. */}
-        {pricePaneIndicators.length > 0 && (
-          <div className="absolute left-14 z-10 flex flex-col items-start gap-0.5" style={{ top: orderTicket ? 104 : 62 }}>
-            {pricePaneIndicators.map((inst) => {
+            {legend && (
+              <div className="pointer-events-auto flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-1 font-mono text-[10px] shadow">
+                <span className="app-muted">
+                  {formatInZone(legend.at, settings.timeZone, LEGEND_DATE_FORMAT)}
+                </span>
+                <span className="h-3 w-px bg-[var(--app-border)]" aria-hidden />
+                {legend.kind === "ohlc" ? (
+                  <>
+                    <span className="app-muted">
+                      O <span className="text-[var(--app-text)]">{legend.o.toFixed(precision)}</span>
+                    </span>
+                    <span className="app-muted">
+                      H <span className="text-[var(--app-text)]">{legend.h.toFixed(precision)}</span>
+                    </span>
+                    <span className="app-muted">
+                      L <span className="text-[var(--app-text)]">{legend.l.toFixed(precision)}</span>
+                    </span>
+                    <span className="app-muted">
+                      C <span className="text-[var(--app-text)]">{legend.c.toFixed(precision)}</span>
+                    </span>
+                    {legend.volume != null && (
+                      <span className="app-muted">
+                        V <span className="text-[var(--app-text)]">{formatVolume(legend.volume)}</span>
+                      </span>
+                    )}
+                    {legendChange != null && (
+                      <span className={legendChange >= 0 ? "text-[var(--app-accent-text)]" : "text-bear"}>
+                        {legendChange >= 0 ? "+" : ""}
+                        {(legendChange / pipSize).toFixed(1)}p
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="app-muted">
+                    Price <span className="text-[var(--app-text)]">{legend.value.toFixed(precision)}</span>
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Indicator labels continue the same column, so they never collide. */}
+            {pricePaneIndicators.length > 0 && (
+              <div className="pointer-events-auto flex flex-col items-start gap-0.5">
+                {pricePaneIndicators.map((inst) => {
               const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#5b8bff";
               return (
                 <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur">
@@ -2292,10 +2296,12 @@ export default function PriceChart({
                     <Trash2 size={12} />
                   </button>
                 </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* In-pane oscillator labels — floated at the top-left of each native pane. */}
         {ownPaneIndicators.map((inst, i) => {

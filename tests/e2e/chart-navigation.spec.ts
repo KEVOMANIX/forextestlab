@@ -308,6 +308,18 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
       Number(await dailyChart.getAttribute("data-latest-candle-position")),
     )
     .toBeLessThan(0.7);
+  const anchoredPosition = Number(
+    await dailyChart.getAttribute("data-latest-candle-position"),
+  );
+  await page.waitForTimeout(750);
+  await expect
+    .poll(async () =>
+      Math.abs(
+        Number(await dailyChart.getAttribute("data-latest-candle-position")) -
+          anchoredPosition,
+      ),
+    )
+    .toBeLessThan(0.03);
 
   const box = await firstChart.boundingBox();
   expect(box).not.toBeNull();

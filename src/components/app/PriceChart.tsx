@@ -595,6 +595,7 @@ export default function PriceChart({
   /** Something on this chart is positioned in React from the viewport. */
   const viewportOverlaysRef = useRef(false);
   const followLatestRef = useRef(true);
+  const liveCandlePositionRef = useRef(LIVE_CANDLE_POSITION);
   const replayWasRunningRef = useRef(false);
   const replayRunningRef = useRef(replayRunning);
   replayRunningRef.current = replayRunning;
@@ -1083,19 +1084,22 @@ export default function PriceChart({
       ? scale.timeToCoordinate(latest.time as UTCTimestamp)
       : null;
     const plotWidth = scale.width();
-    const boundary = plotWidth * LIVE_CANDLE_POSITION;
-    // The 75% point is a one-way boundary, not a viewport lock. During replay
-    // the trader may pan the content left, putting the live candle anywhere
-    // between the left edge and this marker. We only catch up when the candle
-    // would cross the marker to the right or disappear off-screen.
+    if (forceToBoundary) {
+      liveCandlePositionRef.current = LIVE_CANDLE_POSITION;
+    }
+    const targetPosition = liveCandlePositionRef.current;
+    const targetCoordinate = plotWidth * targetPosition;
+    const interaction = viewportInteractionRef.current;
+    // Do not fight an in-progress gesture. Once it ends, its live-candle
+    // position becomes the cell's persistent replay anchor.
     const mustCatchUp =
-      forceToBoundary ||
-      latestCoordinate == null ||
-      Number(latestCoordinate) < 0 ||
-      Number(latestCoordinate) > boundary;
+      !interaction.active &&
+      (forceToBoundary ||
+        latestCoordinate == null ||
+        Math.abs(Number(latestCoordinate) - targetCoordinate) > 1);
     if (mustCatchUp && range && latestIndex != null) {
       const visibleBars = Math.max(1, range.to - range.from);
-      const from = Number(latestIndex) - visibleBars * LIVE_CANDLE_POSITION;
+      const from = Number(latestIndex) - visibleBars * targetPosition;
       scale.setVisibleLogicalRange({ from, to: from + visibleBars });
     } else if (mustCatchUp) {
       scale.scrollToPosition(DEFAULT_RIGHT_OFFSET, false);
@@ -1162,6 +1166,26 @@ export default function PriceChart({
       delete container.dataset.followDetachReason;
     } else if (reason) {
       container.dataset.followDetachReason = reason;
+    }
+  }
+
+  function captureLiveCandleAnchor() {
+    if (!replayRunningRef.current) return;
+    const scale = chartRef.current?.timeScale();
+    const latest = displayRef.current.at(-1);
+    const container = containerRef.current;
+    if (!scale || !latest) return;
+    const coordinate = scale.timeToCoordinate(latest.time as UTCTimestamp);
+    const width = scale.width();
+    if (coordinate == null || width <= 0) return;
+    liveCandlePositionRef.current = Math.min(
+      LIVE_CANDLE_POSITION,
+      Math.max(0, Number(coordinate) / width),
+    );
+    if (container) {
+      container.dataset.liveCandleAnchor = String(
+        liveCandlePositionRef.current,
+      );
     }
   }
 
@@ -1433,6 +1457,10 @@ export default function PriceChart({
       }
     };
     const endViewportInteraction = () => {
+      const interaction = viewportInteractionRef.current;
+      if (interaction.active && interaction.moved) {
+        captureLiveCandleAnchor();
+      }
       viewportInteractionRef.current = {
         active: false,
         startX: 0,
@@ -1443,6 +1471,8 @@ export default function PriceChart({
     const beginWheelInteraction = () => {
       if (!replayRunningRef.current) {
         setFollowLatest(false, "manual-interaction");
+      } else {
+        requestAnimationFrame(captureLiveCandleAnchor);
       }
     };
     const focusCell = () => onFocusRef.current?.();

@@ -511,6 +511,7 @@ function ChartCellView({
         lastCandles={reveal.newCandles}
         replaySeries={isSession ? sessionSeries : pair?.candles}
         replaySessionId={state.sessionId}
+        replayRunning={state.status === "running"}
         markers={tradable ? markers : []}
         positions={tradable ? positions : []}
         pendingOrders={tradable ? pendingOrders : []}

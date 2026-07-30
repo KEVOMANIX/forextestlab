@@ -201,10 +201,30 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   await page.getByLabel("Replay step").selectOption("1");
   const speed = page.getByLabel("Replay speed");
   await speed.fill((await speed.getAttribute("max")) ?? "0");
+
+  // A saved/manual viewport in any grid cell must rejoin the live edge when
+  // playback starts. Each cell then remains independently movable.
+  const dailyBox = await dailyChart.boundingBox();
+  expect(dailyBox).not.toBeNull();
+  await page.mouse.move(
+    dailyBox!.x + dailyBox!.width / 2,
+    dailyBox!.y + dailyBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    dailyBox!.x + dailyBox!.width / 2 + Math.min(160, dailyBox!.width / 3),
+    dailyBox!.y + dailyBox!.height / 2,
+    { steps: 6 },
+  );
+  await page.mouse.up();
+  await expect(dailyChart).toHaveAttribute("data-follow-latest", "false");
+
   await page.getByRole("button", { name: "Play replay" }).click();
   await expect(
     page.getByRole("button", { name: "Pause replay" }),
   ).toBeVisible();
+  await expect(firstChart).toHaveAttribute("data-follow-latest", "true");
+  await expect(dailyChart).toHaveAttribute("data-follow-latest", "true");
   const priceAtPlay = await firstChart.getAttribute("data-current-price");
   await page.waitForTimeout(400);
   expect(await firstChart.getAttribute("data-current-price")).not.toBe(
@@ -227,7 +247,7 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     "true",
   );
 
-  // Moving the viewport backward is deliberate history navigation and
+  // Moving the viewport is deliberate history navigation and
   // must detach this cell from live follow without affecting the other cells.
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.down();
@@ -241,7 +261,12 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   await expect(firstChart).toHaveAttribute("data-follow-latest", "false");
   await expect(firstChart).toHaveAttribute(
     "data-follow-detach-reason",
-    "backward-interaction",
+    "manual-interaction",
+  );
+  await expect(dailyChart).toHaveAttribute("data-follow-latest", "true");
+  await expect(dailyChart).toHaveAttribute(
+    "data-latest-candle-visible",
+    "true",
   );
 
   const firstRange = await page.evaluate((id) => {

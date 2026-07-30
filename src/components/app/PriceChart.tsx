@@ -164,6 +164,8 @@ interface PriceChartProps {
   lastCandles: Candle[];
   replaySeries?: Candle[];
   replaySessionId?: string;
+  /** Reattach this cell to the live edge when replay starts or resumes. */
+  replayRunning?: boolean;
   markers: ChartMarker[];
   positions: OpenPosition[];
   pendingOrders: PendingOrder[];
@@ -482,6 +484,7 @@ export default function PriceChart({
   lastCandles,
   replaySeries,
   replaySessionId,
+  replayRunning = false,
   markers,
   positions,
   pendingOrders,
@@ -585,15 +588,13 @@ export default function PriceChart({
   /** Something on this chart is positioned in React from the viewport. */
   const viewportOverlaysRef = useRef(false);
   const followLatestRef = useRef(true);
+  const replayWasRunningRef = useRef(false);
   const viewportInteractionRef = useRef<{
     active: boolean;
-    startTo: number | null;
     startX: number;
     startY: number;
     moved: boolean;
-  }>({ active: false, startTo: null, startX: 0, startY: 0, moved: false });
-  const pointerInteractionTimerRef = useRef<number | null>(null);
-  const wheelInteractionTimerRef = useRef<number | null>(null);
+  }>({ active: false, startX: 0, startY: 0, moved: false });
   const rawCandlesRef = useRef<Candle[]>([...initialCandles]);
   const replaySeriesRef = useRef<Candle[] | undefined>(replaySeries);
   const syncedInitialCandlesRef = useRef<Candle[]>(initialCandles);
@@ -1251,26 +1252,6 @@ export default function PriceChart({
           container.dataset.visibleLogicalSpan = String(visible.to - visible.from);
         }
         updateViewportDiagnostics();
-        const interaction = viewportInteractionRef.current;
-        if (interaction.active && interaction.moved && visible) {
-          const latest = displayRef.current.at(-1);
-          const latestCoordinate = latest
-            ? chart.timeScale().timeToCoordinate(latest.time as UTCTimestamp)
-            : null;
-          const movedBackward =
-            interaction.startTo != null &&
-            visible.to < interaction.startTo - 0.25;
-          const latestIsOutside =
-            latestCoordinate == null ||
-            latestCoordinate < 0 ||
-            latestCoordinate > container.clientWidth;
-          if (movedBackward || latestIsOutside) {
-            setFollowLatest(
-              false,
-              movedBackward ? "backward-interaction" : "latest-outside",
-            );
-          }
-        }
         if (visible && visible.from < 100) loadOlderRef.current();
         if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
@@ -1330,14 +1311,8 @@ export default function PriceChart({
     chart.subscribeCrosshairMove(onCrosshair);
 
     const beginViewportInteraction = (event: PointerEvent) => {
-      if (pointerInteractionTimerRef.current != null) {
-        window.clearTimeout(pointerInteractionTimerRef.current);
-        pointerInteractionTimerRef.current = null;
-      }
-      const range = chart.timeScale().getVisibleLogicalRange();
       viewportInteractionRef.current = {
         active: true,
-        startTo: range?.to ?? null,
         startX: event.clientX,
         startY: event.clientY,
         moved: false,
@@ -1351,56 +1326,29 @@ export default function PriceChart({
         Math.abs(event.clientY - interaction.startY) >= 4
       ) {
         interaction.moved = true;
+        // A genuine drag belongs to this chart cell. Release it immediately so
+        // replay cannot fight the gesture by snapping the viewport back.
+        setFollowLatest(false, "manual-interaction");
       }
     };
     const endViewportInteraction = () => {
       viewportInteractionRef.current = {
         active: false,
-        startTo: null,
         startX: 0,
         startY: 0,
         moved: false,
       };
     };
-    const scheduleEndViewportInteraction = () => {
-      if (pointerInteractionTimerRef.current != null) {
-        window.clearTimeout(pointerInteractionTimerRef.current);
-      }
-      // Lightweight Charts publishes the final logical range on the next
-      // animation frame. Keep the gesture marked active until that callback
-      // has had a chance to classify an actual backward pan.
-      pointerInteractionTimerRef.current = window.setTimeout(() => {
-        pointerInteractionTimerRef.current = null;
-        endViewportInteraction();
-      }, 80);
-    };
-    const beginWheelInteraction = (event: WheelEvent) => {
-      if (!viewportInteractionRef.current.active) {
-        const range = chart.timeScale().getVisibleLogicalRange();
-        viewportInteractionRef.current = {
-          active: true,
-          startTo: range?.to ?? null,
-          startX: event.clientX,
-          startY: event.clientY,
-          moved: true,
-        };
-      } else {
-        viewportInteractionRef.current.moved = true;
-      }
-      if (wheelInteractionTimerRef.current != null) {
-        window.clearTimeout(wheelInteractionTimerRef.current);
-      }
-      wheelInteractionTimerRef.current = window.setTimeout(() => {
-        wheelInteractionTimerRef.current = null;
-        endViewportInteraction();
-      }, 180);
+    const beginWheelInteraction = () => {
+      // Wheel zoom/scroll is also an explicit request to control this cell.
+      setFollowLatest(false, "manual-interaction");
     };
     const focusCell = () => onFocusRef.current?.();
     container.addEventListener("pointerdown", focusCell, true);
     container.addEventListener("pointerdown", beginViewportInteraction, true);
     container.addEventListener("pointermove", markViewportMovement, true);
-    window.addEventListener("pointerup", scheduleEndViewportInteraction, true);
-    window.addEventListener("pointercancel", scheduleEndViewportInteraction, true);
+    window.addEventListener("pointerup", endViewportInteraction, true);
+    window.addEventListener("pointercancel", endViewportInteraction, true);
     container.addEventListener("wheel", beginWheelInteraction, { passive: true });
     container.addEventListener("pointermove", scheduleLineCoordinates, { passive: true });
     const observer = new ResizeObserver(coordinateUpdate);
@@ -1411,18 +1359,10 @@ export default function PriceChart({
       container.removeEventListener("pointerdown", focusCell, true);
       container.removeEventListener("pointerdown", beginViewportInteraction, true);
       container.removeEventListener("pointermove", markViewportMovement, true);
-      window.removeEventListener("pointerup", scheduleEndViewportInteraction, true);
-      window.removeEventListener("pointercancel", scheduleEndViewportInteraction, true);
+      window.removeEventListener("pointerup", endViewportInteraction, true);
+      window.removeEventListener("pointercancel", endViewportInteraction, true);
       container.removeEventListener("wheel", beginWheelInteraction);
       container.removeEventListener("pointermove", scheduleLineCoordinates);
-      if (pointerInteractionTimerRef.current != null) {
-        window.clearTimeout(pointerInteractionTimerRef.current);
-        pointerInteractionTimerRef.current = null;
-      }
-      if (wheelInteractionTimerRef.current != null) {
-        window.clearTimeout(wheelInteractionTimerRef.current);
-        wheelInteractionTimerRef.current = null;
-      }
       if (lineCoordRafRef.current != null) cancelAnimationFrame(lineCoordRafRef.current);
       if (rangeSaveTimerRef.current != null) window.clearTimeout(rangeSaveTimerRef.current);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(coordinateUpdate);
@@ -1575,6 +1515,20 @@ export default function PriceChart({
     if (appended) scheduleRender();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replaySeries]);
+
+  useEffect(() => {
+    const started = replayRunning && !replayWasRunningRef.current;
+    replayWasRunningRef.current = replayRunning;
+    if (!started) return;
+
+    // Playback is a workspace-wide live event, so every chart cell rejoins its
+    // own latest edge when Play is pressed. A later pan/zoom releases only the
+    // interacted cell; no cross-chart viewport synchronization is introduced.
+    setFollowLatest(true);
+    const frame = requestAnimationFrame(keepLatestPriceVisible);
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replayRunning]);
 
   useEffect(() => {
     if (!replaySessionId) return;

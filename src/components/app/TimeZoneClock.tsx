@@ -97,17 +97,19 @@ export function TimeZoneClock({
         title="Change the time zone used across the charts"
         onClick={() => {
           const box = buttonRef.current?.getBoundingClientRect();
-          if (box) setAnchor({ x: box.left + PANEL_WIDTH, y: box.top });
+          // Anchored by its right edge: the clock sits at the right of the axis,
+          // so a list growing rightwards would run off the chart.
+          if (box) setAnchor({ x: box.right, y: box.top });
           setQuery("");
           setOpen((value) => !value);
         }}
-        // Left end of the time axis, not the right: the support bubble is pinned
-        // to the bottom-right corner of the viewport and would swallow the click.
-        // A backdrop, because this sits on the axis strip over the tick labels.
-        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 transition-colors ${
+        // Seated in the corner where the time axis meets the price scale. It
+        // covers part of the axis strip, so the background is opaque rather than
+        // letting tick labels and candles read through it.
+        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 shadow-sm transition-colors ${
           open
-            ? "border-brand-400/40 bg-brand-400/10 text-brand-300"
-            : "app-border bg-[var(--app-panel-2)] app-muted hover:border-brand-400/25 hover:text-[var(--app-text)]"
+            ? "border-brand-400/50 bg-[var(--app-panel-solid)] text-[var(--app-accent-text)]"
+            : "app-border bg-[var(--app-panel-solid)] app-muted hover:border-brand-400/35 hover:text-[var(--app-text)]"
         }`}
       >
         <Clock size={12} aria-hidden className="shrink-0 opacity-60" />

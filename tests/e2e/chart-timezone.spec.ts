@@ -72,7 +72,8 @@ test("one clock serves the workspace, and the session clock agrees with it", asy
   await page.getByRole("button", { name: /Two columns/i }).click();
   await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(2);
 
-  // The clock lives on the status bar, so a layout has one of them, not one per pane.
+  // The zone belongs to the workspace, so the clock sits in the focused chart's
+  // axis corner — one of them per layout, not one per pane.
   const clock = page.getByTestId("chart-clock");
   await expect(clock).toHaveCount(1);
 

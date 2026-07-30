@@ -8,7 +8,6 @@ import { computeStatistics } from "@/lib/backtest/statistics";
 import type { PublicSessionState, TradeJournalUpdate } from "@/lib/backtest/types";
 import { AccountSummary } from "./AccountSummary";
 import { SessionClock } from "./SessionClock";
-import { TimeZoneClock } from "./TimeZoneClock";
 import { StatsGrid } from "./StatsGrid";
 import { TradesTable } from "./TradesTable";
 import { TradeJournalEditor } from "./TradeJournalEditor";
@@ -29,8 +28,6 @@ interface BottomPanelProps {
   currentTime?: number | null;
   /** Zone the charts are displayed in, so every clock in the app agrees. */
   timeZone: string;
-  onTimeZoneChange: (zone: string) => void;
-  theme: "dark" | "light";
   initialNotes?: string;
   onSaveNotes: (notes: string) => void;
   busy: boolean;
@@ -46,8 +43,6 @@ export function BottomPanel({
   state,
   currentTime = null,
   timeZone,
-  onTimeZoneChange,
-  theme,
   initialNotes = "",
   onSaveNotes,
   busy,
@@ -258,11 +253,6 @@ export function BottomPanel({
         )}
 
         <div className="ml-auto flex h-full shrink-0 items-center">
-          {/* The timezone clock sits in the flow rather than absolutely centred,
-              where it used to collide with the tab row on mid-width screens. */}
-          <div className="hidden h-full items-center border-l app-border px-2 lg:flex">
-            <TimeZoneClock zone={timeZone} theme={theme} onChange={onTimeZoneChange} />
-          </div>
           {/* Balance and equity matter on every screen size, so the read-out is
               always mounted and drops metrics by breakpoint instead of vanishing. */}
           <div className="flex h-full border-l app-border">

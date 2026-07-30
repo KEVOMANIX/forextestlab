@@ -206,6 +206,11 @@ interface PriceChartProps {
   headerSlot?: HTMLElement | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
   orderTicket?: React.ReactNode;
+  /**
+   * Control seated in the corner where the time axis meets the price scale —
+   * the chart's clock and time-zone picker.
+   */
+  axisCorner?: React.ReactNode;
 }
 
 interface Palette {
@@ -491,6 +496,7 @@ export default function PriceChart({
   onToggleFavorite,
   headerSlot = null,
   orderTicket = null,
+  axisCorner = null,
 }: PriceChartProps) {
   // Drawings belong to the instrument; the rest of the view belongs to the cell.
   const viewStorageKey = viewKey ?? storageKey;
@@ -1853,6 +1859,34 @@ export default function PriceChart({
     }
   }, [indicators, viewVersion, seriesEpoch]);
 
+  /**
+   * Width of the price scale, so the axis-corner control can be seated exactly
+   * against its inner edge. It is measured rather than assumed: the scale is as
+   * wide as its widest price label, which differs between a 5-decimal FX pair
+   * and a 2-decimal crypto quote.
+   */
+  const [priceScaleWidth, setPriceScaleWidth] = useState(64);
+  useEffect(() => {
+    if (!axisCorner) return;
+    const measure = () => {
+      try {
+        const width = chartRef.current?.priceScale("right").width();
+        if (typeof width === "number" && width > 0) setPriceScaleWidth(width);
+      } catch {
+        // Keep the last known width; the chart is mid-teardown.
+      }
+    };
+    measure();
+    const frame = requestAnimationFrame(measure);
+    const container = containerRef.current;
+    const observer = container ? new ResizeObserver(measure) : null;
+    observer?.observe(container!);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [axisCorner, viewVersion, seriesEpoch]);
+
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
   // reach them — use an explicit solid colour keyed to the theme.
@@ -2071,6 +2105,22 @@ export default function PriceChart({
         {orderTicket && (
           <div className="pointer-events-none absolute inset-0 z-30">
             {orderTicket}
+          </div>
+        )}
+
+        {/*
+          The clock sits in the corner where the two scales meet, reading as part
+          of the axis it labels. Right-aligned to the price scale's inner edge so
+          it never straddles the scale.
+        */}
+        {axisCorner && (
+          <div
+            // Hidden on phone widths, where the docked replay controls already
+            // occupy the bottom of the chart.
+            className="pointer-events-none absolute bottom-0 z-20 hidden h-7 items-center pr-1.5 md:flex"
+            style={{ right: priceScaleWidth }}
+          >
+            <div className="pointer-events-auto">{axisCorner}</div>
           </div>
         )}
 

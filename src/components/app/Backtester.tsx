@@ -45,6 +45,7 @@ import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
 import { SymbolPickerModal } from "./SymbolPickerModal";
+import { TimeZoneClock } from "./TimeZoneClock";
 import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 
@@ -705,6 +706,13 @@ export function Backtester({
                 }
               />
             }
+            axisCorner={
+              <TimeZoneClock
+                zone={workspace.settings.timeZone}
+                theme={theme}
+                onChange={(timeZone) => workspace.updateSettings({ timeZone })}
+              />
+            }
           />
           <ReplayToolbar
             key={`replay-toolbar-${workspace.revision}`}
@@ -741,8 +749,6 @@ export function Backtester({
         state={state}
         currentTime={state.currentTime ?? bt.lastCandle?.timestamp ?? null}
         timeZone={workspace.settings.timeZone}
-        onTimeZoneChange={(timeZone) => workspace.updateSettings({ timeZone })}
-        theme={theme}
         initialNotes={bt.notes}
         onSaveNotes={actions.saveNotes}
         busy={bt.busy}

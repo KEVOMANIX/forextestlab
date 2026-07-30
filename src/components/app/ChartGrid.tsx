@@ -128,6 +128,8 @@ interface ChartGridProps {
   /** Dedicated far-right header target for the layout picker. */
   layoutSlot?: HTMLElement | null;
   orderTicket?: React.ReactNode;
+  /** Clock and time-zone picker, seated in the focused chart's axis corner. */
+  axisCorner?: React.ReactNode;
   /** Focused cell's symbol, so the top bar's pair picker stays in step. */
   focusedSymbol: string;
   onFocusedSymbolChange: (symbol: string) => void;
@@ -166,6 +168,7 @@ export default function ChartGrid({
   headerSlot = null,
   layoutSlot = null,
   orderTicket = null,
+  axisCorner = null,
   focusedSymbol,
   onFocusedSymbolChange,
   workspace,
@@ -390,6 +393,8 @@ export default function ChartGrid({
                 onFocus={() => focusCell(cell.id)}
                 headerSlot={!multi && isFocused ? headerSlot : null}
                 orderTicket={isSession && isFocused ? orderTicket : null}
+                // One clock for the workspace, on the chart being driven.
+                axisCorner={isFocused ? axisCorner : null}
                 onSelectInstrument={
                   multi
                     ? () => {
@@ -447,6 +452,7 @@ interface ChartCellViewProps {
   onFocus: () => void;
   headerSlot: HTMLElement | null;
   orderTicket: React.ReactNode;
+  axisCorner: React.ReactNode;
   workspace: ChartWorkspace;
   onSelectInstrument: (() => void) | undefined;
 }
@@ -482,6 +488,7 @@ function ChartCellView({
   onFocus,
   headerSlot,
   orderTicket,
+  axisCorner,
   workspace,
   onSelectInstrument,
 }: ChartCellViewProps) {
@@ -539,6 +546,7 @@ function ChartCellView({
         initialTimeframe={cell.timeframe ?? undefined}
         headerSlot={headerSlot}
         orderTicket={orderTicket}
+        axisCorner={axisCorner}
         instrumentLabel={multi ? `${cell.symbol}${tradable ? "" : " · reference"}` : undefined}
         onSelectInstrument={onSelectInstrument}
         settings={workspace.settings}

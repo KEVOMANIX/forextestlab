@@ -1859,33 +1859,6 @@ export default function PriceChart({
     }
   }, [indicators, viewVersion, seriesEpoch]);
 
-  /**
-   * Width of the price scale, so the axis-corner control can be seated exactly
-   * against its inner edge. It is measured rather than assumed: the scale is as
-   * wide as its widest price label, which differs between a 5-decimal FX pair
-   * and a 2-decimal crypto quote.
-   */
-  const [priceScaleWidth, setPriceScaleWidth] = useState(64);
-  useEffect(() => {
-    if (!axisCorner) return;
-    const measure = () => {
-      try {
-        const width = chartRef.current?.priceScale("right").width();
-        if (typeof width === "number" && width > 0) setPriceScaleWidth(width);
-      } catch {
-        // Keep the last known width; the chart is mid-teardown.
-      }
-    };
-    measure();
-    const frame = requestAnimationFrame(measure);
-    const container = containerRef.current;
-    const observer = container ? new ResizeObserver(measure) : null;
-    observer?.observe(container!);
-    return () => {
-      cancelAnimationFrame(frame);
-      observer?.disconnect();
-    };
-  }, [axisCorner, viewVersion, seriesEpoch]);
 
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
@@ -2109,17 +2082,13 @@ export default function PriceChart({
         )}
 
         {/*
-          The clock sits in the corner where the two scales meet, reading as part
-          of the axis it labels. Right-aligned to the price scale's inner edge so
-          it never straddles the scale.
+          The clock is seated in the corner cell where the time axis meets the
+          price scale, flush to both edges so it spans the junction rather than
+          floating inside the plot. Hidden on phone widths, where the docked
+          replay controls already occupy the bottom of the chart.
         */}
         {axisCorner && (
-          <div
-            // Hidden on phone widths, where the docked replay controls already
-            // occupy the bottom of the chart.
-            className="pointer-events-none absolute bottom-0 z-20 hidden h-7 items-center pr-1.5 md:flex"
-            style={{ right: priceScaleWidth }}
-          >
+          <div className="pointer-events-none absolute bottom-0 right-0 z-20 hidden items-end md:flex">
             <div className="pointer-events-auto">{axisCorner}</div>
           </div>
         )}
@@ -2497,7 +2466,13 @@ export default function PriceChart({
           return createPortal(
             <div
               className="fixed z-[60] w-44 rounded-lg border app-border p-1 shadow-xl"
-              style={{ left: menuAnchor.x, top: menuAnchor.y, backgroundColor: solidPanel }}
+              style={{
+                left: menuAnchor.x,
+                top: menuAnchor.y,
+                backgroundColor: solidPanel,
+                // Focus rings punch their gap out of this panel, not the page.
+                "--focus-ring-offset": solidPanel,
+              } as React.CSSProperties}
             >
               {grp.tools.map((t) => {
                 const Icon = DRAW_ICONS[t];

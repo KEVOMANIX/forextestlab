@@ -103,23 +103,24 @@ export function TimeZoneClock({
           setQuery("");
           setOpen((value) => !value);
         }}
-        // Seated in the corner where the time axis meets the price scale. It
-        // covers part of the axis strip, so the background is opaque rather than
-        // letting tick labels and candles read through it.
-        className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 shadow-sm transition-colors ${
+        // Seated into the corner cell the two scales form: flush to the bottom
+        // and right edges, with only the inner corner rounded and only the inner
+        // edges bordered, so it reads as part of the axis furniture rather than a
+        // chip floating on top of it. Opaque, because it covers the axis strip.
+        className={`inline-flex h-[26px] items-center gap-1.5 rounded-tl-md border-l border-t bg-[var(--app-panel-solid)] pl-2 pr-2.5 transition-colors ${
           open
-            ? "border-brand-400/50 bg-[var(--app-panel-solid)] text-[var(--app-accent-text)]"
-            : "app-border bg-[var(--app-panel-solid)] app-muted hover:border-brand-400/35 hover:text-[var(--app-text)]"
+            ? "border-brand-400/60 text-[var(--app-accent-text)]"
+            : "app-border text-[var(--app-text)] hover:border-brand-400/40"
         }`}
       >
-        <Clock size={12} aria-hidden className="shrink-0 opacity-60" />
+        <Clock size={11} aria-hidden className="shrink-0 app-muted" />
         {/* Tabular figures: without them the width jitters every second. */}
         <span className="font-mono text-[11px] font-semibold tabular-nums">{clock}</span>
-        <span className="font-mono text-[10px] opacity-60">{offset}</span>
+        <span className="font-mono text-[10px] font-medium app-muted">{offset}</span>
         <ChevronDown
           size={11}
           aria-hidden
-          className={`shrink-0 opacity-60 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`shrink-0 app-muted transition-transform ${open ? "rotate-180" : ""}`}
         />
       </button>
 
@@ -140,7 +141,11 @@ export function TimeZoneClock({
               backgroundColor: theme === "dark" ? "#111725" : "#ffffff",
               borderColor: theme === "dark" ? "rgba(255,255,255,0.10)" : "#d9e0ec",
               color: theme === "dark" ? "#e6ecf7" : "#0f172a",
-            }}
+              // The focus ring punches its gap out of this panel, not the page
+              // behind it — without this the search field draws a dark halo on
+              // the light theme, since the shell's variable can't reach a portal.
+              "--focus-ring-offset": theme === "dark" ? "#111725" : "#ffffff",
+            } as React.CSSProperties}
           >
             <div className="px-2 pb-1.5 pt-1">
               <input

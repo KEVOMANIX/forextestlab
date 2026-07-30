@@ -153,7 +153,9 @@ export function ChartSettingsMenu({
         backgroundColor: theme === "dark" ? "#111725" : "#ffffff",
         borderColor: theme === "dark" ? "rgba(255,255,255,0.10)" : "#d9e0ec",
         color: theme === "dark" ? "#e6ecf7" : "#0f172a",
-      }}
+        // Focus rings punch their gap out of this panel, not the page behind it.
+        "--focus-ring-offset": theme === "dark" ? "#111725" : "#ffffff",
+      } as React.CSSProperties}
     >
       <Section label="Appearance" />
       <ColorRow

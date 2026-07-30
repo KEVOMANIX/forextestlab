@@ -1080,6 +1080,13 @@ export default function PriceChart({
   }
 
   function setFollowLatest(value: boolean, reason?: string) {
+    // Running replay is the source of truth. Data-chunk replacement, restored
+    // cell preferences, jumps, and gestures must never silently leave a live
+    // chart detached. The user pauses before taking manual viewport control.
+    if (!value && replayRunningRef.current) {
+      value = true;
+      reason = undefined;
+    }
     followLatestRef.current = value;
     const container = containerRef.current;
     if (!container) return;
@@ -1123,6 +1130,11 @@ export default function PriceChart({
     if (saved.timeframe !== displayTimeframeRef.current) return false;
     if (displayRef.current.length === 0) return false;
     savedTimeRangeRef.current = null;
+    if (replayRunningRef.current) {
+      setFollowLatest(true);
+      keepLatestPriceVisible();
+      return true;
+    }
     try {
       setFollowLatest(true);
       scale.setVisibleRange(saved.range);
@@ -1460,6 +1472,10 @@ export default function PriceChart({
       const time = (event as CustomEvent<{ time?: number }>).detail?.time;
       const scale = chartRef.current?.timeScale();
       if (!time || !scale) return;
+      if (replayRunningRef.current) {
+        keepLatestPriceVisible();
+        return;
+      }
       const bucket = Math.floor(candleBucketStart(time, displayTimeframeRef.current) / 1000);
       const index = displayRef.current.findIndex((candle) => Number(candle.time) === bucket);
       if (index < 0) return;
@@ -1582,7 +1598,12 @@ export default function PriceChart({
     const hadData = displayRef.current.length > 0;
     const visibleRange = hadData ? scale?.getVisibleLogicalRange() ?? null : null;
     renderMain(true);
-    if (visibleRange) {
+    if (replayRunningRef.current) {
+      // Extending the replay buffer replaces the source array. Never interpret
+      // that mid-play data swap as a user pan, in any chart cell.
+      setFollowLatest(true);
+      keepLatestPriceVisible();
+    } else if (visibleRange) {
       setFollowLatest(false, "preserved-range");
       scale?.setVisibleLogicalRange(visibleRange);
     } else if (!restoreSavedTimeRange()) {
@@ -1610,7 +1631,11 @@ export default function PriceChart({
     }
     // A stored range that cannot be applied yet stays pending for the effect
     // above, which runs as soon as this cell's candles land.
-    if (!restoreSavedTimeRange() && savedTimeRangeRef.current === null) {
+    if (replayRunningRef.current) {
+      savedTimeRangeRef.current = null;
+      setFollowLatest(true);
+      keepLatestPriceVisible();
+    } else if (!restoreSavedTimeRange() && savedTimeRangeRef.current === null) {
       resetLatestViewport();
     }
     requestAnimationFrame(updateViewportDiagnostics);

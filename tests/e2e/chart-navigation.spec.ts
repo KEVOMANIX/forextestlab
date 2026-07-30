@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("1m and 1D charts pan and zoom independently during replay", async ({
   page,
 }) => {
-  test.setTimeout(45_000);
+  test.setTimeout(60_000);
   const start = Date.UTC(2025, 0, 6, 8);
   const candle = (index: number) => {
     const open = 1.08 + index * 0.00001;
@@ -234,6 +234,34 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     "data-latest-candle-visible",
     "true",
   );
+
+  // Every supported layout must mount all of its cells into the same live
+  // replay invariant. Changing layout during playback must not restore a saved
+  // viewport or leave a newly mounted cell behind.
+  const assertLiveLayout = async (name: RegExp, count: number) => {
+    await page.getByRole("button", { name: "Chart layout" }).click();
+    await page
+      .getByTestId("chart-layout-menu")
+      .getByRole("button", { name })
+      .click();
+    await expect(
+      page.getByRole("img", { name: "Candlestick price chart" }),
+    ).toHaveCount(count);
+    for (const chart of await page
+      .getByRole("img", { name: "Candlestick price chart" })
+      .all()) {
+      await expect(chart).toHaveAttribute("data-follow-latest", "true");
+      await expect(chart).toHaveAttribute(
+        "data-latest-candle-visible",
+        "true",
+      );
+    }
+  };
+  await assertLiveLayout(/^Two rows$/, 2);
+  await assertLiveLayout(/^Main chart with two side charts$/, 3);
+  await assertLiveLayout(/^Four charts$/, 4);
+  await assertLiveLayout(/^Single chart$/, 1);
+  await assertLiveLayout(/^Two columns$/, 2);
 
   const box = await firstChart.boundingBox();
   expect(box).not.toBeNull();

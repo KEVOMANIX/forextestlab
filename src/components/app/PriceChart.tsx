@@ -1063,7 +1063,7 @@ export default function PriceChart({
     });
   }
 
-  function keepLatestPriceVisible() {
+  function keepLatestPriceVisible(forceToBoundary = false) {
     const chart = chartRef.current;
     const scale = chart?.timeScale();
     const series = seriesRef.current;
@@ -1079,11 +1079,25 @@ export default function PriceChart({
     const latestIndex = latest
       ? scale.timeToIndex(latest.time as UTCTimestamp, true)
       : null;
-    if (range && latestIndex != null) {
+    const latestCoordinate = latest
+      ? scale.timeToCoordinate(latest.time as UTCTimestamp)
+      : null;
+    const plotWidth = scale.width();
+    const boundary = plotWidth * LIVE_CANDLE_POSITION;
+    // The 75% point is a one-way boundary, not a viewport lock. During replay
+    // the trader may pan the content left, putting the live candle anywhere
+    // between the left edge and this marker. We only catch up when the candle
+    // would cross the marker to the right or disappear off-screen.
+    const mustCatchUp =
+      forceToBoundary ||
+      latestCoordinate == null ||
+      Number(latestCoordinate) < 0 ||
+      Number(latestCoordinate) > boundary;
+    if (mustCatchUp && range && latestIndex != null) {
       const visibleBars = Math.max(1, range.to - range.from);
       const from = Number(latestIndex) - visibleBars * LIVE_CANDLE_POSITION;
       scale.setVisibleLogicalRange({ from, to: from + visibleBars });
-    } else {
+    } else if (mustCatchUp) {
       scale.scrollToPosition(DEFAULT_RIGHT_OFFSET, false);
     }
 
@@ -1160,7 +1174,7 @@ export default function PriceChart({
       rightOffset: DEFAULT_RIGHT_OFFSET,
     });
     chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
-    keepLatestPriceVisible();
+    keepLatestPriceVisible(true);
   }
 
   /**
@@ -1185,7 +1199,7 @@ export default function PriceChart({
     savedTimeRangeRef.current = null;
     if (replayRunningRef.current) {
       setFollowLatest(true);
-      keepLatestPriceVisible();
+      keepLatestPriceVisible(true);
       return true;
     }
     try {
@@ -1615,11 +1629,11 @@ export default function PriceChart({
     replayWasRunningRef.current = replayRunning;
     if (!started) return;
 
-    // Playback is a workspace-wide live event, so every chart cell rejoins its
-    // own latest edge when Play is pressed. A later pan/zoom releases only the
-    // interacted cell; no cross-chart viewport synchronization is introduced.
+    // Playback is a workspace-wide live event, so every chart cell rejoins the
+    // 75% boundary when Play is pressed. It can then be panned left without
+    // introducing any cross-chart viewport synchronization.
     setFollowLatest(true);
-    const frame = requestAnimationFrame(keepLatestPriceVisible);
+    const frame = requestAnimationFrame(() => keepLatestPriceVisible(true));
     return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replayRunning]);
@@ -1707,7 +1721,7 @@ export default function PriceChart({
     if (replayRunningRef.current) {
       savedTimeRangeRef.current = null;
       setFollowLatest(true);
-      keepLatestPriceVisible();
+      keepLatestPriceVisible(true);
     } else if (!restoreSavedTimeRange() && savedTimeRangeRef.current === null) {
       resetLatestViewport();
     }
@@ -1838,7 +1852,7 @@ export default function PriceChart({
   function goToLatest() {
     setFollowLatest(true);
     chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
-    keepLatestPriceVisible();
+    keepLatestPriceVisible(true);
   }
 
   function selectTimeframe(timeframe: Timeframe) {

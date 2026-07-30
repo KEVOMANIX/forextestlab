@@ -238,17 +238,17 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   // Every supported layout must mount all of its cells into the same live
   // replay invariant. Changing layout during playback must not restore a saved
   // viewport or leave a newly mounted cell behind.
-  const expectLivePosition = async (chart: Locator) => {
+  const expectWithinLiveBoundary = async (chart: Locator) => {
     await expect
       .poll(async () =>
         Number(await chart.getAttribute("data-latest-candle-position")),
       )
-      .toBeGreaterThan(0.7);
+      .toBeGreaterThanOrEqual(0);
     await expect
       .poll(async () =>
         Number(await chart.getAttribute("data-latest-candle-position")),
       )
-      .toBeLessThan(0.8);
+      .toBeLessThanOrEqual(0.8);
   };
   const assertLiveLayout = async (name: RegExp, count: number) => {
     await page.getByRole("button", { name: "Chart layout" }).click();
@@ -267,7 +267,7 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
         "data-latest-candle-visible",
         "true",
       );
-      await expectLivePosition(chart);
+      await expectWithinLiveBoundary(chart);
       await expect(chart).toHaveAttribute("data-forward-scale-points", "200");
     }
     await expect(page.getByTestId("chart-axis-corner")).toHaveCount(1);
@@ -282,6 +282,32 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
   await assertLiveLayout(/^Four charts$/, 4);
   await assertLiveLayout(/^Single chart$/, 1);
   await assertLiveLayout(/^Two columns$/, 2);
+
+  // While replay runs, a cell may be panned left of the 75% live boundary.
+  // It remains in follow mode and the live candle must stay on-screen.
+  const livePanBox = await dailyChart.boundingBox();
+  expect(livePanBox).not.toBeNull();
+  await page.mouse.move(
+    livePanBox!.x + livePanBox!.width / 2,
+    livePanBox!.y + livePanBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    livePanBox!.x + livePanBox!.width / 2 - Math.min(120, livePanBox!.width / 4),
+    livePanBox!.y + livePanBox!.height / 2,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  await expect(dailyChart).toHaveAttribute("data-follow-latest", "true");
+  await expect(dailyChart).toHaveAttribute(
+    "data-latest-candle-visible",
+    "true",
+  );
+  await expect
+    .poll(async () =>
+      Number(await dailyChart.getAttribute("data-latest-candle-position")),
+    )
+    .toBeLessThan(0.7);
 
   const box = await firstChart.boundingBox();
   expect(box).not.toBeNull();
@@ -299,8 +325,8 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     "true",
   );
 
-  // Live replay always owns the viewport. Gestures must not release it until
-  // the user pauses, and the other cells remain independently live.
+  // Panning toward the future must not push the live candle past the 75%
+  // boundary. It catches up without releasing follow or affecting other cells.
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await page.mouse.down();
   await page.mouse.move(
@@ -315,6 +341,7 @@ test("1m and 1D charts pan and zoom independently during replay", async ({
     "data-latest-candle-visible",
     "true",
   );
+  await expectWithinLiveBoundary(firstChart);
 
   await page.getByRole("button", { name: "Pause replay" }).click();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);

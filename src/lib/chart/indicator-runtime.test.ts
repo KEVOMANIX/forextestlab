@@ -180,6 +180,36 @@ describe("drawing during replay", () => {
   });
 });
 
+describe("history-wide calculation", () => {
+  it("plots across the joined history, not only the revealed tail", () => {
+    // The chart hands the runtime loaded history followed by the revealed
+    // candles as one series. A 20-bar average must therefore have a value 25
+    // bars in, not 25 bars after the replay boundary.
+    const { chart, series } = stubChart();
+    const { indicator, inst } = make("sma", chart);
+    const timeline = bars(400);
+    indicator.update(inst, timeline);
+
+    const pushed = series[0]!.setData.mock.calls.at(-1)![0] as { value?: number }[];
+    expect(pushed).toHaveLength(400);
+    const firstWithValue = pushed.findIndex((p) => p.value != null);
+    expect(firstWithValue).toBe(19);
+    expect(pushed.at(-1)!.value).toBeTypeOf("number");
+  });
+
+  it("replaces wholesale when older history is prepended", () => {
+    // Loading an earlier page shifts every index, so the incremental path must
+    // stand down rather than append onto a timeline that no longer matches.
+    const { chart, totals, reset } = stubChart();
+    const { indicator, inst } = make("ema", chart);
+    indicator.update(inst, bars(200, 100));
+
+    reset();
+    indicator.update(inst, bars(300, 0));
+    expect(totals().setData).toBeGreaterThan(0);
+  });
+});
+
 describe("every registered indicator", () => {
   it("initialises, draws and appends without throwing", () => {
     const kinds = [

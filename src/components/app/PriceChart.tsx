@@ -873,7 +873,15 @@ export default function PriceChart({
    * per candle and a full sort — on every replay frame, in every cell, was the
    * single most expensive thing the chart did during playback.
    */
-  function drawingTimelineCached(history: Candle[], display: OHLCV[]): OHLCV[] {
+  /**
+   * Loaded history followed by the revealed replay candles, as one series.
+   *
+   * Used by drawings and by indicators. History is already fetched at the cell's
+   * display timeframe, so the two halves join directly — no re-aggregation, and
+   * the prefix is cached because only the revealed half changes while replay
+   * runs.
+   */
+  function joinedTimelineCached(history: Candle[], display: OHLCV[]): OHLCV[] {
     const boundary = display[0]?.time ?? null;
     const cache = drawingPrefixRef.current;
     if (cache.history !== history || cache.boundary !== boundary) {
@@ -1039,13 +1047,21 @@ export default function PriceChart({
     const previous = displayRef.current;
     displayRef.current = display;
     syncFutureTimeScale(display.at(-1)?.time);
-    // Joining thousands of context candles onto the timeline is only worth doing
-    // for a chart that has drawings on it, or is about to.
+    /*
+     * Indicators are calculated over the loaded history as well as the revealed
+     * candles, so a moving average continues through the bars on screen to the
+     * left instead of restarting at the session boundary — where it would both
+     * leave a long empty stretch and seed itself from the opening bar.
+     *
+     * Joining thousands of candles is only worth doing for a chart that needs
+     * it, so it stays behind these two consumers.
+     */
+    const needsHistory = drawingsActiveRef.current || indicators.length > 0;
+    const timeline = needsHistory
+      ? joinedTimelineCached(historyCandlesRef.current, display)
+      : display;
     if (drawingsActiveRef.current) {
-      drawingCandlesRef.current = drawingTimelineCached(
-        historyCandlesRef.current,
-        display,
-      );
+      drawingCandlesRef.current = timeline;
       drawingEngineRef.current?.setEnv({
         candles: drawingCandlesRef.current,
       });
@@ -1075,7 +1091,7 @@ export default function PriceChart({
       applyData(series, chartTypeRef.current, display);
     }
     syncLivePriceLine();
-    syncIndicators(display);
+    syncIndicators(timeline);
     // `displayCandles` only feeds the Volume Profile overlay; skipping this state
     // update otherwise avoids a full React re-render on every replay tick (which
     // made panning/zooming janky during fast playback).
@@ -1713,7 +1729,11 @@ export default function PriceChart({
 
   // Re-sync indicator controllers (both panes) when the active set changes.
   useEffect(() => {
-    syncIndicators(displayRef.current);
+    syncIndicators(
+      indicators.length > 0
+        ? joinedTimelineCached(historyCandlesRef.current, displayRef.current)
+        : displayRef.current,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators, seriesEpoch]);
 

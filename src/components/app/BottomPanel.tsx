@@ -51,6 +51,8 @@ interface BottomPanelProps {
    * showing still re-expands a panel the trader has since collapsed.
    */
   revealTab?: { tab: BottomPanelTab; nonce: number } | null;
+  /** Opens the prop-firm verdict from the challenge chip in the status bar. */
+  onShowPropFirmVerdict?: () => void;
 }
 
 export function BottomPanel({
@@ -67,6 +69,7 @@ export function BottomPanel({
   onDeleteBookmark,
   onForkSession,
   revealTab = null,
+  onShowPropFirmVerdict,
 }: BottomPanelProps) {
   const [tab, setTab] = useState<Tab>("position");
   const [expanded, setExpanded] = useState(false);
@@ -279,6 +282,7 @@ export function BottomPanel({
           <div className="flex h-full border-l app-border">
             <AccountSummary
               state={state}
+              onShowVerdict={onShowPropFirmVerdict}
               clock={
                 <SessionClock
                   candleTime={currentTime}

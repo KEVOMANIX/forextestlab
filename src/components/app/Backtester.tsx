@@ -14,7 +14,6 @@ import {
 import type { ChartMarker } from "./PriceChart";
 import { BottomPanel, type BottomPanelTab } from "./BottomPanel";
 import { TradeReviewCard } from "./TradeReviewCard";
-import { PropFirmHud } from "./PropFirmHud";
 import { PropFirmVerdict } from "./PropFirmVerdict";
 import {
   buildJournalPrompts,
@@ -767,19 +766,7 @@ export function Backtester({
       )}
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {propFirmRules && state.propFirm && !workspace.settings.distractionFree && (
-            <PropFirmHud
-              rules={propFirmRules}
-              runtime={state.propFirm}
-              startingBalance={state.config.startingBalance}
-              equity={state.equity}
-              peakEquity={state.maxEquity}
-              accountCurrency={state.config.accountCurrency}
-              onShowVerdict={() => setVerdictOpen(true)}
-            />
-          )}
-          <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+        <div className="relative min-w-0 flex-1 overflow-hidden">
           <ChartGrid
             key={`${state.sessionId}-${bt.resetNonce}-${workspace.revision}`}
             state={state}
@@ -892,7 +879,6 @@ export function Backtester({
               }}
             />
           )}
-          </div>
         </div>
 
         {!workspace.settings.distractionFree && <TerminalRightRail
@@ -924,6 +910,7 @@ export function Backtester({
         onCancelPending={requestCancelPending}
         onSaveTradeJournal={actions.saveTradeJournal}
         revealTab={revealPanelTab}
+        onShowPropFirmVerdict={() => setVerdictOpen(true)}
         onAddBookmark={() => void actions.addBookmark()}
         onUpdateBookmark={(id, note) => void actions.updateBookmark(id, note)}
         onDeleteBookmark={(id) => void actions.deleteBookmark(id)}

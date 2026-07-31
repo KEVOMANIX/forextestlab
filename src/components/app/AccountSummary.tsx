@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import { d } from "@/lib/decimal";
+import { BREACH_LABELS, propFirmProgress } from "@/lib/backtest/prop-firm";
 import { DEFAULT_LEVERAGE, marginRequired } from "@/lib/backtest/position-sizing";
 import type { PublicSessionState } from "@/lib/backtest/types";
 
@@ -13,7 +14,17 @@ import type { PublicSessionState } from "@/lib/backtest/types";
  * Realized and unrealized are shown apart because they answer different
  * questions — realized is the record, unrealized is exposure that can still
  * evaporate. Together they equal equity minus the starting balance.
+ *
+ * In a prop-firm session the challenge limits join the same strip, and take
+ * priority over margin and the split P&L. They belong here rather than in a bar
+ * of their own: they are account state, read at the same glance as equity, and
+ * a second bar would cost chart height to say something this strip was already
+ * the right home for. Because space is finite, the breakpoints reorder rather
+ * than simply appending — how close the account is to failing outranks how much
+ * margin is tied up.
  */
+
+const BEAR_TONE = "text-bear";
 
 function money(value: number): string {
   return value.toLocaleString(undefined, {
@@ -58,10 +69,13 @@ export function accountMargin(state: PublicSessionState): number {
 export function AccountSummary({
   state,
   clock = null,
+  onShowVerdict,
 }: {
   state: PublicSessionState;
   /** Session clock, shown ahead of the balances. */
   clock?: React.ReactNode;
+  /** Opens the challenge verdict. Only used in a prop-firm session. */
+  onShowVerdict?: () => void;
 }) {
   const metrics = useMemo(() => {
     const balance = Number(state.balance);
@@ -75,19 +89,99 @@ export function AccountSummary({
     };
   }, [state]);
 
+  const rules = state.config.propFirm;
+  const runtime = state.propFirm;
+  const challenge =
+    rules && runtime
+      ? propFirmProgress({
+          rules,
+          startingBalance: state.config.startingBalance,
+          equity: state.equity,
+          peakEquity: state.maxEquity,
+          runtime,
+        })
+      : null;
+  const breach = runtime?.breach ?? null;
+
   return (
     <dl
       className="flex h-full shrink-0 items-center gap-2.5 px-2 sm:gap-4 sm:px-3 xl:gap-6"
       aria-label="Account summary"
     >
       {clock}
-      <Metric label="Account balance" value={money(metrics.balance)} />
-      <Metric label="Equity" value={money(metrics.equity)} className="hidden md:flex" />
+
+      {challenge && rules && (
+        <>
+          <button
+            type="button"
+            onClick={onShowVerdict}
+            aria-label="Challenge status"
+            className="flex flex-col justify-center gap-0.5 rounded leading-none hover:opacity-80"
+          >
+            <dt className="text-[10px] font-medium app-muted">Phase {challenge.phase}</dt>
+            <dd
+              className={`font-mono text-xs font-semibold ${
+                breach
+                  ? BEAR_TONE
+                  : challenge.status === "passed"
+                    ? "text-brand-300"
+                    : "text-[var(--app-text)]"
+              }`}
+            >
+              {breach ? "Breached" : challenge.status === "passed" ? "Passed" : "Active"}
+            </dd>
+          </button>
+
+          {/*
+            Headroom on a breached account reads as though there is still room to
+            trade. Once the run is over the two limits give way to the rule that
+            ended it; the verdict holds the detail.
+          */}
+          {breach ? (
+            <Metric
+              label="Failed on"
+              value={BREACH_LABELS[breach.rule]}
+              tone={BEAR_TONE}
+            />
+          ) : (
+            <>
+              <Metric
+                label="Daily left"
+                value={money(Number(challenge.dailyRemaining))}
+                tone={limitTone(challenge.dailyUsedRatio)}
+              />
+              <Metric
+                label="Total left"
+                value={money(Number(challenge.totalRemaining))}
+                tone={limitTone(challenge.totalUsedRatio)}
+                className="hidden md:flex"
+              />
+            </>
+          )}
+          <Metric
+            label={`Target ${rules.profitTargetPercent}%`}
+            value={`${challenge.profitPercent >= 0 ? "+" : ""}${challenge.profitPercent.toFixed(2)}%`}
+            tone={challenge.targetMet ? "text-brand-300" : "text-[var(--app-text)]"}
+            className="hidden lg:flex"
+          />
+        </>
+      )}
+
+      <Metric
+        label="Equity"
+        value={money(metrics.equity)}
+        className={challenge ? "hidden md:flex" : "flex"}
+      />
+      <Metric
+        label="Account balance"
+        value={money(metrics.balance)}
+        className={challenge ? "hidden lg:flex" : "flex"}
+      />
       <Metric
         label="Realized PnL"
         value={signedMoney(metrics.realized)}
         tone={toneClass(metrics.realized)}
-        className="hidden lg:flex"
+        className={challenge ? "hidden xl:flex" : "hidden lg:flex"}
       />
       <Metric
         label="Unrealized PnL"
@@ -95,9 +189,20 @@ export function AccountSummary({
         tone={toneClass(metrics.unrealized)}
         className="hidden xl:flex"
       />
-      <Metric label="Account margin" value={money(metrics.margin)} className="hidden 2xl:flex" />
+      <Metric
+        label="Account margin"
+        value={money(metrics.margin)}
+        className="hidden 2xl:flex"
+      />
     </dl>
   );
+}
+
+/** Green with room, amber past half the allowance, red past four fifths. */
+function limitTone(usedRatio: number): string {
+  if (usedRatio >= 0.8) return BEAR_TONE;
+  if (usedRatio >= 0.5) return "text-[var(--app-warn-text)]";
+  return "text-brand-300";
 }
 
 function Metric({

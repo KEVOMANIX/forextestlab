@@ -55,6 +55,14 @@ export interface ChartSettings {
   timeZone: string;
   /** Type size for the axes and the chart's own overlays. */
   chartTextSize: ChartTextSize;
+  /**
+   * Pause replay when a stop or target fills, and offer the trade for review.
+   * Only exits the trader did not choose: closing by hand means they are
+   * already at the keyboard, and pausing there is one more click, not a prompt.
+   */
+  pauseOnTradeClose: boolean;
+  /** Ask why a trade was taken as it opens, before the outcome can colour it. */
+  promptEntryReason: boolean;
 }
 
 export type ChartTextSize = "small" | "medium" | "large";
@@ -90,6 +98,8 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   priceLine: true,
   timeZone: EXCHANGE_ZONE,
   chartTextSize: "medium",
+  pauseOnTradeClose: true,
+  promptEntryReason: true,
 };
 
 /** Palettes people actually use for candles, plus the app default first. */
@@ -300,6 +310,18 @@ export function ChartSettingsDialog({
                   hint="Buy and Sell send a market order immediately, with no confirmation."
                   checked={settings.oneClickTrading}
                   onToggle={() => onChange({ oneClickTrading: !settings.oneClickTrading })}
+                />
+                <ToggleRow
+                  label="Pause to review a closed trade"
+                  hint="When a stop or target fills, pause replay and open the journal card."
+                  checked={settings.pauseOnTradeClose}
+                  onToggle={() => onChange({ pauseOnTradeClose: !settings.pauseOnTradeClose })}
+                />
+                <ToggleRow
+                  label="Ask why, at entry"
+                  hint="Prompts for the reason as a position opens — before the outcome is known. Does not pause."
+                  checked={settings.promptEntryReason}
+                  onToggle={() => onChange({ promptEntryReason: !settings.promptEntryReason })}
                 />
               </div>
             )}

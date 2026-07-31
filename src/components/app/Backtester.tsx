@@ -12,7 +12,15 @@ import {
 } from "react";
 
 import type { ChartMarker } from "./PriceChart";
-import { BottomPanel } from "./BottomPanel";
+import { BottomPanel, type BottomPanelTab } from "./BottomPanel";
+import { TradeReviewCard } from "./TradeReviewCard";
+import {
+  buildJournalPrompts,
+  dismissJournalPrompt,
+  mergeJournalPrompts,
+  EMPTY_JOURNAL_QUEUE,
+  type JournalQueue,
+} from "./journal-queue";
 import { OrderTicket } from "./OrderTicket";
 import { ReplayToolbar } from "./ReplayToolbar";
 import { SessionSetup } from "./SessionSetup";
@@ -51,6 +59,12 @@ import { getSymbolDefinition } from "@/lib/market-data/symbols";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
+/**
+ * Journal prompts are paged, not stacked, so the cap only guards against a
+ * runaway queue — a long unattended run should not hold every trade in memory
+ * waiting to be written up.
+ */
+const MAX_JOURNAL_PROMPTS = 12;
 
 type PendingConfirmation = {
   title: string;
@@ -127,6 +141,32 @@ export function Backtester({
   }>({ sessionId: null, openIds: new Set(), closedCount: 0, pendingStatuses: new Map() });
   const [pendingConfirmation, setPendingConfirmation] =
     useState<PendingConfirmation | null>(null);
+  /**
+   * Trades queued for journalling, and where the card is in that queue.
+   *
+   * A queue rather than one card at a time: at 20 m/s several positions can
+   * close within a few hundred milliseconds, and stacking cards — or pausing
+   * once per trade — would bury the first behind the last. Replay pauses once
+   * and the card pages through what closed.
+   */
+  const [journalQueue, setJournalQueue] = useState<JournalQueue>(EMPTY_JOURNAL_QUEUE);
+  /** "Not this session": a fast run should not have to fight the prompt. */
+  const journalPromptsMutedRef = useRef(false);
+  const journalSettingsRef = useRef({
+    pauseOnTradeClose: workspace.settings.pauseOnTradeClose,
+    promptEntryReason: workspace.settings.promptEntryReason,
+  });
+  journalSettingsRef.current = {
+    pauseOnTradeClose: workspace.settings.pauseOnTradeClose,
+    promptEntryReason: workspace.settings.promptEntryReason,
+  };
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+  const [revealPanelTab, setRevealPanelTab] = useState<{
+    tab: BottomPanelTab;
+    nonce: number;
+  } | null>(null);
+  const revealNonceRef = useRef(0);
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   useLayoutEffect(() => {
     recordReplayMetric("react-commit", performance.now() - renderStartedAt);
@@ -298,10 +338,27 @@ export function Backtester({
     );
     if (previous.sessionId !== state.sessionId) {
       notificationStateRef.current = { sessionId: state.sessionId, openIds: currentIds, closedCount: state.closedTrades.length, pendingStatuses };
+      // A different session carries different trades, and "not this session"
+      // was scoped to the one being left.
+      setJournalQueue(EMPTY_JOURNAL_QUEUE);
+      journalPromptsMutedRef.current = false;
       return;
     }
     const added = state.openPositions.filter((position) => !previous.openIds.has(position.id));
     const newlyClosed = state.closedTrades.slice(previous.closedCount);
+    const journalling = !journalPromptsMutedRef.current;
+    const { prompts: queued, reviewed: pauseWorthy } = buildJournalPrompts({
+      opened: added,
+      closed: newlyClosed,
+      promptEntryReason:
+        journalling && journalSettingsRef.current.promptEntryReason,
+      pauseOnTradeClose:
+        journalling && journalSettingsRef.current.pauseOnTradeClose,
+    });
+    // A trade getting a review card does not also get a toast: the card names
+    // the exit reason and the P&L, and a toast repeating it just covers the
+    // chart the trader was asked to look at.
+    const reviewed = new Set(pauseWorthy.map((trade) => trade.id));
     const nextNotifications: TradeNotification[] = [
       ...added.map((position) => ({
         id: `open-${position.id}-${Date.now()}`,
@@ -309,7 +366,7 @@ export function Backtester({
         detail: `${state.config.symbol}, ${position.lots} lot, open ${position.entryPrice}, SL ${position.stopLoss ?? "—"}, TP ${position.takeProfit ?? "—"}`,
         tone: position.direction as "long" | "short",
       })),
-      ...newlyClosed.map((trade) => ({
+      ...newlyClosed.filter((trade) => !reviewed.has(trade.id)).map((trade) => ({
         id: `close-${trade.id}-${Date.now()}`,
         title: trade.intrabarAmbiguous ? "Ambiguous candle resolved" : trade.exitReason === "take-profit" ? "Take profit filled" : trade.exitReason === "stop-loss" ? "Stop loss filled" : "Position closed",
         detail: trade.intrabarAmbiguous
@@ -338,6 +395,18 @@ export function Backtester({
             : "closed") as TradeNotification["tone"],
         })),
     ];
+    if (pauseWorthy.length > 0 && state.status === "running") {
+      void actionsRef.current.pause();
+    }
+    if (queued.length > 0) {
+      setJournalQueue((current) =>
+        mergeJournalPrompts(current, queued, {
+          focusLast: pauseWorthy.length > 0,
+          limit: MAX_JOURNAL_PROMPTS,
+        }),
+      );
+    }
+
     if (added.length > 0) setSelectedPositionId(added.at(-1)?.id ?? null);
     if (nextNotifications.length > 0) {
       setNotifications((current) =>
@@ -757,6 +826,29 @@ export function Backtester({
             )}
             maxReplaySpeed={entitlements.maxReplaySpeed}
           />
+
+          {journalQueue.prompts.length > 0 && (
+            <TradeReviewCard
+              prompts={journalQueue.prompts}
+              index={journalQueue.index}
+              symbol={state.config.symbol}
+              accountCurrency={state.config.accountCurrency}
+              anonymous={state.anonymous}
+              onIndexChange={(index) =>
+                setJournalQueue((current) => ({ ...current, index }))
+              }
+              onSave={actions.saveTradeJournal}
+              onOpenJournal={() => {
+                revealNonceRef.current += 1;
+                setRevealPanelTab({ tab: "notes", nonce: revealNonceRef.current });
+              }}
+              onDismiss={() => setJournalQueue(dismissJournalPrompt)}
+              onMute={() => {
+                journalPromptsMutedRef.current = true;
+                setJournalQueue(EMPTY_JOURNAL_QUEUE);
+              }}
+            />
+          )}
         </div>
 
         {!workspace.settings.distractionFree && <TerminalRightRail
@@ -775,6 +867,7 @@ export function Backtester({
         busy={bt.busy}
         onCancelPending={requestCancelPending}
         onSaveTradeJournal={actions.saveTradeJournal}
+        revealTab={revealPanelTab}
         onAddBookmark={() => void actions.addBookmark()}
         onUpdateBookmark={(id, note) => void actions.updateBookmark(id, note)}
         onDeleteBookmark={(id) => void actions.deleteBookmark(id)}

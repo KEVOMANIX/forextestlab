@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { BarChart3, ChevronUp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { PublicSessionState, TradeJournalUpdate } from "@/lib/backtest/types";
@@ -13,7 +13,15 @@ import { TradesTable } from "./TradesTable";
 import { TradeJournalEditor } from "./TradeJournalEditor";
 import { BookmarksPanel } from "./BookmarksPanel";
 
-type Tab = "position" | "trades" | "orders" | "statistics" | "notes" | "bookmarks";
+export type BottomPanelTab =
+  | "position"
+  | "trades"
+  | "orders"
+  | "statistics"
+  | "notes"
+  | "bookmarks";
+
+type Tab = BottomPanelTab;
 
 const TABS: { id: Exclude<Tab, "statistics">; label: string }[] = [
   { id: "position", label: "Open Positions" },
@@ -37,6 +45,12 @@ interface BottomPanelProps {
   onUpdateBookmark: (id: string, note: string) => void;
   onDeleteBookmark: (id: string) => void;
   onForkSession: () => void;
+  /**
+   * Opens the panel on a given tab from elsewhere in the app — the trade review
+   * card's "Full journal". Carries a nonce so asking for the tab that is already
+   * showing still re-expands a panel the trader has since collapsed.
+   */
+  revealTab?: { tab: BottomPanelTab; nonce: number } | null;
 }
 
 export function BottomPanel({
@@ -52,9 +66,16 @@ export function BottomPanel({
   onUpdateBookmark,
   onDeleteBookmark,
   onForkSession,
+  revealTab = null,
 }: BottomPanelProps) {
   const [tab, setTab] = useState<Tab>("position");
   const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!revealTab) return;
+    setTab(revealTab.tab);
+    setExpanded(true);
+  }, [revealTab?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const [notes, setNotes] = useState(initialNotes);
 
   const stats = useMemo(

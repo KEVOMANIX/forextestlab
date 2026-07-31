@@ -22,6 +22,7 @@ import { getMarketDataProvider } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import { createSessionState, normalizeSessionState, publicSessionState } from "./replay-engine";
+import type { PropFirmRules } from "./prop-firm";
 import { buildSessionConfig } from "./session-config";
 import type {
   EngineContext,
@@ -75,6 +76,7 @@ export interface CreateSessionParams {
   commissionPerLot?: string;
   slippagePips?: string;
   executionPolicy?: "conservative" | "optimistic";
+  propFirm?: PropFirmRules;
   userId?: string;
   trialDeviceId?: string | null;
   trialSession?: boolean;
@@ -366,6 +368,7 @@ export async function createSession(
     commissionPerLot: params.commissionPerLot,
     slippagePips: params.slippagePips,
     executionPolicy: params.executionPolicy,
+    propFirm: params.propFirm,
   });
 
   const id = randomUUID();

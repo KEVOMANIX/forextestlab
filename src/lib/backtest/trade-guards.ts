@@ -1,3 +1,4 @@
+import { propFirmProgress } from "./prop-firm";
 import { defaultTradePlan, tradePlanMetrics } from "./trade-plan";
 import type { OrderRequest, PublicSessionState } from "./types";
 
@@ -92,5 +93,65 @@ export function tradingGuardMessage(
     }
   }
 
+  return null;
+}
+
+/**
+ * Challenge rules applied at the order form.
+ *
+ * The engine is what actually fails a run, on the candle — this only stops the
+ * orders that cannot end well: trading a breached account, or sending a trade
+ * whose own stop-loss is wider than the headroom left before a limit. Risk is
+ * only knowable with a stop attached; without one the trade is allowed through
+ * and the engine grades it like any other.
+ */
+export function propFirmGuardMessage(
+  state: PublicSessionState,
+  order: OrderRequest,
+): string | null {
+  const rules = state.config.propFirm;
+  const runtime = state.propFirm;
+  if (!rules || !runtime) return null;
+
+  if (runtime.status === "breached") {
+    return "This challenge has been breached. No further orders can be placed.";
+  }
+
+  const progress = propFirmProgress({
+    rules,
+    startingBalance: state.config.startingBalance,
+    equity: state.equity,
+    peakEquity: state.maxEquity,
+    runtime,
+  });
+
+  const stopLoss = order.stopLoss;
+  if (!stopLoss) return null;
+  const plan = defaultTradePlan(state, order.direction);
+  if (!plan) return null;
+  const metrics = tradePlanMetrics({
+    state,
+    plan: {
+      ...plan,
+      entryPrice: order.entryPrice ?? plan.entryPrice,
+      stopLoss,
+      takeProfit: order.takeProfit ?? "",
+    },
+    sizingMode: order.sizingMode,
+    lots: order.lots,
+    riskPercent: order.riskPercent,
+  });
+  if (!metrics.valid) return null;
+  const risk = Number(metrics.riskAmount);
+  if (!Number.isFinite(risk) || risk <= 0) return null;
+
+  const daily = Number(progress.dailyRemaining);
+  if (risk > daily) {
+    return `Risking ${risk.toFixed(2)} leaves the daily loss limit behind — only ${daily.toFixed(2)} of today's allowance is left.`;
+  }
+  const total = Number(progress.totalRemaining);
+  if (risk > total) {
+    return `Risking ${risk.toFixed(2)} would breach the maximum loss limit — only ${total.toFixed(2)} is left.`;
+  }
   return null;
 }

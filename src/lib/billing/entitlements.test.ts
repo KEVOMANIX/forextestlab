@@ -32,6 +32,26 @@ describe("device trial entitlements", () => {
     ).toThrow(/one month/i);
   });
 
+  it("keeps challenge mode off the free plan", () => {
+    const trial = planEntitlements(FREE_PROFILE, 0);
+    expect(() =>
+      assertSessionAllowed(trial, {
+        symbols: ["EURUSD"],
+        startTime: 0,
+        endTime: 24 * 60 * 60 * 1000,
+        propFirm: { preset: "ftmo-phase-1" },
+      }),
+    ).toThrow(/Pro/i);
+    // The same session without the rules attached is fine.
+    expect(() =>
+      assertSessionAllowed(trial, {
+        symbols: ["EURUSD"],
+        startTime: 0,
+        endTime: 24 * 60 * 60 * 1000,
+      }),
+    ).not.toThrow();
+  });
+
   it("does not apply trial limits to an active paid account", () => {
     const paid = planEntitlements({
       billingStatus: "active",

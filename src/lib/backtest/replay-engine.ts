@@ -12,6 +12,12 @@
 
 import { Decimal, d, money } from "@/lib/decimal";
 import type { Candle } from "@/lib/market-data/types";
+import {
+  evaluatePropFirm,
+  initialPropFirmRuntime,
+  recordTradingDay,
+  rollTradingDay,
+} from "./prop-firm";
 import { pipValuePerLot } from "./position-sizing";
 import { calculatePositionSize } from "./position-sizing";
 import {
@@ -190,6 +196,13 @@ export function createSessionState(
     dataSource,
     demoData,
   };
+  if (config.propFirm) {
+    state.propFirm = initialPropFirmRuntime(
+      balance,
+      startCandle?.timestamp ?? config.startTime,
+      config.propFirm,
+    );
+  }
   return state;
 }
 
@@ -391,6 +404,14 @@ function closeAt(
 
   state.balance = d(state.balance).plus(pnl).toFixed(2);
   state.closedTrades.push(trade);
+  // A day counts towards the minimum the moment a trade closes on it.
+  if (state.config.propFirm && state.propFirm) {
+    state.propFirm = recordTradingDay(
+      state.propFirm,
+      trade.exitTime,
+      state.config.propFirm,
+    );
+  }
   const journalRecords = state.closedTrades.filter(
     (item) => (item.journalId ?? item.id) === trade.journalId,
   );
@@ -423,6 +444,113 @@ function closeAt(
 }
 
 /**
+ * End the session here: flatten everything at the current candle, expire what
+ * is resting, and stop.
+ *
+ * Shared by running out of data and by breaching a prop-firm limit, because the
+ * two have to leave the account in exactly the same shape. Keeping them as one
+ * implementation is the only way that stays true as either path changes.
+ */
+function finishSession(ctx: EngineContext): void {
+  const { state } = ctx;
+  for (const position of [...state.openPositions]) {
+    const candle = currentCandle(ctx);
+    if (candle) {
+      const price = exitFillPrice(
+        position.direction,
+        candle,
+        state.config.spreadPips,
+        state.config.pipSize,
+      ).toString();
+      closeAt(ctx, position.id, price, "session-end", false);
+    }
+  }
+  const finalTime = currentCandle(ctx)?.timestamp ?? state.config.endTime;
+  for (const order of state.pendingOrders) {
+    if (order.status !== "pending") continue;
+    order.status = "expired";
+    order.expiredTime = finalTime;
+    order.updatedTime = finalTime;
+  }
+  state.status = "finished";
+  recomputeEquity(ctx, false);
+}
+
+/**
+ * Equity if the candle's adverse extreme had printed with the book as it stands.
+ *
+ * A prop firm watches a live account and closes it the moment equity crosses
+ * the line, so grading on candle closes alone would pass runs that reality
+ * would have failed. Every open position is marked at the worst price the
+ * candle reached, in its own direction.
+ */
+function worstCaseEquity(ctx: EngineContext, candle: Candle): string {
+  const { state } = ctx;
+  const bidAsk = deriveBidAsk(candle, state.config.spreadPips, state.config.pipSize);
+  let worst = d(state.balance);
+  for (const position of state.openPositions) {
+    const adverse =
+      position.direction === "long" ? bidAsk.bidLow : bidAsk.askHigh;
+    const { pnl } = computePnl({
+      direction: position.direction,
+      entryPrice: position.entryPrice,
+      exitPrice: adverse.toString(),
+      lots: position.lots,
+      pipSize: state.config.pipSize,
+      pipValueAccountPerLot: pipValueAccountPerLot(state.config, adverse.toString()),
+      commission: position.commission,
+    });
+    worst = worst.plus(pnl);
+  }
+  return worst.toFixed(2);
+}
+
+/**
+ * Open a new trading day before the candle is processed.
+ *
+ * The daily limit is measured from the equity carried *into* the day, so this
+ * has to run while `state.equity` still holds the previous candle's close —
+ * afterwards would hand the day's first candle a free pass on its own losses.
+ */
+function rollPropFirmDay(ctx: EngineContext, candle: Candle): void {
+  const { state } = ctx;
+  const rules = state.config.propFirm;
+  if (!rules || !state.propFirm) return;
+  state.propFirm = rollTradingDay(
+    state.propFirm,
+    candle.timestamp,
+    state.equity,
+    rules,
+  );
+}
+
+/**
+ * Grade the candle against the challenge rules, and end the run on a breach.
+ *
+ * Deliberately not folded into `recomputeEquity`: that runs on rewind, on order
+ * placement and inside `closeAt`, so a breach that flattens positions would
+ * re-enter it. This is called from the one place a candle is revealed.
+ */
+function enforcePropFirm(ctx: EngineContext, candle: Candle): void {
+  const { state } = ctx;
+  const rules = state.config.propFirm;
+  if (!rules || !state.propFirm) return;
+  if (state.propFirm.status === "breached") return;
+
+  const next = evaluatePropFirm({
+    rules,
+    startingBalance: state.config.startingBalance,
+    equity: state.equity,
+    lowEquity: worstCaseEquity(ctx, candle),
+    peakEquity: state.maxEquity,
+    runtime: state.propFirm,
+    at: candle.timestamp,
+  });
+  state.propFirm = next;
+  if (next.status === "breached") finishSession(ctx);
+}
+
+/**
  * Reveal the next candle. Processes stop-loss / take-profit against the newly
  * revealed candle BEFORE the user can act on it, then updates equity.
  * Returns false when already at the end of the series.
@@ -430,28 +558,7 @@ function closeAt(
 export function revealNext(ctx: EngineContext): boolean {
   const { state, candles } = ctx;
   if (state.visibleIndex >= state.totalCandles - 1) {
-    // End of data: close any open position at the final candle, mark finished.
-    for (const position of [...state.openPositions]) {
-      const candle = currentCandle(ctx);
-      if (candle) {
-        const price = exitFillPrice(
-          position.direction,
-          candle,
-          state.config.spreadPips,
-          state.config.pipSize,
-        ).toString();
-        closeAt(ctx, position.id, price, "session-end", false);
-      }
-    }
-    const finalTime = currentCandle(ctx)?.timestamp ?? state.config.endTime;
-    for (const order of state.pendingOrders) {
-      if (order.status !== "pending") continue;
-      order.status = "expired";
-      order.expiredTime = finalTime;
-      order.updatedTime = finalTime;
-    }
-    state.status = "finished";
-    recomputeEquity(ctx, false);
+    finishSession(ctx);
     return false;
   }
 
@@ -459,6 +566,7 @@ export function revealNext(ctx: EngineContext): boolean {
   const candle = candles[state.visibleIndex];
 
   if (candle) {
+    rollPropFirmDay(ctx, candle);
     processPendingOrders(ctx, candle);
     for (const position of [...state.openPositions]) {
       updateExcursion(ctx, position, candle);
@@ -480,6 +588,7 @@ export function revealNext(ctx: EngineContext): boolean {
   }
 
   recomputeEquity(ctx, true);
+  if (candle) enforcePropFirm(ctx, candle);
   return true;
 }
 
@@ -491,6 +600,10 @@ export function stepBack(ctx: EngineContext): boolean {
   const { state } = ctx;
   const floor = Math.max(state.config.initialVisibleCount - 1, 0);
   const canStep =
+    // A challenge cannot be rewound. Stepping back to unwind a bad candle would
+    // make the verdict meaningless, so the whole run is forward-only from the
+    // moment the rules are attached — not merely from the first trade.
+    !state.config.propFirm &&
     state.closedTrades.length === 0 &&
     state.openPositions.length === 0 &&
     !state.pendingOrders.some((order) => order.status === "pending") &&

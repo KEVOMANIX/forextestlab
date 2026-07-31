@@ -20,6 +20,10 @@ import {
   type CreateSessionBody,
 } from "@/lib/backtest/client";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
+import {
+  PROP_FIRM_ACCOUNT_SIZES,
+  PROP_FIRM_PRESETS,
+} from "@/lib/backtest/prop-firm";
 import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
@@ -246,6 +250,10 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [loadingRange, setLoadingRange] = useState(false);
+  /** Null = free practice. Otherwise the challenge phase being attempted. */
+  const [challengePreset, setChallengePreset] =
+    useState<"ftmo-phase-1" | "ftmo-phase-2" | null>(null);
+  const [accountSize, setAccountSize] = useState<string>("100000");
 
   useEffect(() => {
     let active = true;
@@ -368,12 +376,16 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   function handleStart(event: React.FormEvent) {
     event.preventDefault();
     if (!range || !canStart) return;
+    const rules = challengePreset ? PROP_FIRM_PRESETS[challengePreset] : undefined;
     onStart({
       name: name.trim(),
       tags,
       symbols: selectedSymbols,
       startTime: Math.max(range.startTime, newYorkDateStart(start)),
       endTime: Math.min(range.endTime, newYorkDateEnd(end)),
+      // The challenge fixes the account size; free practice keeps the default.
+      startingBalance: rules ? accountSize : undefined,
+      propFirm: rules,
     });
   }
 
@@ -495,12 +507,82 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               </p>
             )}
           </fieldset>
+
+          <fieldset>
+            <legend className="mb-3 flex w-full items-center gap-2">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
+              <span className="text-sm font-semibold">Account rules</span>
+            </legend>
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <ModeCard
+                title="Free practice"
+                detail="No limits. Trade the data however you like."
+                selected={challengePreset === null}
+                onSelect={() => setChallengePreset(null)}
+              />
+              <ModeCard
+                title="FTMO Challenge"
+                detail="Phase 1 - 10% target"
+                selected={challengePreset === "ftmo-phase-1"}
+                onSelect={() => setChallengePreset("ftmo-phase-1")}
+              />
+              <ModeCard
+                title="FTMO Verification"
+                detail="Phase 2 - 5% target"
+                selected={challengePreset === "ftmo-phase-2"}
+                onSelect={() => setChallengePreset("ftmo-phase-2")}
+              />
+            </div>
+
+            {challengePreset && (
+              <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
+                <p className="mb-2 text-xs font-medium app-muted">Account size</p>
+                <div className="flex flex-wrap gap-2">
+                  {PROP_FIRM_ACCOUNT_SIZES.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setAccountSize(size)}
+                      aria-pressed={accountSize === size}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        accountSize === size
+                          ? "border-brand-400/50 bg-brand-400/10 text-brand-200"
+                          : "app-border hover:border-brand-400/30"
+                      }`}
+                    >
+                      {Number(size).toLocaleString()}
+                    </button>
+                  ))}
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <RuleLine
+                    label="Profit target"
+                    value={ruleSummary(accountSize, PROP_FIRM_PRESETS[challengePreset].profitTargetPercent)}
+                  />
+                  <RuleLine
+                    label="Max daily loss"
+                    value={ruleSummary(accountSize, PROP_FIRM_PRESETS[challengePreset].maxDailyLossPercent)}
+                  />
+                  <RuleLine
+                    label="Max total loss"
+                    value={ruleSummary(accountSize, PROP_FIRM_PRESETS[challengePreset].maxTotalLossPercent)}
+                  />
+                  <RuleLine label="Daily reset" value="00:00 Prague" />
+                </dl>
+                <p className="mt-3 text-[11px] app-muted">
+                  Limits are measured on equity, including open trades, and are
+                  enforced candle by candle. A challenge cannot be rewound.
+                </p>
+              </div>
+            )}
+          </fieldset>
         </div>
 
         <div className="border-t app-border px-5 py-6 sm:px-7 lg:border-t-0">
           <section>
             <div className="mb-4 flex items-center gap-2">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">4</span>
               <h3 className="text-sm font-semibold">Choose your replay period</h3>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
@@ -594,5 +676,54 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </div>
       </div>
     </form>
+  );
+}
+
+/** A percentage rule with its cash value, so the numbers are concrete up front. */
+function ruleSummary(balance: string, percent: number): string {
+  const amount = (Number(balance) * percent) / 100;
+  if (!Number.isFinite(amount)) return `${percent}%`;
+  return `${percent}% (${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })})`;
+}
+
+function RuleLine({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt className="app-muted">{label}</dt>
+      <dd className="text-right font-medium">{value}</dd>
+    </>
+  );
+}
+
+function ModeCard({
+  title,
+  detail,
+  selected,
+  disabled = false,
+  onSelect,
+}: {
+  title: string;
+  detail: string;
+  selected: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={disabled}
+      aria-pressed={selected}
+      className={`rounded-xl border px-3 py-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+        selected
+          ? "border-brand-400/50 bg-brand-400/10 shadow-sm"
+          : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30"
+      }`}
+    >
+      <span className={`block text-sm font-semibold ${selected ? "text-brand-200" : ""}`}>
+        {title}
+      </span>
+      <span className="mt-0.5 block text-xs app-muted">{detail}</span>
+    </button>
   );
 }

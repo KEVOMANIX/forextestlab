@@ -6,6 +6,7 @@
  */
 
 import type { Candle, Timeframe } from "@/lib/market-data/types";
+import type { PropFirmRules, PropFirmRuntime } from "./prop-firm";
 
 export type TradeDirection = "long" | "short";
 
@@ -143,6 +144,14 @@ export interface SessionConfig {
    * setting existed; readers fall back to DEFAULT_LEVERAGE.
    */
   leverage?: string;
+  /**
+   * Prop-firm challenge rules, fixed when the session is created.
+   *
+   * Lives in the config rather than in workspace settings because a challenge
+   * whose limits can be edited while it is being failed is not a challenge.
+   * Absent on every session created before the mode existed.
+   */
+  propFirm?: PropFirmRules;
 }
 
 export interface OrderRequest {
@@ -280,6 +289,8 @@ export interface SessionState {
   lockedBeforeIndex: number;
   dataSource: string;
   demoData: boolean;
+  /** Challenge progress. Present only when `config.propFirm` is set. */
+  propFirm?: PropFirmRuntime;
 }
 
 /** The subset of engine state that is safe to send to the browser. */
@@ -307,6 +318,7 @@ export interface PublicSessionState {
   demoData: boolean;
   /** Anonymous demonstrations are temporary and are not saved to user history. */
   anonymous: boolean;
+  propFirm?: PropFirmRuntime;
 }
 
 /** Engine + candle series bundled for server-side stepping. */

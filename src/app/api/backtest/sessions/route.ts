@@ -62,6 +62,7 @@ export async function POST(request: Request) {
       commissionPerLot: parsed.data.commissionPerLot,
       slippagePips: parsed.data.slippagePips,
       executionPolicy: parsed.data.executionPolicy,
+      propFirm: parsed.data.propFirm,
       userId: user?.id,
       trialDeviceId: trialDeviceIdFromRequest(request),
     });

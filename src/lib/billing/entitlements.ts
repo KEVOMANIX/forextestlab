@@ -66,8 +66,19 @@ export async function getUserEntitlements(
 
 export function assertSessionAllowed(
   entitlements: PlanEntitlements,
-  input: { symbols: string[]; startTime: number; endTime: number },
+  input: {
+    symbols: string[];
+    startTime: number;
+    endTime: number;
+    propFirm?: unknown;
+  },
 ): void {
+  // Challenge mode is a Pro feature, and the setup form is only shown to Pro
+  // accounts. Checked here too so the entitlement holds at the API, not merely
+  // in the UI that happens to call it.
+  if (input.propFirm && entitlements.plan === "free") {
+    throw new Error("Prop-firm challenge mode is available on Pro.");
+  }
   if (
     entitlements.maxPairsPerSession !== null &&
     input.symbols.length > entitlements.maxPairsPerSession

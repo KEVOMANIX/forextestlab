@@ -10,6 +10,7 @@ import {
   type MarketSymbol,
   type Timeframe,
 } from "@/lib/market-data/types";
+import type { PropFirmRules } from "./prop-firm";
 import type { PublicSessionState, ReplaySpeed } from "./types";
 import type { ActionInput } from "./schemas";
 
@@ -22,6 +23,7 @@ export interface CreateSessionBody {
   startingBalance?: string;
   spreadPips?: string;
   executionPolicy?: "conservative" | "optimistic";
+  propFirm?: PropFirmRules;
 }
 
 export interface CreatedSession {

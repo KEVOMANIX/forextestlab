@@ -22,6 +22,24 @@ export const timeframeSchema = z.enum(
   TIMEFRAMES as [string, ...string[]],
 );
 
+/**
+ * Challenge rules accepted at session creation.
+ *
+ * Validated server-side rather than trusted from the client: the rules are the
+ * contract the run is graded against, so a browser must not be able to post
+ * itself a 90% drawdown allowance.
+ */
+export const propFirmRulesSchema = z.object({
+  preset: z.enum(["ftmo-phase-1", "ftmo-phase-2", "custom"]),
+  phase: z.union([z.literal(1), z.literal(2)]),
+  profitTargetPercent: z.number().min(0).max(1000),
+  maxDailyLossPercent: z.number().min(0).max(100),
+  maxTotalLossPercent: z.number().min(0).max(100),
+  lossBasis: z.enum(["initial", "peak-equity"]),
+  dailyResetZone: z.string().trim().min(1).max(64),
+  minTradingDays: z.number().int().min(0).max(365),
+});
+
 export const createSessionSchema = z
   .object({
     name: z.string().trim().min(2).max(80),
@@ -45,6 +63,7 @@ export const createSessionSchema = z
     commissionPerLot: numericString.optional(),
     slippagePips: numericString.optional(),
     executionPolicy: z.enum(["conservative", "optimistic"]).optional(),
+    propFirm: propFirmRulesSchema.optional(),
   })
   .refine((v) => v.endTime > v.startTime, {
     message: "endTime must be after startTime.",

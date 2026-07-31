@@ -5,6 +5,7 @@
 
 import type { Timeframe } from "@/lib/market-data/types";
 import { DEFAULT_LEVERAGE } from "./position-sizing";
+import type { PropFirmRules } from "./prop-firm";
 import type { ExecutionPolicy, SessionConfig } from "./types";
 
 export function simulationDefaults() {
@@ -37,6 +38,7 @@ export interface BuildConfigInput {
   commissionPerLot?: string;
   slippagePips?: string;
   executionPolicy?: ExecutionPolicy;
+  propFirm?: PropFirmRules;
 }
 
 export function buildSessionConfig(input: BuildConfigInput): SessionConfig {
@@ -57,6 +59,7 @@ export function buildSessionConfig(input: BuildConfigInput): SessionConfig {
     commissionPerLot: input.commissionPerLot ?? defaults.commissionPerLot,
     slippagePips: input.slippagePips ?? defaults.slippagePips,
     executionPolicy: input.executionPolicy ?? "conservative",
+    propFirm: input.propFirm,
     pipSize: input.pipSize,
     pricePrecision: input.pricePrecision,
     initialVisibleCount: INITIAL_VISIBLE_CANDLES,

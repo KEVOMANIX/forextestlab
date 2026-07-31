@@ -14,6 +14,8 @@ import {
 import type { ChartMarker } from "./PriceChart";
 import { BottomPanel, type BottomPanelTab } from "./BottomPanel";
 import { TradeReviewCard } from "./TradeReviewCard";
+import { PropFirmHud } from "./PropFirmHud";
+import { PropFirmVerdict } from "./PropFirmVerdict";
 import {
   buildJournalPrompts,
   dismissJournalPrompt,
@@ -47,7 +49,7 @@ import { TrialSessionLauncher } from "./TrialSessionLauncher";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { WorkspaceManager } from "./WorkspaceManager";
 import { BacktestExperiencePanel } from "./BacktestExperiencePanel";
-import { tradingGuardMessage } from "@/lib/backtest/trade-guards";
+import { propFirmGuardMessage, tradingGuardMessage } from "@/lib/backtest/trade-guards";
 import type { ReplayDiagnosticsSource } from "./ReplayDiagnosticsPanel";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
@@ -167,6 +169,13 @@ export function Backtester({
     nonce: number;
   } | null>(null);
   const revealNonceRef = useRef(0);
+  const [verdictOpen, setVerdictOpen] = useState(false);
+  /**
+   * The verdict is announced once, when the run reaches it. Afterwards it is
+   * reachable from the HUD, so a trader reviewing the breach can reopen it
+   * without it reappearing over every candle.
+   */
+  const announcedVerdictRef = useRef<string | null>(null);
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   useLayoutEffect(() => {
     recordReplayMetric("react-commit", performance.now() - renderStartedAt);
@@ -186,6 +195,16 @@ export function Backtester({
   useEffect(() => {
     window.localStorage.setItem("forextestlab:order-defaults", JSON.stringify(orderTemplate));
   }, [orderTemplate]);
+  const propFirmRules = state?.config.propFirm ?? null;
+  const propFirmStatus = state?.propFirm?.status ?? null;
+  useEffect(() => {
+    if (!propFirmStatus || propFirmStatus === "active") return;
+    const key = `${state?.sessionId ?? ""}:${propFirmStatus}`;
+    if (announcedVerdictRef.current === key) return;
+    announcedVerdictRef.current = key;
+    setVerdictOpen(true);
+  }, [propFirmStatus, state?.sessionId]);
+
   const hasMeaningfulActivity = Boolean(
     state?.openPositions.length || state?.closedTrades.length || state?.pendingOrders.length,
   );
@@ -225,6 +244,18 @@ export function Backtester({
    */
   const submitOrder = useCallback((order: OrderRequest) => {
     if (!state) return;
+    // The challenge is the harder contract, so it is asked first: its message
+    // names the rule that would actually end the run.
+    const breach = propFirmGuardMessage(state, order);
+    if (breach) {
+      notify({
+        id: `prop-guard-${Date.now()}`,
+        title: "Order blocked by the challenge rules",
+        detail: breach,
+        tone: "warning",
+      });
+      return;
+    }
     const guard = tradingGuardMessage(state, order, {
       maxRiskPerTradePercent: workspace.settings.maxRiskPerTradePercent,
       dailyLossLimitPercent: workspace.settings.dailyLossLimitPercent,
@@ -736,7 +767,19 @@ export function Backtester({
       )}
 
       <div className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1 overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {propFirmRules && state.propFirm && !workspace.settings.distractionFree && (
+            <PropFirmHud
+              rules={propFirmRules}
+              runtime={state.propFirm}
+              startingBalance={state.config.startingBalance}
+              equity={state.equity}
+              peakEquity={state.maxEquity}
+              accountCurrency={state.config.accountCurrency}
+              onShowVerdict={() => setVerdictOpen(true)}
+            />
+          )}
+          <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           <ChartGrid
             key={`${state.sessionId}-${bt.resetNonce}-${workspace.revision}`}
             state={state}
@@ -849,6 +892,7 @@ export function Backtester({
               }}
             />
           )}
+          </div>
         </div>
 
         {!workspace.settings.distractionFree && <TerminalRightRail
@@ -857,6 +901,18 @@ export function Backtester({
           onNavigate={navigateFromChart}
         />}
       </div>
+
+      {propFirmRules && state.propFirm && verdictOpen && (
+        <PropFirmVerdict
+          rules={propFirmRules}
+          runtime={state.propFirm}
+          startingBalance={state.config.startingBalance}
+          equity={state.equity}
+          peakEquity={state.maxEquity}
+          accountCurrency={state.config.accountCurrency}
+          onClose={() => setVerdictOpen(false)}
+        />
+      )}
 
       {!workspace.settings.distractionFree && <BottomPanel
         state={state}

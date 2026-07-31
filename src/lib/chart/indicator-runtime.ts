@@ -37,6 +37,13 @@ import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 
 type AnySeries = ISeriesApi<"Line"> | ISeriesApi<"Histogram">;
 
+/** A point as handed to lightweight-charts: a value, or whitespace at a time. */
+type SeriesPoint = { time: UTCTimestamp; value?: number; color?: string };
+
+function samePoint(a: SeriesPoint, b: SeriesPoint): boolean {
+  return a.time === b.time && a.value === b.value && a.color === b.color;
+}
+
 const LINE_STYLE_MAP: Record<LineStyleName, LineStyle> = {
   solid: LineStyle.Solid,
   dashed: LineStyle.Dashed,
@@ -83,6 +90,14 @@ export class Indicator {
   private result: ComputeResult | null = null;
   private inputsKey = "";
   private dataKey = "";
+  /**
+   * The points last pushed into each series, so the next draw can send only
+   * what actually changed. Without this every replay candle re-sent the whole
+   * history through `setData`, which rebuilds the series and makes the plot
+   * visibly flicker.
+   */
+  private drawn = new Map<string, SeriesPoint[]>();
+  private styleKeys = new Map<string, string>();
 
   /** `paneIndex` 0 = the main price pane; >0 = a dedicated oscillator pane. */
   constructor(chart: IChartApi, inst: IndicatorInstance, fallbackPrecision: number, paneIndex = 0) {
@@ -160,28 +175,72 @@ export class Indicator {
       const series = this.series.get(plot.key);
       if (!series) continue;
 
+      let data: SeriesPoint[];
       if (plot.kind === "histogram") {
         const bars = shift(result.histograms?.[plot.key] ?? [], offset, null);
-        const data = times.map((t, i) => {
+        data = times.map((t, i) => {
           const bar = bars[i];
           return bar && bar.value != null ? { time: t, value: bar.value, color: bar.color } : { time: t };
         });
-        (series as ISeriesApi<"Histogram">).setData(data as (HistogramData<Time> | WhitespaceData<Time>)[]);
-        continue;
+      } else {
+        const values = shift<number>(result.lines?.[plot.key] ?? [], offset, null);
+        // Sparse plots (e.g. Zig Zag) omit undefined points so the line connects
+        // across gaps instead of breaking at every whitespace bar.
+        data = plot.sparse
+          ? times.flatMap((t, i) => (values[i] == null ? [] : [{ time: t, value: values[i] as number }]))
+          : times.map((t, i) => (values[i] == null ? { time: t } : { time: t, value: values[i] as number }));
       }
-
-      const values = shift<number>(result.lines?.[plot.key] ?? [], offset, null);
-      // Sparse plots (e.g. Zig Zag) omit undefined points so the line connects
-      // across gaps instead of breaking at every whitespace bar.
-      const data = plot.sparse
-        ? times.flatMap((t, i) => (values[i] == null ? [] : [{ time: t, value: values[i] as number }]))
-        : times.map((t, i) => (values[i] == null ? { time: t } : { time: t, value: values[i] as number }));
-      (series as ISeriesApi<"Line">).setData(data as (LineData<Time> | WhitespaceData<Time>)[]);
+      this.push(plot.key, series, data);
     }
     this.applyStyle();
   }
 
-  /** Apply per-plot colour / width / style / visibility (no recompute). */
+  /**
+   * Send `data` to a series with as little work as possible.
+   *
+   * Replay normally revises the forming bar and appends the next one, so only
+   * the tail differs. `update()` handles that without touching the rest of the
+   * series; `setData` rebuilds it, which is what made the plots flicker on every
+   * candle.
+   *
+   * `update()` cannot revise history — the library only accepts a point at or
+   * after the last one — so anything that rewrites an earlier point falls back
+   * to `setData`. That is the honest path for the indicators that genuinely do
+   * revise history: a regression channel refits its whole window each bar, Zig
+   * Zag can move a confirmed pivot, and an offset or Ichimoku displacement
+   * shifts values away from the bar that produced them.
+   */
+  private push(key: string, series: AnySeries, data: SeriesPoint[]): void {
+    const previous = this.drawn.get(key);
+    this.drawn.set(key, data);
+
+    if (!previous || previous.length === 0 || data.length < previous.length) {
+      series.setData(data as (LineData<Time> | HistogramData<Time> | WhitespaceData<Time>)[]);
+      return;
+    }
+    // Every point but the last must be untouched for an incremental update to
+    // be both legal and correct.
+    const shared = previous.length - 1;
+    for (let i = 0; i < shared; i++) {
+      if (!samePoint(previous[i]!, data[i]!)) {
+        series.setData(data as (LineData<Time> | HistogramData<Time> | WhitespaceData<Time>)[]);
+        return;
+      }
+    }
+    for (let i = shared; i < data.length; i++) {
+      const point = data[i]!;
+      if (i < previous.length && samePoint(previous[i]!, point)) continue;
+      series.update(point as LineData<Time> | HistogramData<Time> | WhitespaceData<Time>);
+    }
+  }
+
+  /**
+   * Apply per-plot colour / width / style / visibility (no recompute).
+   *
+   * Guarded by a key of what was last applied: `draw` runs on every replay
+   * candle, and re-sending identical options each time is a redraw the chart
+   * does not need.
+   */
   applyStyle(): void {
     for (const plot of this.def.plots) {
       const series = this.series.get(plot.key);
@@ -195,6 +254,9 @@ export class Indicator {
       };
       const visible = this.inst.visible && s.visible;
       const color = withOpacity(s.color, s.opacity);
+      const key = `${color}|${visible}|${s.lineWidth}|${s.lineStyle}`;
+      if (this.styleKeys.get(plot.key) === key) continue;
+      this.styleKeys.set(plot.key, key);
       if (plot.kind === "histogram") {
         (series as ISeriesApi<"Histogram">).applyOptions({ color, visible });
       } else {
@@ -242,6 +304,8 @@ export class Indicator {
       }
     }
     this.series.clear();
+    this.drawn.clear();
+    this.styleKeys.clear();
     this.priceLines = [];
     this.result = null;
   }

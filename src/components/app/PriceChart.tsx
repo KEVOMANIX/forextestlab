@@ -2492,7 +2492,7 @@ export default function PriceChart({
           <span className="hidden sm:inline">{CHART_TYPE_LABELS[chartType]}</span>
         </button>
         {menu === "type" && (
-          <div className="absolute left-0 top-9 z-40 w-40 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl">
+          <div className="absolute left-0 top-9 z-[55] w-40 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl">
             {(Object.keys(CHART_TYPE_LABELS) as ChartType[]).map((t) => (
               <button key={t} type="button" onClick={() => { setChartType(t); setMenu(null); }} className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${chartType === t ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}>
                 {CHART_TYPE_LABELS[t]}
@@ -2514,7 +2514,7 @@ export default function PriceChart({
           <span className="hidden sm:inline">Indicators</span>
         </button>
         {menu === "indicators" && (
-          <div className="absolute left-0 top-9 z-40 w-72 rounded-lg border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
+          <div className="absolute left-0 top-9 z-[55] w-72 rounded-lg border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
             <input
               autoFocus
               value={indicatorSearch}

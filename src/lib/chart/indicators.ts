@@ -113,6 +113,39 @@ export function rma(values: number[], period: number): MaybeNumber[] {
   return out;
 }
 
+/**
+ * Keep a 0–100 oscillator inside its own bounds.
+ *
+ * Float division overshoots by around 1e-14 when the value sits exactly on the
+ * window extreme, which is enough to make "this indicator is bounded" false.
+ */
+function clamp01to100(value: number): number {
+  return value < 0 ? 0 : value > 100 ? 100 : value;
+}
+
+/** Clamp an optional oscillator reading, preserving the null warm-up gap. */
+function bounded(value: MaybeNumber | undefined): MaybeNumber {
+  return value == null ? null : clamp01to100(value);
+}
+
+/**
+ * SMA of a series whose warm-up positions are null.
+ *
+ * Coercing those nulls to zero — the obvious shortcut — drags the first several
+ * averages towards zero and produces values that look plausible but are wrong.
+ * The leading gap is skipped instead, and the result re-aligned to the input.
+ * Assumes nulls only appear as a leading run, which is what every smoothed
+ * series here produces.
+ */
+function smaSparse(values: MaybeNumber[], period: number): MaybeNumber[] {
+  const first = values.findIndex((v) => v != null);
+  if (first < 0) return values.map(() => null);
+  const smoothed = sma(values.slice(first).map((v) => v ?? 0), period);
+  const out: MaybeNumber[] = new Array(values.length).fill(null);
+  for (let i = 0; i < smoothed.length; i++) out[first + i] = smoothed[i] ?? null;
+  return out;
+}
+
 /** Named moving-average dispatcher used by the "smoothing type" input. */
 export function movingAverage(values: number[], period: number, type: "SMA" | "EMA" | "WMA" | "RMA"): MaybeNumber[] {
   switch (type) {
@@ -426,14 +459,17 @@ export function stochastic(candles: OHLCV[], kPeriod = 14, kSmooth = 3, dPeriod 
   candles.forEach((c, i) => {
     if (hi[i] == null || lo[i] == null) return;
     const range = hi[i]! - lo[i]!;
-    rawK.push(range === 0 ? 100 : (100 * (c.close - lo[i]!)) / range);
+    rawK.push(range === 0 ? 100 : clamp01to100((100 * (c.close - lo[i]!)) / range));
     rawIdx.push(i);
   });
   const kSmoothed = sma(rawK, kSmooth);
-  const dSmoothed = sma(kSmoothed.map((v) => v ?? 0), dPeriod);
+  const dSmoothed = smaSparse(kSmoothed, dPeriod);
   const out: StochPoint[] = candles.map(() => ({ k: null, d: null }));
   rawIdx.forEach((i, j) => {
-    out[i] = { k: kSmoothed[j] ?? null, d: kSmoothed[j] == null ? null : dSmoothed[j] ?? null };
+    out[i] = {
+      k: bounded(kSmoothed[j]),
+      d: kSmoothed[j] == null ? null : bounded(dSmoothed[j]),
+    };
   });
   return out;
 }
@@ -454,14 +490,16 @@ export function stochRsi(values: number[], rsiLen = 14, stochLen = 14, kSmooth =
   const rawK = defined.map((v, i) => {
     if (hi[i] == null || lo[i] == null) return null;
     const range = hi[i]! - lo[i]!;
-    return range === 0 ? 0 : (100 * (v - lo[i]!)) / range;
+    // A flat window is 0/0. Pinned to the top, matching `stochastic` above, so
+    // the two oscillators cannot disagree about the same degenerate case.
+    return range === 0 ? 100 : clamp01to100((100 * (v - lo[i]!)) / range);
   });
-  const kSmoothed = sma(rawK.map((v) => v ?? 0), kSmooth);
-  const dSmoothed = sma(kSmoothed.map((v) => v ?? 0), dSmooth);
+  const kSmoothed = smaSparse(rawK, kSmooth);
+  const dSmoothed = smaSparse(kSmoothed, dSmooth);
   const out: StochPoint[] = values.map(() => ({ k: null, d: null }));
   idx.forEach((i, j) => {
     if (rawK[j] == null) return;
-    out[i] = { k: kSmoothed[j] ?? null, d: dSmoothed[j] ?? null };
+    out[i] = { k: bounded(kSmoothed[j]), d: bounded(dSmoothed[j]) };
   });
   return out;
 }
@@ -487,7 +525,10 @@ export function williamsR(candles: OHLCV[], period = 14): MaybeNumber[] {
   return candles.map((c, i) => {
     if (hi[i] == null || lo[i] == null) return null;
     const range = hi[i]! - lo[i]!;
-    return range === 0 ? 0 : (-100 * (hi[i]! - c.close)) / range;
+    if (range === 0) return 0;
+    const value = (-100 * (hi[i]! - c.close)) / range;
+    // Closing exactly on the high yields negative zero, which renders "-0.00".
+    return value === 0 ? 0 : value;
   });
 }
 
@@ -550,8 +591,15 @@ export function adx(candles: OHLCV[], diLen = 14, adxLen = 14): AdxPoint[] {
 
 // ── Volume ─────────────────────────────────────────────────────────────────────
 
-/** On-Balance Volume — running cumulative. */
+/**
+ * On-Balance Volume — running cumulative.
+ *
+ * Returns nothing at all when the feed carries no volume. A flat zero line
+ * looks like a reading; an empty plot correctly says the input is missing,
+ * which is the common case on spot FX.
+ */
 export function obv(candles: OHLCV[]): MaybeNumber[] {
+  if (!candles.some((c) => (c.volume ?? 0) > 0)) return candles.map(() => null);
   let acc = 0;
   return candles.map((c, i) => {
     const v = c.volume ?? 0;
@@ -576,6 +624,9 @@ export function mfi(candles: OHLCV[], period = 14): MaybeNumber[] {
       if (tp[j]! > tp[j - 1]!) pos += rawFlow[j]!;
       else if (tp[j]! < tp[j - 1]!) neg += rawFlow[j]!;
     }
+    // Without volume every flow is zero, and `neg === 0` would report a pegged
+    // 100 for the whole series — a strong reading invented out of nothing.
+    if (pos === 0 && neg === 0) continue;
     out[i] = neg === 0 ? 100 : 100 - 100 / (1 + pos / neg);
   }
   return out;
@@ -596,7 +647,8 @@ export function cmf(candles: OHLCV[], period = 20): MaybeNumber[] {
       flow += mfv[j]!;
       vol += candles[j]!.volume ?? 0;
     }
-    out[i] = vol === 0 ? 0 : flow / vol;
+    // No volume in the window means no money flow to measure, not zero flow.
+    out[i] = vol === 0 ? null : flow / vol;
   }
   return out;
 }

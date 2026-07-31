@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Crosshair, RotateCcw, X } from "lucide-react";
 
 import { formatNewYorkDateTime } from "@/lib/date-time";
+import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import {
   CATEGORY_LABELS,
   SOURCE_OPTIONS,
@@ -52,6 +53,10 @@ const inputCls = "rounded border app-border bg-transparent px-1.5 py-1 text-righ
 
 export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor }: Props) {
   const [tab, setTab] = useState<Tab>("inputs");
+  // Escape, a focus trap and focus restoration, like every other dialog here.
+  // This one was a bare div: keyboard users could tab straight out behind it,
+  // and Escape did nothing.
+  const dialogRef = useModalBehavior<HTMLDivElement>({ open: true, onClose });
   const def = getDef(value.kind);
   if (!def) return null;
 
@@ -118,7 +123,15 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/40" onPointerDown={onClose}>
-      <div className="flex max-h-[80vh] w-[340px] flex-col rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl" onPointerDown={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${def.name} settings`}
+        tabIndex={-1}
+        className="flex max-h-[80vh] w-[340px] flex-col rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b app-border px-3 py-2">
           <h3 className="truncate text-sm font-semibold">{def.name}</h3>
           <button type="button" aria-label="Close" onClick={onClose} className="app-muted hover:text-[var(--app-text)]">

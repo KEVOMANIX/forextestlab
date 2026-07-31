@@ -5,11 +5,13 @@ import { createPortal } from "react-dom";
 import {
   Activity,
   AlignJustify,
+  ArrowDownRight,
   ArrowUpRight,
   CandlestickChart,
   ChevronDown,
   Circle,
   Clock,
+  Copy,
   Crosshair,
   Egg,
   Equal,
@@ -27,7 +29,9 @@ import {
   MoveVertical,
   RectangleHorizontal,
   Redo2,
+  RotateCcw,
   Ruler,
+  Settings,
   Settings2,
   Shapes,
   Spline,
@@ -76,7 +80,7 @@ import {
   type Candle,
   type Timeframe,
 } from "@/lib/market-data/types";
-import type { OpenPosition, PendingOrder } from "@/lib/backtest/types";
+import type { OpenPosition, OrderType, PendingOrder } from "@/lib/backtest/types";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
 import { heikinAshi, type OHLCV } from "@/lib/chart/indicators";
 import { TOOL_LABELS, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
@@ -96,7 +100,14 @@ import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { renderedLivePrice } from "@/lib/chart/live-price";
 import { subscribeReplayVisual } from "@/lib/backtest/replay-visual-bus";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
-import { AUTO_BACKGROUND, ChartSettingsMenu, DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
+import {
+  AUTO_BACKGROUND,
+  ChartSettingsDialog,
+  DEFAULT_CHART_SETTINGS,
+  type ChartSettings,
+  type ChartTextSize,
+} from "./ChartSettingsMenu";
+import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
@@ -219,6 +230,15 @@ interface PriceChartProps {
   onSelectInstrument?: () => void;
   /** This cell charts a reference pair, so trading does not follow it. */
   referenceOnly?: boolean;
+  /**
+   * Start an order from a price picked off the chart — the right-click menu's
+   * "Buy/Sell at 1.08661". Opens the ticket with that entry already filled in.
+   */
+  onPlanAtPrice?: (
+    direction: "long" | "short",
+    entryPrice: string,
+    orderType: OrderType,
+  ) => void;
   /** Chart preferences, shared by every chart in the workspace. */
   settings: ChartSettings;
   onSettingsChange: (patch: Partial<ChartSettings>) => void;
@@ -239,7 +259,10 @@ interface PriceChartProps {
 
 interface Palette {
   background: string;
+  /** Ink for de-emphasised *drawing*: the greyed-out context series. */
   text: string;
+  /** Ink for axis labels, which have to stay readable over candles. */
+  axisText: string;
   grid: string;
   border: string;
 }
@@ -248,16 +271,41 @@ const PALETTES: Record<"dark" | "light", Palette> = {
   dark: {
     background: "#0b0f1a",
     text: "#93a1b8",
+    axisText: "#ffffff",
     grid: "rgba(255,255,255,0.05)",
     border: "rgba(255,255,255,0.10)",
   },
   light: {
     background: "#ffffff",
     text: "#566179",
+    axisText: "#0b1220",
     grid: "rgba(15,23,42,0.06)",
     border: "#d9e0ec",
   },
 };
+
+/**
+ * Axis type size, in px, per `chartTextSize` preference.
+ *
+ * "medium" is the default and is deliberately a step above the charting
+ * library's own default of 12: these labels are read at a glance, from further
+ * back than form copy, and often over a busy plot.
+ */
+const AXIS_FONT_SIZES: Record<ChartTextSize, number> = {
+  small: 12,
+  medium: 14,
+  large: 16,
+};
+
+/**
+ * Base size for the HTML overlays (legend, OHLC readout, indicator chips).
+ *
+ * One px under the axis so the chrome never shouts louder than the scale, and
+ * the single number every overlay sizes itself against in `em`.
+ */
+function overlayFontSize(size: ChartTextSize): number {
+  return AXIS_FONT_SIZES[size] - 1;
+}
 
 const BULL = "#22c3a0";
 const BEAR = "#f4646c";
@@ -526,6 +574,7 @@ export default function PriceChart({
   symbolLabel,
   onSelectInstrument,
   referenceOnly = false,
+  onPlanAtPrice,
   settings,
   onSettingsChange,
   onSettingsReset,
@@ -643,9 +692,28 @@ export default function PriceChart({
 
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(initialTimeframe ?? baseTimeframe);
   const [chartType, setChartType] = useState<ChartType>("candles");
-  const [settingsMenu, setSettingsMenu] = useState<{ x: number; y: number } | null>(null);
+  /**
+   * The open right-click menu, and the point it was opened on.
+   *
+   * The price and time are captured at click time rather than read when an item
+   * fires: replay keeps moving, and "Buy at 1.08661" has to mean the number the
+   * menu is showing, not wherever the market has since gone.
+   */
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    price: number | null;
+    at: number | null;
+  } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const gridVisible = settings.grid;
   const magnetCrosshair = settings.magnet;
+  const axisFontSize = AXIS_FONT_SIZES[settings.chartTextSize];
+  const overlayFont = overlayFontSize(settings.chartTextSize);
+  // The chart is created once, before the size can be read from props in a
+  // dependency-driven effect; a ref hands the initial value to `createChart`.
+  const axisFontSizeRef = useRef(axisFontSize);
+  axisFontSizeRef.current = axisFontSize;
   timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
   const [indicatorSearch, setIndicatorSearch] = useState("");
@@ -1302,7 +1370,12 @@ export default function PriceChart({
     if (!container) return;
     const palette = PALETTES[theme];
     const chart = createChart(container, {
-      layout: { background: { type: ColorType.Solid, color: palette.background }, textColor: palette.text, fontFamily: "inherit" },
+      layout: {
+        background: { type: ColorType.Solid, color: palette.background },
+        textColor: palette.axisText,
+        fontSize: axisFontSizeRef.current,
+        fontFamily: "inherit",
+      },
       grid: { vertLines: { color: palette.grid }, horzLines: { color: palette.grid } },
       rightPriceScale: { borderColor: palette.border, scaleMargins: { top: 0.12, bottom: 0.08 } },
       timeScale: {
@@ -1334,12 +1407,19 @@ export default function PriceChart({
       autoSize: true,
     });
     chartRef.current = chart;
+    // Time-only runway that extends the axis past the live candle. It carries
+    // whitespace and never a price, but the right scale takes its number format
+    // from the first source attached to it — and this series is created before
+    // the candles are. Left on the right scale it would hand the axis its own
+    // default two-decimal format, collapsing every FX gridline to "1.09". Its
+    // own overlay scale keeps it out of both the formatting and the autoscale.
     futureTimeSeriesRef.current = chart.addSeries(LineSeries, {
       color: "transparent",
       lineVisible: false,
       priceLineVisible: false,
       lastValueVisible: false,
       crosshairMarkerVisible: false,
+      priceScaleId: "",
     });
     setChartApi(chart);
     createSeriesPair(chartTypeRef.current);
@@ -1600,14 +1680,15 @@ export default function PriceChart({
           type: ColorType.Solid,
           color: settings.background === AUTO_BACKGROUND ? palette.background : settings.background,
         },
-        textColor: palette.text,
+        textColor: palette.axisText,
+        fontSize: axisFontSize,
       },
       grid: { vertLines: { color: gridVisible ? palette.grid : "transparent" }, horzLines: { color: gridVisible ? palette.grid : "transparent" } },
       rightPriceScale: { borderColor: palette.border },
       timeScale: { borderColor: palette.border },
       crosshair: { mode: magnetCrosshair ? CrosshairMode.Magnet : CrosshairMode.Normal },
     });
-  }, [theme, gridVisible, magnetCrosshair, settings.background]);
+  }, [theme, gridVisible, magnetCrosshair, settings.background, axisFontSize]);
 
   useEffect(() => {
     const jump = (event: Event) => {
@@ -1908,6 +1989,153 @@ export default function PriceChart({
     setFollowLatest(true);
     chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
     keepLatestPriceVisible(true);
+  }
+
+  /** Read the price and bar time under a viewport point, for the menu. */
+  function openContextMenu(clientX: number, clientY: number) {
+    const container = containerRef.current;
+    const series = seriesRef.current;
+    const scale = chartRef.current?.timeScale();
+    let price: number | null = null;
+    let at: number | null = null;
+    if (container && series && scale) {
+      const bounds = container.getBoundingClientRect();
+      price = series.coordinateToPrice(clientY - bounds.top);
+      const time = scale.coordinateToTime(clientX - bounds.left);
+      if (time != null) at = chartTimeMs(time);
+    }
+    setContextMenu({ x: clientX, y: clientY, price, at });
+  }
+
+  function copyToClipboard(text: string) {
+    void navigator.clipboard?.writeText(text);
+  }
+
+  /**
+   * Which kind of order a price implies, from the side of the market it sits on.
+   *
+   * Buying below the market is a limit and above it a stop; selling is the
+   * mirror. Naming it in the menu ("Buy EURUSD at 1.08560 limit") is the
+   * difference between an order that rests where you clicked and one that fills
+   * immediately somewhere else. Within a pip of the market there is no
+   * meaningful distance to rest at, so it is simply a market order.
+   */
+  function orderKindAt(price: number, direction: "long" | "short"): OrderType {
+    if (currentPrice == null || Math.abs(price - currentPrice) < pipSize) {
+      return "market";
+    }
+    const above = price > currentPrice;
+    if (direction === "long") return above ? "stop" : "limit";
+    return above ? "limit" : "stop";
+  }
+
+  function contextMenuItems(point: {
+    price: number | null;
+    at: number | null;
+  }): ChartMenuItem[] {
+    const price = point.price;
+    const priceText = price == null ? null : price.toFixed(precision);
+    const tradable = priceText != null && !referenceOnly && onPlanAtPrice != null;
+    const hasPosition = positions.length > 0;
+    const items: ChartMenuItem[] = [
+      {
+        id: "reset",
+        label: "Reset chart view",
+        icon: RotateCcw,
+        onSelect: resetLatestViewport,
+      },
+      {
+        id: "latest",
+        label: "Go to latest candle",
+        icon: LocateFixed,
+        onSelect: goToLatest,
+      },
+    ];
+
+    if (priceText) {
+      items.push({
+        id: "copy-price",
+        label: `Copy price ${priceText}`,
+        icon: Copy,
+        groupStart: true,
+        onSelect: () => copyToClipboard(priceText),
+      });
+    }
+    if (point.at != null) {
+      const at = point.at;
+      const label = formatCrosshairLabel(
+        at,
+        settings.timeZone,
+        TIMEFRAME_MS[displayTimeframe],
+      );
+      items.push({
+        id: "copy-time",
+        label: `Copy time ${label}`,
+        icon: Clock,
+        groupStart: priceText == null,
+        onSelect: () => copyToClipboard(label),
+      });
+    }
+
+    if (tradable && price != null) {
+      const buyKind = orderKindAt(price, "long");
+      const sellKind = orderKindAt(price, "short");
+      items.push(
+        {
+          id: "buy-here",
+          label: `Buy ${symbolLabel} at ${priceText} ${buyKind}`,
+          icon: ArrowUpRight,
+          groupStart: true,
+          onSelect: () => onPlanAtPrice?.("long", priceText, buyKind),
+        },
+        {
+          id: "sell-here",
+          label: `Sell ${symbolLabel} at ${priceText} ${sellKind}`,
+          icon: ArrowDownRight,
+          onSelect: () => onPlanAtPrice?.("short", priceText, sellKind),
+        },
+      );
+    }
+
+    // Only offered against an open position: without one there is nothing for a
+    // stop or target to attach to, and a disabled row would just be noise.
+    if (hasPosition && priceText) {
+      items.push(
+        {
+          id: "stop-here",
+          label: `Set stop loss at ${priceText}`,
+          icon: Minus,
+          groupStart: !tradable,
+          onSelect: () => onStopLossChange(priceText),
+        },
+        {
+          id: "target-here",
+          label: `Set take profit at ${priceText}`,
+          icon: Tag,
+          onSelect: () => onTakeProfitChange(priceText),
+        },
+      );
+    }
+
+    if (drawCount > 0) {
+      items.push({
+        id: "clear-drawings",
+        label: `Remove ${drawCount} drawing${drawCount === 1 ? "" : "s"}`,
+        icon: Trash2,
+        danger: true,
+        groupStart: true,
+        onSelect: () => drawingEngineRef.current?.clearAll(),
+      });
+    }
+
+    items.push({
+      id: "settings",
+      label: "Settings…",
+      icon: Settings,
+      groupStart: true,
+      onSelect: () => setSettingsOpen(true),
+    });
+    return items;
   }
 
   function selectTimeframe(timeframe: Timeframe) {
@@ -2355,18 +2583,26 @@ export default function PriceChart({
             if (event.defaultPrevented) return;
             event.preventDefault();
             onFocusRef.current?.();
-            setSettingsMenu({ x: event.clientX, y: event.clientY });
+            openContextMenu(event.clientX, event.clientY);
           }}
         />
 
-        {settingsMenu && (
-          <ChartSettingsMenu
-            position={settingsMenu}
+        {contextMenu && (
+          <ChartContextMenu
+            position={contextMenu}
+            items={contextMenuItems(contextMenu)}
+            theme={theme}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+
+        {settingsOpen && (
+          <ChartSettingsDialog
             settings={settings}
             theme={theme}
             onChange={updateSettings}
             onReset={resetSettings}
-            onClose={() => setSettingsMenu(null)}
+            onClose={() => setSettingsOpen(false)}
           />
         )}
 
@@ -2460,8 +2696,26 @@ export default function PriceChart({
           so the order ticket's expanded panel still centres and drags against the
           whole chart.
         */}
-        <div className="pointer-events-none absolute inset-0 z-30">
-          <div className="flex w-fit flex-col items-start gap-1 pl-14 pt-2">
+        {/*
+          The cell holding the order ticket rides above the replay toolbox; every
+          other cell's legend stays beneath it. The toolbox has to clear the
+          neighbouring cells' chrome — that is why it sits at z-45 — but the
+          planner is a focused working surface and must never be covered by it.
+        */}
+        <div
+          className={`pointer-events-none absolute inset-0 ${
+            orderTicket ? "z-[50]" : "z-30"
+          }`}
+        >
+          {/*
+            One font-size on the column; every label inside is sized in `em`
+            against it, so the whole legend scales from a single preference
+            instead of a dozen hand-tuned pixel values.
+          */}
+          <div
+            className="flex w-fit flex-col items-start gap-1 pl-14 pt-2 text-[var(--chart-text)]"
+            style={{ fontSize: overlayFont }}
+          >
             <div
               className="pointer-events-auto flex items-center gap-1 rounded-lg border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-lg"
               data-testid="chart-legend"
@@ -2474,21 +2728,21 @@ export default function PriceChart({
                   aria-haspopup="dialog"
                   aria-label={`${symbolLabel}. Select a symbol`}
                   title="Select a symbol"
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-mono text-xs font-bold transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-accent-text)]"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-mono text-[1.05em] font-bold transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-accent-text)]"
                 >
                   {symbolLabel}
-                  <ChevronDown size={12} className="app-muted" aria-hidden />
+                  <ChevronDown size={12} className="text-[var(--chart-muted)]" aria-hidden />
                 </button>
               ) : (
-                <span className="px-2 font-mono text-xs font-bold">{symbolLabel}</span>
+                <span className="px-2 font-mono text-[1.05em] font-bold">{symbolLabel}</span>
               )}
-              <span className="font-mono text-[11px] font-semibold app-muted">
+              <span className="font-mono text-[0.92em] font-semibold text-[var(--chart-muted)]">
                 {displayTimeframe}
               </span>
               {referenceOnly && (
                 <span
                   title="Reference chart: orders follow the session's traded instrument"
-                  className="rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                  className="rounded px-1 py-0.5 text-[0.78em] font-bold uppercase tracking-wide"
                   style={{
                     color: "var(--app-warn-text)",
                     background: "var(--app-warn-wash)",
@@ -2506,28 +2760,28 @@ export default function PriceChart({
             </div>
 
             {legend && (
-              <div className="pointer-events-auto flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-1 font-mono text-[10px] shadow">
-                <span className="app-muted">
+              <div className="pointer-events-auto flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-1 font-mono text-[0.92em] shadow">
+                <span className="text-[var(--chart-muted)]">
                   {formatInZone(legend.at, settings.timeZone, LEGEND_DATE_FORMAT)}
                 </span>
                 <span className="h-3 w-px bg-[var(--app-border)]" aria-hidden />
                 {legend.kind === "ohlc" ? (
                   <>
-                    <span className="app-muted">
-                      O <span className="text-[var(--app-text)]">{legend.o.toFixed(precision)}</span>
+                    <span className="text-[var(--chart-muted)]">
+                      O <span className="text-[var(--chart-text)]">{legend.o.toFixed(precision)}</span>
                     </span>
-                    <span className="app-muted">
-                      H <span className="text-[var(--app-text)]">{legend.h.toFixed(precision)}</span>
+                    <span className="text-[var(--chart-muted)]">
+                      H <span className="text-[var(--chart-text)]">{legend.h.toFixed(precision)}</span>
                     </span>
-                    <span className="app-muted">
-                      L <span className="text-[var(--app-text)]">{legend.l.toFixed(precision)}</span>
+                    <span className="text-[var(--chart-muted)]">
+                      L <span className="text-[var(--chart-text)]">{legend.l.toFixed(precision)}</span>
                     </span>
-                    <span className="app-muted">
-                      C <span className="text-[var(--app-text)]">{legend.c.toFixed(precision)}</span>
+                    <span className="text-[var(--chart-muted)]">
+                      C <span className="text-[var(--chart-text)]">{legend.c.toFixed(precision)}</span>
                     </span>
                     {legend.volume != null && (
-                      <span className="app-muted">
-                        V <span className="text-[var(--app-text)]">{formatVolume(legend.volume)}</span>
+                      <span className="text-[var(--chart-muted)]">
+                        V <span className="text-[var(--chart-text)]">{formatVolume(legend.volume)}</span>
                       </span>
                     )}
                     {legendChange != null && (
@@ -2538,8 +2792,8 @@ export default function PriceChart({
                     )}
                   </>
                 ) : (
-                  <span className="app-muted">
-                    Price <span className="text-[var(--app-text)]">{legend.value.toFixed(precision)}</span>
+                  <span className="text-[var(--chart-muted)]">
+                    Price <span className="text-[var(--chart-text)]">{legend.value.toFixed(precision)}</span>
                   </span>
                 )}
               </div>
@@ -2551,13 +2805,13 @@ export default function PriceChart({
                 {pricePaneIndicators.map((inst) => {
               const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#5b8bff";
               return (
-                <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur">
+                <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] shadow backdrop-blur">
                   <span className="h-2 w-2 rounded-full" style={{ background: color, opacity: inst.visible ? 1 : 0.3 }} />
-                  <span className={`font-medium ${inst.visible ? "" : "app-muted line-through"}`}>{indicatorLabel(inst)}</span>
-                  <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                  <span className={`font-medium ${inst.visible ? "" : "text-[var(--chart-muted)] line-through"}`}>{indicatorLabel(inst)}</span>
+                  <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
                     {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
                   </button>
-                  <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+                  <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
                     <Settings2 size={12} />
                   </button>
                   <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
@@ -2578,14 +2832,14 @@ export default function PriceChart({
           return (
             <div
               key={inst.id}
-              className="group absolute left-14 z-10 flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur"
-              style={{ top: top + 4 }}
+              className="group absolute left-14 z-10 flex text-[var(--chart-text)] items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] shadow backdrop-blur"
+              style={{ top: top + 4, fontSize: overlayFont }}
             >
-              <span className={`font-medium ${inst.visible ? "" : "app-muted line-through"}`}>{indicatorLabel(inst)}</span>
-              <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+              <span className={`font-medium ${inst.visible ? "" : "text-[var(--chart-muted)] line-through"}`}>{indicatorLabel(inst)}</span>
+              <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
                 {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
               </button>
-              <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+              <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
                 <Settings2 size={12} />
               </button>
               <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
@@ -2598,7 +2852,8 @@ export default function PriceChart({
         {(tradePlan || positions.length > 0 || pendingOrders.some((order) => order.status === "pending")) && (
           <div
             data-testid="trade-line-key"
-            className="pointer-events-none absolute bottom-7 left-3 z-10 flex items-center gap-3 rounded border app-border bg-[var(--app-panel-solid)]/90 px-2 py-1 text-[9px] font-bold uppercase tracking-wide app-muted shadow"
+            style={{ fontSize: overlayFont }}
+            className="pointer-events-none absolute bottom-7 left-3 z-10 flex items-center gap-3 rounded border app-border bg-[var(--app-panel-solid)]/90 px-2 py-1 text-[0.82em] font-bold uppercase tracking-wide text-[var(--chart-muted)] shadow"
             aria-label="Trade line styles"
           >
             <span className="flex items-center gap-1">
@@ -2609,7 +2864,7 @@ export default function PriceChart({
               <i className="w-5 border-t border-dotted border-amber-400" />
               Pending
             </span>
-            <span className="flex items-center gap-1 text-[var(--app-text)]">
+            <span className="flex items-center gap-1 text-[var(--chart-text)]">
               <i className="w-5 border-t border-[#2962ff]" />
               Active
             </span>

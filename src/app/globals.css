@@ -97,6 +97,13 @@
     --app-warn-wash: rgba(251, 191, 36, 0.15);
     --focus-ring-offset: #070a12;
     /*
+     * Ink for text drawn *on* the chart — axis labels, the legend, indicator
+     * chips. It sits on the plot rather than on a panel, competing with candles
+     * and gridlines, so it runs brighter than ordinary UI copy: white on dark.
+     */
+    --chart-text: #ffffff;
+    --chart-muted: #c3cfe4;
+    /*
      * The order ticket is a dense, self-contained surface with its own greys.
      * They live here as variables so it follows the theme toggle instead of
      * staying a dark slab on a light chart.
@@ -129,6 +136,8 @@
     --app-warn-text: #92610a;
     --app-warn-wash: rgba(180, 130, 10, 0.14);
     --focus-ring-offset: #f5f7fb;
+    --chart-text: #0b1220;
+    --chart-muted: #46536b;
     --ticket-bg: #ffffff;
     --ticket-surface: #f4f6fa;
     --ticket-raised: #e9eef6;

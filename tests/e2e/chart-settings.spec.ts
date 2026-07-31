@@ -36,10 +36,19 @@ async function openSession(page: Page) {
 }
 
 /** Right-click chart space, clear of the floating replay toolbar. */
-async function openSettings(page: Page) {
+async function openChartMenu(page: Page) {
   const chart = page.getByRole("img", { name: "Candlestick price chart" }).first();
   const box = (await chart.boundingBox())!;
-  await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.28, { button: "right" });
+  await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.55, { button: "right" });
+  const menu = page.getByRole("menu", { name: "Chart actions" });
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
+/** Right-click, then take the menu's route into the settings dialog. */
+async function openSettings(page: Page) {
+  const menu = await openChartMenu(page);
+  await menu.getByRole("menuitem", { name: /^Settings/ }).click();
   const panel = page.getByRole("dialog", { name: "Chart settings" });
   await expect(panel).toBeVisible();
   return panel;
@@ -51,6 +60,7 @@ test("right-click settings toggle what the chart draws, and survive a reload", a
   // One-click trading turns the compact quote buttons into immediate market
   // orders; the preference is stored with the chart workspace.
   let panel = await openSettings(page);
+  await panel.getByRole("button", { name: "Trading" }).click();
   await panel.getByRole("switch", { name: "One-click trading" }).click();
   await expect(
     panel.getByRole("switch", { name: "One-click trading" }),
@@ -73,6 +83,7 @@ test("right-click settings toggle what the chart draws, and survive a reload", a
   await expect(page.getByTestId("add-stop-loss-handle")).toHaveCount(1);
 
   panel = await openSettings(page);
+  await panel.getByRole("button", { name: "Scales & lines" }).click();
   await panel.getByRole("switch", { name: "Open position lines" }).click();
   await expect(page.getByTestId("position-entry-line")).toHaveCount(0);
   await expect(page.getByTestId("stop-loss-line")).toHaveCount(0);
@@ -115,5 +126,5 @@ test("a right-click on a drawing belongs to the drawing, not the chart", async (
   await page.waitForTimeout(500);
   await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.4, { button: "right" });
   await page.waitForTimeout(400);
-  await expect(page.getByRole("dialog", { name: "Chart settings" })).toHaveCount(0);
+  await expect(page.getByRole("menu", { name: "Chart actions" })).toHaveCount(0);
 });

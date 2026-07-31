@@ -6,7 +6,7 @@ import { Columns2, Grid2X2, Rows2, Square, LayoutPanelLeft } from "lucide-react"
 
 import type { PairChartData } from "@/lib/backtest/client";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
-import type { OpenPosition, PendingOrder, PublicSessionState } from "@/lib/backtest/types";
+import type { OpenPosition, OrderType, PendingOrder, PublicSessionState } from "@/lib/backtest/types";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
 
 import { useCompactViewport } from "@/lib/ui/use-media-query";
@@ -109,6 +109,12 @@ interface ChartGridProps {
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
   tradePlan: TradePlan | null;
+  /** Start an order from a price picked off a chart's right-click menu. */
+  onPlanAtPrice?: (
+    direction: "long" | "short",
+    entryPrice: string,
+    orderType: OrderType,
+  ) => void;
   onTradePlanChange: (
     level: keyof Omit<TradePlan, "direction">,
     value: string,
@@ -157,6 +163,7 @@ export default function ChartGrid({
   takeProfit,
   positionDirection,
   tradePlan,
+  onPlanAtPrice,
   onTradePlanChange,
   theme,
   onStopLossChange,
@@ -380,6 +387,7 @@ export default function ChartGrid({
                 takeProfit={takeProfit}
                 positionDirection={positionDirection}
                 tradePlan={tradePlan}
+                onPlanAtPrice={onPlanAtPrice}
                 onTradePlanChange={onTradePlanChange}
                 theme={theme}
                 onStopLossChange={onStopLossChange}
@@ -431,6 +439,12 @@ interface ChartCellViewProps {
   takeProfit: number | null;
   positionDirection: "long" | "short" | null;
   tradePlan: TradePlan | null;
+  /** Start an order from a price picked off a chart's right-click menu. */
+  onPlanAtPrice?: (
+    direction: "long" | "short",
+    entryPrice: string,
+    orderType: OrderType,
+  ) => void;
   onTradePlanChange: (
     level: keyof Omit<TradePlan, "direction">,
     value: string,
@@ -473,6 +487,7 @@ function ChartCellView({
   takeProfit,
   positionDirection,
   tradePlan,
+  onPlanAtPrice,
   onTradePlanChange,
   theme,
   onStopLossChange,
@@ -546,6 +561,7 @@ function ChartCellView({
         axisCorner={axisCorner}
         symbolLabel={cell.symbol}
         referenceOnly={!tradable}
+        onPlanAtPrice={tradable ? onPlanAtPrice : undefined}
         onSelectInstrument={onSelectInstrument}
         settings={workspace.settings}
         onSettingsChange={workspace.updateSettings}

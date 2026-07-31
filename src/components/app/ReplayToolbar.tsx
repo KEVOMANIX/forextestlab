@@ -234,7 +234,10 @@ export function ReplayToolbar({
       onPointerDown={compact ? undefined : startDrag}
       // No backdrop blur: blurring the chart canvas underneath smears candles
       // around the toolbox. The panel colour is opaque enough on its own.
-      className={`absolute z-20 w-[calc(100%-1.5rem)] max-w-[390px] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl shadow-black/40 ${
+      // Above every piece of chart chrome (rails, legends, order lines all sit
+      // at z-30/z-40) so a grid layout cannot slice the toolbox in half with the
+      // neighbouring cell's drawing rail. Still below menus and dialogs.
+      className={`absolute z-[45] w-[calc(100%-1.5rem)] max-w-[390px] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl shadow-black/40 ${
         compact ? "" : "touch-none cursor-move"
       }`}
       style={
@@ -242,11 +245,10 @@ export function ReplayToolbar({
           ? { left: "50%", bottom: "0.5rem", transform: "translateX(-50%)" }
           : position
             ? { left: position.x, top: position.y }
-            : {
-                left: "50%",
-                top: "55%",
-                transform: "translate(-50%, -50%)",
-              }
+            : // Rests near the top of the plot rather than across its middle,
+              // where it used to sit over the candles and the price scale. Clear
+              // of the legend on the left and of the favourites bar above it.
+              { left: "50%", top: "3.5rem", transform: "translateX(-50%)" }
       }
     >
       <div className="flex items-center gap-1.5">

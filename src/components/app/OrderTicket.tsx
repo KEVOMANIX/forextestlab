@@ -61,6 +61,13 @@ interface OrderTicketProps {
   activationRequest?: {
     id: number;
     direction: TradeDirection;
+    /**
+     * Set when the request came from a price picked off the chart. A resting
+     * order always opens the planner, whatever one-click is set to: the price
+     * is already chosen, so the remaining decisions — size and protection — are
+     * exactly the ones the planner exists to take.
+     */
+    orderType?: OrderType;
   } | null;
   onActivationHandled?: (id: number) => void;
 }
@@ -293,9 +300,19 @@ export function OrderTicket({
       return;
     }
     handledActivationRef.current = activationRequest.id;
-    activateQuote(activationRequest.direction);
+    const requested = activationRequest.orderType;
+    if (requested && requested !== "market") {
+      // Set directly rather than through `selectOrderType`, which derives an
+      // entry price ten pips off the market — the whole point here is the price
+      // the caller already put in the plan.
+      setOrderType(requested);
+      openPlanner(activationRequest.direction);
+    } else {
+      if (requested) setOrderType(requested);
+      activateQuote(activationRequest.direction);
+    }
     onActivationHandled?.(activationRequest.id);
-  }, [activateQuote, activationRequest, onActivationHandled]);
+  }, [activateQuote, activationRequest, onActivationHandled, openPlanner]);
 
   function beginPanelDrag(event: ReactPointerEvent<HTMLElement>) {
     if (event.button !== 0) return;

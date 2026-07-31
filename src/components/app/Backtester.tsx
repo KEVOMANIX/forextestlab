@@ -25,7 +25,7 @@ import { useBacktester } from "./useBacktester";
 import { useChartWorkspace } from "./useChartWorkspace";
 import { BackLink } from "./BackLink";
 import { TradingOnboarding } from "./TradingOnboarding";
-import type { OrderRequest } from "@/lib/backtest/types";
+import type { OrderRequest, OrderType } from "@/lib/backtest/types";
 import {
   defaultTradePlan,
   type TradePlan,
@@ -107,6 +107,8 @@ export function Backtester({
   const [orderTicketActivation, setOrderTicketActivation] = useState<{
     id: number;
     direction: "long" | "short";
+    /** Set when the chart asked for a resting order at a specific price. */
+    orderType?: OrderType;
   } | null>(null);
   const orderTicketActivationIdRef = useRef(0);
   const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
@@ -521,12 +523,33 @@ export function Backtester({
   const activeSymbol = bt.activeSymbol ?? state.config.symbol;
   const referencePair =
     activeSymbol === state.config.symbol ? null : activeSymbol;
-  const activateOrderTicket = (direction: "long" | "short") => {
+  const activateOrderTicket = (
+    direction: "long" | "short",
+    orderType?: OrderType,
+  ) => {
     orderTicketActivationIdRef.current += 1;
     setOrderTicketActivation({
       id: orderTicketActivationIdRef.current,
       direction,
+      orderType,
     });
+  };
+  /**
+   * "Buy/Sell at 1.08661" from a chart's right-click menu: the plan opens on the
+   * price that was clicked rather than the market price, and the ticket comes
+   * forward so the size and protection can be set before anything is sent.
+   */
+  const planAtPrice = (
+    direction: "long" | "short",
+    entryPrice: string,
+    orderType: OrderType,
+  ) => {
+    const base = defaultTradePlan(state, direction);
+    if (!base) return;
+    // The plan carries the clicked price; the activation carries the order type
+    // the chart worked out from which side of the market that price fell on.
+    setTradePlan({ ...base, entryPrice });
+    activateOrderTicket(direction, orderType);
   };
   const navigateFromChart = (href: string) => {
     if (!hasMeaningfulActivity) {
@@ -671,6 +694,7 @@ export function Backtester({
             takeProfit={chartTarget ? Number(chartTarget) : null}
             positionDirection={position?.direction ?? null}
             tradePlan={tradePlan}
+            onPlanAtPrice={planAtPrice}
             onTradePlanChange={changeTradePlan}
             onStopLossChange={changeStop}
             onTakeProfitChange={changeTarget}

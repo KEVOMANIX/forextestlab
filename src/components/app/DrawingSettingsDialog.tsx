@@ -172,6 +172,16 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               <Row label="Show labels">
                 <input type="checkbox" checked={s.showLabels} onChange={(e) => setStyle({ showLabels: e.target.checked })} />
               </Row>
+              {value.kind === "rectangle" && (
+                <Row label="Center line">
+                  <input
+                    type="checkbox"
+                    aria-label="Show rectangle center line"
+                    checked={Boolean(s.showCenterLine)}
+                    onChange={(e) => setStyle({ showCenterLine: e.target.checked })}
+                  />
+                </Row>
+              )}
               <Row label="Extend left">
                 <input type="checkbox" checked={s.extendLeft} onChange={(e) => setStyle({ extendLeft: e.target.checked })} />
               </Row>

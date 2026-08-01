@@ -177,7 +177,7 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   await expect(circleToolbar.getByLabel("Drawing stroke color")).toHaveCount(1);
   const backgroundColor = circleToolbar.getByLabel("Drawing background color");
   await expect(backgroundColor).toHaveCount(1);
-  await expect(circleToolbar.getByRole("button", { name: "Remove drawing background" })).toBeVisible();
+  await expect(circleToolbar.getByRole("button", { name: "Remove drawing background" })).toHaveCount(0);
   await backgroundColor.fill("#ff5500");
   await expect.poll(() => page.evaluate(() => {
     for (let index = 0; index < localStorage.length; index += 1) {
@@ -188,6 +188,36 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
         style?: { fillColor?: string };
       }[];
       if (drawings.some((drawing) => drawing.kind === "circle" && drawing.style?.fillColor === "#ff5500")) {
+        return true;
+      }
+    }
+    return false;
+  })).toBe(true);
+
+  // Rectangles expose a midpoint line in advanced settings, disabled by
+  // default and persisted when enabled.
+  await firstCell.getByRole("button", { name: "Shapes", exact: true }).click();
+  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+  await page.mouse.move(bounds.x + bounds.width * 0.62, bounds.y + bounds.height * 0.32);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.78, bounds.y + bounds.height * 0.62, { steps: 6 });
+  await page.mouse.up();
+  const rectangleToolbar = firstCell.getByRole("toolbar", { name: "rectangle drawing settings" });
+  await expect(rectangleToolbar).toBeVisible();
+  await rectangleToolbar.getByRole("button", { name: "More drawing settings" }).click();
+  const centerLine = page.getByLabel("Show rectangle center line");
+  await expect(centerLine).not.toBeChecked();
+  await centerLine.check();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("forextestlab:drawings:")) continue;
+      const drawings = JSON.parse(localStorage.getItem(key) ?? "[]") as {
+        kind?: string;
+        style?: { showCenterLine?: boolean };
+      }[];
+      if (drawings.some((drawing) => drawing.kind === "rectangle" && drawing.style?.showCenterLine)) {
         return true;
       }
     }

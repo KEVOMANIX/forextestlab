@@ -499,9 +499,11 @@ export class DrawingEngine {
     x: number,
     y: number,
   ): { kind: "anchor"; index: number } | { kind: "resize"; handle: ResizeHandle } | null {
-    for (const a of o.anchors(this.mapper)) {
-      if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
-        return { kind: "anchor", index: a.index };
+    if (!this.usesOnlyResizeHandles(o)) {
+      for (const a of o.anchors(this.mapper)) {
+        if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
+          return { kind: "anchor", index: a.index };
+        }
       }
     }
     for (const a of this.resizeHandles(o)) {
@@ -510,6 +512,12 @@ export class DrawingEngine {
       }
     }
     return null;
+  }
+
+  /** Area shapes are clearer with their eight resize handles alone. */
+  private usesOnlyResizeHandles(o: DrawingObject): boolean {
+    return o.kind === "rectangle" || o.kind === "session" ||
+      o.kind === "circle" || o.kind === "ellipse";
   }
 
   private resizeHandles(o: DrawingObject): { x: number; y: number; handle: ResizeHandle }[] {
@@ -993,14 +1001,16 @@ export class DrawingEngine {
         ctx.strokeStyle = sel.locked ? "#94a3b8" : SELECTION_BLUE;
         ctx.stroke();
       }
-      for (const a of sel.anchors(this.mapper)) {
-        ctx.beginPath();
-        ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);
-        ctx.fillStyle = sel.locked ? "#94a3b8" : HANDLE_FILL;
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = sel.locked ? "#94a3b8" : SELECTION_BLUE;
-        ctx.stroke();
+      if (!this.usesOnlyResizeHandles(sel)) {
+        for (const a of sel.anchors(this.mapper)) {
+          ctx.beginPath();
+          ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);
+          ctx.fillStyle = sel.locked ? "#94a3b8" : HANDLE_FILL;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = sel.locked ? "#94a3b8" : SELECTION_BLUE;
+          ctx.stroke();
+        }
       }
       ctx.restore();
     }

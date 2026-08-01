@@ -46,6 +46,8 @@ export interface DrawingStyle {
   fill: boolean;
   fillColor: string;
   fillOpacity: number; // 0..1
+  /** Optional horizontal midpoint inside rectangle drawings. */
+  showCenterLine?: boolean;
   showLabels: boolean;
   extendLeft: boolean;
   extendRight: boolean;
@@ -94,6 +96,7 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle" || kind === "fib",
     fillColor: "#5b8bff",
     fillOpacity: 0.12,
+    showCenterLine: false,
     showLabels: true,
     extendLeft: false,
     extendRight: kind === "ray" || kind === "extended",

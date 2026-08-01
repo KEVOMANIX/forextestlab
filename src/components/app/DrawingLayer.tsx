@@ -298,15 +298,6 @@ export function DrawingLayer({
           </label>
           <button
             type="button"
-            aria-label={selection.style.fill ? "Remove drawing background" : "Enable drawing background"}
-            title={selection.style.fill ? "Remove background" : "Enable background"}
-            onClick={() => applyQuickStyle({ fill: !selection.style.fill })}
-            className={`grid h-7 w-7 place-items-center rounded text-[10px] font-bold ${selection.style.fill ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)]"}`}
-          >
-            {selection.style.fill ? "ON" : "OFF"}
-          </button>
-          <button
-            type="button"
             aria-label="Change drawing line width"
             title="Line width"
             onClick={() => applyQuickStyle({ lineWidth: selection.style.lineWidth >= 4 ? 1 : selection.style.lineWidth + 1 })}

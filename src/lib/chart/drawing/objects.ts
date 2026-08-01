@@ -278,18 +278,28 @@ class Rectangle extends DrawingObject {
     }
     this.applyStroke(ctx);
     ctx.strokeRect(x, y, w, h);
+    if (this.style.showCenterLine) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + h / 2);
+      ctx.lineTo(x + w, y + h / 2);
+      ctx.stroke();
+    }
   }
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
     const r = this.bbox(mapper);
     if (!r) return false;
     if (this.style.fill && pointInRect(x, y, r)) return true;
     // near any edge
-    return (
+    const onBorder = (
       Math.abs(x - r.x) <= HIT_TOLERANCE ||
       Math.abs(x - (r.x + r.w)) <= HIT_TOLERANCE ||
       Math.abs(y - r.y) <= HIT_TOLERANCE ||
       Math.abs(y - (r.y + r.h)) <= HIT_TOLERANCE
     ) && pointInRect(x, y, r, HIT_TOLERANCE);
+    const onCenter = Boolean(this.style.showCenterLine) &&
+      Math.abs(y - (r.y + r.h / 2)) <= HIT_TOLERANCE &&
+      x >= r.x - HIT_TOLERANCE && x <= r.x + r.w + HIT_TOLERANCE;
+    return onBorder || onCenter;
   }
 }
 

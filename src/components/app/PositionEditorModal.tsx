@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ShieldCheck, X } from "lucide-react";
+import { Activity, ChevronDown, X } from "lucide-react";
 
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { livePositionMetrics } from "@/lib/backtest/position-management";
@@ -98,13 +98,6 @@ export function PositionEditorModal({
   };
 
   const positive = Number(metrics.pnl) >= 0;
-  const riskText = position.stopLoss
-    ? metrics.remainingRisk
-      ? `${metrics.remainingRisk} ${state.config.accountCurrency}`
-      : metrics.lockedProfit
-        ? `${metrics.lockedProfit} ${state.config.accountCurrency} locked`
-        : `0.00 ${state.config.accountCurrency}`
-    : "Unprotected";
 
   return (
     <div
@@ -158,49 +151,33 @@ export function PositionEditorModal({
           </button>
         </div>
 
-        <div className="grid grid-cols-3 gap-2" aria-label="Live position performance">
-          <Metric
-            label="P&L"
-            value={`${signed(metrics.pnl)} ${state.config.accountCurrency}`}
-            tone={positive ? "positive" : "negative"}
-          />
-          <Metric
-            label="Pips"
-            value={signed(metrics.pips)}
-            tone={Number(metrics.pips) >= 0 ? "positive" : "negative"}
-          />
-          <Metric
-            label="R"
-            value={metrics.rMultiple ? `${signed(metrics.rMultiple)}R` : "—"}
-            tone={
-              metrics.rMultiple == null
-                ? "muted"
-                : Number(metrics.rMultiple) >= 0
-                  ? "positive"
-                  : "negative"
-            }
-          />
+        <div className="flex items-center justify-between rounded-lg border app-border bg-black/10 px-3 py-3" aria-label="Live position performance">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide app-muted">Unrealized P&amp;L</p>
+            <p className={`mt-1 font-mono text-lg font-bold ${positive ? "text-brand-300" : "text-bear"}`}>
+              {signed(metrics.pnl)} {state.config.accountCurrency}
+            </p>
+          </div>
+          <p className="text-right font-mono text-xs app-muted">
+            {signed(metrics.pips)} pips
+            {metrics.rMultiple ? <><br />{signed(metrics.rMultiple)}R</> : null}
+          </p>
         </div>
 
-        <div className="mt-3 flex items-center justify-between rounded-lg border app-border bg-black/10 px-3 py-2 text-xs">
-          <span className="flex items-center gap-1.5 app-muted">
-            <ShieldCheck size={14} aria-hidden />
-            Remaining risk
-          </span>
-          <strong
-            className={
-              metrics.remainingRisk
-                ? "text-amber-400"
-                : metrics.lockedProfit
-                  ? "text-brand-300"
-                  : "app-muted"
-            }
-          >
-            {riskText}
-          </strong>
-        </div>
+        <button type="button" onClick={() => closePercent(100)} className="mt-3 w-full rounded-lg bg-bear px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-bear/90">
+          Close full position
+        </button>
 
-        <div className="mt-4 border-t app-border pt-4">
+        <details className="group mt-3 rounded-lg border app-border">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-3 text-xs font-semibold [&::-webkit-details-marker]:hidden">
+            <span>Protection &amp; trailing stop</span>
+            <span className="flex items-center gap-2 app-muted">
+              <span className="hidden font-mono sm:inline">SL {position.stopLoss ?? "—"} · TP {position.takeProfit ?? "—"}</span>
+              <ChevronDown size={15} className="transition-transform group-open:rotate-180" aria-hidden />
+            </span>
+          </summary>
+          <div className="border-t app-border p-3">
+        <div>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold">Protection</p>
             <button
@@ -257,7 +234,7 @@ export function PositionEditorModal({
           </button>
         </div>
 
-        <div className="mt-4 rounded-lg border app-border p-3">
+        <div className="mt-3 rounded-lg border app-border p-3">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-xs font-semibold">
               <Activity size={14} aria-hidden />
@@ -303,22 +280,27 @@ export function PositionEditorModal({
             </button>
           </div>
         </div>
+          </div>
+        </details>
 
-        <div className="mt-4 border-t app-border pt-3">
-          <p className="mb-2 text-xs font-semibold app-muted">Close position</p>
-          <div className="grid grid-cols-4 gap-2">
-            {[25, 50, 75, 100].map((percent) => (
+        <details className="group mt-3 rounded-lg border app-border">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-3 text-xs font-semibold [&::-webkit-details-marker]:hidden">
+            <span>Partial close</span>
+            <span className="flex items-center gap-2 app-muted">
+              25%, 50%, 75% or custom
+              <ChevronDown size={15} className="transition-transform group-open:rotate-180" aria-hidden />
+            </span>
+          </summary>
+          <div className="border-t app-border p-3">
+          <div className="grid grid-cols-3 gap-2">
+            {[25, 50, 75].map((percent) => (
               <button
                 key={percent}
                 type="button"
                 onClick={() => closePercent(percent)}
-                className={`rounded-md border px-2 py-2 text-xs font-semibold ${
-                  percent === 100
-                    ? "border-bear/40 bg-bear/10 text-bear hover:bg-bear/20"
-                    : "app-border hover:bg-white/[0.05]"
-                }`}
+                className="rounded-md border app-border px-2 py-2 text-xs font-semibold hover:bg-white/[0.05]"
               >
-                {percent === 100 ? "Close all" : `${percent}%`}
+                {percent}%
               </button>
             ))}
           </div>
@@ -350,37 +332,9 @@ export function PositionEditorModal({
               {closeError}
             </p>
           )}
-        </div>
+          </div>
+        </details>
       </section>
-    </div>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "positive" | "negative" | "muted";
-}) {
-  return (
-    <div className="rounded-lg border app-border bg-black/10 px-2 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide app-muted">
-        {label}
-      </p>
-      <p
-        className={`mt-0.5 truncate font-mono text-xs font-bold ${
-          tone === "positive"
-            ? "text-brand-300"
-            : tone === "negative"
-              ? "text-bear"
-              : "app-muted"
-        }`}
-      >
-        {value}
-      </p>
     </div>
   );
 }

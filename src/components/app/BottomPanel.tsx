@@ -40,6 +40,7 @@ interface BottomPanelProps {
   onSaveNotes: (notes: string) => void;
   busy: boolean;
   onCancelPending: (orderId: string) => void;
+  onCloseAllPositions: () => void;
   onSaveTradeJournal: (journalId: string, journal: TradeJournalUpdate) => Promise<void> | void;
   onAddBookmark: () => void;
   onUpdateBookmark: (id: string, note: string) => void;
@@ -63,6 +64,7 @@ export function BottomPanel({
   onSaveNotes,
   busy,
   onCancelPending,
+  onCloseAllPositions,
   onSaveTradeJournal,
   onAddBookmark,
   onUpdateBookmark,
@@ -119,8 +121,15 @@ export function BottomPanel({
         >
           {tab === "position" &&
             (state.openPositions.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-xs">
+              <div>
+                <div className="flex items-center justify-between border-b app-border bg-[var(--app-panel-solid)] px-3 py-2">
+                  <span className="text-xs font-semibold">{openCount} open {openCount === 1 ? "position" : "positions"}</span>
+                  <button type="button" onClick={onCloseAllPositions} disabled={busy} className="rounded-md border border-bear/40 bg-bear/10 px-3 py-1.5 text-xs font-semibold text-bear transition-colors hover:bg-bear/20 disabled:opacity-40">
+                    Close all positions
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-xs">
                   {/* The dock is short, so headers stick instead of scrolling away. */}
                   <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted"><tr className="border-b app-border"><th scope="col" className="px-3 py-2">Side</th><th scope="col">Lots</th><th scope="col">Entry</th><th scope="col">SL</th><th scope="col">TP</th><th scope="col">Commission</th><th scope="col">Unrealised</th></tr></thead>
                   <tbody>
@@ -132,7 +141,8 @@ export function BottomPanel({
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               </div>
             ) : (
               <p className="p-4 text-sm app-muted">No open positions.</p>

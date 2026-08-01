@@ -26,6 +26,7 @@ import type {
   TradeJournalUpdate,
 } from "@/lib/backtest/types";
 import {
+  closeAllPositions as closeAllLocalPositions,
   closePosition as closeLocalPosition,
   engineStateFromPublic,
   modifyStopLoss as modifyLocalStopLoss,
@@ -987,6 +988,21 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [runAction, s.state],
   );
+  const closeAllPositions = useCallback(() => {
+    const rollbackState = s.state;
+    const engine = localEngineRef.current;
+    if (engine) {
+      const result = closeAllLocalPositions(engine);
+      if (result.ok) {
+        const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
+        setS((prev) => ({ ...prev, state }));
+      }
+    }
+    return runAction({
+      type: "close-all",
+      targetIndex: localEngineRef.current?.state.visibleIndex,
+    }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
+  }, [runAction, s.state]);
   const modifyStop = useCallback(
     (price: string | null, positionId?: string) => {
       const rollbackState = s.state;
@@ -1290,6 +1306,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       modifyPending,
       cancelPending,
       closePosition,
+      closeAllPositions,
       modifyStop,
       modifyTarget,
       modifyTrailing,

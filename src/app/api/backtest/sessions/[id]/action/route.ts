@@ -8,6 +8,7 @@ import {
   toPublicState,
 } from "@/lib/backtest/session-store";
 import {
+  closeAllPositions,
   closePosition,
   cancelPendingOrder,
   expirePendingOrders,
@@ -124,13 +125,18 @@ export async function POST(
       restart(ctx);
       break;
     case "end":
-      while (ctx.state.openPositions.length > 0) closePosition(ctx);
+      if (ctx.state.openPositions.length > 0) closeAllPositions(ctx);
       expirePendingOrders(ctx);
       setStatus(ctx, "finished");
       ctx.state.status = "finished";
       break;
     case "close": {
       const r = closePosition(ctx, action.positionId, action.lots);
+      if (!r.ok) opError = r.error;
+      break;
+    }
+    case "close-all": {
+      const r = closeAllPositions(ctx);
       if (!r.ok) opError = r.error;
       break;
     }

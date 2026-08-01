@@ -558,6 +558,18 @@ export function Backtester({
     }, 0);
   }, [actions, notify]);
 
+  const requestCloseAllPositions = useCallback(() => {
+    const count = state?.openPositions.length ?? 0;
+    if (count === 0) return;
+    setPendingConfirmation({
+      title: "Close all open positions?",
+      message: `This will close ${count} ${count === 1 ? "position" : "positions"} at the current replay prices. This cannot be undone.`,
+      confirmLabel: `Close ${count} ${count === 1 ? "position" : "positions"}`,
+      danger: true,
+      action: () => void actions.closeAllPositions(),
+    });
+  }, [actions, state?.openPositions.length]);
+
   if (bt.phase === "loading") {
     return <PageLoader />;
   }
@@ -906,6 +918,7 @@ export function Backtester({
         onSaveNotes={actions.saveNotes}
         busy={bt.busy}
         onCancelPending={requestCancelPending}
+        onCloseAllPositions={requestCloseAllPositions}
         onSaveTradeJournal={actions.saveTradeJournal}
         revealTab={revealPanelTab}
         onShowPropFirmVerdict={() => setVerdictOpen(true)}

@@ -1145,3 +1145,15 @@ export function closePosition(
   recomputeEquity(ctx, false);
   return { ok: true };
 }
+
+/** Close every open position at the current candle's executable price. */
+export function closeAllPositions(ctx: EngineContext): PlaceOrderResult {
+  if (ctx.state.openPositions.length === 0) {
+    return { ok: false, error: "No open positions." };
+  }
+  while (ctx.state.openPositions.length > 0) {
+    const result = closePosition(ctx);
+    if (!result.ok) return result;
+  }
+  return { ok: true };
+}

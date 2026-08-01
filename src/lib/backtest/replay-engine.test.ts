@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import type { Candle } from "@/lib/market-data/types";
 import type { EngineContext, SessionConfig } from "./types";
 import {
+  closeAllPositions,
   closePosition,
   cancelPendingOrder,
   createSessionState,
@@ -387,6 +388,18 @@ describe("manual close and drawdown", () => {
     closePosition(e);
     expect(e.state.closedTrades[0]?.exitReason).toBe("manual");
     expect(e.state.closedTrades[0]?.pnl).toBe("100.00");
+  });
+
+  it("closes every open position in one operation", () => {
+    const e = ctx(FLAT);
+    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "0.5" });
+    placeOrder(e, { direction: "short", sizingMode: "fixed-lots", lots: "0.25" });
+
+    expect(e.state.openPositions).toHaveLength(2);
+    expect(closeAllPositions(e).ok).toBe(true);
+    expect(e.state.openPositions).toHaveLength(0);
+    expect(e.state.closedTrades).toHaveLength(2);
+    expect(e.state.closedTrades.every((trade) => trade.exitReason === "manual")).toBe(true);
   });
 
   it("persists intrabar favorable and adverse excursion for analytics", () => {

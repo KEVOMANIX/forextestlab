@@ -168,7 +168,7 @@ export const TOOL_POINTS: Record<ToolKind, number> = {
   datePriceRange: 2,
   callout: 2,
   priceLabel: 1,
-  anchoredText: 1,
+  anchoredText: 2,
 };
 
 export const TOOL_LABELS: Record<ToolKind, string> = {

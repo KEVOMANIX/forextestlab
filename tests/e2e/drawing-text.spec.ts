@@ -52,7 +52,14 @@ for (const tool of ["Text", "Label", "Anchored text"] as const) {
 
     await page.getByRole("button", { name: /Text & notes/i }).click();
     await page.getByRole("button", { name: new RegExp(`^${tool}$`, "i") }).click();
-    await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.35);
+    if (tool === "Anchored text") {
+      await page.mouse.move(box.x + box.width * .35, box.y + box.height * .28);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width * .45, box.y + box.height * .35, { steps: 5 });
+      await page.mouse.up();
+    } else {
+      await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.35);
+    }
 
     // The editor must survive the click that opened it.
     const editor = page.getByLabel("Drawing text");
@@ -92,10 +99,8 @@ for (const tool of ["Text", "Label", "Anchored text"] as const) {
     if (tool === "Anchored text") {
       const drawings = JSON.parse(stored) as Array<{ kind: string; points: Array<{ time: number; price: number }> }>;
       expect(drawings[0]?.kind).toBe("anchoredText");
-      expect(drawings[0]?.points[0]?.time).toBeGreaterThan(0);
-      expect(drawings[0]?.points[0]?.time).toBeLessThan(1);
-      expect(drawings[0]?.points[0]?.price).toBeGreaterThan(0);
-      expect(drawings[0]?.points[0]?.price).toBeLessThan(1);
+      expect(drawings[0]?.points).toHaveLength(2);
+      expect(drawings[0]?.points[0]?.time).not.toBe(drawings[0]?.points[1]?.time);
     }
   });
 }

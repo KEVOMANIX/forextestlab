@@ -121,7 +121,10 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   const initialBounds = await chart.boundingBox();
   expect(initialBounds).not.toBeNull();
   if (!initialBounds) return;
-  await page.mouse.click(initialBounds.x + initialBounds.width * .58, initialBounds.y + initialBounds.height * .32);
+  await page.mouse.move(initialBounds.x + initialBounds.width * .44, initialBounds.y + initialBounds.height * .24);
+  await page.mouse.down();
+  await page.mouse.move(initialBounds.x + initialBounds.width * .58, initialBounds.y + initialBounds.height * .32, { steps: 6 });
+  await page.mouse.up();
   const directEditor = page.getByTestId("drawing-inline-text-editor");
   await expect(directEditor).toBeFocused();
   await expect(directEditor).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
@@ -139,8 +142,7 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
         points?: Array<{ time: number; price: number }>;
         style?: { text?: string };
       }>;
-      if (drawings.some((drawing) => drawing.kind === "anchoredText" && drawing.style?.text === "Replay plan" &&
-        drawing.points?.[0]?.time! > 0 && drawing.points[0]!.time < 1 && drawing.points[0]!.price > 0 && drawing.points[0]!.price < 1)) return true;
+      if (drawings.some((drawing) => drawing.kind === "anchoredText" && drawing.style?.text === "Replay plan" && drawing.points?.length === 2)) return true;
     }
     return false;
   })).toBe(true);

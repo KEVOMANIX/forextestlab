@@ -326,24 +326,20 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               {value.points.map((p, i) => (
                 <div key={i} className="rounded-md border app-border p-2">
                   <div className="mb-1 text-[10px] font-semibold app-muted">Point {i + 1}</div>
-                  <Row label={value.kind === "anchoredText" ? "Horizontal (%)" : "Time (unix s)"}>
+                  <Row label="Time (unix s)">
                     <input
                       type="number"
-                      min={value.kind === "anchoredText" ? 0 : undefined}
-                      max={value.kind === "anchoredText" ? 100 : undefined}
-                      value={value.kind === "anchoredText" ? Math.round(p.time * 100) : p.time}
-                      onChange={(e) => setPoint(i, { time: Number(e.target.value) / (value.kind === "anchoredText" ? 100 : 1) })}
+                      value={p.time}
+                      onChange={(e) => setPoint(i, { time: Number(e.target.value) })}
                       className="w-32 rounded border app-border bg-transparent px-1 py-0.5 text-right font-mono text-[11px]"
                     />
                   </Row>
-                  <Row label={value.kind === "anchoredText" ? "Vertical (%)" : "Price"}>
+                  <Row label="Price">
                     <input
                       type="number"
-                      min={value.kind === "anchoredText" ? 0 : undefined}
-                      max={value.kind === "anchoredText" ? 100 : undefined}
-                      step={value.kind === "anchoredText" ? 1 : Math.pow(10, -precision)}
-                      value={value.kind === "anchoredText" ? Math.round(p.price * 100) : p.price}
-                      onChange={(e) => setPoint(i, { price: Number(e.target.value) / (value.kind === "anchoredText" ? 100 : 1) })}
+                      step={Math.pow(10, -precision)}
+                      value={p.price}
+                      onChange={(e) => setPoint(i, { price: Number(e.target.value) })}
                       className="w-32 rounded border app-border bg-transparent px-1 py-0.5 text-right font-mono text-[11px]"
                     />
                   </Row>

@@ -263,8 +263,8 @@ export function DrawingLayer({
           }}
           className="absolute z-50 resize-none overflow-hidden border-0 bg-transparent p-0 shadow-none outline-none"
           style={{
-            left: textEdit.x,
-            top: textEdit.kind === "anchoredText" ? textEdit.y : textEdit.y - textEdit.style.fontSize / 2,
+            left: textEdit.x + (textEdit.kind === "anchoredText" ? 6 : 0),
+            top: textEdit.kind === "anchoredText" ? textEdit.y + 4 : textEdit.y - textEdit.style.fontSize / 2,
             width: Math.min(440, Math.max(24, Math.max(...(textDraft || " ").split("\n").map((line) => line.length)) * textEdit.style.fontSize * .64 + 8)),
             height: Math.max(textEdit.style.fontSize + 6, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4)),
             pointerEvents: "auto",

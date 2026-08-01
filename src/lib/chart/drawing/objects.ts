@@ -479,22 +479,19 @@ class TextObj extends DrawingObject {
   }
 }
 
-/** Text pinned to a percentage position inside the pane, independent of chart pan/zoom. */
+/** Text connected to an exact candle/price anchor by a movable leader line. */
 class AnchoredTextObj extends DrawingObject {
-  private screenPoint(mapper: CoordinateMapper): { x: number; y: number } {
-    return {
-      x: this.points[0]!.time * mapper.width,
-      y: this.points[0]!.price * mapper.height,
-    };
-  }
-  override anchors(mapper: CoordinateMapper): { x: number; y: number; index: number }[] {
-    const p = this.screenPoint(mapper);
-    return [{ ...p, index: 0 }];
-  }
   render({ ctx, mapper }: RenderCtx): void {
+    const anchor = this.px(mapper, this.points[0]!);
+    const textPoint = this.px(mapper, this.points[1]!);
+    if (!anchor || !textPoint) return;
+    this.applyStroke(ctx);
+    ctx.beginPath();
+    ctx.moveTo(anchor.x, anchor.y);
+    ctx.lineTo(textPoint.x, textPoint.y);
+    ctx.stroke();
     const text = this.style.text;
     if (!text) return;
-    const p = this.screenPoint(mapper);
     const lines = text.split("\n");
     const lineHeight = this.style.fontSize + 3;
     ctx.save();
@@ -505,17 +502,29 @@ class AnchoredTextObj extends DrawingObject {
     ctx.textBaseline = "top";
     ctx.textAlign = this.style.textAlign ?? "left";
     ctx.fillStyle = withAlpha(this.style.textColor ?? this.style.color, this.style.opacity);
-    lines.forEach((line, index) => ctx.fillText(line, p.x, p.y + index * lineHeight));
+    lines.forEach((line, index) => ctx.fillText(line, textPoint.x + 6, textPoint.y + 4 + index * lineHeight));
     ctx.restore();
   }
   bbox(mapper: CoordinateMapper): Rect {
-    const p = this.screenPoint(mapper);
+    const anchor = this.px(mapper, this.points[0]!) ?? { x: 0, y: 0 };
+    const textPoint = this.px(mapper, this.points[1]!) ?? anchor;
     const lines = (this.style.text || "Text").split("\n");
-    const width = Math.max(28, ...lines.map((line) => line.length * this.style.fontSize * .62));
-    return { x: p.x, y: p.y, w: width, h: Math.max(this.style.fontSize + 4, lines.length * (this.style.fontSize + 3)) };
+    const textWidth = Math.max(28, ...lines.map((line) => line.length * this.style.fontSize * .62));
+    const left = Math.min(anchor.x, textPoint.x);
+    const top = Math.min(anchor.y, textPoint.y);
+    return {
+      x: left,
+      y: top,
+      w: Math.max(anchor.x, textPoint.x + textWidth + 6) - left,
+      h: Math.max(anchor.y, textPoint.y + lines.length * (this.style.fontSize + 3) + 4) - top,
+    };
   }
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
-    return pointInRect(x, y, this.bbox(mapper), HIT_TOLERANCE);
+    const anchor = this.px(mapper, this.points[0]!);
+    const textPoint = this.px(mapper, this.points[1]!);
+    if (!anchor || !textPoint) return false;
+    return distToSegment(x, y, anchor.x, anchor.y, textPoint.x, textPoint.y) <= HIT_TOLERANCE + this.style.lineWidth ||
+      pointInRect(x, y, this.bbox(mapper), HIT_TOLERANCE);
   }
 }
 

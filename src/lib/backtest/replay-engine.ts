@@ -607,6 +607,34 @@ export function stepBackTo(ctx: EngineContext, targetIndex: number): boolean {
   const target = Math.max(0, Math.floor(targetIndex));
   const canStep = target < state.visibleIndex;
   if (!canStep) return false;
+
+  // Crossing back over an entry cancels that decision. This is not a market
+  // close, so it must not create a closed-trade or journal record.
+  const discardedTrades = state.closedTrades.filter(
+    (trade) => trade.entryIndex >= target,
+  );
+  if (discardedTrades.length > 0) {
+    const discardedPnl = discardedTrades.reduce(
+      (total, trade) => total.plus(trade.pnl),
+      d(0),
+    );
+    state.balance = d(state.balance).minus(discardedPnl).toFixed(2);
+    state.closedTrades = state.closedTrades.filter(
+      (trade) => trade.entryIndex < target,
+    );
+  }
+  state.openPositions = state.openPositions.filter(
+    (position) => position.entryIndex < target,
+  );
+  state.pendingOrders = state.pendingOrders.filter(
+    (order) => order.createdIndex < target,
+  );
+  state.lockedBeforeIndex = Math.max(
+    0,
+    ...state.openPositions.map((position) => position.entryIndex),
+    ...state.closedTrades.map((trade) => trade.exitIndex),
+    ...state.pendingOrders.map((order) => order.createdIndex),
+  );
   state.visibleIndex = target;
   state.equityCurve = state.equityCurve.filter(
     (p) => p.index <= state.visibleIndex,

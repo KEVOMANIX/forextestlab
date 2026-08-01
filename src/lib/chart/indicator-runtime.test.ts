@@ -167,16 +167,17 @@ describe("drawing during replay", () => {
     expect(after.update).toBeLessThan(60);
   });
 
-  it("replaces for indicators that revise their history", () => {
-    // A regression channel refits its whole window every bar, so its earlier
-    // points genuinely change and `update` cannot express that.
+  it("updates history in place for indicators that revise earlier points", () => {
+    // A regression channel refits its whole window every bar. Historical point
+    // updates keep its series mounted instead of flashing through setData.
     const { chart, totals, reset } = stubChart();
     const { indicator, inst } = make("lrc", chart);
     indicator.update(inst, bars(200));
 
     reset();
     indicator.update(inst, bars(201));
-    expect(totals().setData).toBeGreaterThan(0);
+    expect(totals().setData).toBe(0);
+    expect(totals().update).toBeGreaterThan(0);
   });
 });
 

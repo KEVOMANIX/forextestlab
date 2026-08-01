@@ -165,7 +165,7 @@ export class Indicator {
   }
 
   /** Push cached data + current style into the series. */
-  draw(candles: OHLCV[]): void {
+  draw(candles: OHLCV[], replace = false): void {
     if (!this.result) this.calculate(candles);
     const result = this.result!;
     const offset = typeof this.inst.inputs.offset === "number" ? this.inst.inputs.offset : 0;
@@ -190,7 +190,7 @@ export class Indicator {
           ? times.flatMap((t, i) => (values[i] == null ? [] : [{ time: t, value: values[i] as number }]))
           : times.map((t, i) => (values[i] == null ? { time: t } : { time: t, value: values[i] as number }));
       }
-      this.push(plot.key, series, data);
+      this.push(plot.key, series, data, replace);
     }
     this.applyStyle();
   }
@@ -210,26 +210,41 @@ export class Indicator {
    * Zag can move a confirmed pivot, and an offset or Ichimoku displacement
    * shifts values away from the bar that produced them.
    */
-  private push(key: string, series: AnySeries, data: SeriesPoint[]): void {
+  private push(
+    key: string,
+    series: AnySeries,
+    data: SeriesPoint[],
+    replace: boolean,
+  ): void {
     const previous = this.drawn.get(key);
     this.drawn.set(key, data);
 
-    if (!previous || previous.length === 0 || data.length < previous.length) {
+    if (replace || !previous || previous.length === 0 || data.length < previous.length) {
       series.setData(data as (LineData<Time> | HistogramData<Time> | WhitespaceData<Time>)[]);
       return;
     }
-    // Every point but the last must be untouched for an incremental update to
-    // be both legal and correct.
-    const shared = previous.length - 1;
+    // A different timeline is a real data replacement (timeframe/history), not
+    // a replay update.
+    const shared = previous.length;
     for (let i = 0; i < shared; i++) {
-      if (!samePoint(previous[i]!, data[i]!)) {
+      if (previous[i]!.time !== data[i]!.time) {
         series.setData(data as (LineData<Time> | HistogramData<Time> | WhitespaceData<Time>)[]);
         return;
       }
     }
+    // Indicators such as regression channels and Zig Zag legitimately revise
+    // older points. Historical updates keep the series mounted and eliminate
+    // the blank frame caused by setData during playback.
+    for (let i = 0; i < shared; i++) {
+      const point = data[i]!;
+      if (samePoint(previous[i]!, point)) continue;
+      series.update(
+        point as LineData<Time> | HistogramData<Time> | WhitespaceData<Time>,
+        i < shared - 1,
+      );
+    }
     for (let i = shared; i < data.length; i++) {
       const point = data[i]!;
-      if (i < previous.length && samePoint(previous[i]!, point)) continue;
       series.update(point as LineData<Time> | HistogramData<Time> | WhitespaceData<Time>);
     }
   }
@@ -282,13 +297,14 @@ export class Indicator {
     // range-based indicators must recalculate for those updates.
     const dataKey = `${candles.length}:${last ? `${last.time}:${last.open}:${last.high}:${last.low}:${last.close}:${last.volume ?? ""}` : ""}`;
     const inputsKey = JSON.stringify(inst.inputs);
-    const changed = inputsKey !== this.inputsKey || dataKey !== this.dataKey || !this.result;
+    const inputsChanged = inputsKey !== this.inputsKey;
+    const changed = inputsChanged || dataKey !== this.dataKey || !this.result;
     this.inst = inst;
     this.inputsKey = inputsKey;
     this.dataKey = dataKey;
     if (changed) {
       this.calculate(candles);
-      this.draw(candles);
+      this.draw(candles, inputsChanged && this.result !== null);
     } else {
       this.applyStyle();
     }

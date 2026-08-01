@@ -677,6 +677,26 @@ export function stepBack(ctx: EngineContext): boolean {
   return stepBackTo(ctx, ctx.state.visibleIndex - 1);
 }
 
+/**
+ * Bring a persisted replay to the exact index selected by the instant client.
+ * The server may be behind, already there, or ahead; all three are successful
+ * synchronization paths when the requested rewind boundary is valid.
+ */
+export function moveReplayToIndex(
+  ctx: EngineContext,
+  requestedIndex: number,
+): boolean {
+  const target = Math.min(
+    Math.max(0, Math.floor(requestedIndex)),
+    ctx.state.totalCandles - 1,
+  );
+  while (ctx.state.visibleIndex < target && revealNext(ctx)) {
+    // Reproduce every intervening candle so execution remains deterministic.
+  }
+  if (ctx.state.visibleIndex === target) return true;
+  return stepBackTo(ctx, target);
+}
+
 export function setStatus(
   ctx: EngineContext,
   status: SessionState["status"],

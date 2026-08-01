@@ -15,6 +15,7 @@ import {
   restart,
   revealNext,
   stepBack,
+  moveReplayToIndex,
 } from "./replay-engine";
 import { updateTradeJournal } from "./trade-journal";
 
@@ -298,6 +299,19 @@ describe("orders and step-back locking", () => {
     expect(e.state.visibleIndex).toBe(1);
     expect(e.state.openPositions).toHaveLength(1);
     expect(stepBack(e)).toBe(false);
+  });
+
+  it("syncs an instant rewind whether the persisted replay is behind, equal, or ahead", () => {
+    const e = ctx(FLAT, cfg({ initialVisibleCount: 1 }));
+
+    expect(moveReplayToIndex(e, 1)).toBe(true);
+    expect(e.state.visibleIndex).toBe(1);
+    expect(moveReplayToIndex(e, 1)).toBe(true);
+
+    revealNext(e);
+    expect(e.state.visibleIndex).toBe(2);
+    expect(moveReplayToIndex(e, 1)).toBe(true);
+    expect(e.state.visibleIndex).toBe(1);
   });
 });
 

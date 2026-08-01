@@ -16,13 +16,13 @@ import {
   modifyStopLoss,
   modifyTakeProfit,
   modifyTrailingStop,
+  moveReplayToIndex,
   placeOrder,
   restart,
   revealNext,
   setSpeed,
   setStatus,
   stepBack,
-  stepBackTo,
 } from "@/lib/backtest/replay-engine";
 import type { Candle } from "@/lib/market-data/types";
 import { rateLimit } from "@/lib/rate-limit";
@@ -76,7 +76,7 @@ export async function POST(
   let orderProjection: Promise<unknown> | null = null;
 
   const requestedIndex = "targetIndex" in action ? action.targetIndex : undefined;
-  if (requestedIndex !== undefined) {
+  if (requestedIndex !== undefined && action.type !== "prev") {
     const target = Math.min(requestedIndex, ctx.state.totalCandles - 1);
     while (ctx.state.visibleIndex < target && revealNext(ctx)) {
       // Reproduce every intervening candle so SL/TP and equity remain exact.
@@ -103,7 +103,7 @@ export async function POST(
     }
     case "prev": {
       let stepped = action.targetIndex !== undefined
-        ? stepBackTo(ctx, action.targetIndex)
+        ? moveReplayToIndex(ctx, action.targetIndex)
         : false;
       if (action.targetIndex === undefined) {
         for (let index = 0; index < (action.steps ?? 1); index += 1) {

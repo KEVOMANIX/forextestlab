@@ -1,0 +1,189 @@
+import type { ComponentType, ReactNode, SVGProps } from "react";
+
+import type { ToolKind } from "@/lib/chart/drawing/types";
+
+export type DrawingIconProps = Omit<SVGProps<SVGSVGElement>, "children"> & {
+  size?: number | string;
+};
+
+export type DrawingIcon = ComponentType<DrawingIconProps>;
+
+function Glyph({ size = 18, className, children, ...props }: DrawingIconProps & { children: ReactNode }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.35"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      focusable="false"
+      {...props}
+    >
+      {children}
+    </svg>
+  );
+}
+
+function Handle({ cx, cy, r = 1.45 }: { cx: number; cy: number; r?: number }) {
+  return <circle cx={cx} cy={cy} r={r} fill="var(--app-panel-solid, #111725)" />;
+}
+
+export function TrendLineIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="4" y1="19" x2="20" y2="5" /><Handle cx={4} cy={19} /><Handle cx={20} cy={5} /></Glyph>;
+}
+
+export function RayIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="4" y1="18" x2="21" y2="4" /><Handle cx={4} cy={18} /><Handle cx={11} cy={12.25} /></Glyph>;
+}
+
+export function ExtendedLineIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="2.5" y1="21" x2="21.5" y2="3" /><Handle cx={8.2} cy={15.6} /><Handle cx={15.8} cy={8.4} /></Glyph>;
+}
+
+export function ArrowLineIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="4" y1="19" x2="19" y2="4" /><path d="m13.8 4 5.2 0 0 5.2" /><Handle cx={4} cy={19} /></Glyph>;
+}
+
+export function HorizontalLineIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="3" y1="12" x2="21" y2="12" /><Handle cx={8} cy={12} r={1.25} /></Glyph>;
+}
+
+export function VerticalLineIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="12" y1="3" x2="12" y2="21" /><Handle cx={12} cy={9} r={1.25} /></Glyph>;
+}
+
+export function ParallelChannelIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="3" y1="17" x2="18" y2="5" />
+      <line x1="6" y1="21" x2="21" y2="9" />
+      <Handle cx={3} cy={17} /><Handle cx={18} cy={5} /><Handle cx={6} cy={21} />
+    </Glyph>
+  );
+}
+
+export function FibonacciIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="4" y1="4" x2="20" y2="4" /><line x1="7" y1="8" x2="20" y2="8" />
+      <line x1="4" y1="12" x2="20" y2="12" /><line x1="7" y1="16" x2="20" y2="16" />
+      <line x1="4" y1="20" x2="20" y2="20" /><Handle cx={4} cy={4} r={1.2} /><Handle cx={4} cy={20} r={1.2} />
+    </Glyph>
+  );
+}
+
+export function RectangleToolIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><rect x="4" y="5" width="16" height="14" /><Handle cx={4} cy={5} r={1.2} /><Handle cx={20} cy={19} r={1.2} /></Glyph>;
+}
+
+export function SessionBoxIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <rect x="4" y="5" width="16" height="14" /><path d="M4 9h16M8 5v14" strokeDasharray="2 2" />
+      <Handle cx={4} cy={5} r={1.2} /><Handle cx={20} cy={19} r={1.2} />
+    </Glyph>
+  );
+}
+
+export function CircleToolIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><circle cx="12" cy="12" r="8" /><Handle cx={12} cy={4} r={1.2} /><Handle cx={20} cy={12} r={1.2} /></Glyph>;
+}
+
+export function EllipseToolIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><ellipse cx="12" cy="12" rx="9" ry="6" /><Handle cx={3} cy={12} r={1.2} /><Handle cx={21} cy={12} r={1.2} /></Glyph>;
+}
+
+export function TriangleToolIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M12 4 21 19H3Z" /><Handle cx={12} cy={4} r={1.2} /><Handle cx={3} cy={19} r={1.2} /><Handle cx={21} cy={19} r={1.2} /></Glyph>;
+}
+
+export function PathToolIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M3.5 18.5 8 8l5 7 7.5-10" />
+      <Handle cx={3.5} cy={18.5} /><Handle cx={8} cy={8} /><Handle cx={13} cy={15} /><Handle cx={20.5} cy={5} />
+    </Glyph>
+  );
+}
+
+export function TextToolIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M5 5h14M12 5v14M8.5 19h7" /></Glyph>;
+}
+
+export function LabelToolIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M4 6.5V17l4 3h11V4H8Z" /><circle cx="8" cy="8" r="1" /></Glyph>;
+}
+
+export function LongPositionIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="3" y1="5" x2="21" y2="5" /><line x1="3" y1="19" x2="21" y2="19" />
+      <line x1="12" y1="18" x2="12" y2="7" /><path d="m8.5 10.5 3.5-3.5 3.5 3.5" />
+      <Handle cx={3} cy={5} r={1.2} /><Handle cx={21} cy={19} r={1.2} />
+    </Glyph>
+  );
+}
+
+export function ShortPositionIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="3" y1="5" x2="21" y2="5" /><line x1="3" y1="19" x2="21" y2="19" />
+      <line x1="12" y1="6" x2="12" y2="17" /><path d="m8.5 13.5 3.5 3.5 3.5-3.5" />
+      <Handle cx={3} cy={5} r={1.2} /><Handle cx={21} cy={19} r={1.2} />
+    </Glyph>
+  );
+}
+
+export function MeasureToolIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="m4 16 12-12 4 4L8 20Z" />
+      <path d="m8 14 2 2m1-5 2 2m1-5 2 2" />
+      <Handle cx={4} cy={16} r={1.15} /><Handle cx={20} cy={8} r={1.15} />
+    </Glyph>
+  );
+}
+
+export function LinesGroupIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="4" y1="18" x2="18" y2="4" /><Handle cx={4} cy={18} /><Handle cx={18} cy={4} />
+      <line x1="5" y1="21" x2="21" y2="21" opacity=".55" />
+    </Glyph>
+  );
+}
+
+export function ShapesGroupIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><rect x="3" y="4" width="10" height="10" /><circle cx="15.5" cy="15.5" r="5.5" /><Handle cx={3} cy={4} r={1.15} /></Glyph>;
+}
+
+export function NotesGroupIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M5 5h10M10 5v14M7 19h6" /><path d="M16 11h4v8h-5v-7Z" opacity=".65" /></Glyph>;
+}
+
+export const DRAWING_TOOL_ICONS = {
+  trend: TrendLineIcon,
+  ray: RayIcon,
+  extended: ExtendedLineIcon,
+  arrow: ArrowLineIcon,
+  horizontal: HorizontalLineIcon,
+  vertical: VerticalLineIcon,
+  channel: ParallelChannelIcon,
+  fib: FibonacciIcon,
+  rectangle: RectangleToolIcon,
+  session: SessionBoxIcon,
+  circle: CircleToolIcon,
+  ellipse: EllipseToolIcon,
+  triangle: TriangleToolIcon,
+  path: PathToolIcon,
+  long: LongPositionIcon,
+  short: ShortPositionIcon,
+  measure: MeasureToolIcon,
+  text: TextToolIcon,
+  label: LabelToolIcon,
+} satisfies Record<ToolKind, DrawingIcon>;
+

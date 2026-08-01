@@ -4,17 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Activity,
-  AlignJustify,
-  ArrowDownRight,
   ArrowUpRight,
+  ArrowDownRight,
   CandlestickChart,
   ChevronDown,
-  Circle,
   Clock,
   Copy,
   Crosshair,
-  Egg,
-  Equal,
   Eye,
   EyeOff,
   Grid3X3,
@@ -24,27 +20,15 @@ import {
   Magnet,
   Minus,
   MousePointer2,
-  MoveDiagonal,
-  MoveUpRight,
-  MoveVertical,
-  RectangleHorizontal,
   Redo2,
   RotateCcw,
-  Ruler,
   Settings,
   Settings2,
-  Shapes,
-  Spline,
   Star,
   Tag,
   Trash2,
-  Triangle,
-  TrendingUp,
-  Type,
   Undo2,
-  Waypoints,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import {
   AreaSeries,
@@ -109,6 +93,15 @@ import {
 } from "./ChartSettingsMenu";
 import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
+import {
+  DRAWING_TOOL_ICONS,
+  FibonacciIcon,
+  LinesGroupIcon,
+  LongPositionIcon,
+  NotesGroupIcon,
+  ShapesGroupIcon,
+  type DrawingIcon,
+} from "./DrawingToolIcons";
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
 import { TradePlanOverlay } from "./TradePlanOverlay";
@@ -323,62 +316,15 @@ const LIVE_CANDLE_POSITION = 0.75;
  */
 const MAX_LIVE_CANDLE_POSITION = 4;
 
-/** Custom "long position" glyph: green target on top, red stop below, up arrow. */
-function LongPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <line x1="4" y1="5" x2="20" y2="5" stroke="#22c3a0" />
-      <line x1="4" y1="19" x2="20" y2="19" stroke="#f4646c" />
-      <line x1="12" y1="18.5" x2="12" y2="5.5" stroke="currentColor" />
-      <path d="M8.5 9.5 L12 6 L15.5 9.5" stroke="#22c3a0" />
-    </svg>
-  );
-}
-
-/** Custom "short position" glyph: red stop on top, green target below, down arrow. */
-function ShortPositionIcon({ size = 18, className }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <line x1="4" y1="5" x2="20" y2="5" stroke="#f4646c" />
-      <line x1="4" y1="19" x2="20" y2="19" stroke="#22c3a0" />
-      <line x1="12" y1="5.5" x2="12" y2="18.5" stroke="currentColor" />
-      <path d="M8.5 14.5 L12 18 L15.5 14.5" stroke="#22c3a0" />
-    </svg>
-  );
-}
-
-/** Icon shown next to each drawing tool inside its flyout. */
-const DRAW_ICONS: Record<ToolKind, LucideIcon> = {
-  trend: TrendingUp,
-  ray: MoveUpRight,
-  extended: MoveDiagonal,
-  arrow: ArrowUpRight,
-  horizontal: Minus,
-  vertical: MoveVertical,
-  channel: Equal,
-  fib: AlignJustify,
-  rectangle: RectangleHorizontal,
-  session: Clock,
-  circle: Circle,
-  ellipse: Egg,
-  triangle: Triangle,
-  path: Waypoints,
-  long: LongPositionIcon as unknown as LucideIcon,
-  short: ShortPositionIcon as unknown as LucideIcon,
-  measure: Ruler,
-  text: Type,
-  label: Tag,
-};
-
 type DrawMenu = "lines" | "shapes" | "fib" | "trade" | "notes";
 
 /** Grouping of drawing tools into toolbar flyouts. */
-const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: LucideIcon; tools: ToolKind[] }[] = [
-  { key: "lines", label: "Lines & channels", Icon: Spline, tools: ["trend", "ray", "extended", "arrow", "horizontal", "vertical", "channel"] },
-  { key: "shapes", label: "Shapes", Icon: Shapes, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
-  { key: "fib", label: "Fibonacci", Icon: AlignJustify, tools: ["fib"] },
-  { key: "trade", label: "Positions & measure", Icon: LongPositionIcon as unknown as LucideIcon, tools: ["long", "short", "measure"] },
-  { key: "notes", label: "Text & notes", Icon: Type, tools: ["text", "label"] },
+const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: DrawingIcon; tools: ToolKind[] }[] = [
+  { key: "lines", label: "Lines & channels", Icon: LinesGroupIcon, tools: ["trend", "ray", "extended", "arrow", "horizontal", "vertical", "channel"] },
+  { key: "shapes", label: "Shapes", Icon: ShapesGroupIcon, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
+  { key: "fib", label: "Fibonacci", Icon: FibonacciIcon, tools: ["fib"] },
+  { key: "trade", label: "Positions & measure", Icon: LongPositionIcon, tools: ["long", "short", "measure"] },
+  { key: "notes", label: "Text & notes", Icon: NotesGroupIcon, tools: ["text", "label"] },
 ];
 
 const MAGNET_MODES: MagnetMode[] = ["off", "weak", "strong"];
@@ -3066,7 +3012,7 @@ export default function PriceChart({
           >
             <span className="mr-0.5 select-none text-[11px] leading-none app-muted" aria-hidden>⋮⋮</span>
             {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
-              const Icon = DRAW_ICONS[t];
+              const Icon = DRAWING_TOOL_ICONS[t];
               return (
                 <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
                   <Icon size={18} aria-hidden />
@@ -3183,7 +3129,7 @@ export default function PriceChart({
               } as React.CSSProperties}
             >
               {grp.tools.map((t) => {
-                const Icon = DRAW_ICONS[t];
+                const Icon = DRAWING_TOOL_ICONS[t];
                 const fav = favorites.has(t);
                 return (
                   <div

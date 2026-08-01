@@ -2,6 +2,8 @@ export type ReplayMetricName =
   | "replay-engine"
   | "state-publication"
   | "indicator-calculation"
+  | "indicator-create"
+  | "indicator-destroy"
   | "candle-aggregation"
   | "chart-update"
   | "react-commit"

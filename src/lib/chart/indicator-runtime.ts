@@ -132,6 +132,7 @@ export class Indicator {
 
   /** Create one series per plot (+ oscillator guide lines). */
   initialize(): void {
+    recordReplayMetric("indicator-create", 0);
     const precision = this.inst.precision ?? this.fallbackPrecision;
     const priceFormat = { type: "price" as const, precision, minMove: 1 / 10 ** precision };
     for (const plot of this.def.plots) {
@@ -312,6 +313,7 @@ export class Indicator {
 
   /** Remove all series + guide lines from the chart. */
   destroy(): void {
+    recordReplayMetric("indicator-destroy", 0);
     for (const s of this.series.values()) {
       try {
         this.chart.removeSeries(s);

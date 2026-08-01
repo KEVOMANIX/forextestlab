@@ -671,6 +671,11 @@ export default function PriceChart({
   axisFontSizeRef.current = axisFontSize;
   timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
+  // The replay listener remains mounted for the session. A ref keeps its
+  // indicator reconciliation on the latest React state instead of the empty
+  // list captured by the chart's first render.
+  const indicatorsRef = useRef<IndicatorInstance[]>(indicators);
+  indicatorsRef.current = indicators;
   const [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
   const [openCats, setOpenCats] = useState<Set<IndCategory>>(() => new Set(CATEGORY_ORDER));
@@ -940,10 +945,11 @@ export default function PriceChart({
   function syncIndicators(display: OHLCV[]) {
     const chart = chartRef.current;
     if (!chart) return;
+    const activeIndicators = indicatorsRef.current;
 
     // Pane 0 — price overlays.
     const priceMap = priceIndicatorsRef.current;
-    const priceInsts = indicators.filter((i) => {
+    const priceInsts = activeIndicators.filter((i) => {
       const d = getDef(i.kind);
       return d?.pane === "price" && d.render !== "overlay";
     });
@@ -965,7 +971,7 @@ export default function PriceChart({
     }
 
     // Panes 1..N — oscillators. Rebuild only on structural change.
-    const ownInsts = indicators.filter((i) => getDef(i.kind)?.pane === "own");
+    const ownInsts = activeIndicators.filter((i) => getDef(i.kind)?.pane === "own");
     const ownKey = ownInsts.map((i) => i.id).join("|");
     const ownMap = ownIndicatorsRef.current;
     if (ownKey !== ownOrderRef.current) {
@@ -1011,7 +1017,8 @@ export default function PriceChart({
      * Joining thousands of candles is only worth doing for a chart that needs
      * it, so it stays behind these two consumers.
      */
-    const needsHistory = drawingsActiveRef.current || indicators.length > 0;
+    const activeIndicators = indicatorsRef.current;
+    const needsHistory = drawingsActiveRef.current || activeIndicators.length > 0;
     const timeline = needsHistory
       ? joinedTimelineCached(historyCandlesRef.current, display)
       : display;
@@ -1050,7 +1057,9 @@ export default function PriceChart({
     // `displayCandles` only feeds the Volume Profile overlay; skipping this state
     // update otherwise avoids a full React re-render on every replay tick (which
     // made panning/zooming janky during fast playback).
-    if (indicators.some((i) => getDef(i.kind)?.render === "overlay")) setDisplayCandles(display);
+    if (activeIndicators.some((i) => getDef(i.kind)?.render === "overlay")) {
+      setDisplayCandles(display);
+    }
     // New data must not issue viewport commands after the user has detached.
     // This keeps an active pan/zoom gesture responsive while replay continues.
     if (followLatestRef.current) keepLatestPriceVisible();

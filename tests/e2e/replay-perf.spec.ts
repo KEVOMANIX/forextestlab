@@ -204,7 +204,7 @@ async function seed(page: Page, layout: string) {
         JSON.stringify({ layout, cells, focusedId: "cell-1" }),
       );
       window.localStorage.setItem(
-        `forextestlab:chart:${sessionId}:cell-3`,
+        `forextestlab:chart:${sessionId}:cell-1`,
         JSON.stringify({
           timeframe: "15m",
           indicators: withIndicators
@@ -245,11 +245,7 @@ test("replay perf", async ({ page }) => {
   // let React see the change through its own value setter.
   await page.getByLabel("Replay speed").evaluate((el) => {
     const input = el as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value",
-    )?.set;
-    setter?.call(input, input.max);
+    input.value = input.max;
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
@@ -333,6 +329,13 @@ test("replay perf", async ({ page }) => {
     await expect(
       page.getByRole("img", { name: "Candlestick price chart" }).first(),
     ).toBeVisible();
+  }
+  if (WITH_INDICATORS) {
+    const replayMetrics = stats.replayMetrics as Record<
+      string,
+      { count?: number } | undefined
+    >;
+    expect(replayMetrics["indicator-destroy"]?.count ?? 0).toBe(0);
   }
   let profileRows:
     | { ms: number; fn: string; at: string }[]

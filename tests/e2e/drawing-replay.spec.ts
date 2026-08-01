@@ -194,6 +194,37 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
     return false;
   })).toBe(true);
 
+  // Straight line tools expose only their two real endpoints. They must not
+  // inherit the eight bounding-box handles used to resize area shapes.
+  await firstCell.getByRole("button", { name: "Lines & channels", exact: true }).click();
+  await page.getByRole("button", { name: "Trend line", exact: true }).click();
+  await page.mouse.move(bounds.x + bounds.width * 0.30, bounds.y + bounds.height * 0.30);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.52, bounds.y + bounds.height * 0.56, { steps: 6 });
+  await page.mouse.up();
+  await expect(firstCell.getByRole("toolbar", { name: "trend drawing settings" })).toBeVisible();
+  const lineHandleColumnGroups = await firstCell.evaluate((cell) => {
+    const canvases = cell.querySelectorAll<HTMLCanvasElement>(
+      'div[style*="pointer-events: none"] > canvas',
+    );
+    const overlay = canvases[1];
+    const context = overlay?.getContext("2d");
+    if (!overlay || !context) return [];
+    const { width, height } = overlay;
+    const pixels = context.getImageData(0, 0, width, height).data;
+    const paintedColumns = new Uint8Array(width);
+    for (let pixel = 0; pixel < width * height; pixel += 1) {
+      if (pixels[pixel * 4 + 3] !== 0) paintedColumns[pixel % width] = 1;
+    }
+    const groups: Array<{ start: number; end: number }> = [];
+    for (let x = 0; x < paintedColumns.length; x += 1) {
+      if (paintedColumns[x] && (x === 0 || !paintedColumns[x - 1])) groups.push({ start: x, end: x });
+      if (paintedColumns[x] && groups.length) groups[groups.length - 1]!.end = x;
+    }
+    return groups;
+  });
+  expect(lineHandleColumnGroups).toHaveLength(2);
+
   // Rectangles expose a midpoint line in advanced settings, disabled by
   // default and persisted when enabled.
   await firstCell.getByRole("button", { name: "Shapes", exact: true }).click();

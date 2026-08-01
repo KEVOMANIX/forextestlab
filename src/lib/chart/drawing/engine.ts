@@ -506,9 +506,11 @@ export class DrawingEngine {
         }
       }
     }
-    for (const a of this.resizeHandles(o)) {
-      if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
-        return { kind: "resize", handle: a.handle };
+    if (!this.usesOnlyAnchorHandles(o)) {
+      for (const a of this.resizeHandles(o)) {
+        if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
+          return { kind: "resize", handle: a.handle };
+        }
       }
     }
     return null;
@@ -518,6 +520,13 @@ export class DrawingEngine {
   private usesOnlyResizeHandles(o: DrawingObject): boolean {
     return o.kind === "rectangle" || o.kind === "session" ||
       o.kind === "circle" || o.kind === "ellipse";
+  }
+
+  /** Line-based tools need only their real control points, not a bounding box. */
+  private usesOnlyAnchorHandles(o: DrawingObject): boolean {
+    return o.kind === "trend" || o.kind === "ray" || o.kind === "extended" ||
+      o.kind === "arrow" || o.kind === "horizontal" || o.kind === "vertical" ||
+      o.kind === "channel";
   }
 
   private resizeHandles(o: DrawingObject): { x: number; y: number; handle: ResizeHandle }[] {
@@ -988,18 +997,20 @@ export class DrawingEngine {
     if (sel && !this.create) {
       ctx.save();
       ctx.setLineDash([]);
-      for (const a of this.resizeHandles(sel)) {
-        ctx.beginPath();
-        if (a.handle.length === 1) {
-          ctx.rect(a.x - SELECTION_HANDLE, a.y - SELECTION_HANDLE, SELECTION_HANDLE * 2, SELECTION_HANDLE * 2);
-        } else {
-          ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);
+      if (!this.usesOnlyAnchorHandles(sel)) {
+        for (const a of this.resizeHandles(sel)) {
+          ctx.beginPath();
+          if (a.handle.length === 1) {
+            ctx.rect(a.x - SELECTION_HANDLE, a.y - SELECTION_HANDLE, SELECTION_HANDLE * 2, SELECTION_HANDLE * 2);
+          } else {
+            ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);
+          }
+          ctx.fillStyle = sel.locked ? "#94a3b8" : HANDLE_FILL;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = sel.locked ? "#94a3b8" : SELECTION_BLUE;
+          ctx.stroke();
         }
-        ctx.fillStyle = sel.locked ? "#94a3b8" : HANDLE_FILL;
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = sel.locked ? "#94a3b8" : SELECTION_BLUE;
-        ctx.stroke();
       }
       if (!this.usesOnlyResizeHandles(sel)) {
         for (const a of sel.anchors(this.mapper)) {

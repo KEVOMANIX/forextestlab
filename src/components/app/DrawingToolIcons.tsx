@@ -8,7 +8,7 @@ export type DrawingIconProps = Omit<SVGProps<SVGSVGElement>, "children"> & {
 
 export type DrawingIcon = ComponentType<DrawingIconProps>;
 
-function Glyph({ size = 18, className, children, ...props }: DrawingIconProps & { children: ReactNode }) {
+function Glyph({ size = 18, className, children, style, ...props }: DrawingIconProps & { children: ReactNode }) {
   return (
     <svg
       width={size}
@@ -16,10 +16,11 @@ function Glyph({ size = 18, className, children, ...props }: DrawingIconProps & 
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.35"
+      strokeWidth="1.8"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
+      style={{ color: "var(--chart-text, #ffffff)", ...style }}
       focusable="false"
       {...props}
     >

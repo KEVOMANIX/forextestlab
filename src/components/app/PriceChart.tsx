@@ -3015,7 +3015,7 @@ export default function PriceChart({
               const Icon = DRAWING_TOOL_ICONS[t];
               return (
                 <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
-                  <Icon size={18} aria-hidden />
+                  <Icon size={22} aria-hidden />
                 </ToolButton>
               );
             })}
@@ -3054,7 +3054,7 @@ export default function PriceChart({
                   setMenu(grp.key);
                 }}
               >
-                <grp.Icon size={18} aria-hidden />
+                <grp.Icon size={22} aria-hidden />
               </ToolButton>
             );
           })}
@@ -3141,7 +3141,7 @@ export default function PriceChart({
                       onClick={() => { setDrawTool(t); setMenu(null); }}
                       className="flex flex-1 items-center gap-2 px-2 py-1.5 text-left"
                     >
-                      <Icon size={17} aria-hidden /> {TOOL_LABELS[t]}
+                      <Icon size={21} aria-hidden /> {TOOL_LABELS[t]}
                     </button>
                     <button
                       type="button"

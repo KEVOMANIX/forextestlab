@@ -121,9 +121,12 @@ export function LabelToolIcon(props: DrawingIconProps) {
 export function LongPositionIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
-      <line x1="3" y1="5" x2="21" y2="5" /><line x1="3" y1="19" x2="21" y2="19" />
-      <line x1="12" y1="18" x2="12" y2="7" /><path d="m8.5 10.5 3.5-3.5 3.5 3.5" />
-      <Handle cx={3} cy={5} r={1.2} /><Handle cx={21} cy={19} r={1.2} />
+      <rect x="5" y="3" width="14" height="7" rx=".75" fill="currentColor" fillOpacity=".08" />
+      <line x1="3" y1="13" x2="21" y2="13" />
+      <line x1="5" y1="20" x2="19" y2="20" strokeDasharray="2 2" opacity=".65" />
+      <line x1="12" y1="17.5" x2="12" y2="6" />
+      <path d="m8.5 9.5 3.5-3.5 3.5 3.5" />
+      <Handle cx={3} cy={13} r={1.2} /><Handle cx={21} cy={13} r={1.2} />
     </Glyph>
   );
 }
@@ -131,9 +134,12 @@ export function LongPositionIcon(props: DrawingIconProps) {
 export function ShortPositionIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
-      <line x1="3" y1="5" x2="21" y2="5" /><line x1="3" y1="19" x2="21" y2="19" />
-      <line x1="12" y1="6" x2="12" y2="17" /><path d="m8.5 13.5 3.5 3.5 3.5-3.5" />
-      <Handle cx={3} cy={5} r={1.2} /><Handle cx={21} cy={19} r={1.2} />
+      <line x1="5" y1="4" x2="19" y2="4" strokeDasharray="2 2" opacity=".65" />
+      <line x1="3" y1="11" x2="21" y2="11" />
+      <rect x="5" y="14" width="14" height="7" rx=".75" fill="currentColor" fillOpacity=".08" />
+      <line x1="12" y1="6.5" x2="12" y2="18" />
+      <path d="m8.5 14.5 3.5 3.5 3.5-3.5" />
+      <Handle cx={3} cy={11} r={1.2} /><Handle cx={21} cy={11} r={1.2} />
     </Glyph>
   );
 }
@@ -186,4 +192,3 @@ export const DRAWING_TOOL_ICONS = {
   text: TextToolIcon,
   label: LabelToolIcon,
 } satisfies Record<ToolKind, DrawingIcon>;
-

@@ -123,6 +123,45 @@
     color: var(--app-text);
   }
 
+  /*
+   * Trading workspaces are information-dense and are commonly used on large,
+   * high-resolution monitors. Keep the compact layout, but raise the minimum
+   * readable type scale for every surface inside the terminal.
+   */
+  .app-shell [class~="text-[7px]"] {
+    font-size: 10px;
+  }
+
+  .app-shell [class~="text-[9px]"] {
+    font-size: 11px;
+  }
+
+  .app-shell [class~="text-[10px]"] {
+    font-size: 12px;
+  }
+
+  .app-shell [class~="text-[11px]"] {
+    font-size: 13px;
+  }
+
+  .app-shell [class~="text-[12px]"] {
+    font-size: 14px;
+  }
+
+  .app-shell [class~="text-[13px]"] {
+    font-size: 15px;
+  }
+
+  .app-shell .text-xs {
+    font-size: 14px;
+    line-height: 1.25rem;
+  }
+
+  .app-shell .text-sm {
+    font-size: 16px;
+    line-height: 1.5rem;
+  }
+
   .app-shell.light {
     --app-bg: #f5f7fb;
     --app-panel: #ffffff;

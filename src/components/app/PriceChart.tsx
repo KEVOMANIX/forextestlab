@@ -285,9 +285,9 @@ const PALETTES: Record<"dark" | "light", Palette> = {
  * back than form copy, and often over a busy plot.
  */
 const AXIS_FONT_SIZES: Record<ChartTextSize, number> = {
-  small: 12,
-  medium: 14,
-  large: 16,
+  small: 14,
+  medium: 16,
+  large: 18,
 };
 
 /**
@@ -474,8 +474,8 @@ function ToolButton({
       onClick={onClick}
       className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors ${
         active
-          ? "bg-brand-400/15 text-brand-300"
-          : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+          ? "bg-brand-400/20 text-[var(--chart-text)]"
+          : "text-[var(--chart-text)] hover:bg-[var(--app-panel-2)]"
       }`}
     >
       {children}

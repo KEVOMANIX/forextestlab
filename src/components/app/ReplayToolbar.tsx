@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
+  Ellipsis,
   GripHorizontal,
   LocateFixed,
   Pause,
@@ -108,6 +109,7 @@ export function ReplayToolbar({
   } | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const finished = state.status === "finished";
   const running = state.status === "running";
   const canPrev =
@@ -118,6 +120,12 @@ export function ReplayToolbar({
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));
   const cadenceLabel = speedLabel(state.speed);
+
+  const cycleSpeed = () => {
+    if (availableSpeeds.length < 2) return;
+    const next = availableSpeeds[(speedIndex + 1) % availableSpeeds.length];
+    if (next !== undefined) onSpeed(next);
+  };
 
   useEffect(() => {
     // On a phone the toolbox is docked to the bottom edge and a stored desktop
@@ -221,6 +229,15 @@ export function ReplayToolbar({
     };
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!toolboxRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [menuOpen]);
+
   return (
     <div
       ref={toolboxRef}
@@ -231,8 +248,10 @@ export function ReplayToolbar({
       // Above every piece of chart chrome (rails, legends, order lines all sit
       // at z-30/z-40) so a grid layout cannot slice the toolbox in half with the
       // neighbouring cell's drawing rail. Still below menus and dialogs.
-      className={`absolute z-[45] w-[calc(100%-1.5rem)] max-w-[560px] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1.5 shadow-2xl shadow-black/40 ${
-        compact ? "" : "touch-none cursor-move"
+      className={`absolute z-[45] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1.5 shadow-2xl shadow-black/40 ${
+        compact
+          ? "w-[calc(100%-1.5rem)] max-w-[360px]"
+          : "w-fit max-w-[calc(100%-1.5rem)] touch-none cursor-move"
       }`}
       style={
         compact
@@ -272,36 +291,18 @@ export function ReplayToolbar({
           <ControlBtn label="Next candle" onClick={onNext} disabled={busy || finished}>
             <ChevronRight size={15} aria-hidden />
           </ControlBtn>
-          <ControlBtn label="Restart session" onClick={onRestart} disabled={busy}>
-            <RotateCcw size={14} aria-hidden />
-          </ControlBtn>
-          <ControlBtn label="End session" onClick={onEnd} disabled={busy || finished}>
-            <Square size={14} aria-hidden />
-          </ControlBtn>
         </div>
         <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-        <input
-          id="replay-speed"
-          type="range"
-          min={0}
-          max={availableSpeeds.length - 1}
-          step={1}
-          value={speedIndex}
-          onChange={(event) => {
-            const selected = availableSpeeds[Number(event.target.value)];
-            if (selected !== undefined) onSpeed(selected);
-          }}
+        <button
+          type="button"
+          onClick={cycleSpeed}
+          disabled={availableSpeeds.length < 2}
           aria-label="Replay speed"
-          aria-valuetext={`${cadenceLabel} replay speed`}
-          className="h-1.5 min-w-[64px] flex-1 cursor-pointer accent-emerald-400 sm:min-w-[100px]"
-        />
-        <output
-          htmlFor="replay-speed"
-          className="hidden shrink-0 font-mono text-[11px] font-semibold text-brand-300 sm:inline"
+          title={`Replay speed: ${cadenceLabel}. Click for next speed.`}
+          className="inline-flex h-7 min-w-[58px] shrink-0 items-center justify-center rounded-md border border-brand-400/25 bg-brand-400/10 px-2 font-mono text-[11px] font-semibold text-brand-300 transition-colors hover:bg-brand-400/15 disabled:opacity-50"
         >
           {cadenceLabel}
-        </output>
-        {finished && <span className="hidden shrink-0 text-[11px] font-semibold text-brand-300 md:inline">Finished</span>}
+        </button>
         <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
         <button
           type="button"
@@ -321,17 +322,33 @@ export function ReplayToolbar({
         >
           <ArrowUpRight size={13} aria-hidden /> <span className="hidden sm:inline">Buy</span>
         </button>
-        {!compact && (
+        <div className="relative shrink-0">
           <button
             type="button"
-            aria-label="Reset replay controls position"
-            title="Reset toolbox position"
-            onClick={() => setPosition(null)}
-            className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md app-muted hover:bg-brand-400/10 hover:text-brand-300"
+            aria-label="More replay actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            title="More actions"
+            onClick={() => setMenuOpen((open) => !open)}
+            className={`inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors ${menuOpen ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-brand-400/10 hover:text-brand-300"}`}
           >
-            <LocateFixed size={14} aria-hidden />
+            <Ellipsis size={16} aria-hidden />
           </button>
-        )}
+          {menuOpen && (
+            <div role="menu" className="absolute right-0 top-9 z-[70] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl">
+              <button type="button" role="menuitem" disabled={busy} onClick={() => { setMenuOpen(false); onRestart(); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs hover:bg-[var(--app-panel-2)] disabled:opacity-40">
+                <RotateCcw size={15} aria-hidden /> Restart session
+              </button>
+              <button type="button" role="menuitem" disabled={busy || finished} onClick={() => { setMenuOpen(false); onEnd(); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs hover:bg-[var(--app-panel-2)] disabled:opacity-40">
+                <Square size={15} aria-hidden /> End session
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setPosition(null); setMenuOpen(false); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs hover:bg-[var(--app-panel-2)]">
+                <LocateFixed size={15} aria-hidden /> Reset position
+              </button>
+            </div>
+          )}
+        </div>
+        <span className="sr-only" role="status" aria-live="polite">{finished ? "Replay finished" : `Replay speed ${cadenceLabel}`}</span>
       </div>
 
     </div>

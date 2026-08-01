@@ -111,7 +111,8 @@ export const actionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("next") }),
   z.object({
     type: z.literal("prev"),
-    steps: z.number().int().min(1).max(240).optional(),
+    steps: z.number().int().min(1).max(2_000).optional(),
+    targetIndex: z.number().int().nonnegative().optional(),
   }),
   z.object({ type: z.literal("restart") }),
   z.object({ type: z.literal("end"), targetIndex: z.number().int().nonnegative().optional() }),

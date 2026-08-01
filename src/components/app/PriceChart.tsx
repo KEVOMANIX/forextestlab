@@ -214,6 +214,8 @@ interface PriceChartProps {
   viewKey?: string;
   /** Timeframe for a cell with no saved view state yet. */
   initialTimeframe?: Timeframe;
+  /** Reports the cell's actual timeframe after saved view restoration. */
+  onDisplayTimeframeChange?: (timeframe: Timeframe) => void;
   /** Called when the user interacts with this cell, so the grid can focus it. */
   onFocus?: () => void;
   /** Instrument name shown at the head of the cell's own toolbar, in a grid. */
@@ -516,6 +518,7 @@ export default function PriceChart({
   storageKey,
   viewKey,
   initialTimeframe,
+  onDisplayTimeframeChange,
   onFocus,
   symbolLabel,
   onSelectInstrument,
@@ -637,6 +640,12 @@ export default function PriceChart({
   const loadOlderRef = useRef<() => void>(() => {});
 
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(initialTimeframe ?? baseTimeframe);
+  const onDisplayTimeframeChangeRef = useRef(onDisplayTimeframeChange);
+  onDisplayTimeframeChangeRef.current = onDisplayTimeframeChange;
+
+  useEffect(() => {
+    onDisplayTimeframeChangeRef.current?.(displayTimeframe);
+  }, [displayTimeframe]);
   const [chartType, setChartType] = useState<ChartType>("candles");
   /**
    * The open right-click menu, and the point it was opened on.

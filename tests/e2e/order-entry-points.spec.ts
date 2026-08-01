@@ -9,6 +9,7 @@ type TradingSettings = {
 async function openSession(
   page: Page,
   settings: TradingSettings = {},
+  previousResponseDelay = 0,
 ) {
   const sessionId = "order-entry-points-e2e";
   const start = Date.UTC(2025, 0, 6, 8);
@@ -89,6 +90,10 @@ async function openSession(
     });
   });
   await page.route("**/api/backtest/sessions/*/action", async (route) => {
+    const action = route.request().postDataJSON() as { type?: string } | null;
+    if (action?.type === "prev" && previousResponseDelay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, previousResponseDelay));
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -246,6 +251,30 @@ test("previous candle rewinds the mounted chart without reloading it", async ({
 
   await expect(counter).toHaveText(startingCounter ?? "");
   await expect(chart).toHaveAttribute("data-rewind-instance", "same-chart");
+});
+
+test("previous candle instantly jumps to the prior displayed candle open", async ({
+  page,
+}) => {
+  await openSession(page, {}, 1_000);
+
+  await page.getByRole("button", { name: "Display 5m candles" }).click();
+  const counter = page.getByText(/Candle \d+ of \d+/);
+  const next = page.getByRole("button", { name: "Next candle" });
+  for (let index = 0; index < 6; index += 1) await next.click();
+  await expect(counter).toContainText("Candle 66 of 180");
+
+  const persisted = page.waitForResponse((response) =>
+    response.url().includes("/action") &&
+    (response.request().postDataJSON() as { type?: string } | null)?.type ===
+      "prev",
+  );
+  await page.getByRole("button", { name: "Previous candle" }).click();
+
+  // 09:05 on a 5m chart rewinds directly to the 09:00 candle's opening
+  // minute (base index 60), without waiting for the delayed server response.
+  await expect(counter).toContainText("Candle 61 of 180", { timeout: 400 });
+  await persisted;
 });
 
 test("managing an open position pauses until the editor closes", async ({

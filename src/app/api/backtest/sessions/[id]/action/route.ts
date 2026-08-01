@@ -22,6 +22,7 @@ import {
   setSpeed,
   setStatus,
   stepBack,
+  stepBackTo,
 } from "@/lib/backtest/replay-engine";
 import type { Candle } from "@/lib/market-data/types";
 import { rateLimit } from "@/lib/rate-limit";
@@ -101,10 +102,14 @@ export async function POST(
       break;
     }
     case "prev": {
-      let stepped = false;
-      for (let index = 0; index < (action.steps ?? 1); index += 1) {
-        if (!stepBack(ctx)) break;
-        stepped = true;
+      let stepped = action.targetIndex !== undefined
+        ? stepBackTo(ctx, action.targetIndex)
+        : false;
+      if (action.targetIndex === undefined) {
+        for (let index = 0; index < (action.steps ?? 1); index += 1) {
+          if (!stepBack(ctx)) break;
+          stepped = true;
+        }
       }
       if (!stepped) opError = "Stepping back is not allowed here.";
       break;

@@ -57,6 +57,7 @@ import { SymbolPickerModal } from "./SymbolPickerModal";
 import { TimeZonePicker } from "./TimeZonePicker";
 import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
+import type { Timeframe } from "@/lib/market-data/types";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
@@ -123,6 +124,8 @@ export function Backtester({
     [entitlements, trialSessionsRemaining],
   );
   const [tradePlan, setTradePlan] = useState<TradePlan | null>(null);
+  const [focusedChartTimeframe, setFocusedChartTimeframe] =
+    useState<Timeframe | null>(null);
   const [orderTicketActivation, setOrderTicketActivation] = useState<{
     id: number;
     direction: "long" | "short";
@@ -391,7 +394,7 @@ export function Backtester({
         actions.stepNext();
       } else if (matches(workspace.settings.shortcuts.stepBack)) {
         event.preventDefault();
-        actions.stepPrev();
+        actions.stepPrev(focusedChartTimeframe ?? state?.config.timeframe);
       } else if (matches(workspace.settings.shortcuts.buy)) {
         event.preventDefault();
         submitOrder({ ...orderTemplate, direction: "long" });
@@ -411,7 +414,7 @@ export function Backtester({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [bt.phase, state?.status, actions, orderTemplate, submitOrder, workspace]);
+  }, [bt.phase, focusedChartTimeframe, state?.config.timeframe, state?.status, actions, orderTemplate, submitOrder, workspace]);
 
   useEffect(() => {
     setTradePlan(null);
@@ -895,6 +898,7 @@ export function Backtester({
             onFocusedSymbolChange={actions.switchPair}
             workspace={workspace}
             onOpenSymbolPicker={() => setSymbolPickerOpen(true)}
+            onFocusedTimeframeChange={setFocusedChartTimeframe}
             headerSlot={chartHeaderSlot}
             layoutSlot={chartLayoutSlot}
             orderTicket={
@@ -933,7 +937,7 @@ export function Backtester({
             onPlay={actions.play}
             onPause={actions.pause}
             onNext={actions.stepNext}
-            onPrev={actions.stepPrev}
+            onPrev={() => actions.stepPrev(focusedChartTimeframe ?? state.config.timeframe)}
             onRestart={restart}
             onEnd={endSession}
             onSpeed={actions.setSpeed}

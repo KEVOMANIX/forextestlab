@@ -143,6 +143,8 @@ interface ChartGridProps {
   workspace: ChartWorkspace;
   /** Opens the session's symbol picker for the focused cell. */
   onOpenSymbolPicker: () => void;
+  /** Keeps replay stepping aligned with the focused chart's displayed bars. */
+  onFocusedTimeframeChange: (timeframe: Timeframe) => void;
 }
 
 export default function ChartGrid({
@@ -180,6 +182,7 @@ export default function ChartGrid({
   onFocusedSymbolChange,
   workspace,
   onOpenSymbolPicker,
+  onFocusedTimeframeChange,
 }: ChartGridProps) {
   const sessionSymbol = state.config.symbol;
   const compact = useCompactViewport();
@@ -271,6 +274,23 @@ export default function ChartGrid({
   }, [visibleCells, sessionSymbol, pairs, onNeedSymbol]);
 
   const focusCell = useCallback((id: string) => setFocusedId(id), []);
+  const updateCellTimeframe = useCallback(
+    (id: string, timeframe: Timeframe) => {
+      setCells((current) =>
+        current.map((cell) =>
+          cell.id === id && cell.timeframe !== timeframe
+            ? { ...cell, timeframe }
+            : cell,
+        ),
+      );
+      if (id === focusedId) onFocusedTimeframeChange(timeframe);
+    },
+    [focusedId, onFocusedTimeframeChange],
+  );
+
+  useEffect(() => {
+    onFocusedTimeframeChange(focused.timeframe ?? state.config.timeframe);
+  }, [focused.id, focused.timeframe, onFocusedTimeframeChange, state.config.timeframe]);
 
   // Dismiss the layout menu the same way the top bar's menus behave.
   const layoutMenuRef = useRef<HTMLDivElement | null>(null);
@@ -398,6 +418,9 @@ export default function ChartGrid({
                 storageKey={storageKey}
                 workspace={workspace}
                 onFocus={() => focusCell(cell.id)}
+                onTimeframeChange={(timeframe) =>
+                  updateCellTimeframe(cell.id, timeframe)
+                }
                 headerSlot={!multi && isFocused ? headerSlot : null}
                 orderTicket={isSession && isFocused ? orderTicket : null}
                 // One clock for the workspace, always in its outer bottom-right
@@ -461,6 +484,7 @@ interface ChartCellViewProps {
   error: string | null;
   storageKey: string;
   onFocus: () => void;
+  onTimeframeChange: (timeframe: Timeframe) => void;
   headerSlot: HTMLElement | null;
   orderTicket: React.ReactNode;
   axisCorner: React.ReactNode;
@@ -497,6 +521,7 @@ function ChartCellView({
   error,
   storageKey,
   onFocus,
+  onTimeframeChange,
   headerSlot,
   orderTicket,
   axisCorner,
@@ -556,6 +581,7 @@ function ChartCellView({
         storageKey={`${storageKey}:${cell.symbol}`}
         viewKey={`${storageKey}:${cell.id}`}
         initialTimeframe={cell.timeframe ?? undefined}
+        onDisplayTimeframeChange={onTimeframeChange}
         headerSlot={headerSlot}
         orderTicket={orderTicket}
         axisCorner={axisCorner}

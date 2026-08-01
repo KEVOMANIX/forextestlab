@@ -37,8 +37,10 @@ import {
   placeOrder as placeLocalOrder,
   publicSessionState,
   revealNext,
+  stepBackTo as stepBackLocalTo,
 } from "@/lib/backtest/replay-engine";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
+import { candleBucketStart } from "@/lib/market-data/aggregation";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
@@ -791,41 +793,72 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [checkpoint, s.endOfData],
   );
-  const stepPrev = useCallback(async () => {
+  const stepPrev = useCallback((displayTimeframe?: Timeframe) => {
     const engine = localEngineRef.current;
     if (!engine) return;
-    const steps = Math.max(
-      1,
-      Math.round(
-        (replayStepRef.current * TIMEFRAME_MS["1m"]) /
-          TIMEFRAME_MS[engine.state.config.timeframe],
-      ),
+    const timeframe = displayTimeframe ?? engine.state.config.timeframe;
+    const currentCandle = engine.candles[engine.state.visibleIndex];
+    if (!currentCandle) return;
+
+    // Find the candle immediately before the current displayed bucket, then
+    // walk to that bucket's first base candle. Weekend/session gaps therefore
+    // jump to the real previous bar rather than an empty clock interval.
+    const currentBucket = candleBucketStart(currentCandle.timestamp, timeframe);
+    let targetIndex = engine.state.visibleIndex - 1;
+    while (
+      targetIndex >= 0 &&
+      candleBucketStart(engine.candles[targetIndex]!.timestamp, timeframe) >=
+        currentBucket
+    ) {
+      targetIndex -= 1;
+    }
+    if (targetIndex < 0) return;
+    const previousBucket = candleBucketStart(
+      engine.candles[targetIndex]!.timestamp,
+      timeframe,
     );
-    const succeeded = await runAction(
-      { type: "prev", steps },
-      { allowRewind: true },
-    );
-    if (!succeeded) return;
-    const current = localEngineRef.current;
-    if (!current) return;
-    const candle = current.candles[current.state.visibleIndex] ?? null;
+    while (
+      targetIndex > 0 &&
+      candleBucketStart(
+        engine.candles[targetIndex - 1]!.timestamp,
+        timeframe,
+      ) === previousBucket
+    ) {
+      targetIndex -= 1;
+    }
+
+    const rollbackState = s.state ?? undefined;
+    if (!stepBackLocalTo(engine, targetIndex)) return;
+    const candle = engine.candles[engine.state.visibleIndex] ?? null;
     if (candle) {
       // Every chart cell removes its future candle against the shared clock.
       // The chart instances stay mounted, retaining zoom, pan, drawings, and
       // indicator state while their existing series is updated in place.
       publishReplayVisual({
-        sessionId: current.state.sessionId,
+        sessionId: engine.state.sessionId,
         currentTime: candle.timestamp,
-        visibleIndex: current.state.visibleIndex,
+        visibleIndex: engine.state.visibleIndex,
         currentPrice: Number(candle.close),
       });
     }
     setS((prev) => ({
       ...prev,
+      state: publicSessionState(engine, prev.state?.anonymous ?? false),
       lastCandle: candle,
       lastCandles: [],
     }));
-  }, [runAction]);
+    // The interaction is complete locally. Persist the exact target in the
+    // background so network latency never blocks or animates the chart.
+    void runAction(
+      { type: "prev", targetIndex },
+      {
+        allowRewind: true,
+        preserveLocalState: true,
+        rollbackState,
+        showBusy: false,
+      },
+    );
+  }, [runAction, s.state]);
   const restart = useCallback(async () => {
     wantsReplayRunningRef.current = false;
     setS((prev) =>

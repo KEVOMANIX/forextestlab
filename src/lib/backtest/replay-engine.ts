@@ -609,32 +609,33 @@ export function replayRewindFloor(state: SessionState): number {
  * Existing trades remain intact; only candles after the latest decision can be
  * reviewed backwards.
  */
-export function stepBack(ctx: EngineContext): boolean {
+export function stepBackTo(ctx: EngineContext, targetIndex: number): boolean {
   const { state } = ctx;
   const floor = replayRewindFloor(state);
+  const target = Math.max(0, Math.floor(targetIndex));
   const canStep =
     // A challenge cannot be rewound. Stepping back to unwind a bad candle would
     // make the verdict meaningless, so the whole run is forward-only from the
     // moment the rules are attached — not merely from the first trade.
     !state.config.propFirm &&
     !state.openPositions.some((position) => position.trailingStopPips) &&
-    state.visibleIndex > floor &&
-    state.visibleIndex > state.lockedBeforeIndex;
+    target >= floor &&
+    target < state.visibleIndex;
   if (!canStep) return false;
-  state.visibleIndex -= 1;
+  state.visibleIndex = target;
   state.equityCurve = state.equityCurve.filter(
     (p) => p.index <= state.visibleIndex,
   );
   // Rebuild path-dependent open-position excursion metrics through the new
   // candle. Otherwise a rewind would retain favorable/adverse values learned
   // from candles that are no longer revealed.
-  const targetIndex = state.visibleIndex;
+  const rewindIndex = state.visibleIndex;
   for (const position of state.openPositions) {
     position.maxFavorablePnl = "0.00";
     position.maxAdversePnl = "0.00";
     for (
       state.visibleIndex = position.entryIndex;
-      state.visibleIndex <= targetIndex;
+      state.visibleIndex <= rewindIndex;
       state.visibleIndex += 1
     ) {
       const pnl = d(unrealizedPnl(ctx, position));
@@ -648,7 +649,7 @@ export function stepBack(ctx: EngineContext): boolean {
       ).toFixed(2);
     }
   }
-  state.visibleIndex = targetIndex;
+  state.visibleIndex = rewindIndex;
   // Peak equity and drawdown are also path-dependent. Rebuild them from the
   // retained curve so no metric keeps knowledge of the removed candle.
   let peak = d(state.config.startingBalance);
@@ -670,6 +671,10 @@ export function stepBack(ctx: EngineContext): boolean {
   state.maxDrawdownPercent = maxDrawdownPercent;
   recomputeEquity(ctx, false);
   return true;
+}
+
+export function stepBack(ctx: EngineContext): boolean {
+  return stepBackTo(ctx, ctx.state.visibleIndex - 1);
 }
 
 export function setStatus(

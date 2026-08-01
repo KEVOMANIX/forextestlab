@@ -479,6 +479,46 @@ class TextObj extends DrawingObject {
   }
 }
 
+/** Text pinned to a percentage position inside the pane, independent of chart pan/zoom. */
+class AnchoredTextObj extends DrawingObject {
+  private screenPoint(mapper: CoordinateMapper): { x: number; y: number } {
+    return {
+      x: this.points[0]!.time * mapper.width,
+      y: this.points[0]!.price * mapper.height,
+    };
+  }
+  override anchors(mapper: CoordinateMapper): { x: number; y: number; index: number }[] {
+    const p = this.screenPoint(mapper);
+    return [{ ...p, index: 0 }];
+  }
+  render({ ctx, mapper }: RenderCtx): void {
+    const text = this.style.text;
+    if (!text) return;
+    const p = this.screenPoint(mapper);
+    const lines = text.split("\n");
+    const lineHeight = this.style.fontSize + 3;
+    ctx.save();
+    ctx.setLineDash([]);
+    const weight = this.style.bold ? "700 " : "";
+    const italic = this.style.italic ? "italic " : "";
+    ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
+    ctx.textAlign = this.style.textAlign ?? "left";
+    ctx.fillStyle = withAlpha(this.style.textColor ?? this.style.color, this.style.opacity);
+    lines.forEach((line, index) => ctx.fillText(line, p.x, p.y + index * lineHeight));
+    ctx.restore();
+  }
+  bbox(mapper: CoordinateMapper): Rect {
+    const p = this.screenPoint(mapper);
+    const lines = (this.style.text || "Text").split("\n");
+    const width = Math.max(28, ...lines.map((line) => line.length * this.style.fontSize * .62));
+    return { x: p.x, y: p.y, w: width, h: Math.max(this.style.fontSize + 4, lines.length * (this.style.fontSize + 3)) };
+  }
+  hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
+    return pointInRect(x, y, this.bbox(mapper), HIT_TOLERANCE);
+  }
+}
+
 // ---- fibonacci ----
 
 // Level colours cycle like TradingView's default fib palette.
@@ -949,6 +989,7 @@ const REGISTRY: Record<ToolKind, new (json: DrawingJSON) => DrawingObject> = {
   path: PathObj,
   text: TextObj,
   label: TextObj,
+  anchoredText: AnchoredTextObj,
   fib: FibObj,
   channel: Channel,
   long: PositionTool,

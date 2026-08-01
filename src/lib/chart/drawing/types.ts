@@ -39,7 +39,8 @@ export type ToolKind =
   | "dateRange"
   | "datePriceRange"
   | "callout"
-  | "priceLabel";
+  | "priceLabel"
+  | "anchoredText";
 
 /** A drawing anchor in chart space. `time` is UTC seconds; 0 means "no time" (e.g. pure horizontal line). */
 export interface Point {
@@ -167,6 +168,7 @@ export const TOOL_POINTS: Record<ToolKind, number> = {
   datePriceRange: 2,
   callout: 2,
   priceLabel: 1,
+  anchoredText: 1,
 };
 
 export const TOOL_LABELS: Record<ToolKind, string> = {
@@ -202,9 +204,10 @@ export const TOOL_LABELS: Record<ToolKind, string> = {
   datePriceRange: "Date & price range",
   callout: "Callout",
   priceLabel: "Price label",
+  anchoredText: "Anchored text",
 };
 
-export const TOOLS_NEEDING_TEXT: ReadonlySet<ToolKind> = new Set<ToolKind>(["text", "label", "callout"]);
+export const TOOLS_NEEDING_TEXT: ReadonlySet<ToolKind> = new Set<ToolKind>(["text", "label", "callout", "anchoredText"]);
 
 /** TradingView's default visible Fibonacci retracement ratios (incl. extensions). */
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618, 4.236] as const;

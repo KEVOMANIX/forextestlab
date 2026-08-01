@@ -326,20 +326,24 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               {value.points.map((p, i) => (
                 <div key={i} className="rounded-md border app-border p-2">
                   <div className="mb-1 text-[10px] font-semibold app-muted">Point {i + 1}</div>
-                  <Row label="Time (unix s)">
+                  <Row label={value.kind === "anchoredText" ? "Horizontal (%)" : "Time (unix s)"}>
                     <input
                       type="number"
-                      value={p.time}
-                      onChange={(e) => setPoint(i, { time: Number(e.target.value) })}
+                      min={value.kind === "anchoredText" ? 0 : undefined}
+                      max={value.kind === "anchoredText" ? 100 : undefined}
+                      value={value.kind === "anchoredText" ? Math.round(p.time * 100) : p.time}
+                      onChange={(e) => setPoint(i, { time: Number(e.target.value) / (value.kind === "anchoredText" ? 100 : 1) })}
                       className="w-32 rounded border app-border bg-transparent px-1 py-0.5 text-right font-mono text-[11px]"
                     />
                   </Row>
-                  <Row label="Price">
+                  <Row label={value.kind === "anchoredText" ? "Vertical (%)" : "Price"}>
                     <input
                       type="number"
-                      step={Math.pow(10, -precision)}
-                      value={p.price}
-                      onChange={(e) => setPoint(i, { price: Number(e.target.value) })}
+                      min={value.kind === "anchoredText" ? 0 : undefined}
+                      max={value.kind === "anchoredText" ? 100 : undefined}
+                      step={value.kind === "anchoredText" ? 1 : Math.pow(10, -precision)}
+                      value={value.kind === "anchoredText" ? Math.round(p.price * 100) : p.price}
+                      onChange={(e) => setPoint(i, { price: Number(e.target.value) / (value.kind === "anchoredText" ? 100 : 1) })}
                       className="w-32 rounded border app-border bg-transparent px-1 py-0.5 text-right font-mono text-[11px]"
                     />
                   </Row>

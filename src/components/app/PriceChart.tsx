@@ -328,7 +328,7 @@ const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: DrawingIcon; tools: Too
   { key: "shapes", label: "Shapes", Icon: ShapesGroupIcon, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
   { key: "fib", label: "Fibonacci", Icon: FibonacciIcon, tools: ["fib", "fibExtension"] },
   { key: "trade", label: "Positions & measure", Icon: LongPositionIcon, tools: ["long", "short", "measure", "priceRange", "dateRange", "datePriceRange"] },
-  { key: "notes", label: "Text & notes", Icon: NotesGroupIcon, tools: ["text", "label", "callout", "priceLabel"] },
+  { key: "notes", label: "Text & notes", Icon: NotesGroupIcon, tools: ["text", "anchoredText", "label", "callout", "priceLabel"] },
 ];
 
 const MAGNET_MODES: MagnetMode[] = ["off", "weak", "strong"];

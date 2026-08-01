@@ -44,7 +44,7 @@ async function drawingCount(page: Page, sessionId: string) {
   }, sessionId);
 }
 
-for (const tool of ["Text", "Label"] as const) {
+for (const tool of ["Text", "Label", "Anchored text"] as const) {
   test(`the ${tool.toLowerCase()} tool keeps what you type`, async ({ page }) => {
     const sessionId = await openSession(page);
     const chart = page.getByRole("img", { name: "Candlestick price chart" });
@@ -58,6 +58,21 @@ for (const tool of ["Text", "Label"] as const) {
     const editor = page.getByLabel("Drawing text");
     await expect(editor).toBeVisible();
     await expect(editor).toBeFocused();
+    const editorChrome = await editor.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      return {
+        background: style.backgroundColor,
+        borderTop: style.borderTopWidth,
+        boxShadow: style.boxShadow,
+        paddingTop: style.paddingTop,
+      };
+    });
+    expect(editorChrome).toEqual({
+      background: "rgba(0, 0, 0, 0)",
+      borderTop: "0px",
+      boxShadow: "none",
+      paddingTop: "0px",
+    });
 
     await editor.fill(`${tool} note`);
     await page.keyboard.press("Enter");
@@ -74,6 +89,14 @@ for (const tool of ["Text", "Label"] as const) {
       return raw ?? "";
     }, sessionId);
     expect(stored).toContain(`${tool} note`);
+    if (tool === "Anchored text") {
+      const drawings = JSON.parse(stored) as Array<{ kind: string; points: Array<{ time: number; price: number }> }>;
+      expect(drawings[0]?.kind).toBe("anchoredText");
+      expect(drawings[0]?.points[0]?.time).toBeGreaterThan(0);
+      expect(drawings[0]?.points[0]?.time).toBeLessThan(1);
+      expect(drawings[0]?.points[0]?.price).toBeGreaterThan(0);
+      expect(drawings[0]?.points[0]?.price).toBeLessThan(1);
+    }
   });
 }
 

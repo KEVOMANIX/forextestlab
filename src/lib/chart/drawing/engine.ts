@@ -35,7 +35,7 @@ export type ToolDefaults = Partial<Record<ToolKind, DrawingStyle>>;
 type CreateMode = "single" | "drag" | "click";
 
 function creationMode(kind: ToolKind): CreateMode {
-  if (kind === "horizontal" || kind === "vertical" || kind === "horizontalRay" || kind === "crossline" || kind === "priceLabel" || kind === "text" || kind === "label") return "single";
+  if (kind === "horizontal" || kind === "vertical" || kind === "horizontalRay" || kind === "crossline" || kind === "priceLabel" || kind === "text" || kind === "label" || kind === "anchoredText") return "single";
   // Position tools drop a default 1:1 box on a single click, then the user
   // drags the handles to place stop/target.
   if (kind === "long" || kind === "short") return "single";
@@ -530,7 +530,7 @@ export class DrawingEngine {
       o.kind === "infoLine" || o.kind === "trendAngle" || o.kind === "regression" ||
       o.kind === "flatChannel" || o.kind === "disjointChannel" || o.kind === "fibExtension" ||
       o.kind === "priceRange" || o.kind === "dateRange" || o.kind === "datePriceRange" ||
-      o.kind === "callout" || o.kind === "priceLabel";
+      o.kind === "callout" || o.kind === "priceLabel" || o.kind === "anchoredText";
   }
 
   private resizeHandles(o: DrawingObject): { x: number; y: number; handle: ResizeHandle }[] {
@@ -629,6 +629,12 @@ export class DrawingEngine {
     const mode = creationMode(kind);
     const count = kind === "path" ? 2 : Number.isFinite(TOOL_POINTS[kind]) ? TOOL_POINTS[kind] : 2;
     const obj = newDrawing(kind, point, this.topZ() + 1, count, "");
+    if (kind === "anchoredText") {
+      obj.points[0] = {
+        time: Math.max(0, Math.min(1, px.x / Math.max(1, this.mapper.width))),
+        price: Math.max(0, Math.min(1, px.y / Math.max(1, this.mapper.height))),
+      };
+    }
     // Seed from the user's last-used style for this tool (text is never inherited).
     const saved = this.toolDefaults[kind];
     if (saved) {
@@ -788,9 +794,18 @@ export class DrawingEngine {
     if (this.drag.kind === "move") {
       const dx = px.x - this.drag.startPx.x;
       const dy = px.y - this.drag.startPx.y;
-      o.points = this.drag.origin.map((p) => this.movePoint(p, dx, dy));
+      if (o.kind === "anchoredText") {
+        o.points = this.drag.origin.map((p) => ({
+          time: Math.max(0, Math.min(1, p.time + dx / Math.max(1, this.mapper.width))),
+          price: Math.max(0, Math.min(1, p.price + dy / Math.max(1, this.mapper.height))),
+        }));
+      } else {
+        o.points = this.drag.origin.map((p) => this.movePoint(p, dx, dy));
+      }
     } else if (this.drag.kind === "anchor") {
-      const point = this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? this.drag.origin[this.drag.index]!);
+      const point = o.kind === "anchoredText"
+        ? { time: Math.max(0, Math.min(1, px.x / Math.max(1, this.mapper.width))), price: Math.max(0, Math.min(1, px.y / Math.max(1, this.mapper.height))) }
+        : this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? this.drag.origin[this.drag.index]!);
       this.snapDot = this.env.magnet !== "off" ? px : null;
       o.setAnchor(this.drag.index, point);
     } else {
@@ -999,7 +1014,7 @@ export class DrawingEngine {
       ctx.save();
       o.render(r);
       // Text/label tools paint their own text; every other tool gets the shared label.
-      if (o.kind !== "text" && o.kind !== "label" && o.kind !== "callout") o.drawLabel(r);
+      if (o.kind !== "text" && o.kind !== "label" && o.kind !== "callout" && o.kind !== "anchoredText") o.drawLabel(r);
       ctx.restore();
     }
   }

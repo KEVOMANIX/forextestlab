@@ -187,6 +187,10 @@ export function CalloutIcon(props: DrawingIconProps) {
   return <Glyph {...props}><path d="M5 5h15v11H10l-5 4Z" /><line x1="9" y1="9" x2="16" y2="9" /><line x1="9" y1="12" x2="14" y2="12" /></Glyph>;
 }
 
+export function AnchoredTextIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M4 5h12M10 5v12M7 17h6" /><path d="M18 9v8m-3 0h6m-3 0-2 3m2-3 2 3" opacity=".8" /><Handle cx={18} cy={9} r={1.2} /></Glyph>;
+}
+
 export function LinesGroupIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
@@ -237,4 +241,5 @@ export const DRAWING_TOOL_ICONS = {
   datePriceRange: RangeIcon,
   callout: CalloutIcon,
   priceLabel: LabelToolIcon,
+  anchoredText: AnchoredTextIcon,
 } satisfies Record<ToolKind, DrawingIcon>;

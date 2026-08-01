@@ -114,6 +114,37 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 
+  // Text is entered directly at the chart click: only a transparent textarea
+  // and its native blinking caret are present, with no input box chrome.
+  await page.getByRole("button", { name: "Text & notes", exact: true }).click();
+  await page.getByRole("button", { name: "Anchored text", exact: true }).click();
+  const initialBounds = await chart.boundingBox();
+  expect(initialBounds).not.toBeNull();
+  if (!initialBounds) return;
+  await page.mouse.click(initialBounds.x + initialBounds.width * .58, initialBounds.y + initialBounds.height * .32);
+  const directEditor = page.getByTestId("drawing-inline-text-editor");
+  await expect(directEditor).toBeFocused();
+  await expect(directEditor).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(directEditor).toHaveCSS("border-top-width", "0px");
+  await expect(directEditor).toHaveCSS("box-shadow", "none");
+  await directEditor.fill("Replay plan");
+  await page.keyboard.press("Enter");
+  await expect(directEditor).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("forextestlab:drawings:")) continue;
+      const drawings = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<{
+        kind?: string;
+        points?: Array<{ time: number; price: number }>;
+        style?: { text?: string };
+      }>;
+      if (drawings.some((drawing) => drawing.kind === "anchoredText" && drawing.style?.text === "Replay plan" &&
+        drawing.points?.[0]?.time! > 0 && drawing.points[0]!.time < 1 && drawing.points[0]!.price > 0 && drawing.points[0]!.price < 1)) return true;
+    }
+    return false;
+  })).toBe(true);
+
   // The expanded toolbox exposes real tools in the expected families.
   await page.getByRole("button", { name: "Lines & channels", exact: true }).click();
   for (const tool of ["Horizontal ray", "Info line", "Trend angle", "Regression trend", "Flat top / bottom", "Disjoint channel"]) {

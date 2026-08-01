@@ -78,7 +78,14 @@ export function DrawingLayer({
   const [menu, setMenu] = useState<ContextMenuRequest | null>(null);
   const [selection, setSelection] = useState<DrawingJSON | null>(null);
   const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
-  const [textEdit, setTextEdit] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [textEdit, setTextEdit] = useState<{
+    id: string;
+    x: number;
+    y: number;
+    kind: ToolKind;
+    style: DrawingJSON["style"];
+  } | null>(null);
+  const [textDraft, setTextDraft] = useState("");
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   /** False until the editor owns focus for real; blurs before that are spurious. */
   const textReadyRef = useRef(false);
@@ -136,8 +143,11 @@ export function DrawingLayer({
     engine.onOpenSettings = (json) => setSettings(json);
     engine.onContextMenu = (req) => setMenu(req);
     engine.onRequestTextEdit = (req) => {
+      const drawing = engine.getSelected();
+      if (!drawing) return;
       textDraftRef.current = "";
-      setTextEdit(req);
+      setTextDraft("");
+      setTextEdit({ ...req, kind: drawing.kind, style: drawing.style });
     };
     engine.onToolConsumed = () => onToolConsumed();
     engine.onSelectionChange = (json) => {
@@ -213,6 +223,7 @@ export function DrawingLayer({
     const value = textDraftRef.current.trim();
     if (cancel || !value) eng()?.removeObject(textEdit.id);
     else eng()?.setObjectText(textEdit.id, textDraftRef.current);
+    setTextDraft("");
     setTextEdit(null);
   };
 
@@ -225,10 +236,11 @@ export function DrawingLayer({
           ref={textAreaRef}
           key={textEdit.id}
           defaultValue=""
+          data-testid="drawing-inline-text-editor"
           aria-label="Drawing text"
           onChange={(e) => {
             textDraftRef.current = e.target.value;
-            eng()?.setObjectText(textEdit.id, e.target.value);
+            setTextDraft(e.target.value);
           }}
           onBlur={() => {
             // The click that created the drawing is still in flight when the
@@ -249,13 +261,27 @@ export function DrawingLayer({
               commitText(false);
             }
           }}
-          className="absolute z-50 min-w-[80px] resize-none rounded border border-brand-400 bg-[var(--app-panel-solid)] px-1.5 py-1 text-xs text-[var(--app-text)] shadow-lg outline-none"
-          style={{ left: textEdit.x, top: textEdit.y, pointerEvents: "auto" }}
-          rows={1}
+          className="absolute z-50 resize-none overflow-hidden border-0 bg-transparent p-0 shadow-none outline-none"
+          style={{
+            left: textEdit.x,
+            top: textEdit.kind === "anchoredText" ? textEdit.y : textEdit.y - textEdit.style.fontSize / 2,
+            width: Math.min(440, Math.max(24, Math.max(...(textDraft || " ").split("\n").map((line) => line.length)) * textEdit.style.fontSize * .64 + 8)),
+            height: Math.max(textEdit.style.fontSize + 6, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4)),
+            pointerEvents: "auto",
+            color: textEdit.style.textColor ?? textEdit.style.color,
+            caretColor: textEdit.style.textColor ?? textEdit.style.color,
+            fontSize: textEdit.style.fontSize,
+            fontWeight: textEdit.style.bold ? 700 : 400,
+            fontStyle: textEdit.style.italic ? "italic" : "normal",
+            lineHeight: `${textEdit.style.fontSize + 4}px`,
+            boxShadow: "none",
+          }}
+          rows={Math.max(1, textDraft.split("\n").length)}
+          spellCheck={false}
         />
       )}
 
-      {selection && toolbarPosition && !settings && (
+      {selection && toolbarPosition && !settings && !textEdit && (
         <div
           role="toolbar"
           aria-label={`${selection.kind} drawing settings`}

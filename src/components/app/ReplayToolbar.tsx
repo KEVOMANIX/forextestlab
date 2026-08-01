@@ -22,6 +22,7 @@ import {
   type ReplaySpeed,
 } from "@/lib/backtest/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
+import { replayRewindFloor } from "@/lib/backtest/replay-engine";
 
 interface ReplayToolbarProps {
   state: PublicSessionState;
@@ -118,18 +119,18 @@ export function ReplayToolbar({
   const [menuOpen, setMenuOpen] = useState(false);
   const finished = state.status === "finished";
   const running = state.status === "running";
+  const rewindFloor = replayRewindFloor(state);
   const prevDisabledReason = running
     ? "Pause replay to go to the previous candle"
     : state.config.propFirm
       ? "Previous candle is disabled during a challenge"
-      : state.closedTrades.length > 0 || state.openPositions.length > 0
-        ? "Previous candle is unavailable after trading"
-        : state.pendingOrders.some((order) => order.status === "pending")
-          ? "Cancel pending orders before going back"
-          : state.visibleIndex <= state.lockedBeforeIndex ||
-              state.visibleIndex <= state.config.initialVisibleCount - 1
-            ? "You are at the first replay candle"
-            : null;
+      : state.openPositions.some((position) => position.trailingStopPips)
+        ? "Disable the trailing stop before going back"
+        : state.visibleIndex <= rewindFloor
+          ? rewindFloor > state.config.initialVisibleCount - 1
+            ? "You cannot rewind past the latest trade action"
+            : "You are at the first replay candle"
+          : null;
   const canPrev = prevDisabledReason === null;
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));

@@ -592,21 +592,32 @@ export function revealNext(ctx: EngineContext): boolean {
   return true;
 }
 
+/** Last candle that cannot be crossed without rewriting recorded decisions. */
+export function replayRewindFloor(state: SessionState): number {
+  return Math.max(
+    state.config.initialVisibleCount - 1,
+    state.lockedBeforeIndex,
+    ...state.openPositions.map((position) => position.entryIndex),
+    ...state.closedTrades.map((trade) => trade.exitIndex),
+    ...state.pendingOrders.map((order) => order.createdIndex),
+    0,
+  );
+}
+
 /**
- * Step one candle backwards. Only permitted before any trade has been placed
- * (no closed trades, no open position) and not before the initial visible set.
+ * Step one candle backwards without crossing a recorded trade/order action.
+ * Existing trades remain intact; only candles after the latest decision can be
+ * reviewed backwards.
  */
 export function stepBack(ctx: EngineContext): boolean {
   const { state } = ctx;
-  const floor = Math.max(state.config.initialVisibleCount - 1, 0);
+  const floor = replayRewindFloor(state);
   const canStep =
     // A challenge cannot be rewound. Stepping back to unwind a bad candle would
     // make the verdict meaningless, so the whole run is forward-only from the
     // moment the rules are attached — not merely from the first trade.
     !state.config.propFirm &&
-    state.closedTrades.length === 0 &&
-    state.openPositions.length === 0 &&
-    !state.pendingOrders.some((order) => order.status === "pending") &&
+    !state.openPositions.some((position) => position.trailingStopPips) &&
     state.visibleIndex > floor &&
     state.visibleIndex > state.lockedBeforeIndex;
   if (!canStep) return false;
@@ -614,6 +625,49 @@ export function stepBack(ctx: EngineContext): boolean {
   state.equityCurve = state.equityCurve.filter(
     (p) => p.index <= state.visibleIndex,
   );
+  // Rebuild path-dependent open-position excursion metrics through the new
+  // candle. Otherwise a rewind would retain favorable/adverse values learned
+  // from candles that are no longer revealed.
+  const targetIndex = state.visibleIndex;
+  for (const position of state.openPositions) {
+    position.maxFavorablePnl = "0.00";
+    position.maxAdversePnl = "0.00";
+    for (
+      state.visibleIndex = position.entryIndex;
+      state.visibleIndex <= targetIndex;
+      state.visibleIndex += 1
+    ) {
+      const pnl = d(unrealizedPnl(ctx, position));
+      position.maxFavorablePnl = Decimal.max(
+        d(position.maxFavorablePnl),
+        pnl,
+      ).toFixed(2);
+      position.maxAdversePnl = Decimal.min(
+        d(position.maxAdversePnl),
+        pnl,
+      ).toFixed(2);
+    }
+  }
+  state.visibleIndex = targetIndex;
+  // Peak equity and drawdown are also path-dependent. Rebuild them from the
+  // retained curve so no metric keeps knowledge of the removed candle.
+  let peak = d(state.config.startingBalance);
+  let maxDrawdown = d(0);
+  let maxDrawdownPercent = "0.0";
+  for (const point of state.equityCurve) {
+    const equity = d(point.equity);
+    peak = Decimal.max(peak, equity);
+    const drawdown = peak.minus(equity);
+    if (drawdown.greaterThan(maxDrawdown)) {
+      maxDrawdown = drawdown;
+      maxDrawdownPercent = peak.isZero()
+        ? "0.0"
+        : drawdown.dividedBy(peak).times(100).toFixed(1);
+    }
+  }
+  state.maxEquity = peak.toFixed(2);
+  state.maxDrawdown = maxDrawdown.toFixed(2);
+  state.maxDrawdownPercent = maxDrawdownPercent;
   recomputeEquity(ctx, false);
   return true;
 }
@@ -991,6 +1045,10 @@ export function modifyPendingOrder(
   }
   order.entryPrice = d(price).toFixed(ctx.state.config.pricePrecision);
   order.updatedTime = candle.timestamp;
+  ctx.state.lockedBeforeIndex = Math.max(
+    ctx.state.lockedBeforeIndex,
+    ctx.state.visibleIndex,
+  );
   return { ok: true };
 }
 
@@ -1006,6 +1064,10 @@ export function cancelPendingOrder(
   order.status = "cancelled";
   order.cancelledTime = time;
   order.updatedTime = time;
+  ctx.state.lockedBeforeIndex = Math.max(
+    ctx.state.lockedBeforeIndex,
+    ctx.state.visibleIndex,
+  );
   return { ok: true };
 }
 
@@ -1049,6 +1111,10 @@ export function modifyStopLoss(
     position.trailingBestPrice = null;
   }
   position.stopLoss = price;
+  ctx.state.lockedBeforeIndex = Math.max(
+    ctx.state.lockedBeforeIndex,
+    ctx.state.visibleIndex,
+  );
   recomputeEquity(ctx, false);
   return { ok: true };
 }
@@ -1065,6 +1131,10 @@ export function modifyTrailingStop(
   if (pips == null) {
     position.trailingStopPips = null;
     position.trailingBestPrice = null;
+    ctx.state.lockedBeforeIndex = Math.max(
+      ctx.state.lockedBeforeIndex,
+      ctx.state.visibleIndex,
+    );
     return { ok: true };
   }
   if (!d(pips).isFinite() || d(pips).lessThanOrEqualTo(0)) {
@@ -1100,6 +1170,10 @@ export function modifyTrailingStop(
       .toFixed(2);
   }
   recomputeEquity(ctx, false);
+  ctx.state.lockedBeforeIndex = Math.max(
+    ctx.state.lockedBeforeIndex,
+    ctx.state.visibleIndex,
+  );
   return { ok: true };
 }
 
@@ -1118,6 +1192,10 @@ export function modifyTakeProfit(
     position.initialTakeProfit = price;
   }
   position.takeProfit = price;
+  ctx.state.lockedBeforeIndex = Math.max(
+    ctx.state.lockedBeforeIndex,
+    ctx.state.visibleIndex,
+  );
   recomputeEquity(ctx, false);
   return { ok: true };
 }

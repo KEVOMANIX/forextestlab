@@ -35,11 +35,11 @@ export type ToolDefaults = Partial<Record<ToolKind, DrawingStyle>>;
 type CreateMode = "single" | "drag" | "click";
 
 function creationMode(kind: ToolKind): CreateMode {
-  if (kind === "horizontal" || kind === "vertical" || kind === "text" || kind === "label") return "single";
+  if (kind === "horizontal" || kind === "vertical" || kind === "horizontalRay" || kind === "crossline" || kind === "priceLabel" || kind === "text" || kind === "label") return "single";
   // Position tools drop a default 1:1 box on a single click, then the user
   // drags the handles to place stop/target.
   if (kind === "long" || kind === "short") return "single";
-  if (kind === "triangle" || kind === "channel" || kind === "path") return "click";
+  if (kind === "triangle" || kind === "channel" || kind === "flatChannel" || kind === "disjointChannel" || kind === "fibExtension" || kind === "path") return "click";
   return "drag";
 }
 
@@ -526,7 +526,11 @@ export class DrawingEngine {
   private usesOnlyAnchorHandles(o: DrawingObject): boolean {
     return o.kind === "trend" || o.kind === "ray" || o.kind === "extended" ||
       o.kind === "arrow" || o.kind === "horizontal" || o.kind === "vertical" ||
-      o.kind === "channel";
+      o.kind === "channel" || o.kind === "horizontalRay" || o.kind === "crossline" ||
+      o.kind === "infoLine" || o.kind === "trendAngle" || o.kind === "regression" ||
+      o.kind === "flatChannel" || o.kind === "disjointChannel" || o.kind === "fibExtension" ||
+      o.kind === "priceRange" || o.kind === "dateRange" || o.kind === "datePriceRange" ||
+      o.kind === "callout" || o.kind === "priceLabel";
   }
 
   private resizeHandles(o: DrawingObject): { x: number; y: number; handle: ResizeHandle }[] {
@@ -694,6 +698,10 @@ export class DrawingEngine {
     this.unfreezeChart();
     if (target) {
       this.pushHistoryBefore(target.id);
+      if (!obj && target.kind === "callout") {
+        const anchor = target.anchors(this.mapper).at(-1);
+        if (anchor) this.onRequestTextEdit?.({ id: target.id, x: anchor.x, y: anchor.y });
+      }
     }
     this.sceneDirty = true;
     this.overlayDirty = true;
@@ -986,11 +994,12 @@ export class DrawingEngine {
         timeframe: this.env.timeframe,
         precision: this.env.precision,
         pipSize: this.env.pipSize,
+        candles: this.env.candles,
       };
       ctx.save();
       o.render(r);
       // Text/label tools paint their own text; every other tool gets the shared label.
-      if (o.kind !== "text" && o.kind !== "label") o.drawLabel(r);
+      if (o.kind !== "text" && o.kind !== "label" && o.kind !== "callout") o.drawLabel(r);
       ctx.restore();
     }
   }

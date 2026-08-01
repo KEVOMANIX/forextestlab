@@ -26,7 +26,20 @@ export type ToolKind =
   | "channel"
   | "long"
   | "short"
-  | "measure";
+  | "measure"
+  | "horizontalRay"
+  | "crossline"
+  | "infoLine"
+  | "trendAngle"
+  | "regression"
+  | "flatChannel"
+  | "disjointChannel"
+  | "fibExtension"
+  | "priceRange"
+  | "dateRange"
+  | "datePriceRange"
+  | "callout"
+  | "priceLabel";
 
 /** A drawing anchor in chart space. `time` is UTC seconds; 0 means "no time" (e.g. pure horizontal line). */
 export interface Point {
@@ -92,8 +105,8 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     color: "#5b8bff",
     opacity: 1,
     lineWidth: 1, // low-end default; the user's last-used style is remembered per tool
-    lineStyle: kind === "horizontal" || kind === "vertical" ? "dashed" : "solid",
-    fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle" || kind === "fib",
+    lineStyle: kind === "horizontal" || kind === "vertical" || kind === "crossline" ? "dashed" : "solid",
+    fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle" || kind === "fib" || kind === "fibExtension" || kind === "regression" || kind === "flatChannel" || kind === "disjointChannel" || kind === "priceRange" || kind === "dateRange" || kind === "datePriceRange" || kind === "callout",
     fillColor: "#5b8bff",
     fillOpacity: 0.12,
     showCenterLine: false,
@@ -141,6 +154,19 @@ export const TOOL_POINTS: Record<ToolKind, number> = {
   long: 3,
   short: 3,
   measure: 2,
+  horizontalRay: 1,
+  crossline: 1,
+  infoLine: 2,
+  trendAngle: 2,
+  regression: 2,
+  flatChannel: 3,
+  disjointChannel: 4,
+  fibExtension: 3,
+  priceRange: 2,
+  dateRange: 2,
+  datePriceRange: 2,
+  callout: 2,
+  priceLabel: 1,
 };
 
 export const TOOL_LABELS: Record<ToolKind, string> = {
@@ -163,9 +189,22 @@ export const TOOL_LABELS: Record<ToolKind, string> = {
   long: "Long position",
   short: "Short position",
   measure: "Measure",
+  horizontalRay: "Horizontal ray",
+  crossline: "Cross line",
+  infoLine: "Info line",
+  trendAngle: "Trend angle",
+  regression: "Regression trend",
+  flatChannel: "Flat top / bottom",
+  disjointChannel: "Disjoint channel",
+  fibExtension: "Trend-based Fib extension",
+  priceRange: "Price range",
+  dateRange: "Date range",
+  datePriceRange: "Date & price range",
+  callout: "Callout",
+  priceLabel: "Price label",
 };
 
-export const TOOLS_NEEDING_TEXT: ReadonlySet<ToolKind> = new Set<ToolKind>(["text", "label"]);
+export const TOOLS_NEEDING_TEXT: ReadonlySet<ToolKind> = new Set<ToolKind>(["text", "label", "callout"]);
 
 /** TradingView's default visible Fibonacci retracement ratios (incl. extensions). */
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618, 4.236] as const;

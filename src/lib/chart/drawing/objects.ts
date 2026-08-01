@@ -486,17 +486,17 @@ const FIB_BAND_COLORS = ["#787b86", "#f23645", "#ff9800", "#4caf50", "#089981", 
 
 class FibObj extends DrawingObject {
   /** Ratios to display — the user's chosen subset, or all defaults. */
-  private levels(): number[] {
+  protected levels(): number[] {
     const chosen = this.style.fibLevels;
     if (chosen && chosen.length) return [...chosen].sort((a, b) => a - b);
     return [...FIB_LEVELS];
   }
   /** Colour for a ratio, keyed to its position in the full default set (stable). */
-  private levelColor(lvl: number): string {
+  protected levelColor(lvl: number): string {
     const idx = FIB_LEVELS.indexOf(lvl as (typeof FIB_LEVELS)[number]);
     return FIB_BAND_COLORS[(idx < 0 ? 0 : idx) % FIB_BAND_COLORS.length]!;
   }
-  private priceAt(lvl: number): number {
+  protected priceAt(lvl: number): number {
     const p0 = this.points[0]!;
     const p1 = this.points[1]!;
     return this.style.reverse ? p1.price + (p0.price - p1.price) * lvl : p0.price + (p1.price - p0.price) * lvl;
@@ -766,6 +766,172 @@ class Measure extends DrawingObject {
   }
 }
 
+// ---- advanced TradingView-style tools ----
+
+function elapsedLabel(seconds: number): string {
+  const value = Math.abs(seconds);
+  if (value >= 31_536_000) return `${(value / 31_536_000).toFixed(1)}y`;
+  if (value >= 2_592_000) return `${(value / 2_592_000).toFixed(1)}mo`;
+  if (value >= 604_800) return `${(value / 604_800).toFixed(1)}w`;
+  if (value >= 86_400) return `${(value / 86_400).toFixed(1)}d`;
+  if (value >= 3_600) return `${(value / 3_600).toFixed(1)}h`;
+  return `${Math.round(value / 60)}m`;
+}
+
+class HorizontalRay extends DrawingObject {
+  render({ ctx, mapper, precision }: RenderCtx): void {
+    const p = this.px(mapper, this.points[0]!);
+    if (!p) return;
+    this.applyStroke(ctx);
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mapper.width, p.y); ctx.stroke();
+    if (this.style.showLabels) chip(ctx, p.x + 7, p.y - 21, this.points[0]!.price.toFixed(precision), withAlpha("#0b0f1a", .9), this.strokeColor(), 10);
+  }
+  hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
+    const p = this.px(mapper, this.points[0]!);
+    return !!p && x >= p.x - HIT_TOLERANCE && Math.abs(y - p.y) <= HIT_TOLERANCE + this.style.lineWidth;
+  }
+}
+
+class CrossLine extends DrawingObject {
+  render({ ctx, mapper, precision }: RenderCtx): void {
+    const p = this.px(mapper, this.points[0]!);
+    if (!p) return;
+    this.applyStroke(ctx);
+    ctx.beginPath(); ctx.moveTo(0, p.y); ctx.lineTo(mapper.width, p.y); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, mapper.height); ctx.stroke();
+    if (this.style.showLabels) chip(ctx, Math.min(mapper.width - 80, p.x + 7), p.y + 7, this.points[0]!.price.toFixed(precision), withAlpha("#0b0f1a", .9), this.strokeColor(), 10);
+  }
+  hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
+    const p = this.px(mapper, this.points[0]!);
+    return !!p && (Math.abs(x - p.x) <= HIT_TOLERANCE || Math.abs(y - p.y) <= HIT_TOLERANCE);
+  }
+}
+
+class InfoLine extends TrendLine {
+  render(r: RenderCtx): void {
+    super.render(r);
+    const a = this.px(r.mapper, this.points[0]!); const b = this.px(r.mapper, this.points[1]!);
+    if (!a || !b || !this.style.showLabels) return;
+    const delta = this.points[1]!.price - this.points[0]!.price;
+    const pct = this.points[0]!.price ? delta / this.points[0]!.price * 100 : 0;
+    const bars = r.candles.filter(c => c.time >= Math.min(this.points[0]!.time, this.points[1]!.time) && c.time <= Math.max(this.points[0]!.time, this.points[1]!.time)).length;
+    centerChip(r.ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, [`${delta >= 0 ? "+" : ""}${(delta / r.pipSize).toFixed(1)} pips  ${pct.toFixed(2)}%`, `${bars} bars  ${elapsedLabel(this.points[1]!.time - this.points[0]!.time)}`], withAlpha("#0b0f1a", .94), this.strokeColor(), 10);
+  }
+}
+
+class TrendAngle extends TrendLine {
+  render(r: RenderCtx): void {
+    super.render(r);
+    if (!this.style.showLabels) return;
+    const a = this.px(r.mapper, this.points[0]!); const b = this.px(r.mapper, this.points[1]!);
+    if (!a || !b) return;
+    const angle = -Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+    chip(r.ctx, b.x + 7, b.y - 11, `${angle.toFixed(1)}°`, withAlpha("#0b0f1a", .92), this.strokeColor(), 10);
+  }
+}
+
+class RegressionTrend extends DrawingObject {
+  private geometry(r: RenderCtx) {
+    const lo = Math.min(this.points[0]!.time, this.points[1]!.time); const hi = Math.max(this.points[0]!.time, this.points[1]!.time);
+    const data = r.candles.filter(c => c.time >= lo && c.time <= hi);
+    if (data.length < 2) return null;
+    const n = data.length; const meanX = (n - 1) / 2; const meanY = data.reduce((s, c) => s + c.close, 0) / n;
+    let num = 0; let den = 0;
+    data.forEach((c, i) => { num += (i - meanX) * (c.close - meanY); den += (i - meanX) ** 2; });
+    const slope = den ? num / den : 0; const intercept = meanY - slope * meanX;
+    const dev = Math.sqrt(data.reduce((s, c, i) => s + (c.close - (intercept + slope * i)) ** 2, 0) / n);
+    return { data, first: intercept, last: intercept + slope * (n - 1), dev };
+  }
+  render(r: RenderCtx): void {
+    const g = this.geometry(r); if (!g) return;
+    const x1 = r.mapper.timeToX(g.data[0]!.time); const x2 = r.mapper.timeToX(g.data.at(-1)!.time);
+    const y1 = r.mapper.priceToY(g.first); const y2 = r.mapper.priceToY(g.last);
+    const u1 = r.mapper.priceToY(g.first + g.dev); const u2 = r.mapper.priceToY(g.last + g.dev);
+    const d1 = r.mapper.priceToY(g.first - g.dev); const d2 = r.mapper.priceToY(g.last - g.dev);
+    if ([x1,x2,y1,y2,u1,u2,d1,d2].some(v => v == null)) return;
+    r.ctx.save();
+    if (this.style.fill) { r.ctx.fillStyle = this.fillPaint(); r.ctx.beginPath(); r.ctx.moveTo(x1!,u1!); r.ctx.lineTo(x2!,u2!); r.ctx.lineTo(x2!,d2!); r.ctx.lineTo(x1!,d1!); r.ctx.closePath(); r.ctx.fill(); }
+    this.applyStroke(r.ctx); r.ctx.beginPath(); r.ctx.moveTo(x1!,u1!); r.ctx.lineTo(x2!,u2!); r.ctx.moveTo(x1!,y1!); r.ctx.lineTo(x2!,y2!); r.ctx.moveTo(x1!,d1!); r.ctx.lineTo(x2!,d2!); r.ctx.stroke(); r.ctx.restore();
+  }
+  hitTest(x: number, y: number, mapper: CoordinateMapper): boolean { const b = this.bbox(mapper); return !!b && pointInRect(x,y,b,HIT_TOLERANCE); }
+}
+
+class FlatChannel extends DrawingObject {
+  render({ ctx, mapper }: RenderCtx): void {
+    const a=this.px(mapper,this.points[0]!); const b=this.px(mapper,this.points[1]!); const c=this.px(mapper,this.points[2]!); if(!a||!b||!c)return;
+    const left=Math.min(a.x,b.x), right=Math.max(a.x,b.x);
+    if(this.style.fill){ctx.fillStyle=this.fillPaint();ctx.fillRect(left,Math.min(a.y,c.y),right-left,Math.abs(c.y-a.y));}
+    this.applyStroke(ctx);ctx.beginPath();ctx.moveTo(left,a.y);ctx.lineTo(right,a.y);ctx.moveTo(left,c.y);ctx.lineTo(right,c.y);ctx.stroke();
+  }
+  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const a=this.px(mapper,this.points[0]!);const b=this.px(mapper,this.points[1]!);const c=this.px(mapper,this.points[2]!);return !!a&&!!b&&!!c&&x>=Math.min(a.x,b.x)-HIT_TOLERANCE&&x<=Math.max(a.x,b.x)+HIT_TOLERANCE&&(Math.abs(y-a.y)<HIT_TOLERANCE||Math.abs(y-c.y)<HIT_TOLERANCE);}
+}
+
+class DisjointChannel extends DrawingObject {
+  render({ctx,mapper}:RenderCtx):void{const p=this.points.map(v=>this.px(mapper,v));if(p.some(v=>!v))return;const q=p as {x:number;y:number}[];if(this.style.fill){ctx.fillStyle=this.fillPaint();ctx.beginPath();q.forEach((v,i)=>i?ctx.lineTo(v.x,v.y):ctx.moveTo(v.x,v.y));ctx.closePath();ctx.fill();}this.applyStroke(ctx);ctx.beginPath();ctx.moveTo(q[0]!.x,q[0]!.y);ctx.lineTo(q[1]!.x,q[1]!.y);ctx.moveTo(q[2]!.x,q[2]!.y);ctx.lineTo(q[3]!.x,q[3]!.y);ctx.stroke();}
+  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const p=this.points.map(v=>this.px(mapper,v));if(p.some(v=>!v))return false;const q=p as {x:number;y:number}[];return distToSegment(x,y,q[0]!.x,q[0]!.y,q[1]!.x,q[1]!.y)<=HIT_TOLERANCE||distToSegment(x,y,q[2]!.x,q[2]!.y,q[3]!.x,q[3]!.y)<=HIT_TOLERANCE;}
+}
+
+class FibExtension extends FibObj {
+  protected override priceAt(lvl: number): number { const [a,b,c]=this.points; const delta=b!.price-a!.price; return this.style.reverse?c!.price-delta*lvl:c!.price+delta*lvl; }
+  override render(r: RenderCtx): void {
+    const a = this.px(r.mapper, this.points[0]!);
+    const b = this.px(r.mapper, this.points[1]!);
+    const c = this.px(r.mapper, this.points[2]!);
+    if (!a || !b || !c) return;
+    const left = this.style.extendLeft ? 0 : c.x;
+    const projectedWidth = Math.max(80, Math.abs(b.x - a.x));
+    const right = this.style.extendRight ? r.mapper.width : Math.min(r.mapper.width, c.x + projectedWidth);
+    const levels = this.levels();
+    r.ctx.save();
+    if (this.style.fill) {
+      for (let i = 0; i < levels.length - 1; i += 1) {
+        const ya = r.mapper.priceToY(this.priceAt(levels[i]!));
+        const yb = r.mapper.priceToY(this.priceAt(levels[i + 1]!));
+        if (ya == null || yb == null) continue;
+        r.ctx.fillStyle = withAlpha(this.levelColor(levels[i]!), this.style.fillOpacity);
+        r.ctx.fillRect(left, Math.min(ya, yb), right - left, Math.abs(yb - ya));
+      }
+    }
+    r.ctx.lineWidth = this.style.lineWidth;
+    levels.forEach((level) => {
+      const price = this.priceAt(level);
+      const y = r.mapper.priceToY(price);
+      if (y == null) return;
+      const color = this.levelColor(level);
+      r.ctx.strokeStyle = withAlpha(color, this.style.opacity);
+      r.ctx.setLineDash([]);
+      r.ctx.beginPath(); r.ctx.moveTo(left, y); r.ctx.lineTo(right, y); r.ctx.stroke();
+      if (this.style.showLabels) chip(r.ctx, right + 4, y - 8, `${level.toFixed(3)}  ${price.toFixed(r.precision)}`, withAlpha("#0b0f1a", .86), color, 9);
+    });
+    this.applyStroke(r.ctx);
+    r.ctx.setLineDash([4, 3]);
+    r.ctx.beginPath(); r.ctx.moveTo(a.x, a.y); r.ctx.lineTo(b.x, b.y); r.ctx.lineTo(c.x, c.y); r.ctx.stroke();
+    r.ctx.restore();
+  }
+  override hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
+    const c = this.px(mapper, this.points[2]!);
+    if (!c || x < c.x - HIT_TOLERANCE) return false;
+    return this.levels().some((level) => {
+      const levelY = mapper.priceToY(this.priceAt(level));
+      return levelY != null && Math.abs(y - levelY) <= HIT_TOLERANCE;
+    });
+  }
+}
+
+class RangeTool extends DrawingObject {
+  render(r:RenderCtx):void{const a=this.px(r.mapper,this.points[0]!);const b=this.px(r.mapper,this.points[1]!);if(!a||!b)return;const priceOnly=this.kind==="priceRange",dateOnly=this.kind==="dateRange";const left=Math.min(a.x,b.x),top=Math.min(a.y,b.y),w=Math.abs(b.x-a.x),h=Math.abs(b.y-a.y);r.ctx.save();if(this.style.fill){r.ctx.fillStyle=this.fillPaint();r.ctx.fillRect(left,dateOnly?0:left===left?top:top,dateOnly?r.mapper.width? w:w:w,dateOnly?r.mapper.height:h);}this.applyStroke(r.ctx);r.ctx.beginPath();if(priceOnly){r.ctx.moveTo(a.x,a.y);r.ctx.lineTo(a.x,b.y);r.ctx.moveTo(a.x-5,a.y);r.ctx.lineTo(a.x+5,a.y);r.ctx.moveTo(a.x-5,b.y);r.ctx.lineTo(a.x+5,b.y);}else if(dateOnly){r.ctx.moveTo(a.x,0);r.ctx.lineTo(a.x,r.mapper.height);r.ctx.moveTo(b.x,0);r.ctx.lineTo(b.x,r.mapper.height);}else{r.ctx.rect(left,top,w,h);}r.ctx.stroke();if(this.style.showLabels){const dp=this.points[1]!.price-this.points[0]!.price;const pct=this.points[0]!.price?dp/this.points[0]!.price*100:0;const bars=r.candles.filter(c=>c.time>=Math.min(this.points[0]!.time,this.points[1]!.time)&&c.time<=Math.max(this.points[0]!.time,this.points[1]!.time)).length;const parts:string[]=[];if(!dateOnly)parts.push(`${dp>=0?"+":""}${(dp/r.pipSize).toFixed(1)} pips (${pct.toFixed(2)}%)`);if(!priceOnly)parts.push(`${bars} bars · ${elapsedLabel(this.points[1]!.time-this.points[0]!.time)}`);centerChip(r.ctx,(a.x+b.x)/2,(a.y+b.y)/2,parts,withAlpha("#0b0f1a",.94),this.strokeColor(),10);}r.ctx.restore();}
+  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const a=this.px(mapper,this.points[0]!);const b=this.px(mapper,this.points[1]!);if(!a||!b)return false;if(this.kind==="dateRange")return (Math.abs(x-a.x)<=HIT_TOLERANCE||Math.abs(x-b.x)<=HIT_TOLERANCE)&&y>=0&&y<=mapper.height;if(this.kind==="priceRange")return Math.abs(x-a.x)<=HIT_TOLERANCE&&y>=Math.min(a.y,b.y)-HIT_TOLERANCE&&y<=Math.max(a.y,b.y)+HIT_TOLERANCE;return pointInRect(x,y,{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(a.x-b.x),h:Math.abs(a.y-b.y)},HIT_TOLERANCE);}
+}
+
+class Callout extends DrawingObject {
+  render({ctx,mapper}:RenderCtx):void{const a=this.px(mapper,this.points[0]!);const b=this.px(mapper,this.points[1]!);if(!a||!b)return;const text=this.style.text||"Note";ctx.save();this.applyStroke(ctx);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.font=`${this.style.bold?"700 ":""}${this.style.fontSize}px ui-sans-serif, system-ui`;const w=Math.max(58,ctx.measureText(text).width+18),h=this.style.fontSize+14;ctx.fillStyle=withAlpha(this.style.fillColor,Math.max(.75,this.style.fillOpacity));roundRectPath(ctx,b.x,b.y-h/2,w,h,5);ctx.fill();ctx.stroke();ctx.fillStyle=this.style.textColor??"#fff";ctx.textBaseline="middle";ctx.fillText(text,b.x+9,b.y);ctx.restore();}
+  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const a=this.px(mapper,this.points[0]!);const b=this.px(mapper,this.points[1]!);return !!a&&!!b&&distToSegment(x,y,a.x,a.y,b.x,b.y)<=HIT_TOLERANCE;}
+}
+
+class PriceLabel extends DrawingObject {
+  render({ctx,mapper,precision}:RenderCtx):void{const p=this.px(mapper,this.points[0]!);if(!p)return;ctx.save();ctx.fillStyle=this.strokeColor();ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+7,p.y-5);ctx.lineTo(p.x+7,p.y+5);ctx.closePath();ctx.fill();chip(ctx,p.x+7,p.y-10,this.points[0]!.price.toFixed(precision),this.strokeColor(),"#fff",11);ctx.restore();}
+  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const p=this.px(mapper,this.points[0]!);return !!p&&dist(x,y,p.x,p.y)<32;}
+}
+
 // ---- factory ----
 
 const REGISTRY: Record<ToolKind, new (json: DrawingJSON) => DrawingObject> = {
@@ -788,6 +954,19 @@ const REGISTRY: Record<ToolKind, new (json: DrawingJSON) => DrawingObject> = {
   long: PositionTool,
   short: PositionTool,
   measure: Measure,
+  horizontalRay: HorizontalRay,
+  crossline: CrossLine,
+  infoLine: InfoLine,
+  trendAngle: TrendAngle,
+  regression: RegressionTrend,
+  flatChannel: FlatChannel,
+  disjointChannel: DisjointChannel,
+  fibExtension: FibExtension,
+  priceRange: RangeTool,
+  dateRange: RangeTool,
+  datePriceRange: RangeTool,
+  callout: Callout,
+  priceLabel: PriceLabel,
 };
 
 export function createObject(json: DrawingJSON): DrawingObject {

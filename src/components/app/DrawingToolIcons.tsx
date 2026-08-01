@@ -155,6 +155,38 @@ export function MeasureToolIcon(props: DrawingIconProps) {
   );
 }
 
+export function HorizontalRayIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="4" y1="12" x2="22" y2="12" /><Handle cx={4} cy={12} /><path d="m19 9 3 3-3 3" /></Glyph>;
+}
+
+export function CrossLineIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="3" y1="12" x2="21" y2="12" /><line x1="12" y1="3" x2="12" y2="21" /><Handle cx={12} cy={12} /></Glyph>;
+}
+
+export function InfoLineIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="4" y1="19" x2="20" y2="5" /><Handle cx={4} cy={19} /><Handle cx={20} cy={5} /><circle cx="8" cy="7" r="3" /><path d="M8 6.5v2M8 5h.01" /></Glyph>;
+}
+
+export function TrendAngleIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M4 19h17M4 19 19 6M10 19a6 6 0 0 0-1.5-4" /><Handle cx={4} cy={19} /><Handle cx={19} cy={6} /></Glyph>;
+}
+
+export function RegressionIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="m3 16 16-10M5 20 21 10M3 11 16 3" opacity=".7" /><line x1="4" y1="16" x2="20" y2="6" /><Handle cx={4} cy={16} /><Handle cx={20} cy={6} /></Glyph>;
+}
+
+export function RangeIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M7 4v16M4 4h6M4 20h6M14 7h7M14 17h7M17 7v10" /><path d="m15 9 2-2 2 2m-4 6 2 2 2-2" /></Glyph>;
+}
+
+export function FibExtensionIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="m3 18 6-10 5 6" /><line x1="14" y1="6" x2="21" y2="6" /><line x1="14" y1="10" x2="21" y2="10" /><line x1="14" y1="14" x2="21" y2="14" /><line x1="14" y1="18" x2="21" y2="18" /><Handle cx={3} cy={18} /><Handle cx={9} cy={8} /><Handle cx={14} cy={14} /></Glyph>;
+}
+
+export function CalloutIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M5 5h15v11H10l-5 4Z" /><line x1="9" y1="9" x2="16" y2="9" /><line x1="9" y1="12" x2="14" y2="12" /></Glyph>;
+}
+
 export function LinesGroupIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
@@ -192,4 +224,17 @@ export const DRAWING_TOOL_ICONS = {
   measure: MeasureToolIcon,
   text: TextToolIcon,
   label: LabelToolIcon,
+  horizontalRay: HorizontalRayIcon,
+  crossline: CrossLineIcon,
+  infoLine: InfoLineIcon,
+  trendAngle: TrendAngleIcon,
+  regression: RegressionIcon,
+  flatChannel: ParallelChannelIcon,
+  disjointChannel: ParallelChannelIcon,
+  fibExtension: FibExtensionIcon,
+  priceRange: RangeIcon,
+  dateRange: RangeIcon,
+  datePriceRange: RangeIcon,
+  callout: CalloutIcon,
+  priceLabel: LabelToolIcon,
 } satisfies Record<ToolKind, DrawingIcon>;

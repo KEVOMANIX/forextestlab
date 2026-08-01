@@ -114,6 +114,21 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 
+  // The expanded toolbox exposes real tools in the expected families.
+  await page.getByRole("button", { name: "Lines & channels", exact: true }).click();
+  for (const tool of ["Horizontal ray", "Info line", "Trend angle", "Regression trend", "Flat top / bottom", "Disjoint channel"]) {
+    await expect(page.getByRole("button", { name: tool, exact: true })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Lines & channels", exact: true }).click();
+  await page.getByRole("button", { name: "Fibonacci", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Trend-based Fib extension", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Fibonacci", exact: true }).click();
+  await page.getByRole("button", { name: "Positions & measure", exact: true }).click();
+  for (const tool of ["Price range", "Date range", "Date & price range"]) {
+    await expect(page.getByRole("button", { name: tool, exact: true })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Positions & measure", exact: true }).click();
+
   for (const timeframe of ["3m", "10m", "45m", "2h", "6h", "12h", "1w", "1M", "1yr"]) {
     await expect(page.getByRole("button", { name: `Display ${timeframe} candles`, exact: true })).toHaveCount(1);
   }

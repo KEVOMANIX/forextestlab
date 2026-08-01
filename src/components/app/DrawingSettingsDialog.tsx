@@ -188,12 +188,12 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               <Row label="Extend right">
                 <input type="checkbox" checked={s.extendRight} onChange={(e) => setStyle({ extendRight: e.target.checked })} />
               </Row>
-              {value.kind === "fib" && (
+              {(value.kind === "fib" || value.kind === "fibExtension") && (
                 <Row label="Reverse">
                   <input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} />
                 </Row>
               )}
-              {value.kind === "fib" && (
+              {(value.kind === "fib" || value.kind === "fibExtension") && (
                 <div className="py-1">
                   <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">Levels</div>
                   <div className="grid grid-cols-3 gap-x-2 gap-y-1">

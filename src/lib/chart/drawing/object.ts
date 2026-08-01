@@ -6,6 +6,7 @@
  */
 
 import type { CoordinateMapper } from "./coords";
+import type { Candle } from "./coords";
 import {
   TOOL_POINTS,
   dashPattern,
@@ -31,6 +32,7 @@ export interface RenderCtx {
   timeframe: string;
   precision: number;
   pipSize: number;
+  candles: Candle[];
 }
 
 export const HIT_TOLERANCE = 6;
@@ -44,6 +46,13 @@ const LINE_KINDS: ReadonlySet<ToolKind> = new Set<ToolKind>([
   "horizontal",
   "vertical",
   "channel",
+  "horizontalRay",
+  "crossline",
+  "infoLine",
+  "trendAngle",
+  "regression",
+  "flatChannel",
+  "disjointChannel",
 ]);
 
 /** Radius of the blue selection anchor handles, in px. */

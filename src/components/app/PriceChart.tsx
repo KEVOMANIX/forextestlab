@@ -324,11 +324,11 @@ type DrawMenu = "lines" | "shapes" | "fib" | "trade" | "notes";
 
 /** Grouping of drawing tools into toolbar flyouts. */
 const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: DrawingIcon; tools: ToolKind[] }[] = [
-  { key: "lines", label: "Lines & channels", Icon: LinesGroupIcon, tools: ["trend", "ray", "extended", "arrow", "horizontal", "vertical", "channel"] },
+  { key: "lines", label: "Lines & channels", Icon: LinesGroupIcon, tools: ["trend", "ray", "horizontalRay", "extended", "arrow", "horizontal", "vertical", "crossline", "infoLine", "trendAngle", "channel", "flatChannel", "disjointChannel", "regression"] },
   { key: "shapes", label: "Shapes", Icon: ShapesGroupIcon, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
-  { key: "fib", label: "Fibonacci", Icon: FibonacciIcon, tools: ["fib"] },
-  { key: "trade", label: "Positions & measure", Icon: LongPositionIcon, tools: ["long", "short", "measure"] },
-  { key: "notes", label: "Text & notes", Icon: NotesGroupIcon, tools: ["text", "label"] },
+  { key: "fib", label: "Fibonacci", Icon: FibonacciIcon, tools: ["fib", "fibExtension"] },
+  { key: "trade", label: "Positions & measure", Icon: LongPositionIcon, tools: ["long", "short", "measure", "priceRange", "dateRange", "datePriceRange"] },
+  { key: "notes", label: "Text & notes", Icon: NotesGroupIcon, tools: ["text", "label", "callout", "priceLabel"] },
 ];
 
 const MAGNET_MODES: MagnetMode[] = ["off", "weak", "strong"];
@@ -3149,7 +3149,7 @@ export default function PriceChart({
           if (!grp || !menuAnchor) return null;
           return createPortal(
             <div
-              className="fixed z-[60] w-44 rounded-lg border app-border p-1 shadow-xl"
+              className="fixed z-[60] max-h-[70vh] w-56 overflow-y-auto rounded-lg border app-border p-1 shadow-xl"
               style={{
                 left: menuAnchor.x,
                 top: menuAnchor.y,

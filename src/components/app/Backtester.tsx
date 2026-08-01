@@ -49,7 +49,6 @@ import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { WorkspaceManager } from "./WorkspaceManager";
 import { BacktestExperiencePanel } from "./BacktestExperiencePanel";
 import { propFirmGuardMessage, tradingGuardMessage } from "@/lib/backtest/trade-guards";
-import type { ReplayDiagnosticsSource } from "./ReplayDiagnosticsPanel";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
@@ -668,16 +667,6 @@ export function Backtester({
   }
 
   const position = state.openPositions.find((item) => item.id === selectedPositionId) ?? state.openPositions.at(-1) ?? null;
-  const replayDiagnostics: ReplayDiagnosticsSource = {
-    sessionId: String(state.sessionId),
-    status: state.status,
-    speed: state.speed,
-    currentTime: state.currentTime,
-    visibleIndex: state.visibleIndex,
-    totalCandles: state.totalCandles,
-    stepMinutes: bt.replayStepMinutes,
-    saveStatus: bt.saveStatus,
-  };
   const chartStop = position?.stopLoss ?? null;
   const chartTarget = position?.takeProfit ?? null;
 
@@ -827,7 +816,7 @@ export function Backtester({
         onRetrySave={actions.retrySave}
         endControls={
           <div className="flex shrink-0 items-center gap-1">
-            <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} diagnostics={replayDiagnostics} />
+            <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
             {/* Workspace templates are a wide-screen convenience. Below `lg` the
                 header's width goes to the controls needed while trading. */}
             <div className="hidden lg:block">
@@ -844,15 +833,15 @@ export function Backtester({
 
       {workspace.settings.distractionFree && (
         <div className="absolute right-3 top-3 z-50 flex items-center gap-2">
-          <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} diagnostics={replayDiagnostics} />
+          <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
           <button type="button" onClick={() => workspace.updateSettings({ distractionFree: false })} className="rounded-lg border app-border bg-[var(--app-panel)]/90 px-3 py-2 text-xs font-semibold shadow-xl backdrop-blur">
             Exit focus mode
           </button>
         </div>
       )}
 
-      {/* Centred, and above the panels that also claim the top-right corner
-          (focus-mode controls, replay diagnostics) so an error is never buried. */}
+      {/* Centred, and above the focus-mode controls that also claim the
+          top-right corner, so an error is never buried. */}
       {bt.error && (
         <p
           role="alert"

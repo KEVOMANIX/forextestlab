@@ -125,7 +125,6 @@ export function SupportChatWidget() {
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState("other");
-  const [context, setContext] = useState<Record<string, unknown> | null>(null);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -145,23 +144,6 @@ export function SupportChatWidget() {
       typeof Notification !== "undefined" &&
         Notification.permission === "granted",
     );
-    const receiveContext = (event: Event) => {
-      const detail = (event as CustomEvent<Record<string, unknown>>).detail;
-      setContext(detail);
-      setOpen(true);
-      setShowNew(true);
-      setCategory("replay");
-      setSubject("Replay diagnostics");
-      setInput(
-        "I need help investigating differences in replay performance between browsers.",
-      );
-    };
-    window.addEventListener("forextestlab:support-context", receiveContext);
-    return () =>
-      window.removeEventListener(
-        "forextestlab:support-context",
-        receiveContext,
-      );
   }, []);
 
   const loadConversation = useCallback(async () => {
@@ -266,7 +248,7 @@ export function SupportChatWidget() {
           category,
           message: input,
           clientMessageId: crypto.randomUUID(),
-          context: context ?? {
+          context: {
             page: window.location.href,
             browser: navigator.userAgent,
           },
@@ -291,7 +273,6 @@ export function SupportChatWidget() {
       window.localStorage.setItem(ACTIVE_KEY, payload.conversation.id);
       setInput("");
       setShowNew(false);
-      setContext(null);
       void loadHistory();
     } finally {
       setSending(false);
@@ -516,11 +497,6 @@ export function SupportChatWidget() {
                 </select>
                 <input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={160} placeholder="Subject" className="app-input w-full py-2.5 text-xs" />
                 <textarea value={input} onChange={(event) => setInput(event.target.value)} maxLength={4_000} rows={6} placeholder="Describe what happened and what you expected" className="app-input w-full resize-none text-xs" />
-                {context && (
-                  <div className="rounded-lg border border-brand-400/20 bg-brand-400/[0.06] px-3 py-2 text-[10px] text-brand-200">
-                    Replay diagnostics will be shared with this request.
-                  </div>
-                )}
                 {error && <p role="alert" className="text-xs text-bear">{error}</p>}
                 <button type="button" onClick={() => void submitNew()} disabled={sending || !online} className="w-full rounded-lg bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 disabled:opacity-40">
                   {sending ? "Creating conversation…" : "Start conversation"}

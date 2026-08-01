@@ -1,14 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Focus, Gauge, Keyboard, ShieldCheck, SlidersHorizontal, X } from "lucide-react";
+import { Focus, Keyboard, ShieldCheck, SlidersHorizontal, X } from "lucide-react";
 
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import type { ChartSettings } from "./ChartSettingsMenu";
-import {
-  ReplayDiagnosticsPanel,
-  type ReplayDiagnosticsSource,
-} from "./ReplayDiagnosticsPanel";
 
 const SHORTCUT_LABELS: Record<keyof ChartSettings["shortcuts"], string> = {
   toggleReplay: "Play / pause",
@@ -29,14 +25,11 @@ function shortcutName(value: string) {
 export function BacktestExperiencePanel({
   settings,
   onChange,
-  diagnostics,
 }: {
   settings: ChartSettings;
   onChange: (patch: Partial<ChartSettings>) => void;
-  diagnostics: ReplayDiagnosticsSource;
 }) {
   const [open, setOpen] = useState(false);
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [capturing, setCapturing] = useState<keyof ChartSettings["shortcuts"] | null>(null);
 
   useEffect(() => {
@@ -107,34 +100,10 @@ export function BacktestExperiencePanel({
                   <span className="flex items-center gap-2 font-semibold"><Focus size={15} /> Distraction-free chart</span>
                   <span className={settings.distractionFree ? "text-brand-300" : "app-muted"}>{settings.distractionFree ? "On" : "Off"}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    setDiagnosticsOpen(true);
-                  }}
-                  className="mt-3 flex w-full items-center justify-between rounded-xl border app-border p-3 text-left text-xs hover:border-brand-400/40"
-                >
-                  <span>
-                    <span className="flex items-center gap-2 font-semibold">
-                      <Gauge size={15} /> Replay diagnostics
-                    </span>
-                    <span className="mt-1 block text-[10px] app-muted">
-                      Compare browser performance without changing replay.
-                    </span>
-                  </span>
-                  <span className="text-brand-300">Open</span>
-                </button>
               </div>
             </div>
           </section>
         </div>
-      )}
-      {diagnosticsOpen && (
-        <ReplayDiagnosticsPanel
-          source={diagnostics}
-          onClose={() => setDiagnosticsOpen(false)}
-        />
       )}
     </>
   );

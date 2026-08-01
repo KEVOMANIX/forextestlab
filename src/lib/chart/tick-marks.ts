@@ -1,4 +1,5 @@
 import { formatInZone } from "./timezones";
+import { TIMEFRAME_MS, type Timeframe } from "../market-data/types";
 
 /**
  * Mirrors lightweight-charts' `TickMarkType` so this module stays pure and
@@ -13,6 +14,7 @@ export const TICK_TIME_WITH_SECONDS = 4;
 const YEAR: Intl.DateTimeFormatOptions = { year: "numeric" };
 const MONTH: Intl.DateTimeFormatOptions = { month: "short" };
 const DAY: Intl.DateTimeFormatOptions = { day: "numeric" };
+const DAY_AND_MONTH: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short" };
 const TIME: Intl.DateTimeFormatOptions = {
   hour: "2-digit",
   minute: "2-digit",
@@ -68,7 +70,17 @@ export function formatTickMark(
   at: number,
   tickMarkType: number,
   zone: string,
+  timeframe: Timeframe,
 ): string {
+  if (timeframe === "1yr") return formatInZone(at, zone, YEAR);
+  if (timeframe === "1M") {
+    return formatInZone(at, zone, tickMarkType === TICK_YEAR ? YEAR : MONTH);
+  }
+  if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) {
+    if (tickMarkType === TICK_YEAR) return formatInZone(at, zone, YEAR);
+    if (tickMarkType === TICK_MONTH) return formatInZone(at, zone, MONTH);
+    return formatInZone(at, zone, DAY_AND_MONTH);
+  }
   switch (tickMarkType) {
     case TICK_YEAR:
       return formatInZone(at, zone, YEAR);
@@ -82,4 +94,14 @@ export function formatTickMark(
     default:
       return formatInZone(at, zone, TIME);
   }
+}
+
+/**
+ * Lightweight Charts otherwise reserves eight characters per label. Matching
+ * the reservation to the labels actually used lets it place more useful ticks.
+ */
+export function timeframeTickMarkMaxCharacters(timeframe: Timeframe): number {
+  if (timeframe === "1M" || timeframe === "1yr") return 4;
+  if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) return 6;
+  return 5;
 }

@@ -119,7 +119,15 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   }
   await page.getByRole("button", { name: "Display 10m candles", exact: true }).click();
   await expect(page.getByRole("button", { name: "Display 10m candles", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(chart).toHaveAttribute("data-axis-timeframe", "10m");
+  await expect(chart).toHaveAttribute("data-axis-tick-max-chars", "5");
+  await expect(chart).toHaveAttribute("data-axis-time-visible", "true");
   await expect(page.getByText("Loading 10m chart history…", { exact: true })).toHaveCount(0, { timeout: 30_000 });
+  await page.getByRole("button", { name: "Display 1M candles", exact: true }).click();
+  await expect(chart).toHaveAttribute("data-axis-timeframe", "1M");
+  await expect(chart).toHaveAttribute("data-axis-tick-max-chars", "4");
+  await expect(chart).toHaveAttribute("data-axis-time-visible", "false");
+  await expect(page.getByText("Loading 1M chart history…", { exact: true })).toHaveCount(0, { timeout: 30_000 });
   await page.getByRole("button", { name: "Display 1m candles", exact: true }).click();
   await expect(page.getByRole("button", { name: "Display 1m candles", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Loading 1m chart history…", { exact: true })).toHaveCount(0, { timeout: 30_000 });

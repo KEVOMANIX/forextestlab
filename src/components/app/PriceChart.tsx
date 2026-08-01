@@ -56,7 +56,7 @@ import {
 } from "lightweight-charts";
 
 import { formatInZone } from "@/lib/chart/timezones";
-import { formatCrosshairLabel, formatTickMark } from "@/lib/chart/tick-marks";
+import { formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
   TIMEFRAMES,
@@ -1361,14 +1361,15 @@ export default function PriceChart({
         borderColor: palette.border,
         borderVisible: true,
         ticksVisible: true,
-        timeVisible: true,
+        timeVisible: TIMEFRAME_MS[displayTimeframeRef.current] < TIMEFRAME_MS["1d"],
         secondsVisible: false,
         rightOffset: DEFAULT_RIGHT_OFFSET,
         barSpacing: DEFAULT_BAR_SPACING,
+        tickMarkMaxCharacterLength: timeframeTickMarkMaxCharacters(displayTimeframeRef.current),
         ignoreWhitespaceIndices: false,
         shiftVisibleRangeOnNewBar: false,
         tickMarkFormatter: (time: Time, tickMarkType: number) =>
-          formatTickMark(chartTimeMs(time), tickMarkType, timeZoneRef.current),
+          formatTickMark(chartTimeMs(time), tickMarkType, timeZoneRef.current, displayTimeframeRef.current),
       },
       localization: {
         // The zone is named once, in the axis corner, so the label does not
@@ -1636,18 +1637,20 @@ export default function PriceChart({
     contextSeriesRef.current?.applyOptions(options);
   }, [settings.upColor, settings.downColor, seriesEpoch, chartType]);
 
-  // The time scale caches tick labels, so it needs a nudge to re-run the
-  // formatter after a zone change.
+  // The time scale caches tick labels, so re-apply its density and formatter
+  // whenever either the chart zone or display timeframe changes.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     chart.applyOptions({
       timeScale: {
+        timeVisible: TIMEFRAME_MS[displayTimeframe] < TIMEFRAME_MS["1d"],
+        tickMarkMaxCharacterLength: timeframeTickMarkMaxCharacters(displayTimeframe),
         tickMarkFormatter: (time: Time, tickMarkType: number) =>
-          formatTickMark(chartTimeMs(time), tickMarkType, settings.timeZone),
+          formatTickMark(chartTimeMs(time), tickMarkType, settings.timeZone, displayTimeframe),
       },
     });
-  }, [settings.timeZone]);
+  }, [settings.timeZone, displayTimeframe]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -2567,6 +2570,9 @@ export default function PriceChart({
           role="img"
           aria-label="Candlestick price chart"
           data-current-price={currentPrice ?? undefined}
+          data-axis-timeframe={displayTimeframe}
+          data-axis-tick-max-chars={timeframeTickMarkMaxCharacters(displayTimeframe)}
+          data-axis-time-visible={TIMEFRAME_MS[displayTimeframe] < TIMEFRAME_MS["1d"]}
           onContextMenu={(event) => {
             // A right-click on a drawing belongs to the drawing engine, which
             // has already called preventDefault on the native event by now.

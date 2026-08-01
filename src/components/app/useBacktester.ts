@@ -362,6 +362,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
         showBusy?: boolean;
         rollbackState?: PublicSessionState;
         preserveLocalState?: boolean;
+        /** Explicit rewind actions may accept a lower server candle index. */
+        allowRewind?: boolean;
       } = {},
     ) => {
       let succeeded = true;
@@ -430,6 +432,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
               prev.state?.anonymous ?? false,
             );
           } else if (
+            !opts.allowRewind &&
             prev.state &&
             prev.state.visibleIndex > nextState.visibleIndex
           ) {
@@ -798,14 +801,28 @@ export function useBacktester(resumeSessionId: string | null = null) {
           TIMEFRAME_MS[engine.state.config.timeframe],
       ),
     );
-    await runAction({ type: "prev", steps });
+    const succeeded = await runAction(
+      { type: "prev", steps },
+      { allowRewind: true },
+    );
+    if (!succeeded) return;
     const current = localEngineRef.current;
     if (!current) return;
-    const visible = current.candles.slice(0, current.state.visibleIndex + 1);
+    const candle = current.candles[current.state.visibleIndex] ?? null;
+    if (candle) {
+      // Every chart cell removes its future candle against the shared clock.
+      // The chart instances stay mounted, retaining zoom, pan, drawings, and
+      // indicator state while their existing series is updated in place.
+      publishReplayVisual({
+        sessionId: current.state.sessionId,
+        currentTime: candle.timestamp,
+        visibleIndex: current.state.visibleIndex,
+        currentPrice: Number(candle.close),
+      });
+    }
     setS((prev) => ({
       ...prev,
-      initialCandles: visible,
-      lastCandle: visible[visible.length - 1] ?? null,
+      lastCandle: candle,
       lastCandles: [],
     }));
   }, [runAction]);

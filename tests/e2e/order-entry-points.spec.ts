@@ -221,6 +221,33 @@ test("price-sensitive trade dialogs pause and restore a running replay", async (
   await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
 });
 
+test("previous candle rewinds the mounted chart without reloading it", async ({
+  page,
+}) => {
+  await openSession(page);
+
+  const chart = page.getByRole("img", { name: "Candlestick price chart" });
+  await chart.evaluate((element) => {
+    element.setAttribute("data-rewind-instance", "same-chart");
+  });
+  const counter = page.getByText(/Candle \d+ of \d+/);
+  const startingCounter = await counter.textContent();
+
+  await page.getByRole("button", { name: "Next candle" }).click();
+  await expect(counter).not.toHaveText(startingCounter ?? "");
+
+  const rewound = page.waitForResponse((response) =>
+    response.url().includes("/action") &&
+    (response.request().postDataJSON() as { type?: string } | null)?.type ===
+      "prev",
+  );
+  await page.getByRole("button", { name: "Previous candle" }).click();
+  await rewound;
+
+  await expect(counter).toHaveText(startingCounter ?? "");
+  await expect(chart).toHaveAttribute("data-rewind-instance", "same-chart");
+});
+
 test("managing an open position pauses until the editor closes", async ({
   page,
 }) => {

@@ -645,7 +645,9 @@ function useRevealedSeries(series: Candle[] | null, currentTime: number | null):
       const revealed = revealedUpTo(source, currentTime);
       cursorRef.current = revealed.length;
       lastRef.current = revealed[revealed.length - 1] ?? null;
-      setInitialCandles(revealed);
+      // PriceChart receives the rewind through the replay visual bus and trims
+      // its mounted series in place. Replacing initialCandles here would feed
+      // the full history through its data-swap path and look like a chart reload.
       setNewCandles([]);
       return;
     }

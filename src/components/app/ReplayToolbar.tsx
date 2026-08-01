@@ -5,7 +5,6 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
-  ChevronLeft,
   ChevronRight,
   Ellipsis,
   GripHorizontal,
@@ -14,6 +13,7 @@ import {
   Play,
   RotateCcw,
   Square,
+  StepBack,
 } from "lucide-react";
 
 import {
@@ -45,12 +45,16 @@ function ControlBtn({
   disabled,
   children,
   primary = false,
+  previous = false,
+  title = label,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
   children: React.ReactNode;
   primary?: boolean;
+  previous?: boolean;
+  title?: string;
 }) {
   return (
     <button
@@ -58,11 +62,13 @@ function ControlBtn({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      title={label}
-      className={`inline-flex h-7 w-7 items-center justify-center rounded-md border app-border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+      title={title}
+      className={`inline-flex h-7 items-center justify-center rounded-md border transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100 ${
         primary
-          ? "bg-brand-500 text-surface-950 hover:bg-brand-400"
-          : "hover:border-brand-400/40"
+          ? "w-7 border-brand-400/30 bg-brand-500 text-surface-950 hover:bg-brand-400"
+          : previous
+            ? "w-8 border-white/15 bg-white/[0.06] text-[var(--app-text)] shadow-inner hover:border-brand-400/50 hover:bg-brand-400/10 hover:text-brand-300"
+            : "w-7 app-border hover:border-brand-400/40"
       }`}
     >
       {children}
@@ -112,11 +118,19 @@ export function ReplayToolbar({
   const [menuOpen, setMenuOpen] = useState(false);
   const finished = state.status === "finished";
   const running = state.status === "running";
-  const canPrev =
-    !running &&
-    state.closedTrades.length === 0 &&
-    state.openPositions.length === 0 &&
-    state.visibleIndex > state.config.initialVisibleCount - 1;
+  const prevDisabledReason = running
+    ? "Pause replay to go to the previous candle"
+    : state.config.propFirm
+      ? "Previous candle is disabled during a challenge"
+      : state.closedTrades.length > 0 || state.openPositions.length > 0
+        ? "Previous candle is unavailable after trading"
+        : state.pendingOrders.some((order) => order.status === "pending")
+          ? "Cancel pending orders before going back"
+          : state.visibleIndex <= state.lockedBeforeIndex ||
+              state.visibleIndex <= state.config.initialVisibleCount - 1
+            ? "You are at the first replay candle"
+            : null;
+  const canPrev = prevDisabledReason === null;
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));
   const cadenceLabel = speedLabel(state.speed);
@@ -276,8 +290,14 @@ export function ReplayToolbar({
           </span>
         )}
         <div className="flex items-center gap-1" role="group" aria-label="Replay controls">
-          <ControlBtn label="Step back one candle" onClick={onPrev} disabled={!canPrev || busy}>
-            <ChevronLeft size={15} aria-hidden />
+          <ControlBtn
+            label="Previous candle"
+            title={busy ? "Updating replay…" : prevDisabledReason ?? "Go back one candle"}
+            onClick={onPrev}
+            disabled={!canPrev || busy}
+            previous
+          >
+            <StepBack size={17} strokeWidth={2.35} aria-hidden />
           </ControlBtn>
           {running ? (
             <ControlBtn label="Pause replay" onClick={onPause} primary>

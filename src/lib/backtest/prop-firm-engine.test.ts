@@ -217,14 +217,14 @@ describe("passing", () => {
 });
 
 describe("rewinding", () => {
-  it("is refused for the whole challenge, not just after the first trade", () => {
+  it("is available during a challenge", () => {
     const candles = [
       c(OPEN, "1.10000", "1.10000", "1.10000", "1.10000"),
       c(OPEN + 3_600_000, "1.10000", "1.10000", "1.10000", "1.10000"),
     ];
     const challenge = ctx(candles, rules());
     revealNext(challenge);
-    expect(stepBack(challenge)).toBe(false);
+    expect(stepBack(challenge)).toBe(true);
 
     // The same untouched run rewinds freely without the rules attached.
     const practice = ctx(candles);

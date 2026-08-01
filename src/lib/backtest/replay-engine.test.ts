@@ -287,18 +287,21 @@ describe("orders and step-back locking", () => {
     expect(e.state.closedTrades[0]?.exitPrice).toBe("1.10200");
   });
 
-  it("steps back after trading without crossing the entry candle", () => {
+  it("steps back freely across a trade entry", () => {
     const e = ctx(FLAT, cfg({ initialVisibleCount: 1 }));
     revealNext(e); // index 1
     expect(stepBack(e)).toBe(true); // allowed before any order
     revealNext(e); // index 1 again
     placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
-    expect(stepBack(e)).toBe(false); // cannot cross the entry at index 1
+    expect(stepBack(e)).toBe(true);
+    expect(e.state.visibleIndex).toBe(0);
+    revealNext(e); // index 1
     revealNext(e); // index 2
     expect(stepBack(e)).toBe(true); // review back to the entry candle
     expect(e.state.visibleIndex).toBe(1);
     expect(e.state.openPositions).toHaveLength(1);
-    expect(stepBack(e)).toBe(false);
+    expect(stepBack(e)).toBe(true);
+    expect(e.state.visibleIndex).toBe(0);
   });
 
   it("syncs an instant rewind whether the persisted replay is behind, equal, or ahead", () => {

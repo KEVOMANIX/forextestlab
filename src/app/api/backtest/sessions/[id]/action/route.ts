@@ -102,6 +102,7 @@ export async function POST(
       break;
     }
     case "prev": {
+      setStatus(ctx, "paused");
       let stepped = action.targetIndex !== undefined
         ? moveReplayToIndex(ctx, action.targetIndex)
         : false;

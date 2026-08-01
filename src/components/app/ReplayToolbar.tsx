@@ -120,17 +120,9 @@ export function ReplayToolbar({
   const finished = state.status === "finished";
   const running = state.status === "running";
   const rewindFloor = replayRewindFloor(state);
-  const prevDisabledReason = running
-    ? "Pause replay to go to the previous candle"
-    : state.config.propFirm
-      ? "Previous candle is disabled during a challenge"
-      : state.openPositions.some((position) => position.trailingStopPips)
-        ? "Disable the trailing stop before going back"
-        : state.visibleIndex <= rewindFloor
-          ? rewindFloor > state.config.initialVisibleCount - 1
-            ? "You cannot rewind past the latest trade action"
-            : "You are at the first replay candle"
-          : null;
+  const prevDisabledReason = state.visibleIndex <= rewindFloor
+    ? "You are at the first replay candle"
+    : null;
   const canPrev = prevDisabledReason === null;
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));

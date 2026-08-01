@@ -592,35 +592,20 @@ export function revealNext(ctx: EngineContext): boolean {
   return true;
 }
 
-/** Last candle that cannot be crossed without rewriting recorded decisions. */
+/** First candle available to the replay's previous-candle control. */
 export function replayRewindFloor(state: SessionState): number {
-  return Math.max(
-    state.config.initialVisibleCount - 1,
-    state.lockedBeforeIndex,
-    ...state.openPositions.map((position) => position.entryIndex),
-    ...state.closedTrades.map((trade) => trade.exitIndex),
-    ...state.pendingOrders.map((order) => order.createdIndex),
-    0,
-  );
+  void state;
+  return 0;
 }
 
 /**
- * Step one candle backwards without crossing a recorded trade/order action.
- * Existing trades remain intact; only candles after the latest decision can be
- * reviewed backwards.
+ * Move backwards to any candle in the loaded series. Existing trading records
+ * remain intact while the replay clock is reviewed.
  */
 export function stepBackTo(ctx: EngineContext, targetIndex: number): boolean {
   const { state } = ctx;
-  const floor = replayRewindFloor(state);
   const target = Math.max(0, Math.floor(targetIndex));
-  const canStep =
-    // A challenge cannot be rewound. Stepping back to unwind a bad candle would
-    // make the verdict meaningless, so the whole run is forward-only from the
-    // moment the rules are attached — not merely from the first trade.
-    !state.config.propFirm &&
-    !state.openPositions.some((position) => position.trailingStopPips) &&
-    target >= floor &&
-    target < state.visibleIndex;
+  const canStep = target < state.visibleIndex;
   if (!canStep) return false;
   state.visibleIndex = target;
   state.equityCurve = state.equityCurve.filter(
@@ -633,6 +618,7 @@ export function stepBackTo(ctx: EngineContext, targetIndex: number): boolean {
   for (const position of state.openPositions) {
     position.maxFavorablePnl = "0.00";
     position.maxAdversePnl = "0.00";
+    if (position.entryIndex > rewindIndex) continue;
     for (
       state.visibleIndex = position.entryIndex;
       state.visibleIndex <= rewindIndex;

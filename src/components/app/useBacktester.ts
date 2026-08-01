@@ -400,14 +400,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
         const res = await sendAction(id, token, action);
         if (!res.ok) {
           succeeded = false;
-          if (res.state) localEngineRef.current = {
+          if (res.state && !opts.preserveLocalState) localEngineRef.current = {
             state: engineStateFromPublic(res.state),
             candles: localEngineRef.current?.candles ?? [],
           };
           setS((prev) => ({
             ...prev,
             error: res.error,
-            state: res.state ?? prev.state,
+            state: opts.preserveLocalState ? prev.state : res.state ?? prev.state,
             saveStatus: "error",
           }));
           return;
@@ -796,6 +796,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const stepPrev = useCallback((displayTimeframe?: Timeframe) => {
     const engine = localEngineRef.current;
     if (!engine) return;
+    // Rewinding is an explicit pause-and-review action. Stop local playback
+    // first so it cannot race forward while the previous candle is selected.
+    wantsReplayRunningRef.current = false;
+    stopLocalScheduler();
+    engine.state.status = "paused";
     const timeframe = displayTimeframe ?? engine.state.config.timeframe;
     const currentCandle = engine.candles[engine.state.visibleIndex];
     if (!currentCandle) return;
@@ -858,7 +863,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         showBusy: false,
       },
     );
-  }, [runAction, s.state]);
+  }, [runAction, s.state, stopLocalScheduler]);
   const restart = useCallback(async () => {
     wantsReplayRunningRef.current = false;
     setS((prev) =>

@@ -136,7 +136,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               </Row>
               {s.fill && (
                 <>
-                  <Row label="Fill color">
+                  <Row label="Background color">
                     <span className="flex items-center gap-1">
                       {DRAW_PALETTE.map((c) => (
                         <button
@@ -150,7 +150,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                       ))}
                       <input
                         type="color"
-                        aria-label="Custom fill color"
+                        aria-label="Custom background color"
                         value={s.fillColor}
                         onChange={(e) => setStyle({ fillColor: e.target.value })}
                         className="ml-1 h-5 w-5 cursor-pointer rounded border app-border bg-transparent p-0.5"

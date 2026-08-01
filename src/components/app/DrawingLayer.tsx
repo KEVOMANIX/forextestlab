@@ -1,7 +1,24 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Copy, CopyPlus, Eye, EyeOff, Lock, LockOpen, Settings2, SendToBack, Square, SquareStack, Trash2 } from "lucide-react";
+import {
+  Copy,
+  CopyPlus,
+  Ellipsis,
+  Eye,
+  EyeOff,
+  GripVertical,
+  Lock,
+  LockOpen,
+  Menu,
+  Minus,
+  PaintBucket,
+  PencilLine,
+  Settings2,
+  SendToBack,
+  SquareStack,
+  Trash2,
+} from "lucide-react";
 import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 
 import { DrawingEngine, type ContextMenuRequest } from "@/lib/chart/drawing/engine";
@@ -251,25 +268,42 @@ export function DrawingLayer({
           }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <span className="cursor-move select-none px-1 text-base leading-none app-muted" aria-hidden>⠿</span>
-          <label className="relative grid h-7 w-7 cursor-pointer place-items-center rounded hover:bg-[var(--app-panel-2)]" title="Line color">
-            <span className="h-4 w-4 rounded-full border-2 border-white/70" style={{ backgroundColor: selection.style.color }} />
+          <span className="grid h-7 w-6 cursor-move place-items-center app-muted" title="Move drawing toolbar" aria-hidden>
+            <GripVertical size={16} />
+          </span>
+          <label className="relative grid h-7 w-8 cursor-pointer place-items-center rounded hover:bg-[var(--app-panel-2)]" title="Stroke color">
+            <PencilLine size={17} />
+            <span className="absolute bottom-0.5 h-0.5 w-5 rounded-full" style={{ backgroundColor: selection.style.color }} />
             <input
               type="color"
-              aria-label="Drawing line color"
+              aria-label="Drawing stroke color"
               value={selection.style.color}
               onChange={(event) => applyQuickStyle({ color: event.target.value })}
               className="absolute inset-0 cursor-pointer opacity-0"
             />
           </label>
+          <label className={`relative grid h-7 w-8 cursor-pointer place-items-center rounded hover:bg-[var(--app-panel-2)] ${selection.style.fill ? "text-brand-300" : "app-muted"}`} title="Background color">
+            <PaintBucket size={17} />
+            <span
+              className="absolute bottom-0.5 h-0.5 w-5 rounded-full border border-white/20"
+              style={{ backgroundColor: selection.style.fill ? selection.style.fillColor : "transparent" }}
+            />
+            <input
+              type="color"
+              aria-label="Drawing background color"
+              value={selection.style.fillColor}
+              onChange={(event) => applyQuickStyle({ fill: true, fillColor: event.target.value })}
+              className="absolute inset-0 cursor-pointer opacity-0"
+            />
+          </label>
           <button
             type="button"
-            aria-label="Toggle drawing fill"
-            title="Fill"
+            aria-label={selection.style.fill ? "Remove drawing background" : "Enable drawing background"}
+            title={selection.style.fill ? "Remove background" : "Enable background"}
             onClick={() => applyQuickStyle({ fill: !selection.style.fill })}
-            className={`grid h-7 w-7 place-items-center rounded ${selection.style.fill ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)]"}`}
+            className={`grid h-7 w-7 place-items-center rounded text-[10px] font-bold ${selection.style.fill ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)]"}`}
           >
-            <Square size={16} fill={selection.style.fill ? selection.style.fillColor : "none"} />
+            {selection.style.fill ? "ON" : "OFF"}
           </button>
           <button
             type="button"
@@ -278,7 +312,7 @@ export function DrawingLayer({
             onClick={() => applyQuickStyle({ lineWidth: selection.style.lineWidth >= 4 ? 1 : selection.style.lineWidth + 1 })}
             className="flex h-7 min-w-12 items-center justify-center gap-1 rounded px-1 text-[11px] font-semibold hover:bg-[var(--app-panel-2)]"
           >
-            <span className="w-4 border-t border-current" style={{ borderTopWidth: Math.min(4, selection.style.lineWidth) }} />
+            <Minus size={17} strokeWidth={Math.min(4, selection.style.lineWidth)} />
             {selection.style.lineWidth}px
           </button>
           <button
@@ -292,10 +326,8 @@ export function DrawingLayer({
             }}
             className="grid h-7 w-10 place-items-center rounded hover:bg-[var(--app-panel-2)]"
           >
-            <span
-              className="w-7 border-t-2 border-current"
-              style={{ borderTopStyle: selection.style.lineStyle === "solid" ? "solid" : selection.style.lineStyle === "dashed" ? "dashed" : "dotted" }}
-            />
+            <Menu size={18} />
+            <span className="sr-only">{selection.style.lineStyle}</span>
           </button>
           <span className="mx-0.5 h-5 w-px bg-[var(--app-border)]" aria-hidden />
           <button type="button" aria-label={selection.locked ? "Unlock drawing" : "Lock drawing"} onClick={() => eng()?.toggleLock()} className="grid h-7 w-7 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
@@ -305,7 +337,7 @@ export function DrawingLayer({
             <Trash2 size={15} />
           </button>
           <button type="button" aria-label="More drawing settings" onClick={() => setSettings(selection)} className="grid h-7 w-7 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
-            <Settings2 size={15} />
+            <Ellipsis size={17} />
           </button>
         </div>
       )}

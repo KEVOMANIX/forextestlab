@@ -172,7 +172,27 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   });
   expect(creationOverlayPixels).toBe(0);
   await page.mouse.up();
-  await expect(firstCell.getByRole("toolbar", { name: "circle drawing settings" })).toBeVisible();
+  const circleToolbar = firstCell.getByRole("toolbar", { name: "circle drawing settings" });
+  await expect(circleToolbar).toBeVisible();
+  await expect(circleToolbar.getByLabel("Drawing stroke color")).toHaveCount(1);
+  const backgroundColor = circleToolbar.getByLabel("Drawing background color");
+  await expect(backgroundColor).toHaveCount(1);
+  await expect(circleToolbar.getByRole("button", { name: "Remove drawing background" })).toBeVisible();
+  await backgroundColor.fill("#ff5500");
+  await expect.poll(() => page.evaluate(() => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("forextestlab:drawings:")) continue;
+      const drawings = JSON.parse(localStorage.getItem(key) ?? "[]") as {
+        kind?: string;
+        style?: { fillColor?: string };
+      }[];
+      if (drawings.some((drawing) => drawing.kind === "circle" && drawing.style?.fillColor === "#ff5500")) {
+        return true;
+      }
+    }
+    return false;
+  })).toBe(true);
 
   // A drawing committed in one layout cell is immediately painted in every
   // other visible cell showing the same pair.

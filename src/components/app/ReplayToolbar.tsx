@@ -17,10 +17,8 @@ import {
 
 import {
   REPLAY_SPEEDS,
-  REPLAY_STEP_MINUTES,
   type PublicSessionState,
   type ReplaySpeed,
-  type ReplayStepMinutes,
 } from "@/lib/backtest/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 
@@ -34,8 +32,6 @@ interface ReplayToolbarProps {
   onRestart: () => void;
   onEnd: () => void;
   onSpeed: (s: ReplaySpeed) => void;
-  stepMinutes: ReplayStepMinutes;
-  onStepMinutes: (step: ReplayStepMinutes) => void;
   onBuy: () => void;
   onSell: () => void;
   canTrade: boolean;
@@ -98,8 +94,6 @@ export function ReplayToolbar({
   onRestart,
   onEnd,
   onSpeed,
-  stepMinutes,
-  onStepMinutes,
   onBuy,
   onSell,
   canTrade,
@@ -237,7 +231,7 @@ export function ReplayToolbar({
       // Above every piece of chart chrome (rails, legends, order lines all sit
       // at z-30/z-40) so a grid layout cannot slice the toolbox in half with the
       // neighbouring cell's drawing rail. Still below menus and dialogs.
-      className={`absolute z-[45] w-[calc(100%-1.5rem)] max-w-[390px] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl shadow-black/40 ${
+      className={`absolute z-[45] w-[calc(100%-1.5rem)] max-w-[560px] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1.5 shadow-2xl shadow-black/40 ${
         compact ? "" : "touch-none cursor-move"
       }`}
       style={
@@ -285,23 +279,47 @@ export function ReplayToolbar({
             <Square size={14} aria-hidden />
           </ControlBtn>
         </div>
+        <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
+        <input
+          id="replay-speed"
+          type="range"
+          min={0}
+          max={availableSpeeds.length - 1}
+          step={1}
+          value={speedIndex}
+          onChange={(event) => {
+            const selected = availableSpeeds[Number(event.target.value)];
+            if (selected !== undefined) onSpeed(selected);
+          }}
+          aria-label="Replay speed"
+          aria-valuetext={`${cadenceLabel} replay speed`}
+          className="h-1.5 min-w-[64px] flex-1 cursor-pointer accent-emerald-400 sm:min-w-[100px]"
+        />
+        <output
+          htmlFor="replay-speed"
+          className="hidden shrink-0 font-mono text-[11px] font-semibold text-brand-300 sm:inline"
+        >
+          {cadenceLabel}
+        </output>
+        {finished && <span className="hidden shrink-0 text-[11px] font-semibold text-brand-300 md:inline">Finished</span>}
+        <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
         <button
           type="button"
           aria-label="Quick Sell"
           onClick={onSell}
           disabled={!canTrade}
-          className="ml-auto inline-flex h-7 items-center gap-1 rounded-md bg-bear px-2 text-[11px] font-bold text-white hover:opacity-90 disabled:opacity-35"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1 rounded-md bg-bear text-[11px] font-bold text-white hover:opacity-90 disabled:opacity-35 sm:w-auto sm:px-2"
         >
-          <ArrowDownRight size={12} aria-hidden /> Sell
+          <ArrowDownRight size={13} aria-hidden /> <span className="hidden sm:inline">Sell</span>
         </button>
         <button
           type="button"
           aria-label="Quick Buy"
           onClick={onBuy}
           disabled={!canTrade}
-          className="inline-flex h-7 items-center gap-1 rounded-md bg-brand-500 px-2 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1 rounded-md bg-brand-500 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35 sm:w-auto sm:px-2"
         >
-          <ArrowUpRight size={12} aria-hidden /> Buy
+          <ArrowUpRight size={13} aria-hidden /> <span className="hidden sm:inline">Buy</span>
         </button>
         {!compact && (
           <button
@@ -316,54 +334,6 @@ export function ReplayToolbar({
         )}
       </div>
 
-      <div className="mt-1 border-t app-border px-1 pt-1">
-        <div className="flex items-center gap-2">
-          <label htmlFor="replay-step" className="flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide app-muted">
-            Step
-            <select
-              id="replay-step"
-              aria-label="Replay step"
-              value={stepMinutes}
-              onChange={(event) =>
-                onStepMinutes(Number(event.target.value) as ReplayStepMinutes)
-              }
-              className="h-7 rounded border app-border bg-[var(--app-panel-2)] px-1 font-mono text-[11px] font-semibold text-[var(--app-text)] outline-none"
-            >
-              {REPLAY_STEP_MINUTES.map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {minutes >= 60 ? `${minutes / 60}h` : `${minutes}m`}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span className="h-4 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-          <label htmlFor="replay-speed" className="shrink-0 font-mono text-[11px] font-semibold text-brand-300">
-            {speedLabel(state.speed)}
-          </label>
-          <input
-            id="replay-speed"
-            type="range"
-            min={0}
-            max={availableSpeeds.length - 1}
-            step={1}
-            value={speedIndex}
-            onChange={(event) => {
-              const selected = availableSpeeds[Number(event.target.value)];
-              if (selected !== undefined) onSpeed(selected);
-            }}
-            aria-label="Replay speed"
-            aria-valuetext={`${cadenceLabel} replay speed`}
-            className="h-1.5 min-w-0 flex-1 cursor-pointer accent-emerald-400"
-          />
-          <span className="shrink-0 font-mono text-[11px] app-muted">{cadenceLabel}</span>
-        </div>
-
-        <div className="mt-0.5 flex items-center justify-between font-mono text-[10px] app-muted">
-          <span>{speedLabel(availableSpeeds[0]!)}</span>
-          {finished && <span className="text-brand-300">Finished</span>}
-          <span>{speedLabel(availableSpeeds[availableSpeeds.length - 1]!)}</span>
-        </div>
-      </div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { REPLAY_SPEEDS } from "../../src/lib/backtest/types";
 
 /**
  * Replay smoothness harness. Opt in with PERF=1; measures frame pacing,
@@ -211,6 +212,7 @@ async function seed(page: Page, layout: string) {
             ? [
                 { id: "perf-rsi", kind: "rsi", length: 14, visible: true },
                 { id: "perf-ema", kind: "ema", length: 20, visible: true },
+                { id: "perf-lrc", kind: "lrc", length: 100, visible: true },
               ]
             : [],
         }),
@@ -241,14 +243,13 @@ test("replay perf", async ({ page }) => {
     await client.send("Profiler.setSamplingInterval", { interval: 200 });
   }
 
-  // Max speed. Playwright cannot fill a range input, so drive it natively and
-  // let React see the change through its own value setter.
-  await page.getByLabel("Replay speed").evaluate((el) => {
-    const input = el as HTMLInputElement;
-    input.value = input.max;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  // Cycle the real toolbar control from the seeded 60x value to its maximum.
+  const speedControl = page.getByRole("button", { name: "Replay speed" });
+  const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= 1200);
+  const clicksToMax = availableSpeeds.length - 1 - availableSpeeds.indexOf(60);
+  for (let click = 0; click < clicksToMax; click += 1) {
+    await speedControl.click();
+  }
   await page.waitForTimeout(500);
   const startCandle = Number(
     /Candle (\d+) of/.exec(

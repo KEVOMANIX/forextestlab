@@ -98,6 +98,7 @@ export class Indicator {
    */
   private drawn = new Map<string, SeriesPoint[]>();
   private styleKeys = new Map<string, string>();
+  private deferredHistory = false;
 
   /** `paneIndex` 0 = the main price pane; >0 = a dedicated oscillator pane. */
   constructor(chart: IChartApi, inst: IndicatorInstance, fallbackPrecision: number, paneIndex = 0) {
@@ -166,7 +167,7 @@ export class Indicator {
   }
 
   /** Push cached data + current style into the series. */
-  draw(candles: OHLCV[], replace = false): void {
+  draw(candles: OHLCV[], replace = false, replaying = false): void {
     if (!this.result) this.calculate(candles);
     const result = this.result!;
     const offset = typeof this.inst.inputs.offset === "number" ? this.inst.inputs.offset : 0;
@@ -191,7 +192,7 @@ export class Indicator {
           ? times.flatMap((t, i) => (values[i] == null ? [] : [{ time: t, value: values[i] as number }]))
           : times.map((t, i) => (values[i] == null ? { time: t } : { time: t, value: values[i] as number }));
       }
-      this.push(plot.key, series, data, replace);
+      this.push(plot.key, series, data, replace, replaying);
     }
     this.applyStyle();
   }
@@ -216,11 +217,36 @@ export class Indicator {
     series: AnySeries,
     data: SeriesPoint[],
     replace: boolean,
+    replaying: boolean,
   ): void {
     const previous = this.drawn.get(key);
     this.drawn.set(key, data);
 
-    if (replace || !previous || previous.length === 0 || data.length < previous.length) {
+    if (replace || !previous || previous.length === 0) {
+      series.setData(data as (LineData<Time> | HistogramData<Time> | WhitespaceData<Time>)[]);
+      return;
+    }
+    if (replaying) {
+      // Keep fast playback bounded: update only the former live point and any
+      // appended points. History-revising indicators are reconciled once when
+      // playback pauses instead of issuing thousands of chart mutations per
+      // candle and freezing the tab.
+      if (data.length < previous.length) return;
+      const shared = previous.length;
+      if (
+        previous[0]?.time !== data[0]?.time ||
+        previous[shared - 1]?.time !== data[shared - 1]?.time
+      ) return;
+      const tail = data[shared - 1]!;
+      if (!samePoint(previous[shared - 1]!, tail)) {
+        series.update(tail as LineData<Time> | HistogramData<Time> | WhitespaceData<Time>);
+      }
+      for (let i = shared; i < data.length; i++) {
+        series.update(data[i]! as LineData<Time> | HistogramData<Time> | WhitespaceData<Time>);
+      }
+      return;
+    }
+    if (data.length < previous.length) {
       series.setData(data as (LineData<Time> | HistogramData<Time> | WhitespaceData<Time>)[]);
       return;
     }
@@ -233,19 +259,16 @@ export class Indicator {
         return;
       }
     }
-    // Indicators such as regression channels and Zig Zag legitimately revise
-    // older points. Historical updates keep the series mounted and eliminate
-    // the blank frame caused by setData during playback.
-    for (let i = 0; i < shared; i++) {
-      const point = data[i]!;
-      if (samePoint(previous[i]!, point)) continue;
-      series.update(
-        point as LineData<Time> | HistogramData<Time> | WhitespaceData<Time>,
-        i < shared - 1,
-      );
+    // Outside live playback, reconcile any revised history in one operation.
+    for (let i = 0; i < shared - 1; i++) {
+      if (!samePoint(previous[i]!, data[i]!)) {
+        series.setData(data as (LineData<Time> | HistogramData<Time> | WhitespaceData<Time>)[]);
+        return;
+      }
     }
-    for (let i = shared; i < data.length; i++) {
+    for (let i = Math.max(0, shared - 1); i < data.length; i++) {
       const point = data[i]!;
+      if (i < previous.length && samePoint(previous[i]!, point)) continue;
       series.update(point as LineData<Time> | HistogramData<Time> | WhitespaceData<Time>);
     }
   }
@@ -291,7 +314,7 @@ export class Indicator {
    * OR the candle data changed (new/updated bars during replay); a pure style /
    * visibility toggle skips the math and only re-applies options.
    */
-  update(inst: IndicatorInstance, candles: OHLCV[]): void {
+  update(inst: IndicatorInstance, candles: OHLCV[], replaying = false): void {
     const last = candles[candles.length - 1];
     // Include the full latest bar because a forming candle can change its
     // high/low/open while its close remains unchanged. ATR, Supertrend and
@@ -299,13 +322,15 @@ export class Indicator {
     const dataKey = `${candles.length}:${last ? `${last.time}:${last.open}:${last.high}:${last.low}:${last.close}:${last.volume ?? ""}` : ""}`;
     const inputsKey = JSON.stringify(inst.inputs);
     const inputsChanged = inputsKey !== this.inputsKey;
-    const changed = inputsChanged || dataKey !== this.dataKey || !this.result;
+    const reconcileDeferred = !replaying && this.deferredHistory;
+    const changed = inputsChanged || dataKey !== this.dataKey || !this.result || reconcileDeferred;
     this.inst = inst;
     this.inputsKey = inputsKey;
     this.dataKey = dataKey;
     if (changed) {
       this.calculate(candles);
-      this.draw(candles, inputsChanged && this.result !== null);
+      this.draw(candles, inputsChanged || reconcileDeferred, replaying);
+      this.deferredHistory = replaying;
     } else {
       this.applyStyle();
     }

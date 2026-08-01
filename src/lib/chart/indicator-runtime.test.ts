@@ -167,17 +167,22 @@ describe("drawing during replay", () => {
     expect(after.update).toBeLessThan(60);
   });
 
-  it("updates history in place for indicators that revise earlier points", () => {
-    // A regression channel refits its whole window every bar. Historical point
-    // updates keep its series mounted instead of flashing through setData.
+  it("bounds history-revising indicators during replay and reconciles on pause", () => {
+    // A regression channel refits its whole window every bar. Playback updates
+    // only its live tail, then performs one complete paused reconciliation.
     const { chart, totals, reset } = stubChart();
     const { indicator, inst } = make("lrc", chart);
     indicator.update(inst, bars(200));
 
     reset();
-    indicator.update(inst, bars(201));
+    indicator.update(inst, bars(201), true);
     expect(totals().setData).toBe(0);
     expect(totals().update).toBeGreaterThan(0);
+    expect(totals().update).toBeLessThan(10);
+
+    reset();
+    indicator.update(inst, bars(201), false);
+    expect(totals().setData).toBeGreaterThan(0);
   });
 });
 

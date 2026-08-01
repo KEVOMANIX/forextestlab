@@ -967,7 +967,7 @@ export default function PriceChart({
         ind.initialize();
         priceMap.set(inst.id, ind);
       }
-      ind.update(inst, display);
+      ind.update(inst, display, replayRunningRef.current);
     }
 
     // Panes 1..N — oscillators. Rebuild only on structural change.
@@ -986,7 +986,7 @@ export default function PriceChart({
         const paneIndex = i + 1;
         const ind = new Indicator(chart, inst, inst.precision ?? 2, paneIndex);
         ind.initialize();
-        ind.update(inst, display);
+        ind.update(inst, display, replayRunningRef.current);
         ownMap.set(inst.id, ind);
         try {
           chart.panes()[paneIndex]?.setHeight(getDef(inst.kind)?.paneHeight ?? 130);
@@ -996,7 +996,9 @@ export default function PriceChart({
       });
       ownOrderRef.current = ownKey;
     } else {
-      for (const inst of ownInsts) ownMap.get(inst.id)?.update(inst, display);
+      for (const inst of ownInsts) {
+        ownMap.get(inst.id)?.update(inst, display, replayRunningRef.current);
+      }
     }
   }
 
@@ -1746,7 +1748,14 @@ export default function PriceChart({
 
   useEffect(() => {
     const started = replayRunning && !replayWasRunningRef.current;
+    const stopped = !replayRunning && replayWasRunningRef.current;
     replayWasRunningRef.current = replayRunning;
+    if (stopped) {
+      // One paused-frame reconciliation applies any history revisions that were
+      // deliberately deferred to keep live playback bounded and responsive.
+      scheduleRender();
+      return;
+    }
     if (!started) return;
 
     // Playback is a workspace-wide live event, so every chart cell rejoins the

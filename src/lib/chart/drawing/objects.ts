@@ -341,6 +341,10 @@ class CircleObj extends DrawingObject {
     this.applyStroke(ctx);
     ctx.stroke();
   }
+  bbox(mapper: CoordinateMapper): Rect | null {
+    const g = this.radius(mapper);
+    return g ? { x: g.cx - g.r, y: g.cy - g.r, w: g.r * 2, h: g.r * 2 } : null;
+  }
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
     const g = this.radius(mapper);
     if (!g) return false;

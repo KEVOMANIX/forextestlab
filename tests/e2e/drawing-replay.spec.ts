@@ -140,6 +140,40 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   );
   await page.mouse.up();
 
+  const sessionToolbar = firstCell.getByRole("toolbar", {
+    name: "session drawing settings",
+  });
+  await expect(sessionToolbar).toBeVisible();
+
+  // Empty chart space clears selection and its contextual controls.
+  await page.mouse.click(bounds.x + bounds.width * 0.86, bounds.y + bounds.height * 0.12);
+  await expect(sessionToolbar).toHaveCount(0);
+
+  // Circle creation paints only the circle itself. The transparent interaction
+  // canvas must stay empty until pointer-up adds real selection handles.
+  await firstCell.getByRole("button", { name: "Shapes", exact: true }).click();
+  await page.getByRole("button", { name: "Circle", exact: true }).click();
+  await page.mouse.move(bounds.x + bounds.width * 0.42, bounds.y + bounds.height * 0.42);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.56, bounds.y + bounds.height * 0.58, { steps: 6 });
+  const creationOverlayPixels = await firstCell.evaluate((cell) => {
+    const canvases = cell.querySelectorAll<HTMLCanvasElement>(
+      'div[style*="pointer-events: none"] > canvas',
+    );
+    const overlay = canvases[1];
+    const context = overlay?.getContext("2d");
+    if (!overlay || !context) return -1;
+    const pixels = context.getImageData(0, 0, overlay.width, overlay.height).data;
+    let painted = 0;
+    for (let offset = 3; offset < pixels.length; offset += 16) {
+      if (pixels[offset] !== 0) painted += 1;
+    }
+    return painted;
+  });
+  expect(creationOverlayPixels).toBe(0);
+  await page.mouse.up();
+  await expect(firstCell.getByRole("toolbar", { name: "circle drawing settings" })).toBeVisible();
+
   // A drawing committed in one layout cell is immediately painted in every
   // other visible cell showing the same pair.
   await expect.poll(async () => page.evaluate(() => {
@@ -158,8 +192,8 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
     return painted;
   })).toBeGreaterThan(0);
 
-  const speed = page.getByLabel("Replay speed");
-  await speed.fill((await speed.getAttribute("max")) ?? "0");
+  const speed = page.getByRole("button", { name: "Replay speed" });
+  for (let click = 0; click < 5; click += 1) await speed.click();
   await page.getByRole("button", { name: /Play replay/i }).click();
 
   const samples = await page.evaluate(async () => {

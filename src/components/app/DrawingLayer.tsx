@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Copy, CopyPlus, Eye, EyeOff, Lock, LockOpen, Settings2, SendToBack, SquareStack, Trash2 } from "lucide-react";
+import { Copy, CopyPlus, Eye, EyeOff, Lock, LockOpen, Settings2, SendToBack, Square, SquareStack, Trash2 } from "lucide-react";
 import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 
 import { DrawingEngine, type ContextMenuRequest } from "@/lib/chart/drawing/engine";
@@ -60,6 +60,7 @@ export function DrawingLayer({
   const [settings, setSettings] = useState<DrawingJSON | null>(null);
   const [menu, setMenu] = useState<ContextMenuRequest | null>(null);
   const [selection, setSelection] = useState<DrawingJSON | null>(null);
+  const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
   const [textEdit, setTextEdit] = useState<{ id: string; x: number; y: number } | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   /** False until the editor owns focus for real; blurs before that are spurious. */
@@ -124,6 +125,7 @@ export function DrawingLayer({
     engine.onToolConsumed = () => onToolConsumed();
     engine.onSelectionChange = (json) => {
       setSelection(json);
+      setToolbarPosition(json ? engine.getSelectionToolbarPosition() : null);
     };
     engine.onObjectsChange = (n) => {
       onCountChange?.(n);
@@ -150,7 +152,10 @@ export function DrawingLayer({
   // Re-render objects when the chart view moves.
   useEffect(() => {
     engineInstance.current?.onViewChanged();
-  }, [viewVersion]);
+    if (selection) {
+      setToolbarPosition(engineInstance.current?.getSelectionToolbarPosition() ?? null);
+    }
+  }, [viewVersion, selection]);
 
   const eng = () => engineInstance.current;
 
@@ -162,6 +167,13 @@ export function DrawingLayer({
       const merged: DrawingJSON = { ...prev, ...patch };
       if (patch.style) merged.style = { ...prev.style, ...patch.style };
       return merged;
+    });
+  };
+
+  const applyQuickStyle = (patch: Partial<DrawingJSON["style"]>) => {
+    if (!selection) return;
+    eng()?.updateObject(selection.id, {
+      style: { ...selection.style, ...patch },
     });
   };
 
@@ -224,6 +236,78 @@ export function DrawingLayer({
           style={{ left: textEdit.x, top: textEdit.y, pointerEvents: "auto" }}
           rows={1}
         />
+      )}
+
+      {selection && toolbarPosition && !settings && (
+        <div
+          role="toolbar"
+          aria-label={`${selection.kind} drawing settings`}
+          className="absolute z-40 flex h-10 items-center gap-1 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1.5 shadow-2xl"
+          style={{
+            left: toolbarPosition.x,
+            top: toolbarPosition.y,
+            pointerEvents: "auto",
+            transform: "translate(-50%, -100%)",
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <span className="cursor-move select-none px-1 text-base leading-none app-muted" aria-hidden>⠿</span>
+          <label className="relative grid h-7 w-7 cursor-pointer place-items-center rounded hover:bg-[var(--app-panel-2)]" title="Line color">
+            <span className="h-4 w-4 rounded-full border-2 border-white/70" style={{ backgroundColor: selection.style.color }} />
+            <input
+              type="color"
+              aria-label="Drawing line color"
+              value={selection.style.color}
+              onChange={(event) => applyQuickStyle({ color: event.target.value })}
+              className="absolute inset-0 cursor-pointer opacity-0"
+            />
+          </label>
+          <button
+            type="button"
+            aria-label="Toggle drawing fill"
+            title="Fill"
+            onClick={() => applyQuickStyle({ fill: !selection.style.fill })}
+            className={`grid h-7 w-7 place-items-center rounded ${selection.style.fill ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)]"}`}
+          >
+            <Square size={16} fill={selection.style.fill ? selection.style.fillColor : "none"} />
+          </button>
+          <button
+            type="button"
+            aria-label="Change drawing line width"
+            title="Line width"
+            onClick={() => applyQuickStyle({ lineWidth: selection.style.lineWidth >= 4 ? 1 : selection.style.lineWidth + 1 })}
+            className="flex h-7 min-w-12 items-center justify-center gap-1 rounded px-1 text-[11px] font-semibold hover:bg-[var(--app-panel-2)]"
+          >
+            <span className="w-4 border-t border-current" style={{ borderTopWidth: Math.min(4, selection.style.lineWidth) }} />
+            {selection.style.lineWidth}px
+          </button>
+          <button
+            type="button"
+            aria-label="Change drawing line style"
+            title="Line style"
+            onClick={() => {
+              const styles = ["solid", "dashed", "dotted"] as const;
+              const current = styles.indexOf(selection.style.lineStyle);
+              applyQuickStyle({ lineStyle: styles[(current + 1) % styles.length] });
+            }}
+            className="grid h-7 w-10 place-items-center rounded hover:bg-[var(--app-panel-2)]"
+          >
+            <span
+              className="w-7 border-t-2 border-current"
+              style={{ borderTopStyle: selection.style.lineStyle === "solid" ? "solid" : selection.style.lineStyle === "dashed" ? "dashed" : "dotted" }}
+            />
+          </button>
+          <span className="mx-0.5 h-5 w-px bg-[var(--app-border)]" aria-hidden />
+          <button type="button" aria-label={selection.locked ? "Unlock drawing" : "Lock drawing"} onClick={() => eng()?.toggleLock()} className="grid h-7 w-7 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
+            {selection.locked ? <LockOpen size={15} /> : <Lock size={15} />}
+          </button>
+          <button type="button" aria-label="Delete drawing" onClick={() => eng()?.deleteSelected()} className="grid h-7 w-7 place-items-center rounded app-muted hover:bg-bear/10 hover:text-bear">
+            <Trash2 size={15} />
+          </button>
+          <button type="button" aria-label="More drawing settings" onClick={() => setSettings(selection)} className="grid h-7 w-7 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
+            <Settings2 size={15} />
+          </button>
+        </div>
       )}
 
       {menu && (

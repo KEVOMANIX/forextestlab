@@ -54,11 +54,15 @@ interface EngineEnv {
 
 interface DragState {
   id: string;
-  kind: "move" | "anchor";
+  kind: "move" | "anchor" | "resize";
   index: number;
+  resize?: ResizeHandle;
   startPx: { x: number; y: number };
   origin: Point[];
+  originBounds?: { x: number; y: number; w: number; h: number };
 }
+
+type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 interface CreateState {
   obj: DrawingObject;
@@ -263,6 +267,18 @@ export class DrawingEngine {
   getSelected(): DrawingJSON | null {
     const o = this.objects.find((d) => d.id === this.selectedId);
     return o ? o.serialize() : null;
+  }
+
+  /** Position a compact editing toolbar just above the selected object. */
+  getSelectionToolbarPosition(): { x: number; y: number } | null {
+    const o = this.objects.find((d) => d.id === this.selectedId);
+    const b = o?.bbox(this.mapper);
+    if (!b) return null;
+    const halfToolbar = Math.min(170, this.mapper.width / 2);
+    return {
+      x: Math.max(halfToolbar, Math.min(this.mapper.width - halfToolbar, b.x + b.w / 2)),
+      y: Math.max(48, Math.min(this.mapper.height - 8, b.y - 10)),
+    };
   }
 
   updateObject(id: string, patch: Partial<DrawingJSON>): void {
@@ -478,11 +494,52 @@ export class DrawingEngine {
     return null;
   }
 
-  private anchorAt(o: DrawingObject, x: number, y: number): number | null {
+  private anchorAt(
+    o: DrawingObject,
+    x: number,
+    y: number,
+  ): { kind: "anchor"; index: number } | { kind: "resize"; handle: ResizeHandle } | null {
     for (const a of o.anchors(this.mapper)) {
-      if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) return a.index;
+      if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
+        return { kind: "anchor", index: a.index };
+      }
+    }
+    for (const a of this.resizeHandles(o)) {
+      if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
+        return { kind: "resize", handle: a.handle };
+      }
     }
     return null;
+  }
+
+  private resizeHandles(o: DrawingObject): { x: number; y: number; handle: ResizeHandle }[] {
+    const b = o.bbox(this.mapper);
+    if (!b) return [];
+    const left = b.x;
+    const centerX = b.x + b.w / 2;
+    const right = b.x + b.w;
+    const top = b.y;
+    const centerY = b.y + b.h / 2;
+    const bottom = b.y + b.h;
+    const candidates: { x: number; y: number; handle: ResizeHandle }[] = [
+      { x: left, y: top, handle: "nw" },
+      { x: centerX, y: top, handle: "n" },
+      { x: right, y: top, handle: "ne" },
+      { x: right, y: centerY, handle: "e" },
+      { x: right, y: bottom, handle: "se" },
+      { x: centerX, y: bottom, handle: "s" },
+      { x: left, y: bottom, handle: "sw" },
+      { x: left, y: centerY, handle: "w" },
+    ];
+    // Zero-width/height objects produce duplicate handles. Keep one at each
+    // physical point while their original anchors remain independently usable.
+    const seen = new Set<string>();
+    return candidates.filter((candidate) => {
+      const key = `${Math.round(candidate.x)}:${Math.round(candidate.y)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   private snap(p: Point): Point {
@@ -508,10 +565,18 @@ export class DrawingEngine {
     // moves the object rather than panning; empty clicks leave the chart free.
     const sel = this.objects.find((d) => d.id === this.selectedId) ?? null;
     if (sel && !sel.locked) {
-      const ai = this.anchorAt(sel, px.x, px.y);
-      if (ai != null) {
+      const handle = this.anchorAt(sel, px.x, px.y);
+      if (handle) {
         this.freezeChart();
-        this.drag = { id: sel.id, kind: "anchor", index: ai, startPx: px, origin: sel.points.map((p) => ({ ...p })) };
+        this.drag = {
+          id: sel.id,
+          kind: handle.kind,
+          index: handle.kind === "anchor" ? handle.index : -1,
+          resize: handle.kind === "resize" ? handle.handle : undefined,
+          startPx: px,
+          origin: sel.points.map((p) => ({ ...p })),
+          originBounds: sel.bbox(this.mapper) ?? undefined,
+        };
         return;
       }
     }
@@ -551,7 +616,10 @@ export class DrawingEngine {
     }
     if (kind === "long" || kind === "short") this.applyDefaultPosition(obj, px, kind);
     this.objects.push(obj);
-    this.select(obj.id);
+    // Keep creation visually clean: the scene paints the real in-progress
+    // geometry, while selection handles and the contextual toolbar wait until
+    // the drawing is committed.
+    this.selectedId = obj.id;
     this.snapDot = this.env.magnet !== "off" ? px : null;
 
     if (mode === "single") {
@@ -659,6 +727,26 @@ export class DrawingEngine {
       this.chartEl.style.cursor = "";
       return;
     }
+    const selected = this.objects.find((drawing) => drawing.id === this.selectedId);
+    const selectedHandle = selected && !selected.locked
+      ? this.anchorAt(selected, px.x, px.y)
+      : null;
+    if (selectedHandle) {
+      const resizeCursor: Record<ResizeHandle, string> = {
+        nw: "nwse-resize",
+        n: "ns-resize",
+        ne: "nesw-resize",
+        e: "ew-resize",
+        se: "nwse-resize",
+        s: "ns-resize",
+        sw: "nesw-resize",
+        w: "ew-resize",
+      };
+      this.chartEl.style.cursor = selectedHandle.kind === "resize"
+        ? resizeCursor[selectedHandle.handle]
+        : "crosshair";
+      return;
+    }
     const hit = this.hitObject(px.x, px.y);
     const id = hit?.id ?? null;
     this.chartEl.style.cursor = id ? "move" : "";
@@ -676,13 +764,43 @@ export class DrawingEngine {
       const dx = px.x - this.drag.startPx.x;
       const dy = px.y - this.drag.startPx.y;
       o.points = this.drag.origin.map((p) => this.movePoint(p, dx, dy));
-    } else {
+    } else if (this.drag.kind === "anchor") {
       const point = this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? this.drag.origin[this.drag.index]!);
       this.snapDot = this.env.magnet !== "off" ? px : null;
       o.setAnchor(this.drag.index, point);
+    } else {
+      this.resizeObject(o, px);
     }
     this.sceneDirty = true;
     this.overlayDirty = true;
+  }
+
+  private resizeObject(o: DrawingObject, px: { x: number; y: number }): void {
+    const drag = this.drag;
+    const bounds = drag?.originBounds;
+    const handle = drag?.resize;
+    if (!drag || !bounds || !handle) return;
+    let left = bounds.x;
+    let right = bounds.x + bounds.w;
+    let top = bounds.y;
+    let bottom = bounds.y + bounds.h;
+    if (handle.includes("w")) left = px.x;
+    if (handle.includes("e")) right = px.x;
+    if (handle.includes("n")) top = px.y;
+    if (handle.includes("s")) bottom = px.y;
+    const width = bounds.w;
+    const height = bounds.h;
+    o.points = drag.origin.map((point) => {
+      const oldX = point.time ? this.mapper.timeToX(point.time) : this.mapper.width / 2;
+      const oldY = this.mapper.priceToY(point.price);
+      if (oldX == null || oldY == null) return point;
+      const tx = width === 0 ? 0.5 : (oldX - bounds.x) / width;
+      const ty = height === 0 ? 0.5 : (oldY - bounds.y) / height;
+      return this.mapper.pixelToPoint(
+        left + tx * (right - left),
+        top + ty * (bottom - top),
+      ) ?? point;
+    });
   }
 
   private movePoint(p: Point, dxPx: number, dyPx: number): Point {
@@ -855,36 +973,26 @@ export class DrawingEngine {
     ctx.clearRect(0, 0, this.mapper.width, this.mapper.height);
     if (this.allHidden) return;
 
-    // hover highlight
-    if (this.hoverId && this.hoverId !== this.selectedId) {
-      const o = this.objects.find((d) => d.id === this.hoverId);
-      const b = o?.bbox(this.mapper);
-      if (b) {
-        ctx.save();
-        ctx.strokeStyle = SELECTION_BLUE;
-        ctx.globalAlpha = 0.4;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
-        ctx.strokeRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4);
-        ctx.restore();
-      }
-    }
-
-    // selection chrome
+    // Selection chrome follows the actual object. There is deliberately no
+    // generic dotted bounding rectangle: a circle stays visually a circle
+    // while drawing and selecting it.
     const sel = this.objects.find((d) => d.id === this.selectedId);
-    if (sel) {
-      const b = sel.bbox(this.mapper);
-      if (b) {
-        ctx.save();
-        ctx.strokeStyle = SELECTION_BLUE;
-        ctx.globalAlpha = 0.6;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([4, 3]);
-        ctx.strokeRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6);
-        ctx.restore();
-      }
+    if (sel && !this.create) {
       ctx.save();
       ctx.setLineDash([]);
+      for (const a of this.resizeHandles(sel)) {
+        ctx.beginPath();
+        if (a.handle.length === 1) {
+          ctx.rect(a.x - SELECTION_HANDLE, a.y - SELECTION_HANDLE, SELECTION_HANDLE * 2, SELECTION_HANDLE * 2);
+        } else {
+          ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);
+        }
+        ctx.fillStyle = sel.locked ? "#94a3b8" : HANDLE_FILL;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = sel.locked ? "#94a3b8" : SELECTION_BLUE;
+        ctx.stroke();
+      }
       for (const a of sel.anchors(this.mapper)) {
         ctx.beginPath();
         ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);

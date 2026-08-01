@@ -8,13 +8,24 @@
 
 import { Decimal, d } from "@/lib/decimal";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
-import { TIMEFRAME_MS } from "@/lib/market-data/types";
+import { canAggregateTimeframes, TIMEFRAME_MS } from "@/lib/market-data/types";
 
 /** Start (UTC epoch ms) of the bucket that `timestampMs` falls into for `timeframe`. */
 export function candleBucketStart(
   timestampMs: number,
   timeframe: Timeframe,
 ): number {
+  const date = new Date(timestampMs);
+  if (timeframe === "1w") {
+    const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - daysSinceMonday);
+  }
+  if (timeframe === "1M") {
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+  }
+  if (timeframe === "1yr") {
+    return Date.UTC(date.getUTCFullYear(), 0, 1);
+  }
   const size = TIMEFRAME_MS[timeframe];
   return timestampMs - (timestampMs % size);
 }
@@ -36,25 +47,17 @@ interface Ohlc {
  * omit; source = "aggregated"; UTC boundaries; deterministic; no duplicate
  * output candles; output sorted ascending by timestamp.
  *
- * Throws if TIMEFRAME_MS[to] is not an exact multiple of TIMEFRAME_MS[from],
- * or to < from.
+ * Throws when source candles cannot be grouped cleanly on the target's UTC or
+ * calendar boundaries.
  */
 export function aggregateCandles(
   base: Candle[],
   from: Timeframe,
   to: Timeframe,
 ): Candle[] {
-  const fromMs = TIMEFRAME_MS[from];
-  const toMs = TIMEFRAME_MS[to];
-
-  if (toMs < fromMs) {
+  if (!canAggregateTimeframes(from, to)) {
     throw new Error(
-      `Cannot aggregate from "${from}" to "${to}": target timeframe is smaller than source.`,
-    );
-  }
-  if (toMs % fromMs !== 0) {
-    throw new Error(
-      `Cannot aggregate from "${from}" to "${to}": target is not an exact multiple of source.`,
+      `Cannot aggregate from "${from}" to "${to}": their candle boundaries are incompatible.`,
     );
   }
 

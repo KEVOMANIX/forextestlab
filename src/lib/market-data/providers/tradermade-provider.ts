@@ -10,11 +10,12 @@
 import "server-only";
 
 import { getSymbolDefinition } from "../symbols";
-import { TIMEFRAME_MS, type Candle, type CandleRequest, type DataRange, type MarketSymbol, type Timeframe } from "../types";
+import { candleBucketStart } from "../aggregation";
+import { type Candle, type CandleRequest, type DataRange, type MarketSymbol, type Timeframe } from "../types";
 import { LocalDatabaseProvider } from "./local-database-provider";
 import { persistExternalCandles, type ExternalApiProvider } from "./external-api-provider";
 
-const TF_MAP: Record<Timeframe, { interval: string; period: number }> = {
+const TF_MAP: Partial<Record<Timeframe, { interval: string; period: number }>> = {
   "1m": { interval: "minute", period: 1 },
   "5m": { interval: "minute", period: 5 },
   "15m": { interval: "minute", period: 15 },
@@ -49,6 +50,7 @@ export class TraderMadeProvider implements ExternalApiProvider {
     const def = getSymbolDefinition(symbol);
     if (!def) throw new Error(`Unknown symbol "${symbol}".`);
     const tf = TF_MAP[timeframe];
+    if (!tf) throw new Error(`TraderMade ingestion does not support ${timeframe}; import 1m candles and aggregate them instead.`);
 
     const toStamp = (ms: number) =>
       new Date(ms).toISOString().slice(0, 16).replace("T", "-");
@@ -71,7 +73,6 @@ export class TraderMadeProvider implements ExternalApiProvider {
         : undefined;
     if (!Array.isArray(quotes)) return 0;
 
-    const step = TIMEFRAME_MS[timeframe];
     const candles: Candle[] = [];
     for (const q of quotes) {
       if (typeof q !== "object" || q === null) continue;
@@ -81,7 +82,7 @@ export class TraderMadeProvider implements ExternalApiProvider {
       const ms = Date.parse(`${dt.replace(" ", "T")}Z`);
       if (Number.isNaN(ms)) continue;
       candles.push({
-        timestamp: ms - (ms % step),
+        timestamp: candleBucketStart(ms, timeframe),
         open: String(row.open ?? ""),
         high: String(row.high ?? ""),
         low: String(row.low ?? ""),

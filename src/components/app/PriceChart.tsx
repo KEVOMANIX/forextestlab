@@ -61,6 +61,8 @@ import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregati
 import {
   TIMEFRAMES,
   TIMEFRAME_MS,
+  canAggregateTimeframes,
+  nextTimeframeTimestamp,
   type Candle,
   type Timeframe,
 } from "@/lib/market-data/types";
@@ -760,10 +762,8 @@ export default function PriceChart({
   }
   loadOlderRef.current = () => void loadHistoryPage(false);
 
-  const availableTimeframes = TIMEFRAMES.filter(
-    (timeframe) =>
-      TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS[baseTimeframe] &&
-      TIMEFRAME_MS[timeframe] % TIMEFRAME_MS[baseTimeframe] === 0,
+  const availableTimeframes = TIMEFRAMES.filter((timeframe) =>
+    canAggregateTimeframes(baseTimeframe, timeframe),
   );
 
   /**
@@ -1202,16 +1202,13 @@ export default function PriceChart({
     ) {
       return;
     }
-    const whitespace: WhitespaceData<Time>[] = Array.from(
-      { length: 200 },
-      (_, index) => ({
-        time: (latestSeconds + stepSeconds * (index + 1)) as UTCTimestamp,
-      }),
-    );
+    const whitespace: WhitespaceData<Time>[] = Array.from({ length: 200 }, (_, index) => ({
+      time: (nextTimeframeTimestamp(latestSeconds * 1000, timeframe, index + 1) / 1000) as UTCTimestamp,
+    }));
     series.setData(whitespace);
     futureTimeRangeRef.current = {
       timeframe,
-      through: latestSeconds + stepSeconds * whitespace.length,
+      through: Number(whitespace.at(-1)?.time ?? latestSeconds),
     };
     if (container) {
       container.dataset.forwardScalePoints = String(whitespace.length);

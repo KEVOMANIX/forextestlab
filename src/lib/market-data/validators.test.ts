@@ -133,4 +133,16 @@ describe("detectGaps", () => {
     expect(report.gaps).toEqual([]);
     expect(report.expectedIntervals).toBe(2);
   });
+
+  it("detects missing calendar months without assuming 30-day spacing", () => {
+    const candles = [
+      candle(Date.UTC(2024, 0, 1)),
+      candle(Date.UTC(2024, 1, 1)),
+      candle(Date.UTC(2024, 3, 1)),
+    ];
+    const report = detectGaps(candles, "1M");
+    expect(report.expectedIntervals).toBe(3);
+    expect(report.missing).toBe(1);
+    expect(report.gaps).toEqual([{ from: Date.UTC(2024, 1, 1), to: Date.UTC(2024, 3, 1) }]);
+  });
 });

@@ -114,6 +114,16 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 
+  for (const timeframe of ["3m", "10m", "45m", "2h", "6h", "12h", "1w", "1M", "1yr"]) {
+    await expect(page.getByRole("button", { name: `Display ${timeframe} candles`, exact: true })).toHaveCount(1);
+  }
+  await page.getByRole("button", { name: "Display 10m candles", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Display 10m candles", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Loading 10m chart history…", { exact: true })).toHaveCount(0, { timeout: 30_000 });
+  await page.getByRole("button", { name: "Display 1m candles", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Display 1m candles", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Loading 1m chart history…", { exact: true })).toHaveCount(0, { timeout: 30_000 });
+
   const layoutButton = page.getByRole("button", { name: "Chart layout" });
   await expect(layoutButton).toContainText("Layout");
   await layoutButton.click();

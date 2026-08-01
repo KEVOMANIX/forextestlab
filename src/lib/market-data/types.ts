@@ -6,28 +6,104 @@
  * arithmetic is performed with decimal.js in the backtest engine.
  */
 
-export type Timeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
+export type Timeframe =
+  | "1m"
+  | "3m"
+  | "5m"
+  | "10m"
+  | "15m"
+  | "30m"
+  | "45m"
+  | "1h"
+  | "2h"
+  | "4h"
+  | "6h"
+  | "12h"
+  | "1d"
+  | "1w"
+  | "1M"
+  | "1yr";
 
 export const TIMEFRAMES: Timeframe[] = [
   "1m",
+  "3m",
   "5m",
+  "10m",
   "15m",
   "30m",
+  "45m",
   "1h",
+  "2h",
   "4h",
+  "6h",
+  "12h",
   "1d",
+  "1w",
+  "1M",
+  "1yr",
 ];
 
-/** Duration of one candle of the given timeframe, in milliseconds (UTC). */
+/**
+ * Nominal candle duration in milliseconds. Month/year values are used only
+ * for sizing and cadence estimates; their real boundaries are calendar based.
+ */
 export const TIMEFRAME_MS: Record<Timeframe, number> = {
   "1m": 60_000,
+  "3m": 3 * 60_000,
   "5m": 5 * 60_000,
+  "10m": 10 * 60_000,
   "15m": 15 * 60_000,
   "30m": 30 * 60_000,
+  "45m": 45 * 60_000,
   "1h": 60 * 60_000,
+  "2h": 2 * 60 * 60_000,
   "4h": 4 * 60 * 60_000,
+  "6h": 6 * 60 * 60_000,
+  "12h": 12 * 60 * 60_000,
   "1d": 24 * 60 * 60_000,
+  "1w": 7 * 24 * 60 * 60_000,
+  "1M": 30 * 24 * 60 * 60_000,
+  "1yr": 365 * 24 * 60 * 60_000,
 };
+
+export function isCalendarTimeframe(timeframe: Timeframe): boolean {
+  return timeframe === "1M" || timeframe === "1yr";
+}
+
+/** Whether source candles can be grouped without crossing target boundaries. */
+export function canAggregateTimeframes(from: Timeframe, to: Timeframe): boolean {
+  if (from === to) return true;
+  if (to === "1M") return TIMEFRAME_MS[from] <= TIMEFRAME_MS["1d"];
+  if (to === "1yr") return from === "1M" || TIMEFRAME_MS[from] <= TIMEFRAME_MS["1d"];
+  if (isCalendarTimeframe(from)) return false;
+  return TIMEFRAME_MS[to] > TIMEFRAME_MS[from] && TIMEFRAME_MS[to] % TIMEFRAME_MS[from] === 0;
+}
+
+/** Move by whole candle boundaries, respecting real UTC months and years. */
+export function nextTimeframeTimestamp(timestampMs: number, timeframe: Timeframe, count = 1): number {
+  if (timeframe === "1M") {
+    const date = new Date(timestampMs);
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + count, 1);
+  }
+  if (timeframe === "1yr") {
+    const date = new Date(timestampMs);
+    return Date.UTC(date.getUTCFullYear() + count, 0, 1);
+  }
+  return timestampMs + TIMEFRAME_MS[timeframe] * count;
+}
+
+/** Count whole timeframe intervals between two aligned candle timestamps. */
+export function timeframeIntervalsBetween(fromMs: number, toMs: number, timeframe: Timeframe): number {
+  if (timeframe === "1M") {
+    const from = new Date(fromMs);
+    const to = new Date(toMs);
+    return (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + to.getUTCMonth() - from.getUTCMonth();
+  }
+  if (timeframe === "1yr") {
+    return new Date(toMs).getUTCFullYear() - new Date(fromMs).getUTCFullYear();
+  }
+  return Math.round((toMs - fromMs) / TIMEFRAME_MS[timeframe]);
+}
 
 export function isTimeframe(value: unknown): value is Timeframe {
   return typeof value === "string" && (TIMEFRAMES as string[]).includes(value);

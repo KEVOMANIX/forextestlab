@@ -11,6 +11,7 @@ import type { MarketCandle } from "@prisma/client";
 import {
   TIMEFRAME_MS,
   TIMEFRAMES,
+  canAggregateTimeframes,
   type Candle,
   type CandleRequest,
   type DataRange,
@@ -87,9 +88,8 @@ export class LocalDatabaseProvider implements MarketDataProvider {
     target: Timeframe,
   ): Timeframe | null {
     if (stored.includes(target)) return target;
-    const targetMs = TIMEFRAME_MS[target];
     const candidates = stored
-      .filter((tf) => TIMEFRAME_MS[tf] < targetMs && targetMs % TIMEFRAME_MS[tf] === 0)
+      .filter((tf) => tf !== target && canAggregateTimeframes(tf, target))
       .sort((a, b) => TIMEFRAME_MS[b] - TIMEFRAME_MS[a]);
     return candidates[0] ?? null;
   }

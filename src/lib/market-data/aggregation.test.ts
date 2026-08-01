@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
-import type { Candle, Timeframe } from "@/lib/market-data/types";
-import { TIMEFRAME_MS } from "@/lib/market-data/types";
+import type { Candle } from "@/lib/market-data/types";
+import { canAggregateTimeframes, TIMEFRAMES, TIMEFRAME_MS } from "@/lib/market-data/types";
 
 /** UTC midnight of 2024-01-01 — an exact day boundary, so every timeframe aligns. */
 const DAY = Date.UTC(2024, 0, 1);
@@ -44,8 +44,9 @@ describe("aggregation provenance", () => {
 });
 
 describe("candleBucketStart", () => {
-  it("floors to the UTC-aligned bucket start for every timeframe", () => {
-    for (const tf of Object.keys(TIMEFRAME_MS) as Timeframe[]) {
+  it("floors fixed intraday and daily timeframes to UTC-aligned starts", () => {
+    const fixed = TIMEFRAMES.filter((tf) => tf !== "1w" && tf !== "1M" && tf !== "1yr");
+    for (const tf of fixed) {
       const size = TIMEFRAME_MS[tf];
       // A timestamp partway through the second bucket of the day.
       const ts = DAY + size + Math.floor(size / 2);
@@ -55,6 +56,13 @@ describe("candleBucketStart", () => {
       // The bucket start is always a multiple of the timeframe size.
       expect(candleBucketStart(ts, tf) % size).toBe(0);
     }
+  });
+
+  it("uses Monday, calendar-month, and calendar-year boundaries", () => {
+    expect(candleBucketStart(Date.UTC(2024, 0, 7, 23, 59), "1w")).toBe(Date.UTC(2024, 0, 1));
+    expect(candleBucketStart(Date.UTC(2024, 0, 8), "1w")).toBe(Date.UTC(2024, 0, 8));
+    expect(candleBucketStart(Date.UTC(2024, 1, 29, 18), "1M")).toBe(Date.UTC(2024, 1, 1));
+    expect(candleBucketStart(Date.UTC(2024, 11, 31, 23), "1yr")).toBe(Date.UTC(2024, 0, 1));
   });
 
   it("handles the very first bucket of the epoch day", () => {
@@ -197,6 +205,20 @@ function sumOneTo(n: number): number {
 }
 
 describe("aggregateCandles - larger single-bucket aggregations", () => {
+  it.each([
+    ["3m", 3],
+    ["10m", 10],
+    ["45m", 45],
+    ["2h", 120],
+    ["6h", 360],
+    ["12h", 720],
+  ] as const)("aggregates 1m -> %s", (timeframe, count) => {
+    const out = aggregateCandles(genIntCandles(count, MIN), "1m", timeframe);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.timestamp).toBe(DAY);
+    expect(out[0]?.close).toBe(String(600 + count - 1));
+  });
+
   it("aggregates 1m -> 1h (60 candles)", () => {
     const base = genIntCandles(60, MIN);
     const out = aggregateCandles(base, "1m", "1h");
@@ -252,6 +274,29 @@ describe("aggregateCandles - larger single-bucket aggregations", () => {
     expect(c.high).toBe("1287");
     expect(c.low).toBe("713");
     expect(c.volume).toBe(String(sumOneTo(288)));
+  });
+
+  it("aggregates daily candles into calendar weeks, months, and years", () => {
+    const daily = [
+      mk(Date.UTC(2023, 11, 31), "1", "2", "0", "1", "1"),
+      mk(Date.UTC(2024, 0, 1), "2", "3", "1", "2", "1"),
+      mk(Date.UTC(2024, 0, 31), "3", "4", "2", "3", "1"),
+      mk(Date.UTC(2024, 1, 1), "4", "5", "3", "4", "1"),
+    ];
+    expect(aggregateCandles(daily, "1d", "1w").map((c) => c.timestamp)).toEqual([
+      Date.UTC(2023, 11, 25),
+      Date.UTC(2024, 0, 1),
+      Date.UTC(2024, 0, 29),
+    ]);
+    expect(aggregateCandles(daily, "1d", "1M").map((c) => c.timestamp)).toEqual([
+      Date.UTC(2023, 11, 1),
+      Date.UTC(2024, 0, 1),
+      Date.UTC(2024, 1, 1),
+    ]);
+    expect(aggregateCandles(daily, "1d", "1yr").map((c) => c.timestamp)).toEqual([
+      Date.UTC(2023, 0, 1),
+      Date.UTC(2024, 0, 1),
+    ]);
   });
 });
 
@@ -369,6 +414,13 @@ describe("aggregateCandles - invalid timeframe pairs", () => {
     expect(() => aggregateCandles([], "4h", "1d")).not.toThrow(); // 24 / 4 = 6
     expect(() => aggregateCandles([], "1m", "1d")).not.toThrow();
     expect(() => aggregateCandles([], "1h", "1h")).not.toThrow();
+    expect(() => aggregateCandles([], "1m", "1yr")).not.toThrow();
+  });
+
+  it("rejects calendar sources that cross target boundaries", () => {
+    expect(canAggregateTimeframes("1w", "1M")).toBe(false);
+    expect(canAggregateTimeframes("1w", "1yr")).toBe(false);
+    expect(canAggregateTimeframes("1M", "1yr")).toBe(true);
   });
 
   it("returns an empty array for empty input", () => {

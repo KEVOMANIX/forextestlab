@@ -12,11 +12,12 @@
 import "server-only";
 
 import { getSymbolDefinition } from "../symbols";
-import { TIMEFRAME_MS, type Candle, type CandleRequest, type DataRange, type MarketSymbol, type Timeframe } from "../types";
+import { candleBucketStart } from "../aggregation";
+import { type Candle, type CandleRequest, type DataRange, type MarketSymbol, type Timeframe } from "../types";
 import { LocalDatabaseProvider } from "./local-database-provider";
 import { persistExternalCandles, type ExternalApiProvider } from "./external-api-provider";
 
-const TF_MAP: Record<Timeframe, string> = {
+const TF_MAP: Partial<Record<Timeframe, string>> = {
   "1m": "1min",
   "5m": "5min",
   "15m": "15min",
@@ -50,10 +51,12 @@ export class TwelveDataProvider implements ExternalApiProvider {
     }
     const def = getSymbolDefinition(symbol);
     if (!def) throw new Error(`Unknown symbol "${symbol}".`);
+    const providerTimeframe = TF_MAP[timeframe];
+    if (!providerTimeframe) throw new Error(`TwelveData ingestion does not support ${timeframe}; import 1m candles and aggregate them instead.`);
 
     const params = new URLSearchParams({
       symbol: `${def.baseCurrency}/${def.quoteCurrency}`,
-      interval: TF_MAP[timeframe],
+      interval: providerTimeframe,
       apikey: process.env.TWELVE_DATA_API_KEY as string,
       format: "JSON",
       timezone: "UTC",
@@ -72,7 +75,6 @@ export class TwelveDataProvider implements ExternalApiProvider {
         : undefined;
     if (!Array.isArray(values)) return 0;
 
-    const step = TIMEFRAME_MS[timeframe];
     const candles: Candle[] = [];
     for (const v of values) {
       if (typeof v !== "object" || v === null) continue;
@@ -82,7 +84,7 @@ export class TwelveDataProvider implements ExternalApiProvider {
       const ms = Date.parse(dt.includes("T") ? `${dt}Z` : `${dt.replace(" ", "T")}Z`);
       if (Number.isNaN(ms)) continue;
       candles.push({
-        timestamp: ms - (ms % step),
+        timestamp: candleBucketStart(ms, timeframe),
         open: String(row.open ?? ""),
         high: String(row.high ?? ""),
         low: String(row.low ?? ""),

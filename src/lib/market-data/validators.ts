@@ -8,7 +8,7 @@
 
 import { d, isFiniteNumeric } from "@/lib/decimal";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
-import { TIMEFRAME_MS } from "@/lib/market-data/types";
+import { nextTimeframeTimestamp, timeframeIntervalsBetween } from "@/lib/market-data/types";
 
 export interface RowValidationResult {
   valid: boolean;
@@ -142,7 +142,6 @@ export function detectGaps(
   candles: Candle[],
   timeframe: Timeframe,
 ): GapReport {
-  const step = TIMEFRAME_MS[timeframe];
   const gaps: Array<{ from: number; to: number }> = [];
 
   if (candles.length < 2) {
@@ -155,7 +154,7 @@ export function detectGaps(
     return { expectedIntervals: 0, missing: 0, gaps };
   }
 
-  const expectedIntervals = Math.round((last.timestamp - first.timestamp) / step);
+  const expectedIntervals = timeframeIntervalsBetween(first.timestamp, last.timestamp, timeframe);
   let missing = 0;
 
   for (let i = 1; i < candles.length; i += 1) {
@@ -163,9 +162,8 @@ export function detectGaps(
     const curr = candles[i];
     if (prev === undefined || curr === undefined) continue;
 
-    const delta = curr.timestamp - prev.timestamp;
-    if (delta > step) {
-      const stepsApart = Math.round(delta / step);
+    if (curr.timestamp > nextTimeframeTimestamp(prev.timestamp, timeframe)) {
+      const stepsApart = timeframeIntervalsBetween(prev.timestamp, curr.timestamp, timeframe);
       missing += stepsApart - 1;
       gaps.push({ from: prev.timestamp, to: curr.timestamp });
     }

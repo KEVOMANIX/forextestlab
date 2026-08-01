@@ -20,7 +20,7 @@ import {
 } from "@/lib/billing/entitlements";
 import { getMarketDataProvider } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
-import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
+import { nextTimeframeTimestamp, TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import { createSessionState, normalizeSessionState, publicSessionState } from "./replay-engine";
 import type { PropFirmRules } from "./prop-firm";
 import { buildSessionConfig } from "./session-config";
@@ -270,7 +270,7 @@ export async function extendReplaySeries(
   const next = await fetchSeries(
     ctx.state.config.symbol,
     ctx.state.config.timeframe,
-    last.timestamp + TIMEFRAME_MS[ctx.state.config.timeframe],
+    nextTimeframeTimestamp(last.timestamp, ctx.state.config.timeframe),
     ctx.state.config.endTime,
   );
   const candles = next.filter((candle) => candle.timestamp > last.timestamp);

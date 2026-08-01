@@ -15,7 +15,7 @@ import { streamCsv } from "./csv-parser";
 import { normalizeRow, type HeaderMapping } from "./normalizer";
 import { validateCandle } from "./validators";
 import { getSymbolDefinition } from "./symbols";
-import { TIMEFRAME_MS, type Candle, type Timeframe } from "./types";
+import { timeframeIntervalsBetween, type Candle, type Timeframe } from "./types";
 
 export interface ImportOptions {
   /** Absolute or project-relative path to a CSV file (CLI use). */
@@ -181,9 +181,11 @@ export async function importMarketData(
 
   // Estimate missing expected intervals from the observed span.
   if (report.minTimestamp !== null && report.maxTimestamp !== null) {
-    const step = TIMEFRAME_MS[options.timeframe];
-    const expected =
-      Math.floor((report.maxTimestamp - report.minTimestamp) / step) + 1;
+    const expected = timeframeIntervalsBetween(
+      report.minTimestamp,
+      report.maxTimestamp,
+      options.timeframe,
+    ) + 1;
     report.gapsDetected = Math.max(0, expected - report.rowsImported);
   }
 

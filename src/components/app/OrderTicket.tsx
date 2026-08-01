@@ -70,6 +70,7 @@ interface OrderTicketProps {
     orderType?: OrderType;
   } | null;
   onActivationHandled?: (id: number) => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 function number(value: string) {
@@ -93,6 +94,7 @@ export function OrderTicket({
   referencePair = null,
   activationRequest = null,
   onActivationHandled,
+  onOpenChange,
 }: OrderTicketProps) {
   const compact = useCompactViewport();
   const [sizingMode, setSizingMode] = useState<
@@ -143,6 +145,13 @@ export function OrderTicket({
     metrics?.valid && Number(state.equity) > 0
       ? Math.min(100, (Number(metrics.margin) / Number(state.equity)) * 100)
       : 0;
+
+  useEffect(() => {
+    onOpenChange?.(panelOpen);
+    return () => {
+      if (panelOpen) onOpenChange?.(false);
+    };
+  }, [onOpenChange, panelOpen]);
 
   /**
    * What the current quick size actually commits: what a pip is worth and what

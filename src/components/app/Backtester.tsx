@@ -72,8 +72,12 @@ type PendingConfirmation = {
   message: string;
   confirmLabel: string;
   danger?: boolean;
-  action: () => void;
+  action: () => void | Promise<unknown>;
+  /** Destructive session actions should not restart the replay after confirm. */
+  resumeAfterConfirm?: boolean;
 };
+
+type ReplayInteraction = "order-ticket" | "position-editor" | "confirmation";
 
 const ChartGrid = dynamic(() => import("./ChartGrid"), {
   ssr: false,
@@ -163,6 +167,66 @@ export function Backtester({
   };
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
+  const replayStateRef = useRef(state);
+  replayStateRef.current = state;
+  /**
+   * A modal may open another modal before it closes. Keep one shared pause and
+   * resume only after the final price-sensitive interaction has gone away.
+   */
+  const replayInteractionRef = useRef<{
+    reasons: Set<ReplayInteraction>;
+    resumeWhenClear: boolean;
+    pausePromise: Promise<unknown> | null;
+    generation: number;
+  }>({
+    reasons: new Set(),
+    resumeWhenClear: false,
+    pausePromise: null,
+    generation: 0,
+  });
+  const holdReplayFor = useCallback((reason: ReplayInteraction) => {
+    const interaction = replayInteractionRef.current;
+    if (interaction.reasons.has(reason)) return;
+    interaction.reasons.add(reason);
+    interaction.generation += 1;
+    if (interaction.reasons.size !== 1 || replayStateRef.current?.status !== "running") {
+      return;
+    }
+    interaction.resumeWhenClear = true;
+    interaction.pausePromise = actionsRef.current.pause();
+  }, []);
+  const releaseReplayFor = useCallback(
+    (reason: ReplayInteraction, resume = true) => {
+      const interaction = replayInteractionRef.current;
+      if (!interaction.reasons.delete(reason) || interaction.reasons.size > 0) return;
+      interaction.generation += 1;
+      const generation = interaction.generation;
+      const shouldResume = interaction.resumeWhenClear && resume;
+      const pausePromise = interaction.pausePromise;
+      interaction.resumeWhenClear = false;
+      interaction.pausePromise = null;
+      if (!shouldResume) return;
+      void Promise.resolve(pausePromise).finally(() => {
+        const latest = replayInteractionRef.current;
+        if (
+          latest.generation !== generation ||
+          latest.reasons.size > 0 ||
+          replayStateRef.current?.status === "finished"
+        ) {
+          return;
+        }
+        void actionsRef.current.play();
+      });
+    },
+    [],
+  );
+  const handleOrderTicketOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) holdReplayFor("order-ticket");
+      else releaseReplayFor("order-ticket");
+    },
+    [holdReplayFor, releaseReplayFor],
+  );
   const [revealPanelTab, setRevealPanelTab] = useState<{
     tab: BottomPanelTab;
     nonce: number;
@@ -561,14 +625,15 @@ export function Backtester({
   const requestCloseAllPositions = useCallback(() => {
     const count = state?.openPositions.length ?? 0;
     if (count === 0) return;
+    holdReplayFor("confirmation");
     setPendingConfirmation({
       title: "Close all open positions?",
       message: `This will close ${count} ${count === 1 ? "position" : "positions"} at the current replay prices. This cannot be undone.`,
       confirmLabel: `Close ${count} ${count === 1 ? "position" : "positions"}`,
       danger: true,
-      action: () => void actions.closeAllPositions(),
+      action: actions.closeAllPositions,
     });
-  }, [actions, state?.openPositions.length]);
+  }, [actions.closeAllPositions, holdReplayFor, state?.openPositions.length]);
 
   if (bt.phase === "loading") {
     return <PageLoader />;
@@ -645,6 +710,15 @@ export function Backtester({
       orderType,
     });
   };
+  const openPositionEditor = (positionId: string) => {
+    holdReplayFor("position-editor");
+    setSelectedPositionId(positionId);
+    setEditorPositionId(positionId);
+  };
+  const dismissPositionEditor = () => {
+    setEditorPositionId(null);
+    releaseReplayFor("position-editor");
+  };
   /**
    * "Buy/Sell at 1.08661" from a chart's right-click menu: the plan opens on the
    * price that was clicked rather than the market price, and the ticket comes
@@ -667,11 +741,13 @@ export function Backtester({
       router.push(href);
       return;
     }
+    holdReplayFor("confirmation");
     setPendingConfirmation({
       title: "Leave session?",
       message: "Your progress is saved. Any open position will remain open.",
       confirmLabel: "Leave session",
       action: () => router.push(href),
+      resumeAfterConfirm: false,
     });
   };
   const newSession = () => {
@@ -679,11 +755,13 @@ export function Backtester({
       actions.newSession();
       return;
     }
+    holdReplayFor("confirmation");
     setPendingConfirmation({
       title: "Start a new session?",
       message: "This session will remain saved and can be resumed later.",
       confirmLabel: "New session",
       action: actions.newSession,
+      resumeAfterConfirm: false,
     });
   };
   const restart = () => {
@@ -691,20 +769,24 @@ export function Backtester({
       void actions.restart();
       return;
     }
+    holdReplayFor("confirmation");
     setPendingConfirmation({
       title: "Restart session?",
       message: "All trades and replay progress in this session will be cleared.",
       confirmLabel: "Restart",
       danger: true,
       action: () => void actions.restart(),
+      resumeAfterConfirm: false,
     });
   };
   const endSession = () => {
+    holdReplayFor("confirmation");
     setPendingConfirmation({
       title: "Finish session?",
       message: "Any open position will close at the current simulated price.",
       confirmLabel: "Finish session",
       action: () => void actions.endSession(),
+      resumeAfterConfirm: false,
     });
   };
   const forkSession = async () => {
@@ -797,10 +879,7 @@ export function Backtester({
               requestCancelPending(orderId)
             }
             activePositionId={position?.id ?? null}
-            onEditPosition={(positionId) => {
-              setSelectedPositionId(positionId);
-              setEditorPositionId(positionId);
-            }}
+            onEditPosition={openPositionEditor}
             stopLoss={chartStop ? Number(chartStop) : null}
             takeProfit={chartTarget ? Number(chartTarget) : null}
             positionDirection={position?.direction ?? null}
@@ -836,6 +915,7 @@ export function Backtester({
                     current?.id === id ? null : current
                   )
                 }
+                onOpenChange={handleOrderTicketOpenChange}
               />
             }
             axisCorner={
@@ -931,7 +1011,7 @@ export function Backtester({
       <PositionEditorModal
         state={state}
         position={state.openPositions.find((item) => item.id === editorPositionId) ?? null}
-        onDismiss={() => setEditorPositionId(null)}
+        onDismiss={dismissPositionEditor}
         onSave={(positionId, stopLoss, takeProfit) => {
           void actions.modifyStop(stopLoss, positionId);
           void actions.modifyTarget(takeProfit, positionId);
@@ -943,7 +1023,7 @@ export function Backtester({
         onTrailingStop={(positionId, pips) =>
           void actions.modifyTrailing(pips, positionId)
         }
-        onClose={(positionId, lots) => void actions.closePosition(positionId, lots)}
+        onClose={(positionId, lots) => actions.closePosition(positionId, lots)}
       />
       <SymbolPickerModal
         open={symbolPickerOpen}
@@ -972,11 +1052,23 @@ export function Backtester({
         message={pendingConfirmation?.message ?? ""}
         confirmLabel={pendingConfirmation?.confirmLabel}
         danger={pendingConfirmation?.danger}
-        onCancel={() => setPendingConfirmation(null)}
-        onConfirm={() => {
-          const action = pendingConfirmation?.action;
+        onCancel={() => {
           setPendingConfirmation(null);
-          action?.();
+          releaseReplayFor("confirmation");
+        }}
+        onConfirm={() => {
+          const confirmation = pendingConfirmation;
+          setPendingConfirmation(null);
+          void (async () => {
+            try {
+              await confirmation?.action();
+            } finally {
+              releaseReplayFor(
+                "confirmation",
+                confirmation?.resumeAfterConfirm !== false,
+              );
+            }
+          })();
         }}
       />
       <EndOfDataModal

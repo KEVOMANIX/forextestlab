@@ -18,7 +18,7 @@ interface PositionEditorModalProps {
   ) => void;
   onBreakEven: (positionId: string) => void;
   onTrailingStop: (positionId: string, pips: string | null) => void;
-  onClose: (positionId: string, lots?: string) => void;
+  onClose: (positionId: string, lots?: string) => void | Promise<unknown>;
 }
 
 function signed(value: string, suffix = "") {
@@ -67,12 +67,15 @@ export function PositionEditorModal({
 
   if (!position || !metrics) return null;
 
-  const closeLots = (lots?: string) => {
-    onClose(position.id, lots);
-    onDismiss();
+  const closeLots = async (lots?: string) => {
+    try {
+      await onClose(position.id, lots);
+    } finally {
+      onDismiss();
+    }
   };
   const closePercent = (percent: number) => {
-    closeLots(
+    void closeLots(
       percent === 100
         ? undefined
         : trimLots((Number(position.lots) * percent) / 100),
@@ -89,7 +92,7 @@ export function PositionEditorModal({
       setCloseError(`Enter an amount from 0 to ${position.lots} lots.`);
       return;
     }
-    closeLots(trimLots(requested));
+    void closeLots(trimLots(requested));
   };
   const applyTrailing = () => {
     const distance = Number(trailingPips);

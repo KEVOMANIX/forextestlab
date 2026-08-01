@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 type TradingSettings = {
   oneClickTrading?: boolean;
+  pauseOnTradeClose?: boolean;
+  promptEntryReason?: boolean;
 };
 
 async function openSession(
@@ -173,7 +175,11 @@ test("chart and replay quotes open the same draggable planner", async ({
 test("a one-click replay quote places the order with a single click", async ({
   page,
 }) => {
-  await openSession(page, { oneClickTrading: true });
+  await openSession(page, {
+    oneClickTrading: true,
+    pauseOnTradeClose: false,
+    promptEntryReason: false,
+  });
 
   const placed = page.waitForResponse((response) => {
     if (!response.url().includes("/action")) return false;
@@ -190,6 +196,65 @@ test("a one-click replay quote places the order with a single click", async ({
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(page.getByTestId("trade-order-panel")).toBeHidden();
   await expect(page.getByTestId("position-entry-line")).toHaveCount(1);
+});
+
+test("price-sensitive trade dialogs pause and restore a running replay", async ({
+  page,
+}) => {
+  await openSession(page);
+
+  await page.getByRole("button", { name: "Play replay" }).click();
+  await expect(page.getByRole("button", { name: "Pause replay" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Quick Buy" }).click();
+  await expect(page.getByTestId("trade-order-panel")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear trade plan" }).click();
+  await expect(page.getByTestId("trade-order-panel")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Pause replay" })).toBeVisible();
+
+  // Opening the planner while already paused must not start the replay later.
+  await page.getByRole("button", { name: "Pause replay" }).click();
+  await page.getByRole("button", { name: "Quick Sell" }).click();
+  await page.getByRole("button", { name: "Clear trade plan" }).click();
+  await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
+});
+
+test("managing an open position pauses until the editor closes", async ({
+  page,
+}) => {
+  await openSession(page, {
+    oneClickTrading: true,
+    pauseOnTradeClose: false,
+    promptEntryReason: false,
+  });
+
+  const placed = page.waitForResponse((response) =>
+    response.url().includes("/action") &&
+    (response.request().postDataJSON() as { type?: string } | null)?.type ===
+      "place-order",
+  );
+  await page.getByRole("button", { name: "Quick Buy" }).click();
+  await placed;
+  await page.getByRole("button", { name: "Play replay" }).click();
+
+  await page.getByRole("button", { name: "Manage buy position" }).click();
+  await expect(page.getByRole("heading", { name: "Manage position" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Close position editor" }).click();
+  await expect(page.getByRole("button", { name: "Pause replay" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Open Positions/ }).click();
+  await page.getByRole("button", { name: "Close all positions" }).click();
+  await expect(
+    page.getByRole("alertdialog", { name: "Close all open positions?" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Play replay" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("button", { name: "Pause replay" })).toBeVisible();
 });
 
 test("diagnostics measures replay without replacing its controls", async ({

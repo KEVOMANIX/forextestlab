@@ -856,6 +856,16 @@ export class DrawingEngine {
   };
 
   private onDoubleClick = (e: MouseEvent): void => {
+    if (this.create?.obj.kind === "path" && this.create.placed >= 3) {
+      e.preventDefault();
+      e.stopPropagation();
+      // A native double-click dispatches two pointer-down events before this
+      // handler. The first commits the intended final point; the second and
+      // its new floating point are duplicates, so discard those two tails.
+      this.create.obj.points.splice(-2, 2);
+      this.finalizeCreate();
+      return;
+    }
     if (this.env.tool) return;
     const px = this.localPx(e);
     const hit = this.hitObject(px.x, px.y);

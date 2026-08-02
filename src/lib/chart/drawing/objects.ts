@@ -774,6 +774,48 @@ class PositionTool extends DrawingObject {
     }
     ctx.restore();
   }
+  /**
+   * One handle per level: the entry on the box's left edge, the stop and the
+   * target centred on their own lines.
+   *
+   * The base implementation puts a handle at each point's own (time, price),
+   * which for a position stacks the stop's handle underneath the entry's — both
+   * points share a time — leaving the stop unreachable. Centring the stop and
+   * target handles also matches where a trader reaches for those lines.
+   */
+  anchors(mapper: CoordinateMapper): { x: number; y: number; index: number }[] {
+    const entry = this.points[0]!;
+    const stop = this.points[1]!;
+    const target = this.points[2]!;
+    const xE = mapper.timeToX(entry.time);
+    const xT = mapper.timeToX(target.time);
+    const yE = mapper.priceToY(entry.price);
+    const yS = mapper.priceToY(stop.price);
+    const yT = mapper.priceToY(target.price);
+    if (xE == null || xT == null || yE == null || yS == null || yT == null) return [];
+    const left = Math.min(xE, xT);
+    const right = Math.max(xE, xT);
+    const cx = left + (right - left) / 2;
+    return [
+      { x: left, y: yE, index: 0 },
+      { x: cx, y: yS, index: 1 },
+      { x: right, y: yT, index: 2 },
+    ];
+  }
+  /**
+   * Dragging a level moves that level and nothing else.
+   *
+   * The stop carries no time of its own — it is drawn across the same span as
+   * the entry — so a stop drag keeps its stored time and takes only the price.
+   * Dragging the entry or the target does move the box edge it owns, which is
+   * how those two handles double as the position's width.
+   */
+  setAnchor(index: number, p: Point): void {
+    const current = this.points[index];
+    if (!current) return;
+    this.points[index] =
+      index === 1 ? { time: current.time, price: p.price } : { ...p };
+  }
   bbox(mapper: CoordinateMapper): Rect | null {
     return rectFromPoints(this.anchors(mapper).map((a) => ({ x: a.x, y: a.y })));
   }

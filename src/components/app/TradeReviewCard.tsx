@@ -31,6 +31,10 @@ import { emptyTradeJournal } from "@/lib/backtest/trade-journal";
  * on every stop-out gets dismissed reflexively by the fifth trade, which trains
  * exactly the habit journalling is meant to build. Replay can resume with the
  * card still open; nothing here blocks the session.
+ *
+ * It is also deliberately small. The card sits over the candles the trade was
+ * taken on, and those candles are the context the answer is written from — a
+ * panel wide enough to be comfortable is a panel covering the evidence.
  */
 
 export type JournalPrompt =
@@ -180,11 +184,11 @@ export function TradeReviewCard({
     <aside
       data-testid="trade-review-card"
       aria-label={isExit ? "Review the closed trade" : "Why this trade?"}
-      className="pointer-events-auto absolute right-16 top-3 z-[46] flex w-[22rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl"
+      className="pointer-events-auto absolute right-16 top-3 z-[46] flex w-[17rem] max-w-[calc(100%-1.5rem)] flex-col overflow-hidden rounded-lg border app-border bg-[var(--app-panel-solid)] text-[11px] shadow-2xl"
     >
-      <header className="flex items-center gap-2 border-b app-border px-3 py-2">
+      <header className="flex items-center gap-1.5 border-b app-border px-2 py-1.5">
         <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+          className={`shrink-0 rounded px-1 py-px text-[9px] font-bold uppercase tracking-wide ${
             isExit
               ? won
                 ? "bg-brand-400/15 text-[var(--app-accent-text)]"
@@ -194,19 +198,19 @@ export function TradeReviewCard({
         >
           {isExit ? EXIT_LABELS[prompt.trade.exitReason] ?? "Closed" : "Opened"}
         </span>
-        <span className="min-w-0 truncate font-mono text-xs font-semibold">
+        <span className="min-w-0 truncate font-mono text-[11px] font-semibold">
           {symbol} · {long ? "BUY" : "SELL"} {lots}
         </span>
         {prompts.length > 1 && (
-          <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] app-muted">
+          <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[9px] app-muted">
             <button
               type="button"
               aria-label="Previous trade"
               disabled={index === 0}
               onClick={() => onIndexChange(index - 1)}
-              className="grid h-5 w-5 place-items-center rounded hover:bg-[var(--app-panel-2)] disabled:opacity-30"
+              className="grid h-4 w-4 place-items-center rounded hover:bg-[var(--app-panel-2)] disabled:opacity-30"
             >
-              <ChevronLeft size={13} aria-hidden />
+              <ChevronLeft size={11} aria-hidden />
             </button>
             {index + 1} / {prompts.length}
             <button
@@ -214,9 +218,9 @@ export function TradeReviewCard({
               aria-label="Next trade"
               disabled={index >= prompts.length - 1}
               onClick={() => onIndexChange(index + 1)}
-              className="grid h-5 w-5 place-items-center rounded hover:bg-[var(--app-panel-2)] disabled:opacity-30"
+              className="grid h-4 w-4 place-items-center rounded hover:bg-[var(--app-panel-2)] disabled:opacity-30"
             >
-              <ChevronRight size={13} aria-hidden />
+              <ChevronRight size={11} aria-hidden />
             </button>
           </span>
         )}
@@ -224,17 +228,17 @@ export function TradeReviewCard({
           type="button"
           onClick={onDismiss}
           aria-label="Dismiss"
-          className={`grid h-6 w-6 shrink-0 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)] ${
+          className={`grid h-5 w-5 shrink-0 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)] ${
             prompts.length > 1 ? "" : "ml-auto"
           }`}
         >
-          <X size={14} aria-hidden />
+          <X size={12} aria-hidden />
         </button>
       </header>
 
-      <div className="space-y-3 p-3">
+      <div className="space-y-2 p-2">
         {stats && (
-          <dl className="grid grid-cols-4 gap-2 rounded-lg bg-[var(--app-panel-2)] px-2.5 py-2 text-center">
+          <dl className="grid grid-cols-4 gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2 py-1.5 text-center">
             <Stat
               label="P&L"
               value={money(stats.pnl, accountCurrency).replace(` ${accountCurrency}`, "")}
@@ -257,20 +261,20 @@ export function TradeReviewCard({
         {isExit && draft.entryReason.trim() && (
           // Shown, not editable: this was written before the outcome was known,
           // and rewriting it now would quietly turn a record into a rationalisation.
-          <div className="rounded-lg border app-border px-2.5 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wide app-muted">
+          <div className="rounded-md border app-border px-2 py-1.5">
+            <p className="text-[9px] font-semibold uppercase tracking-wide app-muted">
               Why you took it
             </p>
-            <p className="mt-1 text-xs">{draft.entryReason}</p>
+            <p className="mt-0.5 leading-4">{draft.entryReason}</p>
           </div>
         )}
 
         <label className="block">
-          <span className="mb-1 block text-[11px] font-medium app-muted">
+          <span className="mb-1 block text-[10px] font-medium app-muted">
             {isExit ? "What happened?" : "Why this trade?"}
           </span>
           <textarea
-            rows={3}
+            rows={2}
             // Only the exit card takes focus. The entry prompt arrives while
             // replay may still be running, and stealing the caret there would
             // send the next Space or `b` into a textarea instead of the market.
@@ -285,17 +289,17 @@ export function TradeReviewCard({
             }
             placeholder={
               isExit
-                ? "Did it play out as planned? What would you repeat?"
+                ? "Did it play out as planned?"
                 : "The setup, the trigger, and what invalidates it."
             }
-            className="w-full resize-none rounded-lg border app-border bg-[var(--app-panel-2)] px-2.5 py-2 text-xs text-[var(--app-text)] placeholder:app-muted focus:border-brand-400/60"
+            className="w-full resize-none rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1.5 leading-4 text-[var(--app-text)] placeholder:app-muted focus:border-brand-400/60"
           />
         </label>
 
         {isExit ? (
           <>
             <label className="block">
-              <span className="mb-1 block text-[11px] font-medium app-muted">
+              <span className="mb-1 block text-[10px] font-medium app-muted">
                 Mistakes (comma separated)
               </span>
               <input
@@ -305,17 +309,17 @@ export function TradeReviewCard({
                   patch({ mistakeTags: parseTags(event.target.value) });
                 }}
                 placeholder="early entry, moved stop"
-                className="w-full rounded-lg border app-border bg-[var(--app-panel-2)] px-2.5 py-1.5 text-xs text-[var(--app-text)] placeholder:app-muted focus:border-brand-400/60"
+                className="w-full rounded-md border app-border bg-[var(--app-panel-2)] px-2 py-1 text-[var(--app-text)] placeholder:app-muted focus:border-brand-400/60"
               />
             </label>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1">
               {(["valid", "invalid", "experimental"] as const).map((value) => (
                 <button
                   key={value}
                   type="button"
                   onClick={() => patch({ validity: value })}
                   aria-pressed={draft.validity === value}
-                  className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold capitalize ${
+                  className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold capitalize ${
                     draft.validity === value
                       ? "border-brand-400/40 bg-brand-400/10 text-brand-300"
                       : "app-border app-muted hover:text-[var(--app-text)]"
@@ -327,7 +331,7 @@ export function TradeReviewCard({
             </div>
           </>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-0.5">
             {draft.ruleChecklist.map((rule, position) => (
               <li key={rule.id}>
                 <button
@@ -341,17 +345,17 @@ export function TradeReviewCard({
                       ),
                     })
                   }
-                  className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-xs hover:bg-[var(--app-panel-2)]"
+                  className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left leading-4 hover:bg-[var(--app-panel-2)]"
                 >
                   <span
                     aria-hidden
-                    className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
+                    className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-sm border ${
                       rule.followed
                         ? "border-brand-400 bg-brand-400/20 text-brand-300"
                         : "app-border"
                     }`}
                   >
-                    {rule.followed && <Check size={11} />}
+                    {rule.followed && <Check size={9} />}
                   </span>
                   {rule.label}
                 </button>
@@ -361,13 +365,13 @@ export function TradeReviewCard({
         )}
       </div>
 
-      <footer className="flex items-center gap-2 border-t app-border px-3 py-2 text-[10px]">
+      <footer className="flex items-center gap-1.5 border-t app-border px-2 py-1 text-[9px]">
         <span
           className={`inline-flex items-center gap-1 ${
             saveState === "error" ? "text-bear" : "app-muted"
           }`}
         >
-          {saveState === "saved" ? <Check size={11} /> : <Save size={11} />}
+          {saveState === "saved" ? <Check size={10} /> : <Save size={10} />}
           {anonymous
             ? "Sign in to save"
             : saveState === "saving"
@@ -380,16 +384,16 @@ export function TradeReviewCard({
           type="button"
           onClick={onMute}
           title="Stop prompting for the rest of this session"
-          className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-1 app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+          className="ml-auto inline-flex items-center gap-1 rounded px-1 py-0.5 app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
         >
-          <BellOff size={11} aria-hidden /> Not this session
+          <BellOff size={10} aria-hidden /> Not this session
         </button>
         <button
           type="button"
           onClick={onOpenJournal}
-          className="inline-flex items-center gap-1 rounded-md bg-[var(--app-panel-2)] px-2 py-1 font-semibold hover:text-[var(--app-accent-text)]"
+          className="inline-flex items-center gap-1 rounded bg-[var(--app-panel-2)] px-1.5 py-0.5 font-semibold hover:text-[var(--app-accent-text)]"
         >
-          <NotebookPen size={11} aria-hidden /> Full journal
+          <NotebookPen size={10} aria-hidden /> Full journal
         </button>
       </footer>
     </aside>
@@ -407,9 +411,9 @@ function Stat({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="truncate text-[9px] uppercase tracking-wide app-muted">{label}</dt>
+      <dt className="truncate text-[8px] uppercase tracking-wide app-muted">{label}</dt>
       <dd
-        className={`truncate font-mono text-xs font-semibold ${
+        className={`truncate font-mono text-[11px] font-semibold ${
           tone === "good"
             ? "text-[var(--app-accent-text)]"
             : tone === "bad"

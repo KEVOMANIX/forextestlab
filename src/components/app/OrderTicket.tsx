@@ -13,9 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   CircleHelp,
-  Minus,
   MoreHorizontal,
-  Plus,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -30,12 +28,8 @@ import type {
   PublicSessionState,
   TradeDirection,
 } from "@/lib/backtest/types";
-import {
-  DEFAULT_LEVERAGE,
-  marginRequired,
-  pipValuePerLot,
-} from "@/lib/backtest/position-sizing";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
+import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
 
 type PlanLevel = keyof Omit<TradePlan, "direction">;
 
@@ -56,6 +50,13 @@ interface OrderTicketProps {
   onClearPlan: () => void;
   onPlaceOrder: (order: OrderRequest) => void;
   onTemplateChange: (template: Omit<OrderRequest, "direction">) => void;
+  /**
+   * Fixed order size, owned by the session rather than this panel: the replay
+   * toolbox offers the same size control, and two copies of one number would
+   * drift the moment either was touched.
+   */
+  lots: string;
+  onLotsChange: (lots: string) => void;
   oneClickTrading: boolean;
   referencePair?: string | null;
   activationRequest?: {
@@ -90,6 +91,8 @@ export function OrderTicket({
   onClearPlan,
   onPlaceOrder,
   onTemplateChange,
+  lots,
+  onLotsChange: setLots,
   oneClickTrading,
   referencePair = null,
   activationRequest = null,
@@ -101,7 +104,6 @@ export function OrderTicket({
     "risk-percent" | "fixed-lots"
   >("fixed-lots");
   const [riskPercent, setRiskPercent] = useState("1");
-  const [lots, setLots] = useState("0.10");
   const [exitsOpen, setExitsOpen] = useState(true);
   const [orderType, setOrderType] = useState<OrderType>("market");
   const [expiryMinutes, setExpiryMinutes] = useState("0");
@@ -158,39 +160,7 @@ export function OrderTicket({
    * the broker holds. A lot number on its own says nothing about exposure, and
    * this is the size a one-click quote button will send.
    */
-  const sizeSummary = useMemo(() => {
-    // No price, no conversion: both figures read "—" rather than being computed
-    // against a stand-in that would quietly be wrong.
-    const price = state.currentPrice ?? "";
-    const perPip = pipValuePerLot({
-      pipSize: state.config.pipSize,
-      quoteCurrency: state.config.quoteCurrency,
-      accountCurrency: state.config.accountCurrency,
-      baseCurrency: state.config.baseCurrency,
-      price: String(price),
-      symbol: state.config.symbol,
-    });
-    const margin = marginRequired({
-      lots,
-      price: String(price),
-      leverage: state.config.leverage ?? DEFAULT_LEVERAGE,
-      accountCurrency: state.config.accountCurrency,
-      baseCurrency: state.config.baseCurrency,
-      quoteCurrency: state.config.quoteCurrency,
-    });
-    const lotsNumber = Number(lots);
-    const perPipNumber = Number(perPip.value);
-    return {
-      lots,
-      valid: Number.isFinite(lotsNumber) && lotsNumber > 0,
-      pipValue:
-        Number.isFinite(perPipNumber) && Number.isFinite(lotsNumber)
-          ? perPipNumber * lotsNumber
-          : null,
-      margin: Number.isFinite(Number(margin.value)) ? Number(margin.value) : null,
-      approx: perPip.approx || margin.approx,
-    };
-  }, [lots, state.config, state.currentPrice]);
+  const sizeSummary = useSizeSummary(state, lots);
 
   useEffect(() => {
     onTemplateChange({
@@ -727,146 +697,6 @@ export function OrderTicket({
   );
 }
 
-/** Lot sizes a trader reaches for without thinking; the field covers the rest. */
-const LOT_PRESETS = ["0.01", "0.10", "0.50", "1.00"];
-const LOT_STEP = 0.01;
-
-interface SizeSummary {
-  lots: string;
-  valid: boolean;
-  /** Account-currency value of one pip at this size. */
-  pipValue: number | null;
-  /** Account-currency margin the broker holds at this size. */
-  margin: number | null;
-  /** True when a cross rate was approximated, as position sizing documents. */
-  approx: boolean;
-}
-
-/**
- * Size control for the quick quote buttons, revealed on hover or focus.
- *
- * The quote buttons are the fast path — with one-click trading on, a press is an
- * order — so the size they will send has to be visible and changeable without
- * opening the planner. Presets cover the common sizes, the stepper nudges, and
- * the field takes anything else. The lines underneath say what the size means in
- * money, because "0.10" tells a trader nothing on its own.
- */
-function LotSizePopover({
-  lots,
-  onLots,
-  summary,
-  accountCurrency,
-  equity,
-}: {
-  lots: string;
-  onLots: (lots: string) => void;
-  summary: SizeSummary;
-  accountCurrency: string;
-  equity: string;
-}) {
-  const step = (delta: number) => {
-    const next = Math.max(LOT_STEP, (Number(lots) || 0) + delta);
-    onLots(next.toFixed(2));
-  };
-  const marginShare =
-    summary.margin != null && Number(equity) > 0
-      ? Math.min(100, (summary.margin / Number(equity)) * 100)
-      : null;
-
-  return (
-    <div
-      className="pointer-events-none absolute left-0 top-full z-30 pt-1.5 opacity-0 transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
-      data-testid="quick-lot-size"
-    >
-      <div className="w-[248px] rounded-lg border border-[var(--ticket-border)] bg-[var(--ticket-bg)] p-2.5 text-[var(--ticket-text)] shadow-2xl">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ticket-muted)]">
-            Order size
-          </span>
-          <span className="font-mono text-[10px] text-[var(--ticket-subtle)]">lots</span>
-        </div>
-
-        <div className="mt-2 flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => step(-LOT_STEP)}
-            aria-label="Decrease lot size"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[var(--ticket-border)] text-[var(--ticket-muted)] transition-colors hover:border-brand-400/50 hover:text-[var(--ticket-text)]"
-          >
-            <Minus size={13} aria-hidden />
-          </button>
-          <input
-            value={lots}
-            onChange={(event) => onLots(event.target.value)}
-            inputMode="decimal"
-            aria-label="Order size in lots"
-            className={`h-8 min-w-0 flex-1 rounded-md border bg-transparent px-2 text-center font-mono text-sm font-bold outline-none ${
-              summary.valid
-                ? "border-[var(--ticket-field-border)] focus:border-brand-400"
-                : "border-bear text-bear"
-            }`}
-          />
-          <button
-            type="button"
-            onClick={() => step(LOT_STEP)}
-            aria-label="Increase lot size"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[var(--ticket-border)] text-[var(--ticket-muted)] transition-colors hover:border-brand-400/50 hover:text-[var(--ticket-text)]"
-          >
-            <Plus size={13} aria-hidden />
-          </button>
-        </div>
-
-        <div className="mt-2 grid grid-cols-4 gap-1">
-          {LOT_PRESETS.map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              onClick={() => onLots(preset)}
-              aria-pressed={lots === preset}
-              className={`h-7 rounded-md font-mono text-[11px] font-semibold transition-colors ${
-                lots === preset
-                  ? "bg-brand-500 text-surface-950"
-                  : "bg-[var(--ticket-raised)] text-[var(--ticket-muted)] hover:text-[var(--ticket-text)]"
-              }`}
-            >
-              {preset}
-            </button>
-          ))}
-        </div>
-
-        <dl className="mt-2.5 space-y-1 border-t border-[var(--ticket-border)] pt-2 text-[11px]">
-          <div className="flex items-center justify-between gap-2">
-            <dt className="text-[var(--ticket-muted)]">Per pip</dt>
-            <dd className="font-mono font-semibold">
-              {summary.pipValue != null
-                ? `${summary.approx ? "≈" : ""}${number(String(summary.pipValue))} ${accountCurrency}`
-                : "—"}
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-2">
-            <dt className="text-[var(--ticket-muted)]">Margin</dt>
-            <dd className="font-mono font-semibold">
-              {summary.margin != null
-                ? `${summary.approx ? "≈" : ""}${number(String(summary.margin))} ${accountCurrency}`
-                : "—"}
-              {marginShare != null && (
-                <span className="ml-1 text-[var(--ticket-subtle)]">
-                  ({marginShare.toFixed(marginShare < 10 ? 1 : 0)}%)
-                </span>
-              )}
-            </dd>
-          </div>
-        </dl>
-
-        {!summary.valid && (
-          <p role="alert" className="mt-2 text-[10px] text-bear">
-            Enter a size above zero.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function CompactQuoteButton({
   direction,

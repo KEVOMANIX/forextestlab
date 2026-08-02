@@ -23,6 +23,7 @@ import {
 } from "@/lib/backtest/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { replayRewindFloor } from "@/lib/backtest/replay-engine";
+import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
 
 interface ReplayToolbarProps {
   state: PublicSessionState;
@@ -38,6 +39,9 @@ interface ReplayToolbarProps {
   onSell: () => void;
   canTrade: boolean;
   maxReplaySpeed: number;
+  /** Size the quick Buy/Sell buttons will send, shared with the order ticket. */
+  lots: string;
+  onLotsChange: (lots: string) => void;
 }
 
 function ControlBtn({
@@ -106,8 +110,11 @@ export function ReplayToolbar({
   onSell,
   canTrade,
   maxReplaySpeed,
+  lots,
+  onLotsChange,
 }: ReplayToolbarProps) {
   const compact = useCompactViewport();
+  const sizeSummary = useSizeSummary(state, lots);
   const toolboxRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{
     pointerId: number;
@@ -317,24 +324,40 @@ export function ReplayToolbar({
           {cadenceLabel}
         </button>
         <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-        <button
-          type="button"
-          aria-label="Quick Sell"
-          onClick={onSell}
-          disabled={!canTrade}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1 rounded-md bg-bear text-[11px] font-bold text-white hover:opacity-90 disabled:opacity-35 sm:w-auto sm:px-2"
-        >
-          <ArrowDownRight size={13} aria-hidden /> <span className="hidden sm:inline">Sell</span>
-        </button>
-        <button
-          type="button"
-          aria-label="Quick Buy"
-          onClick={onBuy}
-          disabled={!canTrade}
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1 rounded-md bg-brand-500 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35 sm:w-auto sm:px-2"
-        >
-          <ArrowUpRight size={13} aria-hidden /> <span className="hidden sm:inline">Buy</span>
-        </button>
+        {/* `group` + `focus-within` reveals the size these two buttons will
+            send — reaching for Buy or Sell is exactly when a trader wants to
+            check it, and hover alone would hide it from the keyboard. The panel
+            hangs off the right so it cannot run past the toolbox, and upwards on
+            a phone where the toolbox is docked to the bottom edge. */}
+        <div className="group relative flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            aria-label="Quick Sell"
+            onClick={onSell}
+            disabled={!canTrade}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1 rounded-md bg-bear text-[11px] font-bold text-white hover:opacity-90 disabled:opacity-35 sm:w-auto sm:px-2"
+          >
+            <ArrowDownRight size={13} aria-hidden /> <span className="hidden sm:inline">Sell</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Quick Buy"
+            onClick={onBuy}
+            disabled={!canTrade}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1 rounded-md bg-brand-500 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35 sm:w-auto sm:px-2"
+          >
+            <ArrowUpRight size={13} aria-hidden /> <span className="hidden sm:inline">Buy</span>
+          </button>
+          <LotSizePopover
+            lots={lots}
+            onLots={onLotsChange}
+            summary={sizeSummary}
+            accountCurrency={state.config.accountCurrency}
+            equity={state.equity}
+            align="right"
+            placement={compact ? "above" : "below"}
+          />
+        </div>
         <div className="relative shrink-0">
           <button
             type="button"

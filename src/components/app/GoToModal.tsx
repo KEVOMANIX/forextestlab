@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Clock, Hourglass, Loader2, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpToLine, Clock, Hourglass, Loader2, X } from "lucide-react";
 
 import {
   TRADING_SESSIONS,
@@ -13,6 +13,7 @@ import {
   zoneParts,
   zoneWallClockToUtc,
   type GoToTarget,
+  type PriceRange,
   type TradingSessionDefinition,
 } from "@/lib/backtest/goto";
 import { formatInZone, resolveZone } from "@/lib/chart/timezones";
@@ -22,15 +23,19 @@ import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 /**
  * "Go to" — fast-forward the replay to a moment or a price.
  *
- * Three columns because there are three ways a trader describes where they want
- * to be: a clock time, a session, or a price. Everything offered here is
- * *ahead* of the replay, and every level is derived from candles already
- * revealed: replay cannot rewind, and a level taken from a bar the trader has
- * not seen would be hindsight.
+ * Three columns, because there are three ways a trader says where they want to
+ * be: a clock time, a session, or a price. Everything offered is *ahead* of the
+ * replay, and every level comes from candles already revealed — replay cannot
+ * rewind, and a level taken from a bar the trader has not seen is hindsight.
  *
- * Rows that cannot be satisfied — a session range with no data behind it, a
- * position close with nothing open — are disabled rather than hidden, so the
- * panel does not change shape between sessions and the reason is in the tooltip.
+ * It is kept deliberately narrow. It opens over the chart the trader is deciding
+ * from, so a dialog wide enough to be roomy is a dialog covering the reason they
+ * opened it. Anything with two natural ends — a session's open and close, a
+ * range's high and low — is one row with two buttons rather than two rows, which
+ * halves the height and reads as the pair it is.
+ *
+ * Destinations that cannot be satisfied are disabled rather than hidden, so the
+ * panel does not change shape between sessions, with the reason in the tooltip.
  */
 
 interface GoToModalProps {
@@ -55,53 +60,106 @@ interface GoToModalProps {
   onJump: (target: GoToTarget, label: string) => void;
 }
 
-/** A row in one of the three columns. */
-interface Choice {
-  key: string;
+interface EdgeButton {
+  icon: typeof Clock;
   label: string;
-  /** Second line: the resolved time or price, so the jump is never a surprise. */
+  /** Null when there is nothing to go to; the tooltip explains why. */
+  target: GoToTarget | null;
   detail?: string;
-  target?: GoToTarget;
-  /** Why the row cannot be used, shown as its title. */
   unavailable?: string;
+  disabled?: boolean;
+  onSelect: (target: GoToTarget, label: string) => void;
 }
 
 function Column({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="flex min-w-0 flex-col rounded-xl border app-border bg-[var(--app-panel-2)]/40">
-      <header className="flex items-center justify-between gap-2 border-b app-border px-3 py-2">
-        <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">
-          {title}
-        </h3>
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-0.5 p-1.5">{children}</div>
+    <section className="flex min-w-0 flex-col rounded-lg border app-border">
+      <h3 className="border-b app-border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] app-muted">
+        {title}
+      </h3>
+      <div className="flex min-h-0 flex-1 flex-col p-1">{children}</div>
     </section>
   );
 }
 
-function ChoiceRow({
-  choice,
-  busy,
+/** A single destination: a label, the value it resolves to, one click. */
+function Row({
+  label,
+  detail,
+  disabled,
+  title,
   onSelect,
 }: {
-  choice: Choice;
-  busy: boolean;
-  onSelect: (choice: Choice) => void;
+  label: string;
+  detail?: string;
+  disabled?: boolean;
+  title?: string;
+  onSelect: () => void;
 }) {
-  const disabled = busy || !choice.target || Boolean(choice.unavailable);
   return (
     <button
       type="button"
       disabled={disabled}
-      title={choice.unavailable ?? choice.detail ?? choice.label}
-      onClick={() => onSelect(choice)}
-      className="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--app-panel-2)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+      title={title ?? detail ?? label}
+      onClick={onSelect}
+      className="flex w-full items-center justify-between gap-2 rounded px-1.5 py-1 text-left text-[11px] transition-colors hover:bg-[var(--app-panel-2)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
     >
-      <span className="min-w-0 truncate text-sm">{choice.label}</span>
-      {choice.detail && (
-        <span className="shrink-0 font-mono text-[11px] app-muted">{choice.detail}</span>
+      <span className="min-w-0 truncate">{label}</span>
+      {detail && (
+        <span className="shrink-0 font-mono text-[10px] app-muted">{detail}</span>
       )}
     </button>
+  );
+}
+
+function Edge({
+  icon: Icon,
+  label,
+  target,
+  detail,
+  unavailable,
+  disabled,
+  onSelect,
+}: EdgeButton) {
+  return (
+    <button
+      type="button"
+      disabled={disabled || !target || Boolean(unavailable)}
+      aria-label={`Go to ${label}`}
+      title={unavailable ?? (detail ? `${label} — ${detail}` : label)}
+      onClick={() => target && onSelect(target, label)}
+      className="grid h-6 w-6 shrink-0 place-items-center rounded border app-border transition-colors hover:border-brand-400/50 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-[var(--app-border)]"
+    >
+      <Icon size={12} aria-hidden />
+    </button>
+  );
+}
+
+/**
+ * A name with two destinations — the two ends of a session, or the high and low
+ * of a range. One row, two small buttons: they are one thing with two sides, and
+ * a trader picks the side rather than the row.
+ */
+function PairRow({
+  label,
+  hint,
+  first,
+  second,
+}: {
+  label: string;
+  hint?: string;
+  first: EdgeButton;
+  second: EdgeButton;
+}) {
+  return (
+    <div className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-[var(--app-panel-2)]">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[11px]">{label}</p>
+        {hint && <p className="truncate font-mono text-[9px] app-muted">{hint}</p>}
+      </div>
+      <Edge {...first} />
+      <Edge {...second} />
+    </div>
   );
 }
 
@@ -120,13 +178,13 @@ export function GoToModal({
   busy,
   onJump,
 }: GoToModalProps) {
-  const firstRef = useRef<HTMLButtonElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useModalBehavior<HTMLElement>({
     open,
     onClose,
-    initialFocus: firstRef,
+    initialFocus: closeRef,
   });
-  const [expanded, setExpanded] = useState<"date" | "price" | "levels" | null>(null);
+  const [expanded, setExpanded] = useState<"date" | "price" | null>(null);
   const [dateDraft, setDateDraft] = useState("");
   const [priceDraft, setPriceDraft] = useState("");
 
@@ -154,89 +212,57 @@ export function GoToModal({
     [open, candles, visibleIndex],
   );
 
-  const specific = useMemo<Choice[]>(() => {
-    const rows: { key: string; label: string; unit: "day" | "week" | "month" }[] = [
-      { key: "day", label: "Next day open", unit: "day" },
-      { key: "week", label: "Next week open", unit: "week" },
-      { key: "month", label: "Next month open", unit: "month" },
-    ];
-    return rows.map(({ key, label, unit }) => {
-      const timestamp = nextCalendarBoundary(currentTime, zone, unit);
-      return {
-        key,
-        label,
-        detail: clock(timestamp),
-        target: { kind: "time", timestamp },
-        unavailable:
-          timestamp > endTime
-            ? "Past the end of this session's data."
-            : undefined,
-      };
-    });
+  const calendar = useMemo(
+    () =>
+      (
+        [
+          ["Next day", "day"],
+          ["Next week", "week"],
+          ["Next month", "month"],
+        ] as const
+      ).map(([label, unit]) => {
+        const timestamp = nextCalendarBoundary(currentTime, zone, unit);
+        return { key: unit, label, timestamp, beyond: timestamp > endTime };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTime, endTime, timeZone, zone]);
+    [currentTime, endTime, zone],
+  );
 
-  const crosses = useMemo<Choice[]>(() => {
-    const rows: Choice[] = [];
-    const daily = previousDailyRange(revealed, zone, currentTime);
-    for (const edge of ["high", "low"] as const) {
-      const level = daily?.[edge] ?? null;
-      rows.push({
-        key: `daily-${edge}`,
-        label: `Previous daily ${edge}`,
-        detail: level == null ? undefined : price(level),
-        target: level == null ? undefined : { kind: "price", price: level },
-        unavailable:
-          level == null ? "No completed day has been replayed yet." : undefined,
+  /** Ranges behind the replay, one per source, each with a high and a low. */
+  const ranges = useMemo(() => {
+    if (!open) return [];
+    const out: { key: string; label: string; short: string; range: PriceRange | null }[] = [
+      {
+        key: "daily",
+        label: "Previous day",
+        short: "day",
+        range: previousDailyRange(revealed, zone, currentTime),
+      },
+    ];
+    for (const session of TRADING_SESSIONS) {
+      out.push({
+        key: session.id,
+        label: `Previous ${session.label}`,
+        short: session.label,
+        range: previousSessionRange(revealed, session, currentTime),
       });
     }
-    for (const session of TRADING_SESSIONS) {
-      const range = previousSessionRange(revealed, session, currentTime);
-      for (const edge of ["high", "low"] as const) {
-        const level = range?.[edge] ?? null;
-        rows.push({
-          key: `${session.id}-${edge}`,
-          label: `Previous ${session.label} ${edge}`,
-          detail: level == null ? undefined : price(level),
-          target: level == null ? undefined : { kind: "price", price: level },
-          unavailable:
-            level == null
-              ? `No completed ${session.label} session has been replayed yet.`
-              : undefined,
-        });
-      }
-    }
-    rows.push({
-      key: "position-close",
-      label: "Any position closes",
-      detail: "next exit",
-      target: canWaitForClose ? { kind: "position-close" } : undefined,
-      unavailable: canWaitForClose
-        ? undefined
-        : "Nothing is open that could close.",
-    });
-    return rows;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canWaitForClose, currentTime, precision, revealed, zone]);
+    return out;
+  }, [open, revealed, zone, currentTime]);
 
   const levels = useMemo(
-    () =>
-      currentPrice == null ? [] : psychologicalLevels(currentPrice, pipSize, 3),
+    () => (currentPrice == null ? [] : psychologicalLevels(currentPrice, pipSize, 2)),
     [currentPrice, pipSize],
   );
 
   if (!open) return null;
 
   /**
-   * The dialog stays open while the jump runs, showing its progress footer, and
+   * The dialog stays open while the jump runs, showing its progress line, and
    * the caller closes it once the replay has arrived. Closing on the click would
    * leave a long fast-forward running with nothing on screen to say so.
    */
   const jump = (target: GoToTarget, label: string) => onJump(target, label);
-  const select = (choice: Choice) => {
-    if (!choice.target) return;
-    jump(choice.target, choice.label);
-  };
 
   const submitDate = () => {
     if (!dateDraft) return;
@@ -257,20 +283,30 @@ export function GoToModal({
   };
 
   /** Bounds for the date field: only the span the session can still replay. */
-  const dateBounds = () => {
-    const asInput = (at: number) => {
-      const parts = zoneParts(at, zone);
-      const pad = (value: number) => String(value).padStart(2, "0");
-      return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
-    };
-    return { min: asInput(currentTime), max: asInput(endTime) };
+  const asInput = (at: number) => {
+    const parts = zoneParts(at, zone);
+    const pad = (value: number) => String(value).padStart(2, "0");
+    return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(parts.hour)}:${pad(parts.minute)}`;
   };
 
-  const bounds = dateBounds();
+  const rangeEdge = (
+    entry: { label: string; short: string; range: PriceRange | null },
+    side: "high" | "low",
+  ): EdgeButton => ({
+    icon: side === "high" ? ArrowUpToLine : ArrowDownToLine,
+    label: `${entry.label} ${side}`,
+    target: entry.range ? { kind: "price", price: entry.range[side] } : null,
+    detail: entry.range ? price(entry.range[side]) : undefined,
+    unavailable: entry.range
+      ? undefined
+      : `No completed ${entry.short} has been replayed yet.`,
+    disabled: busy,
+    onSelect: jump,
+  });
 
   return (
     <div
-      className="fixed inset-0 z-[130] grid place-items-center bg-surface-950/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[130] grid place-items-center bg-surface-950/70 p-4 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -282,49 +318,67 @@ export function GoToModal({
         aria-modal="true"
         aria-labelledby="go-to-title"
         data-testid="go-to-modal"
-        className="flex max-h-[min(44rem,90dvh)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none"
+        className="flex max-h-[min(32rem,88dvh)] w-full max-w-[44rem] flex-col overflow-hidden rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none"
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 px-5 pb-3 pt-4 sm:px-6">
+        <header className="flex shrink-0 items-center justify-between gap-3 px-3 py-2">
           <div className="min-w-0">
-            <h2 id="go-to-title" className="text-lg font-semibold tracking-tight">
+            <h2 id="go-to-title" className="text-sm font-semibold tracking-tight">
               Go to …
             </h2>
-            <p className="mt-1 truncate text-xs app-muted">
-              Replay runs forward to the target, filling stops, targets and pending
-              orders on the way. Now at {clock(currentTime)}.
+            <p className="truncate text-[10px] app-muted">
+              Runs the replay forward, filling stops and orders on the way. Now at{" "}
+              {clock(currentTime)}.
             </p>
           </div>
           <button
-            ref={firstRef}
+            ref={closeRef}
             type="button"
             onClick={onClose}
             aria-label="Close go to"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-md app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
           >
-            <X size={18} aria-hidden />
+            <X size={15} aria-hidden />
           </button>
         </header>
 
-        <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-5 pb-5 sm:px-6 md:grid-cols-3">
-          <Column title="Specific">
+        <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto px-3 pb-3 sm:grid-cols-3">
+          <Column title="Time">
+            {calendar.map((entry) => (
+              <Row
+                key={entry.key}
+                label={entry.label}
+                detail={clock(entry.timestamp)}
+                disabled={busy || entry.beyond}
+                title={
+                  entry.beyond
+                    ? "Past the end of this session's data."
+                    : `${entry.label} — ${clock(entry.timestamp)}`
+                }
+                onSelect={() =>
+                  jump({ kind: "time", timestamp: entry.timestamp }, entry.label)
+                }
+              />
+            ))}
             <button
               type="button"
               onClick={() => setExpanded(expanded === "date" ? null : "date")}
               aria-expanded={expanded === "date"}
-              className={`flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
-                expanded === "date" ? "bg-brand-400/10 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
+              className={`rounded px-1.5 py-1 text-left text-[11px] transition-colors ${
+                expanded === "date"
+                  ? "bg-brand-400/10 text-brand-300"
+                  : "hover:bg-[var(--app-panel-2)]"
               }`}
             >
-              Custom date …
+              Pick a date and time…
             </button>
             {expanded === "date" && (
-              <div className="mb-1 flex flex-col gap-1.5 rounded-lg border app-border p-2">
+              <div className="mt-1 flex flex-col gap-1 rounded border app-border p-1.5">
                 <input
                   autoFocus
                   type="datetime-local"
                   value={dateDraft}
-                  min={bounds.min}
-                  max={bounds.max}
+                  min={asInput(currentTime)}
+                  max={asInput(endTime)}
                   onChange={(event) => setDateDraft(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
@@ -332,24 +386,18 @@ export function GoToModal({
                       submitDate();
                     }
                   }}
-                  className="w-full rounded-md border app-border bg-transparent px-2 py-1.5 font-mono text-xs outline-none focus:border-brand-400"
+                  className="w-full rounded border app-border bg-transparent px-1.5 py-1 font-mono text-[10px] outline-none focus:border-brand-400"
                 />
-                <p className="text-[10px] leading-4 app-muted">
-                  Read in the chart&apos;s zone. Up to {clock(endTime)}.
-                </p>
                 <button
                   type="button"
                   disabled={!dateDraft || busy}
                   onClick={submitDate}
-                  className="rounded-md bg-brand-500 px-2 py-1.5 text-xs font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
+                  className="rounded bg-brand-500 px-2 py-1 text-[10px] font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
                 >
                   Go
                 </button>
               </div>
             )}
-            {specific.map((choice) => (
-              <ChoiceRow key={choice.key} choice={choice} busy={busy} onSelect={select} />
-            ))}
           </Column>
 
           <Column title="Sessions">
@@ -364,26 +412,52 @@ export function GoToModal({
                 onSelect={jump}
               />
             ))}
+            <p className="mt-auto px-1.5 pt-1 text-[9px] leading-3 app-muted">
+              Left button arrives at the open, right button at the close.
+            </p>
           </Column>
 
-          <Column title="Price crosses">
+          <Column title="Prices">
+            {ranges.map((entry) => (
+              <PairRow
+                key={entry.key}
+                label={entry.label}
+                hint={
+                  entry.range
+                    ? `${price(entry.range.high)} / ${price(entry.range.low)}`
+                    : "not replayed yet"
+                }
+                first={rangeEdge(entry, "high")}
+                second={rangeEdge(entry, "low")}
+              />
+            ))}
+
+            <Row
+              label="Any position closes"
+              detail="next exit"
+              disabled={busy || !canWaitForClose}
+              title={
+                canWaitForClose
+                  ? "Stops on the first candle that closes a position."
+                  : "Nothing is open that could close."
+              }
+              onSelect={() => jump({ kind: "position-close" }, "the next exit")}
+            />
+
             <button
               type="button"
               onClick={() => setExpanded(expanded === "price" ? null : "price")}
               aria-expanded={expanded === "price"}
-              className={`flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
-                expanded === "price" ? "bg-brand-400/10 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
+              className={`rounded px-1.5 py-1 text-left text-[11px] transition-colors ${
+                expanded === "price"
+                  ? "bg-brand-400/10 text-brand-300"
+                  : "hover:bg-[var(--app-panel-2)]"
               }`}
             >
-              Price …
-              {currentPrice != null && (
-                <span className="shrink-0 font-mono text-[11px] app-muted">
-                  {price(currentPrice)}
-                </span>
-              )}
+              Pick a price…
             </button>
             {expanded === "price" && (
-              <div className="mb-1 flex flex-col gap-1.5 rounded-lg border app-border p-2">
+              <div className="mt-1 flex flex-col gap-1 rounded border app-border p-1.5">
                 <input
                   autoFocus
                   type="text"
@@ -399,61 +473,45 @@ export function GoToModal({
                       submitPrice();
                     }
                   }}
-                  className="w-full rounded-md border app-border bg-transparent px-2 py-1.5 font-mono text-xs outline-none focus:border-brand-400"
+                  className="w-full rounded border app-border bg-transparent px-1.5 py-1 font-mono text-[10px] outline-none focus:border-brand-400"
                 />
-                <p className="text-[10px] leading-4 app-muted">
-                  Stops on the first candle to trade through this price, in either
-                  direction.
-                </p>
+                {/* Round numbers as a shortcut rather than a section of their
+                    own: they are just prices, and anyone who wants one is
+                    already reaching for the price field. */}
+                {levels.length > 0 && (
+                  <div className="flex flex-wrap gap-0.5">
+                    {levels.map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        title="Round number"
+                        onClick={() => setPriceDraft(price(level))}
+                        className="rounded bg-[var(--app-panel-2)] px-1.5 py-0.5 font-mono text-[10px] app-muted hover:text-[var(--app-text)]"
+                      >
+                        {price(level)}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <button
                   type="button"
                   disabled={!priceDraft || busy}
                   onClick={submitPrice}
-                  className="rounded-md bg-brand-500 px-2 py-1.5 text-xs font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
+                  className="rounded bg-brand-500 px-2 py-1 text-[10px] font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
                 >
                   Go
                 </button>
               </div>
             )}
-            <button
-              type="button"
-              disabled={levels.length === 0}
-              onClick={() => setExpanded(expanded === "levels" ? null : "levels")}
-              aria-expanded={expanded === "levels"}
-              title={levels.length === 0 ? "No price has been revealed yet." : undefined}
-              className={`flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                expanded === "levels" ? "bg-brand-400/10 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
-              }`}
-            >
-              Psychological levels …
-            </button>
-            {expanded === "levels" && (
-              <div className="mb-1 grid grid-cols-2 gap-1 rounded-lg border app-border p-1.5">
-                {levels.map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => jump({ kind: "price", price: level }, price(level))}
-                    className="rounded-md px-2 py-1.5 font-mono text-[11px] hover:bg-[var(--app-panel-2)] disabled:opacity-40"
-                  >
-                    {price(level)}
-                  </button>
-                ))}
-              </div>
-            )}
-            {crosses.map((choice) => (
-              <ChoiceRow key={choice.key} choice={choice} busy={busy} onSelect={select} />
-            ))}
           </Column>
         </div>
 
         {busy && (
           <p
             role="status"
-            className="flex shrink-0 items-center gap-2 border-t app-border px-5 py-2.5 text-xs app-muted sm:px-6"
+            className="flex shrink-0 items-center gap-1.5 border-t app-border px-3 py-1.5 text-[10px] app-muted"
           >
-            <Loader2 size={13} className="animate-spin" aria-hidden /> Running the
+            <Loader2 size={11} className="animate-spin" aria-hidden /> Running the
             replay forward…
           </p>
         )}
@@ -462,13 +520,7 @@ export function GoToModal({
   );
 }
 
-/**
- * One session, with its open and its close as separate destinations.
- *
- * Both edges get a button because they are opposite intentions: arriving at the
- * open is arriving to trade, and arriving at the close is arriving to see what
- * the session did.
- */
+/** One session, with its open and its close as the two destinations. */
 function SessionRow({
   session,
   currentTime,
@@ -484,43 +536,31 @@ function SessionRow({
   clock: (at: number) => string;
   onSelect: (target: GoToTarget, label: string) => void;
 }) {
-  const open = nextSessionEdge(currentTime, session, "open");
-  const close = nextSessionEdge(currentTime, session, "close");
-
-  const edgeButton = (
+  const edge = (
     at: number | null,
-    edge: "open" | "close",
-    Icon: typeof Clock,
-  ) => {
-    const beyond = at != null && at > endTime;
-    return (
-      <button
-        type="button"
-        disabled={busy || at == null || beyond}
-        title={
-          at == null
-            ? `No upcoming ${session.label} ${edge}.`
-            : beyond
-              ? "Past the end of this session's data."
-              : `${session.label} ${edge} — ${clock(at)}`
-        }
-        aria-label={`Go to the ${session.label} ${edge}`}
-        onClick={() => at != null && onSelect({ kind: "time", timestamp: at }, `${session.label} ${edge}`)}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-md border app-border transition-colors hover:border-brand-400/50 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--app-border)]"
-      >
-        <Icon size={14} aria-hidden />
-      </button>
-    );
-  };
+    kind: "open" | "close",
+    icon: typeof Clock,
+  ): EdgeButton => ({
+    icon,
+    label: `${session.label} ${kind}`,
+    target: at == null ? null : { kind: "time", timestamp: at },
+    detail: at == null ? undefined : clock(at),
+    unavailable:
+      at == null
+        ? `No upcoming ${session.label} ${kind}.`
+        : at > endTime
+          ? "Past the end of this session's data."
+          : undefined,
+    disabled: busy,
+    onSelect,
+  });
 
   return (
-    <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 hover:bg-[var(--app-panel-2)]">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">{session.label}</p>
-        <p className="truncate text-[10px] app-muted">{session.hint}</p>
-      </div>
-      {edgeButton(open, "open", Clock)}
-      {edgeButton(close, "close", Hourglass)}
-    </div>
+    <PairRow
+      label={session.label}
+      hint={session.hint}
+      first={edge(nextSessionEdge(currentTime, session, "open"), "open", Clock)}
+      second={edge(nextSessionEdge(currentTime, session, "close"), "close", Hourglass)}
+    />
   );
 }

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Plus } from "lucide-react";
+import { CalendarClock, Plus, Settings } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -48,7 +48,6 @@ import { EndOfDataModal } from "./EndOfDataModal";
 import { TrialSessionLauncher } from "./TrialSessionLauncher";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { WorkspaceManager } from "./WorkspaceManager";
-import { BacktestExperiencePanel } from "./BacktestExperiencePanel";
 import { propFirmGuardMessage, tradingGuardMessage } from "@/lib/backtest/trade-guards";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
@@ -57,6 +56,7 @@ import { SymbolPickerModal } from "./SymbolPickerModal";
 import { GoToModal } from "./GoToModal";
 import { TimeZonePicker } from "./TimeZonePicker";
 import type { GoToTarget } from "@/lib/backtest/goto";
+import { ChartSettingsDialog, type SettingsTab } from "./ChartSettingsMenu";
 import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import type { Timeframe } from "@/lib/market-data/types";
@@ -85,6 +85,25 @@ type ReplayInteraction =
   | "position-editor"
   | "confirmation"
   | "go-to";
+
+/**
+ * The one way into settings, and it looks like it: a gear, not the slider icon
+ * this used to be. A slider reads as "adjust this view"; the dialog behind it
+ * holds keyboard shortcuts and risk limits, which are neither.
+ */
+function SettingsButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Settings"
+      title="Settings"
+      className="grid h-8 w-8 place-items-center rounded-md app-muted hover:bg-white/[0.06] hover:text-brand-300"
+    >
+      <Settings size={15} aria-hidden />
+    </button>
+  );
+}
 
 const ChartGrid = dynamic(() => import("./ChartGrid"), {
   ssr: false,
@@ -141,6 +160,7 @@ export function Backtester({
   const orderTicketActivationIdRef = useRef(0);
   const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
   const [chartLayoutSlot, setChartLayoutSlot] = useState<HTMLDivElement | null>(null);
+  const [chartActionsSlot, setChartActionsSlot] = useState<HTMLDivElement | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
   const [editorPositionId, setEditorPositionId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
@@ -250,6 +270,16 @@ export function Backtester({
   const announcedVerdictRef = useRef<string | null>(null);
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   const [goToOpen, setGoToOpen] = useState(false);
+  /**
+   * The one settings dialog, and the section it should open on. Held here rather
+   * than in a chart cell so the header gear and all four cells' right-click
+   * menus open the same dialog instead of one each.
+   */
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
+  const openSettings = useCallback(
+    (tab: SettingsTab = "appearance") => setSettingsTab(tab),
+    [],
+  );
   useLayoutEffect(() => {
     recordReplayMetric("react-commit", performance.now() - renderStartedAt);
   });
@@ -257,10 +287,19 @@ export function Backtester({
     sizingMode: "fixed-lots",
     lots: "0.10",
   });
+  /**
+   * The fixed order size, held here because two controls edit it: the ticket's
+   * own size field and the size popover on every Buy/Sell button. Keeping a copy
+   * inside the ticket meant the replay toolbox could only ever read a stale one.
+   */
+  const [lots, setLots] = useState("0.10");
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("forextestlab:order-defaults");
-      if (saved) setOrderTemplate(JSON.parse(saved) as Omit<OrderRequest, "direction">);
+      if (!saved) return;
+      const template = JSON.parse(saved) as Omit<OrderRequest, "direction">;
+      setOrderTemplate(template);
+      if (template.lots) setLots(template.lots);
     } catch {
       // Invalid local defaults fall back to the safe fixed-lot template.
     }
@@ -416,12 +455,13 @@ export function Backtester({
         workspace.updateSettings({ distractionFree: !workspace.settings.distractionFree });
       } else if (matches(workspace.settings.shortcuts.reference)) {
         event.preventDefault();
-        window.dispatchEvent(new Event("forextestlab:open-experience"));
+        // The reference key asks "what are my keys?", so it lands on the list.
+        openSettings("shortcuts");
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [bt.phase, focusedChartTimeframe, state?.config.timeframe, state?.status, actions, orderTemplate, submitOrder, workspace]);
+  }, [bt.phase, focusedChartTimeframe, state?.config.timeframe, state?.status, actions, openSettings, orderTemplate, submitOrder, workspace]);
 
   useEffect(() => {
     setTradePlan(null);
@@ -873,7 +913,7 @@ export function Backtester({
         saveStatus={bt.saveStatus}
         onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}
-        leadingControls={
+        tradeControls={
           <>
             <button
               type="button"
@@ -905,7 +945,10 @@ export function Backtester({
         }
         endControls={
           <div className="flex shrink-0 items-center gap-1">
-            <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
+            {/* Chart actions — the screenshot — sit with the other actions at
+                this end rather than after the timeframe and indicator pickers. */}
+            <div ref={setChartActionsSlot} className="flex shrink-0 items-center" />
+            <SettingsButton onOpen={() => openSettings()} />
             {/* Workspace templates are a wide-screen convenience. Below `lg` the
                 header's width goes to the controls needed while trading. */}
             <div className="hidden lg:block">
@@ -922,7 +965,7 @@ export function Backtester({
 
       {workspace.settings.distractionFree && (
         <div className="absolute right-3 top-3 z-50 flex items-center gap-2">
-          <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
+          <SettingsButton onOpen={() => openSettings()} />
           <button type="button" onClick={() => workspace.updateSettings({ distractionFree: false })} className="rounded-lg border app-border bg-[var(--app-panel)]/90 px-3 py-2 text-xs font-semibold shadow-xl backdrop-blur">
             Exit focus mode
           </button>
@@ -977,8 +1020,12 @@ export function Backtester({
             workspace={workspace}
             onOpenSymbolPicker={() => setSymbolPickerOpen(true)}
             onFocusedTimeframeChange={setFocusedChartTimeframe}
+            // A cell's right-click "Settings…" opens the chart sections, which
+            // is what that menu was already about.
+            onOpenSettings={() => openSettings("scales")}
             headerSlot={chartHeaderSlot}
             layoutSlot={chartLayoutSlot}
+            actionsSlot={chartActionsSlot}
             orderTicket={
               <OrderTicket
                 state={state}
@@ -989,6 +1036,8 @@ export function Backtester({
                 onClearPlan={() => setTradePlan(null)}
                 onPlaceOrder={submitOrder}
                 onTemplateChange={setOrderTemplate}
+                lots={lots}
+                onLotsChange={setLots}
                 oneClickTrading={workspace.settings.oneClickTrading}
                 referencePair={referencePair}
                 activationRequest={orderTicketActivation}
@@ -1023,6 +1072,8 @@ export function Backtester({
             onSell={() => activateOrderTicket("short")}
             canTrade={canTrade}
             maxReplaySpeed={entitlements.maxReplaySpeed}
+            lots={lots}
+            onLotsChange={setLots}
           />
 
           {journalQueue.prompts.length > 0 && (
@@ -1107,6 +1158,16 @@ export function Backtester({
         }
         onClose={(positionId, lots) => actions.closePosition(positionId, lots)}
       />
+      {settingsTab && (
+        <ChartSettingsDialog
+          settings={workspace.settings}
+          theme={theme}
+          initialTab={settingsTab}
+          onChange={workspace.updateSettings}
+          onReset={workspace.resetSettings}
+          onClose={() => setSettingsTab(null)}
+        />
+      )}
       <GoToModal
         open={goToOpen}
         onClose={closeGoTo}

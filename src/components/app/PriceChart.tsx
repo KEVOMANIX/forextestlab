@@ -244,11 +244,19 @@ interface PriceChartProps {
   settings: ChartSettings;
   onSettingsChange: (patch: Partial<ChartSettings>) => void;
   onSettingsReset: () => void;
+  /**
+   * Opens the app's single settings dialog. Provided by the trading terminal so
+   * one dialog serves the header gear and every cell's right-click menu; a
+   * standalone chart without it falls back to its own copy.
+   */
+  onOpenSettings?: () => void;
   /** Favourite drawing tools, likewise shared. */
   favorites: Set<ToolKind>;
   onToggleFavorite: (tool: ToolKind) => void;
   /** Optional DOM node in the top header to portal the chart controls into. */
   headerSlot?: HTMLElement | null;
+  /** Right-hand header target for chart *actions*, such as the screenshot. */
+  actionsSlot?: HTMLElement | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
   orderTicket?: React.ReactNode;
   /**
@@ -544,9 +552,11 @@ export default function PriceChart({
   settings,
   onSettingsChange,
   onSettingsReset,
+  onOpenSettings,
   favorites,
   onToggleFavorite,
   headerSlot = null,
+  actionsSlot = null,
   orderTicket = null,
   axisCorner = null,
 }: PriceChartProps) {
@@ -698,7 +708,13 @@ export default function PriceChart({
   const [openCats, setOpenCats] = useState<Set<IndCategory>>(() => new Set(CATEGORY_ORDER));
   const [anchorPick, setAnchorPick] = useState<{ id: string; key: string } | null>(null);
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
-  const [cursorMode, setCursorMode] = useState<CursorModeName>("pointer");
+  /**
+   * Crosshair by default. Reading a price off a level is the thing a trader does
+   * constantly on a replay chart, and it is what every charting platform opens
+   * on. Both modes select and move drawings — the mode only decides whether the
+   * crosshair is drawn and whether it snaps.
+   */
+  const [cursorMode, setCursorMode] = useState<CursorModeName>("crosshair");
   const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
   const favDragRef = useRef<{ sx: number; sy: number; bx: number; by: number; moved: boolean } | null>(null);
   const favMovedRef = useRef(false);
@@ -2165,7 +2181,7 @@ export default function PriceChart({
       label: "Settings…",
       icon: Settings,
       groupStart: true,
-      onSelect: () => setSettingsOpen(true),
+      onSelect: () => (onOpenSettings ? onOpenSettings() : setSettingsOpen(true)),
     });
     return items;
   }
@@ -2193,40 +2209,58 @@ export default function PriceChart({
   }
 
   /**
-   * Copy or download the chart as a PNG.
+   * Copy or download the chart as a PNG, with everything painted on it.
    *
    * The charting library composites its own canvases — panes, price scale, time
-   * axis — into one image, but knows nothing of the drawing engine's layers, so
-   * trendlines and annotations are painted on afterwards. The engine's canvas is
-   * placed by its measured position rather than assumed to be aligned, because
-   * it spans a wider box than the plot. Only the committed scene is drawn; the
-   * interaction overlay holds selection handles, which belong to the editing
-   * session and not to the picture.
+   * axis, and with `addTopLayer` the primitives (trade markers, order and
+   * protection lines) — but knows nothing of the layers this app draws over the
+   * top. So every other canvas inside the chart's own box is composited on
+   * afterwards, in DOM order: drawing tools, their selection handles, the volume
+   * profile, the trade-plan overlay. Each is placed by its measured position
+   * rather than assumed to be aligned, because the drawing host spans a wider box
+   * than the plot.
+   *
+   * Only canvases are captured. The header, the tool rail and the floating
+   * panels are HTML, which cannot be rasterised without a DOM-to-image
+   * dependency; the chart and its annotations are what a chart screenshot is for.
    */
   function composeScreenshot(): HTMLCanvasElement | null {
     const chart = chartRef.current;
     const container = containerRef.current;
     if (!chart || !container) return null;
-    // `addTopLayer` brings in the primitives — trade markers, price lines — which
-    // are most of what makes a chart screenshot worth keeping. The crosshair is
-    // left out: it records where the pointer happened to be, not the market.
+    // The crosshair is left out: it records where the pointer happened to be,
+    // not the market.
     const base = chart.takeScreenshot(true, false);
-    const scene = drawingEngineRef.current?.sceneCanvas ?? null;
-    if (!scene || !settings.drawings) return base;
-
     const context = base.getContext("2d");
-    if (!context) return base;
     const chartBounds = container.getBoundingClientRect();
-    const sceneBounds = scene.getBoundingClientRect();
-    if (chartBounds.width <= 0 || sceneBounds.width <= 0) return base;
+    if (!context || chartBounds.width <= 0) return base;
+
     const scale = base.width / chartBounds.width;
-    context.drawImage(
-      scene,
-      (sceneBounds.left - chartBounds.left) * scale,
-      (sceneBounds.top - chartBounds.top) * scale,
-      sceneBounds.width * scale,
-      sceneBounds.height * scale,
+    const chartElement = chart.chartElement();
+    const overlays = Array.from(
+      container.parentElement?.querySelectorAll("canvas") ?? [],
+    ).filter(
+      (canvas) =>
+        // The library's own canvases are already in `base`; drawing it twice
+        // would double every semi-transparent fill.
+        !chartElement.contains(canvas) &&
+        canvas.width > 0 &&
+        canvas.height > 0 &&
+        // A hidden drawing layer is hidden in the picture too.
+        (settings.drawings || canvas !== drawingEngineRef.current?.sceneCanvas),
     );
+
+    for (const canvas of overlays) {
+      const bounds = canvas.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0) continue;
+      context.drawImage(
+        canvas,
+        (bounds.left - chartBounds.left) * scale,
+        (bounds.top - chartBounds.top) * scale,
+        bounds.width * scale,
+        bounds.height * scale,
+      );
+    }
     return base;
   }
 
@@ -2765,8 +2799,19 @@ export default function PriceChart({
         )}
       </div>
 
-      {/* Screenshot */}
-      <div className="relative shrink-0">
+    </div>
+  );
+
+  /**
+   * Screenshot control, portaled separately from the chart controls.
+   *
+   * It is an action *on* the chart rather than a property of it, so it belongs
+   * with the other actions at the right-hand end of the header instead of
+   * trailing the timeframe and indicator pickers.
+   */
+  const screenshotControl = (
+    <div className="relative shrink-0">
+      <>
         <button
           type="button"
           aria-label="Screenshot the chart"
@@ -2806,12 +2851,12 @@ export default function PriceChart({
         {screenshotNote && (
           <p
             role="status"
-            className="absolute left-0 top-9 z-[56] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2.5 py-2 text-[11px] shadow-xl"
+            className="absolute right-0 top-9 z-[56] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2.5 py-2 text-[11px] shadow-xl"
           >
             {screenshotNote}
           </p>
         )}
-      </div>
+      </>
     </div>
   );
 
@@ -2819,7 +2864,11 @@ export default function PriceChart({
     <div className="relative flex h-full w-full flex-col">
       {headerSlot
         ? createPortal(chartControls, headerSlot)
-        : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}</div>}
+        : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}{screenshotControl}</div>}
+      {/* The screenshot action lives with the header's other actions. Without a
+          slot for them it stays beside the chart controls. */}
+      {actionsSlot && headerSlot ? createPortal(screenshotControl, actionsSlot) : null}
+      {headerSlot && !actionsSlot ? createPortal(screenshotControl, headerSlot) : null}
       {/* The drawing rail owns its own column; the chart begins after it instead of rendering underneath it. */}
       <div className="relative min-h-0 flex-1 pl-12">
         <div
@@ -2851,7 +2900,7 @@ export default function PriceChart({
           />
         )}
 
-        {settingsOpen && (
+        {settingsOpen && !onOpenSettings && (
           <ChartSettingsDialog
             settings={settings}
             theme={theme}
@@ -2865,7 +2914,11 @@ export default function PriceChart({
           chart={chartApi}
           series={priceSeries}
           tool={drawTool}
-          selectionEnabled={cursorMode === "pointer"}
+          // Drawings are selectable and draggable in both cursor modes. Gating
+          // selection on the pointer mode made every drawing inert under the
+          // crosshair, which is the mode the chart now opens in — and the mode a
+          // trader is in while marking the levels they are drawing on.
+          selectionEnabled
           magnet={drawMagnet}
           precision={precision}
           pipSize={pipSize}

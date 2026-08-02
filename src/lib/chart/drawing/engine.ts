@@ -546,7 +546,11 @@ export class DrawingEngine {
       o.kind === "infoLine" || o.kind === "trendAngle" || o.kind === "regression" ||
       o.kind === "flatChannel" || o.kind === "disjointChannel" || o.kind === "fibExtension" ||
       o.kind === "priceRange" || o.kind === "dateRange" || o.kind === "datePriceRange" ||
-      o.kind === "callout" || o.kind === "priceLabel" || o.kind === "anchoredText";
+      o.kind === "callout" || o.kind === "priceLabel" || o.kind === "anchoredText" ||
+      // A position's three points are an entry, a stop and a target, each of
+      // which means something on its own. Bounding-box handles rescaled all
+      // three proportionally, so reaching for the stop moved the entry with it.
+      o.kind === "long" || o.kind === "short";
   }
 
   private resizeHandles(o: DrawingObject): { x: number; y: number; handle: ResizeHandle }[] {

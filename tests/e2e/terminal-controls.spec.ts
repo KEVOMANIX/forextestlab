@@ -205,9 +205,16 @@ test("Go to lists forward destinations and fast-forwards the replay", async ({
   await page.getByRole("button", { name: /^Go to$/ }).click();
   const dialog = page.getByTestId("go-to-modal");
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Next day open");
+  await expect(dialog).toContainText("Next day");
   await expect(dialog).toContainText("London");
   await expect(dialog).toContainText("Silver Bullet");
+  // A session is one row with an open and a close button, not two rows.
+  await expect(
+    dialog.getByRole("button", { name: "Go to London open" }),
+  ).toBeEnabled();
+  await expect(
+    dialog.getByRole("button", { name: "Go to London close" }),
+  ).toBeEnabled();
 
   // Nothing is open, so waiting for a close is offered but disabled.
   await expect(
@@ -216,10 +223,14 @@ test("Go to lists forward destinations and fast-forwards the replay", async ({
 
   // No completed day has been replayed, so the daily level is unavailable.
   await expect(
-    dialog.getByRole("button", { name: /Previous daily high/ }),
+    dialog.getByRole("button", { name: "Go to Previous day high" }),
   ).toBeDisabled();
 
-  await dialog.getByRole("button", { name: /Next day open/ }).click();
+  // Narrow enough to leave the chart readable behind it.
+  const box = await dialog.boundingBox();
+  expect(box!.width).toBeLessThanOrEqual(44 * 16 + 1);
+
+  await dialog.getByRole("button", { name: /^Next day/ }).click();
   await expect(dialog).toBeHidden({ timeout: 30_000 });
   // The chart's zone is the exchange (New York). Replay sits at 08:59 UTC on
   // 6 January, and the next New York midnight is 05:00 UTC on the 7th — 1,201
@@ -228,7 +239,7 @@ test("Go to lists forward destinations and fast-forwards the replay", async ({
     "Candle 1261 of",
     { timeout: 30_000 },
   );
-  await expect(page.getByText(/Jumped to Next day open/)).toBeVisible();
+  await expect(page.getByText(/Jumped to Next day/)).toBeVisible();
 });
 
 test("Go to a price stops on the candle that trades through it", async ({
@@ -236,7 +247,7 @@ test("Go to a price stops on the candle that trades through it", async ({
 }) => {
   await page.getByRole("button", { name: /^Go to$/ }).click();
   const dialog = page.getByTestId("go-to-modal");
-  await dialog.getByRole("button", { name: /^Price …/ }).click();
+  await dialog.getByRole("button", { name: /^Pick a price/ }).click();
   // Candle 200's high reaches 1.08208; the price field targets it.
   await dialog.getByPlaceholder(/^1\.08/).fill("1.08200");
   await dialog.getByRole("button", { name: "Go", exact: true }).click();

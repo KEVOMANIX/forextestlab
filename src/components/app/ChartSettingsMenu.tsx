@@ -147,38 +147,80 @@ const TEXT_SIZES: { value: ChartTextSize; label: string }[] = [
   { value: "large", label: "Large" },
 ];
 
-type TabKey = "appearance" | "scales" | "trading";
+export type SettingsTab =
+  | "appearance"
+  | "scales"
+  | "display"
+  | "trading"
+  | "risk"
+  | "shortcuts";
 
-const TABS: { key: TabKey; label: string }[] = [
+const TABS: { key: SettingsTab; label: string }[] = [
   { key: "appearance", label: "Symbol" },
   { key: "scales", label: "Scales & lines" },
+  { key: "display", label: "Display" },
   { key: "trading", label: "Trading" },
+  { key: "risk", label: "Risk limits" },
+  { key: "shortcuts", label: "Shortcuts" },
 ];
 
+const SHORTCUT_LABELS: Record<keyof ChartSettings["shortcuts"], string> = {
+  toggleReplay: "Play / pause",
+  stepForward: "Next candle",
+  stepBack: "Previous candle",
+  buy: "Buy",
+  sell: "Sell",
+  bookmark: "Bookmark candle",
+  distractionFree: "Distraction-free mode",
+  reference: "Shortcut reference",
+};
+
+function shortcutName(value: string) {
+  if (value === " ") return "Space";
+  return value.length === 1 ? value.toUpperCase() : value.replace("Arrow", "↑ ").trim();
+}
+
 /**
- * Chart preferences, opened from the chart's right-click menu.
+ * Every session preference, in one dialog.
  *
- * A dialog rather than the popover this used to be: the settings had outgrown a
- * 232px strip hanging off the pointer, where a colour row and a risk limit sat
- * in one undifferentiated list and the whole thing vanished on a stray click.
- * Grouping them behind tabs makes each one findable, and a modal gives the
- * fiddly controls — colour pickers, a zone list — room to be used.
+ * It used to be two: chart appearance behind the chart's right-click menu, and
+ * a separate "trading experience" panel behind a slider icon in the header, with
+ * one-click trading appearing in both and no way to guess which one owned a
+ * given setting. They are one list of preferences over one workspace, so they
+ * are one dialog — reachable from the header gear and from the chart's own
+ * right-click menu, which opens it on the section that menu was about.
+ *
+ * A dialog rather than the popover this started as: the settings had outgrown a
+ * 232px strip hanging off the pointer, and a modal gives the fiddly controls —
+ * colour pickers, a zone list, key capture — room to be used.
  */
 export function ChartSettingsDialog({
   settings,
   theme,
+  initialTab = "appearance",
   onChange,
   onReset,
   onClose,
 }: {
   settings: ChartSettings;
   theme: "dark" | "light";
+  /** Section to open on, so an entry point can land where it is about. */
+  initialTab?: SettingsTab;
   onChange: (patch: Partial<ChartSettings>) => void;
   onReset: () => void;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<TabKey>("appearance");
-  const dialogRef = useModalBehavior<HTMLDivElement>({ open: true, onClose });
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
+  const [capturing, setCapturing] = useState<
+    keyof ChartSettings["shortcuts"] | null
+  >(null);
+  // Escape stands down while a key is being captured, so pressing Escape to
+  // abandon a rebind does not also close the dialog.
+  const dialogRef = useModalBehavior<HTMLDivElement>({
+    open: true,
+    onClose,
+    closeOnEscape: !capturing,
+  });
   // Offsets are labelled at a fixed instant so the list cannot reshuffle under
   // the pointer while the dialog is open.
   const openedAt = useRef(Date.now()).current;
@@ -273,13 +315,6 @@ export function ChartSettingsDialog({
                   swatches={BACKGROUND_SWATCHES}
                   onChange={(background) => onChange({ background })}
                 />
-                <ChoiceRow
-                  label="Text size"
-                  hint="Axis labels, the legend and indicator chips."
-                  value={settings.chartTextSize}
-                  options={TEXT_SIZES}
-                  onChange={(chartTextSize) => onChange({ chartTextSize })}
-                />
               </div>
             )}
 
@@ -317,8 +352,23 @@ export function ChartSettingsDialog({
                   checked={settings.drawings}
                   onToggle={() => onChange({ drawings: !settings.drawings })}
                 />
+              </div>
+            )}
+
+            {tab === "display" && (
+              <div className="space-y-1">
+                <ChoiceRow
+                  label="Text size"
+                  hint="Axis labels, the legend and indicator chips."
+                  value={settings.chartTextSize}
+                  options={TEXT_SIZES}
+                  onChange={(chartTextSize) => onChange({ chartTextSize })}
+                />
                 <label className="block px-2 pt-3">
                   <span className="mb-1.5 block text-[13px]">Time zone</span>
+                  <span className="mb-1.5 block text-[11px] opacity-55">
+                    Labels the axis, the crosshair and the session clock.
+                  </span>
                   <select
                     value={settings.timeZone}
                     onChange={(event) => onChange({ timeZone: event.target.value })}
@@ -332,6 +382,20 @@ export function ChartSettingsDialog({
                     ))}
                   </select>
                 </label>
+                <div className="pt-3">
+                  <ToggleRow
+                    label="Hide account figures"
+                    hint="Masks balance, equity and P&L in the status bar — for recording and screen-sharing."
+                    checked={settings.hideBalances}
+                    onToggle={() => onChange({ hideBalances: !settings.hideBalances })}
+                  />
+                  <ToggleRow
+                    label="Distraction-free chart"
+                    hint="Hides the header, the status bar and the side rails."
+                    checked={settings.distractionFree}
+                    onToggle={() => onChange({ distractionFree: !settings.distractionFree })}
+                  />
+                </div>
               </div>
             )}
 
@@ -355,6 +419,98 @@ export function ChartSettingsDialog({
                   checked={settings.promptEntryReason}
                   onToggle={() => onChange({ promptEntryReason: !settings.promptEntryReason })}
                 />
+              </div>
+            )}
+
+            {tab === "risk" && (
+              <div className="space-y-2">
+                <NumberRow
+                  label="Maximum risk per trade"
+                  suffix="%"
+                  value={settings.maxRiskPerTradePercent}
+                  onChange={(maxRiskPerTradePercent) => onChange({ maxRiskPerTradePercent })}
+                />
+                <NumberRow
+                  label="Daily loss limit"
+                  suffix="%"
+                  value={settings.dailyLossLimitPercent}
+                  onChange={(dailyLossLimitPercent) => onChange({ dailyLossLimitPercent })}
+                />
+                <NumberRow
+                  label="Maximum drawdown"
+                  suffix="%"
+                  value={settings.maxDrawdownLimitPercent}
+                  onChange={(maxDrawdownLimitPercent) => onChange({ maxDrawdownLimitPercent })}
+                />
+                <NumberRow
+                  label="Session trade limit"
+                  integer
+                  value={settings.sessionTradeLimit}
+                  onChange={(sessionTradeLimit) => onChange({ sessionTradeLimit })}
+                />
+                <NumberRow
+                  label="Session profit goal"
+                  prefix="$"
+                  value={settings.sessionGoalAmount}
+                  onChange={(sessionGoalAmount) => onChange({ sessionGoalAmount })}
+                />
+                <p className="px-2 pt-2 text-[11px] opacity-55">
+                  Use 0 to disable a limit. A limit blocks new entries; it never
+                  force-closes a position you already hold.
+                </p>
+              </div>
+            )}
+
+            {tab === "shortcuts" && (
+              <div className="space-y-1">
+                {(Object.keys(SHORTCUT_LABELS) as (keyof ChartSettings["shortcuts"])[]).map(
+                  (action) => (
+                    <div
+                      key={action}
+                      className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5"
+                    >
+                      <span className="text-[13px]">{SHORTCUT_LABELS[action]}</span>
+                      <button
+                        type="button"
+                        onClick={() => setCapturing(action)}
+                        onKeyDown={(event) => {
+                          if (capturing !== action) return;
+                          event.preventDefault();
+                          if (event.key === "Escape") {
+                            setCapturing(null);
+                            return;
+                          }
+                          // Two actions on one key would make the second
+                          // unreachable, so a clash is refused rather than
+                          // silently stealing the binding.
+                          const duplicate = Object.entries(settings.shortcuts).find(
+                            ([key, value]) =>
+                              key !== action &&
+                              value.toLowerCase() === event.key.toLowerCase(),
+                          );
+                          if (duplicate) return;
+                          onChange({
+                            shortcuts: { ...settings.shortcuts, [action]: event.key },
+                          });
+                          setCapturing(null);
+                        }}
+                        className={`min-w-20 rounded border px-2 py-1 text-[12px] font-mono ${
+                          capturing === action
+                            ? "border-brand-400 text-brand-300"
+                            : "border-current/25 opacity-70 hover:opacity-100"
+                        }`}
+                      >
+                        {capturing === action
+                          ? "Press key…"
+                          : shortcutName(settings.shortcuts[action])}
+                      </button>
+                    </div>
+                  ),
+                )}
+                <p className="px-2 pt-2 text-[11px] opacity-55">
+                  Click a key, then press the one you want. Escape abandons the
+                  change; a key already in use is refused.
+                </p>
               </div>
             )}
           </div>
@@ -421,6 +577,40 @@ function ToggleRow({
         {checked && <Check size={12} />}
       </span>
     </button>
+  );
+}
+
+function NumberRow({
+  label,
+  value,
+  prefix,
+  suffix,
+  integer = false,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  prefix?: string;
+  suffix?: string;
+  integer?: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 px-2">
+      <span className="text-[13px]">{label}</span>
+      <span className="flex h-8 w-28 shrink-0 items-center gap-0.5 rounded-md border border-current/25 px-2 text-[12px]">
+        {prefix}
+        <input
+          type="number"
+          min="0"
+          step={integer ? 1 : 0.1}
+          value={value}
+          onChange={(event) => onChange(Math.max(0, Number(event.target.value) || 0))}
+          className="min-w-0 flex-1 bg-transparent text-right font-mono outline-none"
+        />
+        {suffix}
+      </span>
+    </label>
   );
 }
 

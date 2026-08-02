@@ -133,6 +133,8 @@ interface ChartGridProps {
   headerSlot?: HTMLElement | null;
   /** Dedicated far-right header target for the layout picker. */
   layoutSlot?: HTMLElement | null;
+  /** Right-hand header target for chart actions, such as the screenshot. */
+  actionsSlot?: HTMLElement | null;
   orderTicket?: React.ReactNode;
   /** Clock and time-zone picker, seated in the workspace's outer axis corner. */
   axisCorner?: React.ReactNode;
@@ -145,6 +147,8 @@ interface ChartGridProps {
   onOpenSymbolPicker: () => void;
   /** Keeps replay stepping aligned with the focused chart's displayed bars. */
   onFocusedTimeframeChange: (timeframe: Timeframe) => void;
+  /** Opens the app's single settings dialog from a cell's right-click menu. */
+  onOpenSettings: () => void;
 }
 
 export default function ChartGrid({
@@ -176,6 +180,7 @@ export default function ChartGrid({
   storageKey,
   headerSlot = null,
   layoutSlot = null,
+  actionsSlot = null,
   orderTicket = null,
   axisCorner = null,
   focusedSymbol,
@@ -183,6 +188,7 @@ export default function ChartGrid({
   workspace,
   onOpenSymbolPicker,
   onFocusedTimeframeChange,
+  onOpenSettings,
 }: ChartGridProps) {
   const sessionSymbol = state.config.symbol;
   const compact = useCompactViewport();
@@ -417,11 +423,13 @@ export default function ChartGrid({
                 error={error}
                 storageKey={storageKey}
                 workspace={workspace}
+                onOpenSettings={onOpenSettings}
                 onFocus={() => focusCell(cell.id)}
                 onTimeframeChange={(timeframe) =>
                   updateCellTimeframe(cell.id, timeframe)
                 }
                 headerSlot={!multi && isFocused ? headerSlot : null}
+                actionsSlot={isFocused ? actionsSlot : null}
                 orderTicket={isSession && isFocused ? orderTicket : null}
                 // One clock for the workspace, always in its outer bottom-right
                 // corner regardless of which independently movable cell is focused.
@@ -486,10 +494,12 @@ interface ChartCellViewProps {
   onFocus: () => void;
   onTimeframeChange: (timeframe: Timeframe) => void;
   headerSlot: HTMLElement | null;
+  actionsSlot: HTMLElement | null;
   orderTicket: React.ReactNode;
   axisCorner: React.ReactNode;
   workspace: ChartWorkspace;
   onSelectInstrument: (() => void) | undefined;
+  onOpenSettings: () => void;
 }
 
 function ChartCellView({
@@ -523,10 +533,12 @@ function ChartCellView({
   onFocus,
   onTimeframeChange,
   headerSlot,
+  actionsSlot,
   orderTicket,
   axisCorner,
   workspace,
   onSelectInstrument,
+  onOpenSettings,
 }: ChartCellViewProps) {
   const reveal = useRevealedSeries(isSession ? sessionSeries : pair?.candles ?? null, state.currentTime);
   const noop = useCallback(() => {}, []);
@@ -583,6 +595,7 @@ function ChartCellView({
         initialTimeframe={cell.timeframe ?? undefined}
         onDisplayTimeframeChange={onTimeframeChange}
         headerSlot={headerSlot}
+        actionsSlot={actionsSlot}
         orderTicket={orderTicket}
         axisCorner={axisCorner}
         symbolLabel={cell.symbol}
@@ -594,6 +607,7 @@ function ChartCellView({
         onSettingsReset={workspace.resetSettings}
         favorites={workspace.favorites}
         onToggleFavorite={workspace.toggleFavorite}
+        onOpenSettings={onOpenSettings}
       />
   );
 }

@@ -63,7 +63,7 @@ export function TerminalTopBar({
   onNavigate,
   onRetrySave,
   endControls,
-  leadingControls,
+  tradeControls,
   children,
 }: {
   state: PublicSessionState;
@@ -76,11 +76,11 @@ export function TerminalTopBar({
   /** Controls that must stay pinned at the far-right end of the trading header. */
   endControls?: React.ReactNode;
   /**
-   * Trading actions, seated between the session menu and the chart controls.
-   * They belong at this end: they are used constantly and are about the session,
-   * not about the chart.
+   * Trading actions, seated after the chart controls in the middle of the bar.
+   * They sit there rather than beside the session menu because the header reads
+   * left to right as "which session → what am I looking at → what am I doing".
    */
-  leadingControls?: React.ReactNode;
+  tradeControls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -188,17 +188,20 @@ export function TerminalTopBar({
         )}
       </div>
 
-      {leadingControls && (
-        <>
-          <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-          <div className="flex shrink-0 items-center gap-1">{leadingControls}</div>
-        </>
-      )}
-
       <span className="hidden h-6 w-px shrink-0 bg-[var(--app-border)] md:block" aria-hidden />
       {/* `min-w-0` lets the chart controls shrink (their timeframe row scrolls
-          internally) so the cluster on the right is never pushed off the edge. */}
-      <div className="flex min-w-0 flex-1 items-center">{children}</div>
+          internally) so the cluster on the right is never pushed off the edge.
+          The trade actions follow them, so the order is timeframes, chart type,
+          indicators, then what to do about any of it. */}
+      <div className="flex min-w-0 flex-1 items-center">
+        {children}
+        {tradeControls && (
+          <>
+            <span className="mx-1.5 h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
+            <div className="flex shrink-0 items-center gap-1">{tradeControls}</div>
+          </>
+        )}
+      </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-0.5 border-l app-border pl-1.5">
         {endControls}

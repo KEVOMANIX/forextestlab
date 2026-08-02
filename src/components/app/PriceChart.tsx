@@ -470,6 +470,12 @@ function updateData(series: ISeriesApi<SeriesType>, type: ChartType, candle: OHL
   (series as ISeriesApi<"Candlestick">).update(toOhlcBar(candle));
 }
 
+/**
+ * Longest tail still worth appending bar by bar rather than re-feeding the
+ * series. Well above any single replay tick, well below a jump's arrival.
+ */
+const MAX_TAIL_UPDATES = 64;
+
 /** "15m" -> "15 minutes". Spelled out in the dropdown, where there is room. */
 function timeframeName(timeframe: Timeframe): string {
   const match = /^(\d+)(m|h|d|w|M|yr)$/.exec(timeframe);
@@ -1088,11 +1094,21 @@ export default function PriceChart({
       shared === 0 ||
       (display[0]?.time === previous[0]?.time &&
         display[shared - 1]?.time === previous[shared - 1]?.time);
+    /*
+      Per-bar `update` is the right call for live replay, where the tail is one
+      or two bars, and the wrong one for a bulk arrival: each update invalidates
+      and re-scales the series, so a "Go to" that reveals a day of 1-minute
+      candles issued 1,200 of them in one synchronous loop and cost over two
+      seconds. Past a short tail, one `setData` for the whole series is an order
+      of magnitude cheaper — it pays O(n) once instead of a fixed cost per bar.
+    */
+    const tailLength = renderedDisplay.length - shared;
     const canUpdateTail =
       !force &&
       previous.length > 0 &&
       display.length >= previous.length &&
-      prefixStillAligned;
+      prefixStillAligned &&
+      tailLength <= MAX_TAIL_UPDATES;
     if (canUpdateTail) {
       for (let index = shared; index < renderedDisplay.length; index += 1) {
         updateData(series, chartTypeRef.current, renderedDisplay[index]!);
@@ -2819,9 +2835,9 @@ export default function PriceChart({
           aria-haspopup="menu"
           aria-expanded={menu === "screenshot"}
           onClick={() => setMenu(menu === "screenshot" ? null : "screenshot")}
-          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "screenshot" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+          className={`grid h-8 w-8 place-items-center rounded-md transition-colors ${menu === "screenshot" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
         >
-          <Camera size={15} aria-hidden />
+          <Camera size={19} aria-hidden />
         </button>
         {menu === "screenshot" && (
           <div role="menu" className="absolute left-0 top-9 z-[55] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl">

@@ -330,12 +330,33 @@ function recomputeEquity(ctx: EngineContext, record: boolean): void {
   }
 
   if (record && candle) {
-    state.equityCurve.push({
+    const point = {
       index: state.visibleIndex,
       time: candle.timestamp,
       balance: state.balance,
       equity: state.equity,
-    });
+    };
+    const last = state.equityCurve[state.equityCurve.length - 1];
+    /*
+      A flat stretch is one line, not one point per candle.
+
+      While neither equity nor balance moves — which is every candle with nothing
+      open — the last point is extended to now instead of an identical one being
+      appended. The curve draws the same, and the cost of not doing this is
+      severe: a month-long jump would add 30,000 points that all say the same
+      thing, to be cloned into React state on every publication, sent in every
+      checkpoint, written to the session row, and walked by the statistics.
+
+      Extremes are never collapsed, because a run only collapses while the value
+      is unchanged, so peak equity and drawdown rebuild exactly as before after a
+      rewind. The point is replaced rather than mutated: published snapshots share
+      these objects and treat them as immutable.
+    */
+    if (last && last.equity === point.equity && last.balance === point.balance) {
+      state.equityCurve[state.equityCurve.length - 1] = point;
+    } else {
+      state.equityCurve.push(point);
+    }
   }
 }
 

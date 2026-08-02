@@ -16,6 +16,7 @@ import {
   MousePointer2,
   RotateCcw,
   Save,
+  Settings,
   Loader2,
   CloudOff,
   Sun,
@@ -302,10 +303,13 @@ export function TerminalRightRail({
   state,
   onNewSession,
   onNavigate,
+  onOpenSettings,
 }: {
   state: PublicSessionState;
   onNewSession: () => void;
   onNavigate: (href: string) => void;
+  /** Opens the session's settings dialog. */
+  onOpenSettings: () => void;
 }) {
   return (
     <aside
@@ -350,6 +354,17 @@ export function TerminalRightRail({
           <BarChart3 size={17} aria-hidden />
         </Link>
       )}
+      <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
+      {/*
+        Settings live on the rail rather than in the header. The header is read
+        while trading and every pixel of it competes with the chart controls;
+        settings are opened between decisions, not during one, so the rail — which
+        already holds the other "leave what you are doing" actions — is where it
+        belongs.
+      */}
+      <RailButton label="Settings" onClick={onOpenSettings}>
+        <Settings size={17} aria-hidden />
+      </RailButton>
       <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
       <RailButton label="Exit to session setup" onClick={onNewSession}>
         <LogOut size={17} aria-hidden />

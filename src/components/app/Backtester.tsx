@@ -47,7 +47,6 @@ import { TradeNotifications, type TradeNotification } from "./TradeNotifications
 import { EndOfDataModal } from "./EndOfDataModal";
 import { TrialSessionLauncher } from "./TrialSessionLauncher";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
-import { WorkspaceManager } from "./WorkspaceManager";
 import { propFirmGuardMessage, tradingGuardMessage } from "@/lib/backtest/trade-guards";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
@@ -915,6 +914,21 @@ export function Backtester({
         onRetrySave={actions.retrySave}
         tradeControls={
           <>
+            {/*
+              Go to reads first and New order carries the accent fill. The order
+              is deliberate: "where am I looking" precedes "what am I doing", and
+              only one of the two can afford to be the loudest thing in the bar.
+            */}
+            <button
+              type="button"
+              onClick={openGoTo}
+              disabled={bt.busy || state.status === "finished"}
+              title="Go to a time, a session or a price"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <CalendarClock size={15} aria-hidden />
+              <span className="hidden sm:inline">Go to</span>
+            </button>
             <button
               type="button"
               onClick={() => activateOrderTicket("long")}
@@ -926,20 +940,10 @@ export function Backtester({
                     ? `Switch back to ${state.config.symbol} to trade`
                     : "This session has finished"
               }
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-brand-500 px-2.5 text-xs font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-xs font-semibold text-surface-950 shadow-sm transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Plus size={14} aria-hidden />
+              <Plus size={15} strokeWidth={2.6} aria-hidden />
               <span className="hidden sm:inline">New order</span>
-            </button>
-            <button
-              type="button"
-              onClick={openGoTo}
-              disabled={bt.busy || state.status === "finished"}
-              title="Go to a time, a session or a price"
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border app-border px-2.5 text-xs font-semibold transition-colors hover:border-brand-400/40 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <CalendarClock size={14} aria-hidden />
-              <span className="hidden sm:inline">Go to</span>
             </button>
           </>
         }
@@ -948,12 +952,6 @@ export function Backtester({
             {/* Chart actions — the screenshot — sit with the other actions at
                 this end rather than after the timeframe and indicator pickers. */}
             <div ref={setChartActionsSlot} className="flex shrink-0 items-center" />
-            <SettingsButton onOpen={() => openSettings()} />
-            {/* Workspace templates are a wide-screen convenience. Below `lg` the
-                header's width goes to the controls needed while trading. */}
-            <div className="hidden lg:block">
-              <WorkspaceManager workspace={workspace} signedIn={!state.anonymous} />
-            </div>
             <div ref={setChartLayoutSlot} className="flex shrink-0 items-center" />
           </div>
         }
@@ -1104,6 +1102,7 @@ export function Backtester({
           state={state}
           onNewSession={newSession}
           onNavigate={navigateFromChart}
+          onOpenSettings={() => openSettings()}
         />}
       </div>
 

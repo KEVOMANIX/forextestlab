@@ -117,7 +117,17 @@ describe("batched replay equivalence", () => {
     expect(comparable(batched)).toEqual(comparable(oneAtATime));
     expect(batched.state.closedTrades).toHaveLength(1);
     expect(batched.state.closedTrades[0]?.exitReason).toBe("take-profit");
-    expect(batched.state.equityCurve).toHaveLength(5);
+
+    // The curve records every distinct equity value and carries the latest one
+    // to the candle the replay is on — but not one identical point per candle,
+    // which is what made a long jump expensive to hold, save and draw.
+    const curve = batched.state.equityCurve;
+    expect(curve.length).toBeGreaterThan(1);
+    expect(curve.at(-1)?.index).toBe(batched.state.visibleIndex);
+    for (let index = 1; index < curve.length; index += 1) {
+      expect(curve[index]!.equity === curve[index - 1]!.equity &&
+        curve[index]!.balance === curve[index - 1]!.balance).toBe(false);
+    }
   });
 });
 

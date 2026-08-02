@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ToolKind } from "@/lib/chart/drawing/types";
-import type { WorkspacePayload, WorkspaceTemplate } from "@/lib/workspace";
-import { EMPTY_WORKSPACE } from "@/lib/workspace";
+import type { WorkspacePayload } from "@/lib/workspace";
 import { DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 
@@ -12,21 +11,22 @@ const FAVOURITES_KEY = "forextestlab:fav-tools";
 const ORDER_DEFAULTS_KEY = "forextestlab:order-defaults";
 const REPLAY_POSITION_KEY = "forextestlab:replay-position";
 
+/**
+ * Chart and trading preferences for a session, persisted locally and — for a
+ * signed-in trader — synced in the background so a browser change follows them.
+ *
+ * There is no named-workspace or template surface: preferences are one set that
+ * follows the trader, which is what the settings dialog edits. A saveable,
+ * exportable, template-able workspace was a second concept on top of that, with
+ * its own panel to manage, for a benefit nobody was getting.
+ */
 export interface ChartWorkspace {
   settings: ChartSettings;
   updateSettings: (patch: Partial<ChartSettings>) => void;
   resetSettings: () => void;
   favorites: Set<ToolKind>;
   toggleFavorite: (tool: ToolKind) => void;
-  syncStatus: "local" | "loading" | "saved" | "saving" | "error";
-  templates: WorkspaceTemplate[];
-  saveWorkspace: () => Promise<void>;
-  resetWorkspace: () => Promise<void>;
-  saveTemplate: (name: string) => Promise<void>;
-  applyTemplate: (template: WorkspaceTemplate) => Promise<void>;
-  deleteTemplate: (id: string) => Promise<void>;
-  exportWorkspace: () => void;
-  importWorkspace: (payload: WorkspacePayload) => Promise<void>;
+  /** Bumped when the server hands back a different set, so charts remount. */
   revision: number;
 }
 
@@ -110,8 +110,14 @@ export function useChartWorkspace(
   const [settings, setSettings] = useState<ChartSettings>(DEFAULT_CHART_SETTINGS);
   const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
   const [restored, setRestored] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<ChartWorkspace["syncStatus"]>(signedIn ? "loading" : "local");
-  const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
+  /**
+   * Background sync state, kept internal. Nothing surfaces it: preferences are
+   * cheap to re-set and local storage stays authoritative, so a failed sync is
+   * not worth a badge in the header the way a lost trade would be.
+   */
+  const [syncStatus, setSyncStatus] = useState<"local" | "loading" | "saved" | "saving" | "error">(
+    signedIn ? "loading" : "local",
+  );
   const [revision, setRevision] = useState(0);
   const lastSavedRef = useRef("");
   const savePendingRef = useRef<Promise<void> | null>(null);
@@ -136,9 +142,8 @@ export function useChartWorkspace(
     if (!signedIn || !restored) return;
     let cancelled = false;
     void fetch("/api/workspace", { cache: "no-store" }).then(async (response) => {
-      const data = await response.json() as { ok?: boolean; workspace?: { payload: WorkspacePayload; updatedAt: string } | null; templates?: WorkspaceTemplate[] };
+      const data = await response.json() as { ok?: boolean; workspace?: { payload: WorkspacePayload; updatedAt: string } | null };
       if (cancelled || !data.ok) { setSyncStatus("error"); return; }
-      setTemplates(data.templates ?? []);
       if (data.workspace) {
         applyWorkspace(storageKey, data.workspace.payload);
         setSettings({ ...DEFAULT_CHART_SETTINGS, ...data.workspace.payload.settings });
@@ -215,50 +220,5 @@ export function useChartWorkspace(
     });
   }, []);
 
-  const resetWorkspace = useCallback(async () => {
-    for (const key of Object.keys(window.localStorage)) {
-      if (key.startsWith("forextestlab:chart:") || key.startsWith("forextestlab:chart-settings:") || key.startsWith("forextestlab:layout:") || key.startsWith("forextestlab:drawings:") || key === FAVOURITES_KEY || key === ORDER_DEFAULTS_KEY || key === REPLAY_POSITION_KEY) window.localStorage.removeItem(key);
-    }
-    if (signedIn) await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset" }) });
-    setSettings(DEFAULT_CHART_SETTINGS);
-    setFavorites(new Set());
-    lastSavedRef.current = JSON.stringify(EMPTY_WORKSPACE);
-    setRevision((value) => value + 1);
-  }, [signedIn]);
-  const saveTemplate = useCallback(async (name: string) => {
-    const response = await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save-template", name, payload: payload() }) });
-    const data = await response.json() as { templates?: WorkspaceTemplate[] };
-    if (!response.ok) throw new Error("Template could not be saved.");
-    setTemplates(data.templates ?? []);
-  }, [payload]);
-  const applyTemplate = useCallback(async (template: WorkspaceTemplate) => {
-    applyWorkspace(storageKey, template.payload);
-    if (signedIn) await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "save", payload: template.payload }) });
-    setSettings({ ...DEFAULT_CHART_SETTINGS, ...template.payload.settings });
-    setFavorites(new Set((template.payload.favorites ?? []) as ToolKind[]));
-    lastSavedRef.current = JSON.stringify(template.payload);
-    setRevision((value) => value + 1);
-  }, [signedIn, storageKey]);
-  const deleteTemplate = useCallback(async (id: string) => {
-    const response = await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete-template", templateId: id }) });
-    const data = await response.json() as { templates?: WorkspaceTemplate[] };
-    setTemplates(data.templates ?? []);
-  }, []);
-  const exportWorkspace = useCallback(() => {
-    const blob = new Blob([JSON.stringify(payload(), null, 2)], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob); link.download = "forextestlab-workspace.json"; link.click();
-    URL.revokeObjectURL(link.href);
-  }, [payload]);
-  const importWorkspace = useCallback(async (next: WorkspacePayload) => {
-    const imported = { ...EMPTY_WORKSPACE, ...next };
-    applyWorkspace(storageKey, imported);
-    if (signedIn) await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "import", payload: next }) });
-    setSettings({ ...DEFAULT_CHART_SETTINGS, ...imported.settings });
-    setFavorites(new Set((imported.favorites ?? []) as ToolKind[]));
-    lastSavedRef.current = JSON.stringify(imported);
-    setRevision((value) => value + 1);
-  }, [signedIn, storageKey]);
-
-  return { settings, updateSettings, resetSettings, favorites, toggleFavorite, syncStatus, templates, saveWorkspace, resetWorkspace, saveTemplate, applyTemplate, deleteTemplate, exportWorkspace, importWorkspace, revision };
+  return { settings, updateSettings, resetSettings, favorites, toggleFavorite, revision };
 }

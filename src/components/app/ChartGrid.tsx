@@ -319,6 +319,14 @@ export default function ChartGrid({
   const spec = layoutSpec(layout);
   const multi = visibleCells.length > 1;
 
+  /**
+   * The workspace's drawing rail column. One rail serves every pane: it is
+   * always the full height of the grid, so no tool is ever pushed below the fold
+   * by a short cell, and the focused pane portals its own rail into it so the
+   * buttons act on the chart the trader is looking at.
+   */
+  const [railHost, setRailHost] = useState<HTMLDivElement | null>(null);
+
   const layoutPicker = (
     <div className="relative shrink-0" ref={layoutMenuRef}>
       <button
@@ -375,13 +383,15 @@ export default function ChartGrid({
         not a chart. Narrow viewports keep every cell the layout asked for but
         stack them full-width in a scrollable column, so each one stays readable.
       */}
-      <div
-        className={`grid min-h-0 flex-1 gap-px bg-[var(--app-border)] ${
-          compact
-            ? "auto-rows-[minmax(15rem,1fr)] grid-cols-1 overflow-y-auto"
-            : spec.className
-        }`}
-      >
+      <div className="flex min-h-0 flex-1">
+        <div ref={setRailHost} className="shrink-0" />
+        <div
+          className={`grid min-h-0 min-w-0 flex-1 gap-px bg-[var(--app-border)] ${
+            compact
+              ? "auto-rows-[minmax(15rem,1fr)] grid-cols-1 overflow-y-auto"
+              : spec.className
+          }`}
+        >
         {visibleCells.map((cell, index) => {
           const isSession = cell.symbol === sessionSymbol;
           const isFocused = cell.id === focused.id;
@@ -430,6 +440,8 @@ export default function ChartGrid({
                 }
                 headerSlot={!multi && isFocused ? headerSlot : null}
                 actionsSlot={isFocused ? actionsSlot : null}
+                railSlot={railHost}
+                showRail={isFocused}
                 orderTicket={isSession && isFocused ? orderTicket : null}
                 // One clock for the workspace, always in its outer bottom-right
                 // corner regardless of which independently movable cell is focused.
@@ -446,6 +458,7 @@ export default function ChartGrid({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
@@ -495,6 +508,8 @@ interface ChartCellViewProps {
   onTimeframeChange: (timeframe: Timeframe) => void;
   headerSlot: HTMLElement | null;
   actionsSlot: HTMLElement | null;
+  railSlot: HTMLElement | null;
+  showRail: boolean;
   orderTicket: React.ReactNode;
   axisCorner: React.ReactNode;
   workspace: ChartWorkspace;
@@ -534,6 +549,8 @@ function ChartCellView({
   onTimeframeChange,
   headerSlot,
   actionsSlot,
+  railSlot,
+  showRail,
   orderTicket,
   axisCorner,
   workspace,
@@ -596,6 +613,8 @@ function ChartCellView({
         onDisplayTimeframeChange={onTimeframeChange}
         headerSlot={headerSlot}
         actionsSlot={actionsSlot}
+        railSlot={railSlot}
+        showRail={showRail}
         orderTicket={orderTicket}
         axisCorner={axisCorner}
         symbolLabel={cell.symbol}

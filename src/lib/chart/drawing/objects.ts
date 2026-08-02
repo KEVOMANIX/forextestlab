@@ -23,6 +23,7 @@ import {
   nextId,
   withAlpha,
   type DrawingJSON,
+  type DrawingStyle,
   type Point,
   type ToolKind,
 } from "./types";
@@ -74,6 +75,28 @@ function extendSeg(
     sy = y1 - dy * tt;
   }
   return { sx, sy, ex, ey };
+}
+
+interface Seg {
+  sx: number;
+  sy: number;
+  ex: number;
+  ey: number;
+}
+
+/**
+ * A two-point line's drawn endpoints, after its Extend left / Extend right
+ * style. Every line tool renders and hit-tests through this, so what the
+ * setting shows and what the chart paints cannot drift apart.
+ */
+function styledSeg(
+  style: DrawingStyle,
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  mapper: CoordinateMapper,
+): Seg {
+  if (!style.extendLeft && !style.extendRight) return { sx: a.x, sy: a.y, ex: b.x, ey: b.y };
+  return extendSeg(a.x, a.y, b.x, b.y, mapper.width, mapper.height, style.extendLeft, style.extendRight);
 }
 
 function drawArrowHead(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, size: number, color: string): void {
@@ -143,31 +166,22 @@ function centerChip(ctx: CanvasRenderingContext2D, cx: number, cy: number, lines
 
 // ---- line family ----
 
+/**
+ * Base for the straight two-point lines. Trend, ray and extended line differ
+ * only in the Extend defaults they start with, so they share one renderer and
+ * one hit test — turning Extend right off on a ray leaves a trend line, which
+ * is what the setting says it does.
+ */
 class TrendLine extends DrawingObject {
-  render({ ctx, mapper }: RenderCtx): void {
+  protected seg(mapper: CoordinateMapper): Seg | null {
     const a = this.px(mapper, this.points[0]!);
     const b = this.px(mapper, this.points[1]!);
-    if (!a || !b) return;
-    this.applyStroke(ctx);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
+    if (!a || !b) return null;
+    return styledSeg(this.style, a, b, mapper);
   }
-  hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
-    const a = this.px(mapper, this.points[0]!);
-    const b = this.px(mapper, this.points[1]!);
-    if (!a || !b) return false;
-    return distToSegment(x, y, a.x, a.y, b.x, b.y) <= HIT_TOLERANCE + this.style.lineWidth;
-  }
-}
-
-class RayLine extends DrawingObject {
   render({ ctx, mapper }: RenderCtx): void {
-    const a = this.px(mapper, this.points[0]!);
-    const b = this.px(mapper, this.points[1]!);
-    if (!a || !b) return;
-    const e = extendSeg(a.x, a.y, b.x, b.y, mapper.width, mapper.height, this.style.extendLeft, this.style.extendRight || this.kind === "ray");
+    const e = this.seg(mapper);
+    if (!e) return;
     this.applyStroke(ctx);
     ctx.beginPath();
     ctx.moveTo(e.sx, e.sy);
@@ -175,39 +189,20 @@ class RayLine extends DrawingObject {
     ctx.stroke();
   }
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
-    const a = this.px(mapper, this.points[0]!);
-    const b = this.px(mapper, this.points[1]!);
-    if (!a || !b) return false;
-    const e = extendSeg(a.x, a.y, b.x, b.y, mapper.width, mapper.height, this.style.extendLeft, this.style.extendRight || this.kind === "ray");
+    const e = this.seg(mapper);
+    if (!e) return false;
     return distToSegment(x, y, e.sx, e.sy, e.ex, e.ey) <= HIT_TOLERANCE + this.style.lineWidth;
   }
 }
 
-class ExtendedLine extends RayLine {
+class ArrowLine extends TrendLine {
   render(r: RenderCtx): void {
-    this.style.extendLeft = true;
-    this.style.extendRight = true;
+    const e = this.seg(r.mapper);
+    if (!e) return;
     super.render(r);
-  }
-}
-
-class ArrowLine extends DrawingObject {
-  render({ ctx, mapper }: RenderCtx): void {
-    const a = this.px(mapper, this.points[0]!);
-    const b = this.px(mapper, this.points[1]!);
-    if (!a || !b) return;
-    this.applyStroke(ctx);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-    drawArrowHead(ctx, a.x, a.y, b.x, b.y, 6 + this.style.lineWidth * 2, this.strokeColor());
-  }
-  hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
-    const a = this.px(mapper, this.points[0]!);
-    const b = this.px(mapper, this.points[1]!);
-    if (!a || !b) return false;
-    return distToSegment(x, y, a.x, a.y, b.x, b.y) <= HIT_TOLERANCE + this.style.lineWidth;
+    // The head marks the direction the line points, so it rides the drawn end
+    // rather than staying behind at the anchor when the line is extended.
+    drawArrowHead(r.ctx, e.sx, e.sy, e.ex, e.ey, 6 + this.style.lineWidth * 2, this.strokeColor());
   }
 }
 
@@ -615,8 +610,9 @@ class FibObj extends DrawingObject {
     const x1 = mapper.timeToX(p0.time);
     const x2 = mapper.timeToX(p1.time);
     if (x1 == null || x2 == null) return false;
-    const left = Math.min(x1, x2);
-    const right = Math.max(x1, x2);
+    // Match the drawn span: an extended level is grabbable along its whole run.
+    const left = this.style.extendLeft ? 0 : Math.min(x1, x2);
+    const right = this.style.extendRight ? mapper.width : Math.max(x1, x2);
     if (x < left - HIT_TOLERANCE || x > right + HIT_TOLERANCE) return false;
     for (const lvl of this.levels()) {
       const yy = mapper.priceToY(this.priceAt(lvl));
@@ -629,47 +625,54 @@ class FibObj extends DrawingObject {
 // ---- parallel channel ----
 
 class Channel extends DrawingObject {
-  render({ ctx, mapper }: RenderCtx): void {
+  /** The channel's two parallel edges, each already carrying its Extend style. */
+  private edges(mapper: CoordinateMapper): { near: Seg; far: Seg } | null {
     const a = this.px(mapper, this.points[0]!);
     const b = this.px(mapper, this.points[1]!);
     const c = this.px(mapper, this.points[2]!);
-    if (!a || !b || !c) return;
+    if (!a || !b || !c) return null;
     const vx = c.x - a.x;
     const vy = c.y - a.y;
+    return {
+      near: styledSeg(this.style, a, b, mapper),
+      far: styledSeg(this.style, { x: a.x + vx, y: a.y + vy }, { x: b.x + vx, y: b.y + vy }, mapper),
+    };
+  }
+  render({ ctx, mapper }: RenderCtx): void {
+    const e = this.edges(mapper);
+    if (!e) return;
+    const { near, far } = e;
     ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.lineTo(b.x + vx, b.y + vy);
-    ctx.lineTo(a.x + vx, a.y + vy);
+    ctx.moveTo(near.sx, near.sy);
+    ctx.lineTo(near.ex, near.ey);
+    ctx.lineTo(far.ex, far.ey);
+    ctx.lineTo(far.sx, far.sy);
     ctx.closePath();
     ctx.fillStyle = withAlpha(this.style.fillColor, Math.min(0.1, this.style.fillOpacity + 0.02));
     ctx.fill();
     this.applyStroke(ctx);
     ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.moveTo(a.x + vx, a.y + vy);
-    ctx.lineTo(b.x + vx, b.y + vy);
+    ctx.moveTo(near.sx, near.sy);
+    ctx.lineTo(near.ex, near.ey);
+    ctx.moveTo(far.sx, far.sy);
+    ctx.lineTo(far.ex, far.ey);
     ctx.stroke();
     // Dashed midline halfway between the two parallel edges.
     ctx.strokeStyle = withAlpha(this.style.color, this.style.opacity * 0.7);
     ctx.setLineDash([4, 3]);
     ctx.beginPath();
-    ctx.moveTo(a.x + vx / 2, a.y + vy / 2);
-    ctx.lineTo(b.x + vx / 2, b.y + vy / 2);
+    ctx.moveTo((near.sx + far.sx) / 2, (near.sy + far.sy) / 2);
+    ctx.lineTo((near.ex + far.ex) / 2, (near.ey + far.ey) / 2);
     ctx.stroke();
     ctx.setLineDash([]);
   }
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
-    const a = this.px(mapper, this.points[0]!);
-    const b = this.px(mapper, this.points[1]!);
-    const c = this.px(mapper, this.points[2]!);
-    if (!a || !b || !c) return false;
-    const vx = c.x - a.x;
-    const vy = c.y - a.y;
+    const e = this.edges(mapper);
+    if (!e) return false;
+    const tolerance = HIT_TOLERANCE + this.style.lineWidth;
     return (
-      distToSegment(x, y, a.x, a.y, b.x, b.y) <= HIT_TOLERANCE + this.style.lineWidth ||
-      distToSegment(x, y, a.x + vx, a.y + vy, b.x + vx, b.y + vy) <= HIT_TOLERANCE + this.style.lineWidth
+      distToSegment(x, y, e.near.sx, e.near.sy, e.near.ex, e.near.ey) <= tolerance ||
+      distToSegment(x, y, e.far.sx, e.far.sy, e.far.ex, e.far.ey) <= tolerance
     );
   }
 }
@@ -942,26 +945,51 @@ class RegressionTrend extends DrawingObject {
     const u1 = r.mapper.priceToY(g.first + g.dev); const u2 = r.mapper.priceToY(g.last + g.dev);
     const d1 = r.mapper.priceToY(g.first - g.dev); const d2 = r.mapper.priceToY(g.last - g.dev);
     if ([x1,x2,y1,y2,u1,u2,d1,d2].some(v => v == null)) return;
+    // Each band keeps the channel's slope when extended, so the three lines stay
+    // parallel instead of converging at the pane edge.
+    const mid = styledSeg(this.style, { x: x1!, y: y1! }, { x: x2!, y: y2! }, r.mapper);
+    const upper = styledSeg(this.style, { x: x1!, y: u1! }, { x: x2!, y: u2! }, r.mapper);
+    const lower = styledSeg(this.style, { x: x1!, y: d1! }, { x: x2!, y: d2! }, r.mapper);
     r.ctx.save();
-    if (this.style.fill) { r.ctx.fillStyle = this.fillPaint(); r.ctx.beginPath(); r.ctx.moveTo(x1!,u1!); r.ctx.lineTo(x2!,u2!); r.ctx.lineTo(x2!,d2!); r.ctx.lineTo(x1!,d1!); r.ctx.closePath(); r.ctx.fill(); }
-    this.applyStroke(r.ctx); r.ctx.beginPath(); r.ctx.moveTo(x1!,u1!); r.ctx.lineTo(x2!,u2!); r.ctx.moveTo(x1!,y1!); r.ctx.lineTo(x2!,y2!); r.ctx.moveTo(x1!,d1!); r.ctx.lineTo(x2!,d2!); r.ctx.stroke(); r.ctx.restore();
+    if (this.style.fill) { r.ctx.fillStyle = this.fillPaint(); r.ctx.beginPath(); r.ctx.moveTo(upper.sx,upper.sy); r.ctx.lineTo(upper.ex,upper.ey); r.ctx.lineTo(lower.ex,lower.ey); r.ctx.lineTo(lower.sx,lower.sy); r.ctx.closePath(); r.ctx.fill(); }
+    this.applyStroke(r.ctx); r.ctx.beginPath(); r.ctx.moveTo(upper.sx,upper.sy); r.ctx.lineTo(upper.ex,upper.ey); r.ctx.moveTo(mid.sx,mid.sy); r.ctx.lineTo(mid.ex,mid.ey); r.ctx.moveTo(lower.sx,lower.sy); r.ctx.lineTo(lower.ex,lower.ey); r.ctx.stroke(); r.ctx.restore();
   }
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean { const b = this.bbox(mapper); return !!b && pointInRect(x,y,b,HIT_TOLERANCE); }
 }
 
 class FlatChannel extends DrawingObject {
+  /** Horizontal span of the two levels, widened by the Extend style. */
+  private span(mapper: CoordinateMapper): { left: number; right: number } | null {
+    const a = this.px(mapper, this.points[0]!);
+    const b = this.px(mapper, this.points[1]!);
+    if (!a || !b) return null;
+    return {
+      left: this.style.extendLeft ? 0 : Math.min(a.x, b.x),
+      right: this.style.extendRight ? mapper.width : Math.max(a.x, b.x),
+    };
+  }
   render({ ctx, mapper }: RenderCtx): void {
-    const a=this.px(mapper,this.points[0]!); const b=this.px(mapper,this.points[1]!); const c=this.px(mapper,this.points[2]!); if(!a||!b||!c)return;
-    const left=Math.min(a.x,b.x), right=Math.max(a.x,b.x);
+    const a=this.px(mapper,this.points[0]!); const c=this.px(mapper,this.points[2]!); const s=this.span(mapper); if(!a||!c||!s)return;
+    const { left, right } = s;
     if(this.style.fill){ctx.fillStyle=this.fillPaint();ctx.fillRect(left,Math.min(a.y,c.y),right-left,Math.abs(c.y-a.y));}
     this.applyStroke(ctx);ctx.beginPath();ctx.moveTo(left,a.y);ctx.lineTo(right,a.y);ctx.moveTo(left,c.y);ctx.lineTo(right,c.y);ctx.stroke();
   }
-  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const a=this.px(mapper,this.points[0]!);const b=this.px(mapper,this.points[1]!);const c=this.px(mapper,this.points[2]!);return !!a&&!!b&&!!c&&x>=Math.min(a.x,b.x)-HIT_TOLERANCE&&x<=Math.max(a.x,b.x)+HIT_TOLERANCE&&(Math.abs(y-a.y)<HIT_TOLERANCE||Math.abs(y-c.y)<HIT_TOLERANCE);}
+  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const a=this.px(mapper,this.points[0]!);const c=this.px(mapper,this.points[2]!);const s=this.span(mapper);return !!a&&!!c&&!!s&&x>=s.left-HIT_TOLERANCE&&x<=s.right+HIT_TOLERANCE&&(Math.abs(y-a.y)<HIT_TOLERANCE||Math.abs(y-c.y)<HIT_TOLERANCE);}
 }
 
 class DisjointChannel extends DrawingObject {
-  render({ctx,mapper}:RenderCtx):void{const p=this.points.map(v=>this.px(mapper,v));if(p.some(v=>!v))return;const q=p as {x:number;y:number}[];if(this.style.fill){ctx.fillStyle=this.fillPaint();ctx.beginPath();q.forEach((v,i)=>i?ctx.lineTo(v.x,v.y):ctx.moveTo(v.x,v.y));ctx.closePath();ctx.fill();}this.applyStroke(ctx);ctx.beginPath();ctx.moveTo(q[0]!.x,q[0]!.y);ctx.lineTo(q[1]!.x,q[1]!.y);ctx.moveTo(q[2]!.x,q[2]!.y);ctx.lineTo(q[3]!.x,q[3]!.y);ctx.stroke();}
-  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const p=this.points.map(v=>this.px(mapper,v));if(p.some(v=>!v))return false;const q=p as {x:number;y:number}[];return distToSegment(x,y,q[0]!.x,q[0]!.y,q[1]!.x,q[1]!.y)<=HIT_TOLERANCE||distToSegment(x,y,q[2]!.x,q[2]!.y,q[3]!.x,q[3]!.y)<=HIT_TOLERANCE;}
+  /** The two independent edges, each carrying the shared Extend style. */
+  private edges(mapper: CoordinateMapper): { first: Seg; second: Seg } | null {
+    const p = this.points.map((v) => this.px(mapper, v));
+    if (p.some((v) => !v)) return null;
+    const q = p as { x: number; y: number }[];
+    return {
+      first: styledSeg(this.style, q[0]!, q[1]!, mapper),
+      second: styledSeg(this.style, q[2]!, q[3]!, mapper),
+    };
+  }
+  render({ctx,mapper}:RenderCtx):void{const e=this.edges(mapper);if(!e)return;const{first,second}=e;if(this.style.fill){ctx.fillStyle=this.fillPaint();ctx.beginPath();ctx.moveTo(first.sx,first.sy);ctx.lineTo(first.ex,first.ey);ctx.lineTo(second.ex,second.ey);ctx.lineTo(second.sx,second.sy);ctx.closePath();ctx.fill();}this.applyStroke(ctx);ctx.beginPath();ctx.moveTo(first.sx,first.sy);ctx.lineTo(first.ex,first.ey);ctx.moveTo(second.sx,second.sy);ctx.lineTo(second.ex,second.ey);ctx.stroke();}
+  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const e=this.edges(mapper);if(!e)return false;return distToSegment(x,y,e.first.sx,e.first.sy,e.first.ex,e.first.ey)<=HIT_TOLERANCE||distToSegment(x,y,e.second.sx,e.second.sy,e.second.ex,e.second.ey)<=HIT_TOLERANCE;}
 }
 
 class FibExtension extends FibObj {
@@ -1082,8 +1110,8 @@ const REGISTRY: Record<ToolKind, new (json: DrawingJSON) => DrawingObject> = {
   trend: TrendLine,
   horizontal: HorizontalLine,
   vertical: VerticalLine,
-  ray: RayLine,
-  extended: ExtendedLine,
+  ray: TrendLine,
+  extended: TrendLine,
   arrow: ArrowLine,
   rectangle: Rectangle,
   session: SessionBox,

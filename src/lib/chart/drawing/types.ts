@@ -98,6 +98,28 @@ export interface DrawingJSON {
   visibleTimeframes: string[] | null;
 }
 
+/**
+ * Tools whose geometry can run past its anchors to the edge of the pane.
+ *
+ * Extend has no meaning for a tool that already spans the chart (a horizontal
+ * line), one anchored to a single point (a price label), or a closed shape, so
+ * those never offer the setting rather than offering one that does nothing.
+ */
+export const EXTENDABLE_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
+  "trend",
+  "ray",
+  "extended",
+  "arrow",
+  "infoLine",
+  "trendAngle",
+  "channel",
+  "flatChannel",
+  "disjointChannel",
+  "regression",
+  "fib",
+  "fibExtension",
+]);
+
 export const SELECTION_BLUE = "#3b82f6";
 export const HANDLE_FILL = "#0b0f1a";
 
@@ -112,7 +134,10 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     fillOpacity: 0.12,
     showCenterLine: false,
     showLabels: true,
-    extendLeft: false,
+    // An extended line is a trend line already extended both ways, and a ray one
+    // extended forward. Seeding the flags rather than forcing them at paint time
+    // leaves both tools' Extend settings usable like every other line's.
+    extendLeft: kind === "extended",
     extendRight: kind === "ray" || kind === "extended",
     background: kind === "label" || kind === "anchoredText",
     fontSize: 13,

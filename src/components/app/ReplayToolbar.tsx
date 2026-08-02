@@ -131,6 +131,20 @@ export function ReplayToolbar({
     ? "You are at the first replay candle"
     : null;
   const canPrev = prevDisabledReason === null;
+  /**
+   * The session's spread, and the bid/ask it puts around the replay's current
+   * price. The engine charges half the spread on each side, so these are the
+   * two prices a market order would actually get.
+   */
+  const spreadPips = Number(state.config.spreadPips) || 0;
+  const spreadLabel = spreadPips.toFixed(1);
+  const pipSize = Number(state.config.pipSize) || 0;
+  const mid = state.currentPrice == null ? null : Number(state.currentPrice);
+  const precision = state.config.pricePrecision;
+  const bidAskLabel =
+    mid == null || !Number.isFinite(mid)
+      ? null
+      : `${(mid - (spreadPips * pipSize) / 2).toFixed(precision)} / ${(mid + (spreadPips * pipSize) / 2).toFixed(precision)}`;
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));
   const cadenceLabel = speedLabel(state.speed);
@@ -339,6 +353,17 @@ export function ReplayToolbar({
           >
             <ArrowDownRight size={13} aria-hidden /> <span className="hidden sm:inline">Sell</span>
           </button>
+          {/* The cost of crossing sits between the two buttons that cross it, so
+              it is read at the moment it is paid rather than hunted for in the
+              session's setup. */}
+          <span
+            data-testid="quick-trade-spread"
+            title={`Spread: ${spreadLabel} pips${bidAskLabel ? ` (${bidAskLabel})` : ""}`}
+            className="flex h-7 shrink-0 flex-col items-center justify-center px-1 leading-none"
+          >
+            <span className="font-mono text-[11px] font-semibold text-[var(--app-text)]">{spreadLabel}</span>
+            <span className="text-[7px] font-semibold uppercase tracking-[0.08em] app-muted">spread</span>
+          </span>
           <button
             type="button"
             aria-label="Quick Buy"

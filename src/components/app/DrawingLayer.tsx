@@ -45,6 +45,15 @@ interface Props {
   timeframe: string;
   timeframes: string[];
   candles: Candle[];
+  /** Bar times the chart's time axis continues through past the last candle. */
+  futureTimes: number[];
+  /**
+   * Pixels between the drawing host's left edge and the chart canvas's. The
+   * engine reads pointer positions against this host and projects them through
+   * the chart's own coordinates, so any gap between the two silently offsets
+   * every anchor by that many pixels' worth of bars.
+   */
+  insetLeft?: number;
   viewVersion: number;
   onToolConsumed: () => void;
   onCountChange?: (count: number) => void;
@@ -63,6 +72,8 @@ export function DrawingLayer({
   timeframe,
   timeframes,
   candles,
+  futureTimes,
+  insetLeft = 0,
   viewVersion,
   onToolConsumed,
   onCountChange,
@@ -75,6 +86,8 @@ export function DrawingLayer({
   const sourceRef = useRef(`drawing-layer-${Math.random().toString(36).slice(2)}`);
   const candlesRef = useRef(candles);
   candlesRef.current = candles;
+  const futureTimesRef = useRef(futureTimes);
+  futureTimesRef.current = futureTimes;
 
   const [settings, setSettings] = useState<DrawingJSON | null>(null);
   const [menu, setMenu] = useState<ContextMenuRequest | null>(null);
@@ -174,9 +187,18 @@ export function DrawingLayer({
 
   // Push environment on every relevant change.
   useEffect(() => {
-    engineInstance.current?.setEnv({ tool, selectionEnabled, magnet, precision, pipSize, timeframe, candles: candlesRef.current });
+    engineInstance.current?.setEnv({
+      tool,
+      selectionEnabled,
+      magnet,
+      precision,
+      pipSize,
+      timeframe,
+      candles: candlesRef.current,
+      futureTimes: futureTimesRef.current,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, candles]);
+  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, candles, futureTimes]);
 
   // Re-render objects when the chart view moves.
   useEffect(() => {
@@ -236,7 +258,11 @@ export function DrawingLayer({
 
   return (
     <>
-      <div ref={hostRef} className="absolute inset-0 z-10" style={{ pointerEvents: "none" }} />
+      <div
+        ref={hostRef}
+        className="absolute inset-y-0 right-0 z-10"
+        style={{ left: insetLeft, pointerEvents: "none" }}
+      />
 
       {textEdit && (
         <textarea

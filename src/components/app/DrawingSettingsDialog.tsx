@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import {
   DRAW_PALETTE,
+  EXTENDABLE_TOOLS,
   FIB_LEVELS,
   TOOL_LABELS,
   type DrawingJSON,
@@ -182,12 +183,18 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                   />
                 </Row>
               )}
-              <Row label="Extend left">
-                <input type="checkbox" checked={s.extendLeft} onChange={(e) => setStyle({ extendLeft: e.target.checked })} />
-              </Row>
-              <Row label="Extend right">
-                <input type="checkbox" checked={s.extendRight} onChange={(e) => setStyle({ extendRight: e.target.checked })} />
-              </Row>
+              {/* Only offered where it changes the drawing; a horizontal line
+                  already spans the pane and a rectangle has nothing to extend. */}
+              {EXTENDABLE_TOOLS.has(value.kind) && (
+                <>
+                  <Row label="Extend left">
+                    <input type="checkbox" checked={s.extendLeft} onChange={(e) => setStyle({ extendLeft: e.target.checked })} />
+                  </Row>
+                  <Row label="Extend right">
+                    <input type="checkbox" checked={s.extendRight} onChange={(e) => setStyle({ extendRight: e.target.checked })} />
+                  </Row>
+                </>
+              )}
               {(value.kind === "fib" || value.kind === "fibExtension") && (
                 <Row label="Reverse">
                   <input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} />

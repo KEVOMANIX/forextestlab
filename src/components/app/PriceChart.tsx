@@ -257,6 +257,13 @@ interface PriceChartProps {
   headerSlot?: HTMLElement | null;
   /** Right-hand header target for chart *actions*, such as the screenshot. */
   actionsSlot?: HTMLElement | null;
+  /**
+   * Full-height column on the workspace's left edge to host the drawing rail,
+   * and whether this pane is the one that owns it. A multi-chart layout has a
+   * single rail acting on the focused pane instead of one per cell.
+   */
+  railSlot?: HTMLElement | null;
+  showRail?: boolean;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
   orderTicket?: React.ReactNode;
   /**
@@ -563,6 +570,8 @@ export default function PriceChart({
   onToggleFavorite,
   headerSlot = null,
   actionsSlot = null,
+  railSlot = null,
+  showRail = true,
   orderTicket = null,
   axisCorner = null,
 }: PriceChartProps) {
@@ -577,6 +586,13 @@ export default function PriceChart({
     timeframe: Timeframe | null;
     through: number;
   }>({ timeframe: null, through: 0 });
+  /**
+   * The forward runway's bar times, in seconds. Drawings placed in the empty
+   * space right of price are anchored against these rather than against a
+   * uniform interval, so the weekend the runway skips does not later drag them
+   * back to the Friday close.
+   */
+  const futureTimesRef = useRef<number[]>([]);
   const renderRafRef = useRef<number | null>(null);
   const forceRenderRef = useRef(false);
   const lineCoordRafRef = useRef<number | null>(null);
@@ -1080,6 +1096,7 @@ export default function PriceChart({
       drawingCandlesRef.current = timeline;
       drawingEngineRef.current?.setEnv({
         candles: drawingCandlesRef.current,
+        futureTimes: futureTimesRef.current,
       });
     }
     const renderedDisplay =
@@ -1268,6 +1285,8 @@ export default function PriceChart({
       time: (nextForexTimeframeTimestamp(latestSeconds * 1000, timeframe, index + 1) / 1000) as UTCTimestamp,
     }));
     series.setData(whitespace);
+    futureTimesRef.current = whitespace.map((point) => Number(point.time));
+    drawingEngineRef.current?.setEnv({ futureTimes: futureTimesRef.current });
     futureTimeRangeRef.current = {
       timeframe,
       through: Number(whitespace.at(-1)?.time ?? latestSeconds),
@@ -2876,6 +2895,104 @@ export default function PriceChart({
     </div>
   );
 
+  /**
+   * The drawing rail.
+   *
+   * A multi-chart layout gets one rail for the workspace rather than one per
+   * pane: repeated per pane it ate a twelfth of every cell, and in a four-up
+   * grid each copy was shorter than its own tool list, so the lower half of the
+   * tools sat below the fold. Hosted in a full-height column it always shows
+   * every tool, and it drives whichever chart has focus.
+   */
+  const drawingRail = (
+    <div className={`flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
+      <ToolButton
+        label={`Cursor mode: ${cursorMode === "pointer" ? "Pointer" : "Crosshair"}`}
+        active={drawTool === null}
+        onClick={(event) => {
+          if (menu === "cursor") { setMenu(null); return; }
+          const rect = event.currentTarget.getBoundingClientRect();
+          setMenuAnchor({ x: rect.right + 6, y: rect.top });
+          setMenu("cursor");
+        }}
+      >
+        {cursorMode === "pointer" ? <MousePointer2 size={19} aria-hidden /> : <Crosshair size={19} aria-hidden />}
+      </ToolButton>
+
+      {DRAW_GROUPS.map((grp) => {
+        const active = menu === grp.key || grp.tools.includes(drawTool as ToolKind);
+        return (
+          <ToolButton
+            key={grp.key}
+            label={grp.label}
+            active={active}
+            onClick={(e) => {
+              if (menu === grp.key) { setMenu(null); return; }
+              const r = e.currentTarget.getBoundingClientRect();
+              setMenuAnchor({ x: r.right + 6, y: r.top });
+              setMenu(grp.key);
+            }}
+          >
+            <grp.Icon size={22} aria-hidden />
+          </ToolButton>
+        );
+      })}
+
+      <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
+        <ToolButton
+          label={`Magnet snapping: ${drawMagnet}`}
+          active={drawMagnet !== "off"}
+          onClick={() => setDrawMagnet((m) => MAGNET_MODES[(MAGNET_MODES.indexOf(m) + 1) % MAGNET_MODES.length]!)}
+        >
+          <span className="relative">
+            <Magnet size={18} aria-hidden />
+            {drawMagnet !== "off" && (
+              <span className="absolute -right-1 -top-1 text-[7px] font-bold uppercase text-brand-300">{drawMagnet[0]}</span>
+            )}
+          </span>
+        </ToolButton>
+        <ToolButton label="Undo (Ctrl+Z)" onClick={() => drawingEngineRef.current?.undo()}>
+          <Undo2 size={18} aria-hidden />
+        </ToolButton>
+        <ToolButton label="Redo (Ctrl+Shift+Z)" onClick={() => drawingEngineRef.current?.redo()}>
+          <Redo2 size={18} aria-hidden />
+        </ToolButton>
+        {drawCount > 0 && (
+          <ToolButton
+            label={drawingsHidden ? "Show all drawings" : "Hide all drawings"}
+            active={drawingsHidden}
+            onClick={() => updateSettings({ drawings: drawingsHidden })}
+          >
+            {drawingsHidden ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+          </ToolButton>
+        )}
+        {drawCount > 0 && (
+          <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
+            <Trash2 size={15} className="text-bear" aria-hidden />
+          </ToolButton>
+        )}
+      </div>
+
+      {/* Chart-view utilities */}
+      <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
+        {hasOlderHistory && (
+          <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
+            {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={18} aria-hidden />}
+          </ToolButton>
+        )}
+        <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => updateSettings({ magnet: !magnetCrosshair })}>
+          <Crosshair size={18} aria-hidden />
+        </ToolButton>
+        <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => updateSettings({ grid: !gridVisible })}>
+          <Grid3X3 size={18} aria-hidden />
+        </ToolButton>
+        <ToolButton label="Go to latest candle" onClick={goToLatest}>
+          <LocateFixed size={18} aria-hidden />
+        </ToolButton>
+      </div>
+    </div>
+  );
+
   return (
     <div className="relative flex h-full w-full flex-col">
       {headerSlot
@@ -2885,8 +3002,10 @@ export default function PriceChart({
           slot for them it stays beside the chart controls. */}
       {actionsSlot && headerSlot ? createPortal(screenshotControl, actionsSlot) : null}
       {headerSlot && !actionsSlot ? createPortal(screenshotControl, headerSlot) : null}
-      {/* The drawing rail owns its own column; the chart begins after it instead of rendering underneath it. */}
-      <div className="relative min-h-0 flex-1 pl-12">
+      {/* The drawing rail owns its own column; the chart begins after it instead
+          of rendering underneath it. A pane whose rail lives in the workspace's
+          own column keeps that width for price. */}
+      <div className={`relative min-h-0 flex-1 ${showRail && !railSlot ? "pl-12" : ""}`}>
         <div
           ref={containerRef}
           className={`h-full w-full ${cursorMode === "crosshair" && drawTool == null ? "cursor-crosshair" : ""}`}
@@ -2941,6 +3060,11 @@ export default function PriceChart({
           timeframe={displayTimeframe}
           timeframes={availableTimeframes}
           candles={drawingCandlesRef.current}
+          futureTimes={futureTimesRef.current}
+          // An inline rail is padding on this box, which the overlay's inset-0
+          // would otherwise span — putting every drawing a rail's width out of
+          // step with the candles it was placed against.
+          insetLeft={showRail && !railSlot ? 48 : 0}
           viewVersion={viewVersion}
           onToolConsumed={() => setDrawTool(null)}
           onCountChange={setDrawCount}
@@ -3393,93 +3517,8 @@ export default function PriceChart({
           />
         )}
 
-        {/* Drawing tools occupy the reserved pane to the left of the chart canvas. */}
-        <div className="absolute bottom-0 left-0 top-0 z-30 flex w-12 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2" role="toolbar" aria-label="Drawing tools">
-          <ToolButton
-            label={`Cursor mode: ${cursorMode === "pointer" ? "Pointer" : "Crosshair"}`}
-            active={drawTool === null}
-            onClick={(event) => {
-              if (menu === "cursor") { setMenu(null); return; }
-              const rect = event.currentTarget.getBoundingClientRect();
-              setMenuAnchor({ x: rect.right + 6, y: rect.top });
-              setMenu("cursor");
-            }}
-          >
-            {cursorMode === "pointer" ? <MousePointer2 size={19} aria-hidden /> : <Crosshair size={19} aria-hidden />}
-          </ToolButton>
-
-          {DRAW_GROUPS.map((grp) => {
-            const active = menu === grp.key || grp.tools.includes(drawTool as ToolKind);
-            return (
-              <ToolButton
-                key={grp.key}
-                label={grp.label}
-                active={active}
-                onClick={(e) => {
-                  if (menu === grp.key) { setMenu(null); return; }
-                  const r = e.currentTarget.getBoundingClientRect();
-                  setMenuAnchor({ x: r.right + 6, y: r.top });
-                  setMenu(grp.key);
-                }}
-              >
-                <grp.Icon size={22} aria-hidden />
-              </ToolButton>
-            );
-          })}
-
-          <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
-            <ToolButton
-              label={`Magnet snapping: ${drawMagnet}`}
-              active={drawMagnet !== "off"}
-              onClick={() => setDrawMagnet((m) => MAGNET_MODES[(MAGNET_MODES.indexOf(m) + 1) % MAGNET_MODES.length]!)}
-            >
-              <span className="relative">
-                <Magnet size={18} aria-hidden />
-                {drawMagnet !== "off" && (
-                  <span className="absolute -right-1 -top-1 text-[7px] font-bold uppercase text-brand-300">{drawMagnet[0]}</span>
-                )}
-              </span>
-            </ToolButton>
-            <ToolButton label="Undo (Ctrl+Z)" onClick={() => drawingEngineRef.current?.undo()}>
-              <Undo2 size={18} aria-hidden />
-            </ToolButton>
-            <ToolButton label="Redo (Ctrl+Shift+Z)" onClick={() => drawingEngineRef.current?.redo()}>
-              <Redo2 size={18} aria-hidden />
-            </ToolButton>
-            {drawCount > 0 && (
-              <ToolButton
-                label={drawingsHidden ? "Show all drawings" : "Hide all drawings"}
-                active={drawingsHidden}
-                onClick={() => updateSettings({ drawings: drawingsHidden })}
-              >
-                {drawingsHidden ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
-              </ToolButton>
-            )}
-            {drawCount > 0 && (
-              <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
-                <Trash2 size={15} className="text-bear" aria-hidden />
-              </ToolButton>
-            )}
-          </div>
-
-          {/* Chart-view utilities */}
-          <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
-            {hasOlderHistory && (
-              <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
-                {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={18} aria-hidden />}
-              </ToolButton>
-            )}
-            <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => updateSettings({ magnet: !magnetCrosshair })}>
-              <Crosshair size={18} aria-hidden />
-            </ToolButton>
-            <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => updateSettings({ grid: !gridVisible })}>
-              <Grid3X3 size={18} aria-hidden />
-            </ToolButton>
-            <ToolButton label="Go to latest candle" onClick={goToLatest}>
-              <LocateFixed size={18} aria-hidden />
-            </ToolButton>
-          </div>
-        </div>
+        {/* One rail serves the workspace, so only the pane that owns it renders. */}
+        {!showRail ? null : railSlot ? createPortal(drawingRail, railSlot) : drawingRail}
 
         {menu === "cursor" && menuAnchor && createPortal(
           <div

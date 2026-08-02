@@ -48,6 +48,8 @@ interface EngineEnv {
   selectionEnabled: boolean;
   magnet: MagnetMode;
   candles: Candle[];
+  /** Bar times the chart's time axis continues through past the last candle. */
+  futureTimes: number[];
   precision: number;
   pipSize: number;
   timeframe: string;
@@ -93,7 +95,7 @@ export class DrawingEngine {
   private create: CreateState | null = null;
   private snapDot: { x: number; y: number } | null = null;
 
-  private env: EngineEnv = { tool: null, selectionEnabled: true, magnet: "off", candles: [], precision: 5, pipSize: 0.0001, timeframe: "" };
+  private env: EngineEnv = { tool: null, selectionEnabled: true, magnet: "off", candles: [], futureTimes: [], precision: 5, pipSize: 0.0001, timeframe: "" };
 
   private history: DrawingJSON[][] = [];
   private future: DrawingJSON[][] = [];
@@ -223,10 +225,15 @@ export class DrawingEngine {
     // alternating old/new frame. View-signature changes repaint the scene once
     // the chart's time/price scales have settled.
     if (env.candles) this.mapper.setCandles(env.candles);
+    if (env.futureTimes) this.mapper.setFutureTimes(env.futureTimes);
     if (env.tool !== undefined && env.tool !== prevTool) {
       // Tool changed: cancel any half-drawn object and reset cursor.
       this.cancelCreate();
       this.chartEl.style.cursor = this.env.tool ? "crosshair" : "";
+      // React can commit the rail's pressed state a frame before this effect
+      // runs, so the armed tool is published from here — the point at which a
+      // pointer-down would actually start drawing it.
+      this.host.dataset.drawingTool = this.env.tool ?? "";
       if (this.env.tool) this.select(null);
     }
     if (env.selectionEnabled !== undefined && env.selectionEnabled !== prevSelectionEnabled) {

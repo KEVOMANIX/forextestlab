@@ -32,6 +32,17 @@ export class CoordinateMapper {
   /** Data + inferred bar interval, used to extrapolate time past the edges. */
   private candles: Candle[] = [];
   private barSecs = 0;
+  /**
+   * Bar times the chart's time scale continues through after the last candle,
+   * ascending. The chart draws its forward runway from a session-aware series
+   * that skips the weekend closure, so the empty space to the right of price is
+   * not a uniform ladder of `barSecs` steps. Extrapolating as if it were put a
+   * drawing dropped "next Monday" on a Saturday timestamp no bar will ever
+   * carry, and the drawing jumped back to the Friday close the moment replay
+   * crossed the gap. Reading the same runway the chart uses keeps a released
+   * anchor on the bar the trader aimed at.
+   */
+  private futureTimes: number[] = [];
 
   constructor(
     private chart: IChartApi,
@@ -47,6 +58,11 @@ export class CoordinateMapper {
       if (d > 0 && (best === 0 || d < best)) best = d;
     }
     this.barSecs = best;
+  }
+
+  /** The chart's forward runway, in seconds, ascending and after the last candle. */
+  setFutureTimes(times: number[]): void {
+    this.futureTimes = times;
   }
 
   timeToX(time: number): number | null {
@@ -106,7 +122,7 @@ export class CoordinateMapper {
     const first = cs[0]!.time;
     const last = cs[lastIdx]!.time;
     if (time <= first) return (time - first) / this.barSecs;
-    if (time >= last) return lastIdx + (time - last) / this.barSecs;
+    if (time >= last) return lastIdx + this.futureOffset(time, last);
     // Between bars: linear interpolation within the bracketing pair.
     for (let i = 1; i <= lastIdx; i++) {
       if (cs[i]!.time >= time) {
@@ -119,12 +135,48 @@ export class CoordinateMapper {
     return lastIdx;
   }
 
+  /**
+   * How many bar slots past the last candle a time sits, following the chart's
+   * own forward runway. Falls back to uniform `barSecs` steps when no runway has
+   * been published — a chart with no forward whitespace has none to follow.
+   */
+  private futureOffset(time: number, last: number): number {
+    const ft = this.futureTimes;
+    const end = ft[ft.length - 1];
+    if (end == null) return (time - last) / this.barSecs;
+    if (time > end) return ft.length + (time - end) / this.barSecs;
+    // First runway index at or after `time`; the slot before it is either the
+    // previous runway point or the last real candle.
+    let low = 0;
+    let high = ft.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (ft[mid]! < time) low = mid + 1;
+      else high = mid;
+    }
+    const t1 = ft[low]!;
+    const t0 = low === 0 ? last : ft[low - 1]!;
+    return low + (t1 > t0 ? (time - t0) / (t1 - t0) : 0);
+  }
+
   private logicalToTime(logical: number): number {
     const cs = this.candles;
     if (cs.length === 0 || this.barSecs === 0) return 0;
     const lastIdx = cs.length - 1;
     if (logical <= 0) return Math.round(cs[0]!.time + logical * this.barSecs);
-    if (logical >= lastIdx) return Math.round(cs[lastIdx]!.time + (logical - lastIdx) * this.barSecs);
+    if (logical >= lastIdx) {
+      const last = cs[lastIdx]!.time;
+      const ahead = logical - lastIdx;
+      const ft = this.futureTimes;
+      if (!ft.length) return Math.round(last + ahead * this.barSecs);
+      const slot = Math.floor(ahead);
+      if (slot >= ft.length) {
+        return Math.round(ft[ft.length - 1]! + (ahead - ft.length) * this.barSecs);
+      }
+      const t0 = slot === 0 ? last : ft[slot - 1]!;
+      const t1 = ft[slot]!;
+      return Math.round(t0 + (ahead - slot) * (t1 - t0));
+    }
     const i = Math.floor(logical);
     const frac = logical - i;
     const t0 = cs[i]!.time;

@@ -53,10 +53,9 @@ for (const tool of ["Text", "Label", "Anchored text"] as const) {
     await page.getByRole("button", { name: /Text & notes/i }).click();
     await page.getByRole("button", { name: new RegExp(`^${tool}$`, "i") }).click();
     if (tool === "Anchored text") {
-      await page.mouse.move(box.x + box.width * .35, box.y + box.height * .28);
-      await page.mouse.down();
+      await page.mouse.click(box.x + box.width * .35, box.y + box.height * .28);
       await page.mouse.move(box.x + box.width * .45, box.y + box.height * .35, { steps: 5 });
-      await page.mouse.up();
+      await page.mouse.click(box.x + box.width * .45, box.y + box.height * .35);
     } else {
       await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.35);
     }
@@ -75,8 +74,8 @@ for (const tool of ["Text", "Label", "Anchored text"] as const) {
       };
     });
     expect(editorChrome).toEqual({
-      background: "rgba(0, 0, 0, 0)",
-      borderTop: "0px",
+      background: tool === "Anchored text" ? "rgb(17, 24, 39)" : "rgba(0, 0, 0, 0)",
+      borderTop: tool === "Anchored text" ? "1px" : "0px",
       boxShadow: "none",
       paddingTop: "0px",
     });

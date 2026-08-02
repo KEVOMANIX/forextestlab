@@ -481,50 +481,53 @@ class TextObj extends DrawingObject {
 
 /** Text connected to an exact candle/price anchor by a movable leader line. */
 class AnchoredTextObj extends DrawingObject {
+  private box(mapper: CoordinateMapper): Rect | null {
+    const textPoint = this.px(mapper, this.points[1]!);
+    if (!textPoint) return null;
+    const lines = (this.style.text || "Add text").split("\n");
+    const width = Math.max(104, ...lines.map((line) => line.length * this.style.fontSize * .62 + 20));
+    const height = Math.max(32, lines.length * (this.style.fontSize + 4) + 14);
+    return { x: textPoint.x + 6, y: textPoint.y - height / 2, w: width, h: height };
+  }
   render({ ctx, mapper }: RenderCtx): void {
     const anchor = this.px(mapper, this.points[0]!);
     const textPoint = this.px(mapper, this.points[1]!);
-    if (!anchor || !textPoint) return;
+    const box = this.box(mapper);
+    if (!anchor || !textPoint || !box) return;
     this.applyStroke(ctx);
     ctx.beginPath();
     ctx.moveTo(anchor.x, anchor.y);
     ctx.lineTo(textPoint.x, textPoint.y);
     ctx.stroke();
-    const text = this.style.text;
-    if (!text) return;
-    const lines = text.split("\n");
-    const lineHeight = this.style.fontSize + 3;
     ctx.save();
     ctx.setLineDash([]);
+    ctx.fillStyle = withAlpha(this.style.fillColor, this.style.fillOpacity);
+    roundRectPath(ctx, box.x, box.y, box.w, box.h, 5);
+    ctx.fill();
+    ctx.strokeStyle = withAlpha(this.style.color, Math.max(.55, this.style.opacity * .75));
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    const text = this.style.text || "Add text";
+    const lines = text.split("\n");
+    const lineHeight = this.style.fontSize + 3;
     const weight = this.style.bold ? "700 " : "";
     const italic = this.style.italic ? "italic " : "";
     ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "top";
-    ctx.textAlign = this.style.textAlign ?? "left";
-    ctx.fillStyle = withAlpha(this.style.textColor ?? this.style.color, this.style.opacity);
-    lines.forEach((line, index) => ctx.fillText(line, textPoint.x + 6, textPoint.y + 4 + index * lineHeight));
+    ctx.textAlign = "left";
+    ctx.fillStyle = this.style.text ? withAlpha(this.style.textColor ?? this.style.color, this.style.opacity) : withAlpha("#94a3b8", .78);
+    const textTop = box.y + (box.h - lines.length * lineHeight) / 2;
+    lines.forEach((line, index) => ctx.fillText(line, box.x + 10, textTop + index * lineHeight));
     ctx.restore();
   }
   bbox(mapper: CoordinateMapper): Rect {
-    const anchor = this.px(mapper, this.points[0]!) ?? { x: 0, y: 0 };
-    const textPoint = this.px(mapper, this.points[1]!) ?? anchor;
-    const lines = (this.style.text || "Text").split("\n");
-    const textWidth = Math.max(28, ...lines.map((line) => line.length * this.style.fontSize * .62));
-    const left = Math.min(anchor.x, textPoint.x);
-    const top = Math.min(anchor.y, textPoint.y);
-    return {
-      x: left,
-      y: top,
-      w: Math.max(anchor.x, textPoint.x + textWidth + 6) - left,
-      h: Math.max(anchor.y, textPoint.y + lines.length * (this.style.fontSize + 3) + 4) - top,
-    };
+    return this.box(mapper) ?? { x: 0, y: 0, w: 0, h: 0 };
   }
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
     const anchor = this.px(mapper, this.points[0]!);
     const textPoint = this.px(mapper, this.points[1]!);
     if (!anchor || !textPoint) return false;
-    return distToSegment(x, y, anchor.x, anchor.y, textPoint.x, textPoint.y) <= HIT_TOLERANCE + this.style.lineWidth ||
-      pointInRect(x, y, this.bbox(mapper), HIT_TOLERANCE);
+    return distToSegment(x, y, anchor.x, anchor.y, textPoint.x, textPoint.y) <= HIT_TOLERANCE + this.style.lineWidth || pointInRect(x, y, this.bbox(mapper), HIT_TOLERANCE);
   }
 }
 

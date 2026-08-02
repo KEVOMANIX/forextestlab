@@ -264,9 +264,13 @@ export function DrawingLayer({
           className="absolute z-50 resize-none overflow-hidden border-0 bg-transparent p-0 shadow-none outline-none"
           style={{
             left: textEdit.x + (textEdit.kind === "anchoredText" ? 6 : 0),
-            top: textEdit.kind === "anchoredText" ? textEdit.y + 4 : textEdit.y - textEdit.style.fontSize / 2,
-            width: Math.min(440, Math.max(24, Math.max(...(textDraft || " ").split("\n").map((line) => line.length)) * textEdit.style.fontSize * .64 + 8)),
-            height: Math.max(textEdit.style.fontSize + 6, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4)),
+            top: textEdit.kind === "anchoredText"
+              ? textEdit.y - Math.max(32, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4) + 14) / 2
+              : textEdit.y - textEdit.style.fontSize / 2,
+            width: Math.min(440, Math.max(textEdit.kind === "anchoredText" ? 104 : 24, Math.max(...(textDraft || " ").split("\n").map((line) => line.length)) * textEdit.style.fontSize * .64 + (textEdit.kind === "anchoredText" ? 20 : 8))),
+            height: textEdit.kind === "anchoredText"
+              ? Math.max(32, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4) + 14)
+              : Math.max(textEdit.style.fontSize + 6, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4)),
             pointerEvents: "auto",
             color: textEdit.style.textColor ?? textEdit.style.color,
             caretColor: textEdit.style.textColor ?? textEdit.style.color,
@@ -275,6 +279,11 @@ export function DrawingLayer({
             fontStyle: textEdit.style.italic ? "italic" : "normal",
             lineHeight: `${textEdit.style.fontSize + 4}px`,
             boxShadow: "none",
+            backgroundColor: textEdit.kind === "anchoredText" ? textEdit.style.fillColor : "transparent",
+            border: textEdit.kind === "anchoredText" ? `1px solid ${textEdit.style.color}` : "0",
+            borderRadius: textEdit.kind === "anchoredText" ? 5 : 0,
+            padding: textEdit.kind === "anchoredText" ? "6px 10px" : 0,
+            boxSizing: "border-box",
           }}
           rows={Math.max(1, textDraft.split("\n").length)}
           spellCheck={false}

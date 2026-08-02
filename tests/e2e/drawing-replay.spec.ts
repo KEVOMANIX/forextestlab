@@ -121,14 +121,13 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   const initialBounds = await chart.boundingBox();
   expect(initialBounds).not.toBeNull();
   if (!initialBounds) return;
-  await page.mouse.move(initialBounds.x + initialBounds.width * .44, initialBounds.y + initialBounds.height * .24);
-  await page.mouse.down();
+  await page.mouse.click(initialBounds.x + initialBounds.width * .44, initialBounds.y + initialBounds.height * .24);
   await page.mouse.move(initialBounds.x + initialBounds.width * .58, initialBounds.y + initialBounds.height * .32, { steps: 6 });
-  await page.mouse.up();
+  await page.mouse.click(initialBounds.x + initialBounds.width * .58, initialBounds.y + initialBounds.height * .32);
   const directEditor = page.getByTestId("drawing-inline-text-editor");
   await expect(directEditor).toBeFocused();
-  await expect(directEditor).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-  await expect(directEditor).toHaveCSS("border-top-width", "0px");
+  await expect(directEditor).toHaveCSS("background-color", "rgb(17, 24, 39)");
+  await expect(directEditor).toHaveCSS("border-top-width", "1px");
   await expect(directEditor).toHaveCSS("box-shadow", "none");
   await directEditor.fill("Replay plan");
   await page.keyboard.press("Enter");
@@ -146,6 +145,31 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
     }
     return false;
   })).toBe(true);
+  const anchoredBeforeDrag = await page.evaluate(() => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("forextestlab:drawings:")) continue;
+      const drawings = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<{ kind?: string; points?: Array<{ time: number; price: number }> }>;
+      const anchored = drawings.find((drawing) => drawing.kind === "anchoredText");
+      if (anchored?.points) return anchored.points;
+    }
+    return null;
+  });
+  expect(anchoredBeforeDrag).not.toBeNull();
+  await page.mouse.move(initialBounds.x + initialBounds.width * .58 + 28, initialBounds.y + initialBounds.height * .32);
+  await page.mouse.down();
+  await page.mouse.move(initialBounds.x + initialBounds.width * .58 + 88, initialBounds.y + initialBounds.height * .38, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate((original) => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("forextestlab:drawings:")) continue;
+      const drawings = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<{ kind?: string; points?: Array<{ time: number; price: number }> }>;
+      const points = drawings.find((drawing) => drawing.kind === "anchoredText")?.points;
+      if (points && original) return points[0]?.time === original[0]?.time && points[0]?.price === original[0]?.price && points[1]?.time !== original[1]?.time;
+    }
+    return false;
+  }, anchoredBeforeDrag)).toBe(true);
 
   // The expanded toolbox exposes real tools in the expected families.
   await page.getByRole("button", { name: "Lines & channels", exact: true }).click();

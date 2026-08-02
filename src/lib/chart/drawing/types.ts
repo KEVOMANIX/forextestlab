@@ -107,14 +107,14 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     opacity: 1,
     lineWidth: 1, // low-end default; the user's last-used style is remembered per tool
     lineStyle: kind === "horizontal" || kind === "vertical" || kind === "crossline" ? "dashed" : "solid",
-    fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle" || kind === "fib" || kind === "fibExtension" || kind === "regression" || kind === "flatChannel" || kind === "disjointChannel" || kind === "priceRange" || kind === "dateRange" || kind === "datePriceRange" || kind === "callout",
+    fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle" || kind === "fib" || kind === "fibExtension" || kind === "regression" || kind === "flatChannel" || kind === "disjointChannel" || kind === "priceRange" || kind === "dateRange" || kind === "datePriceRange" || kind === "callout" || kind === "anchoredText",
     fillColor: "#5b8bff",
     fillOpacity: 0.12,
     showCenterLine: false,
     showLabels: true,
     extendLeft: false,
     extendRight: kind === "ray" || kind === "extended",
-    background: kind === "label",
+    background: kind === "label" || kind === "anchoredText",
     fontSize: 13,
     text: "",
     bold: false,
@@ -124,6 +124,11 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     textPlacement: "inside",
   };
   if (kind === "session") base.fillColor = "#fbbf24";
+  if (kind === "anchoredText") {
+    base.fillColor = "#111827";
+    base.fillOpacity = 0.94;
+    base.textAlign = "left";
+  }
   if (kind === "long" || kind === "short") {
     base.accountSize = 10000;
     base.risk = 1;

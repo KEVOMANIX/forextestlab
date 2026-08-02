@@ -111,6 +111,7 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
 
   const chart = page.getByRole("img", { name: "Candlestick price chart" });
   await expect(chart).toBeVisible({ timeout: 30_000 });
+  await expect(chart).toHaveAttribute("data-forward-closed-session-points", "0");
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 

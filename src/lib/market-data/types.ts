@@ -92,6 +92,41 @@ export function nextTimeframeTimestamp(timestampMs: number, timeframe: Timeframe
   return timestampMs + TIMEFRAME_MS[timeframe] * count;
 }
 
+/**
+ * Whether a candle boundary belongs to the tradable forex week.
+ *
+ * Intraday markets reopen Sunday evening. Because candles are UTC-aligned, the
+ * first valid boundary is the bucket containing 21:00 UTC (for example 20:00
+ * on 4h, 18:00 on 6h). Daily and higher charts use Monday-Friday boundaries.
+ * This intentionally models the stable weekly closure rather than a broker's
+ * DST-sensitive exact open minute.
+ */
+export function isForexSessionTimestamp(timestampMs: number, timeframe: Timeframe): boolean {
+  if (timeframe === "1w" || timeframe === "1M" || timeframe === "1yr") return true;
+  const date = new Date(timestampMs);
+  const day = date.getUTCDay();
+  if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) return day >= 1 && day <= 5;
+  if (day === 6) return false;
+  const step = TIMEFRAME_MS[timeframe];
+  const offset = date.getUTCHours() * 3_600_000 + date.getUTCMinutes() * 60_000 + date.getUTCSeconds() * 1_000;
+  const openBucket = Math.floor((21 * 3_600_000) / step) * step;
+  if (day === 0) return offset >= openBucket;
+  if (day === 5) return offset <= openBucket;
+  return true;
+}
+
+/** Move by tradable forex candle boundaries, compressing the weekend closure. */
+export function nextForexTimeframeTimestamp(timestampMs: number, timeframe: Timeframe, count = 1): number {
+  let current = timestampMs;
+  const direction = count < 0 ? -1 : 1;
+  let remaining = Math.abs(count);
+  while (remaining > 0) {
+    current = nextTimeframeTimestamp(current, timeframe, direction);
+    if (isForexSessionTimestamp(current, timeframe)) remaining -= 1;
+  }
+  return current;
+}
+
 /** Count whole timeframe intervals between two aligned candle timestamps. */
 export function timeframeIntervalsBetween(fromMs: number, toMs: number, timeframe: Timeframe): number {
   if (timeframe === "1M") {

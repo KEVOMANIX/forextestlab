@@ -2,7 +2,30 @@ import { describe, it, expect } from "vitest";
 
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import type { Candle } from "@/lib/market-data/types";
-import { canAggregateTimeframes, TIMEFRAMES, TIMEFRAME_MS } from "@/lib/market-data/types";
+import { canAggregateTimeframes, nextForexTimeframeTimestamp, TIMEFRAMES, TIMEFRAME_MS } from "@/lib/market-data/types";
+
+describe("forex session timestamps", () => {
+  it("compresses the weekend for 4h candles", () => {
+    const friday20 = Date.UTC(2025, 7, 1, 20);
+    expect(nextForexTimeframeTimestamp(friday20, "4h")).toBe(Date.UTC(2025, 7, 3, 20));
+    expect(nextForexTimeframeTimestamp(friday20, "4h", 2)).toBe(Date.UTC(2025, 7, 4, 0));
+  });
+
+  it("preserves the Sunday-evening forex reopen", () => {
+    const friday21 = Date.UTC(2025, 7, 1, 21);
+    expect(nextForexTimeframeTimestamp(friday21, "1h")).toBe(Date.UTC(2025, 7, 3, 21));
+  });
+
+  it("daily candles continue from Friday to Monday", () => {
+    const friday = Date.UTC(2025, 7, 1);
+    expect(nextForexTimeframeTimestamp(friday, "1d")).toBe(Date.UTC(2025, 7, 4));
+  });
+
+  it("walks backward across the closure too", () => {
+    const monday = Date.UTC(2025, 7, 4);
+    expect(nextForexTimeframeTimestamp(monday, "4h", -1)).toBe(Date.UTC(2025, 7, 3, 20));
+  });
+});
 
 /** UTC midnight of 2024-01-01 — an exact day boundary, so every timeframe aligns. */
 const DAY = Date.UTC(2024, 0, 1);

@@ -11,7 +11,7 @@
 
 import { Decimal } from "@/lib/decimal";
 import { getSymbolDefinition } from "./symbols";
-import { nextTimeframeTimestamp, TIMEFRAME_MS, type Candle, type Timeframe } from "./types";
+import { nextForexTimeframeTimestamp, TIMEFRAME_MS, type Candle, type Timeframe } from "./types";
 
 /** Fixed demonstration window (UTC) so generated data is fully deterministic. */
 export const DEMO_RANGE_START = Date.UTC(2024, 2, 1, 0, 0, 0); // 2024-03-01
@@ -65,7 +65,7 @@ export function generateDemoSeries(
   const candles: Candle[] = [];
   let close = new Decimal(def.demoBasePrice);
 
-  for (let t = DEMO_RANGE_START; t < DEMO_RANGE_END; t = nextTimeframeTimestamp(t, timeframe)) {
+  for (let t = DEMO_RANGE_START; t < DEMO_RANGE_END; t = nextForexTimeframeTimestamp(t, timeframe)) {
     const open = close;
     // Mean-reverting random walk so prices stay in a believable band.
     const shock = vol.times(rand() - 0.5).times(2);

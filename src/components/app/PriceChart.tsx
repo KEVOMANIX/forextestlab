@@ -62,7 +62,8 @@ import {
   TIMEFRAMES,
   TIMEFRAME_MS,
   canAggregateTimeframes,
-  nextTimeframeTimestamp,
+  isForexSessionTimestamp,
+  nextForexTimeframeTimestamp,
   type Candle,
   type Timeframe,
 } from "@/lib/market-data/types";
@@ -1205,7 +1206,7 @@ export default function PriceChart({
       return;
     }
     const whitespace: WhitespaceData<Time>[] = Array.from({ length: 200 }, (_, index) => ({
-      time: (nextTimeframeTimestamp(latestSeconds * 1000, timeframe, index + 1) / 1000) as UTCTimestamp,
+      time: (nextForexTimeframeTimestamp(latestSeconds * 1000, timeframe, index + 1) / 1000) as UTCTimestamp,
     }));
     series.setData(whitespace);
     futureTimeRangeRef.current = {
@@ -1214,6 +1215,9 @@ export default function PriceChart({
     };
     if (container) {
       container.dataset.forwardScalePoints = String(whitespace.length);
+      container.dataset.forwardClosedSessionPoints = String(
+        whitespace.filter((point) => !isForexSessionTimestamp(Number(point.time) * 1000, timeframe)).length,
+      );
     }
   }
 

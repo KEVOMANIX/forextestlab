@@ -114,8 +114,21 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 
-  // Text is entered directly at the chart click: only a transparent textarea
-  // and its native blinking caret are present, with no input box chrome.
+  const cursorButton = page.getByRole("button", { name: "Cursor mode: Pointer", exact: true });
+  await expect(cursorButton).toBeVisible();
+  await cursorButton.click();
+  const cursorMenu = page.getByRole("menu", { name: "Cursor modes", exact: true });
+  await expect(cursorMenu).toBeVisible();
+  await cursorMenu.getByRole("menuitemradio", { name: /Crosshair/ }).click();
+  const crosshairButton = page.getByRole("button", { name: "Cursor mode: Crosshair", exact: true });
+  await expect(crosshairButton).toBeVisible();
+  await page.mouse.move(700, 400);
+  await expect(chart).toHaveCSS("cursor", "crosshair");
+  await crosshairButton.click();
+  await page.getByRole("menu", { name: "Cursor modes", exact: true }).getByRole("menuitemradio", { name: /Pointer/ }).click();
+  await expect(page.getByRole("button", { name: "Cursor mode: Pointer", exact: true })).toBeVisible();
+
+  // Anchored text is entered directly inside its styled endpoint box.
   await page.getByRole("button", { name: "Text & notes", exact: true }).click();
   await page.getByRole("button", { name: "Anchored text", exact: true }).click();
   const initialBounds = await chart.boundingBox();

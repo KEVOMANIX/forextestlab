@@ -45,6 +45,7 @@ function creationMode(kind: ToolKind): CreateMode {
 
 interface EngineEnv {
   tool: ToolKind | null;
+  selectionEnabled: boolean;
   magnet: MagnetMode;
   candles: Candle[];
   precision: number;
@@ -92,7 +93,7 @@ export class DrawingEngine {
   private create: CreateState | null = null;
   private snapDot: { x: number; y: number } | null = null;
 
-  private env: EngineEnv = { tool: null, magnet: "off", candles: [], precision: 5, pipSize: 0.0001, timeframe: "" };
+  private env: EngineEnv = { tool: null, selectionEnabled: true, magnet: "off", candles: [], precision: 5, pipSize: 0.0001, timeframe: "" };
 
   private history: DrawingJSON[][] = [];
   private future: DrawingJSON[][] = [];
@@ -200,6 +201,7 @@ export class DrawingEngine {
 
   setEnv(env: Partial<EngineEnv>): void {
     const prevTool = this.env.tool;
+    const prevSelectionEnabled = this.env.selectionEnabled;
     const geometryChanged =
       (env.precision !== undefined && env.precision !== this.env.precision) ||
       (env.pipSize !== undefined && env.pipSize !== this.env.pipSize) ||
@@ -216,6 +218,10 @@ export class DrawingEngine {
       this.cancelCreate();
       this.chartEl.style.cursor = this.env.tool ? "crosshair" : "";
       if (this.env.tool) this.select(null);
+    }
+    if (env.selectionEnabled !== undefined && env.selectionEnabled !== prevSelectionEnabled) {
+      if (!this.env.selectionEnabled) this.select(null);
+      this.chartEl.style.cursor = this.env.selectionEnabled ? "" : "crosshair";
     }
     if (geometryChanged) {
       this.sceneDirty = true;
@@ -582,6 +588,10 @@ export class DrawingEngine {
       this.beginCreateOrAdvance(px);
       return;
     }
+    if (!this.env.selectionEnabled) {
+      this.select(null);
+      return;
+    }
     // Select mode. Grabbing an object / anchor freezes the chart so the drag
     // moves the object rather than panning; empty clicks leave the chart free.
     const sel = this.objects.find((d) => d.id === this.selectedId) ?? null;
@@ -746,6 +756,14 @@ export class DrawingEngine {
       this.chartEl.style.cursor = inside ? "crosshair" : "";
       return;
     }
+    if (!this.env.selectionEnabled) {
+      if (this.hoverId) {
+        this.hoverId = null;
+        this.overlayDirty = true;
+      }
+      this.chartEl.style.cursor = inside ? "crosshair" : "";
+      return;
+    }
     if (!inside) {
       if (this.hoverId) {
         this.hoverId = null;
@@ -876,7 +894,7 @@ export class DrawingEngine {
       this.finalizeCreate();
       return;
     }
-    if (this.env.tool) return;
+    if (this.env.tool || !this.env.selectionEnabled) return;
     const px = this.localPx(e);
     const hit = this.hitObject(px.x, px.y);
     if (hit) {
@@ -886,6 +904,7 @@ export class DrawingEngine {
   };
 
   private onContext = (e: MouseEvent): void => {
+    if (this.env.tool || !this.env.selectionEnabled) return;
     const px = this.localPx(e);
     const hit = this.hitObject(px.x, px.y);
     if (hit) {

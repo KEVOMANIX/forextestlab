@@ -118,6 +118,7 @@ export interface ChartMarker {
 
 type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area";
 type DrawTool = ToolKind | null;
+type CursorModeName = "pointer" | "crosshair";
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
   candles: "Candles",
@@ -683,6 +684,7 @@ export default function PriceChart({
   const [openCats, setOpenCats] = useState<Set<IndCategory>>(() => new Set(CATEGORY_ORDER));
   const [anchorPick, setAnchorPick] = useState<{ id: string; key: string } | null>(null);
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
+  const [cursorMode, setCursorMode] = useState<CursorModeName>("pointer");
   const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
   const favDragRef = useRef<{ sx: number; sy: number; bx: number; by: number; moved: boolean } | null>(null);
   const favMovedRef = useRef(false);
@@ -691,7 +693,7 @@ export default function PriceChart({
   const drawingsHidden = !settings.drawings;
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const drawingEngineRef = useRef<DrawingEngine | null>(null);
-  const [menu, setMenu] = useState<"type" | "indicators" | DrawMenu | null>(null);
+  const [menu, setMenu] = useState<"type" | "indicators" | "cursor" | DrawMenu | null>(null);
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
   const [priceSeries, setPriceSeries] = useState<ISeriesApi<SeriesType> | null>(null);
   const [seriesEpoch, setSeriesEpoch] = useState(0);
@@ -1381,7 +1383,7 @@ export default function PriceChart({
             TIMEFRAME_MS[displayTimeframeRef.current],
           ),
       },
-      crosshair: { mode: CrosshairMode.Normal },
+      crosshair: { mode: CrosshairMode.Hidden },
       handleScroll: true,
       handleScale: true,
       autoSize: true,
@@ -1668,9 +1670,15 @@ export default function PriceChart({
       grid: { vertLines: { color: gridVisible ? palette.grid : "transparent" }, horzLines: { color: gridVisible ? palette.grid : "transparent" } },
       rightPriceScale: { borderColor: palette.border },
       timeScale: { borderColor: palette.border },
-      crosshair: { mode: magnetCrosshair ? CrosshairMode.Magnet : CrosshairMode.Normal },
+      crosshair: {
+        mode: drawTool != null
+          ? CrosshairMode.Normal
+          : cursorMode === "pointer"
+            ? CrosshairMode.Hidden
+            : magnetCrosshair ? CrosshairMode.Magnet : CrosshairMode.Normal,
+      },
     });
-  }, [theme, gridVisible, magnetCrosshair, settings.background, axisFontSize]);
+  }, [theme, gridVisible, magnetCrosshair, settings.background, axisFontSize, cursorMode, drawTool]);
 
   useEffect(() => {
     const jump = (event: Event) => {
@@ -2566,13 +2574,14 @@ export default function PriceChart({
       <div className="relative min-h-0 flex-1 pl-12">
         <div
           ref={containerRef}
-          className="h-full w-full"
+          className={`h-full w-full ${cursorMode === "crosshair" && drawTool == null ? "cursor-crosshair" : ""}`}
           role="img"
           aria-label="Candlestick price chart"
           data-current-price={currentPrice ?? undefined}
           data-axis-timeframe={displayTimeframe}
           data-axis-tick-max-chars={timeframeTickMarkMaxCharacters(displayTimeframe)}
           data-axis-time-visible={TIMEFRAME_MS[displayTimeframe] < TIMEFRAME_MS["1d"]}
+          data-cursor-mode={cursorMode}
           onContextMenu={(event) => {
             // A right-click on a drawing belongs to the drawing engine, which
             // has already called preventDefault on the native event by now.
@@ -2606,6 +2615,7 @@ export default function PriceChart({
           chart={chartApi}
           series={priceSeries}
           tool={drawTool}
+          selectionEnabled={cursorMode === "pointer"}
           magnet={drawMagnet}
           precision={precision}
           pipSize={pipSize}
@@ -3066,8 +3076,17 @@ export default function PriceChart({
 
         {/* Drawing tools occupy the reserved pane to the left of the chart canvas. */}
         <div className="absolute bottom-0 left-0 top-0 z-30 flex w-12 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2" role="toolbar" aria-label="Drawing tools">
-          <ToolButton label="Cursor (select & delete)" active={drawTool === null} onClick={() => { setDrawTool(null); setMenu(null); }}>
-            <MousePointer2 size={18} aria-hidden />
+          <ToolButton
+            label={`Cursor mode: ${cursorMode === "pointer" ? "Pointer" : "Crosshair"}`}
+            active={drawTool === null}
+            onClick={(event) => {
+              if (menu === "cursor") { setMenu(null); return; }
+              const rect = event.currentTarget.getBoundingClientRect();
+              setMenuAnchor({ x: rect.right + 6, y: rect.top });
+              setMenu("cursor");
+            }}
+          >
+            {cursorMode === "pointer" ? <MousePointer2 size={19} aria-hidden /> : <Crosshair size={19} aria-hidden />}
           </ToolButton>
 
           {DRAW_GROUPS.map((grp) => {
@@ -3142,6 +3161,36 @@ export default function PriceChart({
             </ToolButton>
           </div>
         </div>
+
+        {menu === "cursor" && menuAnchor && createPortal(
+          <div
+            className="fixed z-[60] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl"
+            style={{ left: menuAnchor.x, top: menuAnchor.y }}
+            role="menu"
+            aria-label="Cursor modes"
+          >
+            {([
+              { mode: "pointer" as const, label: "Pointer", hint: "Select and move drawings", Icon: MousePointer2 },
+              { mode: "crosshair" as const, label: "Crosshair", hint: "Inspect time and price", Icon: Crosshair },
+            ]).map(({ mode, label, hint, Icon }) => (
+              <button
+                key={mode}
+                type="button"
+                role="menuitemradio"
+                aria-checked={cursorMode === mode}
+                onClick={() => { setCursorMode(mode); setDrawTool(null); setMenu(null); }}
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left ${cursorMode === mode ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"}`}
+              >
+                <Icon size={20} aria-hidden />
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold">{label}</span>
+                  <span className="block text-[10px] app-muted">{hint}</span>
+                </span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
 
         {/* Tool-group flyout — portaled so the rail never needs to scroll to show it */}
         {(() => {

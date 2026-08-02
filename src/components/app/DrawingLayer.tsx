@@ -38,6 +38,7 @@ interface Props {
   chart: IChartApi | null;
   series: ISeriesApi<SeriesType> | null;
   tool: ToolKind | null;
+  selectionEnabled?: boolean;
   magnet: MagnetMode;
   precision: number;
   pipSize: number;
@@ -55,6 +56,7 @@ export function DrawingLayer({
   chart,
   series,
   tool,
+  selectionEnabled = true,
   magnet,
   precision,
   pipSize,
@@ -172,9 +174,9 @@ export function DrawingLayer({
 
   // Push environment on every relevant change.
   useEffect(() => {
-    engineInstance.current?.setEnv({ tool, magnet, precision, pipSize, timeframe, candles: candlesRef.current });
+    engineInstance.current?.setEnv({ tool, selectionEnabled, magnet, precision, pipSize, timeframe, candles: candlesRef.current });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, magnet, precision, pipSize, timeframe, candles]);
+  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, candles]);
 
   // Re-render objects when the chart view moves.
   useEffect(() => {

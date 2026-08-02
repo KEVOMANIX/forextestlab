@@ -226,6 +226,11 @@ export function DrawingLayer({
     setTextDraft("");
     setTextEdit(null);
   };
+  const boxedTextEdit = textEdit?.kind === "anchoredText" || textEdit?.kind === "callout";
+  const editLineCount = textDraft.split("\n").length || 1;
+  const boxedEditorHeight = textEdit?.kind === "callout"
+    ? Math.max(36, editLineCount * (textEdit.style.fontSize + 4) + 16)
+    : textEdit ? Math.max(32, editLineCount * (textEdit.style.fontSize + 4) + 14) : 32;
 
   return (
     <>
@@ -263,13 +268,13 @@ export function DrawingLayer({
           }}
           className="absolute z-50 resize-none overflow-hidden border-0 bg-transparent p-0 shadow-none outline-none"
           style={{
-            left: textEdit.x + (textEdit.kind === "anchoredText" ? 6 : 0),
-            top: textEdit.kind === "anchoredText"
-              ? textEdit.y - Math.max(32, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4) + 14) / 2
+            left: textEdit.x + (textEdit.kind === "callout" ? 12 : boxedTextEdit ? 6 : 0),
+            top: boxedTextEdit
+              ? textEdit.y - boxedEditorHeight / 2
               : textEdit.y - textEdit.style.fontSize / 2,
-            width: Math.min(440, Math.max(textEdit.kind === "anchoredText" ? 104 : 24, Math.max(...(textDraft || " ").split("\n").map((line) => line.length)) * textEdit.style.fontSize * .64 + (textEdit.kind === "anchoredText" ? 20 : 8))),
-            height: textEdit.kind === "anchoredText"
-              ? Math.max(32, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4) + 14)
+            width: Math.min(440, Math.max(textEdit.kind === "callout" ? 112 : boxedTextEdit ? 104 : 24, Math.max(...(textDraft || " ").split("\n").map((line) => line.length)) * textEdit.style.fontSize * .64 + (boxedTextEdit ? 22 : 8))),
+            height: boxedTextEdit
+              ? boxedEditorHeight
               : Math.max(textEdit.style.fontSize + 6, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4)),
             pointerEvents: "auto",
             color: textEdit.style.textColor ?? textEdit.style.color,
@@ -279,10 +284,10 @@ export function DrawingLayer({
             fontStyle: textEdit.style.italic ? "italic" : "normal",
             lineHeight: `${textEdit.style.fontSize + 4}px`,
             boxShadow: "none",
-            backgroundColor: textEdit.kind === "anchoredText" ? textEdit.style.fillColor : "transparent",
-            border: textEdit.kind === "anchoredText" ? `1px solid ${textEdit.style.color}` : "0",
-            borderRadius: textEdit.kind === "anchoredText" ? 5 : 0,
-            padding: textEdit.kind === "anchoredText" ? "6px 10px" : 0,
+            backgroundColor: boxedTextEdit ? textEdit.style.fillColor : "transparent",
+            border: boxedTextEdit ? `1px solid ${textEdit.style.color}` : "0",
+            borderRadius: boxedTextEdit ? (textEdit.kind === "callout" ? 6 : 5) : 0,
+            padding: boxedTextEdit ? "6px 10px" : 0,
             boxSizing: "border-box",
           }}
           rows={Math.max(1, textDraft.split("\n").length)}

@@ -171,6 +171,54 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
     return false;
   }, anchoredBeforeDrag)).toBe(true);
 
+  // Callout uses the same click-move-click placement, but renders a speech
+  // bubble and lets the bubble endpoint move without shifting its anchor.
+  await page.getByRole("button", { name: "Text & notes", exact: true }).click();
+  await page.getByRole("button", { name: "Callout", exact: true }).click();
+  await page.mouse.click(initialBounds.x + initialBounds.width * .38, initialBounds.y + initialBounds.height * .54);
+  await page.mouse.move(initialBounds.x + initialBounds.width * .56, initialBounds.y + initialBounds.height * .46, { steps: 6 });
+  await page.mouse.click(initialBounds.x + initialBounds.width * .56, initialBounds.y + initialBounds.height * .46);
+  await expect(directEditor).toBeFocused();
+  await expect(directEditor).toHaveCSS("background-color", "rgb(17, 24, 39)");
+  await expect(directEditor).toHaveCSS("border-top-width", "1px");
+  await directEditor.fill("Risk zone");
+  await page.keyboard.press("Enter");
+  await expect(directEditor).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("forextestlab:drawings:")) continue;
+      const drawings = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<{ kind?: string; points?: unknown[]; style?: { text?: string } }>;
+      if (drawings.some((drawing) => drawing.kind === "callout" && drawing.points?.length === 2 && drawing.style?.text === "Risk zone")) return true;
+    }
+    return false;
+  })).toBe(true);
+  const calloutBeforeDrag = await page.evaluate(() => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("forextestlab:drawings:")) continue;
+      const drawings = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<{ kind?: string; points?: Array<{ time: number; price: number }> }>;
+      const callout = drawings.find((drawing) => drawing.kind === "callout");
+      if (callout?.points) return callout.points;
+    }
+    return null;
+  });
+  expect(calloutBeforeDrag).not.toBeNull();
+  await page.mouse.move(initialBounds.x + initialBounds.width * .56 + 40, initialBounds.y + initialBounds.height * .46);
+  await page.mouse.down();
+  await page.mouse.move(initialBounds.x + initialBounds.width * .56 + 92, initialBounds.y + initialBounds.height * .41, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate((original) => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith("forextestlab:drawings:")) continue;
+      const drawings = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<{ kind?: string; points?: Array<{ time: number; price: number }> }>;
+      const points = drawings.find((drawing) => drawing.kind === "callout")?.points;
+      if (points && original) return points[0]?.time === original[0]?.time && points[0]?.price === original[0]?.price && points[1]?.time !== original[1]?.time;
+    }
+    return false;
+  }, calloutBeforeDrag)).toBe(true);
+
   // The expanded toolbox exposes real tools in the expected families.
   await page.getByRole("button", { name: "Lines & channels", exact: true }).click();
   for (const tool of ["Horizontal ray", "Info line", "Trend angle", "Regression trend", "Flat top / bottom", "Disjoint channel"]) {

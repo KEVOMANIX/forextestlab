@@ -975,8 +975,58 @@ class RangeTool extends DrawingObject {
 }
 
 class Callout extends DrawingObject {
-  render({ctx,mapper}:RenderCtx):void{const a=this.px(mapper,this.points[0]!);const b=this.px(mapper,this.points[1]!);if(!a||!b)return;const text=this.style.text||"Note";ctx.save();this.applyStroke(ctx);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.font=`${this.style.bold?"700 ":""}${this.style.fontSize}px ui-sans-serif, system-ui`;const w=Math.max(58,ctx.measureText(text).width+18),h=this.style.fontSize+14;ctx.fillStyle=withAlpha(this.style.fillColor,Math.max(.75,this.style.fillOpacity));roundRectPath(ctx,b.x,b.y-h/2,w,h,5);ctx.fill();ctx.stroke();ctx.fillStyle=this.style.textColor??"#fff";ctx.textBaseline="middle";ctx.fillText(text,b.x+9,b.y);ctx.restore();}
-  hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const a=this.px(mapper,this.points[0]!);const b=this.px(mapper,this.points[1]!);return !!a&&!!b&&distToSegment(x,y,a.x,a.y,b.x,b.y)<=HIT_TOLERANCE;}
+  private box(mapper: CoordinateMapper): Rect | null {
+    const pointer = this.px(mapper, this.points[1]!);
+    if (!pointer) return null;
+    const lines = (this.style.text || "Add text").split("\n");
+    const width = Math.max(112, ...lines.map((line) => line.length * this.style.fontSize * .62 + 22));
+    const height = Math.max(36, lines.length * (this.style.fontSize + 4) + 16);
+    return { x: pointer.x + 12, y: pointer.y - height / 2, w: width, h: height };
+  }
+  render({ ctx, mapper }: RenderCtx): void {
+    const anchor = this.px(mapper, this.points[0]!);
+    const pointer = this.px(mapper, this.points[1]!);
+    const box = this.box(mapper);
+    if (!anchor || !pointer || !box) return;
+    ctx.save();
+    this.applyStroke(ctx);
+    ctx.beginPath(); ctx.moveTo(anchor.x, anchor.y); ctx.lineTo(pointer.x, pointer.y); ctx.stroke();
+
+    // Small speech-bubble tail joins the leader to the editable box.
+    ctx.fillStyle = withAlpha(this.style.fillColor, Math.max(.75, this.style.fillOpacity));
+    ctx.strokeStyle = withAlpha(this.style.color, Math.max(.55, this.style.opacity * .75));
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(pointer.x, pointer.y);
+    ctx.lineTo(box.x, pointer.y - 6);
+    ctx.lineTo(box.x, pointer.y + 6);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    roundRectPath(ctx, box.x, box.y, box.w, box.h, 6);
+    ctx.fill(); ctx.stroke();
+
+    const text = this.style.text || "Add text";
+    const lines = text.split("\n");
+    const lineHeight = this.style.fontSize + 4;
+    const weight = this.style.bold ? "700 " : "";
+    const italic = this.style.italic ? "italic " : "";
+    ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui`;
+    ctx.textBaseline = "top";
+    ctx.fillStyle = this.style.text ? withAlpha(this.style.textColor ?? "#fff", this.style.opacity) : withAlpha("#94a3b8", .78);
+    const textTop = box.y + (box.h - lines.length * lineHeight) / 2;
+    lines.forEach((line, index) => ctx.fillText(line, box.x + 11, textTop + index * lineHeight));
+    ctx.restore();
+  }
+  bbox(mapper: CoordinateMapper): Rect {
+    return this.box(mapper) ?? { x: 0, y: 0, w: 0, h: 0 };
+  }
+  hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
+    const anchor = this.px(mapper, this.points[0]!);
+    const pointer = this.px(mapper, this.points[1]!);
+    if (!anchor || !pointer) return false;
+    return distToSegment(x, y, anchor.x, anchor.y, pointer.x, pointer.y) <= HIT_TOLERANCE + this.style.lineWidth || pointInRect(x, y, this.bbox(mapper), HIT_TOLERANCE);
+  }
 }
 
 class PriceLabel extends DrawingObject {

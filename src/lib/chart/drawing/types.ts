@@ -129,6 +129,11 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     base.fillOpacity = 0.94;
     base.textAlign = "left";
   }
+  if (kind === "callout") {
+    base.fillColor = "#111827";
+    base.fillOpacity = 0.94;
+    base.textAlign = "left";
+  }
   if (kind === "long" || kind === "short") {
     base.accountSize = 10000;
     base.risk = 1;

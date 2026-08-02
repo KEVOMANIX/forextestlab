@@ -39,7 +39,7 @@ function creationMode(kind: ToolKind): CreateMode {
   // Position tools drop a default 1:1 box on a single click, then the user
   // drags the handles to place stop/target.
   if (kind === "long" || kind === "short") return "single";
-  if (kind === "triangle" || kind === "channel" || kind === "flatChannel" || kind === "disjointChannel" || kind === "fibExtension" || kind === "anchoredText" || kind === "path") return "click";
+  if (kind === "triangle" || kind === "channel" || kind === "flatChannel" || kind === "disjointChannel" || kind === "fibExtension" || kind === "anchoredText" || kind === "callout" || kind === "path") return "click";
   return "drag";
 }
 
@@ -606,7 +606,7 @@ export class DrawingEngine {
       this.select(hit.id);
       if (!hit.locked) {
         this.freezeChart();
-        this.drag = hit.kind === "anchoredText"
+        this.drag = hit.kind === "anchoredText" || hit.kind === "callout"
           ? { id: hit.id, kind: "anchor", index: 1, startPx: px, origin: hit.points.map((p) => ({ ...p })) }
           : { id: hit.id, kind: "move", index: -1, startPx: px, origin: hit.points.map((p) => ({ ...p })) };
       }

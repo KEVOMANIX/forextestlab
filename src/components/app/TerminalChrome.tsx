@@ -63,6 +63,7 @@ export function TerminalTopBar({
   onNavigate,
   onRetrySave,
   endControls,
+  leadingControls,
   children,
 }: {
   state: PublicSessionState;
@@ -74,6 +75,12 @@ export function TerminalTopBar({
   onRetrySave: () => void;
   /** Controls that must stay pinned at the far-right end of the trading header. */
   endControls?: React.ReactNode;
+  /**
+   * Trading actions, seated between the session menu and the chart controls.
+   * They belong at this end: they are used constantly and are about the session,
+   * not about the chart.
+   */
+  leadingControls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -180,6 +187,13 @@ export function TerminalTopBar({
           </div>
         )}
       </div>
+
+      {leadingControls && (
+        <>
+          <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
+          <div className="flex shrink-0 items-center gap-1">{leadingControls}</div>
+        </>
+      )}
 
       <span className="hidden h-6 w-px shrink-0 bg-[var(--app-border)] md:block" aria-hidden />
       {/* `min-w-0` lets the chart controls shrink (their timeframe row scrolls

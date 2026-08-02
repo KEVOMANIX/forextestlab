@@ -54,6 +54,9 @@ interface BottomPanelProps {
   revealTab?: { tab: BottomPanelTab; nonce: number } | null;
   /** Opens the prop-firm verdict from the challenge chip in the status bar. */
   onShowPropFirmVerdict?: () => void;
+  /** Mask the account figures in the status bar. */
+  balancesHidden?: boolean;
+  onToggleBalances?: () => void;
 }
 
 export function BottomPanel({
@@ -72,6 +75,8 @@ export function BottomPanel({
   onForkSession,
   revealTab = null,
   onShowPropFirmVerdict,
+  balancesHidden = false,
+  onToggleBalances,
 }: BottomPanelProps) {
   const [tab, setTab] = useState<Tab>("position");
   const [expanded, setExpanded] = useState(false);
@@ -293,6 +298,8 @@ export function BottomPanel({
             <AccountSummary
               state={state}
               onShowVerdict={onShowPropFirmVerdict}
+              hidden={balancesHidden}
+              onToggleHidden={onToggleBalances}
               clock={
                 <SessionClock
                   candleTime={currentTime}

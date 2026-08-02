@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 import { d } from "@/lib/decimal";
 import { BREACH_LABELS, propFirmProgress } from "@/lib/backtest/prop-firm";
@@ -70,12 +71,17 @@ export function AccountSummary({
   state,
   clock = null,
   onShowVerdict,
+  hidden = false,
+  onToggleHidden,
 }: {
   state: PublicSessionState;
   /** Session clock, shown ahead of the balances. */
   clock?: React.ReactNode;
   /** Opens the challenge verdict. Only used in a prop-firm session. */
   onShowVerdict?: () => void;
+  /** Mask every figure that reveals money or performance. */
+  hidden?: boolean;
+  onToggleHidden?: () => void;
 }) {
   const metrics = useMemo(() => {
     const balance = Number(state.balance);
@@ -149,12 +155,14 @@ export function AccountSummary({
                 label="Daily left"
                 value={money(Number(challenge.dailyRemaining))}
                 tone={limitTone(challenge.dailyUsedRatio)}
+                masked={hidden}
               />
               <Metric
                 label="Total left"
                 value={money(Number(challenge.totalRemaining))}
                 tone={limitTone(challenge.totalUsedRatio)}
                 className="hidden md:flex"
+                masked={hidden}
               />
             </>
           )}
@@ -163,6 +171,7 @@ export function AccountSummary({
             value={`${challenge.profitPercent >= 0 ? "+" : ""}${challenge.profitPercent.toFixed(2)}%`}
             tone={challenge.targetMet ? "text-brand-300" : "text-[var(--app-text)]"}
             className="hidden lg:flex"
+            masked={hidden}
           />
         </>
       )}
@@ -171,29 +180,47 @@ export function AccountSummary({
         label="Equity"
         value={money(metrics.equity)}
         className={challenge ? "hidden md:flex" : "flex"}
+        masked={hidden}
       />
       <Metric
         label="Account balance"
         value={money(metrics.balance)}
         className={challenge ? "hidden lg:flex" : "flex"}
+        masked={hidden}
       />
       <Metric
         label="Realized PnL"
         value={signedMoney(metrics.realized)}
         tone={toneClass(metrics.realized)}
         className={challenge ? "hidden xl:flex" : "hidden lg:flex"}
+        masked={hidden}
       />
       <Metric
         label="Unrealized PnL"
         value={signedMoney(metrics.unrealized)}
         tone={toneClass(metrics.unrealized)}
         className="hidden xl:flex"
+        masked={hidden}
       />
       <Metric
         label="Account margin"
         value={money(metrics.margin)}
         className="hidden 2xl:flex"
+        masked={hidden}
       />
+
+      {onToggleHidden && (
+        <button
+          type="button"
+          onClick={onToggleHidden}
+          aria-pressed={hidden}
+          aria-label={hidden ? "Show account figures" : "Hide account figures"}
+          title={hidden ? "Show balances" : "Hide balances"}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+        >
+          {hidden ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+        </button>
+      )}
     </dl>
   );
 }
@@ -210,16 +237,28 @@ function Metric({
   value,
   tone = "text-[var(--app-text)]",
   className = "flex",
+  masked = false,
 }: {
   label: string;
   value: string;
   tone?: string;
   className?: string;
+  /** Replace the figure with a placeholder, keeping the label and the layout. */
+  masked?: boolean;
 }) {
   return (
     <div className={`${className} flex-col justify-center gap-0.5 leading-none`}>
       <dt className="text-[10px] font-medium app-muted">{label}</dt>
-      <dd className={`font-mono text-xs font-semibold ${tone}`}>{value}</dd>
+      {/*
+        A masked figure keeps its label and its slot: the strip must not resize
+        when the numbers are hidden, and the colour tone is dropped with them
+        because a red mask would leak the sign of the number it is hiding.
+      */}
+      <dd
+        className={`font-mono text-xs font-semibold ${masked ? "app-muted" : tone}`}
+      >
+        {masked ? "•••" : value}
+      </dd>
     </div>
   );
 }

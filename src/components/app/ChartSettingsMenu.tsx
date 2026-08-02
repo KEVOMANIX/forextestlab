@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, RotateCcw, X } from "lucide-react";
 
 import { EXCHANGE_ZONE, zoneOptionsAt } from "@/lib/chart/timezones";
+import type { Timeframe } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 /**
@@ -63,11 +64,40 @@ export interface ChartSettings {
   pauseOnTradeClose: boolean;
   /** Ask why a trade was taken as it opens, before the outcome can colour it. */
   promptEntryReason: boolean;
+  /**
+   * Timeframes pinned as buttons in the chart header; the rest live behind the
+   * timeframe dropdown. Stored in the order the trader starred them so the row
+   * does not reshuffle itself.
+   */
+  favoriteTimeframes: Timeframe[];
+  /**
+   * Mask balance, equity and P&L in the status bar.
+   *
+   * For recording and screen-sharing: the numbers are the one thing on the
+   * screen that is nobody else's business.
+   */
+  hideBalances: boolean;
 }
 
 export type ChartTextSize = "small" | "medium" | "large";
 
 export const AUTO_BACKGROUND = "auto";
+
+/**
+ * The ladder most intraday traders actually work: two execution timeframes, two
+ * structure timeframes and the daily. Anything starred later joins these.
+ *
+ * A session's base timeframe is usually 1m, and the button for the data as it
+ * was recorded should be there without being hunted for.
+ */
+export const DEFAULT_FAVORITE_TIMEFRAMES: Timeframe[] = [
+  "1m",
+  "5m",
+  "15m",
+  "1h",
+  "4h",
+  "1d",
+];
 
 export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   upColor: "#22c3a0",
@@ -100,6 +130,8 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   chartTextSize: "medium",
   pauseOnTradeClose: true,
   promptEntryReason: true,
+  favoriteTimeframes: DEFAULT_FAVORITE_TIMEFRAMES,
+  hideBalances: false,
 };
 
 /** Palettes people actually use for candles, plus the app default first. */

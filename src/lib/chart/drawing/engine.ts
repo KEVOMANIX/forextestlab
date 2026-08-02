@@ -199,6 +199,16 @@ export class DrawingEngine {
 
   // ---- public API (React) ----
 
+  /**
+   * The layer holding every committed drawing, for compositing into a chart
+   * screenshot. The interaction overlay is deliberately not exposed: it carries
+   * selection handles and half-drawn previews, which belong to the editing
+   * session rather than to a picture of the chart.
+   */
+  get sceneCanvas(): HTMLCanvasElement {
+    return this.scene;
+  }
+
   setEnv(env: Partial<EngineEnv>): void {
     const prevTool = this.env.tool;
     const prevSelectionEnabled = this.env.selectionEnabled;

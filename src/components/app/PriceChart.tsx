@@ -6,10 +6,12 @@ import {
   Activity,
   ArrowUpRight,
   ArrowDownRight,
+  Camera,
   CandlestickChart,
   ChevronDown,
   Clock,
   Copy,
+  Download,
   Crosshair,
   Eye,
   EyeOff,
@@ -460,6 +462,17 @@ function updateData(series: ISeriesApi<SeriesType>, type: ChartType, candle: OHL
   (series as ISeriesApi<"Candlestick">).update(toOhlcBar(candle));
 }
 
+/** "15m" -> "15 minutes". Spelled out in the dropdown, where there is room. */
+function timeframeName(timeframe: Timeframe): string {
+  const match = /^(\d+)(m|h|d|w|M|yr)$/.exec(timeframe);
+  if (!match) return timeframe;
+  const count = Number(match[1]);
+  const unit = { m: "minute", h: "hour", d: "day", w: "week", M: "month", yr: "year" }[
+    match[2] as "m" | "h" | "d" | "w" | "M" | "yr"
+  ];
+  return `${count} ${unit}${count === 1 ? "" : "s"}`;
+}
+
 function ToolButton({
   label,
   active = false,
@@ -694,7 +707,12 @@ export default function PriceChart({
   const drawingsHidden = !settings.drawings;
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const drawingEngineRef = useRef<DrawingEngine | null>(null);
-  const [menu, setMenu] = useState<"type" | "indicators" | "cursor" | DrawMenu | null>(null);
+  const [menu, setMenu] = useState<
+    "type" | "indicators" | "cursor" | "timeframe" | "screenshot" | DrawMenu | null
+  >(null);
+  const [screenshotNote, setScreenshotNote] = useState<string | null>(null);
+  const screenshotNoteTimerRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(screenshotNoteTimerRef.current), []);
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
   const [priceSeries, setPriceSeries] = useState<ISeriesApi<SeriesType> | null>(null);
   const [seriesEpoch, setSeriesEpoch] = useState(0);
@@ -767,6 +785,15 @@ export default function PriceChart({
 
   const availableTimeframes = TIMEFRAMES.filter((timeframe) =>
     canAggregateTimeframes(baseTimeframe, timeframe),
+  );
+  /**
+   * Starred timeframes, in the order they were starred, restricted to those this
+   * session's base data can actually produce. A workspace saved on 1-minute data
+   * and reopened on a 1-hour session must not offer a 5-minute button that
+   * cannot be built.
+   */
+  const pinnedTimeframes = (settings.favoriteTimeframes ?? []).filter(
+    (timeframe) => availableTimeframes.includes(timeframe),
   );
 
   /**
@@ -2149,6 +2176,115 @@ export default function PriceChart({
     setDisplayTimeframe(timeframe);
   }
 
+  /**
+   * Star or unstar a timeframe.
+   *
+   * Newly starred timeframes are appended rather than sorted into place: the row
+   * is muscle memory, and a button that moves because a longer timeframe was
+   * added is a button that gets misclicked.
+   */
+  function toggleFavoriteTimeframe(timeframe: Timeframe) {
+    const current = settings.favoriteTimeframes ?? [];
+    updateSettings({
+      favoriteTimeframes: current.includes(timeframe)
+        ? current.filter((item) => item !== timeframe)
+        : [...current, timeframe],
+    });
+  }
+
+  /**
+   * Copy or download the chart as a PNG.
+   *
+   * The charting library composites its own canvases — panes, price scale, time
+   * axis — into one image, but knows nothing of the drawing engine's layers, so
+   * trendlines and annotations are painted on afterwards. The engine's canvas is
+   * placed by its measured position rather than assumed to be aligned, because
+   * it spans a wider box than the plot. Only the committed scene is drawn; the
+   * interaction overlay holds selection handles, which belong to the editing
+   * session and not to the picture.
+   */
+  function composeScreenshot(): HTMLCanvasElement | null {
+    const chart = chartRef.current;
+    const container = containerRef.current;
+    if (!chart || !container) return null;
+    // `addTopLayer` brings in the primitives — trade markers, price lines — which
+    // are most of what makes a chart screenshot worth keeping. The crosshair is
+    // left out: it records where the pointer happened to be, not the market.
+    const base = chart.takeScreenshot(true, false);
+    const scene = drawingEngineRef.current?.sceneCanvas ?? null;
+    if (!scene || !settings.drawings) return base;
+
+    const context = base.getContext("2d");
+    if (!context) return base;
+    const chartBounds = container.getBoundingClientRect();
+    const sceneBounds = scene.getBoundingClientRect();
+    if (chartBounds.width <= 0 || sceneBounds.width <= 0) return base;
+    const scale = base.width / chartBounds.width;
+    context.drawImage(
+      scene,
+      (sceneBounds.left - chartBounds.left) * scale,
+      (sceneBounds.top - chartBounds.top) * scale,
+      sceneBounds.width * scale,
+      sceneBounds.height * scale,
+    );
+    return base;
+  }
+
+  async function saveScreenshot(action: "download" | "copy") {
+    setMenu(null);
+    const canvas = composeScreenshot();
+    if (!canvas) {
+      announceScreenshot("The chart is not ready yet.");
+      return;
+    }
+    // Named for the market moment on screen, not for the wall clock: a
+    // screenshot of last March is filed under last March.
+    const stamp = rawCandlesRef.current.at(-1)?.timestamp ?? Date.now();
+    // EURUSD-15m-2025-01-06-0859.png — sorts chronologically inside an instrument.
+    const moment = new Date(stamp).toISOString();
+    const name = `${symbolLabel.replace(/[^\w.-]+/g, "")}-${displayTimeframe}-${moment.slice(
+      0,
+      10,
+    )}-${moment.slice(11, 16).replace(":", "")}.png`;
+
+    if (action === "download") {
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = name;
+      link.click();
+      announceScreenshot("Saved.");
+      return;
+    }
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((result) => resolve(result), "image/png"),
+    );
+    if (!blob) {
+      announceScreenshot("The image could not be encoded.");
+      return;
+    }
+    try {
+      // Image clipboard writes need a secure context and, in some browsers, a
+      // permission the user has to have granted. Downloading always works, so
+      // that is what a refusal is pointed at.
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+      announceScreenshot("Copied to the clipboard.");
+    } catch {
+      announceScreenshot("Clipboard blocked — use Download.");
+    }
+  }
+
+  function announceScreenshot(note: string) {
+    setScreenshotNote(note);
+    window.clearTimeout(screenshotNoteTimerRef.current);
+    screenshotNoteTimerRef.current = window.setTimeout(
+      () => setScreenshotNote(null),
+      2_600,
+    );
+  }
+
   function beginLineDrag(kind: "stop" | "target", event: React.PointerEvent<HTMLElement>) {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -2473,15 +2609,77 @@ export default function PriceChart({
   // header via a portal when a slot is provided, otherwise docked above the chart.
   const chartControls = (
     <div className="flex min-w-0 items-center gap-1" role="toolbar" aria-label="Chart controls">
-      {/* The timeframe list is the widest thing in the header and the only part
-          that may overflow, so it scrolls inside itself. Menus live outside this
-          box because a scroll container would clip their dropdowns. */}
-      <div className="scroll-x-thin flex items-center border-r app-border pr-1" aria-label="Display timeframe">
-        {availableTimeframes.map((timeframe) => (
-          <ToolButton key={timeframe} label={`Display ${timeframe} candles`} active={displayTimeframe === timeframe} onClick={() => selectTimeframe(timeframe)}>
-            {timeframe}
-          </ToolButton>
-        ))}
+      {/* Timeframes: the starred ones are pinned as buttons, every one the base
+          data can produce lives behind the dropdown. The pinned row is the only
+          part of the header that may overflow, so it scrolls inside itself; the
+          dropdown sits outside that box because a scroll container would clip
+          its menu. */}
+      <div className="flex min-w-0 items-center border-r app-border pr-1">
+        <div className="scroll-x-thin flex items-center" aria-label="Pinned timeframes">
+          {pinnedTimeframes.map((timeframe) => (
+            <ToolButton key={timeframe} label={`Display ${timeframe} candles`} active={displayTimeframe === timeframe} onClick={() => selectTimeframe(timeframe)}>
+              {timeframe}
+            </ToolButton>
+          ))}
+        </div>
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            aria-label="Choose timeframe"
+            title="Timeframe"
+            aria-haspopup="menu"
+            aria-expanded={menu === "timeframe"}
+            onClick={() => setMenu(menu === "timeframe" ? null : "timeframe")}
+            className={`inline-flex h-8 items-center gap-0.5 rounded-md px-1.5 text-xs font-semibold transition-colors ${
+              menu === "timeframe" || !pinnedTimeframes.includes(displayTimeframe)
+                ? "bg-brand-400/20 text-[var(--chart-text)]"
+                : "text-[var(--chart-text)] hover:bg-[var(--app-panel-2)]"
+            }`}
+          >
+            {/* The current timeframe only needs naming here when it is not
+                already pinned and highlighted in the row to the left. */}
+            {!pinnedTimeframes.includes(displayTimeframe) && <span>{displayTimeframe}</span>}
+            <ChevronDown size={13} aria-hidden className={menu === "timeframe" ? "rotate-180" : ""} />
+          </button>
+          {menu === "timeframe" && (
+            <div role="menu" className="absolute left-0 top-9 z-[55] max-h-80 w-56 overflow-y-auto rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl">
+              <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">
+                Timeframe
+              </p>
+              {availableTimeframes.map((timeframe) => {
+                const pinned = pinnedTimeframes.includes(timeframe);
+                return (
+                  <div key={timeframe} className={`flex items-center rounded-md ${displayTimeframe === timeframe ? "bg-brand-400/15" : "hover:bg-[var(--app-panel-2)]"}`}>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={displayTimeframe === timeframe}
+                      onClick={() => { selectTimeframe(timeframe); setMenu(null); }}
+                      className={`flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-xs ${displayTimeframe === timeframe ? "text-brand-300" : ""}`}
+                    >
+                      <span className="w-8 shrink-0 font-mono font-semibold">{timeframe}</span>
+                      <span className="truncate app-muted">{timeframeName(timeframe)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={pinned}
+                      aria-label={`${pinned ? "Unpin" : "Pin"} ${timeframe} from the timeframe bar`}
+                      title={pinned ? "Remove from the timeframe bar" : "Show in the timeframe bar"}
+                      onClick={() => toggleFavoriteTimeframe(timeframe)}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-[var(--app-panel-2)]"
+                    >
+                      <Star
+                        size={13}
+                        aria-hidden
+                        className={pinned ? "fill-brand-300 text-brand-300" : "app-muted"}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Chart type */}
@@ -2564,6 +2762,54 @@ export default function PriceChart({
               })()}
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Screenshot */}
+      <div className="relative shrink-0">
+        <button
+          type="button"
+          aria-label="Screenshot the chart"
+          title="Screenshot"
+          aria-haspopup="menu"
+          aria-expanded={menu === "screenshot"}
+          onClick={() => setMenu(menu === "screenshot" ? null : "screenshot")}
+          className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "screenshot" ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+        >
+          <Camera size={15} aria-hidden />
+        </button>
+        {menu === "screenshot" && (
+          <div role="menu" className="absolute left-0 top-9 z-[55] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl">
+            <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">
+              Screenshot
+            </p>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void saveScreenshot("download")}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-[var(--app-panel-2)]"
+            >
+              <Download size={15} className="app-muted" aria-hidden /> Download
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void saveScreenshot("copy")}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-[var(--app-panel-2)]"
+            >
+              <Copy size={15} className="app-muted" aria-hidden /> Copy
+            </button>
+          </div>
+        )}
+        {/* One line of feedback: a copy lands on an invisible clipboard, and a
+            blocked clipboard has to say so rather than appear to have worked. */}
+        {screenshotNote && (
+          <p
+            role="status"
+            className="absolute left-0 top-9 z-[56] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2.5 py-2 text-[11px] shadow-xl"
+          >
+            {screenshotNote}
+          </p>
         )}
       </div>
     </div>

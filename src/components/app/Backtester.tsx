@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
+import { CalendarClock, Plus } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -53,7 +54,9 @@ import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
 import { SymbolPickerModal } from "./SymbolPickerModal";
+import { GoToModal } from "./GoToModal";
 import { TimeZonePicker } from "./TimeZonePicker";
+import type { GoToTarget } from "@/lib/backtest/goto";
 import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import type { Timeframe } from "@/lib/market-data/types";
@@ -77,7 +80,11 @@ type PendingConfirmation = {
   resumeAfterConfirm?: boolean;
 };
 
-type ReplayInteraction = "order-ticket" | "position-editor" | "confirmation";
+type ReplayInteraction =
+  | "order-ticket"
+  | "position-editor"
+  | "confirmation"
+  | "go-to";
 
 const ChartGrid = dynamic(() => import("./ChartGrid"), {
   ssr: false,
@@ -242,6 +249,7 @@ export function Backtester({
    */
   const announcedVerdictRef = useRef<string | null>(null);
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
+  const [goToOpen, setGoToOpen] = useState(false);
   useLayoutEffect(() => {
     recordReplayMetric("react-commit", performance.now() - renderStartedAt);
   });
@@ -728,6 +736,57 @@ export function Backtester({
     setTradePlan({ ...base, entryPrice });
     activateOrderTicket(direction, orderType);
   };
+  const canTrade = Boolean(
+    state.status !== "finished" && state.currentPrice && !referencePair,
+  );
+  /**
+   * Playback is paused while "Go to" is open: every destination it offers is
+   * computed from the current market moment, and a list of times that go stale
+   * as they are read is a list that sends the replay somewhere else.
+   */
+  const openGoTo = () => {
+    holdReplayFor("go-to");
+    setGoToOpen(true);
+  };
+  const closeGoTo = () => {
+    setGoToOpen(false);
+    releaseReplayFor("go-to", false);
+  };
+  const runJump = (target: GoToTarget, label: string) => {
+    void actions.jumpTo(target).then((outcome) => {
+      closeGoTo();
+      if (outcome.reason === "target") {
+        notify({
+          id: "go-to",
+          title: `Jumped to ${label}`,
+          detail: `${outcome.candles.toLocaleString()} ${
+            outcome.candles === 1 ? "candle" : "candles"
+          } replayed.`,
+          tone: "closed",
+        });
+        return;
+      }
+      // Anything short of the target is worth saying plainly: the replay has
+      // moved, so silence would leave the trader guessing where they are.
+      const detail =
+        outcome.reason === "end-of-data"
+          ? "The session ran out of data first."
+          : outcome.reason === "behind"
+            ? "That moment is behind the replay, which cannot rewind that far."
+            : outcome.reason === "unavailable"
+              ? "The replay is not ready yet."
+              : "Stopped part way to keep the session responsive. Go again to continue.";
+      notify(
+        {
+          id: "go-to",
+          title: `Did not reach ${label}`,
+          detail,
+          tone: "warning",
+        },
+        7_000,
+      );
+    });
+  };
   const navigateFromChart = (href: string) => {
     if (!hasMeaningfulActivity) {
       router.push(href);
@@ -814,6 +873,36 @@ export function Backtester({
         saveStatus={bt.saveStatus}
         onNavigate={navigateFromChart}
         onRetrySave={actions.retrySave}
+        leadingControls={
+          <>
+            <button
+              type="button"
+              onClick={() => activateOrderTicket("long")}
+              disabled={!canTrade}
+              title={
+                canTrade
+                  ? "New order"
+                  : referencePair
+                    ? `Switch back to ${state.config.symbol} to trade`
+                    : "This session has finished"
+              }
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-brand-500 px-2.5 text-xs font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Plus size={14} aria-hidden />
+              <span className="hidden sm:inline">New order</span>
+            </button>
+            <button
+              type="button"
+              onClick={openGoTo}
+              disabled={bt.busy || state.status === "finished"}
+              title="Go to a time, a session or a price"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border app-border px-2.5 text-xs font-semibold transition-colors hover:border-brand-400/40 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <CalendarClock size={14} aria-hidden />
+              <span className="hidden sm:inline">Go to</span>
+            </button>
+          </>
+        }
         endControls={
           <div className="flex shrink-0 items-center gap-1">
             <BacktestExperiencePanel settings={workspace.settings} onChange={workspace.updateSettings} />
@@ -932,11 +1021,7 @@ export function Backtester({
             onSpeed={actions.setSpeed}
             onBuy={() => activateOrderTicket("long")}
             onSell={() => activateOrderTicket("short")}
-            canTrade={Boolean(
-              state.status !== "finished" &&
-              state.currentPrice &&
-              !referencePair
-            )}
+            canTrade={canTrade}
             maxReplaySpeed={entitlements.maxReplaySpeed}
           />
 
@@ -995,6 +1080,10 @@ export function Backtester({
         onSaveTradeJournal={actions.saveTradeJournal}
         revealTab={revealPanelTab}
         onShowPropFirmVerdict={() => setVerdictOpen(true)}
+        balancesHidden={workspace.settings.hideBalances}
+        onToggleBalances={() =>
+          workspace.updateSettings({ hideBalances: !workspace.settings.hideBalances })
+        }
         onAddBookmark={() => void actions.addBookmark()}
         onUpdateBookmark={(id, note) => void actions.updateBookmark(id, note)}
         onDeleteBookmark={(id) => void actions.deleteBookmark(id)}
@@ -1017,6 +1106,24 @@ export function Backtester({
           void actions.modifyTrailing(pips, positionId)
         }
         onClose={(positionId, lots) => actions.closePosition(positionId, lots)}
+      />
+      <GoToModal
+        open={goToOpen}
+        onClose={closeGoTo}
+        currentTime={state.currentTime ?? bt.lastCandle?.timestamp ?? state.config.startTime}
+        currentPrice={state.currentPrice ? Number(state.currentPrice) : null}
+        pipSize={Number(state.config.pipSize)}
+        precision={state.config.pricePrecision}
+        candles={bt.replayCandles}
+        visibleIndex={state.visibleIndex}
+        timeZone={workspace.settings.timeZone}
+        endTime={state.config.endTime}
+        canWaitForClose={
+          state.openPositions.length > 0 ||
+          state.pendingOrders.some((order) => order.status === "pending")
+        }
+        busy={bt.busy}
+        onJump={runJump}
       />
       <SymbolPickerModal
         open={symbolPickerOpen}

@@ -39,6 +39,7 @@ import {
   revealNext,
   stepBackTo as stepBackLocalTo,
 } from "@/lib/backtest/replay-engine";
+import type { GoToTarget } from "@/lib/backtest/goto";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import { candleBucketStart } from "@/lib/market-data/aggregation";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
@@ -51,6 +52,52 @@ import {
 } from "@/lib/backtest/replay-buffer";
 
 export type Phase = "setup" | "loading" | "active";
+
+/**
+ * How a jump ended.
+ *
+ * "limit" covers both guards below and a failed chunk fetch: in every case the
+ * replay stopped somewhere valid and jumping again continues from there, which
+ * is what the caller needs to tell the trader.
+ */
+export interface JumpOutcome {
+  reason: "target" | "end-of-data" | "limit" | "behind" | "unavailable";
+  candles: number;
+}
+
+/**
+ * A jump reveals candles one at a time, so its cost is bounded twice: by candles
+ * (a month of 1-minute data is roughly 30,000) and by chunk fetches, which are
+ * network round-trips and rate limited server-side.
+ */
+const JUMP_MAX_CANDLES = 250_000;
+/** Below the server's own extend rate limit, so one jump cannot spend it all. */
+const JUMP_MAX_EXTENSIONS = 24;
+/** Candles revealed between yields to the browser during a jump. */
+const JUMP_YIELD_EVERY = 2_000;
+
+/** Whether the candle just revealed satisfies the jump's target. */
+function jumpReached(
+  target: GoToTarget,
+  candle: Candle,
+  engine: EngineContext,
+  closedAtStart: number,
+): boolean {
+  if (target.kind === "time") return candle.timestamp >= target.timestamp;
+  if (target.kind === "position-close") {
+    return engine.state.closedTrades.length > closedAtStart;
+  }
+  // A price is "reached" when the candle traded through it, which includes a
+  // gap that opened straight past the level.
+  const high = Number(candle.high);
+  const low = Number(candle.low);
+  return (
+    Number.isFinite(high) &&
+    Number.isFinite(low) &&
+    low <= target.price &&
+    target.price <= high
+  );
+}
 
 interface BacktesterState {
   phase: Phase;
@@ -864,6 +911,119 @@ export function useBacktester(resumeSessionId: string | null = null) {
       },
     );
   }, [runAction, s.state, stopLocalScheduler]);
+  /**
+   * Advance the replay until a target is met.
+   *
+   * The engine is driven directly rather than through `stepRef` because a jump
+   * has to stop on an exact candle: `stepRef` reveals a whole batch before it
+   * returns and would routinely overshoot the bar the trader asked for. Every
+   * candle in between is still revealed one at a time, so stops, targets and
+   * pending orders fill exactly as they would have during playback — a jump is a
+   * fast-forward, never a teleport.
+   *
+   * Only the final state is published. Publishing each candle would put tens of
+   * thousands of React renders in front of a jump that should take a moment.
+   */
+  const jumpTo = useCallback(
+    async (target: GoToTarget): Promise<JumpOutcome> => {
+      const engine = localEngineRef.current;
+      if (!engine) return { reason: "unavailable", candles: 0 };
+      const startCandle = engine.candles[engine.state.visibleIndex];
+      if (
+        target.kind === "time" &&
+        startCandle &&
+        target.timestamp <= startCandle.timestamp
+      ) {
+        // Replay cannot rewind here, and silently doing nothing would read as a
+        // broken button.
+        return { reason: "behind", candles: 0 };
+      }
+
+      // A jump is an explicit pause-and-arrive action, like a rewind. Stop local
+      // playback first so the scheduler cannot race past the target.
+      wantsReplayRunningRef.current = false;
+      stopLocalScheduler();
+      engine.state.status = "paused";
+      patch({ busy: true, error: null });
+
+      const startIndex = engine.state.visibleIndex;
+      const closedAtStart = engine.state.closedTrades.length;
+      let extensions = 0;
+      let reason: JumpOutcome["reason"] = "limit";
+
+      try {
+        while (engine.state.visibleIndex - startIndex < JUMP_MAX_CANDLES) {
+          const lastLoaded = engine.candles[engine.candles.length - 1];
+          if (engine.state.visibleIndex >= engine.state.totalCandles - 1) {
+            // Out of loaded candles: fetch the next chunk, then re-test the
+            // boundary rather than assuming the fetch produced one.
+            if (!lastLoaded || lastLoaded.timestamp >= engine.state.config.endTime) {
+              reason = "end-of-data";
+              break;
+            }
+            if (!sessionIdRef.current || extensions >= JUMP_MAX_EXTENSIONS) break;
+            extensions += 1;
+            const request =
+              replayExtendPromiseRef.current ?? startReplayExtension();
+            if (!request) break;
+            const extension = await request;
+            if (!extension.ok) break;
+            if (extension.candles.length === 0 && !extension.hasMore) {
+              reason = "end-of-data";
+              break;
+            }
+            continue;
+          }
+
+          if (!revealNext(engine)) {
+            reason = "end-of-data";
+            break;
+          }
+          const candle = engine.candles[engine.state.visibleIndex];
+          if (candle && jumpReached(target, candle, engine, closedAtStart)) {
+            reason = "target";
+            break;
+          }
+          if (
+            candle &&
+            (engine.state.visibleIndex - startIndex) % JUMP_YIELD_EVERY === 0
+          ) {
+            // Yield so a long jump cannot lock the tab, and let the chart paint
+            // the intermediate candle so the jump visibly progresses.
+            publishReplayVisual({
+              sessionId: engine.state.sessionId,
+              currentTime: candle.timestamp,
+              visibleIndex: engine.state.visibleIndex,
+              currentPrice: Number(candle.close),
+            });
+            await new Promise((resolve) => window.setTimeout(resolve, 0));
+          }
+        }
+      } finally {
+        const candle = engine.candles[engine.state.visibleIndex] ?? null;
+        if (candle) {
+          publishReplayVisual({
+            sessionId: engine.state.sessionId,
+            currentTime: candle.timestamp,
+            visibleIndex: engine.state.visibleIndex,
+            currentPrice: Number(candle.close),
+          });
+        }
+        setS((prev) => ({
+          ...prev,
+          state: publicSessionState(engine, prev.state?.anonymous ?? false),
+          lastCandle: candle,
+          lastCandles: [],
+          busy: false,
+          endOfData: reason === "end-of-data" ? true : prev.endOfData,
+        }));
+        void checkpoint("paused");
+      }
+
+      return { reason, candles: engine.state.visibleIndex - startIndex };
+    },
+    [checkpoint, patch, startReplayExtension, stopLocalScheduler],
+  );
   const restart = useCallback(async () => {
     wantsReplayRunningRef.current = false;
     setS((prev) =>
@@ -1352,6 +1512,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       pause,
       stepNext,
       stepPrev,
+      jumpTo,
       restart,
       endSession,
       extendSessionData,

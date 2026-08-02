@@ -248,20 +248,30 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   }
   await page.getByRole("button", { name: "Positions & measure", exact: true }).click();
 
+  // Unstarred timeframes are reachable from the dropdown rather than the bar.
+  const timeframeMenu = page.getByRole("menu").filter({ hasText: "Timeframe" });
+  const openTimeframeMenu = async () => {
+    await page.getByRole("button", { name: "Choose timeframe" }).click();
+    await expect(timeframeMenu).toBeVisible();
+  };
+  await openTimeframeMenu();
   for (const timeframe of ["3m", "10m", "45m", "2h", "6h", "12h", "1w", "1M", "1yr"]) {
-    await expect(page.getByRole("button", { name: `Display ${timeframe} candles`, exact: true })).toHaveCount(1);
+    await expect(
+      timeframeMenu.getByRole("menuitemradio", { name: new RegExp(`^${timeframe}\\b`) }),
+    ).toHaveCount(1);
   }
-  await page.getByRole("button", { name: "Display 10m candles", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Display 10m candles", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await timeframeMenu.getByRole("menuitemradio", { name: /^10m\b/ }).click();
   await expect(chart).toHaveAttribute("data-axis-timeframe", "10m");
   await expect(chart).toHaveAttribute("data-axis-tick-max-chars", "5");
   await expect(chart).toHaveAttribute("data-axis-time-visible", "true");
   await expect(page.getByText("Loading 10m chart history…", { exact: true })).toHaveCount(0, { timeout: 30_000 });
-  await page.getByRole("button", { name: "Display 1M candles", exact: true }).click();
+  await openTimeframeMenu();
+  await timeframeMenu.getByRole("menuitemradio", { name: /^1M\b/ }).click();
   await expect(chart).toHaveAttribute("data-axis-timeframe", "1M");
   await expect(chart).toHaveAttribute("data-axis-tick-max-chars", "4");
   await expect(chart).toHaveAttribute("data-axis-time-visible", "false");
   await expect(page.getByText("Loading 1M chart history…", { exact: true })).toHaveCount(0, { timeout: 30_000 });
+  // 1m is starred by default, so it is back on the bar itself.
   await page.getByRole("button", { name: "Display 1m candles", exact: true }).click();
   await expect(page.getByRole("button", { name: "Display 1m candles", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("Loading 1m chart history…", { exact: true })).toHaveCount(0, { timeout: 30_000 });

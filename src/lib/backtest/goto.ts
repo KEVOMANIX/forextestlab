@@ -338,3 +338,54 @@ function roundToStep(value: number, step: number): number {
   const decimals = Math.max(0, Math.ceil(-Math.log10(step)) + 1);
   return Number(value.toFixed(decimals));
 }
+
+export interface HistoricalMoment {
+  id: string;
+  label: string;
+  /** Calendar date, as YYYY-MM-DD. Resolved to midnight in the chart's zone. */
+  date: string;
+}
+
+/**
+ * Days worth replaying, for when a session happens to span one.
+ *
+ * A short, uncontroversial list of moments that moved major FX pairs, kept to
+ * events whose date is not in dispute. It is not a market history: the point is
+ * that a trader replaying, say, March 2020 can land on the day itself instead of
+ * hunting for it on the axis.
+ *
+ * Replay only runs forward inside a session's own range, so most of this list is
+ * unreachable in any given session. That is expected — the caller filters to
+ * what lies ahead and says so when nothing does.
+ */
+export const HISTORICAL_MOMENTS: HistoricalMoment[] = [
+  { id: "lehman", label: "Lehman Brothers files for bankruptcy", date: "2008-09-15" },
+  { id: "flash-crash", label: "US flash crash", date: "2010-05-06" },
+  { id: "tohoku", label: "Tōhoku earthquake", date: "2011-03-11" },
+  { id: "snb-floor", label: "SNB abandons the EUR/CHF floor", date: "2015-01-15" },
+  { id: "brexit-vote", label: "UK EU referendum", date: "2016-06-23" },
+  { id: "us-election-2016", label: "US presidential election", date: "2016-11-08" },
+  { id: "covid-crash", label: "COVID-19 market crash", date: "2020-03-12" },
+  { id: "ukraine", label: "Russia invades Ukraine", date: "2022-02-24" },
+  { id: "mini-budget", label: "UK mini-budget and the gilt crisis", date: "2022-09-23" },
+  { id: "carry-unwind", label: "Yen carry-trade unwind", date: "2024-08-05" },
+];
+
+/**
+ * Historical moments a session can actually reach: strictly after `from` and
+ * within the data the session holds, each resolved to midnight in `zone`.
+ */
+export function reachableMoments(
+  from: number,
+  endTime: number,
+  zone: string,
+): { moment: HistoricalMoment; timestamp: number }[] {
+  const out: { moment: HistoricalMoment; timestamp: number }[] = [];
+  for (const moment of HISTORICAL_MOMENTS) {
+    const [year, month, day] = moment.date.split("-").map(Number);
+    if (!year || !month || !day) continue;
+    const timestamp = zoneWallClockToUtc(zone, year, month, day);
+    if (timestamp > from && timestamp <= endTime) out.push({ moment, timestamp });
+  }
+  return out.sort((a, b) => a.timestamp - b.timestamp);
+}

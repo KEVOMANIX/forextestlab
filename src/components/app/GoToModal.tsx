@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ArrowDownToLine, ArrowUpToLine, Clock, Hourglass, Loader2, X } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowUpToLine,
+  Clock,
+  Hourglass,
+  Loader2,
+  Settings2,
+  X,
+} from "lucide-react";
 
 import {
   TRADING_SESSIONS,
@@ -10,6 +18,7 @@ import {
   previousDailyRange,
   previousSessionRange,
   psychologicalLevels,
+  reachableMoments,
   zoneParts,
   zoneWallClockToUtc,
   type GoToTarget,
@@ -58,6 +67,11 @@ interface GoToModalProps {
   canWaitForClose: boolean;
   busy: boolean;
   onJump: (target: GoToTarget, label: string) => void;
+  /**
+   * Opens the time-zone setting. Every clock time here is read in the chart's
+   * zone, so it is the one preference that changes what this dialog says.
+   */
+  onOpenZoneSettings: () => void;
 }
 
 interface EdgeButton {
@@ -177,6 +191,7 @@ export function GoToModal({
   canWaitForClose,
   busy,
   onJump,
+  onOpenZoneSettings,
 }: GoToModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useModalBehavior<HTMLElement>({
@@ -255,6 +270,19 @@ export function GoToModal({
     [currentPrice, pipSize],
   );
 
+  /**
+   * Notable days this session can still reach.
+   *
+   * Almost always empty, because a session covers weeks and these are spread
+   * over years — which is the honest answer, and better than listing a decade of
+   * dates that would each refuse the click.
+   */
+  const moments = useMemo(
+    () => (open ? reachableMoments(currentTime, endTime, zone) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [open, currentTime, endTime, zone],
+  );
+
   if (!open) return null;
 
   /**
@@ -330,15 +358,26 @@ export function GoToModal({
               {clock(currentTime)}.
             </p>
           </div>
-          <button
-            ref={closeRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close go to"
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-md app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
-          >
-            <X size={15} aria-hidden />
-          </button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={onOpenZoneSettings}
+              aria-label="Change the chart's time zone"
+              title="Times are read in the chart's zone — change it"
+              className="grid h-7 w-7 place-items-center rounded-md app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+            >
+              <Settings2 size={14} aria-hidden />
+            </button>
+            <button
+              ref={closeRef}
+              type="button"
+              onClick={onClose}
+              aria-label="Close go to"
+              className="grid h-7 w-7 place-items-center rounded-md app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+            >
+              <X size={15} aria-hidden />
+            </button>
+          </div>
         </header>
 
         <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto px-3 pb-3 sm:grid-cols-3">
@@ -398,6 +437,29 @@ export function GoToModal({
                 </button>
               </div>
             )}
+
+            {/* Notable days, when this session happens to contain one. */}
+            <div className="mt-auto border-t app-border pt-1">
+              <p className="px-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] app-muted">
+                Historical moments
+              </p>
+              {moments.length === 0 ? (
+                <p className="px-1.5 pt-0.5 text-[9px] leading-3 app-muted">
+                  None inside this session, ahead of the replay.
+                </p>
+              ) : (
+                moments.map(({ moment, timestamp }) => (
+                  <Row
+                    key={moment.id}
+                    label={moment.label}
+                    detail={moment.date}
+                    disabled={busy}
+                    title={`${moment.label} — ${clock(timestamp)}`}
+                    onSelect={() => jump({ kind: "time", timestamp }, moment.label)}
+                  />
+                ))
+              )}
+            </div>
           </Column>
 
           <Column title="Sessions">

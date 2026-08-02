@@ -6,6 +6,7 @@ import {
   previousDailyRange,
   previousSessionRange,
   psychologicalLevels,
+  reachableMoments,
   tradingSession,
   zoneParts,
   zoneWallClockToUtc,
@@ -176,6 +177,42 @@ describe("previousDailyRange", () => {
       high: 1.3,
       low: 1.2,
     });
+  });
+});
+
+describe("reachableMoments", () => {
+  it("offers only moments ahead of the replay and inside the session", () => {
+    const from = Date.UTC(2020, 0, 1);
+    const endTime = Date.UTC(2020, 11, 31);
+    const reachable = reachableMoments(from, endTime, "UTC");
+    expect(reachable.map((entry) => entry.moment.id)).toEqual(["covid-crash"]);
+    expect(reachable[0]!.timestamp).toBe(Date.UTC(2020, 2, 12));
+  });
+
+  it("excludes a moment the replay has already passed", () => {
+    const from = Date.UTC(2020, 5, 1);
+    const endTime = Date.UTC(2020, 11, 31);
+    expect(reachableMoments(from, endTime, "UTC")).toEqual([]);
+  });
+
+  it("resolves the date in the chart's zone", () => {
+    const from = Date.UTC(2022, 0, 1);
+    const endTime = Date.UTC(2022, 11, 31);
+    const [entry] = reachableMoments(from, endTime, "America/New_York");
+    // 2022-02-24 00:00 New York is 05:00 UTC that day.
+    expect(entry!.moment.id).toBe("ukraine");
+    expect(entry!.timestamp).toBe(Date.UTC(2022, 1, 24, 5));
+  });
+
+  it("returns them oldest first", () => {
+    const reachable = reachableMoments(
+      Date.UTC(2008, 0, 1),
+      Date.UTC(2025, 0, 1),
+      "UTC",
+    );
+    const times = reachable.map((entry) => entry.timestamp);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
+    expect(reachable.length).toBeGreaterThan(5);
   });
 });
 

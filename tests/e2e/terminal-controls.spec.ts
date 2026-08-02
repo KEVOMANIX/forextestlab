@@ -230,6 +230,15 @@ test("Go to lists forward destinations and fast-forwards the replay", async ({
   const box = await dialog.boundingBox();
   expect(box!.width).toBeLessThanOrEqual(44 * 16 + 1);
 
+  // This session covers six days in 2025, so it contains no notable day; the
+  // section says so rather than listing dates that would refuse the click.
+  await expect(dialog).toContainText("Historical moments");
+  await expect(dialog).toContainText("None inside this session");
+  // The gear leads to the one preference that changes what this dialog reads.
+  await expect(
+    dialog.getByRole("button", { name: "Change the chart's time zone" }),
+  ).toBeVisible();
+
   await dialog.getByRole("button", { name: /^Next day/ }).click();
   await expect(dialog).toBeHidden({ timeout: 30_000 });
   // The chart's zone is the exchange (New York). Replay sits at 08:59 UTC on

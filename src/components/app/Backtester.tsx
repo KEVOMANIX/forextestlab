@@ -1184,6 +1184,10 @@ export function Backtester({
         }
         busy={bt.busy}
         onJump={runJump}
+        onOpenZoneSettings={() => {
+          closeGoTo();
+          openSettings("display");
+        }}
       />
       <SymbolPickerModal
         open={symbolPickerOpen}

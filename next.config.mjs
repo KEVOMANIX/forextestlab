@@ -13,6 +13,10 @@ const securityHeaders = [
 ];
 
 const buildVersion =
+  // Each Vercel deployment gets a unique generated hostname, even when several
+  // production uploads come from the same Git commit. Commit SHA alone left an
+  // already-open backtester running stale drawing code after a CLI redeploy.
+  process.env.VERCEL_URL ??
   process.env.VERCEL_GIT_COMMIT_SHA ??
   process.env.NEXT_PUBLIC_BUILD_VERSION ??
   process.env.npm_package_version ??

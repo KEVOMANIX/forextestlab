@@ -22,6 +22,7 @@ import {
   tradePlanMetrics,
   type TradePlan,
 } from "@/lib/backtest/trade-plan";
+import { spreadPointsLabel } from "@/lib/backtest/spread-display";
 import type {
   OrderRequest,
   OrderType,
@@ -39,7 +40,7 @@ type PlanLevel = keyof Omit<TradePlan, "direction">;
  * markers, the replay toolbox, the blotter and this ticket.
  */
 const LONG_SOLID = "bg-brand-500 text-surface-950 hover:bg-brand-400";
-const SHORT_SOLID = "bg-bear text-white hover:opacity-90";
+const SHORT_SOLID = "bg-bear text-surface-950 hover:opacity-90";
 
 interface OrderTicketProps {
   state: PublicSessionState;
@@ -127,6 +128,8 @@ export function OrderTicket({
   const precision = state.config.pricePrecision ?? 5;
   const pip = Number(state.config.pipSize) || 0;
   const spread = Number(state.config.spreadPips) || 0;
+  const spreadLabel = spread.toFixed(1);
+  const spreadPoints = spreadPointsLabel(spread, pip, precision);
   const mid = state.currentPrice != null ? Number(state.currentPrice) : null;
   const ask = mid != null ? mid + (spread * pip) / 2 : null;
   const bid = mid != null ? mid - (spread * pip) / 2 : null;
@@ -359,33 +362,32 @@ export function OrderTicket({
         className="group relative flex items-center gap-1"
         aria-label="Quick order planner"
       >
-        {oneClickTrading && (
+        <div className="relative flex items-center">
+          <CompactQuoteButton
+            direction="short"
+            position="left"
+            price={bid?.toFixed(precision) ?? "—"}
+            lots={sizeSummary.lots}
+            disabled={unavailable}
+            onClick={() => activateQuote("short")}
+          />
           <span
-            title="One-click trading: a quote button places the order immediately"
-            className="rounded border px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-            style={{
-              color: "var(--app-warn-text)",
-              borderColor: "var(--app-warn-text)",
-              background: "var(--app-warn-wash)",
-            }}
+            data-testid="chart-trade-spread"
+            aria-label={`${spreadLabel} pips`}
+            title={`${spreadLabel} pips`}
+            className="pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-6 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border border-white/20 bg-[#0b1220] px-1 font-mono text-[10px] font-bold leading-none text-white shadow-md"
           >
-            1-click
+            {spreadPoints}
           </span>
-        )}
-        <CompactQuoteButton
-          direction="short"
-          price={bid?.toFixed(precision) ?? "—"}
-          lots={sizeSummary.lots}
-          disabled={unavailable}
-          onClick={() => activateQuote("short")}
-        />
-        <CompactQuoteButton
-          direction="long"
-          price={ask?.toFixed(precision) ?? "—"}
-          lots={sizeSummary.lots}
-          disabled={unavailable}
-          onClick={() => activateQuote("long")}
-        />
+          <CompactQuoteButton
+            direction="long"
+            position="right"
+            price={ask?.toFixed(precision) ?? "—"}
+            lots={sizeSummary.lots}
+            disabled={unavailable}
+            onClick={() => activateQuote("long")}
+          />
+        </div>
         <LotSizePopover
           lots={lots}
           onLots={setLots}
@@ -700,12 +702,14 @@ export function OrderTicket({
 
 function CompactQuoteButton({
   direction,
+  position,
   price,
   lots,
   disabled,
   onClick,
 }: {
   direction: TradeDirection;
+  position: "left" | "right";
   price: string;
   lots: string;
   disabled: boolean;
@@ -717,8 +721,13 @@ function CompactQuoteButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      data-testid={long ? "chart-quick-buy" : "chart-quick-sell"}
       aria-label={`${long ? "Buy" : "Sell"} ${lots} lot at ${price}`}
-      className={`flex h-8 min-w-[88px] flex-col items-center justify-center gap-0.5 rounded-md px-3 text-[10px] font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`flex h-8 min-w-[88px] flex-col items-center justify-center gap-0.5 py-0 text-[10px] font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        position === "left"
+          ? "rounded-l-md rounded-r-sm pl-3 pr-5"
+          : "rounded-l-sm rounded-r-md pl-5 pr-3"
+      } ${
         long ? LONG_SOLID : SHORT_SOLID
       }`}
     >

@@ -226,13 +226,13 @@ export function ChartSettingsDialog({
   const openedAt = useRef(Date.now()).current;
   const zones = useMemo(() => zoneOptionsAt(openedAt), [openedAt]);
 
-  const surface = theme === "dark" ? "#111725" : "#ffffff";
-  const inset = theme === "dark" ? "#0b0f1a" : "#f5f7fb";
-  const line = theme === "dark" ? "rgba(255,255,255,0.10)" : "#d9e0ec";
+  const surface = theme === "dark" ? "#111725" : "#f8fafc";
+  const inset = theme === "dark" ? "#0b0f1a" : "#eef2f6";
+  const line = theme === "dark" ? "rgba(255,255,255,0.10)" : "#cfd7e3";
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[85] grid place-items-center bg-black/55 p-4 backdrop-blur-sm"
+      className={`app-theme-surface fixed inset-0 z-[85] grid place-items-center bg-black/55 p-4 backdrop-blur-sm ${theme === "light" ? "light" : ""}`}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

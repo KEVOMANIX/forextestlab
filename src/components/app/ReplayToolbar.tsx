@@ -21,6 +21,7 @@ import {
   type PublicSessionState,
   type ReplaySpeed,
 } from "@/lib/backtest/types";
+import { spreadPointsLabel } from "@/lib/backtest/spread-display";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { replayRewindFloor } from "@/lib/backtest/replay-engine";
 import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
@@ -141,10 +142,14 @@ export function ReplayToolbar({
   const pipSize = Number(state.config.pipSize) || 0;
   const mid = state.currentPrice == null ? null : Number(state.currentPrice);
   const precision = state.config.pricePrecision;
-  const bidAskLabel =
+  const spreadPoints = spreadPointsLabel(spreadPips, pipSize, precision);
+  const bidAsk =
     mid == null || !Number.isFinite(mid)
       ? null
-      : `${(mid - (spreadPips * pipSize) / 2).toFixed(precision)} / ${(mid + (spreadPips * pipSize) / 2).toFixed(precision)}`;
+      : {
+          bid: (mid - (spreadPips * pipSize) / 2).toFixed(precision),
+          ask: (mid + (spreadPips * pipSize) / 2).toFixed(precision),
+        };
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));
   const cadenceLabel = speedLabel(state.speed);
@@ -343,35 +348,36 @@ export function ReplayToolbar({
             check it, and hover alone would hide it from the keyboard. The panel
             hangs off the right so it cannot run past the toolbox, and upwards on
             a phone where the toolbox is docked to the bottom edge. */}
-        <div className="group relative flex shrink-0 items-center gap-1">
+        <div className="group relative flex shrink-0 items-center">
           <button
             type="button"
             aria-label="Quick Sell"
+            title={`${spreadLabel} pips${bidAsk ? ` · ${bidAsk.bid}` : ""}`}
             onClick={onSell}
             disabled={!canTrade}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1 rounded-md bg-bear text-[11px] font-bold text-white hover:opacity-90 disabled:opacity-35 sm:w-auto sm:px-2"
+            className="inline-flex h-7 min-w-[48px] shrink-0 items-center justify-center gap-1 rounded-l-md rounded-r-sm bg-bear py-0 pl-1 pr-4 text-[11px] font-bold text-surface-950 hover:opacity-90 disabled:opacity-35 sm:pl-2"
           >
-            <ArrowDownRight size={13} aria-hidden /> <span className="hidden sm:inline">Sell</span>
+            <ArrowDownRight size={13} aria-hidden />
+            <span className="hidden sm:inline">Sell</span>
           </button>
-          {/* The cost of crossing sits between the two buttons that cross it, so
-              it is read at the moment it is paid rather than hunted for in the
-              session's setup. */}
           <span
             data-testid="quick-trade-spread"
-            title={`Spread: ${spreadLabel} pips${bidAskLabel ? ` (${bidAskLabel})` : ""}`}
-            className="flex h-7 shrink-0 flex-col items-center justify-center px-1 leading-none"
+            aria-label={`${spreadLabel} pips`}
+            title={`${spreadLabel} pips`}
+            className="pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-5 min-w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border border-white/20 bg-[#0b1220] px-1 font-mono text-[10px] font-bold leading-none text-white shadow-md"
           >
-            <span className="font-mono text-[11px] font-semibold text-[var(--app-text)]">{spreadLabel}</span>
-            <span className="text-[7px] font-semibold uppercase tracking-[0.08em] app-muted">spread</span>
+            {spreadPoints}
           </span>
           <button
             type="button"
             aria-label="Quick Buy"
+            title={`${spreadLabel} pips${bidAsk ? ` · ${bidAsk.ask}` : ""}`}
             onClick={onBuy}
             disabled={!canTrade}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center gap-1 rounded-md bg-brand-500 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35 sm:w-auto sm:px-2"
+            className="inline-flex h-7 min-w-[48px] shrink-0 items-center justify-center gap-1 rounded-l-sm rounded-r-md bg-brand-500 py-0 pl-4 pr-1 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35 sm:pr-2"
           >
-            <ArrowUpRight size={13} aria-hidden /> <span className="hidden sm:inline">Buy</span>
+            <ArrowUpRight size={13} aria-hidden />
+            <span className="hidden sm:inline">Buy</span>
           </button>
           <LotSizePopover
             lots={lots}

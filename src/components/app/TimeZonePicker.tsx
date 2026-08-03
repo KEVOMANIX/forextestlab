@@ -125,7 +125,7 @@ export function TimeZonePicker({
             ref={panelRef}
             role="listbox"
             aria-label="Chart time zone"
-            className="fixed z-[70] flex flex-col rounded-lg border py-1 text-xs shadow-2xl"
+            className={`app-theme-surface fixed z-[70] flex flex-col rounded-lg border py-1 text-xs shadow-2xl ${theme === "light" ? "light" : ""}`}
             // Portaled outside `.app-shell`, so the scoped theme variables do
             // not reach it and the colours have to be explicit.
             style={{
@@ -133,13 +133,13 @@ export function TimeZonePicker({
               maxHeight: PANEL_MAX_HEIGHT,
               left: Math.max(8, Math.min(anchor.x - PANEL_WIDTH, window.innerWidth - PANEL_WIDTH - 8)),
               top: Math.max(8, anchor.y - Math.min(PANEL_MAX_HEIGHT, window.innerHeight - 16)),
-              backgroundColor: theme === "dark" ? "#111725" : "#ffffff",
-              borderColor: theme === "dark" ? "rgba(255,255,255,0.10)" : "#d9e0ec",
+              backgroundColor: theme === "dark" ? "#111725" : "#f8fafc",
+              borderColor: theme === "dark" ? "rgba(255,255,255,0.10)" : "#cfd7e3",
               color: theme === "dark" ? "#e6ecf7" : "#0f172a",
               // The focus ring punches its gap out of this panel, not the page
               // behind it — without this the search field draws a dark halo on
               // the light theme, since the shell's variable can't reach a portal.
-              "--focus-ring-offset": theme === "dark" ? "#111725" : "#ffffff",
+              "--focus-ring-offset": theme === "dark" ? "#111725" : "#f8fafc",
             } as React.CSSProperties}
           >
             <div className="px-2 pb-1.5 pt-1">
@@ -150,7 +150,7 @@ export function TimeZonePicker({
                 placeholder="Search city or offset…"
                 aria-label="Search time zones"
                 className="w-full rounded border bg-transparent px-2 py-1 text-xs outline-none focus:border-brand-400"
-                style={{ borderColor: theme === "dark" ? "rgba(255,255,255,0.14)" : "#d9e0ec" }}
+                style={{ borderColor: theme === "dark" ? "rgba(255,255,255,0.14)" : "#cfd7e3" }}
               />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">

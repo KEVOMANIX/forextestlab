@@ -59,11 +59,16 @@ export function engineStateFromPublic(state: PublicSessionState): SessionState {
 
 /** Upgrade states saved before multi-position support without invalidating sessions. */
 export function normalizeSessionState(state: SessionState): SessionState {
-  const legacy = state as SessionState & { openPosition?: OpenPosition | null };
+  const legacy = state as SessionState & {
+    openPosition?: OpenPosition | null;
+    algo?: unknown;
+  };
   if (!Array.isArray(state.openPositions)) {
     state.openPositions = legacy.openPosition ? [legacy.openPosition] : [];
   }
   delete legacy.openPosition;
+  // Strip checkpoints created by the retired automation prototype.
+  delete legacy.algo;
   state.pendingOrders ??= [];
   state.bookmarks ??= [];
   for (const position of state.openPositions) {

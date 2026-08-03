@@ -167,7 +167,7 @@ export function PositionEditorModal({
           </p>
         </div>
 
-        <button type="button" onClick={() => closePercent(100)} className="mt-3 w-full rounded-lg bg-bear px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-bear/90">
+        <button type="button" onClick={() => closePercent(100)} className="mt-3 w-full rounded-lg bg-bear px-4 py-3 text-sm font-bold text-surface-950 transition-colors hover:bg-bear/90">
           Close full position
         </button>
 

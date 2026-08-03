@@ -1,8 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Multi-chart workspace: layouts, per-cell toolbars, and the reference cell's
- * clock-gated data. Runs without login on seeded demo data.
+ * Multi-chart workspace: layouts, per-cell chart controls, shared drawing
+ * tools, and the reference cell's clock-gated data. Runs without login on
+ * seeded demo data.
  */
 
 async function openMultiSymbolSession(page: Page) {
@@ -55,14 +56,40 @@ test("splits into an independent multi-chart layout and back", async ({ page }) 
   await layoutMenu.getByRole("button", { name: /Two columns/i }).click();
   // Each cell owns its own toolbar once the workspace is split.
   await expect(page.getByRole("toolbar", { name: "Chart controls" })).toHaveCount(2);
+  // Drawing tools belong to the workspace, never to each individual pane.
+  await expect(page.getByRole("toolbar", { name: "Drawing tools" })).toHaveCount(1);
   await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(2);
 
   await chooseLayout(page, /Four charts/i);
   await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(4);
+  await expect(page.getByRole("toolbar", { name: "Drawing tools" })).toHaveCount(1);
 
   await chooseLayout(page, /Single chart/i);
   await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(1);
   await expect(page.getByRole("toolbar", { name: "Chart controls" })).toHaveCount(1);
+});
+
+test("keeps one drawing toolbox and one favorites bar across every pane", async ({ page }) => {
+  await openMultiSymbolSession(page);
+
+  const linesButton = page.getByRole("button", { name: /Lines & channels/i });
+  await linesButton.click();
+  await page.getByRole("button", { name: /Favorite Horizontal line/i }).click();
+  await linesButton.click();
+
+  await expect(page.getByRole("toolbar", { name: "Drawing tools" })).toHaveCount(1);
+  await expect(page.getByRole("toolbar", { name: /Favorite tools/i })).toHaveCount(1);
+
+  await chooseLayout(page, /Four charts/i);
+  const charts = page.getByRole("img", { name: "Candlestick price chart" });
+  await expect(charts).toHaveCount(4);
+  await expect(page.getByRole("toolbar", { name: "Drawing tools" })).toHaveCount(1);
+  await expect(page.getByRole("toolbar", { name: /Favorite tools/i })).toHaveCount(1);
+
+  // Focusing another pane transfers ownership; it must not create a copy.
+  await charts.nth(3).click({ position: { x: 160, y: 100 } });
+  await expect(page.getByRole("toolbar", { name: "Drawing tools" })).toHaveCount(1);
+  await expect(page.getByRole("toolbar", { name: /Favorite tools/i })).toHaveCount(1);
 });
 
 test("a reference cell loads its pair once and keeps the traded cell tradable", async ({ page }) => {

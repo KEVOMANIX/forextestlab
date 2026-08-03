@@ -4,6 +4,7 @@ import Link from "next/link";
 import { siteConfig } from "@/lib/site";
 
 import logoFull from "../../public/logo-full.png";
+import logoFullLight from "../../public/logo-full-light.png";
 
 /**
  * ForexTestLab brand lockup. Uses the official transparent-background logo
@@ -27,7 +28,14 @@ export function Logo({
         src={logoFull}
         alt={`${siteConfig.name} logo`}
         priority={priority}
-        className={`w-auto ${className}`}
+        className={`app-logo-dark w-auto ${className}`}
+        sizes="(max-width: 640px) 150px, 200px"
+      />
+      <Image
+        src={logoFullLight}
+        alt={`${siteConfig.name} logo`}
+        priority={priority}
+        className={`app-logo-light hidden w-auto ${className}`}
         sizes="(max-width: 640px) 150px, 200px"
       />
     </Link>

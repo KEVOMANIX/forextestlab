@@ -30,13 +30,13 @@ const LEVELS: {
     key: "entryPrice",
     label: "ENTRY",
     line: "border-sky-400",
-    badge: "bg-sky-500 text-white",
+    badge: "bg-sky-500 text-surface-950",
   },
   {
     key: "stopLoss",
     label: "SL",
     line: "border-bear",
-    badge: "bg-bear text-white",
+    badge: "bg-bear text-surface-950",
   },
   {
     key: "takeProfit",

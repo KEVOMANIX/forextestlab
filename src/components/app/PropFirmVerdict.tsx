@@ -10,6 +10,7 @@ import {
   type PropFirmRuntime,
 } from "@/lib/backtest/prop-firm";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
+import { useAppTheme } from "./ThemeContext";
 
 /**
  * The verdict on a challenge: passed, or which rule ended it and where.
@@ -52,6 +53,7 @@ export function PropFirmVerdict({
   accountCurrency: string;
   onClose: () => void;
 }) {
+  const { theme } = useAppTheme();
   const dialogRef = useModalBehavior<HTMLDivElement>({ open: true, onClose });
   const progress = propFirmProgress({
     rules,
@@ -65,7 +67,7 @@ export function PropFirmVerdict({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[90] grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+      className={`app-theme-surface fixed inset-0 z-[90] grid place-items-center bg-black/60 p-4 backdrop-blur-sm ${theme === "light" ? "light" : ""}`}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

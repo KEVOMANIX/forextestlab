@@ -76,7 +76,8 @@
  * marketing site. Default is dark; `.light` flips the palette.
  */
 @layer components {
-  .app-shell {
+  .app-shell,
+  .app-theme-surface {
     --app-bg: #070a12;
     --app-panel: rgba(17, 23, 37, 0.72);
     --app-panel-solid: #111725;
@@ -95,6 +96,12 @@
        that reads on a dark panel drops to about 1.7:1 on a light one. */
     --app-warn-text: #fcd34d;
     --app-warn-wash: rgba(251, 191, 36, 0.15);
+    --app-danger-text: #ff7c85;
+    --app-info-text: #7dd3fc;
+    --app-blue-text: #8dacff;
+    --app-subtle: rgba(255, 255, 255, 0.05);
+    --app-hover: rgba(255, 255, 255, 0.08);
+    --app-strong-line: rgba(255, 255, 255, 0.24);
     --focus-ring-offset: #070a12;
     /*
      * Ink for text drawn *on* the chart — axis labels, the legend, indicator
@@ -119,8 +126,11 @@
     --ticket-subtle: #9d9d9d;
     /* Colour "sell" is drawn in; "buy" uses the brand accent. */
     color-scheme: dark;
-    background-color: var(--app-bg);
     color: var(--app-text);
+  }
+
+  .app-shell {
+    background-color: var(--app-bg);
   }
 
   /*
@@ -162,31 +172,115 @@
     line-height: 1.5rem;
   }
 
-  .app-shell.light {
-    --app-bg: #f5f7fb;
-    --app-panel: #ffffff;
-    --app-panel-solid: #ffffff;
-    --app-panel-2: #eef2f8;
-    --app-border: #d9e0ec;
+  .app-shell.light,
+  .app-theme-surface.light {
+    --app-bg: #eef2f6;
+    --app-panel: #f8fafc;
+    --app-panel-solid: #f8fafc;
+    --app-panel-2: #e8edf3;
+    --app-border: #cfd7e3;
     --app-text: #0b1220;
-    --app-muted: #566179;
-    --app-accent-text: #0b7a63;
+    --app-muted: #506078;
+    --app-accent-text: #076653;
     --app-accent-wash: rgba(18, 168, 136, 0.14);
     --app-warn-text: #92610a;
     --app-warn-wash: rgba(180, 130, 10, 0.14);
-    --focus-ring-offset: #f5f7fb;
+    --app-danger-text: #b4233c;
+    --app-info-text: #0369a1;
+    --app-blue-text: #1d4ed8;
+    --app-subtle: rgba(15, 23, 42, 0.07);
+    --app-hover: rgba(15, 23, 42, 0.10);
+    --app-strong-line: rgba(15, 23, 42, 0.24);
+    --focus-ring-offset: #eef2f6;
     --chart-text: #0b1220;
     --chart-muted: #46536b;
-    --ticket-bg: #ffffff;
-    --ticket-surface: #f4f6fa;
-    --ticket-raised: #e9eef6;
-    --ticket-track: #d9e0ec;
-    --ticket-border: #d4dbe8;
+    --ticket-bg: #f8fafc;
+    --ticket-surface: #eef2f6;
+    --ticket-raised: #e3e9f1;
+    --ticket-track: #cfd8e5;
+    --ticket-border: #cbd4e1;
     --ticket-field-border: #b4bfd2;
     --ticket-text: #0b1220;
     --ticket-muted: #4a566d;
     --ticket-subtle: #5d6a82;
     color-scheme: light;
+  }
+
+  .app-shell.light .app-logo-dark {
+    display: none;
+  }
+
+  .app-shell.light .app-logo-light {
+    display: block;
+  }
+
+  /*
+   * Tailwind's fixed dark-theme accent and translucent-white utilities can
+   * become faint or disappear on a white workspace. Keep their meaning while
+   * routing the rendered colour through the active terminal palette. This also
+   * covers portaled chart menus via `.app-theme-surface`.
+   */
+  :is(.app-shell, .app-theme-surface) :is(.text-brand-200, .text-brand-300) {
+    color: var(--app-accent-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) :is(.hover\:text-brand-200, .hover\:text-brand-300):hover {
+    color: var(--app-accent-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) .fill-brand-300 {
+    fill: var(--app-accent-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) :is(.text-bear, .hover\:text-bear:hover) {
+    color: var(--app-danger-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) :is(.text-amber-200, .text-amber-300, .text-amber-400, .hover\:text-amber-400:hover) {
+    color: var(--app-warn-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) .text-sky-300 {
+    color: var(--app-info-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) .text-\[\#5b8bff\] {
+    color: var(--app-blue-text);
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light)
+    :is(
+      [class~="bg-white/[0.02]"],
+      [class~="bg-white/[0.03]"],
+      [class~="bg-white/[0.04]"],
+      [class~="bg-white/[0.05]"],
+      [class~="bg-white/[0.06]"],
+      [class~="bg-white/[0.07]"],
+      [class~="bg-white/[0.08]"],
+      [class~="bg-white/15"],
+      [class~="bg-white/20"]
+    ) {
+    background-color: var(--app-subtle);
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light)
+    :is(
+      [class~="hover:bg-white/[0.025]"],
+      [class~="hover:bg-white/[0.03]"],
+      [class~="hover:bg-white/[0.05]"],
+      [class~="hover:bg-white/[0.06]"],
+      [class~="hover:bg-white/[0.08]"]
+    ):hover {
+    background-color: var(--app-hover);
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light) :is([class~="bg-white/40"]) {
+    background-color: var(--app-strong-line);
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light)
+    :is([class~="border-white/15"], [class~="border-white/20"]) {
+    border-color: var(--app-border);
   }
 
   .panel {

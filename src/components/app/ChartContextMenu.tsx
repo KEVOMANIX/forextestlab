@@ -98,7 +98,7 @@ export function ChartContextMenu({
     position.y,
     Math.max(EDGE_GAP, window.innerHeight - height - EDGE_GAP),
   );
-  const surface = theme === "dark" ? "#161b28" : "#ffffff";
+  const surface = theme === "dark" ? "#161b28" : "#f8fafc";
 
   return createPortal(
     <div
@@ -114,14 +114,14 @@ export function ChartContextMenu({
       // The container takes focus so arrow keys work, but it is not a control:
       // the app-wide focus ring would draw a brand-coloured halo round the whole
       // menu, which reads as a selection it does not have.
-      className="fixed z-[80] rounded-lg border py-1.5 text-[13px] shadow-2xl outline-none focus-visible:ring-0"
+      className={`app-theme-surface fixed z-[80] rounded-lg border py-1.5 text-[13px] shadow-2xl outline-none focus-visible:ring-0 ${theme === "light" ? "light" : ""}`}
       style={
         {
           left,
           top,
           width: MENU_WIDTH,
           backgroundColor: surface,
-          borderColor: theme === "dark" ? "rgba(255,255,255,0.12)" : "#d9e0ec",
+          borderColor: theme === "dark" ? "rgba(255,255,255,0.12)" : "#cfd7e3",
           color: theme === "dark" ? "#ffffff" : "#0f172a",
           "--focus-ring-offset": surface,
         } as React.CSSProperties
@@ -136,7 +136,7 @@ export function ChartContextMenu({
                 className="my-1.5 border-t"
                 style={{
                   borderColor:
-                    theme === "dark" ? "rgba(255,255,255,0.10)" : "#e6ebf3",
+                    theme === "dark" ? "rgba(255,255,255,0.10)" : "#dce3eb",
                 }}
               />
             )}
@@ -157,7 +157,7 @@ export function ChartContextMenu({
                   index === active && !item.disabled
                     ? theme === "dark"
                       ? "rgba(255,255,255,0.08)"
-                      : "#eef2f8"
+                      : "#e8edf3"
                     : "transparent",
               }}
             >

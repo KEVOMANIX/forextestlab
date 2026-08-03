@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+import { aggregateCandles } from "../../src/lib/market-data/aggregation";
+import type { Timeframe } from "../../src/lib/market-data/types";
+
 /**
  * The multi-chart workspace: one drawing rail for every pane, drawings shared by
  * every pane on the same pair whatever timeframe it shows, anchors that survive
@@ -102,12 +105,118 @@ async function paintedPixels(page: import("@playwright/test").Page, cellId: stri
       const context = canvas.getContext("2d");
       if (!context) continue;
       const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      for (let offset = 3; offset < pixels.length; offset += 16) {
+      for (let offset = 3; offset < pixels.length; offset += 4) {
         if (pixels[offset] !== 0) painted += 1;
       }
     }
     return painted;
   }, cellId);
+}
+
+/** CSS-pixel horizontal bounds of committed drawing ink in one pane. */
+async function drawingHorizontalBounds(page: import("@playwright/test").Page, cellId: string) {
+  return page.evaluate((id) => {
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      `[data-testid="${id}"] [data-drawing-count] canvas[style*="z-index: 1"]`,
+    );
+    if (!canvas) return null;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let minX = canvas.width;
+    let maxX = -1;
+    for (let y = 0; y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        if (pixels[(y * canvas.width + x) * 4 + 3] !== 0) {
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+        }
+      }
+    }
+    if (maxX < 0) return null;
+    const dpr = canvas.width / canvas.getBoundingClientRect().width;
+    return { minX: minX / dpr, maxX: maxX / dpr };
+  }, cellId);
+}
+
+/** WCAG contrast failures among every visible text node in the terminal. */
+async function visibleTextContrastViolations(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    type Rgba = { r: number; g: number; b: number; a: number };
+    const parse = (value: string): Rgba | null => {
+      const match = value.match(/rgba?\((\d+(?:\.\d+)?)[, ]+(\d+(?:\.\d+)?)[, ]+(\d+(?:\.\d+)?)(?:[, /]+(\d+(?:\.\d+)?))?\)/);
+      return match
+        ? { r: Number(match[1]), g: Number(match[2]), b: Number(match[3]), a: match[4] == null ? 1 : Number(match[4]) }
+        : null;
+    };
+    const composite = (front: Rgba, back: Rgba): Rgba => {
+      const a = front.a + back.a * (1 - front.a);
+      if (a === 0) return { r: 0, g: 0, b: 0, a: 0 };
+      return {
+        r: (front.r * front.a + back.r * back.a * (1 - front.a)) / a,
+        g: (front.g * front.a + back.g * back.a * (1 - front.a)) / a,
+        b: (front.b * front.a + back.b * back.a * (1 - front.a)) / a,
+        a,
+      };
+    };
+    const luminance = ({ r, g, b }: Rgba) => {
+      const channel = (value: number) => {
+        const normalized = value / 255;
+        return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    };
+    const contrast = (a: Rgba, b: Rgba) => {
+      const first = luminance(a);
+      const second = luminance(b);
+      return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+    };
+    const background = (element: Element) => {
+      const ancestors: Element[] = [];
+      for (let current: Element | null = element; current; current = current.parentElement) ancestors.unshift(current);
+      let result: Rgba = { r: 255, g: 255, b: 255, a: 1 };
+      for (const ancestor of ancestors) {
+        const layer = parse(getComputedStyle(ancestor).backgroundColor);
+        if (layer && layer.a > 0) result = composite(layer, result);
+      }
+      return result;
+    };
+
+    const shell = document.querySelector(".app-shell");
+    if (!shell) return ["app shell missing"];
+    const failures: string[] = [];
+    const elements = document.querySelectorAll<HTMLElement>(
+      ".app-shell *, .app-theme-surface, .app-theme-surface *",
+    );
+    for (const element of Array.from(elements)) {
+      if (element.closest(".sr-only") || element.closest("[disabled], [aria-disabled='true']")) continue;
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      if (style.display === "none" || style.visibility === "hidden" || rect.width <= 0 || rect.height <= 0) continue;
+      let hiddenByOpacity = false;
+      for (let current: Element | null = element; current; current = current.parentElement) {
+        if (Number.parseFloat(getComputedStyle(current).opacity) < 0.01) {
+          hiddenByOpacity = true;
+          break;
+        }
+      }
+      if (hiddenByOpacity) continue;
+      const ownText = Array.from(element.childNodes).some(
+        (node) => node.nodeType === Node.TEXT_NODE && Boolean(node.textContent?.trim()),
+      );
+      if (!ownText) continue;
+      const foreground = parse(style.color);
+      if (!foreground) continue;
+      const ratio = contrast(composite(foreground, background(element)), background(element));
+      const fontSize = Number.parseFloat(style.fontSize);
+      const fontWeight = Number.parseInt(style.fontWeight, 10) || 400;
+      const minimum = fontSize >= 24 || (fontSize >= 18.66 && fontWeight >= 700) ? 3 : 4.5;
+      if (ratio + 0.01 < minimum) {
+        failures.push(`${element.tagName.toLowerCase()} "${element.textContent?.trim().slice(0, 45)}" ${ratio.toFixed(2)}:${minimum}`);
+      }
+    }
+    return failures;
+  });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -145,6 +254,18 @@ test.beforeEach(async ({ page }) => {
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ ok: true, candles: [], hasMore: false }),
+    });
+  });
+  await page.route("**/api/backtest/sessions/*/context?*", async (route) => {
+    const timeframe = new URL(route.request().url()).searchParams.get("timeframe") as Timeframe;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        candles: aggregateCandles(contextCandles, "1m", timeframe),
+        hasMore: false,
+      }),
     });
   });
   await page.route(`**/api/backtest/sessions/${SESSION_ID}`, async (route) => {
@@ -258,6 +379,17 @@ test("a drawing reaches every pane on the pair, whatever timeframe it shows", as
     )
     .toBe(true);
 
+  const draggedRectangle = (await storedDrawings(page))
+    .flatMap((entry) => entry.drawings)
+    .find((drawing) => drawing.kind === "rectangle");
+  expect(draggedRectangle?.points).toHaveLength(2);
+  // A gesture made left-to-right on a fine chart must remain chronologically
+  // left-to-right. Merely finding painted pixels missed the old failure where
+  // one anchor jumped into future whitespace and inverted on higher frames.
+  expect(draggedRectangle!.points![0]!.time).toBeLessThan(
+    draggedRectangle!.points![1]!.time,
+  );
+
   // The pair's drawings live under one key, so every pane reads the same set.
   const keys = (await storedDrawings(page))
     .filter((entry) => entry.drawings.length > 0)
@@ -334,14 +466,272 @@ test("playback never moves a drawing's anchors", async ({ page }) => {
   expect(await anchorsFor()).toEqual(before);
 });
 
-test("the spread sits between the quick Sell and Buy buttons", async ({ page }) => {
+test("a drawing made on 15m stays visible on 4h", async ({ page }) => {
+  test.setTimeout(60_000);
+  const chart = page.getByRole("img", { name: "Candlestick price chart" });
+  await page.getByRole("button", { name: "Display 15m candles", exact: true }).click();
+  await expect(chart).toHaveAttribute("data-axis-timeframe", "15m");
+  await expect(page.getByText(/^Loading .* chart historyâ€¦$/)).toHaveCount(0, { timeout: 30_000 });
+  await expect(chart).toHaveAttribute("data-visible-range-timeframe", "15m");
+  const visibleOn15m = {
+    from: Number(await chart.getAttribute("data-visible-time-from")),
+    to: Number(await chart.getAttribute("data-visible-time-to")),
+  };
+
+  const rail = page.getByRole("toolbar", { name: "Drawing tools" });
+  await rail.getByRole("button", { name: "Shapes", exact: true }).click();
+  await page.getByRole("button", { name: "Rectangle", exact: true }).click();
+  const bounds = await chart.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.mouse.move(bounds!.x + bounds!.width * 0.32, bounds!.y + bounds!.height * 0.55);
+  await page.mouse.down();
+  await page.mouse.move(bounds!.x + bounds!.width * 0.7, bounds!.y + bounds!.height * 0.78, { steps: 8 });
+  await page.mouse.up();
+
+  await expect.poll(() => paintedPixels(page, "chart-cell-1"), { timeout: 15_000 }).toBeGreaterThan(0);
+  const before = await storedDrawings(page);
+  const rectangle = before.flatMap((entry) => entry.drawings).find((drawing) => drawing.kind === "rectangle");
+  expect(rectangle?.points).toHaveLength(2);
+  expect(rectangle!.points![0]!.time).toBeLessThan(rectangle!.points![1]!.time);
+  expect(rectangle!.points![0]!.time).toBeGreaterThanOrEqual(visibleOn15m.from - 15 * 60);
+  expect(rectangle!.points![1]!.time).toBeLessThanOrEqual(visibleOn15m.to + 15 * 60);
+  const expectChronologicalProjection = async () => {
+    await expect.poll(async () => {
+      const chartBox = await chart.boundingBox();
+      const ink = await drawingHorizontalBounds(page, "chart-cell-1");
+      if (!chartBox || !ink || ink.maxX <= ink.minX) return -Infinity;
+      // The regression projected the two fine anchors to opposite chart edges,
+      // painting only horizontal lines across the full higher-timeframe pane.
+      // Both vertical edges must remain inside the canvas with real width.
+      return Math.min(ink.minX, chartBox.width - ink.maxX, ink.maxX - ink.minX);
+    }, { timeout: 15_000 }).toBeGreaterThan(20);
+  };
+  await page.getByRole("button", { name: "Display 4h candles", exact: true }).click();
+  await expect(chart).toHaveAttribute("data-axis-timeframe", "4h");
+  await expect(page.getByText(/^Loading .* chart historyâ€¦$/)).toHaveCount(0, { timeout: 30_000 });
+  await expect(chart).toHaveAttribute("data-visible-range-timeframe", "4h");
+  const visibleOn4h = {
+    from: Number(await chart.getAttribute("data-visible-time-from")),
+    to: Number(await chart.getAttribute("data-visible-time-to")),
+  };
+
+  await expect.poll(() => paintedPixels(page, "chart-cell-1"), { timeout: 15_000 }).toBeGreaterThan(0);
+  expect(await storedDrawings(page)).toEqual(before);
+  await expectChronologicalProjection();
+  // Coarser bars may snap each edge by at most one 4h interval, but changing
+  // timeframe must not expand a one-day view into the multi-week view that made
+  // correctly anchored drawings look displaced.
+  expect(Math.abs(visibleOn4h.from - visibleOn15m.from)).toBeLessThanOrEqual(8 * 60 * 60);
+  expect(Math.abs(visibleOn4h.to - visibleOn15m.to)).toBeLessThanOrEqual(8 * 60 * 60);
+
+  await page.getByRole("button", { name: "Display 1h candles", exact: true }).click();
+  await expect(chart).toHaveAttribute("data-axis-timeframe", "1h");
+  await expect(page.getByText(/^Loading .* chart historyâ€¦$/)).toHaveCount(0, { timeout: 30_000 });
+  await expect(chart).toHaveAttribute("data-visible-range-timeframe", "1h");
+  const visibleOn1h = {
+    from: Number(await chart.getAttribute("data-visible-time-from")),
+    to: Number(await chart.getAttribute("data-visible-time-to")),
+  };
+  await expect.poll(() => paintedPixels(page, "chart-cell-1"), { timeout: 15_000 }).toBeGreaterThan(0);
+  expect(await storedDrawings(page)).toEqual(before);
+  await expectChronologicalProjection();
+  expect(Math.abs(visibleOn1h.from - visibleOn15m.from)).toBeLessThanOrEqual(4 * 60 * 60);
+  expect(Math.abs(visibleOn1h.to - visibleOn15m.to)).toBeLessThanOrEqual(4 * 60 * 60);
+});
+
+test("late history responses cannot overwrite a newer timeframe", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.unroute("**/api/backtest/sessions/*/context?*");
+  let startedResponses = 0;
+  let completedResponses = 0;
+  await page.route("**/api/backtest/sessions/*/context?*", async (route) => {
+    startedResponses += 1;
+    const timeframe = new URL(route.request().url()).searchParams.get("timeframe") as Timeframe;
+    const delay = timeframe === "15m" ? 500 : timeframe === "1h" ? 250 : 0;
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        candles: aggregateCandles(contextCandles, "1m", timeframe),
+        hasMore: false,
+      }),
+    });
+    completedResponses += 1;
+  });
+
+  const chart = page.getByRole("img", { name: "Candlestick price chart" });
+  await page.getByRole("button", { name: "Display 15m candles", exact: true }).click();
+  await expect(chart).toHaveAttribute("data-axis-timeframe", "15m");
+  await expect.poll(() => startedResponses).toBe(1);
+  await page.getByRole("button", { name: "Display 1h candles", exact: true }).click();
+  await expect(chart).toHaveAttribute("data-axis-timeframe", "1h");
+  await expect.poll(() => startedResponses).toBe(2);
+  await page.getByRole("button", { name: "Display 4h candles", exact: true }).click();
+  await expect(chart).toHaveAttribute("data-axis-timeframe", "4h");
+  await expect.poll(() => startedResponses).toBe(3);
+  await expect(page.getByText(/^Loading .* chart historyâ€¦$/)).toHaveCount(0, { timeout: 30_000 });
+
+  // Wait for all intentionally out-of-order responses and confirm neither late
+  // response was allowed to replace the final 4h context timeline.
+  await expect.poll(() => completedResponses, { timeout: 5_000 }).toBe(3);
+  await expect(chart).toHaveAttribute("data-history-timeframe", "4h");
+  await expect(chart).toHaveAttribute("data-visible-range-timeframe", "4h");
+});
+
+test("the execution cost sits in both Sell and Buy seams", async ({ page }) => {
   const spread = page.getByTestId("quick-trade-spread");
-  await expect(spread).toHaveText(/1\.4/);
-  await expect(spread).toHaveAttribute("title", /^Spread: 1\.4 pips \(1\.0/);
+  await expect(spread).toHaveText("14");
+  await expect(spread).toHaveAttribute("aria-label", "1.4 pips");
+  await expect(page.getByTestId("quick-sell-cost")).toHaveCount(0);
+  await expect(page.getByTestId("quick-buy-cost")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Quick Sell" })).toHaveAttribute("title", /^1\.4 pips · 1\.0/);
+  await expect(page.getByRole("button", { name: "Quick Buy" })).toHaveAttribute("title", /^1\.4 pips · 1\.0/);
 
   const sell = await page.getByRole("button", { name: "Quick Sell" }).boundingBox();
   const buy = await page.getByRole("button", { name: "Quick Buy" }).boundingBox();
-  const box = await spread.boundingBox();
-  expect(box!.x).toBeGreaterThanOrEqual(sell!.x + sell!.width - 1);
-  expect(box!.x + box!.width).toBeLessThanOrEqual(buy!.x + 1);
+  const badge = await spread.boundingBox();
+  expect(sell).not.toBeNull();
+  expect(buy).not.toBeNull();
+  expect(badge).not.toBeNull();
+  const seam = (sell!.x + sell!.width + buy!.x) / 2;
+  expect(Math.abs(badge!.x + badge!.width / 2 - seam)).toBeLessThanOrEqual(2);
+
+  const chartSpread = page.getByTestId("chart-trade-spread");
+  await expect(chartSpread).toHaveText("14");
+  await expect(chartSpread).toHaveAttribute("aria-label", "1.4 pips");
+  await expect(page.getByText("1-click", { exact: true })).toHaveCount(0);
+
+  const chartSell = await page.getByTestId("chart-quick-sell").boundingBox();
+  const chartBuy = await page.getByTestId("chart-quick-buy").boundingBox();
+  const chartBadge = await chartSpread.boundingBox();
+  expect(chartSell).not.toBeNull();
+  expect(chartBuy).not.toBeNull();
+  expect(chartBadge).not.toBeNull();
+  const chartSeam = (chartSell!.x + chartSell!.width + chartBuy!.x) / 2;
+  expect(Math.abs(chartBadge!.x + chartBadge!.width / 2 - chartSeam)).toBeLessThanOrEqual(2);
+});
+
+test("the legend fills the plot corner and light mode keeps text contrast", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "Open Strategy Lab" })).toHaveCount(0);
+  await expect(page.getByText("Algo", { exact: true })).toHaveCount(0);
+  const cell = await page.getByTestId("chart-cell-1").boundingBox();
+  const legend = await page.getByTestId("chart-legend").boundingBox();
+  expect(cell).not.toBeNull();
+  expect(legend).not.toBeNull();
+  expect(legend!.x - cell!.x).toBeLessThanOrEqual(12);
+  expect(await visibleTextContrastViolations(page)).toEqual([]);
+  await expect(page.locator(".app-logo-dark")).toBeVisible();
+  await expect(page.locator(".app-logo-light")).toBeHidden();
+  await expect(page.getByTestId("terminal-logo-mark")).not.toHaveAttribute("src", /logo-mark-light/);
+
+  await page
+    .getByLabel("Trading header")
+    .getByRole("button", { name: "Switch to light theme" })
+    .click();
+  const lightShell = page.locator(".app-shell.light");
+  await expect(lightShell).toHaveCount(1);
+  expect(
+    await lightShell.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        background: style.getPropertyValue("--app-bg").trim(),
+        text: style.getPropertyValue("--app-text").trim(),
+        muted: style.getPropertyValue("--app-muted").trim(),
+      };
+    }),
+  ).toEqual({ background: "#eef2f6", text: "#0b1220", muted: "#506078" });
+  await expect(page.locator(".app-logo-dark")).toBeHidden();
+  await expect(page.locator(".app-logo-light")).toBeVisible();
+  await expect(page.getByTestId("terminal-logo-mark")).toHaveAttribute("src", /logo-mark-light/);
+  expect(await visibleTextContrastViolations(page)).toEqual([]);
+
+  const linesMenu = page.getByRole("button", { name: /Lines & channels/i });
+  await linesMenu.click();
+  await expect(page.getByText("Trend line", { exact: true })).toBeVisible();
+  expect(await visibleTextContrastViolations(page)).toEqual([]);
+  await linesMenu.click();
+  await expect(page.getByText("Trend line", { exact: true })).toHaveCount(0);
+
+  const chart = page.getByRole("img", { name: "Candlestick price chart" });
+  const chartBox = await chart.boundingBox();
+  expect(chartBox).not.toBeNull();
+  await page.mouse.click(chartBox!.x + chartBox!.width * 0.7, chartBox!.y + chartBox!.height * 0.55, {
+    button: "right",
+  });
+  const chartMenu = page.getByRole("menu", { name: "Chart actions" });
+  await expect(chartMenu).toBeVisible();
+  expect(await visibleTextContrastViolations(page)).toEqual([]);
+  await chartMenu.getByRole("menuitem", { name: /^Settings/ }).click();
+  const settings = page.getByRole("dialog", { name: "Chart settings" });
+  await expect(settings).toBeVisible();
+  expect(await visibleTextContrastViolations(page)).toEqual([]);
+  await settings.getByRole("button", { name: "Close chart settings" }).click();
+
+  await page.getByTitle("New order").click();
+  await expect(page.getByTestId("trade-order-panel")).toBeVisible();
+  expect(await visibleTextContrastViolations(page)).toEqual([]);
+});
+
+test("the layout picker groups arrangements by chart count", async ({ page }) => {
+  await page.getByRole("button", { name: "Chart layout" }).click();
+  const menu = page.getByTestId("chart-layout-menu");
+  await expect(menu).toBeVisible();
+
+  // Every count from one to ten is offered, named for the screen reader.
+  for (const label of ["One pane", "Two panes", "Five panes", "Ten panes"]) {
+    await expect(menu.getByText(label, { exact: true })).toHaveCount(1);
+  }
+  // Several arrangements per count, not one.
+  await expect(menu.getByRole("button", { name: "Four charts" })).toHaveCount(1);
+  await expect(menu.getByRole("button", { name: "Four columns" })).toHaveCount(1);
+  await expect(menu.getByRole("button", { name: "Four rows" })).toHaveCount(1);
+  await expect(menu.getByRole("button", { name: "Main chart with three side charts" })).toHaveCount(1);
+  // The current layout reads as the pressed one.
+  await expect(menu.getByRole("button", { name: "Single chart" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  await menu.getByRole("button", { name: "Six panes, 3 by 2" }).click();
+  await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(6, {
+    timeout: 30_000,
+  });
+  // Still one rail and one favorites bar, however many panes there are.
+  await expect(page.getByRole("toolbar", { name: "Drawing tools" })).toHaveCount(1);
+});
+
+test("a feature pane spans exactly the rows and columns its layout gives it", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Chart layout" }).click();
+  await page
+    .getByTestId("chart-layout-menu")
+    .getByRole("button", { name: "Main chart with two side charts" })
+    .click();
+  await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(3, {
+    timeout: 30_000,
+  });
+
+  const main = await page.getByTestId("chart-cell-1").boundingBox();
+  const upper = await page.getByTestId("chart-cell-2").boundingBox();
+  const lower = await page.getByTestId("chart-cell-3").boundingBox();
+  expect(main).not.toBeNull();
+  expect(upper).not.toBeNull();
+  expect(lower).not.toBeNull();
+
+  // The main pane owns the left column for both rows; the other two share the
+  // right column. Grid gaps are a pixel, so allow a couple either way.
+  expect(main!.x).toBeLessThan(upper!.x);
+  expect(main!.x).toBeLessThan(lower!.x);
+  expect(Math.abs(main!.height - (upper!.height + lower!.height))).toBeLessThanOrEqual(3);
+  expect(Math.abs(upper!.x - lower!.x)).toBeLessThanOrEqual(2);
+  expect(upper!.y).toBeLessThan(lower!.y);
+
+  // And the choice survives a reload, like every other workspace preference.
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(3, {
+    timeout: 30_000,
+  });
 });

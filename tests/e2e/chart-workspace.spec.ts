@@ -67,7 +67,8 @@ test("a new pane inherits the chart it was split from, and later changes reach b
   await page.mouse.click(box.x + box.width * 0.7, box.y + box.height * 0.7);
   await expect(page.getByRole("toolbar", { name: /Favorite tools/i })).toHaveCount(1);
 
-  // Split. The new pane opens on the same timeframe with the same favourites.
+  // Split. The new pane opens on the same timeframe, while the workspace keeps
+  // one shared favourites bar rather than cloning it into every pane.
   await page.getByRole("button", { name: "Chart layout" }).click();
   await page.getByRole("button", { name: /Two columns/i }).click();
   await expect(charts).toHaveCount(2);
@@ -78,7 +79,7 @@ test("a new pane inherits the chart it was split from, and later changes reach b
     "aria-pressed",
     "true",
   );
-  await expect(page.getByRole("toolbar", { name: /Favorite tools/i })).toHaveCount(2);
+  await expect(page.getByRole("toolbar", { name: /Favorite tools/i })).toHaveCount(1);
 
   // A change made after the split lands on both panes at once.
   const second = await openSettings(page, 0);

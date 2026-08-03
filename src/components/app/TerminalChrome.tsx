@@ -26,6 +26,7 @@ import {
 
 import type { PublicSessionState } from "@/lib/backtest/types";
 import logoMark from "../../../public/logo-mark.png";
+import logoMarkLight from "../../../public/logo-mark-light.png";
 
 function RailButton({
   label,
@@ -136,7 +137,13 @@ export function TerminalTopBar({
         title="Dashboard"
         className="grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-[var(--app-panel-2)]"
       >
-        <Image src={logoMark} alt="" className="h-6 w-6 object-contain" priority />
+        <Image
+          src={theme === "light" ? logoMarkLight : logoMark}
+          alt=""
+          data-testid="terminal-logo-mark"
+          className="h-6 w-6 object-contain"
+          priority
+        />
       </button>
 
       <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />

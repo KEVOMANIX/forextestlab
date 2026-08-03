@@ -211,6 +211,26 @@ export class DrawingEngine {
     return this.scene;
   }
 
+  /**
+   * Calendar range represented by the full drawing canvas, including empty
+   * future/past space. Lightweight Charts' getVisibleRange can omit whitespace
+   * carried by the forward time series, which cuts off drawings extended past
+   * the latest candle when a timeframe changes.
+   */
+  getVisibleTimeRange(): { from: number; to: number } | null {
+    if (this.mapper.width <= 0) return null;
+    // The chart carries an explicit whitespace series through the forward
+    // runway, so both canvas edges normally resolve to authoritative UTC times.
+    // Prefer those over rebuilding from logical indexes: multiple series can
+    // shift the chart's global logical origin away from the mapper's candle 0.
+    const scale = this.chart.timeScale();
+    const chartFrom = scale.coordinateToTime(0);
+    const chartTo = scale.coordinateToTime(this.mapper.width);
+    const from = typeof chartFrom === "number" ? chartFrom : this.mapper.xToTime(0);
+    const to = typeof chartTo === "number" ? chartTo : this.mapper.xToTime(this.mapper.width);
+    return from && to && from < to ? { from, to } : null;
+  }
+
   setEnv(env: Partial<EngineEnv>): void {
     const prevTool = this.env.tool;
     const prevSelectionEnabled = this.env.selectionEnabled;
@@ -995,6 +1015,7 @@ export class DrawingEngine {
   private loop = (): void => {
     if (this.objects.length !== this.lastCount) {
       this.lastCount = this.objects.length;
+      this.host.dataset.drawingCount = String(this.lastCount);
       this.onObjectsChange?.(this.lastCount);
     }
     const sig = this.viewSignature();

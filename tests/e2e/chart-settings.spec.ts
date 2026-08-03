@@ -67,7 +67,7 @@ test("right-click settings toggle what the chart draws, and survive a reload", a
   ).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
-  await expect(page.getByText("1-click", { exact: true })).toBeVisible();
+  await expect(page.getByText("1-click", { exact: true })).toHaveCount(0);
 
   // An open position gives the position-line toggle something to act on.
   await Promise.all([
@@ -106,7 +106,7 @@ test("right-click settings toggle what the chart draws, and survive a reload", a
   // The reloaded session still holds the position; only its lines are hidden.
   await expect(page.locator("p.sr-only")).toContainText("1 open position");
   await expect(page.getByTestId("position-entry-line")).toHaveCount(0);
-  await expect(page.getByText("1-click", { exact: true })).toBeVisible();
+  await expect(page.getByText("1-click", { exact: true })).toHaveCount(0);
 
   // Reset puts everything back.
   const reopened = await openSettings(page);

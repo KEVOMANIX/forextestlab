@@ -292,11 +292,11 @@ const PALETTES: Record<"dark" | "light", Palette> = {
     border: "rgba(255,255,255,0.10)",
   },
   light: {
-    background: "#ffffff",
+    background: "#f4f7fa",
     text: "#566179",
     axisText: "#0b1220",
     grid: "rgba(15,23,42,0.06)",
-    border: "#d9e0ec",
+    border: "#cfd7e3",
   },
 };
 
@@ -684,7 +684,10 @@ export default function PriceChart({
     };
   } | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
+  const historyTimeframeRef = useRef<Timeframe>(initialTimeframe ?? baseTimeframe);
   const historyLoadingRef = useRef(false);
+  /** Invalidates history responses started for a timeframe the cell has left. */
+  const historyRequestRef = useRef(0);
   const historyHasMoreRef = useRef(true);
   const loadOlderRef = useRef<() => void>(() => {});
 
@@ -792,6 +795,8 @@ export default function PriceChart({
 
   async function loadHistoryPage(replace: boolean) {
     if (historyLoadingRef.current || (!replace && !historyHasMoreRef.current)) return;
+    const requestedTimeframe = displayTimeframeRef.current;
+    const requestId = ++historyRequestRef.current;
     const firstReplayTime = rawCandlesRef.current[0]?.timestamp;
     const earliest = historyCandlesRef.current[0]?.timestamp ?? firstReplayTime;
     if (!earliest) return;
@@ -799,12 +804,16 @@ export default function PriceChart({
     if (replace) setHistoryLoading(true);
     else setOlderHistoryLoading(true);
     try {
-      const page = await onLoadHistory(displayTimeframeRef.current, replace ? firstReplayTime ?? earliest : earliest);
+      const page = await onLoadHistory(requestedTimeframe, replace ? firstReplayTime ?? earliest : earliest);
+      // Timeframe buttons can be clicked again while this request is in flight.
+      // Never apply 15m history to a chart that has already moved to 1h/4h.
+      if (requestId !== historyRequestRef.current || requestedTimeframe !== displayTimeframeRef.current) return;
       const existing = replace ? [] : historyCandlesRef.current;
       const byTime = new Map<number, Candle>();
       for (const candle of [...page.candles, ...existing]) byTime.set(candle.timestamp, candle);
       const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
       historyCandlesRef.current = merged;
+      historyTimeframeRef.current = requestedTimeframe;
       drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
       drawingEngineRef.current?.setEnv({
         candles: drawingCandlesRef.current,
@@ -812,11 +821,16 @@ export default function PriceChart({
       historyHasMoreRef.current = page.hasMore;
       setHasOlderHistory(page.hasMore);
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
-      if (replace && followLatestRef.current) resetLatestViewport();
+      requestAnimationFrame(updateViewportDiagnostics);
+      const restoredTimeRange = replace && restoreSavedTimeRange();
+      const waitingForTimeRange = savedTimeRangeRef.current?.timeframe === requestedTimeframe;
+      if (replace && !restoredTimeRange && !waitingForTimeRange && followLatestRef.current) resetLatestViewport();
     } finally {
-      historyLoadingRef.current = false;
-      if (replace) setHistoryLoading(false);
-      else setOlderHistoryLoading(false);
+      if (requestId === historyRequestRef.current) {
+        historyLoadingRef.current = false;
+        if (replace) setHistoryLoading(false);
+        else setOlderHistoryLoading(false);
+      }
     }
   }
   loadOlderRef.current = () => void loadHistoryPage(false);
@@ -1376,18 +1390,41 @@ export default function PriceChart({
     if (!saved || !scale) return false;
     if (saved.timeframe !== displayTimeframeRef.current) return false;
     if (displayRef.current.length === 0) return false;
-    savedTimeRangeRef.current = null;
-    if (replayRunningRef.current) {
-      setFollowLatest(true);
-      keepLatestPriceVisible(true);
-      return true;
-    }
     try {
       setFollowLatest(true);
-      scale.setVisibleRange(saved.range);
-      setFollowLatest(false, "saved-range");
+      // setVisibleRange expects timestamps owned by the target axis. Passing
+      // arbitrary 15m edge times into a 4h chart can resolve both edges to the
+      // same coarse candle, collapsing its logical scale and projecting every
+      // lower-timeframe drawing at x=0. Expand to the surrounding real/context
+      // or whitespace bars on the new timeframe before restoring the window.
+      const axisTimes = [
+        ...(drawingCandlesRef.current ?? []).map((candle) => Number(candle.time)),
+        ...futureTimesRef.current,
+      ].filter((time, index, values) => Number.isFinite(time) && (index === 0 || time !== values[index - 1]));
+      let range = saved.range;
+      if (axisTimes.length >= 2) {
+        let fromIndex = 0;
+        while (fromIndex + 1 < axisTimes.length && axisTimes[fromIndex + 1]! <= Number(saved.range.from)) {
+          fromIndex += 1;
+        }
+        let toIndex = fromIndex;
+        while (toIndex < axisTimes.length && axisTimes[toIndex]! < Number(saved.range.to)) {
+          toIndex += 1;
+        }
+        toIndex = Math.min(axisTimes.length - 1, Math.max(toIndex, fromIndex + 1));
+        range = {
+          from: axisTimes[fromIndex]! as UTCTimestamp,
+          to: axisTimes[toIndex]! as UTCTimestamp,
+        };
+      }
+      scale.setVisibleRange(range);
+      chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
+      savedTimeRangeRef.current = null;
+      setFollowLatest(replayRunningRef.current, replayRunningRef.current ? undefined : "saved-range");
       return true;
     } catch {
+      // Keep it pending. A higher timeframe's context series may still be in
+      // flight; loadHistoryPage retries once those bars are attached.
       return false;
     }
   }
@@ -1401,6 +1438,13 @@ export default function PriceChart({
       ? scale.timeToCoordinate(latest.time as UTCTimestamp)
       : null;
     const plotWidth = scale.width();
+    const visibleTimeRange = drawingEngineRef.current?.getVisibleTimeRange() ?? scale.getVisibleRange();
+    container.dataset.historyTimeframe = historyTimeframeRef.current;
+    if (visibleTimeRange && typeof visibleTimeRange.from === "number" && typeof visibleTimeRange.to === "number") {
+      container.dataset.visibleRangeTimeframe = displayTimeframeRef.current;
+      container.dataset.visibleTimeFrom = String(visibleTimeRange.from);
+      container.dataset.visibleTimeTo = String(visibleTimeRange.to);
+    }
     container.dataset.latestCandleVisible = String(
       coordinate != null &&
         coordinate >= 0 &&
@@ -1922,26 +1966,41 @@ export default function PriceChart({
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;
+    // Let a new timeframe start its own request immediately; any older response
+    // is rejected by the request id check in loadHistoryPage.
+    historyRequestRef.current += 1;
+    historyLoadingRef.current = false;
     dataGenerationRef.current += 1;
-    renderMain(true);
+    // Replace the context first. Rendering before this used the previous
+    // timeframe's history in the drawing mapper while the price series already
+    // held the new timeframe, shifting anchors by hundreds of logical bars.
     if (displayTimeframe === baseTimeframe && contextCandles.length > 0) {
       historyCandlesRef.current = contextCandles;
+      historyTimeframeRef.current = displayTimeframe;
       historyHasMoreRef.current = true;
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, contextCandles.map(toOHLCV));
       setHistoryLoading(false);
     } else {
       historyCandlesRef.current = [];
+      historyTimeframeRef.current = displayTimeframe;
       historyHasMoreRef.current = true;
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, []);
+    }
+    renderMain(true);
+    if (displayTimeframe !== baseTimeframe || contextCandles.length === 0) {
       void loadHistoryPage(true);
     }
     // A stored range that cannot be applied yet stays pending for the effect
     // above, which runs as soon as this cell's candles land.
-    if (replayRunningRef.current) {
-      savedTimeRangeRef.current = null;
+    const restoredTimeRange = restoreSavedTimeRange();
+    const waitingForTimeRange = savedTimeRangeRef.current?.timeframe === displayTimeframe;
+    if (!restoredTimeRange && waitingForTimeRange) {
+      // The new context is still loading. Do not reset to a timeframe-sized
+      // candle window, because that is what makes drawings appear to jump.
+    } else if (replayRunningRef.current) {
       setFollowLatest(true);
       keepLatestPriceVisible(true);
-    } else if (!restoreSavedTimeRange() && savedTimeRangeRef.current === null) {
+    } else if (!restoredTimeRange && savedTimeRangeRef.current === null) {
       resetLatestViewport();
     }
     requestAnimationFrame(updateViewportDiagnostics);
@@ -2223,6 +2282,24 @@ export default function PriceChart({
 
   function selectTimeframe(timeframe: Timeframe) {
     if (timeframe === displayTimeframe) return;
+    const visible = drawingEngineRef.current?.getVisibleTimeRange() ?? chartRef.current?.timeScale().getVisibleRange();
+    if (
+      visible &&
+      typeof visible.from === "number" &&
+      typeof visible.to === "number" &&
+      visible.from < visible.to
+    ) {
+      // Preserve calendar time, not logical candle indexes. A fixed number of
+      // 4h bars spans sixteen times as much time as the same number of 15m bars,
+      // which visually compresses correctly anchored drawings into new places.
+      savedTimeRangeRef.current = {
+        timeframe,
+        range: {
+          from: visible.from as UTCTimestamp,
+          to: visible.to as UTCTimestamp,
+        },
+      };
+    }
     setHistoryLoading(true);
     setDisplayTimeframe(timeframe);
   }
@@ -2672,7 +2749,7 @@ export default function PriceChart({
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
   // reach them — use an explicit solid colour keyed to the theme.
-  const solidPanel = theme === "dark" ? "#111725" : "#ffffff";
+  const solidPanel = theme === "dark" ? "#111725" : "#f8fafc";
 
   // Chart controls (timeframes + chart type + indicators). Rendered into the top
   // header via a portal when a slot is provided, otherwise docked above the chart.
@@ -3162,7 +3239,9 @@ export default function PriceChart({
             instead of a dozen hand-tuned pixel values.
           */}
           <div
-            className="flex w-fit flex-col items-start gap-1 pl-14 pt-2 text-[var(--chart-text)]"
+            className={`flex w-fit flex-col items-start gap-1 pt-2 text-[var(--chart-text)] ${
+              showRail && !railSlot ? "pl-14" : "pl-2"
+            }`}
             style={{ fontSize: overlayFont }}
           >
             <div
@@ -3281,7 +3360,9 @@ export default function PriceChart({
           return (
             <div
               key={inst.id}
-              className="group absolute left-14 z-10 flex text-[var(--chart-text)] items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] shadow backdrop-blur"
+              className={`group absolute z-10 flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] text-[var(--chart-text)] shadow backdrop-blur ${
+                showRail && !railSlot ? "left-14" : "left-2"
+              }`}
               style={{ top: top + 4, fontSize: overlayFont }}
             >
               <span className={`font-medium ${inst.visible ? "" : "text-[var(--chart-muted)] line-through"}`}>{indicatorLabel(inst)}</span>
@@ -3484,8 +3565,12 @@ export default function PriceChart({
           );
         })}
 
-        {/* Favorites quick-access bar — draggable from anywhere, opaque */}
-        {favorites.size > 0 && (
+        {/*
+          The focused pane owns the workspace's one favorites bar, just as it
+          owns the shared drawing rail. Rendering this in every PriceChart made
+          a two/four-chart layout duplicate the same controls in every pane.
+        */}
+        {showRail && favorites.size > 0 && (
           <div
             className="absolute z-30 flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
             style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
@@ -3522,7 +3607,7 @@ export default function PriceChart({
 
         {menu === "cursor" && menuAnchor && createPortal(
           <div
-            className="fixed z-[60] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl"
+            className={`app-theme-surface fixed z-[60] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl ${theme === "light" ? "light" : ""}`}
             style={{ left: menuAnchor.x, top: menuAnchor.y }}
             role="menu"
             aria-label="Cursor modes"
@@ -3556,7 +3641,7 @@ export default function PriceChart({
           if (!grp || !menuAnchor) return null;
           return createPortal(
             <div
-              className="fixed z-[60] max-h-[70vh] w-56 overflow-y-auto rounded-lg border app-border p-1 shadow-xl"
+              className={`app-theme-surface fixed z-[60] max-h-[70vh] w-56 overflow-y-auto rounded-lg border app-border p-1 shadow-xl ${theme === "light" ? "light" : ""}`}
               style={{
                 left: menuAnchor.x,
                 top: menuAnchor.y,

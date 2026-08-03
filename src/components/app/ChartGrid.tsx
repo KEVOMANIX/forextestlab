@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Columns2, Grid2X2, Rows2, Square, LayoutPanelLeft } from "lucide-react";
 
 import type { PairChartData } from "@/lib/backtest/client";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
@@ -10,6 +9,17 @@ import type { OpenPosition, OrderType, PendingOrder, PublicSessionState } from "
 import type { Candle, Timeframe } from "@/lib/market-data/types";
 
 import { useCompactViewport } from "@/lib/ui/use-media-query";
+import {
+  DEFAULT_LAYOUT,
+  layoutAreas,
+  layoutById,
+  layoutColumns,
+  layoutPanes,
+  layoutRows,
+  layoutsByPaneCount,
+  paneArea,
+  type ChartLayout,
+} from "@/lib/chart/layouts";
 import PriceChart, { type ChartMarker } from "./PriceChart";
 import type { ChartWorkspace } from "./useChartWorkspace";
 
@@ -23,7 +33,8 @@ import type { ChartWorkspace } from "./useChartWorkspace";
  * order ticket and the top-bar toolbar, while the rest are context views.
  */
 
-export type GridLayout = "1" | "2h" | "2v" | "3" | "4";
+/** A layout id from {@link CHART_LAYOUTS}. */
+export type GridLayout = string;
 
 export interface ChartCell {
   id: string;
@@ -32,21 +43,30 @@ export interface ChartCell {
   timeframe: Timeframe | null;
 }
 
-const LAYOUTS: { key: GridLayout; label: string; cells: number; Icon: typeof Square; className: string }[] = [
-  { key: "1", label: "Single chart", cells: 1, Icon: Square, className: "grid-cols-1 grid-rows-1" },
-  { key: "2h", label: "Two columns", cells: 2, Icon: Columns2, className: "grid-cols-2 grid-rows-1" },
-  { key: "2v", label: "Two rows", cells: 2, Icon: Rows2, className: "grid-cols-1 grid-rows-2" },
-  { key: "3", label: "Main chart with two side charts", cells: 3, Icon: LayoutPanelLeft, className: "grid-cols-2 grid-rows-2" },
-  { key: "4", label: "Four charts", cells: 4, Icon: Grid2X2, className: "grid-cols-2 grid-rows-2" },
-];
-
-function layoutSpec(layout: GridLayout) {
-  return LAYOUTS.find((item) => item.key === layout) ?? LAYOUTS[0]!;
+function layoutSpec(layout: GridLayout): ChartLayout {
+  return layoutById(layout) ?? DEFAULT_LAYOUT;
 }
 
-/** In the 3-up layout the first cell spans both rows of the left column. */
-function cellSpan(layout: GridLayout, index: number): string {
-  return layout === "3" && index === 0 ? "row-span-2" : "";
+/**
+ * Miniature of a layout, drawn from the same matrix the workspace itself uses so
+ * the icon can never advertise an arrangement the grid does not build.
+ */
+function LayoutGlyph({ layout }: { layout: ChartLayout }) {
+  return (
+    <span
+      aria-hidden
+      className="grid h-[18px] w-[18px] shrink-0 gap-[1px] rounded-[2px] border border-current p-[1px]"
+      style={{
+        gridTemplateAreas: layoutAreas(layout),
+        gridTemplateColumns: `repeat(${layoutColumns(layout)}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${layoutRows(layout)}, minmax(0, 1fr))`,
+      }}
+    >
+      {Array.from({ length: layoutPanes(layout) }, (_, index) => (
+        <span key={index} className="bg-current opacity-40" style={{ gridArea: paneArea(index) }} />
+      ))}
+    </span>
+  );
 }
 
 interface StoredLayout {
@@ -223,7 +243,7 @@ export default function ChartGrid({
   }, [restored, storageKey, layout, cells, focusedId]);
 
   const visibleCells = useMemo(() => {
-    const count = layoutSpec(layout).cells;
+    const count = layoutPanes(layoutSpec(layout));
     const next = cells.slice(0, count);
     // Growing the layout clones the focused cell, like TradingView: same
     // instrument, and the same view state (timeframe, chart type, indicators)
@@ -341,29 +361,59 @@ export default function ChartGrid({
             : "app-border bg-[var(--app-panel-2)] hover:border-brand-400/25 hover:text-[var(--app-text)]"
         }`}
       >
-        <spec.Icon size={15} aria-hidden />
+        <LayoutGlyph layout={spec} />
         <span>Layout</span>
       </button>
       {layoutMenuOpen && (
+        /*
+          Grouped by pane count and shown as glyphs, so choosing an arrangement is
+          a matter of recognising its shape rather than reading forty labels. The
+          name stays on each button for the screen reader and the tooltip.
+        */
         <div
           data-testid="chart-layout-menu"
-          className="absolute right-0 top-9 z-40 w-52 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl"
+          className="absolute right-0 top-9 z-40 max-h-[min(30rem,80dvh)] w-[19rem] overflow-y-auto rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl"
         >
-          {LAYOUTS.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => {
-                setLayout(item.key);
-                setLayoutMenuOpen(false);
-              }}
-              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${
-                layout === item.key ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
-              }`}
+          <p className="px-2 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide app-muted">
+            Chart layout
+          </p>
+          {layoutsByPaneCount().map((group) => (
+            <div
+              key={group.panes}
+              className="flex items-start gap-2 border-t app-border px-1 py-1.5 first:border-t-0"
             >
-              <item.Icon size={15} aria-hidden />
-              {item.label}
-            </button>
+              <span
+                className={`w-4 shrink-0 pt-1 text-right text-[11px] font-semibold tabular-nums ${
+                  layoutPanes(spec) === group.panes ? "text-brand-300" : "app-muted"
+                }`}
+                aria-hidden
+              >
+                {group.panes}
+              </span>
+              <span className="sr-only">{group.label}</span>
+              <span className="flex flex-wrap gap-1">
+                {group.layouts.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-label={item.label}
+                    aria-pressed={layout === item.id}
+                    title={item.label}
+                    onClick={() => {
+                      setLayout(item.id);
+                      setLayoutMenuOpen(false);
+                    }}
+                    className={`grid h-8 w-8 place-items-center rounded-md border transition-colors ${
+                      layout === item.id
+                        ? "border-brand-400/60 bg-brand-400/15 text-brand-300"
+                        : "border-transparent app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+                    }`}
+                  >
+                    <LayoutGlyph layout={item} />
+                  </button>
+                ))}
+              </span>
+            </div>
           ))}
         </div>
       )}
@@ -386,11 +436,19 @@ export default function ChartGrid({
       <div className="flex min-h-0 flex-1">
         <div ref={setRailHost} className="shrink-0" />
         <div
+          data-layout={spec.id}
           className={`grid min-h-0 min-w-0 flex-1 gap-px bg-[var(--app-border)] ${
-            compact
-              ? "auto-rows-[minmax(15rem,1fr)] grid-cols-1 overflow-y-auto"
-              : spec.className
+            compact ? "auto-rows-[minmax(15rem,1fr)] grid-cols-1 overflow-y-auto" : ""
           }`}
+          style={
+            compact
+              ? undefined
+              : {
+                  gridTemplateAreas: layoutAreas(spec),
+                  gridTemplateColumns: `repeat(${layoutColumns(spec)}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${layoutRows(spec)}, minmax(0, 1fr))`,
+                }
+          }
         >
         {visibleCells.map((cell, index) => {
           const isSession = cell.symbol === sessionSymbol;
@@ -400,7 +458,10 @@ export default function ChartGrid({
             <div
               key={cell.id}
               data-testid={`chart-${cell.id}`}
-              className={`relative min-h-0 min-w-0 overflow-hidden bg-[var(--app-bg)] ${compact ? "" : cellSpan(layout, index)} ${
+              // The layout matrix places and sizes the pane; a stacked compact
+              // viewport ignores the template and flows them instead.
+              style={compact ? undefined : { gridArea: paneArea(index) }}
+              className={`relative min-h-0 min-w-0 overflow-hidden bg-[var(--app-bg)] ${
                 multi && isFocused ? "outline outline-1 -outline-offset-1 outline-brand-400/50" : ""
               }`}
             >

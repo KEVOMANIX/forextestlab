@@ -50,10 +50,16 @@ function layoutSpec(layout: GridLayout): ChartLayout {
 /**
  * Miniature of a layout, drawn from the same matrix the workspace itself uses so
  * the icon can never advertise an arrangement the grid does not build.
+ *
+ * The panes are drawn in the inherited text colour and the 1px gaps let the
+ * button behind show through as dividers, so the glyph carries the same contrast
+ * as a label would in either theme. Drawn faintly it read as an empty dark box
+ * on a dark panel.
  */
 function LayoutGlyph({ layout }: { layout: ChartLayout }) {
   return (
     <span
+      data-testid="layout-glyph"
       aria-hidden
       className="grid h-[18px] w-[18px] shrink-0 gap-[1px] rounded-[2px] border border-current p-[1px]"
       style={{
@@ -63,7 +69,12 @@ function LayoutGlyph({ layout }: { layout: ChartLayout }) {
       }}
     >
       {Array.from({ length: layoutPanes(layout) }, (_, index) => (
-        <span key={index} className="bg-current opacity-40" style={{ gridArea: paneArea(index) }} />
+        <span
+          key={index}
+          data-testid="layout-glyph-pane"
+          className="bg-current opacity-80"
+          style={{ gridArea: paneArea(index) }}
+        />
       ))}
     </span>
   );

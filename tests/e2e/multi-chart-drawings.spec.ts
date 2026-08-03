@@ -800,3 +800,108 @@ test("the favourites toolbox can be parked over any pane, and stays there", asyn
   expect(Math.abs(afterReload!.x - moved!.x)).toBeLessThanOrEqual(2);
   expect(Math.abs(afterReload!.y - moved!.y)).toBeLessThanOrEqual(2);
 });
+
+/**
+ * Contrast of a glyph's painted panes against the surface behind them. Graphical
+ * controls need 3:1; drawn faintly, the layout icons read as empty dark boxes on
+ * a dark panel.
+ */
+async function glyphContrast(page: import("@playwright/test").Page, scope: string) {
+  return page.evaluate((selector) => {
+    type Rgba = { r: number; g: number; b: number; a: number };
+    const parse = (value: string): Rgba | null => {
+      const match = value.match(/rgba?\(([^)]+)\)/);
+      if (!match) return null;
+      const parts = match[1]!.split(",").map((part) => Number.parseFloat(part.trim()));
+      const [r, g, b, a] = parts;
+      if (r == null || g == null || b == null) return null;
+      return { r, g, b, a: a == null ? 1 : a };
+    };
+    const over = (top: Rgba, bottom: Rgba): Rgba => ({
+      r: top.r * top.a + bottom.r * (1 - top.a),
+      g: top.g * top.a + bottom.g * (1 - top.a),
+      b: top.b * top.a + bottom.b * (1 - top.a),
+      a: 1,
+    });
+    const relative = ({ r, g, b }: Rgba) => {
+      const channel = (value: number) => {
+        const n = value / 255;
+        return n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+    };
+
+    const pane = document.querySelector<HTMLElement>(
+      `${selector} [data-testid="layout-glyph-pane"]`,
+    );
+    if (!pane) return -1;
+    // Every backdrop under the pane, root first.
+    let backdrop: Rgba = { r: 255, g: 255, b: 255, a: 1 };
+    const chain: Element[] = [];
+    for (let node: Element | null = pane.parentElement; node; node = node.parentElement) {
+      chain.unshift(node);
+    }
+    for (const node of chain) {
+      const layer = parse(getComputedStyle(node).backgroundColor);
+      if (layer && layer.a > 0) backdrop = over(layer, backdrop);
+    }
+    const style = getComputedStyle(pane);
+    const fill = parse(style.backgroundColor);
+    if (!fill) return -1;
+    const alpha = fill.a * Number.parseFloat(style.opacity || "1");
+    const painted = over({ ...fill, a: alpha }, backdrop);
+    const first = relative(painted);
+    const second = relative(backdrop);
+    return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+  }, scope);
+}
+
+test("the layout controls stay legible in both themes", async ({ page }) => {
+  const header = page.getByLabel("Trading header");
+
+  for (const theme of ["dark", "light"] as const) {
+    const toggle = header.getByRole("button", { name: new RegExp(`Switch to ${theme} theme`, "i") });
+    if (await toggle.count()) await toggle.click();
+
+    // The trigger's own glyph, which is all that shows before the menu opens.
+    await expect
+      .poll(() => glyphContrast(page, '[aria-label="Chart layout"]'), { timeout: 10_000 })
+      .toBeGreaterThanOrEqual(3);
+
+    await page.getByRole("button", { name: "Chart layout" }).click();
+    const menu = page.getByTestId("chart-layout-menu");
+    await expect(menu).toBeVisible();
+    // And an unselected layout in the menu, which is the faintest of the set.
+    expect(
+      await glyphContrast(page, '[data-testid="chart-layout-menu"] [aria-pressed="false"]'),
+    ).toBeGreaterThanOrEqual(3);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  }
+});
+
+test("the timeframe bar stays in ascending order however stars are added", async ({ page }) => {
+  const bar = page.locator('[aria-label="Pinned timeframes"]');
+  const pinned = () => bar.getByRole("button").allInnerTexts();
+
+  // Defaults are already ascending.
+  expect(await pinned()).toEqual(["1m", "5m", "15m", "1h", "4h", "1d"]);
+
+  const menu = page.getByRole("menu").filter({ hasText: "Timeframe" });
+  await page.getByRole("button", { name: "Choose timeframe" }).click();
+  await expect(menu).toBeVisible();
+  // Star out of order: 4h is already on the bar, so 30m and 3m arrive last.
+  await menu.getByRole("button", { name: "Pin 30m from the timeframe bar" }).click();
+  await menu.getByRole("button", { name: "Pin 3m from the timeframe bar" }).click();
+  await page.keyboard.press("Escape");
+
+  // Each still lands where the eye expects it, not on the end.
+  expect(await pinned()).toEqual(["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"]);
+
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(1, {
+    timeout: 30_000,
+  });
+  expect(await page.locator('[aria-label="Pinned timeframes"]').getByRole("button").allInnerTexts())
+    .toEqual(["1m", "3m", "5m", "15m", "30m", "1h", "4h", "1d"]);
+});

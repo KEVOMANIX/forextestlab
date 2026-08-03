@@ -860,13 +860,16 @@ export default function PriceChart({
     canAggregateTimeframes(baseTimeframe, timeframe),
   );
   /**
-   * Starred timeframes, in the order they were starred, restricted to those this
-   * session's base data can actually produce. A workspace saved on 1-minute data
-   * and reopened on a 1-hour session must not offer a 5-minute button that
-   * cannot be built.
+   * Starred timeframes, restricted to those this session's base data can actually
+   * produce: a workspace saved on 1-minute data and reopened on a 1-hour session
+   * must not offer a 5-minute button that cannot be built.
+   *
+   * Filtering the canonical list rather than the saved one keeps the bar in
+   * ascending order however the stars were added — starring 30m after 1h puts it
+   * between 15m and 1h, where the eye expects it, not on the end.
    */
-  const pinnedTimeframes = (settings.favoriteTimeframes ?? []).filter(
-    (timeframe) => availableTimeframes.includes(timeframe),
+  const pinnedTimeframes = availableTimeframes.filter((timeframe) =>
+    (settings.favoriteTimeframes ?? []).includes(timeframe),
   );
 
   /**

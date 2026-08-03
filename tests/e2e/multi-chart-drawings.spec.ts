@@ -735,3 +735,68 @@ test("a feature pane spans exactly the rows and columns its layout gives it", as
     timeout: 30_000,
   });
 });
+
+test("the favourites toolbox can be parked over any pane, and stays there", async ({
+  page,
+}) => {
+  const rail = page.getByRole("toolbar", { name: "Drawing tools" });
+  await rail.getByRole("button", { name: "Lines & channels", exact: true }).click();
+  await page.getByRole("button", { name: /Favorite Horizontal line/i }).click();
+  await rail.getByRole("button", { name: "Lines & channels", exact: true }).click();
+
+  const toolbox = page.getByRole("toolbar", { name: /Favorite tools/i });
+  await expect(toolbox).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Chart layout" }).click();
+  await page.getByTestId("chart-layout-menu").getByRole("button", { name: "Four charts" }).click();
+  await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(4);
+  // Still one toolbox however many panes there are.
+  await expect(toolbox).toHaveCount(1);
+
+  // It lives on the workspace layer, not inside the focused pane, which is what
+  // lets it travel: a pane clips its own overflow.
+  const overlay = page.getByTestId("chart-workspace-overlay");
+  await expect(overlay).toHaveCount(1);
+  expect(
+    await toolbox.evaluate((bar) =>
+      Boolean(bar.closest('[data-testid="chart-workspace-overlay"]')),
+    ),
+  ).toBe(true);
+
+  // Drag it from its default spot over pane one into the bottom-right pane.
+  const target = await page.getByTestId("chart-cell-4").boundingBox();
+  const grip = await toolbox.boundingBox();
+  expect(target).not.toBeNull();
+  expect(grip).not.toBeNull();
+  await page.mouse.move(grip!.x + 6, grip!.y + grip!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target!.x + target!.width * 0.5, target!.y + target!.height * 0.6, {
+    steps: 12,
+  });
+  await page.mouse.up();
+
+  const moved = await toolbox.boundingBox();
+  expect(moved!.x).toBeGreaterThan(target!.x);
+  expect(moved!.y).toBeGreaterThan(target!.y);
+  expect(moved!.x + moved!.width).toBeLessThanOrEqual(target!.x + target!.width + 1);
+
+  // Focusing a different pane must not send the toolbox home — it is one shared
+  // control, not a per-pane one.
+  await page
+    .getByTestId("chart-cell-2")
+    .getByRole("img", { name: "Candlestick price chart" })
+    .click({ position: { x: 40, y: 120 } });
+  await expect(toolbox).toHaveCount(1);
+  const afterFocus = await toolbox.boundingBox();
+  expect(Math.abs(afterFocus!.x - moved!.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(afterFocus!.y - moved!.y)).toBeLessThanOrEqual(2);
+
+  // And it is remembered, like the replay toolbox's position.
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Candlestick price chart" })).toHaveCount(4, {
+    timeout: 30_000,
+  });
+  const afterReload = await page.getByRole("toolbar", { name: /Favorite tools/i }).boundingBox();
+  expect(Math.abs(afterReload!.x - moved!.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(afterReload!.y - moved!.y)).toBeLessThanOrEqual(2);
+});

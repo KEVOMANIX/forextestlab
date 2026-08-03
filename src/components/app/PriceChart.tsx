@@ -264,6 +264,11 @@ interface PriceChartProps {
    */
   railSlot?: HTMLElement | null;
   showRail?: boolean;
+  /**
+   * Layer covering the whole workspace, for chrome that should float over any
+   * pane rather than be clipped at this one's edge — the favourites toolbox.
+   */
+  floatSlot?: HTMLElement | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
   orderTicket?: React.ReactNode;
   /**
@@ -327,6 +332,12 @@ const BULL = "#22c3a0";
 const BEAR = "#f4646c";
 const DEFAULT_BAR_SPACING = 10;
 const DEFAULT_RIGHT_OFFSET = 4;
+
+/**
+ * Where the draggable favourites toolbox was left. One workspace-wide entry,
+ * like the replay toolbox's: the bar is a single shared control, not a per-pane one.
+ */
+const FAV_BAR_POSITION_KEY = "forextestlab:favorites-bar-position";
 const LIVE_CANDLE_POSITION = 0.75;
 /**
  * How far right of the plot the live candle may be parked while replay runs.
@@ -572,6 +583,7 @@ export default function PriceChart({
   actionsSlot = null,
   railSlot = null,
   showRail = true,
+  floatSlot = null,
   orderTicket = null,
   axisCorner = null,
 }: PriceChartProps) {
@@ -741,8 +753,17 @@ export default function PriceChart({
    */
   const [cursorMode, setCursorMode] = useState<CursorModeName>("crosshair");
   const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
-  const favDragRef = useRef<{ sx: number; sy: number; bx: number; by: number; moved: boolean } | null>(null);
+  const favDragRef = useRef<{
+    sx: number;
+    sy: number;
+    bx: number;
+    by: number;
+    moved: boolean;
+    /** Latest clamped position, so pointer-up persists where it was dropped. */
+    at: { x: number; y: number } | null;
+  } | null>(null);
   const favMovedRef = useRef(false);
+  const favBarRef = useRef<HTMLDivElement | null>(null);
   const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
   const [drawCount, setDrawCount] = useState(0);
   const drawingsHidden = !settings.drawings;
@@ -2570,12 +2591,66 @@ export default function PriceChart({
     }
   }
 
+  /**
+   * Where the trader parked the favourites bar. Stored for the workspace rather
+   * than per pane: the bar is one shared control, so focusing another chart must
+   * not teleport it back to the top of the screen.
+   */
+  function saveFavBarPosition(position: { x: number; y: number }) {
+    try {
+      window.localStorage.setItem(FAV_BAR_POSITION_KEY, JSON.stringify(position));
+    } catch {
+      // Remembering where it was parked is a convenience, not a requirement.
+    }
+  }
+
+  /**
+   * Adopt where the toolbox was parked. Called whenever this pane takes
+   * ownership of it, so moving focus between panes hands the bar over in place
+   * instead of snapping it back to the top of the workspace.
+   */
+  useEffect(() => {
+    if (!showRail) return;
+    try {
+      const raw = window.localStorage.getItem(FAV_BAR_POSITION_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { x: number; y: number };
+      if (typeof parsed?.x !== "number" || typeof parsed?.y !== "number") return;
+      // Clamp on the next frame, once the bar has been laid out in its host: a
+      // position saved on a wide monitor must not strand it off a narrow one.
+      requestAnimationFrame(() => setFavBarPos(clampFavBar(parsed.x, parsed.y)));
+    } catch {
+      // A malformed entry just leaves the bar at its default.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRail]);
+
+  /**
+   * Keep the favourites bar inside the layer it is positioned against, leaving a
+   * grab edge visible. Without this it can be dragged past the boundary and
+   * clipped out of existence, with no way back to it.
+   */
+  function clampFavBar(x: number, y: number): { x: number; y: number } {
+    const bar = favBarRef.current;
+    const host = bar?.offsetParent as HTMLElement | null;
+    if (!bar || !host) return { x, y };
+    const edge = 8;
+    return {
+      x: Math.min(Math.max(edge, x), Math.max(edge, host.clientWidth - bar.offsetWidth - edge)),
+      y: Math.min(Math.max(edge, y), Math.max(edge, host.clientHeight - bar.offsetHeight - edge)),
+    };
+  }
+
   // Drag the favorites bar from anywhere on it (buttons still click if no drag).
   function startFavDrag(e: React.PointerEvent<HTMLDivElement>) {
-    const cont = containerRef.current?.getBoundingClientRect();
-    const bar = e.currentTarget.getBoundingClientRect();
-    if (!cont) return;
-    favDragRef.current = { sx: e.clientX, sy: e.clientY, bx: bar.left - cont.left, by: bar.top - cont.top, moved: false };
+    const bar = e.currentTarget;
+    // Offsets come from the bar's own positioning parent, which is the workspace
+    // overlay in a split layout and this pane when there is no overlay to host it.
+    const host = bar.offsetParent as HTMLElement | null;
+    if (!host) return;
+    const hostBox = host.getBoundingClientRect();
+    const barBox = bar.getBoundingClientRect();
+    favDragRef.current = { sx: e.clientX, sy: e.clientY, bx: barBox.left - hostBox.left, by: barBox.top - hostBox.top, moved: false, at: null };
     favMovedRef.current = false;
     const onMove = (ev: PointerEvent) => {
       const d = favDragRef.current;
@@ -2585,12 +2660,18 @@ export default function PriceChart({
       if (!d.moved && Math.hypot(dx, dy) < 4) return;
       d.moved = true;
       favMovedRef.current = true;
-      setFavBarPos({ x: d.bx + dx, y: d.by + dy });
+      // The drop position has to be carried on the drag itself. `favBarPos` in
+      // this closure is whatever it was when the gesture started, so reading it
+      // on pointer-up would persist the spot the bar was dragged *from*.
+      d.at = clampFavBar(d.bx + dx, d.by + dy);
+      setFavBarPos(d.at);
     };
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      const drop = favDragRef.current?.moved ? favDragRef.current.at : null;
       favDragRef.current = null;
+      if (drop) saveFavBarPosition(drop);
       // Clear after the click has fired so a real click still selects the tool.
       window.setTimeout(() => { favMovedRef.current = false; }, 0);
     };
@@ -2981,6 +3062,36 @@ export default function PriceChart({
    * tools sat below the fold. Hosted in a full-height column it always shows
    * every tool, and it drives whichever chart has focus.
    */
+  /**
+   * The draggable favourites toolbox.
+   *
+   * Positioned inside whatever layer hosts it — the workspace's overlay when one
+   * is provided, this pane otherwise — so the drag reads its offsets from that
+   * same box and the bar travels over every chart in a split layout instead of
+   * being clipped at the focused pane's edge. Its position is a workspace
+   * preference, so moving focus between panes does not send it home.
+   */
+  const favoritesBar = (
+    <div
+      ref={favBarRef}
+      className="pointer-events-auto absolute z-30 flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
+      style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
+      role="toolbar"
+      aria-label="Favorite tools (drag to move)"
+      onPointerDown={startFavDrag}
+    >
+      <span className="mr-0.5 select-none text-[11px] leading-none app-muted" aria-hidden>⋮⋮</span>
+      {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
+        const Icon = DRAWING_TOOL_ICONS[t];
+        return (
+          <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
+            <Icon size={22} aria-hidden />
+          </ToolButton>
+        );
+      })}
+    </div>
+  );
+
   const drawingRail = (
     <div className={`flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
       <ToolButton
@@ -3075,6 +3186,11 @@ export default function PriceChart({
       {headerSlot
         ? createPortal(chartControls, headerSlot)
         : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}{screenshotControl}</div>}
+      {/* The favourites toolbox floats over the whole workspace, so a split
+          layout does not clip it at the focused pane's edge. */}
+      {showRail && favorites.size > 0 && floatSlot
+        ? createPortal(favoritesBar, floatSlot)
+        : null}
       {/* The screenshot action lives with the header's other actions. Without a
           slot for them it stays beside the chart controls. */}
       {actionsSlot && headerSlot ? createPortal(screenshotControl, actionsSlot) : null}
@@ -3565,30 +3681,8 @@ export default function PriceChart({
           );
         })}
 
-        {/*
-          The focused pane owns the workspace's one favorites bar, just as it
-          owns the shared drawing rail. Rendering this in every PriceChart made
-          a two/four-chart layout duplicate the same controls in every pane.
-        */}
-        {showRail && favorites.size > 0 && (
-          <div
-            className="absolute z-30 flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
-            style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
-            role="toolbar"
-            aria-label="Favorite tools (drag to move)"
-            onPointerDown={startFavDrag}
-          >
-            <span className="mr-0.5 select-none text-[11px] leading-none app-muted" aria-hidden>⋮⋮</span>
-            {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
-              const Icon = DRAWING_TOOL_ICONS[t];
-              return (
-                <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
-                  <Icon size={22} aria-hidden />
-                </ToolButton>
-              );
-            })}
-          </div>
-        )}
+        {/* Hosted at workspace level when a slot exists — see `favoritesBar`. */}
+        {showRail && favorites.size > 0 && !floatSlot && favoritesBar}
 
         {/* Click-away backdrop for open menus */}
         {menu && (

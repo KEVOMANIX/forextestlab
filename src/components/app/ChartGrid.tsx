@@ -347,6 +347,15 @@ export default function ChartGrid({
    */
   const [railHost, setRailHost] = useState<HTMLDivElement | null>(null);
 
+  /**
+   * A layer over every pane for chrome that belongs to the workspace rather than
+   * to one chart — today the draggable favourites toolbox. Panes clip their own
+   * overflow, so anything positioned inside one can only travel that far; hosted
+   * here it can be parked over any chart in the layout. Transparent to the
+   * pointer, so only the chrome inside it is clickable.
+   */
+  const [floatHost, setFloatHost] = useState<HTMLDivElement | null>(null);
+
   const layoutPicker = (
     <div className="relative shrink-0" ref={layoutMenuRef}>
       <button
@@ -435,6 +444,14 @@ export default function ChartGrid({
       */}
       <div className="flex min-h-0 flex-1">
         <div ref={setRailHost} className="shrink-0" />
+        {/* The overlay covers the charts and stops short of the rail, so parking
+            the favourites toolbox can never bury the tool buttons. */}
+        <div className="relative flex min-h-0 min-w-0 flex-1">
+        <div
+          ref={setFloatHost}
+          data-testid="chart-workspace-overlay"
+          className="pointer-events-none absolute inset-0 z-40"
+        />
         <div
           data-layout={spec.id}
           className={`grid min-h-0 min-w-0 flex-1 gap-px bg-[var(--app-border)] ${
@@ -503,6 +520,7 @@ export default function ChartGrid({
                 actionsSlot={isFocused ? actionsSlot : null}
                 railSlot={railHost}
                 showRail={isFocused}
+                floatSlot={floatHost}
                 orderTicket={isSession && isFocused ? orderTicket : null}
                 // One clock for the workspace, always in its outer bottom-right
                 // corner regardless of which independently movable cell is focused.
@@ -519,6 +537,7 @@ export default function ChartGrid({
             </div>
           );
         })}
+        </div>
         </div>
       </div>
     </div>
@@ -571,6 +590,7 @@ interface ChartCellViewProps {
   actionsSlot: HTMLElement | null;
   railSlot: HTMLElement | null;
   showRail: boolean;
+  floatSlot: HTMLElement | null;
   orderTicket: React.ReactNode;
   axisCorner: React.ReactNode;
   workspace: ChartWorkspace;
@@ -612,6 +632,7 @@ function ChartCellView({
   actionsSlot,
   railSlot,
   showRail,
+  floatSlot,
   orderTicket,
   axisCorner,
   workspace,
@@ -676,6 +697,7 @@ function ChartCellView({
         actionsSlot={actionsSlot}
         railSlot={railSlot}
         showRail={showRail}
+        floatSlot={floatSlot}
         orderTicket={orderTicket}
         axisCorner={axisCorner}
         symbolLabel={cell.symbol}

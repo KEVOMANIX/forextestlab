@@ -95,7 +95,8 @@ npm test           # Vitest unit tests
 npm run test:e2e   # Playwright E2E (see below)
 npm run db:push    # sync Prisma schema to the database
 npm run db:seed    # seed demo data
-npm run data:import -- ...  # import a CSV (see below)
+npm run data:import -- ...      # import a CSV (see below)
+npm run calendar:import -- ...  # import an MT5 economic calendar export
 ```
 
 ## Environment variables
@@ -238,6 +239,43 @@ prices, valid OHLC relationships, present timestamps), converts to UTC,
 deduplicates, imports in batches, detects gaps, and writes an audit `DataImport`
 row. Paths are restricted to the project directory (no traversal) and must be
 `.csv`.
+
+## Economic calendar import
+
+Releases are badged on the chart's time axis, with actual / forecast / previous
+on hover. The data comes from MetaTrader 5's built-in calendar, which carries
+years of history for every major economy at no cost.
+
+**1. Export from MT5.** Copy `scripts/mt5/ExportEconomicCalendar.mq5` into
+`MQL5\Scripts\` in your terminal's data folder (File → Open Data Folder), refresh
+the Navigator, open the Calendar tab and scroll back through the years you want —
+the terminal only holds what it has downloaded — then drag the script onto any
+chart. It writes a CSV to `Terminal\Common\Files\`.
+
+**2. Import it.**
+
+```bash
+npm run calendar:import -- \
+  --file ./data/forextestlab-calendar.csv \
+  --timezone Europe/Kyiv
+```
+
+`--timezone` is your **broker's server zone**, because that is the zone MetaTrader
+reports calendar times in — not your own, and not UTC. Name the IANA zone rather
+than a fixed offset so events either side of a daylight-saving change convert with
+the rule that was in force on their own date; a fixed `+02:00` puts every summer
+release an hour from the candle it moved. The importer warns if the zone you name
+was not on the offset the exporting terminal reported. `--dry-run` checks a file
+without writing.
+
+Re-running an export updates releases in place, keyed on the provider's own id —
+which is the point of re-running it, since a release exported before it happened
+carried a forecast and no actual.
+
+Note on redistribution: this data is MetaQuotes-sourced. It is fine for your own
+testing; shipping it to customers is a licensing question, and for that
+FRED/ALFRED (US only, public domain, with point-in-time vintages) is the safe
+source.
 
 ## Testing
 

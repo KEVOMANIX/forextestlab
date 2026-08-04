@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, RotateCcw, X } from "lucide-react";
 
 import { EXCHANGE_ZONE, zoneOptionsAt } from "@/lib/chart/timezones";
+import type { EventImportance } from "@/lib/economic-calendar/types";
 import type { Timeframe } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
@@ -50,6 +51,14 @@ export interface ChartSettings {
     reference: string;
   };
   drawings: boolean;
+  /** Economic calendar badges on the time axis. */
+  economicEvents: boolean;
+  /**
+   * Lowest impact rating that earns a badge. A calendar carries a great deal of
+   * filler, and a whole day of it on one axis hides the release that moved the
+   * market.
+   */
+  economicEventImportance: EventImportance;
   /** Dotted line and axis tag tracking the latest price. */
   priceLine: boolean;
   /** IANA zone id, or "exchange". Labels the axis, crosshair and corner clock. */
@@ -125,6 +134,8 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
     reference: "?",
   },
   drawings: true,
+  economicEvents: true,
+  economicEventImportance: "medium",
   priceLine: true,
   timeZone: EXCHANGE_ZONE,
   chartTextSize: "medium",
@@ -145,6 +156,17 @@ const TEXT_SIZES: { value: ChartTextSize; label: string }[] = [
   { value: "small", label: "Small" },
   { value: "medium", label: "Medium" },
   { value: "large", label: "Large" },
+];
+
+/**
+ * "none" is left out on purpose. It is MetaTrader's bucket for entries with no
+ * expected market impact — holidays and administrative notices — and offering it
+ * as a choice invites a trader to bury the axis to no end.
+ */
+const EVENT_IMPORTANCE_CHOICES: { value: EventImportance; label: string }[] = [
+  { value: "high", label: "High" },
+  { value: "medium", label: "Medium+" },
+  { value: "low", label: "All" },
 ];
 
 export type SettingsTab =
@@ -352,6 +374,21 @@ export function ChartSettingsDialog({
                   checked={settings.drawings}
                   onToggle={() => onChange({ drawings: !settings.drawings })}
                 />
+                <ToggleRow
+                  label="Economic calendar"
+                  hint="Flag the news releases on the time axis."
+                  checked={settings.economicEvents}
+                  onToggle={() => onChange({ economicEvents: !settings.economicEvents })}
+                />
+                {settings.economicEvents && (
+                  <ChoiceRow
+                    label="Show news rated"
+                    hint="Lower ratings add a great deal of routine data."
+                    value={settings.economicEventImportance}
+                    options={EVENT_IMPORTANCE_CHOICES}
+                    onChange={(economicEventImportance) => onChange({ economicEventImportance })}
+                  />
+                )}
               </div>
             )}
 

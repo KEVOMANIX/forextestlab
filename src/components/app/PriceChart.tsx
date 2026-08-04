@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Activity,
@@ -86,6 +86,8 @@ import {
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
+import { currenciesForSymbol } from "@/lib/economic-calendar/types";
+import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { renderedLivePrice } from "@/lib/chart/live-price";
 import { subscribeReplayVisual } from "@/lib/backtest/replay-visual-bus";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
@@ -98,6 +100,8 @@ import {
 } from "./ChartSettingsMenu";
 import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
+import { EconomicEventLayer } from "./EconomicEventLayer";
+import { useCalendarEvents } from "./useCalendarEvents";
 import {
   DRAWING_TOOL_ICONS,
   FibonacciIcon,
@@ -2829,6 +2833,61 @@ export default function PriceChart({
     };
   }, [axisCorner, viewVersion, seriesEpoch]);
 
+  /**
+   * Economic calendar. The currencies come from the cell's own symbol, so a
+   * reference EURGBP pane badges euro and sterling news while the traded USDJPY
+   * pane badges Japan's — the alternative, one set of releases for the whole
+   * workspace, would put figures on a chart they cannot move.
+   */
+  const calendarDefinition = getSymbolDefinition(symbolLabel);
+  const calendarCurrencies = useMemo(
+    () =>
+      currenciesForSymbol(
+        symbolLabel,
+        calendarDefinition?.baseCurrency,
+        calendarDefinition?.quoteCurrency,
+      ),
+    [symbolLabel, calendarDefinition?.baseCurrency, calendarDefinition?.quoteCurrency],
+  );
+  const calendarEnabled = settings.economicEvents !== false;
+  const calendarEvents = useCalendarEvents({
+    enabled: calendarEnabled,
+    currencies: calendarCurrencies,
+    minImportance: settings.economicEventImportance ?? "medium",
+    // Read through the engine rather than the chart: it accounts for the forward
+    // runway, so next week's schedule is fetched before the replay reaches it.
+    getVisibleRange: useCallback(
+      () => drawingEngineRef.current?.getVisibleTimeRange() ?? null,
+      [],
+    ),
+  });
+
+  // Badges are placed in React from the chart's projection, so this pane has to
+  // publish viewport changes — without this they would sit still while the
+  // candles under them panned away. Set after the fact because the flag is
+  // assigned above, before the events are known.
+  if (calendarEvents.length > 0) viewportOverlaysRef.current = true;
+
+  /**
+   * Height of the time axis, so badges sit on top of it rather than over the
+   * labels. Measured for the same reason the price scale's width is: it grows
+   * with the axis font size, which is a preference.
+   */
+  const [timeAxisHeight, setTimeAxisHeight] = useState(26);
+  useEffect(() => {
+    if (!calendarEnabled) return;
+    const measure = () => {
+      try {
+        const height = chartRef.current?.timeScale().height();
+        if (typeof height === "number" && height > 0) setTimeAxisHeight(height);
+      } catch {
+        // Keep the last known height; the chart is mid-teardown.
+      }
+    };
+    measure();
+    const frame = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(frame);
+  }, [calendarEnabled, settings.chartTextSize, viewVersion, seriesEpoch]);
 
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
@@ -3267,6 +3326,27 @@ export default function PriceChart({
           engineRef={drawingEngineRef}
           storageKey={storageKey}
         />
+
+        {/*
+          Economic calendar badges, on top of the time axis. Placed through the
+          drawing engine's projection so a release lands on the minute it
+          happened rather than the nearest bar open, and so a release scheduled
+          past the last candle still marks the forward runway.
+        */}
+        {calendarEnabled && calendarEvents.length > 0 && (
+          <EconomicEventLayer
+            events={calendarEvents}
+            timeToX={(timestampMs) =>
+              drawingEngineRef.current?.timeToX(timestampMs / 1000) ?? null
+            }
+            width={drawingEngineRef.current?.width ?? 0}
+            height={drawingEngineRef.current?.height ?? 0}
+            timeAxisHeight={timeAxisHeight}
+            insetLeft={showRail && !railSlot ? 48 : 0}
+            zone={settings.timeZone}
+            viewVersion={viewVersion}
+          />
+        )}
 
         {/* Volume Profile — custom canvas overlay (no lightweight-charts primitive). */}
         {chartApi && priceSeries && tradePlan && (

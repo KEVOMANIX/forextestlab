@@ -231,6 +231,27 @@ export class DrawingEngine {
     return from && to && from < to ? { from, to } : null;
   }
 
+  /**
+   * Where a moment falls across the canvas, in pixels from its left edge, or
+   * null when it lies outside. Shared with the calendar layer so a news badge is
+   * placed by the same projection as a drawing anchored to the same minute —
+   * including across weekend gaps and out along the forward runway, neither of
+   * which the chart's own `timeToCoordinate` handles for a time no bar occupies.
+   */
+  timeToX(time: number): number | null {
+    return this.mapper.timeToX(time);
+  }
+
+  /** Canvas width in CSS pixels; 0 before the first layout. */
+  get width(): number {
+    return this.mapper.width;
+  }
+
+  /** Canvas height in CSS pixels; 0 before the first layout. */
+  get height(): number {
+    return this.mapper.height;
+  }
+
   setEnv(env: Partial<EngineEnv>): void {
     const prevTool = this.env.tool;
     const prevSelectionEnabled = this.env.selectionEnabled;

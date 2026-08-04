@@ -20,6 +20,13 @@ export interface RawCsvRow {
 export interface CsvParserOptions {
   /** Field delimiter. Defaults to ",". */
   delimiter?: string;
+  /**
+   * Rows whose first field starts with this string are skipped, header row
+   * included. Set it when a file carries provenance lines above its columns, as
+   * the MT5 calendar export does. Off by default: a "#" is a legal first
+   * character in a data field.
+   */
+  commentPrefix?: string;
 }
 
 const DEFAULT_DELIMITER = ",";
@@ -134,26 +141,48 @@ function toRecord(headers: string[], fields: string[]): Record<string, string> {
 }
 
 /**
+ * A CSV opened and re-saved in Excel gains a byte-order mark, which would
+ * otherwise become part of the first column's name — or hide a comment marker.
+ */
+function stripBom(value: string): string {
+  return value.charCodeAt(0) === 0xfeff ? value.slice(1) : value;
+}
+
+/** Header names, trimmed, with any byte-order mark removed. */
+function toHeaders(fields: string[]): string[] {
+  return fields.map((field, index) => (index === 0 ? stripBom(field) : field).trim());
+}
+
+/** True when a row is a comment under the configured prefix. */
+function isCommentRow(fields: string[], prefix: string | undefined): boolean {
+  if (!prefix) return false;
+  return stripBom(fields[0] ?? "").startsWith(prefix);
+}
+
+/**
  * Stream a CSV, using the first non-empty row as headers and yielding one
- * record per (non-empty) data row. lineNumber counts the header as line 1.
+ * record per (non-empty) data row. lineNumber counts physical lines, so the
+ * header is line 1 and the first data row line 2 — unless comment lines precede
+ * them, in which case the numbers still match what an editor shows.
  */
 export async function* streamCsv(
   input: Readable,
   options?: CsvParserOptions,
 ): AsyncGenerator<RawCsvRow> {
   const delimiter = options?.delimiter ?? DEFAULT_DELIMITER;
+  const comment = options?.commentPrefix;
   const tokenizer = new CsvTokenizer(delimiter);
   let headers: string[] | undefined;
   let lineNumber = 0;
 
   const emit = function* (fields: string[]): Generator<RawCsvRow> {
+    lineNumber += 1;
+    if (isCommentRow(fields, comment)) return;
     if (headers === undefined) {
       if (isEmptyRow(fields)) return;
-      headers = fields.map((h) => h.trim());
-      lineNumber = 1;
+      headers = toHeaders(fields);
       return;
     }
-    lineNumber += 1;
     if (isEmptyRow(fields)) return;
     yield { lineNumber, record: toRecord(headers, fields) };
   };
@@ -176,6 +205,7 @@ export function parseCsvString(
   options?: CsvParserOptions,
 ): RawCsvRow[] {
   const delimiter = options?.delimiter ?? DEFAULT_DELIMITER;
+  const comment = options?.commentPrefix;
   const tokenizer = new CsvTokenizer(delimiter);
   const allRows = [...tokenizer.push(text), ...tokenizer.flush()];
 
@@ -184,13 +214,13 @@ export function parseCsvString(
   let lineNumber = 0;
 
   for (const fields of allRows) {
+    lineNumber += 1;
+    if (isCommentRow(fields, comment)) continue;
     if (headers === undefined) {
       if (isEmptyRow(fields)) continue;
-      headers = fields.map((h) => h.trim());
-      lineNumber = 1;
+      headers = toHeaders(fields);
       continue;
     }
-    lineNumber += 1;
     if (isEmptyRow(fields)) continue;
     result.push({ lineNumber, record: toRecord(headers, fields) });
   }

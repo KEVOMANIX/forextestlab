@@ -435,6 +435,58 @@ model SimulatedTrade {
   @@index([sessionId])
 }
 
+/// One economic calendar release — a single publication of a single indicator.
+///
+/// Numbers are decimal STRINGS like every other figure in this schema. They are
+/// not money, but they are compared and formatted, and a float would round
+/// 54.5 to 54.499999.
+///
+/// `actual` is null for a release that has not happened yet, which is exactly
+/// how a replay wants it: an event ahead of the playhead shows a forecast and no
+/// actual, matching what the trader could have known.
+model EconomicEvent {
+  id     String @id @default(cuid())
+  /// "mt5" — which export this row came from, so a second provider can be added
+  /// alongside rather than overwriting.
+  source String @default("mt5")
+  /// The provider's own id for this release. Unique with `source`, so re-running
+  /// an export updates rows in place instead of duplicating them.
+  externalId String
+  /// The provider's id for the recurring indicator, e.g. every CPI release
+  /// shares one. Lets the chart group an event with its own history.
+  seriesId   String?
+  eventCode  String?
+  name       String
+  currency   String
+  country    String?
+  /// "none" | "low" | "medium" | "high"
+  importance String
+  /// UTC epoch milliseconds of the release.
+  timestamp  BigInt
+  /// "exact" | "date" | "notime" | "tentative". Anything but "exact" has no
+  /// dependable clock time, so the chart must not mark a precise minute.
+  timeMode   String  @default("exact")
+  /// Start of the period the figure describes, UTC epoch ms. "CPI for July".
+  period     BigInt?
+  actual     String?
+  forecast   String?
+  previous   String?
+  revisedPrevious String?
+  /// "percent" | "currency" | "people" | … for formatting; null when unitless.
+  unit       String?
+  /// "thousands" | "millions" | "billions" | "trillions", or null.
+  multiplier String?
+  digits     Int      @default(0)
+  revision   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([source, externalId])
+  @@index([timestamp])
+  @@index([currency, timestamp])
+  @@index([importance, timestamp])
+}
+
 model EquitySnapshot {
   id        String          @id @default(cuid())
   session   BacktestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

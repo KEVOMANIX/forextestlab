@@ -17,6 +17,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "data:import": "tsx scripts/import-market-data.ts",
+    "calendar:import": "tsx scripts/import-economic-calendar.ts",
     "paddle:seed": "tsx scripts/seed-paddle-catalog.ts",
     "paddle:seed-discounts": "tsx scripts/seed-paddle-discounts.ts",
     "paddle:e2e:setup": "tsx scripts/setup-paddle-live-e2e.ts",

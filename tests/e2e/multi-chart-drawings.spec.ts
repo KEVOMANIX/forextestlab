@@ -582,7 +582,7 @@ test("late history responses cannot overwrite a newer timeframe", async ({ page 
 
 test("the execution cost sits in both Sell and Buy seams", async ({ page }) => {
   const spread = page.getByTestId("quick-trade-spread");
-  await expect(spread).toHaveText("14");
+  await expect(spread).toHaveText("1.4");
   await expect(spread).toHaveAttribute("aria-label", "1.4 pips");
   await expect(page.getByTestId("quick-sell-cost")).toHaveCount(0);
   await expect(page.getByTestId("quick-buy-cost")).toHaveCount(0);
@@ -599,7 +599,7 @@ test("the execution cost sits in both Sell and Buy seams", async ({ page }) => {
   expect(Math.abs(badge!.x + badge!.width / 2 - seam)).toBeLessThanOrEqual(2);
 
   const chartSpread = page.getByTestId("chart-trade-spread");
-  await expect(chartSpread).toHaveText("14");
+  await expect(chartSpread).toHaveText("1.4");
   await expect(chartSpread).toHaveAttribute("aria-label", "1.4 pips");
   await expect(page.getByText("1-click", { exact: true })).toHaveCount(0);
 

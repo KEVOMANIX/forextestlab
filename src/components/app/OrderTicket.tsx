@@ -22,7 +22,6 @@ import {
   tradePlanMetrics,
   type TradePlan,
 } from "@/lib/backtest/trade-plan";
-import { spreadPointsLabel } from "@/lib/backtest/spread-display";
 import type {
   OrderRequest,
   OrderType,
@@ -129,7 +128,6 @@ export function OrderTicket({
   const pip = Number(state.config.pipSize) || 0;
   const spread = Number(state.config.spreadPips) || 0;
   const spreadLabel = spread.toFixed(1);
-  const spreadPoints = spreadPointsLabel(spread, pip, precision);
   const mid = state.currentPrice != null ? Number(state.currentPrice) : null;
   const ask = mid != null ? mid + (spread * pip) / 2 : null;
   const bid = mid != null ? mid - (spread * pip) / 2 : null;
@@ -377,7 +375,7 @@ export function OrderTicket({
             title={`${spreadLabel} pips`}
             className="pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-6 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border border-white/20 bg-[#0b1220] px-1 font-mono text-[10px] font-bold leading-none text-white shadow-md"
           >
-            {spreadPoints}
+            {spreadLabel}
           </span>
           <CompactQuoteButton
             direction="long"

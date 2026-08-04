@@ -21,7 +21,6 @@ import {
   type PublicSessionState,
   type ReplaySpeed,
 } from "@/lib/backtest/types";
-import { spreadPointsLabel } from "@/lib/backtest/spread-display";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { replayRewindFloor } from "@/lib/backtest/replay-engine";
 import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
@@ -142,7 +141,6 @@ export function ReplayToolbar({
   const pipSize = Number(state.config.pipSize) || 0;
   const mid = state.currentPrice == null ? null : Number(state.currentPrice);
   const precision = state.config.pricePrecision;
-  const spreadPoints = spreadPointsLabel(spreadPips, pipSize, precision);
   const bidAsk =
     mid == null || !Number.isFinite(mid)
       ? null
@@ -366,7 +364,7 @@ export function ReplayToolbar({
             title={`${spreadLabel} pips`}
             className="pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-5 min-w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border border-white/20 bg-[#0b1220] px-1 font-mono text-[10px] font-bold leading-none text-white shadow-md"
           >
-            {spreadPoints}
+            {spreadLabel}
           </span>
           <button
             type="button"

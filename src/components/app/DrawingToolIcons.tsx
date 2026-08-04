@@ -2,13 +2,38 @@ import type { ComponentType, ReactNode, SVGProps } from "react";
 
 import type { ToolKind } from "@/lib/chart/drawing/types";
 
+/**
+ * Drawing tool glyphs.
+ *
+ * One visual language, so forty tools in a rail read as a set:
+ *  - a 24-unit box drawn with hairline strokes and round caps
+ *  - a hollow {@link Ring} wherever the tool takes a placed point, which is what
+ *    separates a drawing from an abstract shape
+ *  - one motif per tool and no second accent competing with it
+ *
+ * Colour appears exactly once, on the long and short position tools. Those two
+ * are the only ones that express a trade rather than a mark on the chart, and the
+ * terminal already speaks bull/bear everywhere that money is involved.
+ */
+
 export type DrawingIconProps = Omit<SVGProps<SVGSVGElement>, "children"> & {
   size?: number | string;
 };
 
 export type DrawingIcon = ComponentType<DrawingIconProps>;
 
-function Glyph({ size = 18, className, children, style, ...props }: DrawingIconProps & { children: ReactNode }) {
+/** Bull and bear, matching tailwind.config.ts. */
+const BULL = "#22c3a0";
+const BEAR = "#f4646c";
+
+function Glyph({
+  size = 18,
+  className,
+  children,
+  style,
+  strokeWidth = 1.4,
+  ...props
+}: DrawingIconProps & { children: ReactNode }) {
   return (
     <svg
       width={size}
@@ -16,7 +41,7 @@ function Glyph({ size = 18, className, children, style, ...props }: DrawingIconP
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={className}
@@ -29,87 +54,281 @@ function Glyph({ size = 18, className, children, style, ...props }: DrawingIconP
   );
 }
 
-function Handle({ cx, cy, r = 1.45 }: { cx: number; cy: number; r?: number }) {
-  return <circle cx={cx} cy={cy} r={r} fill="var(--app-panel-solid, #111725)" />;
+/**
+ * A placed point. Hollow rather than solid: a filled dot at 14px merges with the
+ * line it sits on, while a ring keeps the line visibly passing through it.
+ */
+function Ring({ cx, cy, r = 1.9 }: { cx: number; cy: number; r?: number }) {
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={r}
+      fill="var(--app-panel-solid, #111725)"
+      strokeWidth={1.2}
+    />
+  );
 }
+
+// ---- lines ----
 
 export function TrendLineIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="4" y1="19" x2="20" y2="5" /><Handle cx={4} cy={19} /><Handle cx={20} cy={5} /></Glyph>;
+  return <Glyph {...props}><line x1="5" y1="18.5" x2="19" y2="5.5" /><Ring cx={5} cy={18.5} /><Ring cx={19} cy={5.5} /></Glyph>;
 }
 
+/** One placed point, running past the second to the pane edge. */
 export function RayIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="4" y1="18" x2="21" y2="4" /><Handle cx={4} cy={18} /><Handle cx={11} cy={12.25} /></Glyph>;
+  return <Glyph {...props}><line x1="5" y1="18.5" x2="22" y2="2.8" /><Ring cx={5} cy={18.5} /><Ring cx={13.5} cy={10.7} /></Glyph>;
 }
 
+/** Both ends leave the box; the two rings stay inside it. */
 export function ExtendedLineIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="2.5" y1="21" x2="21.5" y2="3" /><Handle cx={8.2} cy={15.6} /><Handle cx={15.8} cy={8.4} /></Glyph>;
+  return <Glyph {...props}><line x1="2" y1="21.5" x2="22" y2="2.5" /><Ring cx={8.5} cy={15.3} /><Ring cx={15.5} cy={8.7} /></Glyph>;
 }
 
 export function ArrowLineIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="4" y1="19" x2="19" y2="4" /><path d="m13.8 4 5.2 0 0 5.2" /><Handle cx={4} cy={19} /></Glyph>;
+  return <Glyph {...props}><line x1="4.5" y1="19" x2="17.5" y2="6.5" /><path d="M12.6 5.6h5.9v5.7" /><Ring cx={4.5} cy={19} /></Glyph>;
 }
 
+/**
+ * A trend line that reports. The readout rules beside it are the differentiator:
+ * the "i" bubble this replaced turned to mush below 18px.
+ */
+export function InfoLineIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="4.5" y1="19.5" x2="17" y2="8" />
+      <path d="M13.5 4.5h7M13.5 7.5h4.5" strokeWidth={1.2} opacity=".85" />
+      <Ring cx={4.5} cy={19.5} /><Ring cx={17} cy={8} />
+    </Glyph>
+  );
+}
+
+export function TrendAngleIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M5 19h15" /><path d="M5 19 18 6.5" />
+      <path d="M12.5 19a7.5 7.5 0 0 0-2.2-5.3" strokeWidth={1.1} opacity=".75" />
+      <Ring cx={5} cy={19} /><Ring cx={18} cy={6.5} />
+    </Glyph>
+  );
+}
+
+/** Full width, one ring: a level, not a segment. */
 export function HorizontalLineIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="3" y1="12" x2="21" y2="12" /><Handle cx={8} cy={12} r={1.25} /></Glyph>;
+  return <Glyph {...props}><line x1="2.5" y1="12" x2="21.5" y2="12" /><Ring cx={8} cy={12} /></Glyph>;
+}
+
+export function HorizontalRayIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="6" y1="12" x2="22" y2="12" /><Ring cx={6} cy={12} /></Glyph>;
 }
 
 export function VerticalLineIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="12" y1="3" x2="12" y2="21" /><Handle cx={12} cy={9} r={1.25} /></Glyph>;
+  return <Glyph {...props}><line x1="12" y1="2.5" x2="12" y2="21.5" /><Ring cx={12} cy={12} /></Glyph>;
 }
+
+export function CrossLineIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><line x1="2.5" y1="12" x2="21.5" y2="12" /><line x1="12" y1="2.5" x2="12" y2="21.5" /><Ring cx={12} cy={12} /></Glyph>;
+}
+
+// ---- channels ----
 
 export function ParallelChannelIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
-      <line x1="3" y1="17" x2="18" y2="5" />
-      <line x1="6" y1="21" x2="21" y2="9" />
-      <Handle cx={3} cy={17} /><Handle cx={18} cy={5} /><Handle cx={6} cy={21} />
+      <line x1="3.5" y1="16" x2="17" y2="4.5" /><line x1="7" y1="20.5" x2="20.5" y2="9" />
+      <Ring cx={3.5} cy={16} /><Ring cx={17} cy={4.5} /><Ring cx={7} cy={20.5} />
     </Glyph>
   );
 }
+
+export function RegressionIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="4" y1="16" x2="20" y2="7" />
+      <path d="M4 20.5 20 11.5M4 11.5 20 2.5" strokeWidth={1.1} opacity=".55" />
+      <Ring cx={4} cy={16} /><Ring cx={20} cy={7} />
+    </Glyph>
+  );
+}
+
+/** Two level rails — the point of the tool, and what tells it from a channel. */
+export function FlatChannelIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="17" x2="20" y2="17" />
+      <Ring cx={4} cy={7} /><Ring cx={20} cy={7} /><Ring cx={4} cy={17} />
+    </Glyph>
+  );
+}
+
+/** Two rails placed independently, so they deliberately do not align. */
+export function DisjointChannelIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <line x1="3.5" y1="14.5" x2="14" y2="6" /><line x1="9" y1="21" x2="20.5" y2="14" />
+      <Ring cx={3.5} cy={14.5} /><Ring cx={14} cy={6} /><Ring cx={9} cy={21} /><Ring cx={20.5} cy={14} />
+    </Glyph>
+  );
+}
+
+// ---- fibonacci ----
 
 export function FibonacciIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
-      <line x1="4" y1="4" x2="20" y2="4" /><line x1="7" y1="8" x2="20" y2="8" />
-      <line x1="4" y1="12" x2="20" y2="12" /><line x1="7" y1="16" x2="20" y2="16" />
-      <line x1="4" y1="20" x2="20" y2="20" /><Handle cx={4} cy={4} r={1.2} /><Handle cx={4} cy={20} r={1.2} />
+      <path d="M4 5h16M4 9.4h16M4 13.8h16M4 18.2h16" strokeWidth={1.3} />
+      <path d="M4 18.2 20 5" strokeWidth={1} opacity=".5" />
+      <Ring cx={4} cy={18.2} /><Ring cx={20} cy={5} />
     </Glyph>
   );
 }
 
-export function RectangleToolIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><rect x="4" y="5" width="16" height="14" /><Handle cx={4} cy={5} r={1.2} /><Handle cx={20} cy={19} r={1.2} /></Glyph>;
+export function FibExtensionIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M3 19.5 8 8l4.5 6" strokeWidth={1.3} />
+      <path d="M13.5 6.5h8M13.5 11h8M13.5 15.5h8M13.5 20h8" strokeWidth={1.1} opacity=".8" />
+      <Ring cx={3} cy={19.5} /><Ring cx={8} cy={8} />
+    </Glyph>
+  );
 }
 
+// ---- positions ----
+
+/**
+ * One box split by the entry, the reward zone taking about three quarters of it,
+ * and an arrow crossing that zone from the entry to the target. The tint tells
+ * reward from risk at a glance; the arrow makes the direction unmistakable at
+ * 14px, where the two zones alone are a pair of slivers.
+ */
+function Position({
+  side,
+  tinted = true,
+  ...props
+}: DrawingIconProps & { side: "long" | "short"; tinted?: boolean }) {
+  const up = side === "long";
+  const entry = up ? 15.2 : 8.8;
+  const reward = up ? { y: 3.5, height: 11.7 } : { y: 8.8, height: 11.7 };
+  const risk = up ? { y: 15.2, height: 5.3 } : { y: 3.5, height: 5.3 };
+  return (
+    <Glyph {...props}>
+      <rect
+        x="4" y={reward.y} width="16" height={reward.height}
+        fill={tinted ? BULL : "currentColor"} fillOpacity={tinted ? ".28" : ".22"} stroke="none"
+      />
+      <rect
+        x="4" y={risk.y} width="16" height={risk.height}
+        fill={tinted ? BEAR : "currentColor"} fillOpacity={tinted ? ".28" : ".08"} stroke="none"
+      />
+      <rect x="4" y="3.5" width="16" height="17" strokeWidth={1.2} />
+      <path d={`M4 ${entry}h16`} strokeWidth={1.5} />
+      <path d={up ? "M12 15.2V4.7" : "M12 8.8V19.3"} strokeWidth={1.5} />
+      <path d={up ? "m9.4 7.1 2.6-2.4 2.6 2.4" : "m9.4 16.9 2.6 2.4 2.6-2.4"} strokeWidth={1.5} />
+    </Glyph>
+  );
+}
+
+export function LongPositionIcon(props: DrawingIconProps) {
+  return <Position side="long" {...props} />;
+}
+
+export function ShortPositionIcon(props: DrawingIconProps) {
+  return <Position side="short" {...props} />;
+}
+
+/**
+ * The same drawing without the tint, for the rail's group button.
+ *
+ * Colour earns its place on the tool itself, where it says which half is reward.
+ * On the group button it would be the one coloured thing in a column of fifteen
+ * monochrome ones, which reads as a warning rather than as a category.
+ */
+export function PositionsGroupIcon(props: DrawingIconProps) {
+  return <Position side="long" tinted={false} {...props} />;
+}
+
+export function MeasureToolIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="m4.5 15.5 11-11 4 4-11 11z" strokeWidth={1.3} />
+      <path d="m7.8 13.4 1.8 1.8m1.2-4.4 1.8 1.8m1.2-4.4 1.8 1.8" strokeWidth={1.2} />
+    </Glyph>
+  );
+}
+
+// ---- ranges ----
+
+/** Vertical span with caps. Previously shared one glyph with the other two. */
+export function PriceRangeIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M12 5.5v13" />
+      <path d="m9 8.5 3-3 3 3m-6 7 3 3 3-3" strokeWidth={1.2} />
+      <path d="M6 5.5h12M6 18.5h12" strokeWidth={1.1} opacity=".6" />
+    </Glyph>
+  );
+}
+
+export function DateRangeIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M5.5 12h13" />
+      <path d="m8.5 9-3 3 3 3m7-6 3 3-3 3" strokeWidth={1.2} />
+      <path d="M5.5 6v12M18.5 6v12" strokeWidth={1.1} opacity=".6" />
+    </Glyph>
+  );
+}
+
+export function DatePriceRangeIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <rect x="5" y="6" width="14" height="12" strokeWidth={1.2} />
+      <path d="M12 8.5v7M8.5 12h7" strokeWidth={1.1} opacity=".7" />
+      <Ring cx={5} cy={18} r={1.7} /><Ring cx={19} cy={6} r={1.7} />
+    </Glyph>
+  );
+}
+
+// ---- shapes ----
+
+export function RectangleToolIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><rect x="4.5" y="6" width="15" height="12" /><Ring cx={4.5} cy={6} r={1.7} /><Ring cx={19.5} cy={18} r={1.7} /></Glyph>;
+}
+
+/** A time window: the band runs the full height between two edges. */
 export function SessionBoxIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
-      <rect x="4" y="5" width="16" height="14" /><path d="M4 9h16M8 5v14" strokeDasharray="2 2" />
-      <Handle cx={4} cy={5} r={1.2} /><Handle cx={20} cy={19} r={1.2} />
+      <rect x="7" y="3" width="10" height="18" fill="currentColor" fillOpacity=".18" stroke="none" />
+      <path d="M7 3v18M17 3v18" strokeWidth={1.4} />
+      <path d="M3 12h4M17 12h4" strokeWidth={1.1} opacity=".55" />
     </Glyph>
   );
 }
 
 export function CircleToolIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><circle cx="12" cy="12" r="8" /><Handle cx={12} cy={4} r={1.2} /><Handle cx={20} cy={12} r={1.2} /></Glyph>;
+  return <Glyph {...props}><circle cx="12" cy="12" r="8" /><Ring cx={12} cy={4} r={1.7} /><Ring cx={20} cy={12} r={1.7} /></Glyph>;
 }
 
 export function EllipseToolIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><ellipse cx="12" cy="12" rx="9" ry="6" /><Handle cx={3} cy={12} r={1.2} /><Handle cx={21} cy={12} r={1.2} /></Glyph>;
+  return <Glyph {...props}><ellipse cx="12" cy="12" rx="9" ry="6" /><Ring cx={3} cy={12} r={1.7} /><Ring cx={21} cy={12} r={1.7} /></Glyph>;
 }
 
 export function TriangleToolIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="M12 4 21 19H3Z" /><Handle cx={12} cy={4} r={1.2} /><Handle cx={3} cy={19} r={1.2} /><Handle cx={21} cy={19} r={1.2} /></Glyph>;
+  return <Glyph {...props}><path d="M12 4 21 19H3Z" /><Ring cx={12} cy={4} r={1.6} /><Ring cx={3} cy={19} r={1.6} /><Ring cx={21} cy={19} r={1.6} /></Glyph>;
 }
 
 export function PathToolIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
       <path d="M3.5 18.5 8 8l5 7 7.5-10" />
-      <Handle cx={3.5} cy={18.5} /><Handle cx={8} cy={8} /><Handle cx={13} cy={15} /><Handle cx={20.5} cy={5} />
+      <Ring cx={3.5} cy={18.5} r={1.7} /><Ring cx={8} cy={8} r={1.7} /><Ring cx={13} cy={15} r={1.7} /><Ring cx={20.5} cy={5} r={1.7} />
     </Glyph>
   );
 }
+
+// ---- text ----
 
 export function TextToolIcon(props: DrawingIconProps) {
   return <Glyph {...props}><path d="M5 5h14M12 5v14M8.5 19h7" /></Glyph>;
@@ -119,89 +338,50 @@ export function LabelToolIcon(props: DrawingIconProps) {
   return <Glyph {...props}><path d="M4 6.5V17l4 3h11V4H8Z" /><circle cx="8" cy="8" r="1" /></Glyph>;
 }
 
-export function LongPositionIcon(props: DrawingIconProps) {
+/** A tag whose point marks the price it reads. */
+export function PriceLabelIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
-      <rect x="5" y="3" width="14" height="7" rx=".75" fill="currentColor" fillOpacity=".08" />
-      <line x1="3" y1="13" x2="21" y2="13" />
-      <line x1="5" y1="20" x2="19" y2="20" strokeDasharray="2 2" opacity=".65" />
-      <line x1="12" y1="17.5" x2="12" y2="6" />
-      <path d="m8.5 9.5 3.5-3.5 3.5 3.5" />
-      <Handle cx={3} cy={13} r={1.2} /><Handle cx={21} cy={13} r={1.2} />
+      <path d="M3 12 8 7h11.5v10H8z" strokeWidth={1.3} />
+      <path d="M10.5 12h6.5" strokeWidth={1.2} opacity=".75" />
     </Glyph>
   );
-}
-
-export function ShortPositionIcon(props: DrawingIconProps) {
-  return (
-    <Glyph {...props}>
-      <line x1="5" y1="4" x2="19" y2="4" strokeDasharray="2 2" opacity=".65" />
-      <line x1="3" y1="11" x2="21" y2="11" />
-      <rect x="5" y="14" width="14" height="7" rx=".75" fill="currentColor" fillOpacity=".08" />
-      <line x1="12" y1="6.5" x2="12" y2="18" />
-      <path d="m8.5 14.5 3.5 3.5 3.5-3.5" />
-      <Handle cx={3} cy={11} r={1.2} /><Handle cx={21} cy={11} r={1.2} />
-    </Glyph>
-  );
-}
-
-export function MeasureToolIcon(props: DrawingIconProps) {
-  return (
-    <Glyph {...props}>
-      <path d="m4 16 12-12 4 4L8 20Z" />
-      <path d="m8 14 2 2m1-5 2 2m1-5 2 2" />
-      <Handle cx={4} cy={16} r={1.15} /><Handle cx={20} cy={8} r={1.15} />
-    </Glyph>
-  );
-}
-
-export function HorizontalRayIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="4" y1="12" x2="22" y2="12" /><Handle cx={4} cy={12} /><path d="m19 9 3 3-3 3" /></Glyph>;
-}
-
-export function CrossLineIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="3" y1="12" x2="21" y2="12" /><line x1="12" y1="3" x2="12" y2="21" /><Handle cx={12} cy={12} /></Glyph>;
-}
-
-export function InfoLineIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><line x1="4" y1="19" x2="20" y2="5" /><Handle cx={4} cy={19} /><Handle cx={20} cy={5} /><circle cx="8" cy="7" r="3" /><path d="M8 6.5v2M8 5h.01" /></Glyph>;
-}
-
-export function TrendAngleIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="M4 19h17M4 19 19 6M10 19a6 6 0 0 0-1.5-4" /><Handle cx={4} cy={19} /><Handle cx={19} cy={6} /></Glyph>;
-}
-
-export function RegressionIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="m3 16 16-10M5 20 21 10M3 11 16 3" opacity=".7" /><line x1="4" y1="16" x2="20" y2="6" /><Handle cx={4} cy={16} /><Handle cx={20} cy={6} /></Glyph>;
-}
-
-export function RangeIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="M7 4v16M4 4h6M4 20h6M14 7h7M14 17h7M17 7v10" /><path d="m15 9 2-2 2 2m-4 6 2 2 2-2" /></Glyph>;
-}
-
-export function FibExtensionIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="m3 18 6-10 5 6" /><line x1="14" y1="6" x2="21" y2="6" /><line x1="14" y1="10" x2="21" y2="10" /><line x1="14" y1="14" x2="21" y2="14" /><line x1="14" y1="18" x2="21" y2="18" /><Handle cx={3} cy={18} /><Handle cx={9} cy={8} /><Handle cx={14} cy={14} /></Glyph>;
 }
 
 export function CalloutIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="M5 5h15v11H10l-5 4Z" /><line x1="9" y1="9" x2="16" y2="9" /><line x1="9" y1="12" x2="14" y2="12" /></Glyph>;
+  return (
+    <Glyph {...props}>
+      <path d="M8.5 4.5h11v9h-11l-2.5 2.5v-2.5z" strokeWidth={1.3} />
+      <path d="M11 8h6M11 10.5h4" strokeWidth={1.1} opacity=".7" />
+      <path d="M8 16.5 5 20.5" strokeWidth={1.1} />
+      <Ring cx={5} cy={20.5} r={1.7} />
+    </Glyph>
+  );
 }
 
 export function AnchoredTextIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="M4 5h12M10 5v12M7 17h6" /><path d="M18 9v8m-3 0h6m-3 0-2 3m2-3 2 3" opacity=".8" /><Handle cx={18} cy={9} r={1.2} /></Glyph>;
+  return (
+    <Glyph {...props}>
+      <path d="M4 5h12M10 5v12M7 17h6" />
+      <path d="M18 9v8m-3 0h6m-3 0-2 3m2-3 2 3" opacity=".8" />
+      <Ring cx={18} cy={9} r={1.7} />
+    </Glyph>
+  );
 }
+
+// ---- rail group icons ----
 
 export function LinesGroupIcon(props: DrawingIconProps) {
   return (
     <Glyph {...props}>
-      <line x1="4" y1="18" x2="18" y2="4" /><Handle cx={4} cy={18} /><Handle cx={18} cy={4} />
+      <line x1="4" y1="18" x2="18" y2="4" /><Ring cx={4} cy={18} /><Ring cx={18} cy={4} />
       <line x1="5" y1="21" x2="21" y2="21" opacity=".55" />
     </Glyph>
   );
 }
 
 export function ShapesGroupIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><rect x="3" y="4" width="10" height="10" /><circle cx="15.5" cy="15.5" r="5.5" /><Handle cx={3} cy={4} r={1.15} /></Glyph>;
+  return <Glyph {...props}><rect x="3" y="4" width="10" height="10" /><circle cx="15.5" cy="15.5" r="5.5" /><Ring cx={3} cy={4} r={1.6} /></Glyph>;
 }
 
 export function NotesGroupIcon(props: DrawingIconProps) {
@@ -233,13 +413,13 @@ export const DRAWING_TOOL_ICONS = {
   infoLine: InfoLineIcon,
   trendAngle: TrendAngleIcon,
   regression: RegressionIcon,
-  flatChannel: ParallelChannelIcon,
-  disjointChannel: ParallelChannelIcon,
+  flatChannel: FlatChannelIcon,
+  disjointChannel: DisjointChannelIcon,
   fibExtension: FibExtensionIcon,
-  priceRange: RangeIcon,
-  dateRange: RangeIcon,
-  datePriceRange: RangeIcon,
+  priceRange: PriceRangeIcon,
+  dateRange: DateRangeIcon,
+  datePriceRange: DatePriceRangeIcon,
   callout: CalloutIcon,
-  priceLabel: LabelToolIcon,
+  priceLabel: PriceLabelIcon,
   anchoredText: AnchoredTextIcon,
 } satisfies Record<ToolKind, DrawingIcon>;

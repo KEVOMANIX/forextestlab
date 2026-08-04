@@ -252,21 +252,40 @@ the Navigator, open the Calendar tab and scroll back through the years you want 
 the terminal only holds what it has downloaded — then drag the script onto any
 chart. It writes a CSV to `Terminal\Common\Files\`.
 
+The calendar is read a month at a time. Asking for the whole history in one call
+fails with error 5401, `ERR_CALENDAR_TIMEOUT` — which reads like "no data" but means
+the request exceeded the server's time limit. The script narrows the window further
+wherever history is slow, sleeps between requests because the calendar server
+rate-limits, and reports in the Experts log any day it could not read at all.
+
 **2. Import it.**
 
 ```bash
-npm run calendar:import -- \
-  --file ./data/forextestlab-calendar.csv \
-  --timezone Europe/Kyiv
+npm run calendar:import -- --file ./data/forextestlab-calendar.csv
 ```
 
-`--timezone` is your **broker's server zone**, because that is the zone MetaTrader
-reports calendar times in — not your own, and not UTC. Name the IANA zone rather
-than a fixed offset so events either side of a daylight-saving change convert with
-the rule that was in force on their own date; a fixed `+02:00` puts every summer
-release an hour from the candle it moved. The importer warns if the zone you name
-was not on the offset the exporting terminal reported. `--dry-run` checks a file
-without writing.
+No timezone needed: the importer works out the broker's server zone from the file.
+MetaTrader reports calendar times in trade-server time, and "GMT+3" is ambiguous in
+exactly the way that matters — a server on a fixed UTC+3 and one on EET summer time
+read the same in August and differ by an hour every winter. So the importer combines
+two pieces of evidence in the file: the offset the exporting terminal recorded in the
+header, which pins the offset at one instant, and the release schedules themselves.
+Statistical agencies publish at a fixed *local* time — US nonfarm payrolls is 08:30
+in New York whatever the season — so only the true zone makes every release land on
+the same local minute.
+
+It reports what it concluded and what it rested on:
+
+```
+Anchor: USD Nonfarm Payrolls, 214 releases.
+Under Europe/Kyiv, 100% of them land on 08:30 in America/New_York.
+Same clock as: Europe/Athens, Europe/Helsinki, Europe/Riga.
+```
+
+Pass `--timezone` to override, and it will warn if the file disagrees with you.
+`--dry-run` checks a file without writing. If no release in the file recurs on both
+sides of a daylight-saving change there is nothing to anchor on, so it falls back to
+UTC and says so loudly rather than guessing.
 
 Re-running an export updates releases in place, keyed on the provider's own id —
 which is the point of re-running it, since a release exported before it happened

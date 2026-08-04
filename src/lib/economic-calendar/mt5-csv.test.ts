@@ -146,12 +146,18 @@ describe("normalizeMt5Row", () => {
 });
 
 describe("parseExportHeader", () => {
-  it("reads the server and its offset", () => {
+  it("reads the server, its offset, and when that offset was observed", () => {
+    // The instant matters as much as the offset: +180 means EEST in August and
+    // something else entirely in January.
     expect(
       parseExportHeader(
         "# forextestlab-calendar v1 server=ICMarkets-Demo server_gmt_offset_minutes=180 exported_utc=2026.08.04 09:00:00",
       ),
-    ).toEqual({ server: "ICMarkets-Demo", offsetMinutes: 180 });
+    ).toEqual({
+      server: "ICMarkets-Demo",
+      offsetMinutes: 180,
+      exportedAt: Date.UTC(2026, 7, 4, 9, 0, 0),
+    });
   });
 
   it("reads a negative offset", () => {

@@ -55,22 +55,33 @@ async function main() {
   }
 
   const dryRun = flags["dry-run"] === "true";
-  const timezone = flags.timezone ?? "UTC";
-  if (!flags.timezone) {
-    console.warn(
-      "No --timezone given, so times are being read as UTC. MetaTrader reports\n" +
-        "calendar times in trade server time — if your broker is not on UTC, every\n" +
-        "event will import at the wrong hour.\n",
-    );
-  }
 
-  console.log(`Importing ${file} (server zone ${timezone})${dryRun ? " — dry run" : ""}…`);
+  console.log(
+    `Importing ${file}${dryRun ? " — dry run" : ""}…\n` +
+      (flags.timezone
+        ? `Reading server times as ${flags.timezone}.`
+        : "Working out the server's timezone from the release schedules in the file…"),
+  );
+
   const report = await importEconomicCalendar({
     filePath: file,
-    timezone,
+    timezone: flags.timezone,
     source: flags.source ?? "mt5",
     dryRun,
   });
+
+  const detection = report.detection;
+  if (detection?.anchor && detection.best) {
+    console.log(
+      `\nAnchor: ${detection.anchor.currency} ${detection.anchor.name}, ` +
+        `${detection.anchor.samples} releases.\n` +
+        `Under ${report.timezone}, ${Math.round(detection.best.score * 100)}% of them land on ` +
+        `${detection.best.localTime} in ${detection.anchor.issuingZone}.` +
+        (detection.equivalent.length > 0
+          ? `\nSame clock as: ${detection.equivalent.join(", ")}.`
+          : ""),
+    );
+  }
 
   for (const warning of report.warnings) {
     console.warn(`\nWarning: ${warning}`);
@@ -78,6 +89,15 @@ async function main() {
 
   console.log("\nCalendar import report");
   console.log("======================");
+  console.log(
+    `Server zone:     ${report.timezone} (${
+      report.timezoneSource === "given"
+        ? "as given"
+        : report.timezoneSource === "detected"
+          ? "detected from the file"
+          : "fallback — see the warning above"
+    })`,
+  );
   console.log(`Rows read:       ${report.rowsRead}`);
   console.log(`Rows written:    ${report.rowsWritten}${dryRun ? " (nothing was written)" : ""}`);
   console.log(`Rows rejected:   ${report.rowsRejected}`);

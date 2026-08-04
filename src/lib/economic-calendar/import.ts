@@ -21,14 +21,19 @@ import {
   MT5_CSV_COMMENT_PREFIX,
   normalizeMt5Row,
   parseExportHeader,
+  type ExportHeader,
 } from "./mt5-csv";
 import { parseZoneSpec, zoneOffsetMinutesAt, type ZoneSpec } from "./timezone";
+import { detectServerZone, type ExportRow, type ZoneDetection } from "./detect-zone";
 import type { EconomicEventRecord } from "./types";
 
 export interface CalendarImportOptions {
   filePath?: string;
   stream?: Readable;
-  /** Broker server zone: an IANA name, or a fixed offset like "+02:00". */
+  /**
+   * Broker server zone: an IANA name, or a fixed offset like "+02:00". Omit it
+   * and the zone is worked out from the file — see `detectServerZone`.
+   */
   timezone?: string;
   source?: string;
   batchSize?: number;
@@ -38,7 +43,11 @@ export interface CalendarImportOptions {
 
 export interface CalendarImportReport {
   source: string;
+  /** The zone actually used, whether given or detected. */
   timezone: string;
+  /** How that zone was arrived at. */
+  timezoneSource: "given" | "detected" | "fallback";
+  detection: ZoneDetection | null;
   rowsRead: number;
   rowsWritten: number;
   rowsRejected: number;
@@ -102,12 +111,15 @@ function upsertBatch(rows: EconomicEventRecord[]): Prisma.Sql {
  * this import to go wrong, and it is invisible afterwards.
  */
 function checkZoneAgainstExport(
-  header: { server: string | null; offsetMinutes: number | null },
+  header: ExportHeader,
   zone: ZoneSpec,
   timezone: string,
 ): string | null {
   if (header.offsetMinutes == null) return null;
-  const at = Date.now();
+  // Compared at the moment the export was taken, not now: an import run in
+  // January against a file exported in July would otherwise flag a mismatch that
+  // is only the seasons moving.
+  const at = header.exportedAt ?? Date.now();
   const claimed =
     zone.kind === "offset" ? zone.minutes : zoneOffsetMinutesAt(at, zone.timeZone);
   if (claimed === header.offsetMinutes) return null;
@@ -121,10 +133,60 @@ function checkZoneAgainstExport(
   );
 }
 
+/**
+ * Reads the wall clocks out of a file so the zone can be inferred from them.
+ *
+ * A separate pass over the file, which is the price of not having to ask the
+ * trader a question they cannot reliably answer. Only the three columns the
+ * detector reads are kept.
+ */
+async function readRowsForDetection(path: string): Promise<ExportRow[]> {
+  const rows: ExportRow[] = [];
+  const stream = createReadStream(path, "utf8");
+  for await (const row of streamCsv(stream, { commentPrefix: MT5_CSV_COMMENT_PREFIX })) {
+    if (rows.length >= DETECTION_ROW_LIMIT) break;
+    rows.push({
+      currency: row.record.currency ?? "",
+      name: row.record.name ?? "",
+      timeServer: row.record.time_server ?? "",
+    });
+  }
+  return rows;
+}
+
+/** Enough releases to anchor on, without holding a whole export in memory twice. */
+const DETECTION_ROW_LIMIT = 400_000;
+
 export async function importEconomicCalendar(
   options: CalendarImportOptions,
 ): Promise<CalendarImportReport> {
-  const timezone = options.timezone ?? "UTC";
+  // Detection reads the file a second time, so it only runs when there is a path
+  // to re-open. A caller streaming its own data has to name the zone. It runs
+  // even when a zone was given, because disagreeing with the file is worth
+  // saying out loud.
+  const header = options.filePath
+    ? parseExportHeader((await readFirstLine(resolveSafeCsvPath(options.filePath))) ?? "")
+    : null;
+  const detection = options.filePath
+    ? detectServerZone(await readRowsForDetection(resolveSafeCsvPath(options.filePath)), {
+        observedOffsetMinutes: header?.offsetMinutes ?? null,
+        observedAt: header?.exportedAt ?? null,
+      })
+    : null;
+
+  let timezone: string;
+  let timezoneSource: CalendarImportReport["timezoneSource"];
+  if (options.timezone != null && options.timezone !== "") {
+    timezone = options.timezone;
+    timezoneSource = "given";
+  } else if (detection?.confident && detection.best) {
+    timezone = detection.best.timezone;
+    timezoneSource = "detected";
+  } else {
+    timezone = "UTC";
+    timezoneSource = "fallback";
+  }
+
   const zone = parseZoneSpec(timezone);
   if (!zone) {
     throw new Error(
@@ -137,6 +199,8 @@ export async function importEconomicCalendar(
   const report: CalendarImportReport = {
     source,
     timezone,
+    timezoneSource,
+    detection,
     rowsRead: 0,
     rowsWritten: 0,
     rowsRejected: 0,
@@ -155,13 +219,36 @@ export async function importEconomicCalendar(
 
   // The provenance line is a comment, so the parser skips it. Read it off the
   // head of the file separately, before the stream is consumed.
-  if (options.filePath) {
-    const header = await readFirstLine(resolveSafeCsvPath(options.filePath));
-    const parsed = header ? parseExportHeader(header) : null;
-    if (parsed) {
-      const warning = checkZoneAgainstExport(parsed, zone, timezone);
-      if (warning) report.warnings.push(warning);
+  if (header) {
+    const warning = checkZoneAgainstExport(header, zone, timezone);
+    if (warning) report.warnings.push(warning);
+  }
+
+  // The file's own release schedules are better evidence than anything the
+  // caller can know, so say so when the two disagree.
+  if (timezoneSource === "given" && detection?.confident && detection.best) {
+    if (
+      detection.best.timezone !== timezone &&
+      !detection.equivalent.includes(timezone)
+    ) {
+      report.warnings.push(
+        `The release schedules in this file say the server was on ${detection.best.timezone}, ` +
+          `not ${timezone}: under ${detection.best.timezone} every ${detection.anchor?.name} ` +
+          `lands on ${detection.best.localTime} in ${detection.anchor?.issuingZone}, which is ` +
+          `where it is published. Re-run without --timezone to accept that.`,
+      );
     }
+  }
+  if (timezoneSource === "fallback" && detection && !detection.confident) {
+    report.warnings.push(
+      detection.anchor == null
+        ? "Could not work out the server's zone: no release in this file recurs on both " +
+          "sides of a daylight-saving change. Times were read as UTC — pass --timezone " +
+          "with your broker's server zone if that is wrong."
+        : `Could not settle on the server's zone from this file (best guess ` +
+          `${detection.best?.timezone} at ${Math.round((detection.best?.score ?? 0) * 100)}% ` +
+          `agreement). Times were read as UTC.`,
+    );
   }
 
   const currencies = new Set<string>();

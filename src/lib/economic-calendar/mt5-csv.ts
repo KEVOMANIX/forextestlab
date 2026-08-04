@@ -136,15 +136,24 @@ export function normalizeMt5Row(
  * importer can warn when the zone it was given disagrees with the server the
  * file came from. Returns null for any other line.
  */
-export function parseExportHeader(
-  line: string,
-): { server: string | null; offsetMinutes: number | null } | null {
+export interface ExportHeader {
+  server: string | null;
+  /** The server's offset from GMT, in minutes, when the export was taken. */
+  offsetMinutes: number | null;
+  /** When it was taken, UTC epoch ms — the moment that offset applies to. */
+  exportedAt: number | null;
+}
+
+export function parseExportHeader(line: string): ExportHeader | null {
   if (!line.startsWith(MT5_CSV_COMMENT_PREFIX)) return null;
   if (!line.includes("forextestlab-calendar")) return null;
   const server = /server=(\S+)/.exec(line);
   const offset = /server_gmt_offset_minutes=(-?\d+)/.exec(line);
+  const exported = /exported_utc=([\d.]+ [\d:]+)/.exec(line);
+  const clock = exported ? parseWallClock(exported[1]!) : null;
   return {
     server: server?.[1] ?? null,
     offsetMinutes: offset ? Number(offset[1]) : null,
+    exportedAt: clock ? wallClockToUtc(clock, { kind: "offset", minutes: 0 }) : null,
   };
 }

@@ -17,18 +17,14 @@
 //   4. The CSV lands in  Terminal\Common\Files\  (File -> Open Data Folder,
 //      then up one level into Common) unless InpCommonFolder is false.
 //
-// TIMEZONES — READ THIS
+// TIMEZONES
 //   MQL5 returns calendar times in *trade server* time, not UTC. This script
 //   writes them exactly as the terminal reports them and records the server's
-//   offset from GMT, observed at export, on the first line. The importer needs
-//   to be told the zone:
+//   offset from GMT, observed at export, on the first line. The importer works
+//   the zone out from that offset and from the release schedules in the file, so
+//   there is nothing to pass:
 //
-//     npm run calendar:import -- --file ./data/calendar.csv --timezone Europe/Kyiv
-//
-//   Pass your broker's IANA zone (most are Europe/Kyiv or Europe/Athens — EET
-//   with summer time) so each event converts with the DST rule in force on its
-//   own date. A fixed offset like --timezone +02:00 also works, but it will be
-//   an hour out for every event on the other side of a DST boundary.
+//     npm run calendar:import -- --file ./data/forextestlab-calendar.csv
 //
 #property copyright "ForexTestLab"
 #property version   "1.00"
@@ -36,7 +32,7 @@
 #property script_show_inputs
 
 input datetime InpFrom         = D'2007.01.01';               // From (server time)
-input datetime InpTo           = D'2100.01.01';               // To (server time)
+input datetime InpTo           = D'2028.01.01';               // To (server time)
 input string   InpCurrencies   = "";                          // Currencies, comma separated (blank = all)
 input string   InpFileName     = "forextestlab-calendar.csv";  // Output file name
 input bool     InpCommonFolder = true;                        // Write to Terminal\Common\Files
@@ -144,10 +140,105 @@ void WriteLine(const int handle, const string line)
       FileWriteArray(handle, bytes, 0, length - 1);
   }
 
+#define DAY_SECONDS      86400
+/**
+ * The calendar is read a window at a time. Asking for the whole history in one
+ * call fails with 5401 (ERR_CALENDAR_TIMEOUT) — not "no data", which is how it
+ * first read: the request simply exceeds the server's time limit. A month is
+ * comfortably inside it, and the loop narrows further wherever history is slow.
+ */
+#define CHUNK_DAYS_MAX   30
+#define FETCH_ATTEMPTS   3
+#define RETRY_SLEEP_MS   500
+
+/**
+ * One window of calendar values. Returns the count, 0 for a genuinely empty
+ * window, or -1 when the server kept timing out and the caller should try a
+ * narrower one.
+ */
+int FetchChunk(MqlCalendarValue &values[], const datetime from, const datetime to,
+               const string currency)
+  {
+   for(int attempt = 0; attempt < FETCH_ATTEMPTS; attempt++)
+     {
+      ResetLastError();
+      const int count = CalendarValueHistory(values, from, to, NULL,
+                                             StringLen(currency) > 0 ? currency : NULL);
+      if(count > 0)
+         return count;
+
+      const int error = GetLastError();
+      if(error == 0)
+         return 0;                     // No releases in this window.
+      if(error == 5401 || error == 5400)
+        {
+         Sleep(RETRY_SLEEP_MS);
+         continue;
+        }
+      PrintFormat("Calendar error %d reading %s to %s. %s",
+                  error,
+                  TimeToString(from, TIME_DATE),
+                  TimeToString(to, TIME_DATE),
+                  "Calendar functions do not work in the Strategy Tester; run this on a live chart.");
+      return 0;
+     }
+   return -1;
+  }
+
+/** The calendar year a moment falls in, for progress reporting. */
+int ChunkYear(const datetime at)
+  {
+   MqlDateTime parts;
+   TimeToStruct(at, parts);
+   return parts.year;
+  }
+
+//+------------------------------------------------------------------+
+//| Event descriptions, cached by id and kept sorted so the lookup is |
+//| a binary search. A linear scan costs a few hundred million string |
+//| comparisons across a full history, which is minutes of export.    |
+//+------------------------------------------------------------------+
+long   g_ids[];      // ascending
+string g_rows[];     // parallel to g_ids
+int    g_cached = 0;
+
+/** Index of `id`, or -1. `insertAt` receives where it would belong. */
+int FindEvent(const long id, int &insertAt)
+  {
+   int low = 0;
+   int high = g_cached;
+   while(low < high)
+     {
+      const int mid = (low + high) >> 1;
+      if(g_ids[mid] < id)
+         low = mid + 1;
+      else
+         high = mid;
+     }
+   insertAt = low;
+   if(low < g_cached && g_ids[low] == id)
+      return low;
+   return -1;
+  }
+
+void InsertEvent(const int at, const long id, const string row)
+  {
+   g_cached++;
+   ArrayResize(g_ids, g_cached);
+   ArrayResize(g_rows, g_cached);
+   for(int i = g_cached - 1; i > at; i--)
+     {
+      g_ids[i] = g_ids[i - 1];
+      g_rows[i] = g_rows[i - 1];
+     }
+   g_ids[at] = id;
+   g_rows[at] = row;
+  }
+
 //+------------------------------------------------------------------+
 //| Everything about an event that does not change between releases,  |
-//| pre-rendered as CSV cells and cached by event id. Thousands of    |
-//| releases share a few hundred events.                              |
+//| pre-rendered as CSV cells. Thousands of releases share a few      |
+//| hundred events.                                                   |
 //+------------------------------------------------------------------+
 string DescribeEvent(const ulong eventId)
   {
@@ -217,12 +308,9 @@ void OnStart()
       currencyCount = 1;
      }
 
-   ulong  cachedIds[];
-   string cachedRows[];
-   int    cached = 0;
-
    int written = 0;
    int skipped = 0;
+   int timedOut = 0;
 
    for(int c = 0; c < currencyCount; c++)
      {
@@ -231,59 +319,89 @@ void OnStart()
       StringTrimRight(currency);
       StringToUpper(currency);
 
-      MqlCalendarValue values[];
-      const int count = CalendarValueHistory(values, InpFrom, InpTo, NULL,
-                                             StringLen(currency) > 0 ? currency : NULL);
-      if(count <= 0)
-        {
-         const int error = GetLastError();
-         PrintFormat("No calendar values for %s (error %d). %s",
-                     StringLen(currency) > 0 ? currency : "all currencies",
-                     error,
-                     "Calendar functions do not work in the Strategy Tester. On a live chart, "
-                     "open the Calendar tab and scroll back so the terminal downloads history.");
-         ResetLastError();
-         continue;
-        }
+      datetime cursor = InpFrom;
+      int chunkDays = CHUNK_DAYS_MAX;
+      int reportedYear = 0;
 
-      for(int i = 0; i < count; i++)
+      while(cursor < InpTo && !IsStopped())
         {
-         int hit = -1;
-         for(int k = 0; k < cached; k++)
-            if(cachedIds[k] == values[i].event_id)
-              { hit = k; break; }
+         datetime next = cursor + (datetime)chunkDays * DAY_SECONDS;
+         if(next > InpTo)
+            next = InpTo;
 
-         if(hit < 0)
+         MqlCalendarValue values[];
+         const int count = FetchChunk(values, cursor, next, currency);
+
+         if(count < 0)
            {
-            const string described = DescribeEvent(values[i].event_id);
-            if(StringLen(described) == 0)
-              { skipped++; continue; }
-            hit = cached;
-            cached++;
-            ArrayResize(cachedIds, cached);
-            ArrayResize(cachedRows, cached);
-            cachedIds[hit] = values[i].event_id;
-            cachedRows[hit] = described;
+            // The window is still too wide for the calendar server. Narrow it
+            // and retry the same span rather than skipping it.
+            if(chunkDays > 1)
+              {
+               chunkDays = (int)MathMax(1, chunkDays / 4);
+               continue;
+              }
+            PrintFormat("Gave up on %s: the calendar kept timing out.",
+                        TimeToString(cursor, TIME_DATE));
+            timedOut++;
+            cursor = next;
+            continue;
            }
 
-         WriteLine(handle, StringFormat("%I64u,%s,%s,%s,%s,%s,%s,%s,%d",
-                                       values[i].id,
-                                       Stamp(values[i].time, TIME_DATE | TIME_SECONDS),
-                                       cachedRows[hit],
-                                       Figure(values[i].actual_value),
-                                       Figure(values[i].forecast_value),
-                                       Figure(values[i].prev_value),
-                                       Figure(values[i].revised_prev_value),
-                                       Stamp(values[i].period, TIME_DATE),
-                                       values[i].revision));
-         written++;
+         for(int i = 0; i < count; i++)
+           {
+            int insertAt = 0;
+            int slot = FindEvent((long)values[i].event_id, insertAt);
+            if(slot < 0)
+              {
+               const string described = DescribeEvent(values[i].event_id);
+               if(StringLen(described) == 0)
+                 { skipped++; continue; }
+               InsertEvent(insertAt, (long)values[i].event_id, described);
+               slot = insertAt;
+              }
+
+            WriteLine(handle, StringFormat("%I64u,%s,%s,%s,%s,%s,%s,%s,%d",
+                                          values[i].id,
+                                          Stamp(values[i].time, TIME_DATE | TIME_SECONDS),
+                                          g_rows[slot],
+                                          Figure(values[i].actual_value),
+                                          Figure(values[i].forecast_value),
+                                          Figure(values[i].prev_value),
+                                          Figure(values[i].revised_prev_value),
+                                          Stamp(values[i].period, TIME_DATE),
+                                          values[i].revision));
+            written++;
+           }
+
+         const int year = ChunkYear(cursor);
+         if(year != reportedYear)
+           {
+            reportedYear = year;
+            PrintFormat("%d… %d rows so far.", year, written);
+           }
+
+         cursor = next;
+         // Widen again after a clean chunk, so one slow patch of history does
+         // not hold the rest of the export at one day a request.
+         if(chunkDays < CHUNK_DAYS_MAX)
+            chunkDays = (int)MathMin(CHUNK_DAYS_MAX, chunkDays * 2);
+         // The calendar server rate-limits, and a tight loop reads as abuse.
+         Sleep(40);
         }
      }
 
    FileClose(handle);
-   PrintFormat("Wrote %d calendar rows for %d events (%d skipped) to %s%s.",
-               written, cached, skipped,
+   PrintFormat("Wrote %d calendar rows for %d events to %s%s.",
+               written, g_cached,
                InpCommonFolder ? "Common\\Files\\" : "MQL5\\Files\\",
                InpFileName);
+   if(skipped > 0)
+      PrintFormat("%d rows skipped: the terminal had no description for their event.", skipped);
+   if(timedOut > 0)
+      PrintFormat("%d single days could not be read at all — that history is missing.", timedOut);
+   if(written == 0)
+      Print("Nothing was exported. Open View -> Toolbox -> Calendar on a live "
+            "chart, let it populate, and run this again.");
   }
 //+------------------------------------------------------------------+

@@ -5,6 +5,7 @@ import {
   createSession,
   toPublicState,
   visibleCandles,
+  bufferedReplayCandles,
 } from "@/lib/backtest/session-store";
 import { selectTrialWindow } from "@/lib/backtest/trial-window";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
@@ -106,7 +107,7 @@ export async function POST(request: Request) {
           token: session.token,
           state: toPublicState(session.ctx, session.anonymous),
           candles: visibleCandles(session.ctx),
-          replayCandles: session.ctx.candles,
+          replayCandles: bufferedReplayCandles(session.ctx),
           contextCandles: session.contextCandles,
         },
         { status: 201 },

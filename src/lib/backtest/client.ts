@@ -134,14 +134,27 @@ export async function sendAction(
   return parse<ActionOk>(res) as Promise<ActionOk | ApiErr>;
 }
 
+/**
+ * `count` — how many candles the caller's own local engine array currently
+ * holds — must always be sent. A capped response never ships the whole
+ * session, so a resumed session can have this server process already caching
+ * candles the browser never received; without `count` the server has no way
+ * to tell the difference between that surplus and genuinely new data, and
+ * would skip straight past it.
+ */
 export async function extendReplay(
   sessionId: string,
   token: string | null,
+  count: number,
 ): Promise<ReplayExtensionOk | ApiErr> {
   try {
     const res = await fetch(`/api/backtest/sessions/${sessionId}/extend`, {
       method: "POST",
-      headers: token ? { "x-session-token": token } : undefined,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "x-session-token": token } : {}),
+      },
+      body: JSON.stringify({ count }),
     });
     return parse<ReplayExtensionOk>(res) as Promise<ReplayExtensionOk | ApiErr>;
   } catch {
@@ -153,6 +166,7 @@ export async function extendSessionRange(
   sessionId: string,
   token: string | null,
   endTime: number,
+  count: number,
 ): Promise<ReplayExtensionOk | ApiErr> {
   try {
     const res = await fetch(`/api/backtest/sessions/${sessionId}/extend`, {
@@ -161,7 +175,7 @@ export async function extendSessionRange(
         "Content-Type": "application/json",
         ...(token ? { "x-session-token": token } : {}),
       },
-      body: JSON.stringify({ endTime }),
+      body: JSON.stringify({ endTime, count }),
     });
     return parse<ReplayExtensionOk>(res) as Promise<ReplayExtensionOk | ApiErr>;
   } catch {

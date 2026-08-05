@@ -13,6 +13,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/db";
+import { MAX_BUFFER_CANDLES } from "./replay-buffer";
 import {
   assertSessionAllowed,
   getUserEntitlements,
@@ -113,13 +114,30 @@ export function visibleCandles(ctx: EngineContext): Candle[] {
 }
 
 /**
+ * Revealed candles plus a bounded runway ahead of the reveal cursor — enough
+ * for the client's own local replay engine to play smoothly without a fetch
+ * on every candle, but never the rest of the session.
+ *
+ * This used to be `ctx.candles` in full. That was every candle this server
+ * process had ever fetched for the session — which, after enough
+ * `extendReplaySeries` calls over a long or fast-replayed session, is
+ * unbounded and can run far ahead of `visibleIndex`. A trader opening dev
+ * tools (or just a slow network letting a response arrive after the fact)
+ * could read outcomes the replay had not reached yet.
+ */
+export function bufferedReplayCandles(ctx: EngineContext): Candle[] {
+  return ctx.candles.slice(0, ctx.state.visibleIndex + 1 + MAX_BUFFER_CANDLES);
+}
+
+/**
  * Chart data for one of the session's symbols.
  *
- * `full` returns the whole session series instead of the slice revealed so far,
- * so a multi-chart layout can advance its extra cells on the browser's replay
- * clock instead of a network round-trip per candle. This matches what the
- * session symbol already ships (`replayCandles`), so it grants the client no
- * look-ahead it did not already have.
+ * `full` returns the revealed slice plus the same bounded runway
+ * `bufferedReplayCandles` grants the session's own symbol, instead of just
+ * the revealed candles, so a multi-chart layout can advance its extra cells
+ * on the browser's replay clock instead of a network round-trip per candle —
+ * without handing over the rest of the session for a pair the trader is not
+ * even trading.
  */
 export async function visiblePairCandles(
   session: LoadedSession,
@@ -142,7 +160,7 @@ export async function visiblePairCandles(
 
   if (symbol === session.ctx.state.config.symbol) {
     return {
-      candles: full ? session.ctx.candles : visibleCandles(session.ctx),
+      candles: full ? bufferedReplayCandles(session.ctx) : visibleCandles(session.ctx),
       contextCandles: await getChartContext(session, symbol),
       pipSize: definition.pipSize,
       pricePrecision: definition.pricePrecision,
@@ -150,10 +168,16 @@ export async function visiblePairCandles(
   }
 
   const current = currentCandleOf(session.ctx)?.timestamp;
+  const timeframe = session.ctx.state.config.timeframe;
+  // Same runway as `bufferedReplayCandles`, expressed in time rather than an
+  // index — this series is fetched fresh from the provider, not sliced from
+  // the session's own revealed-index array.
+  const bufferCutoff =
+    current != null ? current + MAX_BUFFER_CANDLES * TIMEFRAME_MS[timeframe] : null;
   const [series, contextCandles] = await Promise.all([
     fetchSeries(
       symbol,
-      session.ctx.state.config.timeframe,
+      timeframe,
       session.ctx.state.config.startTime,
       session.ctx.state.config.endTime,
     ),
@@ -161,7 +185,9 @@ export async function visiblePairCandles(
   ]);
   return {
     candles: full
-      ? series
+      ? bufferCutoff != null
+        ? series.filter((candle) => candle.timestamp <= bufferCutoff)
+        : series.slice(0, session.ctx.state.config.initialVisibleCount + MAX_BUFFER_CANDLES)
       : current
         ? series.filter((candle) => candle.timestamp <= current)
         : series.slice(0, session.ctx.state.config.initialVisibleCount),
@@ -258,10 +284,36 @@ async function fetchSeries(
   return candles.slice(0, limit);
 }
 
+/**
+ * The next chunk of replay candles beyond what the browser currently holds.
+ *
+ * `clientCandleCount` is how many candles the caller's own local engine array
+ * holds — not necessarily `ctx.candles.length`. Since a response only ever
+ * ships `bufferedReplayCandles` (revealed plus a bounded runway, see there),
+ * a session resumed after a long or fast-replayed run can have this server
+ * process already holding candles well past what any response ever sent: a
+ * long play session extends `ctx.candles` in step with the trader's own
+ * pace, then a page reload's initial response caps what goes out again. That
+ * surplus is served straight from `ctx.candles` — no provider round trip —
+ * and only once the caller has caught up to it does this reach out for
+ * anything actually new. Skipping this and always fetching from `ctx.candles`'s
+ * own tail would silently skip whatever the surplus was, leaving a gap in the
+ * browser's candle array with no error to say so.
+ */
 export async function extendReplaySeries(
   session: LoadedSession,
+  clientCandleCount: number,
 ): Promise<{ candles: Candle[]; hasMore: boolean }> {
   const { ctx } = session;
+
+  if (clientCandleCount < ctx.candles.length) {
+    const page = ctx.candles.slice(clientCandleCount, clientCandleCount + MAX_BUFFER_CANDLES);
+    const tail = ctx.candles[ctx.candles.length - 1];
+    const cachedReachedEnd = Boolean(tail && tail.timestamp >= ctx.state.config.endTime);
+    const remainingCached = ctx.candles.length - (clientCandleCount + page.length);
+    return { candles: page, hasMore: remainingCached > 0 || !cachedReachedEnd };
+  }
+
   const last = ctx.candles[ctx.candles.length - 1];
   if (!last || last.timestamp >= ctx.state.config.endTime) {
     return { candles: [], hasMore: false };

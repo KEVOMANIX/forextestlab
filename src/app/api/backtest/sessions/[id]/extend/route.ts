@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { extendReplaySeries, loadSession } from "@/lib/backtest/session-store";
-import { extendSessionSchema } from "@/lib/backtest/schemas";
+import { extendBufferSchema, extendSessionSchema } from "@/lib/backtest/schemas";
 import {
   FREE_SESSION_MAX_MS,
   getUserEntitlements,
@@ -36,6 +36,7 @@ export async function POST(
 
   try {
     let requestedEndTime: number | null = null;
+    let clientCandleCount = session.ctx.candles.length;
     const rawBody = await request.text();
     if (rawBody) {
       let body: unknown;
@@ -47,44 +48,63 @@ export async function POST(
           { status: 400 },
         );
       }
-      const parsed = extendSessionSchema.safeParse(body);
-      if (!parsed.success) {
-        return NextResponse.json(
-          { ok: false, error: "Choose a valid later end date." },
-          { status: 422 },
-        );
+      // `endTime` widens the session's own end date; `count` — how many
+      // candles the caller's own local engine array holds — accompanies
+      // both that and the routine buffer refill with no `endTime` at all.
+      const hasEndTime =
+        typeof body === "object" && body !== null && "endTime" in body;
+      if (!hasEndTime) {
+        const parsed = extendBufferSchema.safeParse(body);
+        if (!parsed.success) {
+          return NextResponse.json(
+            { ok: false, error: "Invalid request." },
+            { status: 400 },
+          );
+        }
+        if (parsed.data.count != null) clientCandleCount = parsed.data.count;
+      } else {
+        const parsed = extendSessionSchema.safeParse(body);
+        if (!parsed.success) {
+          return NextResponse.json(
+            { ok: false, error: "Choose a valid later end date." },
+            { status: 422 },
+          );
+        }
+        if (parsed.data.count != null) clientCandleCount = parsed.data.count;
+        requestedEndTime = parsed.data.endTime;
       }
-      requestedEndTime = parsed.data.endTime;
-      if (requestedEndTime <= session.ctx.state.config.endTime) {
+      if (requestedEndTime !== null && requestedEndTime <= session.ctx.state.config.endTime) {
         return NextResponse.json(
           { ok: false, error: "The new end date must be later than the current end date." },
           { status: 422 },
         );
       }
 
-      if (user) {
-        const entitlements = await getUserEntitlements(user.id);
-        if (
-          entitlements.maxSessionDays !== null &&
-          requestedEndTime - session.ctx.state.config.startTime > FREE_SESSION_MAX_MS
+      if (requestedEndTime !== null) {
+        if (user) {
+          const entitlements = await getUserEntitlements(user.id);
+          if (
+            entitlements.maxSessionDays !== null &&
+            requestedEndTime - session.ctx.state.config.startTime > FREE_SESSION_MAX_MS
+          ) {
+            return NextResponse.json(
+              {
+                ok: false,
+                error:
+                  "Trial sessions can cover up to one month. Upgrade to extend this session further.",
+              },
+              { status: 403 },
+            );
+          }
+        } else if (
+          requestedEndTime - session.ctx.state.config.startTime >
+          FREE_SESSION_MAX_MS
         ) {
           return NextResponse.json(
-            {
-              ok: false,
-              error:
-                "Trial sessions can cover up to one month. Upgrade to extend this session further.",
-            },
+            { ok: false, error: "This session can cover up to one month." },
             { status: 403 },
           );
         }
-      } else if (
-        requestedEndTime - session.ctx.state.config.startTime >
-        FREE_SESSION_MAX_MS
-      ) {
-        return NextResponse.json(
-          { ok: false, error: "This session can cover up to one month." },
-          { status: 403 },
-        );
       }
     }
 
@@ -92,7 +112,7 @@ export async function POST(
     if (requestedEndTime !== null) {
       session.ctx.state.config.endTime = requestedEndTime;
     }
-    const page = await extendReplaySeries(session);
+    const page = await extendReplaySeries(session, clientCandleCount);
     if (requestedEndTime !== null && page.candles.length === 0) {
       session.ctx.state.config.endTime = previousEndTime;
       return NextResponse.json(

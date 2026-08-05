@@ -80,6 +80,13 @@ export const sessionMetadataSchema = z.object({
 
 export const extendSessionSchema = z.object({
   endTime: z.number().int().positive(),
+  /** How many candles the caller's own local engine array currently holds. */
+  count: z.number().int().min(0).optional(),
+});
+
+/** The routine buffer-refill call — no `endTime`, just how much the caller already has. */
+export const extendBufferSchema = z.object({
+  count: z.number().int().min(0).optional(),
 });
 
 const nullablePrice = z.union([positiveNumericString, z.null()]);

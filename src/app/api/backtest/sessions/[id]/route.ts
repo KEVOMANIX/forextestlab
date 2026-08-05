@@ -5,6 +5,7 @@ import {
   getChartContext,
   toPublicState,
   visibleCandles,
+  bufferedReplayCandles,
 } from "@/lib/backtest/session-store";
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -33,7 +34,7 @@ export async function GET(
     ok: true,
     state: toPublicState(session.ctx, session.anonymous),
     candles: visibleCandles(session.ctx),
-    replayCandles: session.ctx.candles,
+    replayCandles: bufferedReplayCandles(session.ctx),
     contextCandles: await getChartContext(session),
     notes: session.notes,
   });

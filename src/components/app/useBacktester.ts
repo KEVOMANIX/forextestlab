@@ -236,7 +236,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     // Prisma connection configured for each serverless function.
     const request = actionQueueRef.current
       .then(() =>
-        retryReplayChunk(() => extendReplay(id, tokenRef.current)),
+        retryReplayChunk(() => extendReplay(id, tokenRef.current, engine.candles.length)),
       )
       .then((extension) => {
         if (
@@ -1219,7 +1219,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
       interactiveBusyRef.current = true;
       patch({ busy: true, error: null });
-      const result = await extendSessionRange(id, tokenRef.current, endTime);
+      const result = await extendSessionRange(id, tokenRef.current, endTime, engine.candles.length);
       interactiveBusyRef.current = false;
 
       if (!result.ok) {

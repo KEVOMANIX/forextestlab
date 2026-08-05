@@ -4,7 +4,14 @@ import type { ReplaySpeed } from "./types";
 const MIN_BUFFER_CANDLES = 1_500;
 const MIN_BUFFER_SECONDS = 30;
 const LATENCY_SAFETY_MULTIPLIER = 4;
-const MAX_BUFFER_CANDLES = 6_000;
+/**
+ * Ceiling on the client-side lookahead buffer, and — doing double duty — how
+ * far past the reveal cursor the server will ever put real OHLC values in a
+ * response. A trader's own browser only ever holds enough of the future to
+ * keep the fastest replay speed from stalling on a slow connection, never the
+ * rest of the session.
+ */
+export const MAX_BUFFER_CANDLES = 6_000;
 
 /**
  * Keep enough already-downloaded candles to survive both the fastest replay

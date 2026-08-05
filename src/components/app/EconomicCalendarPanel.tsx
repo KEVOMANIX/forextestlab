@@ -5,7 +5,9 @@
  *
  * Search or filter for a release across the session's own date range and jump
  * the replay straight to it, instead of scrubbing the time axis by eye looking
- * for a badge. Jumping reuses the same `onJump` the "Go to" dialog drives, so
+ * for a badge. Scoped to the currencies the open charts actually trade — the
+ * same set each pane's own badges use — so it doesn't list releases for a
+ * currency nobody on this workspace can act on. Jumping reuses the same `onJump` the "Go to" dialog drives, so
  * the same constraint applies: a replay only goes forward, never back past
  * what it has already revealed. A release behind the playhead stays in the
  * list rather than disappearing — its "Jump" button is simply disabled, with
@@ -36,6 +38,13 @@ interface Props {
   currentTime: number;
   /** Display zone, so a release's time agrees with the chart's own axis. */
   zone: string;
+  /**
+   * Currencies traded across the workspace's own charts — the same set each
+   * pane's badges already use. Releases for currencies nobody has open are
+   * just noise here, so the panel narrows to this set rather than listing
+   * every release in the window.
+   */
+  currencies: string[];
   /** True while a jump (or any other session action) is already in flight. */
   busy: boolean;
   onJump: (target: GoToTarget, label: string) => void;
@@ -60,6 +69,7 @@ export function EconomicCalendarPanel({
   rangeEnd,
   currentTime,
   zone,
+  currencies,
   busy,
   onJump,
 }: Props) {
@@ -74,6 +84,7 @@ export function EconomicCalendarPanel({
   // Fetched once per (range, importance) — the panel is a lookup over a fixed
   // window, not a live feed, so there is nothing here that needs polling the
   // way the chart's own badges do.
+  const currencyKey = currencies.join(",");
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -82,6 +93,7 @@ export function EconomicCalendarPanel({
       from: String(Math.floor(rangeStart)),
       to: String(Math.ceil(rangeEnd)),
       importance: minImportance,
+      currencies: currencyKey,
     });
     fetch(`/api/calendar/events?${params}`, { cache: "no-store" })
       .then((response) => response.json())
@@ -99,7 +111,7 @@ export function EconomicCalendarPanel({
     return () => {
       cancelled = true;
     };
-  }, [open, rangeStart, rangeEnd, minImportance]);
+  }, [open, rangeStart, rangeEnd, minImportance, currencyKey]);
 
   // Filtered client-side rather than re-fetched per keystroke: a session's
   // window is at most a few hundred releases, well within what one page holds.

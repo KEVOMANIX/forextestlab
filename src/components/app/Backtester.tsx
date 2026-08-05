@@ -59,6 +59,7 @@ import type { GoToTarget } from "@/lib/backtest/goto";
 import { ChartSettingsDialog, type SettingsTab } from "./ChartSettingsMenu";
 import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
+import { currenciesForSymbol } from "@/lib/economic-calendar/types";
 import type { Timeframe } from "@/lib/market-data/types";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
@@ -136,6 +137,18 @@ export function Backtester({
   );
   // Chart preferences are shared by every chart in the session's workspace.
   const workspace = useChartWorkspace(String(bt.sessionId ?? "new"), Boolean(state && !state.anonymous), workspaceSymbols);
+  // Same per-symbol currency mapping each chart pane already badges its own
+  // releases with, just unioned across every symbol open in this workspace.
+  const workspaceCurrencies = useMemo(() => {
+    const currencies = new Set<string>();
+    for (const symbol of workspaceSymbols) {
+      const definition = getSymbolDefinition(symbol);
+      for (const currency of currenciesForSymbol(symbol, definition?.baseCurrency, definition?.quoteCurrency)) {
+        currencies.add(currency);
+      }
+    }
+    return Array.from(currencies);
+  }, [workspaceSymbols]);
   const [trialSessionsRemaining, setTrialSessionsRemaining] = useState(
     entitlements.trialSessionsRemaining,
   );
@@ -1013,6 +1026,7 @@ export function Backtester({
             onStopLossChange={changeStop}
             onTakeProfitChange={changeTarget}
             onLoadHistory={actions.loadHistory}
+            jumping={bt.jumping}
             theme={theme}
             storageKey={String(state.sessionId)}
             focusedSymbol={activeSymbol}
@@ -1108,6 +1122,7 @@ export function Backtester({
             rangeEnd={state.config.endTime}
             currentTime={state.currentTime ?? bt.lastCandle?.timestamp ?? state.config.startTime}
             zone={workspace.settings.timeZone}
+            currencies={workspaceCurrencies}
             busy={bt.busy}
             onJump={runJump}
           />

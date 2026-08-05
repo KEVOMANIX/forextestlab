@@ -209,6 +209,13 @@ interface PriceChartProps {
     before: number,
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading?: boolean;
+  /**
+   * A "Go to"/calendar jump is fast-forwarding this session. Unlike `loading`,
+   * this must not cover the chart — the whole point of a jump is that the
+   * intermediate candles paint as it goes, so this only adds a small corner
+   * badge rather than blocking the view.
+   */
+  jumping?: boolean;
   error?: string | null;
   /**
    * Identifies the *instrument*: drawings are stored under it, so the same
@@ -276,11 +283,6 @@ interface PriceChartProps {
    */
   railSlot?: HTMLElement | null;
   showRail?: boolean;
-  /**
-   * Layer covering the whole workspace, for chrome that should float over any
-   * pane rather than be clipped at this one's edge — the favourites toolbox.
-   */
-  floatSlot?: HTMLElement | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
   orderTicket?: React.ReactNode;
   /**
@@ -575,6 +577,7 @@ export default function PriceChart({
   onTakeProfitChange,
   onLoadHistory,
   loading = false,
+  jumping = false,
   error = null,
   storageKey,
   viewKey,
@@ -596,7 +599,6 @@ export default function PriceChart({
   showControls = true,
   railSlot = null,
   showRail = true,
-  floatSlot = null,
   orderTicket = null,
   axisCorner = null,
 }: PriceChartProps) {
@@ -2642,31 +2644,26 @@ export default function PriceChart({
   }, [showRail]);
 
   /**
-   * Keep the favourites bar inside the layer it is positioned against, leaving a
-   * grab edge visible. Without this it can be dragged past the boundary and
-   * clipped out of existence, with no way back to it.
+   * Keep the favourites bar inside the browser window, leaving a grab edge
+   * visible. Without this it can be dragged past the boundary and clipped out
+   * of existence, with no way back to it. The bar is fixed to the viewport, so
+   * the window itself is the only boundary that matters.
    */
   function clampFavBar(x: number, y: number): { x: number; y: number } {
     const bar = favBarRef.current;
-    const host = bar?.offsetParent as HTMLElement | null;
-    if (!bar || !host) return { x, y };
+    if (!bar || typeof window === "undefined") return { x, y };
     const edge = 8;
     return {
-      x: Math.min(Math.max(edge, x), Math.max(edge, host.clientWidth - bar.offsetWidth - edge)),
-      y: Math.min(Math.max(edge, y), Math.max(edge, host.clientHeight - bar.offsetHeight - edge)),
+      x: Math.min(Math.max(edge, x), Math.max(edge, window.innerWidth - bar.offsetWidth - edge)),
+      y: Math.min(Math.max(edge, y), Math.max(edge, window.innerHeight - bar.offsetHeight - edge)),
     };
   }
 
   // Drag the favorites bar from anywhere on it (buttons still click if no drag).
   function startFavDrag(e: React.PointerEvent<HTMLDivElement>) {
     const bar = e.currentTarget;
-    // Offsets come from the bar's own positioning parent, which is the workspace
-    // overlay in a split layout and this pane when there is no overlay to host it.
-    const host = bar.offsetParent as HTMLElement | null;
-    if (!host) return;
-    const hostBox = host.getBoundingClientRect();
     const barBox = bar.getBoundingClientRect();
-    favDragRef.current = { sx: e.clientX, sy: e.clientY, bx: barBox.left - hostBox.left, by: barBox.top - hostBox.top, moved: false, at: null };
+    favDragRef.current = { sx: e.clientX, sy: e.clientY, bx: barBox.left, by: barBox.top, moved: false, at: null };
     favMovedRef.current = false;
     const onMove = (ev: PointerEvent) => {
       const d = favDragRef.current;
@@ -3150,16 +3147,16 @@ export default function PriceChart({
   /**
    * The draggable favourites toolbox.
    *
-   * Positioned inside whatever layer hosts it — the workspace's overlay when one
-   * is provided, this pane otherwise — so the drag reads its offsets from that
-   * same box and the bar travels over every chart in a split layout instead of
-   * being clipped at the focused pane's edge. Its position is a workspace
-   * preference, so moving focus between panes does not send it home.
+   * Portalled straight to `document.body` and fixed to the viewport, so it can
+   * be parked anywhere in the window — over the rail, the toolbar, a side
+   * panel — rather than clipped at some workspace container's edge. Its
+   * position is a workspace preference, so moving focus between panes does not
+   * send it home.
    */
   const favoritesBar = (
     <div
       ref={favBarRef}
-      className="pointer-events-auto absolute z-30 flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
+      className="pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
       style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
       role="toolbar"
       aria-label="Favorite tools (drag to move)"
@@ -3276,10 +3273,12 @@ export default function PriceChart({
         (headerSlot
           ? createPortal(chartControls, headerSlot)
           : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}{screenshotControl}</div>)}
-      {/* The favourites toolbox floats over the whole workspace, so a split
-          layout does not clip it at the focused pane's edge. */}
-      {showRail && favorites.size > 0 && floatSlot
-        ? createPortal(favoritesBar, floatSlot)
+      {/* The favourites toolbox is portalled straight to the document body, so
+          it can be dragged anywhere across the whole window — over the rail,
+          the toolbar, the economic calendar panel — not just the chart grid
+          a workspace-level overlay would have confined it to. */}
+      {showRail && favorites.size > 0 && typeof document !== "undefined"
+        ? createPortal(favoritesBar, document.body)
         : null}
       {/* The screenshot action lives with the header's other actions. Without a
           slot for them it stays beside the chart controls. */}
@@ -3515,42 +3514,62 @@ export default function PriceChart({
               )}
             </div>
 
-            {legend && (
-              <div className="pointer-events-auto flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-1 font-mono text-[0.92em] shadow">
-                <span className="text-[var(--chart-muted)]">
-                  {formatInZone(legend.at, settings.timeZone, LEGEND_DATE_FORMAT)}
-                </span>
-                <span className="h-3 w-px bg-[var(--app-border)]" aria-hidden />
-                {legend.kind === "ohlc" ? (
+            {/*
+              Rendered unconditionally (once anything sits below it) rather than
+              only while `legend` is set. Mounting/unmounting this row as the
+              crosshair enters and leaves the chart shifted the indicator chips
+              beneath it, which could nudge them out from under a cursor that
+              was moving down toward one — collapsing the row, which moved the
+              chart back under the cursor, which re-triggered the crosshair,
+              which remounted the row: an infinite flicker loop. Keeping the
+              row's height constant and only toggling its visibility removes
+              the feedback loop entirely.
+            */}
+            {(legend || pricePaneIndicators.length > 0) && (
+              <div
+                className="pointer-events-auto flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-0.5 font-mono text-[0.78em] shadow"
+                style={{ visibility: legend ? "visible" : "hidden" }}
+              >
+                {legend ? (
                   <>
                     <span className="text-[var(--chart-muted)]">
-                      O <span className="text-[var(--chart-text)]">{legend.o.toFixed(precision)}</span>
+                      {formatInZone(legend.at, settings.timeZone, LEGEND_DATE_FORMAT)}
                     </span>
-                    <span className="text-[var(--chart-muted)]">
-                      H <span className="text-[var(--chart-text)]">{legend.h.toFixed(precision)}</span>
-                    </span>
-                    <span className="text-[var(--chart-muted)]">
-                      L <span className="text-[var(--chart-text)]">{legend.l.toFixed(precision)}</span>
-                    </span>
-                    <span className="text-[var(--chart-muted)]">
-                      C <span className="text-[var(--chart-text)]">{legend.c.toFixed(precision)}</span>
-                    </span>
-                    {legend.volume != null && (
+                    <span className="h-3 w-px bg-[var(--app-border)]" aria-hidden />
+                    {legend.kind === "ohlc" ? (
+                      <>
+                        <span className="text-[var(--chart-muted)]">
+                          O <span className="text-[var(--chart-text)]">{legend.o.toFixed(precision)}</span>
+                        </span>
+                        <span className="text-[var(--chart-muted)]">
+                          H <span className="text-[var(--chart-text)]">{legend.h.toFixed(precision)}</span>
+                        </span>
+                        <span className="text-[var(--chart-muted)]">
+                          L <span className="text-[var(--chart-text)]">{legend.l.toFixed(precision)}</span>
+                        </span>
+                        <span className="text-[var(--chart-muted)]">
+                          C <span className="text-[var(--chart-text)]">{legend.c.toFixed(precision)}</span>
+                        </span>
+                        {legend.volume != null && (
+                          <span className="text-[var(--chart-muted)]">
+                            V <span className="text-[var(--chart-text)]">{formatVolume(legend.volume)}</span>
+                          </span>
+                        )}
+                        {legendChange != null && (
+                          <span className={legendChange >= 0 ? "text-[var(--app-accent-text)]" : "text-bear"}>
+                            {legendChange >= 0 ? "+" : ""}
+                            {(legendChange / pipSize).toFixed(1)}p
+                          </span>
+                        )}
+                      </>
+                    ) : (
                       <span className="text-[var(--chart-muted)]">
-                        V <span className="text-[var(--chart-text)]">{formatVolume(legend.volume)}</span>
-                      </span>
-                    )}
-                    {legendChange != null && (
-                      <span className={legendChange >= 0 ? "text-[var(--app-accent-text)]" : "text-bear"}>
-                        {legendChange >= 0 ? "+" : ""}
-                        {(legendChange / pipSize).toFixed(1)}p
+                        Price <span className="text-[var(--chart-text)]">{legend.value.toFixed(precision)}</span>
                       </span>
                     )}
                   </>
                 ) : (
-                  <span className="text-[var(--chart-muted)]">
-                    Price <span className="text-[var(--chart-text)]">{legend.value.toFixed(precision)}</span>
-                  </span>
+                  <span>&nbsp;</span>
                 )}
               </div>
             )}
@@ -3793,9 +3812,6 @@ export default function PriceChart({
           );
         })}
 
-        {/* Hosted at workspace level when a slot exists — see `favoritesBar`. */}
-        {showRail && favorites.size > 0 && !floatSlot && favoritesBar}
-
         {/* Click-away backdrop for open menus */}
         {menu && (
           <div
@@ -3979,6 +3995,16 @@ export default function PriceChart({
                 <X size={12} aria-hidden />
               </button>
             </span>
+          </div>
+        )}
+
+        {jumping && (
+          <div
+            className="pointer-events-none absolute right-3 top-3 z-30 flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/90 px-2.5 py-1.5 text-[12px] app-muted shadow-lg"
+            data-testid="chart-jump-indicator"
+          >
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
+            Jumping…
           </div>
         )}
 

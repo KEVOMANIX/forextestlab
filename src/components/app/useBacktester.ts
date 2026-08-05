@@ -127,6 +127,12 @@ interface BacktesterState {
   endOfData: boolean;
   /** Bumped on start/restart so the chart remounts with fresh data. */
   resetNonce: number;
+  /**
+   * True only while a `jumpTo` is in flight, unlike `busy` which also covers
+   * every other async action. Kept separate so the chart can show a jump
+   * spinner without lighting up for a step or a restart.
+   */
+  jumping: boolean;
 }
 
 const initial: BacktesterState = {
@@ -149,6 +155,7 @@ const initial: BacktesterState = {
   savedAt: null,
   endOfData: false,
   resetNonce: 0,
+  jumping: false,
 };
 
 export function useBacktester(resumeSessionId: string | null = null) {
@@ -316,6 +323,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         saveStatus: "saved",
         savedAt: Date.now(),
         resetNonce: prev.resetNonce + 1,
+        jumping: false,
       }));
     },
     [hydrateLocalEngine],
@@ -381,6 +389,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         savedAt: Date.now(),
         endOfData: false,
         resetNonce: prev.resetNonce + 1,
+        jumping: false,
       }));
     };
 
@@ -992,7 +1001,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       stopLocalScheduler();
       engine.state.status = "paused";
       engineGenerationRef.current += 1;
-      patch({ busy: true, error: null });
+      patch({ busy: true, jumping: true, error: null });
 
       const generation = engineGenerationRef.current;
       const startIndex = engine.state.visibleIndex;
@@ -1067,6 +1076,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
           lastCandle: candle,
           lastCandles: [],
           busy: false,
+          jumping: false,
           endOfData: reason === "end-of-data" ? true : prev.endOfData,
         }));
         void checkpoint("paused");

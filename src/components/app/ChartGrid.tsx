@@ -159,6 +159,8 @@ interface ChartGridProps {
     before: number,
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading?: boolean;
+  /** A "Go to"/calendar jump is fast-forwarding the session's own replay. */
+  jumping?: boolean;
   error?: string | null;
   storageKey: string;
   headerSlot?: HTMLElement | null;
@@ -207,6 +209,7 @@ export default function ChartGrid({
   onTakeProfitChange,
   onLoadHistory,
   loading = false,
+  jumping = false,
   error = null,
   storageKey,
   headerSlot = null,
@@ -358,15 +361,6 @@ export default function ChartGrid({
    */
   const [railHost, setRailHost] = useState<HTMLDivElement | null>(null);
 
-  /**
-   * A layer over every pane for chrome that belongs to the workspace rather than
-   * to one chart — today the draggable favourites toolbox. Panes clip their own
-   * overflow, so anything positioned inside one can only travel that far; hosted
-   * here it can be parked over any chart in the layout. Transparent to the
-   * pointer, so only the chrome inside it is clickable.
-   */
-  const [floatHost, setFloatHost] = useState<HTMLDivElement | null>(null);
-
   const layoutPicker = (
     <div className="relative shrink-0" ref={layoutMenuRef}>
       <button
@@ -455,14 +449,7 @@ export default function ChartGrid({
       */}
       <div className="flex min-h-0 flex-1">
         <div ref={setRailHost} className="shrink-0" />
-        {/* The overlay covers the charts and stops short of the rail, so parking
-            the favourites toolbox can never bury the tool buttons. */}
         <div className="relative flex min-h-0 min-w-0 flex-1">
-        <div
-          ref={setFloatHost}
-          data-testid="chart-workspace-overlay"
-          className="pointer-events-none absolute inset-0 z-40"
-        />
         <div
           data-layout={spec.id}
           className={`grid min-h-0 min-w-0 flex-1 gap-px bg-[var(--app-border)] ${
@@ -519,6 +506,7 @@ export default function ChartGrid({
                 onTakeProfitChange={onTakeProfitChange}
                 onLoadHistory={onLoadHistory}
                 loading={loading}
+                jumping={jumping}
                 error={error}
                 storageKey={storageKey}
                 workspace={workspace}
@@ -532,7 +520,6 @@ export default function ChartGrid({
                 showControls={isFocused}
                 railSlot={railHost}
                 showRail={isFocused}
-                floatSlot={floatHost}
                 orderTicket={isSession && isFocused ? orderTicket : null}
                 // One clock for the workspace, always in its outer bottom-right
                 // corner regardless of which independently movable cell is focused.
@@ -594,6 +581,7 @@ interface ChartCellViewProps {
     before: number,
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading: boolean;
+  jumping: boolean;
   error: string | null;
   storageKey: string;
   onFocus: () => void;
@@ -603,7 +591,6 @@ interface ChartCellViewProps {
   showControls: boolean;
   railSlot: HTMLElement | null;
   showRail: boolean;
-  floatSlot: HTMLElement | null;
   orderTicket: React.ReactNode;
   axisCorner: React.ReactNode;
   workspace: ChartWorkspace;
@@ -637,6 +624,7 @@ function ChartCellView({
   onTakeProfitChange,
   onLoadHistory,
   loading,
+  jumping,
   error,
   storageKey,
   onFocus,
@@ -646,7 +634,6 @@ function ChartCellView({
   showControls,
   railSlot,
   showRail,
-  floatSlot,
   orderTicket,
   axisCorner,
   workspace,
@@ -702,6 +689,7 @@ function ChartCellView({
         onTakeProfitChange={tradable ? onTakeProfitChange : noop}
         onLoadHistory={loadHistory}
         loading={isSession ? loading : pairLoading && !pair}
+        jumping={jumping}
         error={isSession ? error : null}
         storageKey={`${storageKey}:${cell.symbol}`}
         viewKey={`${storageKey}:${cell.id}`}
@@ -712,7 +700,6 @@ function ChartCellView({
         showControls={showControls}
         railSlot={railSlot}
         showRail={showRail}
-        floatSlot={floatSlot}
         orderTicket={orderTicket}
         axisCorner={axisCorner}
         symbolLabel={cell.symbol}

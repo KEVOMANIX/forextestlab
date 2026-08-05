@@ -73,15 +73,46 @@ describe("formatEventTime", () => {
 });
 
 describe("surpriseDirection", () => {
-  it("compares the actual with the forecast", () => {
-    expect(surpriseDirection({ actual: "55", forecast: "54.5" })).toBe("beat");
-    expect(surpriseDirection({ actual: "54", forecast: "54.5" })).toBe("miss");
-    expect(surpriseDirection({ actual: "54.5", forecast: "54.5" })).toBe("met");
+  const name = "ISM Services PMI";
+
+  it("compares the actual with the forecast, higher is better by default", () => {
+    expect(surpriseDirection({ actual: "55", forecast: "54.5", name })).toBe("beat");
+    expect(surpriseDirection({ actual: "54", forecast: "54.5", name })).toBe("miss");
+    expect(surpriseDirection({ actual: "54.5", forecast: "54.5", name })).toBe("met");
   });
 
   it("has no opinion before the release", () => {
-    expect(surpriseDirection({ actual: null, forecast: "54.5" })).toBeNull();
-    expect(surpriseDirection({ actual: "54.5", forecast: null })).toBeNull();
+    expect(surpriseDirection({ actual: null, forecast: "54.5", name })).toBeNull();
+    expect(surpriseDirection({ actual: "54.5", forecast: null, name })).toBeNull();
+  });
+
+  it("inverts for a lower-is-better indicator", () => {
+    // 216K beating a 218K claims forecast is good news — fewer people filed —
+    // and must not read the same as a miss.
+    expect(
+      surpriseDirection({ actual: "216", forecast: "218", name: "Initial Jobless Claims" }),
+    ).toBe("beat");
+    expect(
+      surpriseDirection({ actual: "220", forecast: "218", name: "Initial Jobless Claims" }),
+    ).toBe("miss");
+    expect(
+      surpriseDirection({ actual: "4.1", forecast: "4.2", name: "Unemployment Rate" }),
+    ).toBe("beat");
+    expect(
+      surpriseDirection({ actual: "4.3", forecast: "4.2", name: "Unemployment Rate" }),
+    ).toBe("miss");
+  });
+
+  it("still calls a match a match regardless of polarity", () => {
+    expect(
+      surpriseDirection({ actual: "218", forecast: "218", name: "Initial Jobless Claims" }),
+    ).toBe("met");
+  });
+
+  it("leaves inflation at the default direction, deliberately unguessed", () => {
+    // A hotter CPI print is bad for households but often bullish for the
+    // currency — there is no single "good" side to assign it.
+    expect(surpriseDirection({ actual: "3.5", forecast: "3.2", name: "CPI y/y" })).toBe("beat");
   });
 });
 

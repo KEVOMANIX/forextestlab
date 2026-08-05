@@ -7,6 +7,7 @@
  */
 
 import { formatInZone } from "@/lib/chart/timezones";
+import { isLowerBetter } from "./polarity";
 import type { CalendarEvent, EventImportance, EventMultiplier } from "./types";
 
 /** What the card shows where a figure does not exist. */
@@ -72,17 +73,21 @@ export function formatEventTime(
  * Whether the actual beat, missed, or matched the forecast — the one derived
  * number a trader reads off a release. Null when either side is missing, which
  * is every event ahead of the playhead.
+ *
+ * "Beat" means numerically higher for most indicators, but not for the ones
+ * `isLowerBetter` recognises — see its comment for why only a short,
+ * unambiguous list is inverted rather than every figure with a "bad" reading.
  */
 export function surpriseDirection(
-  event: Pick<CalendarEvent, "actual" | "forecast">,
+  event: Pick<CalendarEvent, "actual" | "forecast" | "name">,
 ): "beat" | "miss" | "met" | null {
   if (event.actual == null || event.forecast == null) return null;
   const actual = Number(event.actual);
   const forecast = Number(event.forecast);
   if (!Number.isFinite(actual) || !Number.isFinite(forecast)) return null;
-  if (actual > forecast) return "beat";
-  if (actual < forecast) return "miss";
-  return "met";
+  if (actual === forecast) return "met";
+  const higherIsBetter = !isLowerBetter(event.name);
+  return actual > forecast === higherIsBetter ? "beat" : "miss";
 }
 
 /**

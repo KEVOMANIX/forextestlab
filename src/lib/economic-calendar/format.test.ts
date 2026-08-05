@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { NO_FIGURE, formatEventTime, formatFigure, surpriseDirection } from "./format";
+import {
+  NO_FIGURE,
+  describeEvent,
+  formatEventTime,
+  formatFigure,
+  hasReportedFigures,
+  revealAt,
+  surpriseDirection,
+} from "./format";
 import { currenciesForSymbol } from "./types";
 import type { CalendarEvent } from "./types";
 
@@ -74,6 +82,111 @@ describe("surpriseDirection", () => {
   it("has no opinion before the release", () => {
     expect(surpriseDirection({ actual: null, forecast: "54.5" })).toBeNull();
     expect(surpriseDirection({ actual: "54.5", forecast: null })).toBeNull();
+  });
+});
+
+const NFP: CalendarEvent = {
+  id: "nfp",
+  name: "Nonfarm Payrolls",
+  currency: "USD",
+  country: "United States",
+  importance: "high",
+  timestamp: Date.UTC(2024, 2, 8, 13, 30),
+  timeMode: "exact",
+  actual: "275",
+  forecast: "220",
+  previous: "353",
+  unit: null,
+  multiplier: "thousands",
+  digits: 0,
+};
+
+const SPEECH: CalendarEvent = {
+  ...NFP,
+  id: "speech",
+  name: "ECB President Lagarde Speech",
+  actual: null,
+  forecast: null,
+  previous: null,
+};
+
+describe("revealAt", () => {
+  it("keeps the actual once the replay has passed the release", () => {
+    const boundary = NFP.timestamp; // exactly on the release
+    expect(revealAt(NFP, boundary).actual).toBe("275");
+    expect(revealAt(NFP, boundary + 60_000).actual).toBe("275");
+  });
+
+  it("withholds the actual for a release the replay has not reached", () => {
+    // The database holds the true March 2024 print regardless of which March
+    // 2024 candle a replay is on — this is the one thing standing between that
+    // and a trader seeing Friday's number on Thursday.
+    expect(revealAt(NFP, NFP.timestamp - 60_000).actual).toBeNull();
+  });
+
+  it("withholds everything before any candle has been revealed", () => {
+    expect(revealAt(NFP, null).actual).toBeNull();
+  });
+
+  it("leaves forecast and previous alone regardless of the boundary", () => {
+    // Both are genuinely public before a release in real trading; masking them
+    // would remove information a live trader actually had.
+    const revealed = revealAt(NFP, NFP.timestamp - 60_000);
+    expect(revealed.forecast).toBe("220");
+    expect(revealed.previous).toBe("353");
+  });
+
+  it("does nothing to an event with no actual to hide", () => {
+    expect(revealAt(SPEECH, SPEECH.timestamp - 60_000)).toBe(SPEECH);
+  });
+
+  it("does nothing once the actual is already visible, avoiding a needless copy", () => {
+    expect(revealAt(NFP, NFP.timestamp)).toBe(NFP);
+  });
+});
+
+describe("hasReportedFigures", () => {
+  it("is true for a release with a forecast, even pending", () => {
+    expect(hasReportedFigures({ actual: null, forecast: "220", previous: "353" })).toBe(true);
+  });
+
+  it("is true for a release with only an actual, e.g. one nobody forecasts", () => {
+    expect(hasReportedFigures({ actual: "82.1", forecast: null, previous: null })).toBe(true);
+  });
+
+  it("is false for something that never carries a number", () => {
+    expect(hasReportedFigures({ actual: null, forecast: null, previous: null })).toBe(false);
+  });
+
+  it("is judged on the record as imported, not on what the replay has revealed", () => {
+    // A pending NFP still has hasReportedFigures = true because its forecast
+    // survives revealAt; this asserts the raw record is what's being checked,
+    // not a masked copy that would also be true here anyway.
+    const pending = revealAt(NFP, NFP.timestamp - 60_000);
+    expect(hasReportedFigures(pending)).toBe(true);
+  });
+});
+
+describe("describeEvent", () => {
+  it("names the actual once released", () => {
+    expect(describeEvent(NFP, "UTC")).toBe(
+      "USD Nonfarm Payrolls, high impact, 08 Mar '24 13:30, actual 275K",
+    );
+  });
+
+  it("says 'not yet released' for a pending release that does carry a number", () => {
+    const pending = revealAt(NFP, NFP.timestamp - 60_000);
+    expect(describeEvent(pending, "UTC")).toBe(
+      "USD Nonfarm Payrolls, high impact, 08 Mar '24 13:30, not yet released",
+    );
+  });
+
+  it("omits the figures clause entirely for something that never has one", () => {
+    // "not yet released" would be false: a speech never gets "released" the
+    // way an indicator does, so it does not get the same sentence.
+    expect(describeEvent(SPEECH, "UTC")).toBe(
+      "USD ECB President Lagarde Speech, high impact, 08 Mar '24 13:30",
+    );
   });
 });
 

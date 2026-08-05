@@ -19,6 +19,8 @@ import {
   formatEventTime,
   formatFigure,
   describeEvent,
+  hasReportedFigures,
+  revealAt,
   NO_FIGURE,
   surpriseDirection,
 } from "@/lib/economic-calendar/format";
@@ -41,6 +43,13 @@ interface Props {
   zone: string;
   /** Bumped by the chart on every viewport change; re-runs the projection. */
   viewVersion: number;
+  /**
+   * UTC ms of the last candle the replay has revealed. A release timestamped
+   * after this is one the trader has not reached yet, and its actual — already
+   * sitting in the database as historical fact — is withheld until they do.
+   * Null before the chart has shown any candle, which withholds everything.
+   */
+  revealBoundaryMs: number | null;
 }
 
 const RING: Record<EventImportance, string> = {
@@ -75,6 +84,7 @@ export function EconomicEventLayer({
   insetLeft = 0,
   zone,
   viewVersion,
+  revealBoundaryMs,
 }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -127,7 +137,7 @@ export function EconomicEventLayer({
         const lead = cluster.events[0]!;
         const label =
           cluster.events.length === 1
-            ? describeEvent(lead, zone)
+            ? describeEvent(revealAt(lead, revealBoundaryMs), zone)
             : `${cluster.events.length} releases from ${formatEventTime(lead, zone)}`;
         return (
           <button
@@ -178,6 +188,7 @@ export function EconomicEventLayer({
           height={height}
           bottom={badgeBottom + HIT_SIZE + CARD_GAP}
           zone={zone}
+          revealBoundaryMs={revealBoundaryMs}
         />
       )}
     </div>
@@ -202,6 +213,7 @@ function EventCard({
   height,
   bottom,
   zone,
+  revealBoundaryMs,
 }: {
   events: CalendarEvent[];
   x: number;
@@ -209,6 +221,7 @@ function EventCard({
   height: number;
   bottom: number;
   zone: string;
+  revealBoundaryMs: number | null;
 }) {
   // Centred on the badge, then pushed back inside the pane. A card that runs off
   // the right edge is exactly the card a trader wants at the hard right of a
@@ -239,6 +252,7 @@ function EventCard({
           zone={zone}
           left={left}
           bottom={bottom + index * perCard}
+          revealBoundaryMs={revealBoundaryMs}
         />
       ))}
       {hidden > 0 && (
@@ -258,18 +272,29 @@ function EventCard({
   );
 }
 
-/** One release: name, when, then Actual / Forecast / Previous as a column. */
+/**
+ * One release: name, when, then Actual / Forecast / Previous as a column — or
+ * just the name and when, for something that never carries a number.
+ */
 function SingleEventCard({
   event,
   zone,
   left,
   bottom,
+  revealBoundaryMs,
 }: {
   event: CalendarEvent;
   zone: string;
   left: number;
   bottom: number;
+  revealBoundaryMs: number | null;
 }) {
+  // `hasReportedFigures` is checked on the record as imported, before masking:
+  // a still-pending release with a real forecast must keep its figures block
+  // even once `revealed` has withheld its own actual.
+  const showFigures = hasReportedFigures(event);
+  const revealed = revealAt(event, revealBoundaryMs);
+
   return (
     <div
       data-testid="calendar-event-card"
@@ -292,11 +317,13 @@ function SingleEventCard({
         <div className="mt-1 text-[10.5px] text-[var(--chart-muted)]">
           {formatEventTime(event, zone)}
         </div>
-        <dl className="mt-1.5 space-y-0.5 text-[10.5px]">
-          <Figure label="Actual" event={event} which="actual" />
-          <Figure label="Forecast" event={event} which="forecast" />
-          <Figure label="Previous" event={event} which="previous" />
-        </dl>
+        {showFigures && (
+          <dl className="mt-1.5 space-y-0.5 text-[10.5px]">
+            <Figure label="Actual" event={revealed} which="actual" />
+            <Figure label="Forecast" event={revealed} which="forecast" />
+            <Figure label="Previous" event={revealed} which="previous" />
+          </dl>
+        )}
       </div>
     </div>
   );

@@ -85,6 +85,42 @@ export function surpriseDirection(
   return "met";
 }
 
+/**
+ * The database holds the true outcome of every release the moment it is
+ * imported, because the export is a history — a March 2024 NFP print is a fact
+ * regardless of which March 2024 candle a replay happens to be sitting on. Left
+ * alone, that makes the calendar a leak: a trader replaying up to Thursday would
+ * see Friday's number early, something no one at the real Thursday could know.
+ *
+ * So the actual is withheld until the replay's own clock reaches the release —
+ * `boundaryMs` is the timestamp of the last candle the chart has revealed.
+ * Forecast and previous pass through unchanged: both are genuinely public
+ * before a release happens in real trading, so hiding them would remove
+ * information a live trader actually had.
+ */
+export function revealAt(event: CalendarEvent, boundaryMs: number | null): CalendarEvent {
+  if (event.actual == null) return event;
+  if (boundaryMs != null && event.timestamp <= boundaryMs) return event;
+  return { ...event, actual: null };
+}
+
+/**
+ * Whether this release ever carries a number at all. A central bank speech, a
+ * meeting's minutes, or a holiday marker has no forecast, no previous and no
+ * actual in any release of it — showing three dashes for one is not "not yet
+ * released", it is "there was never anything here", and the two should not
+ * look the same on the card.
+ *
+ * Evaluated on the record as imported, before `revealAt` — a still-pending
+ * indicator that does carry a forecast must keep its figures block even once
+ * its own actual has been masked out.
+ */
+export function hasReportedFigures(
+  event: Pick<CalendarEvent, "actual" | "forecast" | "previous">,
+): boolean {
+  return event.actual != null || event.forecast != null || event.previous != null;
+}
+
 /** Sentence naming the impact, for the badge's accessible label. */
 export function describeEvent(event: CalendarEvent, zone: string): string {
   const impact: Record<EventImportance, string> = {
@@ -93,6 +129,11 @@ export function describeEvent(event: CalendarEvent, zone: string): string {
     medium: "medium impact",
     high: "high impact",
   };
-  const actual = event.actual == null ? "not yet released" : `actual ${formatFigure(event.actual, event)}`;
-  return `${event.currency} ${event.name}, ${impact[event.importance]}, ${formatEventTime(event, zone)}, ${actual}`;
+  const parts = [`${event.currency} ${event.name}`, impact[event.importance], formatEventTime(event, zone)];
+  // Omitted rather than printed as "not yet released" for something that will
+  // never carry a number — a speech does not become "released" later.
+  if (hasReportedFigures(event)) {
+    parts.push(event.actual == null ? "not yet released" : `actual ${formatFigure(event.actual, event)}`);
+  }
+  return parts.join(", ");
 }

@@ -2869,6 +2869,20 @@ export default function PriceChart({
   if (calendarEvents.length > 0) viewportOverlaysRef.current = true;
 
   /**
+   * The last candle the replay has revealed, in UTC ms. A calendar release is
+   * imported as history — its true outcome sits in the database from the day
+   * it happened, whichever candle a replay is currently on — so left alone the
+   * card would show a March release's real number while the replay was still
+   * on February. `displayRef` only ever holds candles up to this point, which
+   * makes its last entry the one honest "as of" boundary for the whole chart:
+   * null before anything has rendered, which withholds every actual.
+   */
+  const revealBoundaryMs = (() => {
+    const latest = displayRef.current.at(-1)?.time;
+    return latest == null ? null : Number(latest) * 1000;
+  })();
+
+  /**
    * Height of the time axis, so badges sit on top of it rather than over the
    * labels. Measured for the same reason the price scale's width is: it grows
    * with the axis font size, which is a preference.
@@ -3345,6 +3359,7 @@ export default function PriceChart({
             insetLeft={showRail && !railSlot ? 48 : 0}
             zone={settings.timeZone}
             viewVersion={viewVersion}
+            revealBoundaryMs={revealBoundaryMs}
           />
         )}
 

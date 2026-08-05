@@ -55,10 +55,15 @@ const BADGE_SIZE = 16;
 const HIT_SIZE = 22;
 const CARD_WIDTH = 208;
 const CARD_GAP = 6;
-/** Measured from the rendered card: name line, figures line, padding. */
-const COMPACT_ROW_PX = 38;
-const CARD_CHROME_PX = 46;
-/** However tall the pane, a card longer than this is a list, not a tooltip. */
+/**
+ * Estimated height of one event's card: name (up to two lines for something
+ * like "MNI Chicago Business Barometer"), the date line, three figure rows, and
+ * padding. Used only to decide how many stacked cards fit above the axis before
+ * the rest collapse into "N more" — generous on purpose, since undercounting
+ * clips a card while overcounting just leaves a little extra headroom.
+ */
+const STACK_CARD_HEIGHT_PX = 112;
+/** However tall the pane, a stack longer than this is a list, not a tooltip. */
 const MAX_LISTED = 6;
 
 export function EconomicEventLayer({
@@ -168,7 +173,6 @@ export function EconomicEventLayer({
       {open && (
         <EventCard
           events={open.events}
-          importance={open.importance}
           x={open.x}
           width={width}
           height={height}
@@ -181,13 +185,18 @@ export function EconomicEventLayer({
 }
 
 /**
- * The hover card. Deliberately inert to the pointer: it hangs over the candles,
- * and a card that could be hovered would swallow the crosshair the moment it
- * appeared.
+ * The hover cards. Deliberately inert to the pointer: they hang over the
+ * candles, and a card that could be hovered would swallow the crosshair the
+ * moment it appeared.
+ *
+ * Releases sharing a minute get one full card apiece rather than a merged
+ * summary — five figures batched into a paragraph is scanned once and
+ * forgotten, five separate cards each read at their own pace. Each keeps its
+ * own colour, since a batch mixing a rate decision with a minor survey should
+ * not paint the minor one red just because it arrived with the rate decision.
  */
 function EventCard({
   events,
-  importance,
   x,
   width,
   height,
@@ -195,7 +204,6 @@ function EventCard({
   zone,
 }: {
   events: CalendarEvent[];
-  importance: EventImportance;
   x: number;
   width: number;
   height: number;
@@ -206,102 +214,89 @@ function EventCard({
   // the right edge is exactly the card a trader wants at the hard right of a
   // replay, where the next release sits.
   const left = Math.min(Math.max(4, x - CARD_WIDTH / 2), Math.max(4, width - CARD_WIDTH - 4));
-  const single = events.length === 1;
 
-  // A batch of releases shares a minute, and five of them stacked as full blocks
-  // is taller than a chart pane — the card then grew off the top of the workspace
-  // with its first entries unreachable. So the list is cut to what fits, and says
-  // how much it cut.
+  // A batch of releases shares a minute, and stacking all of them as full cards
+  // can run taller than the pane — that grew a card off the top of the
+  // workspace with its first entries unreachable. So the stack is cut to what
+  // fits, and says how much it cut.
   const room = Math.max(0, height - bottom - 8);
-  const fits = single ? 1 : Math.max(1, Math.floor((room - CARD_CHROME_PX) / COMPACT_ROW_PX));
+  const perCard = STACK_CARD_HEIGHT_PX + CARD_GAP;
+  const fits = Math.max(1, Math.floor((room + CARD_GAP) / perCard));
   const listed = events.slice(0, Math.min(fits, MAX_LISTED));
   const hidden = events.length - listed.length;
 
   return (
     <div
-      data-testid="calendar-event-card"
+      className="pointer-events-none absolute inset-0"
+      data-testid="calendar-event-stack"
       data-listed={listed.length}
-      className="pointer-events-none absolute overflow-hidden rounded-md border app-border shadow-xl"
-      style={{
-        left,
-        bottom,
-        width: CARD_WIDTH,
-        background: "var(--app-panel-solid)",
-        borderLeft: `3px solid ${RING[importance]}`,
-      }}
+      data-hidden={hidden}
     >
-      {single ? (
-        <SingleEvent event={events[0]!} zone={zone} />
-      ) : (
-        <>
-          <div className="border-b app-border px-3 py-1.5 text-[10.5px] font-semibold text-[var(--chart-muted)]">
-            {events.length} releases · {formatEventTime(events[0]!, zone)}
-          </div>
-          {listed.map((event) => (
-            <CompactEvent key={event.id} event={event} />
-          ))}
-          {hidden > 0 && (
-            <div className="border-t app-border px-3 py-1 text-[10.5px] text-[var(--chart-muted)]">
-              and {hidden} more
-            </div>
-          )}
-        </>
+      {listed.map((event, index) => (
+        <SingleEventCard
+          key={event.id}
+          event={event}
+          zone={zone}
+          left={left}
+          bottom={bottom + index * perCard}
+        />
+      ))}
+      {hidden > 0 && (
+        <div
+          className="absolute rounded-md border app-border px-2.5 py-1 text-[10.5px] text-[var(--chart-muted)] shadow-lg"
+          style={{
+            left,
+            bottom: bottom + listed.length * perCard,
+            width: CARD_WIDTH,
+            background: "var(--app-panel-solid)",
+          }}
+        >
+          and {hidden} more
+        </div>
       )}
     </div>
   );
 }
 
-/** The reference card: name, when, then the three figures in a column. */
-function SingleEvent({ event, zone }: { event: CalendarEvent; zone: string }) {
+/** One release: name, when, then Actual / Forecast / Previous as a column. */
+function SingleEventCard({
+  event,
+  zone,
+  left,
+  bottom,
+}: {
+  event: CalendarEvent;
+  zone: string;
+  left: number;
+  bottom: number;
+}) {
   return (
-    <div className="px-3 py-2">
-      <div className="flex items-start gap-1.5">
-        <CurrencyFlag currency={event.currency} size={13} className="mt-[2px] shrink-0" />
-        <span className="text-[11.5px] font-semibold leading-tight text-[var(--chart-text)]">
-          {event.name}
-        </span>
-      </div>
-      <div className="mt-1 text-[10.5px] text-[var(--chart-muted)]">
-        {formatEventTime(event, zone)}
-      </div>
-      <dl className="mt-1.5 space-y-0.5 text-[10.5px]">
-        <Figure label="Actual" event={event} which="actual" />
-        <Figure label="Forecast" event={event} which="forecast" />
-        <Figure label="Previous" event={event} which="previous" />
-      </dl>
-    </div>
-  );
-}
-
-/**
- * One line of a batch. The time is dropped — the header already gave it, and
- * these are the same minute — and previous goes with it: inside a batch what a
- * trader is reading is which figures landed where they were meant to.
- */
-function CompactEvent({ event }: { event: CalendarEvent }) {
-  const surprise = surpriseDirection(event);
-  return (
-    <div className="border-t app-border px-3 py-1.5">
-      <div className="flex items-start gap-1.5">
-        <CurrencyFlag currency={event.currency} size={11} className="mt-[2px] shrink-0" />
-        <span className="truncate text-[11px] font-semibold leading-tight text-[var(--chart-text)]">
-          {event.name}
-        </span>
-      </div>
-      <div className="mt-0.5 flex items-baseline justify-between gap-2 pl-[14px] text-[10.5px]">
-        <span className="text-[var(--chart-muted)]">
-          vs {formatFigure(event.forecast, event)}
-        </span>
-        <span
-          className="font-mono font-semibold tabular-nums"
-          style={{
-            color: surprise
-              ? (SURPRISE_COLOUR[surprise] ?? "var(--chart-text)")
-              : "var(--chart-muted)",
-          }}
-        >
-          {formatFigure(event.actual, event)}
-        </span>
+    <div
+      data-testid="calendar-event-card"
+      className="absolute overflow-hidden rounded-md border app-border shadow-xl"
+      style={{
+        left,
+        bottom,
+        width: CARD_WIDTH,
+        background: "var(--app-panel-solid)",
+        borderLeft: `3px solid ${RING[event.importance]}`,
+      }}
+    >
+      <div className="px-3 py-2">
+        <div className="flex items-start gap-1.5">
+          <CurrencyFlag currency={event.currency} size={13} className="mt-[2px] shrink-0" />
+          <span className="text-[11.5px] font-semibold leading-tight text-[var(--chart-text)]">
+            {event.name}
+          </span>
+        </div>
+        <div className="mt-1 text-[10.5px] text-[var(--chart-muted)]">
+          {formatEventTime(event, zone)}
+        </div>
+        <dl className="mt-1.5 space-y-0.5 text-[10.5px]">
+          <Figure label="Actual" event={event} which="actual" />
+          <Figure label="Forecast" event={event} which="forecast" />
+          <Figure label="Previous" event={event} which="previous" />
+        </dl>
       </div>
     </div>
   );

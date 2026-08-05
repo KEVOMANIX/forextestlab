@@ -283,6 +283,8 @@ export function Backtester({
   const announcedVerdictRef = useRef<string | null>(null);
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   const [goToOpen, setGoToOpen] = useState(false);
+  const goToButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [goToAnchor, setGoToAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   /**
    * The one settings dialog, and the section it should open on. Held here rather
@@ -800,6 +802,8 @@ export function Backtester({
    */
   const openGoTo = () => {
     holdReplayFor("go-to");
+    const rect = goToButtonRef.current?.getBoundingClientRect();
+    setGoToAnchor(rect ? { left: rect.left, bottom: rect.bottom } : null);
     setGoToOpen(true);
   };
   const closeGoTo = () => {
@@ -935,6 +939,7 @@ export function Backtester({
               only one of the two can afford to be the loudest thing in the bar.
             */}
             <button
+              ref={goToButtonRef}
               type="button"
               onClick={openGoTo}
               disabled={bt.busy || state.status === "finished"}
@@ -1202,6 +1207,7 @@ export function Backtester({
       <GoToModal
         open={goToOpen}
         onClose={closeGoTo}
+        anchor={goToAnchor}
         currentTime={state.currentTime ?? bt.lastCandle?.timestamp ?? state.config.startTime}
         currentPrice={state.currentPrice ? Number(state.currentPrice) : null}
         pipSize={Number(state.config.pipSize)}

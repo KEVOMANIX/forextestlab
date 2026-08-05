@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowDownToLine,
   ArrowUpToLine,
@@ -28,6 +28,10 @@ import {
 import { formatInZone, resolveZone } from "@/lib/chart/timezones";
 import type { Candle } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
+import { useCompactViewport } from "@/lib/ui/use-media-query";
+
+/** Panel width on desktop — matches the old dialog's `max-w-[44rem]`. */
+const PANEL_WIDTH_REM = 44;
 
 /**
  * "Go to" — fast-forward the replay to a moment or a price.
@@ -43,6 +47,11 @@ import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
  * range's high and low — is one row with two buttons rather than two rows, which
  * halves the height and reads as the pair it is.
  *
+ * Anchored under the "Go to" button rather than centred behind a dimming
+ * backdrop, so the chart stays visible while it's open — including the jump's
+ * own progress once a destination is picked. There is no darkened scrim: a
+ * transparent click-away layer dismisses it instead.
+ *
  * Destinations that cannot be satisfied are disabled rather than hidden, so the
  * panel does not change shape between sessions, with the reason in the tooltip.
  */
@@ -50,6 +59,12 @@ import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 interface GoToModalProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * The "Go to" button's own bounding rect, captured on open, so the panel can
+   * drop in right below it. Null falls back to a fixed spot near the top of
+   * the chart — the button no longer being in the DOM at open time, say.
+   */
+  anchor: { left: number; bottom: number } | null;
   /** Market moment the replay is sitting on. */
   currentTime: number;
   /** Last revealed close, for seeding the price field and the round levels. */
@@ -180,6 +195,7 @@ function PairRow({
 export function GoToModal({
   open,
   onClose,
+  anchor,
   currentTime,
   currentPrice,
   pipSize,
@@ -199,6 +215,7 @@ export function GoToModal({
     onClose,
     initialFocus: closeRef,
   });
+  const compact = useCompactViewport();
   const [expanded, setExpanded] = useState<"date" | "price" | null>(null);
   const [dateDraft, setDateDraft] = useState("");
   const [priceDraft, setPriceDraft] = useState("");
@@ -332,13 +349,30 @@ export function GoToModal({
     onSelect: jump,
   });
 
+  // Anchored below the button that opened it, clamped so it never runs off
+  // the right or bottom edge. Compact viewports get a bottom sheet instead —
+  // there is no room below a header button for a panel this tall.
+  const panelStyle: CSSProperties = compact
+    ? { left: "0.75rem", right: "0.75rem", bottom: "0.5rem", top: "auto" }
+    : {
+        left: anchor
+          ? Math.max(16, Math.min(anchor.left, window.innerWidth - PANEL_WIDTH_REM * 16 - 16))
+          : "50%",
+        top: anchor
+          ? Math.min(anchor.bottom + 8, window.innerHeight - 120)
+          : "4rem",
+        transform: anchor ? undefined : "translateX(-50%)",
+        width: `min(${PANEL_WIDTH_REM}rem, calc(100vw - 2rem))`,
+      };
+
   return (
-    <div
-      className="fixed inset-0 z-[130] grid place-items-center bg-surface-950/70 p-4 backdrop-blur-sm"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+    <>
+      {/*
+        No dimming scrim — the whole point is that the chart (and the jump's
+        own progress on it) stays visible while this is open. A transparent
+        layer still catches an outside click to dismiss it.
+      */}
+      <div className="fixed inset-0 z-[129]" onMouseDown={onClose} aria-hidden />
       <section
         ref={dialogRef}
         tabIndex={-1}
@@ -346,7 +380,8 @@ export function GoToModal({
         aria-modal="true"
         aria-labelledby="go-to-title"
         data-testid="go-to-modal"
-        className="flex max-h-[min(32rem,88dvh)] w-full max-w-[44rem] flex-col overflow-hidden rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none"
+        style={panelStyle}
+        className="fixed z-[130] flex max-h-[min(32rem,88dvh)] flex-col overflow-hidden rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none"
       >
         <header className="flex shrink-0 items-center justify-between gap-3 px-3 py-2">
           <div className="min-w-0">
@@ -578,7 +613,7 @@ export function GoToModal({
           </p>
         )}
       </section>
-    </div>
+    </>
   );
 }
 

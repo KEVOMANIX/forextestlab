@@ -40,7 +40,9 @@ export type ToolKind =
   | "datePriceRange"
   | "callout"
   | "priceLabel"
-  | "anchoredText";
+  | "anchoredText"
+  | "brush"
+  | "highlighter";
 
 /** A drawing anchor in chart space. `time` is UTC seconds; 0 means "no time" (e.g. pure horizontal line). */
 export interface Point {
@@ -166,6 +168,14 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     base.leverage = 1;
     base.lotSize = 1;
   }
+  // A freehand stroke reads as a pen mark, not a measurement line — thin
+  // enough to vanish at the 1px baseline every other tool starts from.
+  if (kind === "brush") base.lineWidth = 3;
+  if (kind === "highlighter") {
+    base.color = "#fbbf24";
+    base.lineWidth = 14;
+    base.opacity = 0.35;
+  }
   return base;
 }
 
@@ -204,6 +214,8 @@ export const TOOL_POINTS: Record<ToolKind, number> = {
   callout: 2,
   priceLabel: 1,
   anchoredText: 2,
+  brush: Infinity,
+  highlighter: Infinity,
 };
 
 export const TOOL_LABELS: Record<ToolKind, string> = {
@@ -240,6 +252,8 @@ export const TOOL_LABELS: Record<ToolKind, string> = {
   callout: "Callout",
   priceLabel: "Price label",
   anchoredText: "Anchored text",
+  brush: "Brush",
+  highlighter: "Highlighter",
 };
 
 export const TOOLS_NEEDING_TEXT: ReadonlySet<ToolKind> = new Set<ToolKind>(["text", "label", "callout", "anchoredText"]);

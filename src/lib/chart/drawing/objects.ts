@@ -1119,6 +1119,12 @@ const REGISTRY: Record<ToolKind, new (json: DrawingJSON) => DrawingObject> = {
   ellipse: EllipseObj,
   triangle: TriangleObj,
   path: PathObj,
+  // Same freehand polyline as `path` — a stream of chart-space points
+  // connected with straight segments. Only the style differs (thin/opaque
+  // for a brush, thick/translucent for a highlighter); the engine is what
+  // captures continuously instead of one click per point.
+  brush: PathObj,
+  highlighter: PathObj,
   text: TextObj,
   label: TextObj,
   anchoredText: AnchoredTextObj,

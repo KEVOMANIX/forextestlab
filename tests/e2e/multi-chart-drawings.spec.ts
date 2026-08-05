@@ -753,14 +753,11 @@ test("the favourites toolbox can be parked over any pane, and stays there", asyn
   // Still one toolbox however many panes there are.
   await expect(toolbox).toHaveCount(1);
 
-  // It lives on the workspace layer, not inside the focused pane, which is what
-  // lets it travel: a pane clips its own overflow.
-  const overlay = page.getByTestId("chart-workspace-overlay");
-  await expect(overlay).toHaveCount(1);
+  // It's portalled straight to the document body and fixed to the viewport,
+  // not clipped inside the focused pane — which is what lets it travel and be
+  // dragged anywhere in the window, not just over the chart grid.
   expect(
-    await toolbox.evaluate((bar) =>
-      Boolean(bar.closest('[data-testid="chart-workspace-overlay"]')),
-    ),
+    await toolbox.evaluate((bar) => bar.parentElement === document.body),
   ).toBe(true);
 
   // Drag it from its default spot over pane one into the bottom-right pane.

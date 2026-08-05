@@ -19,6 +19,7 @@ import {
   History,
   LineChart,
   LocateFixed,
+  Lock,
   Magnet,
   Minus,
   MousePointer2,
@@ -30,6 +31,7 @@ import {
   Tag,
   Trash2,
   Undo2,
+  Unlock,
   X,
 } from "lucide-react";
 import {
@@ -103,6 +105,7 @@ import { DrawingLayer } from "./DrawingLayer";
 import { EconomicEventLayer } from "./EconomicEventLayer";
 import { useCalendarEvents } from "./useCalendarEvents";
 import {
+  BrushesGroupIcon,
   DRAWING_TOOL_ICONS,
   FibonacciIcon,
   LinesGroupIcon,
@@ -364,7 +367,7 @@ const LIVE_CANDLE_POSITION = 0.75;
  */
 const MAX_LIVE_CANDLE_POSITION = 4;
 
-type DrawMenu = "lines" | "shapes" | "fib" | "trade" | "notes";
+type DrawMenu = "lines" | "shapes" | "fib" | "trade" | "notes" | "brushes";
 
 /** Grouping of drawing tools into toolbar flyouts. */
 const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: DrawingIcon; tools: ToolKind[] }[] = [
@@ -373,6 +376,7 @@ const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: DrawingIcon; tools: Too
   { key: "fib", label: "Fibonacci", Icon: FibonacciIcon, tools: ["fib", "fibExtension"] },
   { key: "trade", label: "Positions & measure", Icon: PositionsGroupIcon, tools: ["long", "short", "measure", "priceRange", "dateRange", "datePriceRange"] },
   { key: "notes", label: "Text & notes", Icon: NotesGroupIcon, tools: ["text", "anchoredText", "label", "callout", "priceLabel"] },
+  { key: "brushes", label: "Brushes", Icon: BrushesGroupIcon, tools: ["brush", "highlighter"] },
 ];
 
 const MAGNET_MODES: MagnetMode[] = ["off", "weak", "strong"];
@@ -788,6 +792,7 @@ export default function PriceChart({
   const [drawMagnet, setDrawMagnet] = useState<MagnetMode>("off");
   const [drawCount, setDrawCount] = useState(0);
   const drawingsHidden = !settings.drawings;
+  const drawingsLocked = Boolean(settings.drawingsLocked);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const drawingEngineRef = useRef<DrawingEngine | null>(null);
   const [menu, setMenu] = useState<
@@ -2790,6 +2795,10 @@ export default function PriceChart({
     drawingEngineRef.current?.setHideAll(!settings.drawings);
   }, [settings.drawings, drawCount]);
 
+  useEffect(() => {
+    drawingEngineRef.current?.setAllLocked(drawingsLocked);
+  }, [drawingsLocked, drawCount]);
+
   // Picking up a tool or adding the first drawing needs the timeline the render
   // loop skips building while a chart has none.
   useEffect(() => {
@@ -3242,6 +3251,15 @@ export default function PriceChart({
             onClick={() => updateSettings({ drawings: drawingsHidden })}
           >
             {drawingsHidden ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+          </ToolButton>
+        )}
+        {drawCount > 0 && (
+          <ToolButton
+            label={drawingsLocked ? "Unlock all drawings" : "Lock all drawings"}
+            active={drawingsLocked}
+            onClick={() => updateSettings({ drawingsLocked: !drawingsLocked })}
+          >
+            {drawingsLocked ? <Lock size={18} aria-hidden /> : <Unlock size={18} aria-hidden />}
           </ToolButton>
         )}
         {drawCount > 0 && (

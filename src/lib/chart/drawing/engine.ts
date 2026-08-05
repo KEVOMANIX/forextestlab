@@ -32,7 +32,7 @@ import {
 /** Per-tool remembered styles: a new drawing starts from the last-used style. */
 export type ToolDefaults = Partial<Record<ToolKind, DrawingStyle>>;
 
-type CreateMode = "single" | "drag" | "click";
+type CreateMode = "single" | "drag" | "click" | "stream";
 
 function creationMode(kind: ToolKind): CreateMode {
   if (kind === "horizontal" || kind === "vertical" || kind === "horizontalRay" || kind === "crossline" || kind === "priceLabel" || kind === "text" || kind === "label") return "single";
@@ -40,8 +40,15 @@ function creationMode(kind: ToolKind): CreateMode {
   // drags the handles to place stop/target.
   if (kind === "long" || kind === "short") return "single";
   if (kind === "triangle" || kind === "channel" || kind === "flatChannel" || kind === "disjointChannel" || kind === "fibExtension" || kind === "anchoredText" || kind === "callout" || kind === "path") return "click";
+  // A brush/highlighter stroke is pressed, dragged and released — points are
+  // sampled continuously while the pointer moves, not placed one click at a
+  // time like `path`.
+  if (kind === "brush" || kind === "highlighter") return "stream";
   return "drag";
 }
+
+/** Minimum pixel travel before a stream stroke samples another point. */
+const STREAM_MIN_SAMPLE_PX = 4;
 
 interface EngineEnv {
   tool: ToolKind | null;
@@ -306,6 +313,26 @@ export class DrawingEngine {
   }
   isHiddenAll(): boolean {
     return this.allHidden;
+  }
+
+  /**
+   * Freeze every drawing against move/resize without touching any object's
+   * own `locked` flag — the same relationship `setHideAll` has to a drawing's
+   * own `hidden` flag. Unlocking this restores each drawing to whatever its
+   * individual lock state already was, rather than force-unlocking ones a
+   * trader had locked on purpose.
+   */
+  private allLocked = false;
+  setAllLocked(locked: boolean): void {
+    if (this.allLocked === locked) return;
+    this.allLocked = locked;
+    this.overlayDirty = true;
+  }
+  isLockedAll(): boolean {
+    return this.allLocked;
+  }
+  private isLocked(o: DrawingObject): boolean {
+    return this.allLocked || o.locked;
   }
 
   /** Live-update an object's text (used by the inline text editor; no history). */
@@ -657,7 +684,7 @@ export class DrawingEngine {
     // Select mode. Grabbing an object / anchor freezes the chart so the drag
     // moves the object rather than panning; empty clicks leave the chart free.
     const sel = this.objects.find((d) => d.id === this.selectedId) ?? null;
-    if (sel && !sel.locked) {
+    if (sel && !this.isLocked(sel)) {
       const handle = this.anchorAt(sel, px.x, px.y);
       if (handle) {
         this.freezeChart();
@@ -676,7 +703,7 @@ export class DrawingEngine {
     const hit = this.hitObject(px.x, px.y);
     if (hit) {
       this.select(hit.id);
-      if (!hit.locked) {
+      if (!this.isLocked(hit)) {
         this.freezeChart();
         this.drag = hit.kind === "anchoredText" || hit.kind === "callout"
           ? { id: hit.id, kind: "anchor", index: 1, startPx: px, origin: hit.points.map((p) => ({ ...p })) }
@@ -701,7 +728,7 @@ export class DrawingEngine {
     }
 
     const mode = creationMode(kind);
-    const count = kind === "path" ? 2 : Number.isFinite(TOOL_POINTS[kind]) ? TOOL_POINTS[kind] : 2;
+    const count = kind === "path" || kind === "brush" || kind === "highlighter" ? 2 : Number.isFinite(TOOL_POINTS[kind]) ? TOOL_POINTS[kind] : 2;
     const obj = newDrawing(kind, point, this.topZ() + 1, count, "");
     // Seed from the user's last-used style for this tool (text is never inherited).
     const saved = this.toolDefaults[kind];
@@ -757,6 +784,21 @@ export class DrawingEngine {
       obj.points[1] = { time: entry.time, price: entry.price - (point.price - entry.price) }; // mirrored stop
     } else if (this.create.mode === "drag") {
       obj.points[1] = { ...point };
+    } else if (this.create.mode === "stream") {
+      // Sample a new point only once the pointer has actually travelled —
+      // otherwise a long stroke's array grows by one point per pointermove
+      // event, most of them a fraction of a pixel apart. Below the threshold
+      // the trailing point still tracks the cursor, so the stroke has no dead
+      // zone between samples.
+      const lastIndex = obj.points.length - 1;
+      const last = obj.points[lastIndex]!;
+      const lastX = last.time ? this.mapper.timeToX(last.time) ?? px.x : px.x;
+      const lastY = this.mapper.priceToY(last.price) ?? px.y;
+      if (Math.hypot(px.x - lastX, px.y - lastY) >= STREAM_MIN_SAMPLE_PX) {
+        obj.points.push({ ...point });
+      } else {
+        obj.points[lastIndex] = { ...point };
+      }
     } else {
       // click mode: the floating anchor is at index = placed
       obj.points[this.create.placed] = { ...point };
@@ -835,7 +877,7 @@ export class DrawingEngine {
       return;
     }
     const selected = this.objects.find((drawing) => drawing.id === this.selectedId);
-    const selectedHandle = selected && !selected.locked
+    const selectedHandle = selected && !this.isLocked(selected)
       ? this.anchorAt(selected, px.x, px.y)
       : null;
     if (selectedHandle) {
@@ -924,7 +966,7 @@ export class DrawingEngine {
 
   private onWindowUp = (): void => {
     if (this.create) {
-      if (this.create.mode === "drag") this.finalizeCreate();
+      if (this.create.mode === "drag" || this.create.mode === "stream") this.finalizeCreate();
       // click mode advances on pointerdown, not up
       return;
     }
@@ -1108,10 +1150,10 @@ export class DrawingEngine {
           } else {
             ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);
           }
-          ctx.fillStyle = sel.locked ? "#94a3b8" : HANDLE_FILL;
+          ctx.fillStyle = this.isLocked(sel) ? "#94a3b8" : HANDLE_FILL;
           ctx.fill();
           ctx.lineWidth = 2;
-          ctx.strokeStyle = sel.locked ? "#94a3b8" : SELECTION_BLUE;
+          ctx.strokeStyle = this.isLocked(sel) ? "#94a3b8" : SELECTION_BLUE;
           ctx.stroke();
         }
       }
@@ -1119,10 +1161,10 @@ export class DrawingEngine {
         for (const a of sel.anchors(this.mapper)) {
           ctx.beginPath();
           ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);
-          ctx.fillStyle = sel.locked ? "#94a3b8" : HANDLE_FILL;
+          ctx.fillStyle = this.isLocked(sel) ? "#94a3b8" : HANDLE_FILL;
           ctx.fill();
           ctx.lineWidth = 2;
-          ctx.strokeStyle = sel.locked ? "#94a3b8" : SELECTION_BLUE;
+          ctx.strokeStyle = this.isLocked(sel) ? "#94a3b8" : SELECTION_BLUE;
           ctx.stroke();
         }
       }

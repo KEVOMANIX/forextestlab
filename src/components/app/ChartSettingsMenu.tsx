@@ -57,6 +57,11 @@ export interface ChartSettings {
     reference: string;
   };
   drawings: boolean;
+  /**
+   * Freeze every drawing against move/resize, without touching any single
+   * drawing's own lock — same relationship this has to `drawings` hiding.
+   */
+  drawingsLocked: boolean;
   /** Economic calendar badges on the time axis. */
   economicEvents: boolean;
   /**
@@ -148,6 +153,7 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
     reference: "?",
   },
   drawings: true,
+  drawingsLocked: false,
   economicEvents: true,
   economicEventImportance: "medium",
   priceLine: true,
@@ -388,6 +394,12 @@ export function ChartSettingsDialog({
                   label="Drawings"
                   checked={settings.drawings}
                   onToggle={() => onChange({ drawings: !settings.drawings })}
+                />
+                <ToggleRow
+                  label="Lock all drawings"
+                  hint="Freezes every drawing against move and resize, without changing any drawing's own lock."
+                  checked={settings.drawingsLocked}
+                  onToggle={() => onChange({ drawingsLocked: !settings.drawingsLocked })}
                 />
                 <ToggleRow
                   label="Economic calendar"

@@ -328,6 +328,28 @@ export function PathToolIcon(props: DrawingIconProps) {
   );
 }
 
+// ---- brushes ----
+
+export function BrushToolIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M4.5 19.5c1-3.5 2-6.5 4.5-9s5.5-3.5 7-2-.5 4.5-3 7-6 4.5-8.5 4Z" strokeWidth={1.3} />
+      <Ring cx={4.5} cy={19.5} r={1.6} />
+    </Glyph>
+  );
+}
+
+/** A thick, translucent stroke under a thin outline — a marker's wide flat tip. */
+export function HighlighterToolIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M6 18 16 8" strokeWidth={5} opacity=".3" />
+      <path d="M6 18 16 8" strokeWidth={1.3} />
+      <Ring cx={6} cy={18} r={1.6} /><Ring cx={16} cy={8} r={1.6} />
+    </Glyph>
+  );
+}
+
 // ---- text ----
 
 export function TextToolIcon(props: DrawingIconProps) {
@@ -388,6 +410,15 @@ export function NotesGroupIcon(props: DrawingIconProps) {
   return <Glyph {...props}><path d="M5 5h10M10 5v14M7 19h6" /><path d="M16 11h4v8h-5v-7Z" opacity=".65" /></Glyph>;
 }
 
+export function BrushesGroupIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M4.5 19.5c1-3 2-5.5 4-7.5s4.5-3 6-1.5-.5 3.5-2.5 5.5-4.5 3-6.5 3.5Z" strokeWidth={1.3} />
+      <Ring cx={4.5} cy={19.5} r={1.6} />
+    </Glyph>
+  );
+}
+
 export const DRAWING_TOOL_ICONS = {
   trend: TrendLineIcon,
   ray: RayIcon,
@@ -422,4 +453,6 @@ export const DRAWING_TOOL_ICONS = {
   callout: CalloutIcon,
   priceLabel: PriceLabelIcon,
   anchoredText: AnchoredTextIcon,
+  brush: BrushToolIcon,
+  highlighter: HighlighterToolIcon,
 } satisfies Record<ToolKind, DrawingIcon>;

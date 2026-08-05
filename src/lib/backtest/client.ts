@@ -173,14 +173,56 @@ export async function getState(sessionId: string): Promise<StateOk | ApiErr> {
   return getStateWithToken(sessionId, null);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+/**
+ * Backoff for retrying a resume's state fetch. Short and few: this delays a
+ * page load, not a background poll, and a real outage should surface rather
+ * than hide behind a long retry loop.
+ */
+const RESUME_RETRY_DELAYS_MS = [400, 1200];
+
 export async function getStateWithToken(
   sessionId: string,
   token: string | null,
 ): Promise<StateOk | ApiErr> {
-  const res = await fetch(`/api/backtest/sessions/${sessionId}`, {
-    cache: "no-store",
-    headers: token ? { "x-session-token": token } : undefined,
-  });
+  const attempt = () =>
+    fetch(`/api/backtest/sessions/${sessionId}`, {
+      cache: "no-store",
+      headers: token ? { "x-session-token": token } : undefined,
+    });
+
+  let res: Response | null = null;
+  try {
+    res = await attempt();
+  } catch {
+    // A dropped connection on the very first try is worth one immediate retry
+    // before falling into the backoff loop below.
+  }
+
+  // A transient server error — a database connection pool timeout under load,
+  // say — must not cost the trader their whole session on a page reload. A
+  // 4xx means the token or session itself is the problem, which retrying
+  // cannot fix, so only the server's own failures (or none at all, on a
+  // dropped connection) get a second chance.
+  for (
+    let index = 0;
+    (!res || res.status >= 500) && index < RESUME_RETRY_DELAYS_MS.length;
+    index += 1
+  ) {
+    await sleep(RESUME_RETRY_DELAYS_MS[index]!);
+    try {
+      res = await attempt();
+    } catch {
+      res = null;
+    }
+  }
+
+  if (!res) {
+    return { ok: false, error: "Could not reach the server. Check your connection and try again." };
+  }
   return parse<StateOk>(res) as Promise<StateOk | ApiErr>;
 }
 

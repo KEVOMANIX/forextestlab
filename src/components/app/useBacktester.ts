@@ -965,6 +965,79 @@ export function useBacktester(resumeSessionId: string | null = null) {
     );
   }, [runAction, s.state, stopLocalScheduler]);
   /**
+   * Rewind to the nearest revealed candle at or before `timestamp` — the
+   * backward counterpart to `jumpTo`, used when a "Go to" destination turns
+   * out to be behind the replay instead of ahead of it.
+   *
+   * Everything in range is already loaded (revealing only ever appends), so
+   * this is a direct index jump through `stepBackTo` — the same primitive
+   * `stepPrev` uses for a single candle — rather than a step-by-step replay
+   * like the forward jump. There is nothing to fill or trigger on the way
+   * back, only positions and orders to unwind past their entry, which
+   * `stepBackTo` already does.
+   */
+  const jumpBackTo = useCallback(
+    (timestamp: number): JumpOutcome => {
+      const engine = localEngineRef.current;
+      if (!engine) return { reason: "unavailable", candles: 0 };
+      const startIndex = engine.state.visibleIndex;
+      const candles = engine.candles;
+      if (!candles[0] || candles[0].timestamp > timestamp) {
+        // Before the earliest candle the replay has ever loaded — there is
+        // nothing to rewind to, not even off-screen.
+        return { reason: "behind", candles: 0 };
+      }
+      // Last index at or before `timestamp`, among candles already revealed.
+      let lo = 0;
+      let hi = startIndex;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        if (candles[mid]!.timestamp <= timestamp) lo = mid;
+        else hi = mid - 1;
+      }
+      const targetIndex = lo;
+      if (targetIndex >= startIndex) return { reason: "behind", candles: 0 };
+
+      wantsReplayRunningRef.current = false;
+      stopLocalScheduler();
+      engine.state.status = "paused";
+      engineGenerationRef.current += 1;
+
+      const rollbackState = s.state ?? undefined;
+      if (!stepBackLocalTo(engine, targetIndex)) {
+        return { reason: "unavailable", candles: 0 };
+      }
+      const candle = engine.candles[engine.state.visibleIndex] ?? null;
+      if (candle) {
+        publishReplayVisual({
+          sessionId: engine.state.sessionId,
+          currentTime: candle.timestamp,
+          visibleIndex: engine.state.visibleIndex,
+          currentPrice: Number(candle.close),
+        });
+      }
+      setS((prev) => ({
+        ...prev,
+        state: publicSessionState(engine, prev.state?.anonymous ?? false),
+        lastCandle: candle,
+        lastCandles: [],
+      }));
+      // Same background persistence `stepPrev` uses: the local rewind is
+      // already complete, so the server sync must not block or animate it.
+      void runAction(
+        { type: "prev", targetIndex },
+        {
+          allowRewind: true,
+          preserveLocalState: true,
+          rollbackState,
+          showBusy: false,
+        },
+      );
+      return { reason: "target", candles: startIndex - targetIndex };
+    },
+    [runAction, s.state, stopLocalScheduler],
+  );
+  /**
    * Advance the replay until a target is met.
    *
    * The engine is driven directly rather than through `stepRef` because a jump
@@ -987,9 +1060,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         startCandle &&
         target.timestamp <= startCandle.timestamp
       ) {
-        // Replay cannot rewind here, and silently doing nothing would read as a
-        // broken button.
-        return { reason: "behind", candles: 0 };
+        return jumpBackTo(target.timestamp);
       }
 
       // A jump is an explicit pause-and-arrive action, like a rewind. Stop local
@@ -1084,7 +1155,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
       return { reason, candles: engine.state.visibleIndex - startIndex };
     },
-    [checkpoint, patch, startReplayExtension, stopLocalScheduler],
+    [checkpoint, jumpBackTo, patch, startReplayExtension, stopLocalScheduler],
   );
   const restart = useCallback(async () => {
     wantsReplayRunningRef.current = false;

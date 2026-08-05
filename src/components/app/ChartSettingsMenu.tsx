@@ -5,6 +5,12 @@ import { createPortal } from "react-dom";
 import { Check, RotateCcw, X } from "lucide-react";
 
 import { EXCHANGE_ZONE, zoneOptionsAt } from "@/lib/chart/timezones";
+import {
+  TRADING_SESSIONS,
+  minutesToClock,
+  type SessionHourOverrides,
+  type TradingSessionDefinition,
+} from "@/lib/backtest/goto";
 import type { EventImportance } from "@/lib/economic-calendar/types";
 import type { Timeframe } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
@@ -86,6 +92,14 @@ export interface ChartSettings {
    * screen that is nobody else's business.
    */
   hideBalances: boolean;
+  /**
+   * A trader's own hours for the named sessions "Go to" offers, keyed by
+   * session id. Empty means every session keeps its built-in cash-session
+   * hours — this exists because a desk's own definition of "London" is not
+   * always 08:00–16:30, and forcing that convention on someone who trades a
+   * different window makes every session destination a little wrong.
+   */
+  sessionHours: SessionHourOverrides;
 }
 
 export type ChartTextSize = "small" | "medium" | "large";
@@ -143,6 +157,7 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   promptEntryReason: true,
   favoriteTimeframes: DEFAULT_FAVORITE_TIMEFRAMES,
   hideBalances: false,
+  sessionHours: {},
 };
 
 /** Palettes people actually use for candles, plus the app default first. */
@@ -456,6 +471,30 @@ export function ChartSettingsDialog({
                   checked={settings.promptEntryReason}
                   onToggle={() => onChange({ promptEntryReason: !settings.promptEntryReason })}
                 />
+
+                <div className="mt-3 border-t app-border pt-3">
+                  <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide opacity-60">
+                    &quot;Go to&quot; session hours
+                  </p>
+                  {TRADING_SESSIONS.map((session) => (
+                    <SessionHoursRow
+                      key={session.id}
+                      session={session}
+                      override={settings.sessionHours[session.id]}
+                      onChange={(value) => {
+                        const next = { ...settings.sessionHours };
+                        if (value) next[session.id] = value;
+                        else delete next[session.id];
+                        onChange({ sessionHours: next });
+                      }}
+                    />
+                  ))}
+                  <p className="px-2 pt-1 text-[11px] opacity-55">
+                    Hours are read in each session&apos;s own zone. They only
+                    change where &quot;Go to&quot; jumps — not the cash-session
+                    convention anyone else&apos;s chart still uses.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -648,6 +687,76 @@ function NumberRow({
         {suffix}
       </span>
     </label>
+  );
+}
+
+function clockToMinutes(value: string): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return hour * 60 + minute;
+}
+
+/**
+ * One named session's hours, editable in its own zone. Shows the built-in
+ * hours until a trader changes one, at which point both fields become an
+ * override together — a session opening after it closes reads as a mistake,
+ * not an overnight session, so there is no "closes after midnight" case to
+ * design around here.
+ */
+function SessionHoursRow({
+  session,
+  override,
+  onChange,
+}: {
+  session: TradingSessionDefinition;
+  override?: { openMinutes: number; closeMinutes: number };
+  onChange: (value: { openMinutes: number; closeMinutes: number } | null) => void;
+}) {
+  const open = override?.openMinutes ?? session.openMinutes;
+  const close = override?.closeMinutes ?? session.closeMinutes;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5">
+      <span className="min-w-0">
+        <span className="block text-[13px]">{session.label}</span>
+        <span className="mt-0.5 block text-[11px] opacity-55">{session.zone}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-1">
+        <input
+          type="time"
+          aria-label={`${session.label} open`}
+          value={minutesToClock(open)}
+          onChange={(event) => {
+            const minutes = clockToMinutes(event.target.value);
+            if (minutes != null) onChange({ openMinutes: minutes, closeMinutes: close });
+          }}
+          className="w-[5.5rem] rounded border border-current/25 bg-transparent px-1.5 py-1 text-[12px] font-mono outline-none focus:border-brand-400"
+        />
+        <span className="opacity-40">–</span>
+        <input
+          type="time"
+          aria-label={`${session.label} close`}
+          value={minutesToClock(close)}
+          onChange={(event) => {
+            const minutes = clockToMinutes(event.target.value);
+            if (minutes != null) onChange({ openMinutes: open, closeMinutes: minutes });
+          }}
+          className="w-[5.5rem] rounded border border-current/25 bg-transparent px-1.5 py-1 text-[12px] font-mono outline-none focus:border-brand-400"
+        />
+        <button
+          type="button"
+          disabled={!override}
+          onClick={() => onChange(null)}
+          aria-label={`Reset ${session.label} hours to the default`}
+          title="Reset to default"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded opacity-55 hover:opacity-100 disabled:opacity-20 disabled:hover:opacity-20"
+        >
+          <RotateCcw size={12} aria-hidden />
+        </button>
+      </span>
+    </div>
   );
 }
 

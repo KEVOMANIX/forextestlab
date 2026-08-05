@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   nextCalendarBoundary,
   nextSessionEdge,
+  previousCalendarBoundary,
   previousDailyRange,
+  previousSessionEdge,
   previousSessionRange,
   psychologicalLevels,
   reachableMoments,
   tradingSession,
+  tradingSessionsWithOverrides,
   zoneParts,
   zoneWallClockToUtc,
 } from "./goto";
@@ -106,6 +109,45 @@ describe("nextCalendarBoundary", () => {
   });
 });
 
+describe("previousCalendarBoundary", () => {
+  it("returns the start of today for a day", () => {
+    const from = Date.UTC(2024, 0, 10, 20, 0); // 15:00 New York
+    expect(previousCalendarBoundary(from, "America/New_York", "day")).toBe(
+      Date.UTC(2024, 0, 10, 5, 0),
+    );
+  });
+
+  it("steps back a further day when already exactly on midnight", () => {
+    const from = Date.UTC(2024, 0, 10, 5, 0); // exactly 00:00 New York
+    expect(previousCalendarBoundary(from, "America/New_York", "day")).toBe(
+      Date.UTC(2024, 0, 9, 5, 0),
+    );
+  });
+
+  it("returns the most recent Monday for a week", () => {
+    // Wednesday 2024-01-10.
+    const from = Date.UTC(2024, 0, 10, 20, 0);
+    const monday = previousCalendarBoundary(from, "America/New_York", "week");
+    expect(zoneParts(monday, "America/New_York")).toMatchObject({
+      day: 8,
+      weekday: 1,
+      hour: 0,
+    });
+  });
+
+  it("returns the first of the current month, rolling the year back", () => {
+    const from = Date.UTC(2024, 0, 20, 12, 0);
+    const previous = previousCalendarBoundary(from, "UTC", "month");
+    expect(previous).toBe(Date.UTC(2024, 0, 1));
+  });
+
+  it("rolls to the prior month when already on the first", () => {
+    const from = Date.UTC(2024, 0, 1, 0, 0);
+    const previous = previousCalendarBoundary(from, "UTC", "month");
+    expect(previous).toBe(Date.UTC(2023, 11, 1));
+  });
+});
+
 describe("nextSessionEdge", () => {
   it("finds today's open when the clock is still before it", () => {
     // 2024-01-10 06:00 UTC is before London's 08:00 open (08:00 GMT in winter).
@@ -136,6 +178,37 @@ describe("nextSessionEdge", () => {
     const from = Date.UTC(2024, 6, 10, 6, 0);
     expect(nextSessionEdge(from, NEW_YORK, "open")).toBe(
       Date.UTC(2024, 6, 10, 12, 0),
+    );
+  });
+});
+
+describe("previousSessionEdge", () => {
+  it("finds today's open when the clock is already past it", () => {
+    const from = Date.UTC(2024, 0, 10, 9, 0);
+    expect(previousSessionEdge(from, LONDON, "open")).toBe(
+      Date.UTC(2024, 0, 10, 8, 0),
+    );
+  });
+
+  it("rolls to yesterday when the clock is still before today's open", () => {
+    const from = Date.UTC(2024, 0, 10, 6, 0);
+    expect(previousSessionEdge(from, LONDON, "open")).toBe(
+      Date.UTC(2024, 0, 9, 8, 0),
+    );
+  });
+
+  it("skips the weekend going backward", () => {
+    // Monday 2024-01-15, before the London open.
+    const from = Date.UTC(2024, 0, 15, 6, 0);
+    expect(previousSessionEdge(from, LONDON, "open")).toBe(
+      Date.UTC(2024, 0, 12, 8, 0),
+    );
+  });
+
+  it("finds the close as a distinct edge", () => {
+    const from = Date.UTC(2024, 0, 11, 9, 0);
+    expect(previousSessionEdge(from, LONDON, "close")).toBe(
+      Date.UTC(2024, 0, 10, 16, 30),
     );
   });
 });
@@ -213,6 +286,47 @@ describe("reachableMoments", () => {
     const times = reachable.map((entry) => entry.timestamp);
     expect(times).toEqual([...times].sort((a, b) => a - b));
     expect(reachable.length).toBeGreaterThan(5);
+  });
+
+  it("looks behind the replay instead, down to the loaded floor", () => {
+    const from = Date.UTC(2020, 5, 1);
+    const loadedFloor = Date.UTC(2020, 0, 1);
+    const reachable = reachableMoments(from, loadedFloor, "UTC", "behind");
+    expect(reachable.map((entry) => entry.moment.id)).toEqual(["covid-crash"]);
+  });
+
+  it("excludes a moment before what has ever loaded", () => {
+    const from = Date.UTC(2020, 5, 1);
+    const loadedFloor = Date.UTC(2020, 2, 13); // the day after covid-crash
+    expect(reachableMoments(from, loadedFloor, "UTC", "behind")).toEqual([]);
+  });
+});
+
+describe("tradingSessionsWithOverrides", () => {
+  it("returns the built-in defaults untouched with no overrides", () => {
+    expect(tradingSessionsWithOverrides({})).toEqual(
+      expect.arrayContaining([LONDON]),
+    );
+  });
+
+  it("substitutes a session's hours and updates its hint to match", () => {
+    const sessions = tradingSessionsWithOverrides({
+      london: { openMinutes: 7 * 60, closeMinutes: 15 * 60 },
+    });
+    const london = sessions.find((session) => session.id === "london")!;
+    expect(london.openMinutes).toBe(7 * 60);
+    expect(london.closeMinutes).toBe(15 * 60);
+    expect(london.hint).toBe("07:00–15:00 London");
+    // The zone and label are the session's identity, not up for override.
+    expect(london.zone).toBe(LONDON.zone);
+    expect(london.label).toBe(LONDON.label);
+  });
+
+  it("leaves sessions with no override alone", () => {
+    const sessions = tradingSessionsWithOverrides({
+      london: { openMinutes: 7 * 60, closeMinutes: 15 * 60 },
+    });
+    expect(sessions.find((session) => session.id === "new-york")).toEqual(NEW_YORK);
   });
 });
 

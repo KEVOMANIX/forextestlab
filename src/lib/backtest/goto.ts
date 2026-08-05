@@ -12,9 +12,11 @@
  *   question, never through a stored offset. A session replaying last January
  *   opened at the offset in force *then*, and half the world's offsets move
  *   twice a year.
- * - A target only ever looks *forward* in time or *backward* in data. Replay
- *   cannot rewind past what it has revealed, so a price level is derived from
- *   candles the trader has already seen, and a time is the next occurrence.
+ * - A price level only ever looks *backward* in data: it is derived from
+ *   candles the trader has already seen, then the replay runs forward to
+ *   when it is touched. A time target can look either way — ahead to the
+ *   next occurrence, or behind to a moment already revealed — but never past
+ *   the edge of what has actually loaded, in either direction.
  */
 
 import { resolveZone, zoneOffsetMinutes } from "@/lib/chart/timezones";
@@ -83,6 +85,43 @@ export const TRADING_SESSIONS: TradingSessionDefinition[] = [
 
 export function tradingSession(id: string): TradingSessionDefinition | null {
   return TRADING_SESSIONS.find((session) => session.id === id) ?? null;
+}
+
+/** A trader's own open/close hours for a named session, keyed by session id. */
+export type SessionHourOverrides = Partial<
+  Record<string, { openMinutes: number; closeMinutes: number }>
+>;
+
+/** Minutes past midnight as "HH:MM", for showing (and editing) a session's hours. */
+export function minutesToClock(minutes: number): string {
+  const normalized = ((minutes % 1440) + 1440) % 1440;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(Math.floor(normalized / 60))}:${pad(normalized % 60)}`;
+}
+
+/**
+ * The four named sessions "Go to" offers, with any trader-supplied hours
+ * substituted in. A trader who trades London's hours differently than the
+ * cash-session convention should not have to fight the default to get there —
+ * this only ever changes the hours a named session keeps, never its zone or
+ * what it is called.
+ */
+export function tradingSessionsWithOverrides(
+  overrides: SessionHourOverrides,
+): TradingSessionDefinition[] {
+  return TRADING_SESSIONS.map((session) => {
+    const override = overrides[session.id];
+    if (!override) return session;
+    // The hint always reads "HH:MM–HH:MM <city>" — keep the city, replace the
+    // hours, so a customised session never claims hours it no longer keeps.
+    const city = session.hint.replace(/^[\d:]+–[\d:]+\s*/, "");
+    return {
+      ...session,
+      openMinutes: override.openMinutes,
+      closeMinutes: override.closeMinutes,
+      hint: `${minutesToClock(override.openMinutes)}–${minutesToClock(override.closeMinutes)} ${city}`,
+    };
+  });
 }
 
 const partFormatters = new Map<string, Intl.DateTimeFormat>();
@@ -211,7 +250,41 @@ export function nextCalendarBoundary(
   return zoneWallClockToUtc(zone, nextYear, nextMonth, 1);
 }
 
-/** How far ahead a session edge is searched before giving up. */
+/**
+ * The previous day, week or month boundary strictly before `from`, in `zone`.
+ *
+ * The mirror of `nextCalendarBoundary` — "previous day" means the start of
+ * *today*, not a day-old moment, the same way "next day" means the start of
+ * tomorrow rather than 24 hours ahead. If `from` already sits exactly on a
+ * boundary (a session opened at a wall-clock midnight, say), that boundary is
+ * `from` itself rather than strictly before it, so this steps back one more
+ * unit — a jump that lands where it started would read as a broken button.
+ */
+export function previousCalendarBoundary(
+  from: number,
+  zone: string,
+  unit: CalendarUnit,
+): number {
+  const parts = zoneParts(from, zone);
+  if (unit === "day") {
+    const startOfToday = zoneMidnight(from, zone, 0);
+    return startOfToday < from ? startOfToday : zoneMidnight(from, zone, -1);
+  }
+  if (unit === "week") {
+    const daysSinceMonday = (parts.weekday + 6) % 7;
+    const startOfThisWeek = zoneMidnight(from, zone, -daysSinceMonday);
+    return startOfThisWeek < from
+      ? startOfThisWeek
+      : zoneMidnight(from, zone, -daysSinceMonday - 7);
+  }
+  const startOfThisMonth = zoneWallClockToUtc(zone, parts.year, parts.month, 1);
+  if (startOfThisMonth < from) return startOfThisMonth;
+  const prevMonth = parts.month === 1 ? 12 : parts.month - 1;
+  const prevYear = parts.month === 1 ? parts.year - 1 : parts.year;
+  return zoneWallClockToUtc(zone, prevYear, prevMonth, 1);
+}
+
+/** How far ahead (or behind) a session edge is searched before giving up. */
 const SESSION_SEARCH_DAYS = 10;
 
 /**
@@ -231,6 +304,31 @@ export function nextSessionEdge(
     const midnight = zoneMidnight(from, session.zone, offset);
     const candidate = midnight + minutes * 60_000;
     if (candidate <= from) continue;
+    const weekday = zoneParts(candidate, session.zone).weekday;
+    if (weekday === 0 || weekday === 6) continue;
+    return candidate;
+  }
+  return null;
+}
+
+/**
+ * The previous time a session opened or closed, strictly before `from`.
+ *
+ * The mirror of `nextSessionEdge`, walking backward a day at a time instead of
+ * forward. Whether the destination is actually reachable — whether the replay
+ * has revealed that far back — is the caller's concern, the same way it is for
+ * `nextSessionEdge`'s forward search running past the end of loaded data.
+ */
+export function previousSessionEdge(
+  from: number,
+  session: TradingSessionDefinition,
+  edge: "open" | "close",
+): number | null {
+  const minutes = edge === "open" ? session.openMinutes : session.closeMinutes;
+  for (let offset = 0; offset <= SESSION_SEARCH_DAYS; offset += 1) {
+    const midnight = zoneMidnight(from, session.zone, -offset);
+    const candidate = midnight + minutes * 60_000;
+    if (candidate >= from) continue;
     const weekday = zoneParts(candidate, session.zone).weekday;
     if (weekday === 0 || weekday === 6) continue;
     return candidate;
@@ -372,20 +470,31 @@ export const HISTORICAL_MOMENTS: HistoricalMoment[] = [
 ];
 
 /**
- * Historical moments a session can actually reach: strictly after `from` and
- * within the data the session holds, each resolved to midnight in `zone`.
+ * Historical moments a session can actually reach, each resolved to midnight
+ * in `zone`.
+ *
+ * Ahead of the replay, "reachable" means strictly after `from` and within the
+ * data the session holds (`bound` is the session's end). Behind it, the same
+ * word means strictly before `from` and no earlier than what has been loaded
+ * (`bound` is the earliest revealed candle) — a moment before that is not on
+ * this replay's tape at all, loaded or not.
  */
 export function reachableMoments(
   from: number,
-  endTime: number,
+  bound: number,
   zone: string,
+  direction: "ahead" | "behind" = "ahead",
 ): { moment: HistoricalMoment; timestamp: number }[] {
   const out: { moment: HistoricalMoment; timestamp: number }[] = [];
   for (const moment of HISTORICAL_MOMENTS) {
     const [year, month, day] = moment.date.split("-").map(Number);
     if (!year || !month || !day) continue;
     const timestamp = zoneWallClockToUtc(zone, year, month, day);
-    if (timestamp > from && timestamp <= endTime) out.push({ moment, timestamp });
+    const reachable =
+      direction === "ahead"
+        ? timestamp > from && timestamp <= bound
+        : timestamp < from && timestamp >= bound;
+    if (reachable) out.push({ moment, timestamp });
   }
   return out.sort((a, b) => a.timestamp - b.timestamp);
 }

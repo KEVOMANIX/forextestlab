@@ -1216,6 +1216,7 @@ export function Backtester({
         visibleIndex={state.visibleIndex}
         timeZone={workspace.settings.timeZone}
         endTime={state.config.endTime}
+        sessionHours={workspace.settings.sessionHours}
         canWaitForClose={
           state.openPositions.length > 0 ||
           state.pendingOrders.some((order) => order.status === "pending")

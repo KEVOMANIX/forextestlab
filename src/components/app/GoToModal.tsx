@@ -12,17 +12,21 @@ import {
 } from "lucide-react";
 
 import {
-  TRADING_SESSIONS,
   nextCalendarBoundary,
   nextSessionEdge,
+  previousCalendarBoundary,
   previousDailyRange,
+  previousSessionEdge,
   previousSessionRange,
   psychologicalLevels,
   reachableMoments,
+  tradingSessionsWithOverrides,
   zoneParts,
   zoneWallClockToUtc,
+  type CalendarUnit,
   type GoToTarget,
   type PriceRange,
+  type SessionHourOverrides,
   type TradingSessionDefinition,
 } from "@/lib/backtest/goto";
 import { formatInZone, resolveZone } from "@/lib/chart/timezones";
@@ -33,13 +37,23 @@ import { useCompactViewport } from "@/lib/ui/use-media-query";
 /** Panel width on desktop — matches the old dialog's `max-w-[44rem]`. */
 const PANEL_WIDTH_REM = 44;
 
+const CALENDAR_UNITS: { unit: CalendarUnit; ahead: string; behind: string }[] = [
+  { unit: "day", ahead: "Next day", behind: "Previous day" },
+  { unit: "week", ahead: "Next week", behind: "Previous week" },
+  { unit: "month", ahead: "Next month", behind: "Previous month" },
+];
+
 /**
- * "Go to" — fast-forward the replay to a moment or a price.
+ * "Go to" — jump the replay to a moment or a price, ahead of it or behind it.
  *
  * Three columns, because there are three ways a trader says where they want to
- * be: a clock time, a session, or a price. Everything offered is *ahead* of the
- * replay, and every level comes from candles already revealed — replay cannot
- * rewind, and a level taken from a bar the trader has not seen is hindsight.
+ * be: a clock time, a session, or a price. An Ahead/Behind toggle switches the
+ * Time and Sessions columns between the next occurrence and the last one — the
+ * Prices column stays put either way, since a level is always read out of data
+ * already revealed and then arrived at by running forward, regardless of which
+ * tab is selected. Behind is bounded by what has ever loaded, not by what the
+ * trader has watched go by — rewinding past an entry silently undoes the trade,
+ * so there is no separate "already seen" line to enforce.
  *
  * It is kept deliberately narrow. It opens over the chart the trader is deciding
  * from, so a dialog wide enough to be roomy is a dialog covering the reason they
@@ -78,6 +92,8 @@ interface GoToModalProps {
   timeZone: string;
   /** Last moment this session holds data for. */
   endTime: number;
+  /** A trader's own hours for the named sessions, keyed by session id. */
+  sessionHours: SessionHourOverrides;
   /** False when nothing is open or pending, so no order can close. */
   canWaitForClose: boolean;
   busy: boolean;
@@ -204,6 +220,7 @@ export function GoToModal({
   visibleIndex,
   timeZone,
   endTime,
+  sessionHours,
   canWaitForClose,
   busy,
   onJump,
@@ -216,9 +233,24 @@ export function GoToModal({
     initialFocus: closeRef,
   });
   const compact = useCompactViewport();
+  const [direction, setDirection] = useState<"ahead" | "behind">("ahead");
   const [expanded, setExpanded] = useState<"date" | "price" | null>(null);
   const [dateDraft, setDateDraft] = useState("");
   const [priceDraft, setPriceDraft] = useState("");
+
+  /**
+   * The earliest moment this session has ever loaded — the floor a "Behind"
+   * jump cannot cross. Not `visibleIndex`: revealing only ever appends, so the
+   * loaded series' own first candle is the true floor regardless of how far
+   * the replay has advanced.
+   */
+  const loadedFloor = candles[0]?.timestamp ?? currentTime;
+
+  /** The four named sessions, with any of the trader's own hours applied. */
+  const sessions = useMemo(
+    () => tradingSessionsWithOverrides(sessionHours),
+    [sessionHours],
+  );
 
   const zone = resolveZone(timeZone);
   const clock = (at: number) =>
@@ -246,18 +278,16 @@ export function GoToModal({
 
   const calendar = useMemo(
     () =>
-      (
-        [
-          ["Next day", "day"],
-          ["Next week", "week"],
-          ["Next month", "month"],
-        ] as const
-      ).map(([label, unit]) => {
-        const timestamp = nextCalendarBoundary(currentTime, zone, unit);
-        return { key: unit, label, timestamp, beyond: timestamp > endTime };
+      CALENDAR_UNITS.map(({ unit, ahead, behind }) => {
+        const timestamp =
+          direction === "ahead"
+            ? nextCalendarBoundary(currentTime, zone, unit)
+            : previousCalendarBoundary(currentTime, zone, unit);
+        const beyond =
+          direction === "ahead" ? timestamp > endTime : timestamp < loadedFloor;
+        return { key: unit, label: direction === "ahead" ? ahead : behind, timestamp, beyond };
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentTime, endTime, zone],
+    [currentTime, direction, endTime, loadedFloor, zone],
   );
 
   /** Ranges behind the replay, one per source, each with a high and a low. */
@@ -271,7 +301,7 @@ export function GoToModal({
         range: previousDailyRange(revealed, zone, currentTime),
       },
     ];
-    for (const session of TRADING_SESSIONS) {
+    for (const session of sessions) {
       out.push({
         key: session.id,
         label: `Previous ${session.label}`,
@@ -280,7 +310,7 @@ export function GoToModal({
       });
     }
     return out;
-  }, [open, revealed, zone, currentTime]);
+  }, [open, revealed, sessions, zone, currentTime]);
 
   const levels = useMemo(
     () => (currentPrice == null ? [] : psychologicalLevels(currentPrice, pipSize, 2)),
@@ -295,9 +325,16 @@ export function GoToModal({
    * dates that would each refuse the click.
    */
   const moments = useMemo(
-    () => (open ? reachableMoments(currentTime, endTime, zone) : []),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [open, currentTime, endTime, zone],
+    () =>
+      open
+        ? reachableMoments(
+            currentTime,
+            direction === "ahead" ? endTime : loadedFloor,
+            zone,
+            direction,
+          )
+        : [],
+    [open, currentTime, direction, endTime, loadedFloor, zone],
   );
 
   if (!open) return null;
@@ -389,8 +426,10 @@ export function GoToModal({
               Go to …
             </h2>
             <p className="truncate text-[10px] app-muted">
-              Runs the replay forward, filling stops and orders on the way. Now at{" "}
-              {clock(currentTime)}.
+              {direction === "ahead"
+                ? "Runs the replay forward, filling stops and orders on the way."
+                : "Rewinds the replay — any trade opened past the target is undone."}{" "}
+              Now at {clock(currentTime)}.
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
@@ -415,6 +454,30 @@ export function GoToModal({
           </div>
         </header>
 
+        {/*
+          Only Time and Sessions actually change shape between the two — a
+          price is always read from what has already been revealed and then
+          arrived at by running forward, so the Prices column looks the same
+          either way and is left off this toggle's effect.
+        */}
+        <div className="flex shrink-0 gap-1 px-3 pb-2" role="group" aria-label="Direction">
+          {(["ahead", "behind"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={direction === value}
+              onClick={() => setDirection(value)}
+              className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+                direction === value
+                  ? "bg-brand-500 text-surface-950"
+                  : "app-muted hover:bg-[var(--app-panel-2)]"
+              }`}
+            >
+              {value === "ahead" ? "Ahead" : "Behind"}
+            </button>
+          ))}
+        </div>
+
         <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto px-3 pb-3 sm:grid-cols-3">
           <Column title="Time">
             {calendar.map((entry) => (
@@ -425,7 +488,9 @@ export function GoToModal({
                 disabled={busy || entry.beyond}
                 title={
                   entry.beyond
-                    ? "Past the end of this session's data."
+                    ? direction === "ahead"
+                      ? "Past the end of this session's data."
+                      : "Before anything this session has loaded."
                     : `${entry.label} — ${clock(entry.timestamp)}`
                 }
                 onSelect={() =>
@@ -451,7 +516,7 @@ export function GoToModal({
                   autoFocus
                   type="datetime-local"
                   value={dateDraft}
-                  min={asInput(currentTime)}
+                  min={asInput(loadedFloor)}
                   max={asInput(endTime)}
                   onChange={(event) => setDateDraft(event.target.value)}
                   onKeyDown={(event) => {
@@ -480,7 +545,9 @@ export function GoToModal({
               </p>
               {moments.length === 0 ? (
                 <p className="px-1.5 pt-0.5 text-[9px] leading-3 app-muted">
-                  None inside this session, ahead of the replay.
+                  {direction === "ahead"
+                    ? "None inside this session, ahead of the replay."
+                    : "None inside this session, behind the replay."}
                 </p>
               ) : (
                 moments.map(({ moment, timestamp }) => (
@@ -498,12 +565,14 @@ export function GoToModal({
           </Column>
 
           <Column title="Sessions">
-            {TRADING_SESSIONS.map((session) => (
+            {sessions.map((session) => (
               <SessionRow
                 key={session.id}
                 session={session}
                 currentTime={currentTime}
                 endTime={endTime}
+                loadedFloor={loadedFloor}
+                direction={direction}
                 busy={busy}
                 clock={clock}
                 onSelect={jump}
@@ -622,6 +691,8 @@ function SessionRow({
   session,
   currentTime,
   endTime,
+  loadedFloor,
+  direction,
   busy,
   clock,
   onSelect,
@@ -629,10 +700,13 @@ function SessionRow({
   session: TradingSessionDefinition;
   currentTime: number;
   endTime: number;
+  loadedFloor: number;
+  direction: "ahead" | "behind";
   busy: boolean;
   clock: (at: number) => string;
   onSelect: (target: GoToTarget, label: string) => void;
 }) {
+  const ahead = direction === "ahead";
   const edge = (
     at: number | null,
     kind: "open" | "close",
@@ -644,20 +718,31 @@ function SessionRow({
     detail: at == null ? undefined : clock(at),
     unavailable:
       at == null
-        ? `No upcoming ${session.label} ${kind}.`
-        : at > endTime
-          ? "Past the end of this session's data."
-          : undefined,
+        ? `No ${ahead ? "upcoming" : "prior"} ${session.label} ${kind}.`
+        : ahead
+          ? at > endTime
+            ? "Past the end of this session's data."
+            : undefined
+          : at < loadedFloor
+            ? "Before anything this session has loaded."
+            : undefined,
     disabled: busy,
     onSelect,
   });
+
+  const openAt = ahead
+    ? nextSessionEdge(currentTime, session, "open")
+    : previousSessionEdge(currentTime, session, "open");
+  const closeAt = ahead
+    ? nextSessionEdge(currentTime, session, "close")
+    : previousSessionEdge(currentTime, session, "close");
 
   return (
     <PairRow
       label={session.label}
       hint={session.hint}
-      first={edge(nextSessionEdge(currentTime, session, "open"), "open", Clock)}
-      second={edge(nextSessionEdge(currentTime, session, "close"), "close", Hourglass)}
+      first={edge(openAt, "open", Clock)}
+      second={edge(closeAt, "close", Hourglass)}
     />
   );
 }

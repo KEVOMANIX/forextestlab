@@ -524,11 +524,15 @@ function ToolButton({
   active = false,
   onClick,
   children,
+  size = "default",
 }: {
   label: string;
   active?: boolean;
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   children: React.ReactNode;
+  /** "sm" shrinks the button for the floating favourites bar, kept out of the
+   *  way of the taller drawing rail so its own hit targets stay unchanged. */
+  size?: "default" | "sm";
 }) {
   return (
     <button
@@ -537,7 +541,9 @@ function ToolButton({
       title={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors ${
+      className={`inline-flex shrink-0 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
+        size === "sm" ? "h-6 min-w-6 px-1" : "h-8 min-w-8 px-2"
+      } ${
         active
           ? "bg-brand-400/20 text-[var(--chart-text)]"
           : "text-[var(--chart-text)] hover:bg-[var(--app-panel-2)]"
@@ -3156,7 +3162,9 @@ export default function PriceChart({
   const favoritesBar = (
     <div
       ref={favBarRef}
-      className="pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-1 shadow-xl"
+      // No backdrop blur or alpha in the panel colour — it must read as solid
+      // chrome even floating over busy candles, not a tinted overlay.
+      className="pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-0.5 shadow-2xl shadow-black/40"
       style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
       role="toolbar"
       aria-label="Favorite tools (drag to move)"
@@ -3166,8 +3174,8 @@ export default function PriceChart({
       {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
         const Icon = DRAWING_TOOL_ICONS[t];
         return (
-          <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
-            <Icon size={22} aria-hidden />
+          <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} size="sm" onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
+            <Icon size={16} aria-hidden />
           </ToolButton>
         );
       })}
@@ -3516,18 +3524,21 @@ export default function PriceChart({
 
             {/*
               Rendered unconditionally (once anything sits below it) rather than
-              only while `legend` is set. Mounting/unmounting this row as the
-              crosshair enters and leaves the chart shifted the indicator chips
-              beneath it, which could nudge them out from under a cursor that
-              was moving down toward one — collapsing the row, which moved the
-              chart back under the cursor, which re-triggered the crosshair,
-              which remounted the row: an infinite flicker loop. Keeping the
-              row's height constant and only toggling its visibility removes
-              the feedback loop entirely.
+              only while `legend` is set, and `pointer-events-none` throughout —
+              it is a pure readout with nothing clickable in it. Both matter for
+              the same reason: this box sits directly over the plot area, and
+              its width tracks whatever candle is under the crosshair. If it
+              could capture the pointer, hovering it would block the chart's own
+              mouse tracking right as the box's content (and so its edge)
+              shifted under the cursor, flipping the mouse between "over the
+              box" and "over the chart" every frame — each flip changing the
+              reading, which changed the width, which flipped it again. Neither
+              the mount/unmount nor the hit-testing can be allowed to react to
+              the very hover this row exists to display.
             */}
             {(legend || pricePaneIndicators.length > 0) && (
               <div
-                className="pointer-events-auto flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-0.5 font-mono text-[0.78em] shadow"
+                className="pointer-events-none flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-0.5 font-mono text-[0.78em] shadow"
                 style={{ visibility: legend ? "visible" : "hidden" }}
               >
                 {legend ? (

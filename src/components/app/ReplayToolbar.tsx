@@ -182,19 +182,24 @@ export function ReplayToolbar({
     else window.localStorage.removeItem("forextestlab:replay-position");
   }, [compact, position]);
 
+  /**
+   * Clamped against the browser window, not this element's parent — the
+   * toolbox is fixed to the viewport, so it can be parked over the rail, the
+   * toolbar, or a side panel instead of being clipped at the chart area's own
+   * `overflow: hidden` edge.
+   */
   function clampPosition(x: number, y: number) {
     const toolbox = toolboxRef.current;
-    const parent = toolbox?.parentElement;
-    if (!toolbox || !parent) return { x, y };
+    if (!toolbox) return { x, y };
     const padding = 10;
     return {
       x: Math.min(
         Math.max(padding, x),
-        Math.max(padding, parent.clientWidth - toolbox.offsetWidth - padding),
+        Math.max(padding, window.innerWidth - toolbox.offsetWidth - padding),
       ),
       y: Math.min(
         Math.max(padding, y),
-        Math.max(padding, parent.clientHeight - toolbox.offsetHeight - padding),
+        Math.max(padding, window.innerHeight - toolbox.offsetHeight - padding),
       ),
     };
   }
@@ -204,29 +209,24 @@ export function ReplayToolbar({
     const target = event.target as HTMLElement;
     if (target.closest("button, input, select, textarea, a")) return;
     const toolbox = toolboxRef.current;
-    const parent = toolbox?.parentElement;
-    if (!toolbox || !parent) return;
+    if (!toolbox) return;
 
     const box = toolbox.getBoundingClientRect();
-    const bounds = parent.getBoundingClientRect();
     dragRef.current = {
       pointerId: event.pointerId,
       offsetX: event.clientX - box.left,
       offsetY: event.clientY - box.top,
     };
-    setPosition(clampPosition(box.left - bounds.left, box.top - bounds.top));
+    setPosition(clampPosition(box.left, box.top));
 
     dragCleanupRef.current?.();
     const move = (moveEvent: PointerEvent) => {
       const drag = dragRef.current;
-      const currentToolbox = toolboxRef.current;
-      const currentParent = currentToolbox?.parentElement;
-      if (!drag || drag.pointerId !== moveEvent.pointerId || !currentParent) return;
-      const currentBounds = currentParent.getBoundingClientRect();
+      if (!drag || drag.pointerId !== moveEvent.pointerId) return;
       setPosition(
         clampPosition(
-          moveEvent.clientX - currentBounds.left - drag.offsetX,
-          moveEvent.clientY - currentBounds.top - drag.offsetY,
+          moveEvent.clientX - drag.offsetX,
+          moveEvent.clientY - drag.offsetY,
         ),
       );
     };
@@ -279,7 +279,7 @@ export function ReplayToolbar({
       // Above every piece of chart chrome (rails, legends, order lines all sit
       // at z-30/z-40) so a grid layout cannot slice the toolbox in half with the
       // neighbouring cell's drawing rail. Still below menus and dialogs.
-      className={`absolute z-[45] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1.5 shadow-2xl shadow-black/40 ${
+      className={`fixed z-[45] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1.5 shadow-2xl shadow-black/40 ${
         compact
           ? "w-[calc(100%-1.5rem)] max-w-[360px]"
           : "w-fit max-w-[calc(100%-1.5rem)] touch-none cursor-move"

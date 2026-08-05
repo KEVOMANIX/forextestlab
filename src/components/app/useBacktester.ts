@@ -1476,12 +1476,15 @@ export function useBacktester(resumeSessionId: string | null = null) {
         before,
       );
       if (!result.ok) {
-        patch({ error: result.error });
+        // Older history failing to page in leaves the visible candles untouched
+        // and self-heals the next time the view nears the loaded edge — not
+        // worth interrupting the trader with the global error banner over.
+        console.warn("Chart history page failed to load:", result.error);
         return { candles: [], hasMore: false };
       }
       return { candles: result.candles, hasMore: result.hasMore };
     },
-    [patch],
+    [],
   );
   const newSession = useCallback(() => {
     tokenRef.current = null;

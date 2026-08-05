@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
   BookOpenText,
+  CalendarClock,
   ChevronDown,
   Expand,
   FolderOpen,
@@ -311,12 +312,17 @@ export function TerminalRightRail({
   onNewSession,
   onNavigate,
   onOpenSettings,
+  calendarOpen,
+  onToggleCalendar,
 }: {
   state: PublicSessionState;
   onNewSession: () => void;
   onNavigate: (href: string) => void;
   /** Opens the session's settings dialog. */
   onOpenSettings: () => void;
+  /** Whether the economic calendar panel is currently docked open. */
+  calendarOpen: boolean;
+  onToggleCalendar: () => void;
 }) {
   return (
     <aside
@@ -361,6 +367,10 @@ export function TerminalRightRail({
           <BarChart3 size={17} aria-hidden />
         </Link>
       )}
+      <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
+      <RailButton label="Economic calendar" active={calendarOpen} onClick={onToggleCalendar}>
+        <CalendarClock size={17} aria-hidden />
+      </RailButton>
       <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
       {/*
         Settings live on the rail rather than in the header. The header is read

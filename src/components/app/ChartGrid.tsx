@@ -527,8 +527,9 @@ export default function ChartGrid({
                 onTimeframeChange={(timeframe) =>
                   updateCellTimeframe(cell.id, timeframe)
                 }
-                headerSlot={!multi && isFocused ? headerSlot : null}
+                headerSlot={isFocused ? headerSlot : null}
                 actionsSlot={isFocused ? actionsSlot : null}
+                showControls={isFocused}
                 railSlot={railHost}
                 showRail={isFocused}
                 floatSlot={floatHost}
@@ -599,6 +600,7 @@ interface ChartCellViewProps {
   onTimeframeChange: (timeframe: Timeframe) => void;
   headerSlot: HTMLElement | null;
   actionsSlot: HTMLElement | null;
+  showControls: boolean;
   railSlot: HTMLElement | null;
   showRail: boolean;
   floatSlot: HTMLElement | null;
@@ -641,6 +643,7 @@ function ChartCellView({
   onTimeframeChange,
   headerSlot,
   actionsSlot,
+  showControls,
   railSlot,
   showRail,
   floatSlot,
@@ -706,6 +709,7 @@ function ChartCellView({
         onDisplayTimeframeChange={onTimeframeChange}
         headerSlot={headerSlot}
         actionsSlot={actionsSlot}
+        showControls={showControls}
         railSlot={railSlot}
         showRail={showRail}
         floatSlot={floatSlot}

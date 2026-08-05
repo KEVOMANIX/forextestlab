@@ -262,6 +262,14 @@ interface PriceChartProps {
   /** Right-hand header target for chart *actions*, such as the screenshot. */
   actionsSlot?: HTMLElement | null;
   /**
+   * Whether this pane renders the timeframe/chart-type/indicators/screenshot
+   * bar at all — hoisted into `headerSlot` if one is given, docked above the
+   * chart otherwise. A multi-chart layout gives this to the focused pane only,
+   * the same way `showRail` does for the drawing tools: one toolbar acting on
+   * whichever chart the trader is pointed at, not one stacked above every cell.
+   */
+  showControls?: boolean;
+  /**
    * Full-height column on the workspace's left edge to host the drawing rail,
    * and whether this pane is the one that owns it. A multi-chart layout has a
    * single rail acting on the focused pane instead of one per cell.
@@ -585,6 +593,7 @@ export default function PriceChart({
   onToggleFavorite,
   headerSlot = null,
   actionsSlot = null,
+  showControls = true,
   railSlot = null,
   showRail = true,
   floatSlot = null,
@@ -3259,9 +3268,14 @@ export default function PriceChart({
 
   return (
     <div className="relative flex h-full w-full flex-col">
-      {headerSlot
-        ? createPortal(chartControls, headerSlot)
-        : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}{screenshotControl}</div>}
+      {/* Timeframe, chart-type, indicators and the screenshot action: one
+          instance acting on whichever pane is focused, not one stacked above
+          every cell of a multi-chart layout. A pane that isn't showing its
+          controls renders nothing here at all — see `showControls`. */}
+      {showControls &&
+        (headerSlot
+          ? createPortal(chartControls, headerSlot)
+          : <div className="flex flex-wrap items-center gap-1 border-b app-border bg-[var(--app-panel)] px-2 py-1">{chartControls}{screenshotControl}</div>)}
       {/* The favourites toolbox floats over the whole workspace, so a split
           layout does not clip it at the focused pane's edge. */}
       {showRail && favorites.size > 0 && floatSlot
@@ -3269,8 +3283,8 @@ export default function PriceChart({
         : null}
       {/* The screenshot action lives with the header's other actions. Without a
           slot for them it stays beside the chart controls. */}
-      {actionsSlot && headerSlot ? createPortal(screenshotControl, actionsSlot) : null}
-      {headerSlot && !actionsSlot ? createPortal(screenshotControl, headerSlot) : null}
+      {showControls && actionsSlot && headerSlot ? createPortal(screenshotControl, actionsSlot) : null}
+      {showControls && headerSlot && !actionsSlot ? createPortal(screenshotControl, headerSlot) : null}
       {/* The drawing rail owns its own column; the chart begins after it instead
           of rendering underneath it. A pane whose rail lives in the workspace's
           own column keeps that width for price. */}

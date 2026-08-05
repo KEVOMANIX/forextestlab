@@ -53,6 +53,7 @@ import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
 import { SymbolPickerModal } from "./SymbolPickerModal";
 import { GoToModal } from "./GoToModal";
+import { EconomicCalendarPanel } from "./EconomicCalendarPanel";
 import { TimeZonePicker } from "./TimeZonePicker";
 import type { GoToTarget } from "@/lib/backtest/goto";
 import { ChartSettingsDialog, type SettingsTab } from "./ChartSettingsMenu";
@@ -269,6 +270,7 @@ export function Backtester({
   const announcedVerdictRef = useRef<string | null>(null);
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   const [goToOpen, setGoToOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   /**
    * The one settings dialog, and the section it should open on. Held here rather
    * than in a chart cell so the header gear and all four cells' right-click
@@ -1098,11 +1100,26 @@ export function Backtester({
           )}
         </div>
 
+        {!workspace.settings.distractionFree && calendarOpen && (
+          <EconomicCalendarPanel
+            open={calendarOpen}
+            onClose={() => setCalendarOpen(false)}
+            rangeStart={state.config.startTime}
+            rangeEnd={state.config.endTime}
+            currentTime={state.currentTime ?? bt.lastCandle?.timestamp ?? state.config.startTime}
+            zone={workspace.settings.timeZone}
+            busy={bt.busy}
+            onJump={runJump}
+          />
+        )}
+
         {!workspace.settings.distractionFree && <TerminalRightRail
           state={state}
           onNewSession={newSession}
           onNavigate={navigateFromChart}
           onOpenSettings={() => openSettings()}
+          calendarOpen={calendarOpen}
+          onToggleCalendar={() => setCalendarOpen((value) => !value)}
         />}
       </div>
 

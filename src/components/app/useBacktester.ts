@@ -179,6 +179,24 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayLastFrameRef = useRef<number | null>(null);
   const replayAccumulatorRef = useRef(0);
   const replayFrameBusyRef = useRef(false);
+  /**
+   * Bumped by any action that takes exclusive control of the engine's cursor —
+   * jump, restart, step back — none of which check whether an autoplay step is
+   * already mid-flight before they start moving `visibleIndex` themselves.
+   *
+   * `stepRef`'s loop can be paused mid-iteration awaiting the same shared
+   * extension request `jumpTo` is also awaiting; both continuations then
+   * resume on the same microtask flush and independently advance the same
+   * mutable `engine.candles`/`visibleIndex`, each publishing its own
+   * `currentTime` to the same bus with no ordering between them. That is what
+   * produced "data must be asc ordered by time" — two advances landing on the
+   * chart in whichever order the interleave happened to resolve.
+   *
+   * A step captures the generation it started with and checks it before every
+   * iteration and again before publishing its result, so a step superseded
+   * mid-flight goes inert instead of racing the operation that superseded it.
+   */
+  const engineGenerationRef = useRef(0);
   const lastUiPublishRef = useRef(0);
   const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
   const localEngineRef = useRef<EngineContext | null>(null);
@@ -546,6 +564,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const engineStartedAt = performance.now();
     const engine = localEngineRef.current;
     if (!engine) return;
+    // Captured once, at the position this step was granted the cursor from. If
+    // a jump/restart/step-back bumps this before the loop below finishes, this
+    // step has been superseded and must not touch the engine again.
+    const generation = engineGenerationRef.current;
     const stepCount = Math.max(
       1,
       Math.round(
@@ -555,8 +577,20 @@ export function useBacktester(resumeSessionId: string | null = null) {
     ) * Math.max(1, batchSize);
     const advancedCandles: Candle[] = [];
     let finished = false;
+    let superseded = false;
 
     for (let index = 0; index < stepCount; index += 1) {
+      // A jump or similar action may have taken the cursor over mid-loop —
+      // most likely while the `await request` a few lines down was pending,
+      // since that is the one point per iteration this step yields control.
+      // Stop touching the engine immediately; the operation that superseded
+      // this step owns the cursor now, and applying more of this step's own
+      // stepCount on top of wherever it left the engine would just be this
+      // same race by another name.
+      if (engineGenerationRef.current !== generation) {
+        superseded = true;
+        break;
+      }
       const lastLoaded = engine.candles[engine.candles.length - 1];
       const loadedRemaining =
         engine.state.totalCandles - 1 - engine.state.visibleIndex;
@@ -625,6 +659,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
       const candle = engine.candles[engine.state.visibleIndex];
       if (candle) advancedCandles.push(candle);
     }
+
+    // Whatever superseded this step already owns the cursor, has already
+    // published its own position, and is the only one of the two that should
+    // be resuming playback status. Publishing this step's now-stale position
+    // on top of that is exactly the race that produced the ordering crash.
+    if (superseded) return;
 
     if (
       wantsReplayRunningRef.current &&
@@ -844,10 +884,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const engine = localEngineRef.current;
     if (!engine) return;
     // Rewinding is an explicit pause-and-review action. Stop local playback
-    // first so it cannot race forward while the previous candle is selected.
+    // first so it cannot race forward while the previous candle is selected —
+    // and supersede any step already mid-flight, for the same reason `jumpTo`
+    // does: it may resume moments later and publish a position this rewind has
+    // already moved past.
     wantsReplayRunningRef.current = false;
     stopLocalScheduler();
     engine.state.status = "paused";
+    engineGenerationRef.current += 1;
     const timeframe = displayTimeframe ?? engine.state.config.timeframe;
     const currentCandle = engine.candles[engine.state.visibleIndex];
     if (!currentCandle) return;
@@ -940,12 +984,17 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
 
       // A jump is an explicit pause-and-arrive action, like a rewind. Stop local
-      // playback first so the scheduler cannot race past the target.
+      // playback first so the scheduler cannot race past the target — and bump
+      // the generation so a step already mid-flight (most likely paused on the
+      // same shared extension request this loop is about to await too) goes
+      // inert instead of continuing to advance the same engine underneath it.
       wantsReplayRunningRef.current = false;
       stopLocalScheduler();
       engine.state.status = "paused";
+      engineGenerationRef.current += 1;
       patch({ busy: true, error: null });
 
+      const generation = engineGenerationRef.current;
       const startIndex = engine.state.visibleIndex;
       const closedAtStart = engine.state.closedTrades.length;
       let extensions = 0;
@@ -953,6 +1002,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
       try {
         while (engine.state.visibleIndex - startIndex < JUMP_MAX_CANDLES) {
+          // A later action — another jump, a rewind, a restart — has taken the
+          // cursor. Stop rather than layering this jump's advance on top of it.
+          if (engineGenerationRef.current !== generation) break;
           const lastLoaded = engine.candles[engine.candles.length - 1];
           if (engine.state.visibleIndex >= engine.state.totalCandles - 1) {
             // Out of loaded candles: fetch the next chunk, then re-test the
@@ -1026,6 +1078,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
   );
   const restart = useCallback(async () => {
     wantsReplayRunningRef.current = false;
+    // A step already mid-flight closed over the pre-restart `engine` object.
+    // `localEngineRef.current` is about to be replaced wholesale below, but that
+    // stale closure keeps mutating and publishing from the object it captured,
+    // under the same session id — so it must be told it no longer owns the
+    // cursor before the swap, the same as any other action that takes it.
+    engineGenerationRef.current += 1;
     setS((prev) =>
       prev.state?.status === "running"
         ? { ...prev, state: { ...prev.state, status: "paused" } }

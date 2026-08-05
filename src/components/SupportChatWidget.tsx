@@ -53,6 +53,13 @@ type ConversationSummary = {
   messages: Array<{ body: string }>;
 };
 
+/**
+ * Every page mounts this widget for every visitor, so this cadence is a
+ * database round trip multiplied by however many tabs are open across the
+ * whole site at once — kept slow enough to matter for that, not fast enough
+ * to feel like a live chat's own send/receive latency.
+ */
+const POLL_INTERVAL_MS = 10_000;
 const VISITOR_KEY = "forextestlab_support_visitor";
 const ACTIVE_KEY = "forextestlab_support_conversation";
 const TOKENS_KEY = "forextestlab_support_tokens";
@@ -132,6 +139,13 @@ export function SupportChatWidget() {
   const [notifications, setNotifications] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const lastAgentMessageRef = useRef<string | null>(null);
+  // Read inside the poll interval rather than added as effect deps — either
+  // would restart the timer (and refire immediately) on every render that
+  // changes them, which is most conversation updates.
+  const openRef = useRef(open);
+  openRef.current = open;
+  const hasConversationsRef = useRef(false);
+  hasConversationsRef.current = conversations.length > 0;
 
   useEffect(() => {
     const visitor =
@@ -209,9 +223,16 @@ export function SupportChatWidget() {
     void loadHistory();
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible" && !notifications) return;
+      // A visitor who has never contacted support and isn't looking at the
+      // widget right now has nothing that could change — an unread badge
+      // needs a conversation to exist first. Skipping this is the common
+      // case: most visitors never open support chat at all, so this is what
+      // keeps a widget mounted on every page from polling the database from
+      // every open tab, indefinitely, for nothing.
+      if (!conversationId && !openRef.current && !hasConversationsRef.current) return;
       void loadConversation();
       void loadHistory();
-    }, 2_000);
+    }, POLL_INTERVAL_MS);
     const connection = () => setOnline(navigator.onLine);
     window.addEventListener("online", connection);
     window.addEventListener("offline", connection);
@@ -220,7 +241,7 @@ export function SupportChatWidget() {
       window.removeEventListener("online", connection);
       window.removeEventListener("offline", connection);
     };
-  }, [loadConversation, loadHistory, notifications]);
+  }, [conversationId, loadConversation, loadHistory, notifications]);
 
   const unread = useMemo(
     () =>

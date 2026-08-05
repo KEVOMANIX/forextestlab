@@ -148,6 +148,7 @@ async function readRowsForDetection(path: string): Promise<ExportRow[]> {
     rows.push({
       currency: row.record.currency ?? "",
       name: row.record.name ?? "",
+      seriesId: row.record.event_id ?? undefined,
       timeServer: row.record.time_server ?? "",
     });
   }

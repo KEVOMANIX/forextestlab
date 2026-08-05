@@ -61,6 +61,13 @@ const CANDIDATE_OFFSETS = [
 export interface ExportRow {
   currency: string;
   name: string;
+  /**
+   * The provider's id for the recurring indicator. Grouping on this rather than
+   * on the name is what makes an anchor trustworthy: MT5 files a dozen
+   * countries' CPI under the euro with the identical name "CPI m/m", and lumped
+   * together they have no single publication time to recognise.
+   */
+  seriesId?: string;
   /** The exporter's wall-clock string, e.g. "2026.08.05 13:00:00". */
   timeServer: string;
 }
@@ -114,45 +121,52 @@ interface Anchor {
   times: number[][];
 }
 
+/** How many candidate anchors to try before settling. */
+const MAX_ANCHORS = 12;
+
 /**
- * Picks the recurring release to judge by: the one with the most occurrences
- * that span both halves of the year. A release seen only in summer cannot tell
- * a fixed offset from a seasonal one, which is the whole question.
+ * Recurring releases worth judging by, largest first: those with enough
+ * occurrences, spanning both halves of the year. A release seen only in summer
+ * cannot tell a fixed offset from a seasonal one, which is the whole question.
+ *
+ * Several are returned rather than one, because size is a poor proxy for
+ * quality. The largest group in a real export turned out to be a euro-area
+ * aggregate published at whatever hour each member state chose; a smaller,
+ * better-behaved series beats it.
  */
-function chooseAnchor(rows: ExportRow[]): Anchor | null {
+function chooseAnchors(rows: ExportRow[]): Anchor[] {
   const groups = new Map<string, { currency: string; name: string; clocks: number[][] }>();
 
   for (const row of rows) {
     const currency = row.currency.trim().toUpperCase();
-    const issuing = ISSUING_ZONE[currency];
-    if (!issuing) continue;
+    if (!ISSUING_ZONE[currency]) continue;
     const clock = parseWallClock(row.timeServer);
     // A date-only release has no clock to compare, so it proves nothing here.
     if (!clock || (clock.hour === 0 && clock.minute === 0)) continue;
 
-    const key = `${currency}|${row.name.trim()}`;
-    const group = groups.get(key) ?? { currency, name: row.name.trim(), clocks: [] };
+    const name = row.name.trim();
+    const key = `${currency}|${row.seriesId?.trim() || name}`;
+    const group = groups.get(key) ?? { currency, name, clocks: [] };
     group.clocks.push([clock.year, clock.month, clock.day, clock.hour, clock.minute]);
     groups.set(key, group);
   }
 
-  let best: Anchor | null = null;
-  for (const group of groups.values()) {
-    if (group.clocks.length < MIN_SAMPLES) continue;
-    const months = new Set(group.clocks.map((clock) => clock[1]!));
-    const winter = [...months].some((month) => month <= 2 || month === 12);
-    const summer = [...months].some((month) => month >= 6 && month <= 8);
-    if (!winter || !summer) continue;
-    if (best == null || group.clocks.length > best.times.length) {
-      best = {
-        currency: group.currency,
-        name: group.name,
-        issuingZone: ISSUING_ZONE[group.currency]!,
-        times: group.clocks,
-      };
-    }
-  }
-  return best;
+  return [...groups.values()]
+    .filter((group) => {
+      if (group.clocks.length < MIN_SAMPLES) return false;
+      const months = new Set(group.clocks.map((clock) => clock[1]!));
+      const winter = [...months].some((month) => month <= 2 || month === 12);
+      const summer = [...months].some((month) => month >= 6 && month <= 8);
+      return winter && summer;
+    })
+    .sort((a, b) => b.clocks.length - a.clocks.length)
+    .slice(0, MAX_ANCHORS)
+    .map((group) => ({
+      currency: group.currency,
+      name: group.name,
+      issuingZone: ISSUING_ZONE[group.currency]!,
+      times: group.clocks,
+    }));
 }
 
 function scoreCandidate(anchor: Anchor, timezone: string, spec: ZoneSpec): ZoneScore {
@@ -214,8 +228,8 @@ export function detectServerZone(
   rows: ExportRow[],
   options: DetectOptions = {},
 ): ZoneDetection {
-  const anchor = chooseAnchor(rows);
-  if (!anchor) {
+  const anchors = chooseAnchors(rows);
+  if (anchors.length === 0) {
     return {
       best: null,
       runnerUp: null,
@@ -226,6 +240,21 @@ export function detectServerZone(
     };
   }
 
+  // Each anchor gets a full verdict; the one that recognises its own schedule
+  // most cleanly is the one to trust. A confident verdict short-circuits the
+  // rest — there is nothing to gain from a thirteenth opinion.
+  let verdict: ZoneDetection | null = null;
+  for (const anchor of anchors) {
+    const candidate = judgeAnchor(anchor, options);
+    if (verdict == null || (candidate.best?.score ?? 0) > (verdict.best?.score ?? 0)) {
+      verdict = candidate;
+    }
+    if (verdict.confident && (verdict.best?.score ?? 0) === 1) break;
+  }
+  return verdict!;
+}
+
+function judgeAnchor(anchor: Anchor, options: DetectOptions): ZoneDetection {
   const candidates: { timezone: string; spec: ZoneSpec }[] = [
     ...CANDIDATE_ZONES.map((timeZone) => ({
       timezone: timeZone,

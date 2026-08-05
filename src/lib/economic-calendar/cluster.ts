@@ -25,8 +25,12 @@ export interface EventCluster {
   importance: EventImportance;
 }
 
-/** Badge diameter plus a hair, so two badges never touch. */
-export const CLUSTER_DISTANCE_PX = 18;
+/**
+ * Badge diameter, its ring, and the count bubble that overhangs the top-right
+ * corner of a clustered one. Sized to the bubble rather than the disc because two
+ * clusters a disc apart still had their counts sitting on top of each other.
+ */
+export const CLUSTER_DISTANCE_PX = 22;
 
 export function clusterEvents(
   placed: PlacedEvent[],

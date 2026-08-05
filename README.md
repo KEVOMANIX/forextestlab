@@ -258,6 +258,30 @@ the request exceeded the server's time limit. The script narrows the window furt
 wherever history is slow, sleeps between requests because the calendar server
 rate-limits, and reports in the Experts log any day it could not read at all.
 
+**The first run is slow.** The terminal fetches each window from MetaQuotes as it is
+asked for, so a full 2007-onwards export takes on the order of half an hour, writing
+as it goes — watch the file grow rather than the log, which only reports per year.
+Once that history is cached locally, later runs finish in under a minute.
+
+To refresh it unattended — from a scheduled task, say — launch the terminal with a
+startup config instead of dragging the script:
+
+```ini
+; ftl-calendar.ini
+[StartUp]
+Symbol=EURUSD
+Period=M15
+Script=ExportEconomicCalendar
+```
+
+```
+terminal64.exe /config:C:\path\to\ftl-calendar.ini
+```
+
+MT5 skips the inputs dialog for a script started this way, so it runs to completion
+on its own. Close any existing instance of that terminal first; MT5 allows one per
+data folder.
+
 **2. Import it.**
 
 ```bash

@@ -154,7 +154,7 @@ export function EconomicEventLayer({
               <CurrencyFlag currency={lead.currency} size={BADGE_SIZE} />
               {cluster.events.length > 1 && (
                 <span
-                  className="absolute -right-1.5 -top-1.5 flex h-3 min-w-3 items-center justify-center rounded-full px-[3px] text-[8px] font-bold leading-none text-surface-950"
+                  className="absolute -right-1 -top-1 flex h-3 min-w-3 items-center justify-center rounded-full px-[3px] text-[8px] font-bold leading-none text-surface-950"
                   style={{ background: RING[cluster.importance] }}
                 >
                   {cluster.events.length}

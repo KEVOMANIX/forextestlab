@@ -174,8 +174,8 @@ interface ChartGridProps {
   /** Focused cell's symbol, so the top bar's pair picker stays in step. */
   focusedSymbol: string;
   onFocusedSymbolChange: (symbol: string) => void;
-  /** Commands the focused cell's timeframe, so the replay toolbar's own picker can drive it too. */
-  focusedTimeframe: Timeframe;
+  /** A one-shot command to switch the focused cell's timeframe, fired by the replay toolbar's own picker. */
+  focusedTimeframeCommand: { value: Timeframe; nonce: number } | null;
   /** Preferences every chart in the workspace shares. */
   workspace: ChartWorkspace;
   /** Opens the session's symbol picker for the focused cell. */
@@ -221,7 +221,7 @@ export default function ChartGrid({
   axisCorner = null,
   focusedSymbol,
   onFocusedSymbolChange,
-  focusedTimeframe,
+  focusedTimeframeCommand,
   workspace,
   onOpenSymbolPicker,
   onFocusedTimeframeChange,
@@ -331,15 +331,22 @@ export default function ChartGrid({
     [focusedId, onFocusedTimeframeChange],
   );
 
-  /** Same reconciliation as {@link settledSymbolRef}, for the replay toolbar's timeframe picker. */
-  const settledTimeframeRef = useRef(focusedTimeframe);
-
-  // Replay toolbar → focused cell.
+  /**
+   * Replay toolbar → focused cell, one-way. This is deliberately a command
+   * (a nonce'd value to apply once) rather than a controlled two-way binding
+   * like {@link settledSymbolRef}: the toolbar's timeframe and the cell's own
+   * report-up value below both ultimately feed the same parent state, and a
+   * two-way binding between them created a feedback loop under real network
+   * latency — the report-up echo would arrive back down as if it were a new
+   * command, re-triggering a history load, which reported up again, forever.
+   * A nonce applied once, with no read-back path, cannot loop by construction.
+   */
+  const appliedTimeframeCommandRef = useRef<number | null>(null);
   useEffect(() => {
-    if (focusedTimeframe === settledTimeframeRef.current) return;
-    settledTimeframeRef.current = focusedTimeframe;
-    updateCellTimeframe(focused.id, focusedTimeframe);
-  }, [focusedTimeframe, focused.id, updateCellTimeframe]);
+    if (!focusedTimeframeCommand || focusedTimeframeCommand.nonce === appliedTimeframeCommandRef.current) return;
+    appliedTimeframeCommandRef.current = focusedTimeframeCommand.nonce;
+    updateCellTimeframe(focused.id, focusedTimeframeCommand.value);
+  }, [focusedTimeframeCommand, focused.id, updateCellTimeframe]);
 
   useEffect(() => {
     onFocusedTimeframeChange(focused.timeframe ?? state.config.timeframe);

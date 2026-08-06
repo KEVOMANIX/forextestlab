@@ -173,6 +173,21 @@ export function Backtester({
         : TIMEFRAMES,
     [sessionTimeframe],
   );
+  /**
+   * A one-shot command, not a controlled value: the replay toolbar's picker
+   * and the chart's own report-up value (focusedChartTimeframe above) both
+   * ultimately live in this same piece of state, and binding the toolbar's
+   * picker to that value two-way created a feedback loop — the chart's own
+   * echo of a timeframe switch would arrive back at the toolbar looking like
+   * a fresh request, re-triggering a history load, which echoed again. The
+   * nonce makes each toolbar pick apply exactly once, with no read-back path.
+   */
+  const [timeframeCommand, setTimeframeCommand] = useState<{ value: Timeframe; nonce: number } | null>(null);
+  const timeframeCommandNonceRef = useRef(0);
+  const requestChartTimeframe = useCallback((value: Timeframe) => {
+    timeframeCommandNonceRef.current += 1;
+    setTimeframeCommand({ value, nonce: timeframeCommandNonceRef.current });
+  }, []);
   const [orderTicketActivation, setOrderTicketActivation] = useState<{
     id: number;
     direction: "long" | "short";
@@ -1045,7 +1060,7 @@ export function Backtester({
             storageKey={String(state.sessionId)}
             focusedSymbol={activeSymbol}
             onFocusedSymbolChange={actions.switchPair}
-            focusedTimeframe={effectiveChartTimeframe}
+            focusedTimeframeCommand={timeframeCommand}
             workspace={workspace}
             onOpenSymbolPicker={() => setSymbolPickerOpen(true)}
             onFocusedTimeframeChange={setFocusedChartTimeframe}
@@ -1105,7 +1120,7 @@ export function Backtester({
             onLotsChange={setLots}
             timeframe={effectiveChartTimeframe}
             availableTimeframes={availableChartTimeframes}
-            onTimeframeChange={setFocusedChartTimeframe}
+            onTimeframeChange={requestChartTimeframe}
           />
 
           {journalQueue.prompts.length > 0 && (

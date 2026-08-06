@@ -3249,7 +3249,7 @@ export default function PriceChart({
   const activeCursorMode = CURSOR_MODES.find((c) => c.mode === cursorMode) ?? CURSOR_MODES[0]!;
 
   const drawingRail = (
-    <div className={`flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
+    <div className={`flex w-14 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-1 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
       <ToolButton
         label={`Cursor mode: ${activeCursorMode.label}`}
         active={drawTool === null}
@@ -3298,7 +3298,7 @@ export default function PriceChart({
         );
       })}
 
-      <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
+      <div className="mt-0.5 flex flex-col items-center gap-0.5 border-t app-border pt-0.5">
         <ToolButton
           label={`Magnet snapping: ${drawMagnet}`}
           active={drawMagnet !== "off"}
@@ -3317,39 +3317,27 @@ export default function PriceChart({
         <ToolButton label="Redo (Ctrl+Shift+Z)" onClick={() => drawingEngineRef.current?.redo()}>
           <Redo2 size={19} aria-hidden />
         </ToolButton>
-        {drawCount > 0 && (
-          <ToolButton
-            label={drawingsHidden ? "Show all drawings" : "Hide all drawings"}
-            active={drawingsHidden}
-            onClick={() => updateSettings({ drawings: drawingsHidden })}
-          >
-            {drawingsHidden ? <EyeOff size={19} aria-hidden /> : <Eye size={19} aria-hidden />}
-          </ToolButton>
-        )}
-        {drawCount > 0 && (
-          <ToolButton
-            label={drawingsLocked ? "Unlock all drawings" : "Lock all drawings"}
-            active={drawingsLocked}
-            onClick={() => updateSettings({ drawingsLocked: !drawingsLocked })}
-          >
-            {drawingsLocked ? <Lock size={19} aria-hidden /> : <Unlock size={19} aria-hidden />}
-          </ToolButton>
-        )}
-        {drawCount > 0 && (
-          <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
-            <Trash2 size={17} className="text-bear" aria-hidden />
-          </ToolButton>
-        )}
+        <ToolButton
+          label={drawingsHidden ? "Show all drawings" : "Hide all drawings"}
+          active={drawingsHidden}
+          onClick={() => updateSettings({ drawings: drawingsHidden })}
+        >
+          {drawingsHidden ? <EyeOff size={19} aria-hidden /> : <Eye size={19} aria-hidden />}
+        </ToolButton>
+        <ToolButton
+          label={drawingsLocked ? "Unlock all drawings" : "Lock all drawings"}
+          active={drawingsLocked}
+          onClick={() => updateSettings({ drawingsLocked: !drawingsLocked })}
+        >
+          {drawingsLocked ? <Lock size={19} aria-hidden /> : <Unlock size={19} aria-hidden />}
+        </ToolButton>
+        <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
+          <Trash2 size={17} className="text-bear" aria-hidden />
+        </ToolButton>
       </div>
 
-      {/* Chart-view utilities.
-          The magnet-crosshair and grid toggles used to sit here too, and
-          go-to-latest below them. All three are duplicates — the first two of
-          switches in the chart settings menu, the third of the chart's own
-          context menu — and none of them draws anything, so on a rail of
-          drawing tools they were three buttons of noise. */}
       {hasOlderHistory && (
-        <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
+        <div className="mt-0.5 flex flex-col items-center gap-0.5 border-t app-border pt-0.5">
           <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
             {olderHistoryLoading ? <span className="h-4 w-4 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={19} aria-hidden />}
           </ToolButton>

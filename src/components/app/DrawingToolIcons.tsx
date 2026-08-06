@@ -1,3 +1,4 @@
+import { Paintbrush, Highlighter } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 
 import type { ToolKind } from "@/lib/chart/drawing/types";
@@ -330,34 +331,16 @@ export function PathToolIcon(props: DrawingIconProps) {
 
 // ---- brushes ----
 
-/**
- * A single tapered brush stroke: heavy and round where the brush landed at the
- * lower left, thinning to a point where it lifted at the upper right. Filled
- * rather than stroked, because a constant-width outline is exactly what a
- * brush *isn't* — the varying weight is the whole signal, and it's what
- * separates this from the trend line two groups up.
- */
-export function BrushToolIcon(props: DrawingIconProps) {
-  return (
-    <Glyph {...props}>
-      <path
-        d="M3.2 19.4C4.7 9.8 13 13.4 20 4.2c-5 10.4-12.7 6-14.2 16a1.35 1.35 0 0 1-2.6-.8Z"
-        fill="currentColor"
-        stroke="none"
-      />
-    </Glyph>
-  );
+function LucideGlyph({ size = 18, strokeWidth = 1.6, style, Icon, ...props }: DrawingIconProps & { Icon: ComponentType<SVGProps<SVGSVGElement>> }) {
+  return <Icon width={size} height={size} strokeWidth={strokeWidth} style={{ color: "var(--chart-text, #ffffff)", ...style }} focusable="false" {...props} />;
 }
 
-/** A thick, translucent stroke under a thin outline — a marker's wide flat tip. */
+export function BrushToolIcon(props: DrawingIconProps) {
+  return <LucideGlyph {...props} Icon={Paintbrush} />;
+}
+
 export function HighlighterToolIcon(props: DrawingIconProps) {
-  return (
-    <Glyph {...props}>
-      <path d="M6 18 16 8" strokeWidth={5} opacity=".3" />
-      <path d="M6 18 16 8" strokeWidth={1.3} />
-      <Ring cx={6} cy={18} r={1.6} /><Ring cx={16} cy={8} r={1.6} />
-    </Glyph>
-  );
+  return <LucideGlyph {...props} Icon={Highlighter} />;
 }
 
 // ---- text ----

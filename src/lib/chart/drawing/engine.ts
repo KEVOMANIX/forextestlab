@@ -590,6 +590,7 @@ export class DrawingEngine {
     x: number,
     y: number,
   ): { kind: "anchor"; index: number } | { kind: "resize"; handle: ResizeHandle } | null {
+    if (this.hasNoHandles(o)) return null;
     if (!this.usesOnlyResizeHandles(o)) {
       for (const a of o.anchors(this.mapper)) {
         if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
@@ -626,6 +627,17 @@ export class DrawingEngine {
       // which means something on its own. Bounding-box handles rescaled all
       // three proportionally, so reaching for the stop moved the entry with it.
       o.kind === "long" || o.kind === "short";
+  }
+
+  /**
+   * A freehand stroke's points are automatic samples, not placed anchors —
+   * a long stroke can carry dozens of them, and a handle at every one reads
+   * as clutter instead of control. It still moves by dragging its body; the
+   * contextual toolbar that appears on selection is feedback enough that
+   * something is selected.
+   */
+  private hasNoHandles(o: DrawingObject): boolean {
+    return o.kind === "brush" || o.kind === "highlighter";
   }
 
   private resizeHandles(o: DrawingObject): { x: number; y: number; handle: ResizeHandle }[] {
@@ -821,7 +833,12 @@ export class DrawingEngine {
     }
     this.sceneDirty = true;
     this.overlayDirty = true;
-    this.onToolConsumed?.();
+    // A brush/highlighter mark is one of several a trader sketches in a
+    // row — unlike a trend line, placed once and reconsidered — so leave the
+    // tool armed instead of sending them back to the Brushes menu after
+    // every stroke. Escape or picking another tool still stops it.
+    const stayArmed = target?.kind === "brush" || target?.kind === "highlighter";
+    if (!stayArmed) this.onToolConsumed?.();
     this.emitSelection();
     this.onDrawingsChange?.();
   }
@@ -1139,7 +1156,7 @@ export class DrawingEngine {
     // generic dotted bounding rectangle: a circle stays visually a circle
     // while drawing and selecting it.
     const sel = this.objects.find((d) => d.id === this.selectedId);
-    if (sel && !this.create) {
+    if (sel && !this.create && !this.hasNoHandles(sel)) {
       ctx.save();
       ctx.setLineDash([]);
       if (!this.usesOnlyAnchorHandles(sel)) {

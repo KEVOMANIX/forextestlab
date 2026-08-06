@@ -1,4 +1,4 @@
-import { Paintbrush, Highlighter } from "lucide-react";
+import { Brush, Highlighter } from "lucide-react";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 
 import type { ToolKind } from "@/lib/chart/drawing/types";
@@ -336,7 +336,7 @@ function LucideGlyph({ size = 18, strokeWidth = 1.6, style, Icon, ...props }: Dr
 }
 
 export function BrushToolIcon(props: DrawingIconProps) {
-  return <LucideGlyph {...props} Icon={Paintbrush} />;
+  return <LucideGlyph {...props} Icon={Brush} />;
 }
 
 export function HighlighterToolIcon(props: DrawingIconProps) {

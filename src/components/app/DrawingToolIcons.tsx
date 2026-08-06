@@ -330,13 +330,12 @@ export function PathToolIcon(props: DrawingIconProps) {
 
 // ---- brushes ----
 
+/**
+ * The stroke itself, not the implement that made it. A paintbrush silhouette
+ * reads as "art supplies"; a freehand squiggle reads as what the tool draws.
+ */
 export function BrushToolIcon(props: DrawingIconProps) {
-  return (
-    <Glyph {...props}>
-      <path d="M4.5 19.5c1-3.5 2-6.5 4.5-9s5.5-3.5 7-2-.5 4.5-3 7-6 4.5-8.5 4Z" strokeWidth={1.3} />
-      <Ring cx={4.5} cy={19.5} r={1.6} />
-    </Glyph>
-  );
+  return <Glyph {...props}><path d="M3.5 16.5c2.5 0 3.5-9 6.5-9s2 8 4.5 8 3-6 6-6" strokeWidth={1.5} /></Glyph>;
 }
 
 /** A thick, translucent stroke under a thin outline — a marker's wide flat tip. */
@@ -352,8 +351,13 @@ export function HighlighterToolIcon(props: DrawingIconProps) {
 
 // ---- text ----
 
+/**
+ * A bare capital T. The base serif that used to sit under the stem read as a
+ * third mark at rail size and made the letter look like a table or a pin; the
+ * two strokes alone are unambiguously "text".
+ */
 export function TextToolIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="M5 5h14M12 5v14M8.5 19h7" /></Glyph>;
+  return <Glyph {...props}><path d="M4.5 5.5h15M12 5.5v13" strokeWidth={1.6} /></Glyph>;
 }
 
 export function LabelToolIcon(props: DrawingIconProps) {
@@ -442,16 +446,11 @@ export function ArrowCursorIcon(props: DrawingIconProps) {
 }
 
 export function NotesGroupIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="M5 5h10M10 5v14M7 19h6" /><path d="M16 11h4v8h-5v-7Z" opacity=".65" /></Glyph>;
+  return <TextToolIcon {...props} />;
 }
 
 export function BrushesGroupIcon(props: DrawingIconProps) {
-  return (
-    <Glyph {...props}>
-      <path d="M4.5 19.5c1-3 2-5.5 4-7.5s4.5-3 6-1.5-.5 3.5-2.5 5.5-4.5 3-6.5 3.5Z" strokeWidth={1.3} />
-      <Ring cx={4.5} cy={19.5} r={1.6} />
-    </Glyph>
-  );
+  return <BrushToolIcon {...props} />;
 }
 
 export const DRAWING_TOOL_ICONS = {

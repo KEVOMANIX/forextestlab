@@ -244,7 +244,7 @@ test("replay perf", async ({ page }) => {
   }
 
   // Cycle the real toolbar control from the seeded 60x value to its maximum.
-  const speedControl = page.getByRole("button", { name: "Replay speed" });
+  const speedControl = page.getByRole("button", { name: "Replay speed", exact: true });
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= 1200);
   const clicksToMax = availableSpeeds.length - 1 - availableSpeeds.indexOf(60);
   for (let click = 0; click < clicksToMax; click += 1) {

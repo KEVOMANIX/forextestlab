@@ -403,7 +403,42 @@ export function LinesGroupIcon(props: DrawingIconProps) {
 }
 
 export function ShapesGroupIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><rect x="3" y="4" width="10" height="10" /><circle cx="15.5" cy="15.5" r="5.5" /><Ring cx={3} cy={4} r={1.6} /></Glyph>;
+  // A rectangle alone, centred. The group used to stack a circle behind the
+  // rectangle, which at rail size read as one smudged blob rather than either
+  // shape — the rectangle is the group's most-reached-for tool, so it carries it.
+  return <Glyph {...props}><rect x="4" y="6" width="16" height="12" /><Ring cx={4} cy={6} r={1.6} /></Glyph>;
+}
+
+/**
+ * Cursor modes.
+ *
+ * Each glyph *is* the pointer it selects, so the rail button doubles as a
+ * preview of what the mouse will look like: a gapped cross, a dot, an arrow.
+ * The gap in the cross is the point of it — a solid plus reads as an "add"
+ * affordance, while the break in the middle reads as a sight you aim with.
+ */
+export function CrossCursorIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M12 3v6.2M12 14.8V21M3 12h6.2M14.8 12H21" />
+    </Glyph>
+  );
+}
+
+export function DotCursorIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none" />
+    </Glyph>
+  );
+}
+
+export function ArrowCursorIcon(props: DrawingIconProps) {
+  return (
+    <Glyph {...props}>
+      <path d="M6 3.5 6 18l3.9-3.9 2.5 5.9 2.6-1.1-2.5-5.8H18Z" />
+    </Glyph>
+  );
 }
 
 export function NotesGroupIcon(props: DrawingIconProps) {

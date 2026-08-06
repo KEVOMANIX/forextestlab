@@ -115,24 +115,33 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
   const closeTour = page.getByRole("button", { name: /Close trading tour/i });
   if (await closeTour.isVisible()) await closeTour.click();
 
-  // The chart opens in crosshair mode, and both modes are reachable from the
-  // rail's cursor menu.
-  const crosshairButton = page.getByRole("button", { name: "Cursor mode: Crosshair", exact: true });
-  await expect(crosshairButton).toBeVisible();
+  // The chart opens on the cross, and every mode is reachable from the rail's
+  // cursor menu.
+  const crossButton = page.getByRole("button", { name: "Cursor mode: Cross", exact: true });
+  await expect(crossButton).toBeVisible();
   await page.mouse.move(700, 400);
   await expect(chart).toHaveCSS("cursor", "crosshair");
-  await crosshairButton.click();
+  await crossButton.click();
   const cursorMenu = page.getByRole("menu", { name: "Cursor modes", exact: true });
   await expect(cursorMenu).toBeVisible();
-  await cursorMenu.getByRole("menuitemradio", { name: /Pointer/ }).click();
-  const pointerButton = page.getByRole("button", { name: "Cursor mode: Pointer", exact: true });
-  await expect(pointerButton).toBeVisible();
-  await pointerButton.click();
+  await cursorMenu.getByRole("menuitemradio", { name: /^Dot/ }).click();
+  await expect(page.getByRole("button", { name: "Cursor mode: Dot", exact: true })).toBeVisible();
+  // Dot keeps the crosshair but swaps the pointer for a dot cursor image.
+  await expect(chart).toHaveAttribute("data-cursor-mode", "dot");
+
+  await page.getByRole("button", { name: "Cursor mode: Dot", exact: true }).click();
   await page
     .getByRole("menu", { name: "Cursor modes", exact: true })
-    .getByRole("menuitemradio", { name: /Crosshair/ })
+    .getByRole("menuitemradio", { name: /^Arrow/ })
     .click();
-  await expect(crosshairButton).toBeVisible();
+  const arrowButton = page.getByRole("button", { name: "Cursor mode: Arrow", exact: true });
+  await expect(arrowButton).toBeVisible();
+  await arrowButton.click();
+  await page
+    .getByRole("menu", { name: "Cursor modes", exact: true })
+    .getByRole("menuitemradio", { name: /^Cross/ })
+    .click();
+  await expect(crossButton).toBeVisible();
 
   // Anchored text is entered directly inside its styled endpoint box.
   await page.getByRole("button", { name: "Text & notes", exact: true }).click();
@@ -467,7 +476,7 @@ test("session drawing stays painted while replay advances", async ({ page }) => 
     return painted;
   })).toBeGreaterThan(0);
 
-  const speed = page.getByRole("button", { name: "Replay speed" });
+  const speed = page.getByRole("button", { name: "Replay speed", exact: true });
   for (let click = 0; click < 5; click += 1) await speed.click();
   await page.getByRole("button", { name: /Play replay/i }).click();
 

@@ -102,12 +102,12 @@ test.beforeEach(async ({ page }) => {
   ).toHaveCount(1, { timeout: 30_000 });
 });
 
-test("the chart opens in crosshair mode", async ({ page }) => {
+test("the chart opens in cross cursor mode", async ({ page }) => {
   await expect(
     page.getByRole("img", { name: "Candlestick price chart" }),
-  ).toHaveAttribute("data-cursor-mode", "crosshair");
+  ).toHaveAttribute("data-cursor-mode", "cross");
   await expect(
-    page.getByRole("button", { name: /^Cursor mode: Crosshair/ }),
+    page.getByRole("button", { name: /^Cursor mode: Cross/ }),
   ).toBeVisible();
 });
 

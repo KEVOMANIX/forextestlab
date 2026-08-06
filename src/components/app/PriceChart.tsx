@@ -23,7 +23,6 @@ import {
   Lock,
   Magnet,
   Minus,
-  MousePointer2,
   Redo2,
   RotateCcw,
   Settings,
@@ -106,7 +105,10 @@ import { DrawingLayer } from "./DrawingLayer";
 import { EconomicEventLayer } from "./EconomicEventLayer";
 import { useCalendarEvents } from "./useCalendarEvents";
 import {
+  ArrowCursorIcon,
   BrushesGroupIcon,
+  CrossCursorIcon,
+  DotCursorIcon,
   DRAWING_TOOL_ICONS,
   FibonacciIcon,
   LinesGroupIcon,
@@ -129,7 +131,30 @@ export interface ChartMarker {
 
 type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area";
 type DrawTool = ToolKind | null;
-type CursorModeName = "pointer" | "crosshair";
+/**
+ * Cursor modes, named the way every charting platform names them.
+ *
+ * `cross` and `dot` differ only in the pointer graphic — both draw the
+ * crosshair and both snap when magnet is on — because the choice between them
+ * is about how much of the candle the pointer hides, not about behaviour.
+ * `arrow` is the one that changes behaviour: no crosshair at all, for when you
+ * are arranging drawings rather than reading levels off the chart.
+ */
+type CursorModeName = "cross" | "dot" | "arrow";
+
+/**
+ * A dot pointer, as a cursor image. Stroked white over black so it stays
+ * visible against both a dark candle body and a light background.
+ */
+const DOT_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="3.2" fill="#000" stroke="#fff" stroke-width="1.6"/></svg>',
+)}") 8 8, crosshair`;
+
+const CURSOR_MODES: { mode: CursorModeName; label: string; hint: string; Icon: DrawingIcon }[] = [
+  { mode: "cross", label: "Cross", hint: "Crosshair on the price", Icon: CrossCursorIcon },
+  { mode: "dot", label: "Dot", hint: "Crosshair, smaller pointer", Icon: DotCursorIcon },
+  { mode: "arrow", label: "Arrow", hint: "No crosshair; arrange drawings", Icon: ArrowCursorIcon },
+];
 
 const CHART_TYPE_LABELS: Record<ChartType, string> = {
   candles: "Candles",
@@ -237,8 +262,6 @@ interface PriceChartProps {
   initialTimeframe?: Timeframe;
   /** Reports the cell's actual timeframe after saved view restoration. */
   onDisplayTimeframeChange?: (timeframe: Timeframe) => void;
-  /** Commands a timeframe switch from outside the chart, e.g. the replay toolbar's own picker. */
-  requestedTimeframe?: Timeframe;
   /** Called when the user interacts with this cell, so the grid can focus it. */
   onFocus?: () => void;
   /** Instrument name shown at the head of the cell's own toolbar, in a grid. */
@@ -596,7 +619,6 @@ export default function PriceChart({
   viewKey,
   initialTimeframe,
   onDisplayTimeframeChange,
-  requestedTimeframe,
   onFocus,
   symbolLabel,
   onSelectInstrument,
@@ -775,12 +797,12 @@ export default function PriceChart({
   const [anchorPick, setAnchorPick] = useState<{ id: string; key: string } | null>(null);
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   /**
-   * Crosshair by default. Reading a price off a level is the thing a trader does
+   * Cross by default. Reading a price off a level is the thing a trader does
    * constantly on a replay chart, and it is what every charting platform opens
-   * on. Both modes select and move drawings — the mode only decides whether the
-   * crosshair is drawn and whether it snaps.
+   * on. Every mode selects and moves drawings — the mode only decides whether
+   * the crosshair is drawn and what the pointer looks like.
    */
-  const [cursorMode, setCursorMode] = useState<CursorModeName>("crosshair");
+  const [cursorMode, setCursorMode] = useState<CursorModeName>("cross");
   const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
   const favDragRef = useRef<{
     sx: number;
@@ -800,7 +822,14 @@ export default function PriceChart({
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const drawingEngineRef = useRef<DrawingEngine | null>(null);
   const [menu, setMenu] = useState<
-    "type" | "indicators" | "cursor" | "timeframe" | "screenshot" | DrawMenu | null
+    | "type"
+    | "indicators"
+    | "cursor"
+    | "timeframe"
+    | "legendTimeframe"
+    | "screenshot"
+    | DrawMenu
+    | null
   >(null);
   const [screenshotNote, setScreenshotNote] = useState<string | null>(null);
   const screenshotNoteTimerRef = useRef(0);
@@ -1874,7 +1903,7 @@ export default function PriceChart({
       crosshair: {
         mode: drawTool != null
           ? CrosshairMode.Normal
-          : cursorMode === "pointer"
+          : cursorMode === "arrow"
             ? CrosshairMode.Hidden
             : magnetCrosshair ? CrosshairMode.Magnet : CrosshairMode.Normal,
       },
@@ -2378,13 +2407,6 @@ export default function PriceChart({
     setHistoryLoading(true);
     setDisplayTimeframe(timeframe);
   }
-
-  useEffect(() => {
-    if (requestedTimeframe && availableTimeframes.includes(requestedTimeframe)) {
-      selectTimeframe(requestedTimeframe);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestedTimeframe]);
 
   /**
    * Star or unstar a timeframe.
@@ -3226,10 +3248,12 @@ export default function PriceChart({
     </div>
   );
 
+  const activeCursorMode = CURSOR_MODES.find((c) => c.mode === cursorMode) ?? CURSOR_MODES[0]!;
+
   const drawingRail = (
     <div className={`flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
       <ToolButton
-        label={`Cursor mode: ${cursorMode === "pointer" ? "Pointer" : "Crosshair"}`}
+        label={`Cursor mode: ${activeCursorMode.label}`}
         active={drawTool === null}
         onClick={(event) => {
           if (menu === "cursor") { setMenu(null); return; }
@@ -3238,7 +3262,13 @@ export default function PriceChart({
           setMenu("cursor");
         }}
       >
-        {cursorMode === "pointer" ? <MousePointer2 size={23} aria-hidden /> : <Crosshair size={23} aria-hidden />}
+        <activeCursorMode.Icon size={23} aria-hidden />
+        <ChevronRight
+          size={10}
+          strokeWidth={3}
+          aria-hidden
+          className={`absolute bottom-0.5 right-0.5 ${menu === "cursor" ? "opacity-90" : "opacity-45"}`}
+        />
       </ToolButton>
 
       {DRAW_GROUPS.map((grp) => {
@@ -3361,7 +3391,10 @@ export default function PriceChart({
       <div className={`relative min-h-0 flex-1 ${showRail && !railSlot ? "pl-14" : ""}`}>
         <div
           ref={containerRef}
-          className={`h-full w-full ${cursorMode === "crosshair" && drawTool == null ? "cursor-crosshair" : ""}`}
+          className={`h-full w-full ${cursorMode === "cross" && drawTool == null ? "cursor-crosshair" : ""}`}
+          // A drawing tool brings its own crosshair pointer, so the mode's
+          // pointer only applies when no tool is armed.
+          style={cursorMode === "dot" && drawTool == null ? { cursor: DOT_CURSOR } : undefined}
           role="img"
           aria-label="Candlestick price chart"
           data-current-price={currentPrice ?? undefined}
@@ -3537,13 +3570,21 @@ export default function PriceChart({
             instead of a dozen hand-tuned pixel values.
           */}
           <div
-            className={`flex w-fit flex-col items-start gap-1 pt-2 text-[var(--chart-text)] ${
+            className={`flex w-fit max-w-full flex-col items-start gap-1 pt-2 text-[var(--chart-text)] ${
               showRail && !railSlot ? "pl-14" : "pl-2"
             }`}
             style={{ fontSize: overlayFont }}
           >
+            {/*
+              Wraps rather than overflows. The legend is an overlay, so content
+              wider than the pane does not just spill visually — it enlarges the
+              pane's scrollable area, and the browser then scrolls the whole cell
+              sideways the moment anything inside it takes focus, dragging the
+              candles out from under the drawing layer. On a narrow pane the quote
+              strip drops to its own line instead.
+            */}
             <div
-              className="pointer-events-auto flex items-center gap-1 rounded-lg border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-lg"
+              className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1 rounded-lg border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-lg"
               data-testid="chart-legend"
             >
               {onSelectInstrument ? (
@@ -3562,9 +3603,58 @@ export default function PriceChart({
               ) : (
                 <span className="px-2 font-mono text-[1.05em] font-bold">{symbolLabel}</span>
               )}
-              <span className="font-mono text-[0.92em] font-semibold text-[var(--chart-muted)]">
-                {displayTimeframe}
-              </span>
+              {/* The timeframe picks from here as well as from the header row.
+                  The pair and its timeframe are one thought ("EURUSD 15m"), and
+                  in a multi-chart layout this sits on the pane it changes rather
+                  than in a header shared by every pane. */}
+              <div className="relative">
+                <button
+                  type="button"
+                  data-testid="legend-timeframe-trigger"
+                  onClick={() => setMenu(menu === "legendTimeframe" ? null : "legendTimeframe")}
+                  aria-haspopup="menu"
+                  aria-expanded={menu === "legendTimeframe"}
+                  aria-label={`Timeframe ${displayTimeframe}. Choose a timeframe`}
+                  title="Timeframe"
+                  className={`inline-flex h-8 items-center gap-0.5 rounded-md px-1 font-mono text-[0.92em] font-semibold transition-colors ${
+                    menu === "legendTimeframe"
+                      ? "bg-[var(--app-panel-2)] text-[var(--chart-text)]"
+                      : "text-[var(--chart-muted)] hover:bg-[var(--app-panel-2)] hover:text-[var(--chart-text)]"
+                  }`}
+                >
+                  {displayTimeframe}
+                  <ChevronDown
+                    size={11}
+                    aria-hidden
+                    className={menu === "legendTimeframe" ? "rotate-180" : ""}
+                  />
+                </button>
+                {menu === "legendTimeframe" && (
+                  <div
+                    role="menu"
+                    aria-label="Timeframe"
+                    className="absolute left-0 top-9 z-[60] max-h-72 w-44 overflow-y-auto rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 text-[13px] shadow-xl"
+                  >
+                    {availableTimeframes.map((timeframe) => (
+                      <button
+                        key={timeframe}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={displayTimeframe === timeframe}
+                        onClick={() => { selectTimeframe(timeframe); setMenu(null); }}
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left ${
+                          displayTimeframe === timeframe
+                            ? "bg-brand-400/15 text-brand-300"
+                            : "hover:bg-[var(--app-panel-2)]"
+                        }`}
+                      >
+                        <span className="w-8 shrink-0 font-mono font-semibold">{timeframe}</span>
+                        <span className="truncate app-muted">{timeframeName(timeframe)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               {referenceOnly && (
                 <span
                   title="Reference chart: orders follow the session's traded instrument"
@@ -3908,10 +3998,7 @@ export default function PriceChart({
             role="menu"
             aria-label="Cursor modes"
           >
-            {([
-              { mode: "pointer" as const, label: "Pointer", hint: "Select and move drawings", Icon: MousePointer2 },
-              { mode: "crosshair" as const, label: "Crosshair", hint: "Inspect time and price", Icon: Crosshair },
-            ]).map(({ mode, label, hint, Icon }) => (
+            {CURSOR_MODES.map(({ mode, label, hint, Icon }) => (
               <button
                 key={mode}
                 type="button"

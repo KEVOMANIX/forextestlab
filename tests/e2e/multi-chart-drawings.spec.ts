@@ -454,7 +454,7 @@ test("playback never moves a drawing's anchors", async ({ page }) => {
   );
   expect(runway).toBeGreaterThan(0);
 
-  const speed = page.getByRole("button", { name: "Replay speed" });
+  const speed = page.getByRole("button", { name: "Replay speed", exact: true });
   for (let click = 0; click < 5; click += 1) await speed.click();
   await page.getByRole("button", { name: /Play replay/i }).click();
   // Let a few hundred candles arrive.

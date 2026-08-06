@@ -22,7 +22,6 @@ import {
   type PublicSessionState,
   type ReplaySpeed,
 } from "@/lib/backtest/types";
-import type { Timeframe } from "@/lib/market-data/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { replayRewindFloor } from "@/lib/backtest/replay-engine";
 import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
@@ -44,10 +43,6 @@ interface ReplayToolbarProps {
   /** Size the quick Buy/Sell buttons will send, shared with the order ticket. */
   lots: string;
   onLotsChange: (lots: string) => void;
-  /** The focused chart's own timeframe, so this toolbar's picker stays in step with it. */
-  timeframe: Timeframe;
-  availableTimeframes: Timeframe[];
-  onTimeframeChange: (timeframe: Timeframe) => void;
 }
 
 function ControlBtn({
@@ -118,9 +113,6 @@ export function ReplayToolbar({
   maxReplaySpeed,
   lots,
   onLotsChange,
-  timeframe,
-  availableTimeframes,
-  onTimeframeChange,
 }: ReplayToolbarProps) {
   const compact = useCompactViewport();
   const sizeSummary = useSizeSummary(state, lots);
@@ -133,7 +125,6 @@ export function ReplayToolbar({
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [timeframeMenuOpen, setTimeframeMenuOpen] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const finished = state.status === "finished";
   const running = state.status === "running";
@@ -272,17 +263,16 @@ export function ReplayToolbar({
   }, []);
 
   useEffect(() => {
-    if (!menuOpen && !timeframeMenuOpen && !speedMenuOpen) return;
+    if (!menuOpen && !speedMenuOpen) return;
     const close = (event: PointerEvent) => {
       if (!toolboxRef.current?.contains(event.target as Node)) {
         setMenuOpen(false);
-        setTimeframeMenuOpen(false);
         setSpeedMenuOpen(false);
       }
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, [menuOpen, timeframeMenuOpen, speedMenuOpen]);
+  }, [menuOpen, speedMenuOpen]);
 
   return (
     <div
@@ -343,43 +333,6 @@ export function ReplayToolbar({
           <ControlBtn label="Next candle" onClick={onNext} disabled={busy || finished}>
             <ChevronRight size={15} aria-hidden />
           </ControlBtn>
-        </div>
-        <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setTimeframeMenuOpen((open) => !open)}
-            aria-label="Chart timeframe"
-            aria-haspopup="menu"
-            aria-expanded={timeframeMenuOpen}
-            title="Chart timeframe"
-            className={`inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md border px-2 font-mono text-[11px] font-semibold transition-colors ${
-              timeframeMenuOpen
-                ? "border-brand-400/40 bg-brand-400/15 text-brand-300"
-                : "app-border text-[var(--app-text)] hover:border-brand-400/40"
-            }`}
-          >
-            {timeframe}
-            <ChevronDown size={12} aria-hidden className={timeframeMenuOpen ? "rotate-180" : ""} />
-          </button>
-          {timeframeMenuOpen && (
-            <div role="menu" aria-label="Chart timeframe" className="absolute left-0 top-9 z-[70] max-h-72 w-24 overflow-y-auto rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl">
-              {availableTimeframes.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={option === timeframe}
-                  onClick={() => { onTimeframeChange(option); setTimeframeMenuOpen(false); }}
-                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs font-mono ${
-                    option === timeframe ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
         <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
         <div className="relative flex shrink-0 items-center">

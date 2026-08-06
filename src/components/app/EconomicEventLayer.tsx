@@ -63,7 +63,7 @@ const BADGE_SIZE = 16;
 /** Room for the ring and its shadow, and the hit area a pointer can find. */
 const HIT_SIZE = 22;
 const CARD_WIDTH = 208;
-const CARD_GAP = 6;
+const CARD_GAP = 0;
 /**
  * Estimated height of one event's card: name (up to two lines for something
  * like "MNI Chicago Business Barometer"), the date line, three figure rows, and

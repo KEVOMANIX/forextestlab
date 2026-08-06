@@ -174,6 +174,8 @@ interface ChartGridProps {
   /** Focused cell's symbol, so the top bar's pair picker stays in step. */
   focusedSymbol: string;
   onFocusedSymbolChange: (symbol: string) => void;
+  /** Commands the focused cell's timeframe, so the replay toolbar's own picker can drive it too. */
+  focusedTimeframe: Timeframe;
   /** Preferences every chart in the workspace shares. */
   workspace: ChartWorkspace;
   /** Opens the session's symbol picker for the focused cell. */
@@ -219,6 +221,7 @@ export default function ChartGrid({
   axisCorner = null,
   focusedSymbol,
   onFocusedSymbolChange,
+  focusedTimeframe,
   workspace,
   onOpenSymbolPicker,
   onFocusedTimeframeChange,
@@ -327,6 +330,16 @@ export default function ChartGrid({
     },
     [focusedId, onFocusedTimeframeChange],
   );
+
+  /** Same reconciliation as {@link settledSymbolRef}, for the replay toolbar's timeframe picker. */
+  const settledTimeframeRef = useRef(focusedTimeframe);
+
+  // Replay toolbar → focused cell.
+  useEffect(() => {
+    if (focusedTimeframe === settledTimeframeRef.current) return;
+    settledTimeframeRef.current = focusedTimeframe;
+    updateCellTimeframe(focused.id, focusedTimeframe);
+  }, [focusedTimeframe, focused.id, updateCellTimeframe]);
 
   useEffect(() => {
     onFocusedTimeframeChange(focused.timeframe ?? state.config.timeframe);
@@ -694,6 +707,7 @@ function ChartCellView({
         storageKey={`${storageKey}:${cell.symbol}`}
         viewKey={`${storageKey}:${cell.id}`}
         initialTimeframe={cell.timeframe ?? undefined}
+        requestedTimeframe={cell.timeframe ?? undefined}
         onDisplayTimeframeChange={onTimeframeChange}
         headerSlot={headerSlot}
         actionsSlot={actionsSlot}

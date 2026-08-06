@@ -237,6 +237,8 @@ interface PriceChartProps {
   initialTimeframe?: Timeframe;
   /** Reports the cell's actual timeframe after saved view restoration. */
   onDisplayTimeframeChange?: (timeframe: Timeframe) => void;
+  /** Commands a timeframe switch from outside the chart, e.g. the replay toolbar's own picker. */
+  requestedTimeframe?: Timeframe;
   /** Called when the user interacts with this cell, so the grid can focus it. */
   onFocus?: () => void;
   /** Instrument name shown at the head of the cell's own toolbar, in a grid. */
@@ -594,6 +596,7 @@ export default function PriceChart({
   viewKey,
   initialTimeframe,
   onDisplayTimeframeChange,
+  requestedTimeframe,
   onFocus,
   symbolLabel,
   onSelectInstrument,
@@ -1411,15 +1414,36 @@ export default function PriceChart({
   }
 
   function resetLatestViewport() {
-    const scale = chartRef.current?.timeScale();
-    if (!scale) return;
+    const chart = chartRef.current;
+    const scale = chart?.timeScale();
+    if (!chart || !scale) return;
+    // A pending saved range would otherwise reapply the old zoom the next
+    // time a timeframe switch or reload triggers restoreSavedTimeRange —
+    // the whole point of an explicit reset is to throw that away.
+    savedTimeRangeRef.current = null;
     setFollowLatest(true);
     scale.applyOptions({
       barSpacing: DEFAULT_BAR_SPACING,
       rightOffset: DEFAULT_RIGHT_OFFSET,
     });
-    chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
-    keepLatestPriceVisible(true);
+    // Every pane's vertical scale, not just the main one — an indicator pane
+    // (RSI, MACD, …) can be manually zoomed too, and "reset" should mean all
+    // of it, not just price.
+    for (const pane of chart.panes()) {
+      for (const series of pane.getSeries()) {
+        series.priceScale().applyOptions({ autoScale: true });
+      }
+    }
+    // The library recomputes the visible logical range from the new
+    // barSpacing on its own next frame, not synchronously inside applyOptions
+    // above. Calling keepLatestPriceVisible in the same tick would read the
+    // still-stale (zoomed-in) range and re-commit that exact span as an
+    // explicit logical range — silently undoing the reset. Give the new
+    // barSpacing a frame to actually take effect first.
+    requestAnimationFrame(() => {
+      if (chartRef.current !== chart) return;
+      keepLatestPriceVisible(true);
+    });
   }
 
   /**
@@ -2354,6 +2378,13 @@ export default function PriceChart({
     setHistoryLoading(true);
     setDisplayTimeframe(timeframe);
   }
+
+  useEffect(() => {
+    if (requestedTimeframe && availableTimeframes.includes(requestedTimeframe)) {
+      selectTimeframe(requestedTimeframe);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedTimeframe]);
 
   /**
    * Star or unstar a timeframe.

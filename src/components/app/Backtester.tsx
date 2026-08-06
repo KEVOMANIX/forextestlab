@@ -60,7 +60,7 @@ import { ChartSettingsDialog, type SettingsTab } from "./ChartSettingsMenu";
 import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { currenciesForSymbol } from "@/lib/economic-calendar/types";
-import type { Timeframe } from "@/lib/market-data/types";
+import { canAggregateTimeframes, TIMEFRAMES, type Timeframe } from "@/lib/market-data/types";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
@@ -164,6 +164,15 @@ export function Backtester({
   const [tradePlan, setTradePlan] = useState<TradePlan | null>(null);
   const [focusedChartTimeframe, setFocusedChartTimeframe] =
     useState<Timeframe | null>(null);
+  const sessionTimeframe = state?.config.timeframe;
+  const effectiveChartTimeframe = focusedChartTimeframe ?? sessionTimeframe ?? "15m";
+  const availableChartTimeframes = useMemo(
+    () =>
+      sessionTimeframe
+        ? TIMEFRAMES.filter((timeframe) => canAggregateTimeframes(sessionTimeframe, timeframe))
+        : TIMEFRAMES,
+    [sessionTimeframe],
+  );
   const [orderTicketActivation, setOrderTicketActivation] = useState<{
     id: number;
     direction: "long" | "short";
@@ -1036,6 +1045,7 @@ export function Backtester({
             storageKey={String(state.sessionId)}
             focusedSymbol={activeSymbol}
             onFocusedSymbolChange={actions.switchPair}
+            focusedTimeframe={effectiveChartTimeframe}
             workspace={workspace}
             onOpenSymbolPicker={() => setSymbolPickerOpen(true)}
             onFocusedTimeframeChange={setFocusedChartTimeframe}
@@ -1093,6 +1103,9 @@ export function Backtester({
             maxReplaySpeed={entitlements.maxReplaySpeed}
             lots={lots}
             onLotsChange={setLots}
+            timeframe={effectiveChartTimeframe}
+            availableTimeframes={availableChartTimeframes}
+            onTimeframeChange={setFocusedChartTimeframe}
           />
 
           {journalQueue.prompts.length > 0 && (

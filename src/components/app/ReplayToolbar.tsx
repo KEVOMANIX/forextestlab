@@ -5,6 +5,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  ChevronDown,
   ChevronRight,
   Ellipsis,
   GripHorizontal,
@@ -21,6 +22,7 @@ import {
   type PublicSessionState,
   type ReplaySpeed,
 } from "@/lib/backtest/types";
+import type { Timeframe } from "@/lib/market-data/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { replayRewindFloor } from "@/lib/backtest/replay-engine";
 import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
@@ -42,6 +44,10 @@ interface ReplayToolbarProps {
   /** Size the quick Buy/Sell buttons will send, shared with the order ticket. */
   lots: string;
   onLotsChange: (lots: string) => void;
+  /** The focused chart's own timeframe, so this toolbar's picker stays in step with it. */
+  timeframe: Timeframe;
+  availableTimeframes: Timeframe[];
+  onTimeframeChange: (timeframe: Timeframe) => void;
 }
 
 function ControlBtn({
@@ -112,6 +118,9 @@ export function ReplayToolbar({
   maxReplaySpeed,
   lots,
   onLotsChange,
+  timeframe,
+  availableTimeframes,
+  onTimeframeChange,
 }: ReplayToolbarProps) {
   const compact = useCompactViewport();
   const sizeSummary = useSizeSummary(state, lots);
@@ -124,6 +133,8 @@ export function ReplayToolbar({
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [timeframeMenuOpen, setTimeframeMenuOpen] = useState(false);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const finished = state.status === "finished";
   const running = state.status === "running";
   const rewindFloor = replayRewindFloor(state);
@@ -261,13 +272,17 @@ export function ReplayToolbar({
   }, []);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !timeframeMenuOpen && !speedMenuOpen) return;
     const close = (event: PointerEvent) => {
-      if (!toolboxRef.current?.contains(event.target as Node)) setMenuOpen(false);
+      if (!toolboxRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+        setTimeframeMenuOpen(false);
+        setSpeedMenuOpen(false);
+      }
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, [menuOpen]);
+  }, [menuOpen, timeframeMenuOpen, speedMenuOpen]);
 
   return (
     <div
@@ -330,16 +345,87 @@ export function ReplayToolbar({
           </ControlBtn>
         </div>
         <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
-        <button
-          type="button"
-          onClick={cycleSpeed}
-          disabled={availableSpeeds.length < 2}
-          aria-label="Replay speed"
-          title={`Replay speed: ${cadenceLabel}. Click for next speed.`}
-          className="inline-flex h-7 min-w-[58px] shrink-0 items-center justify-center rounded-md border border-brand-400/25 bg-brand-400/10 px-2 font-mono text-[11px] font-semibold text-brand-300 transition-colors hover:bg-brand-400/15 disabled:opacity-50"
-        >
-          {cadenceLabel}
-        </button>
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setTimeframeMenuOpen((open) => !open)}
+            aria-label="Chart timeframe"
+            aria-haspopup="menu"
+            aria-expanded={timeframeMenuOpen}
+            title="Chart timeframe"
+            className={`inline-flex h-7 shrink-0 items-center gap-0.5 rounded-md border px-2 font-mono text-[11px] font-semibold transition-colors ${
+              timeframeMenuOpen
+                ? "border-brand-400/40 bg-brand-400/15 text-brand-300"
+                : "app-border text-[var(--app-text)] hover:border-brand-400/40"
+            }`}
+          >
+            {timeframe}
+            <ChevronDown size={12} aria-hidden className={timeframeMenuOpen ? "rotate-180" : ""} />
+          </button>
+          {timeframeMenuOpen && (
+            <div role="menu" aria-label="Chart timeframe" className="absolute left-0 top-9 z-[70] max-h-72 w-24 overflow-y-auto rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl">
+              {availableTimeframes.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={option === timeframe}
+                  onClick={() => { onTimeframeChange(option); setTimeframeMenuOpen(false); }}
+                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs font-mono ${
+                    option === timeframe ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
+        <div className="relative flex shrink-0 items-center">
+          <button
+            type="button"
+            onClick={cycleSpeed}
+            disabled={availableSpeeds.length < 2}
+            aria-label="Replay speed"
+            title={`Replay speed: ${cadenceLabel}. Click for next speed.`}
+            className="inline-flex h-7 min-w-[50px] shrink-0 items-center justify-center rounded-l-md border border-r-0 border-brand-400/25 bg-brand-400/10 px-2 font-mono text-[11px] font-semibold text-brand-300 transition-colors hover:bg-brand-400/15 disabled:opacity-50"
+          >
+            {cadenceLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSpeedMenuOpen((open) => !open)}
+            disabled={availableSpeeds.length < 2}
+            aria-label="Choose replay speed"
+            aria-haspopup="menu"
+            aria-expanded={speedMenuOpen}
+            title="Choose a specific replay speed"
+            className={`inline-flex h-7 shrink-0 items-center justify-center rounded-r-md border border-brand-400/25 bg-brand-400/10 px-1 transition-colors hover:bg-brand-400/15 disabled:opacity-50 ${
+              speedMenuOpen ? "bg-brand-400/20" : ""
+            }`}
+          >
+            <ChevronDown size={12} aria-hidden className={`text-brand-300 ${speedMenuOpen ? "rotate-180" : ""}`} />
+          </button>
+          {speedMenuOpen && (
+            <div role="menu" aria-label="Replay speed" className="absolute left-0 top-9 z-[70] w-24 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl">
+              {availableSpeeds.map((speed) => (
+                <button
+                  key={speed}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={speed === state.speed}
+                  onClick={() => { onSpeed(speed); setSpeedMenuOpen(false); }}
+                  className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs font-mono ${
+                    speed === state.speed ? "bg-brand-400/15 text-brand-300" : "hover:bg-[var(--app-panel-2)]"
+                  }`}
+                >
+                  {speedLabel(speed)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
         {/* `group` + `focus-within` reveals the size these two buttons will
             send — reaching for Buy or Sell is exactly when a trader wants to

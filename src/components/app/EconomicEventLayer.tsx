@@ -240,30 +240,25 @@ function EventCard({
 
   return (
     <div
-      className="pointer-events-none absolute inset-0"
+      className="pointer-events-none absolute flex flex-col-reverse"
       data-testid="calendar-event-stack"
       data-listed={listed.length}
       data-hidden={hidden}
+      style={{ left, bottom, width: CARD_WIDTH }}
     >
-      {listed.map((event, index) => (
-        <SingleEventCard
-          key={event.id}
-          event={event}
-          zone={zone}
-          left={left}
-          bottom={bottom + index * perCard}
-          revealBoundaryMs={revealBoundaryMs}
-        />
+      {/* column-reverse, so the first (bottom-most, nearest-the-badge) card is
+          the first DOM child and later releases stack above it — using each
+          card's real rendered height rather than the `perCard` estimate above,
+          which only decides how many fit and is not precise enough to also
+          position them: a card without figures is a good deal shorter, and
+          positioning it as if it were full height left a gap before the next. */}
+      {listed.map((event) => (
+        <SingleEventCard key={event.id} event={event} zone={zone} revealBoundaryMs={revealBoundaryMs} />
       ))}
       {hidden > 0 && (
         <div
-          className="absolute rounded-md border app-border px-2.5 py-1 text-[10.5px] text-[var(--chart-muted)] shadow-lg"
-          style={{
-            left,
-            bottom: bottom + listed.length * perCard,
-            width: CARD_WIDTH,
-            background: "var(--app-panel-solid)",
-          }}
+          className="rounded-md border app-border px-2.5 py-1 text-[10.5px] text-[var(--chart-muted)] shadow-lg"
+          style={{ background: "var(--app-panel-solid)" }}
         >
           and {hidden} more
         </div>
@@ -279,14 +274,10 @@ function EventCard({
 function SingleEventCard({
   event,
   zone,
-  left,
-  bottom,
   revealBoundaryMs,
 }: {
   event: CalendarEvent;
   zone: string;
-  left: number;
-  bottom: number;
   revealBoundaryMs: number | null;
 }) {
   // `hasReportedFigures` is checked on the record as imported, before masking:
@@ -298,11 +289,8 @@ function SingleEventCard({
   return (
     <div
       data-testid="calendar-event-card"
-      className="absolute overflow-hidden rounded-md border app-border shadow-xl"
+      className="shrink-0 overflow-hidden rounded-md border app-border shadow-xl"
       style={{
-        left,
-        bottom,
-        width: CARD_WIDTH,
         background: "var(--app-panel-solid)",
         borderLeft: `3px solid ${RING[event.importance]}`,
       }}

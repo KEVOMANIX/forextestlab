@@ -547,7 +547,7 @@ function ToolButton({
       aria-pressed={active}
       onClick={onClick}
       className={`relative inline-flex shrink-0 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
-        size === "sm" ? "h-6 min-w-6 px-1" : "h-10 min-w-10 px-2"
+        size === "sm" ? "h-8 min-w-8 px-1.5" : "h-10 min-w-10 px-2"
       } ${
         active
           ? "bg-brand-400/20 text-[var(--chart-text)]"
@@ -3173,19 +3173,22 @@ export default function PriceChart({
     <div
       ref={favBarRef}
       // No backdrop blur or alpha in the panel colour — it must read as solid
-      // chrome even floating over busy candles, not a tinted overlay.
-      className="pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-0.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1 py-0.5 shadow-2xl shadow-black/40"
+      // chrome even floating over busy candles, not a tinted overlay. The
+      // border is brighter than `app-border`'s usual 10% white on purpose:
+      // that's tuned for panels that sit against the app's own background,
+      // and reads as barely-there floating over dark candles.
+      className="pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-1 rounded-lg border border-white/20 bg-[var(--app-panel-solid)] px-1.5 py-1 shadow-2xl shadow-black/50"
       style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
       role="toolbar"
       aria-label="Favorite tools (drag to move)"
       onPointerDown={startFavDrag}
     >
-      <span className="mr-0.5 select-none text-[11px] leading-none app-muted" aria-hidden>⋮⋮</span>
+      <span className="mr-0.5 select-none text-[13px] leading-none app-muted" aria-hidden>⋮⋮</span>
       {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
         const Icon = DRAWING_TOOL_ICONS[t];
         return (
           <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} size="sm" onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
-            <Icon size={16} aria-hidden />
+            <Icon size={20} aria-hidden />
           </ToolButton>
         );
       })}

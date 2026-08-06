@@ -13,10 +13,8 @@ import {
   Clock,
   Copy,
   Download,
-  Crosshair,
   Eye,
   EyeOff,
-  Grid3X3,
   History,
   LineChart,
   LocateFixed,
@@ -3262,7 +3260,7 @@ export default function PriceChart({
           setMenu("cursor");
         }}
       >
-        <activeCursorMode.Icon size={23} aria-hidden />
+        <activeCursorMode.Icon size={20} aria-hidden />
         <ChevronRight
           size={10}
           strokeWidth={3}
@@ -3285,7 +3283,7 @@ export default function PriceChart({
               setMenu(grp.key);
             }}
           >
-            <grp.Icon size={27} aria-hidden />
+            <grp.Icon size={23} aria-hidden />
             {/* Every rail button here opens a flyout with more tools, not a
                 one-shot action — this is the same "more options" cue a
                 dropdown chevron gives, just small enough to sit in the
@@ -3307,17 +3305,17 @@ export default function PriceChart({
           onClick={() => setDrawMagnet((m) => MAGNET_MODES[(MAGNET_MODES.indexOf(m) + 1) % MAGNET_MODES.length]!)}
         >
           <span className="relative">
-            <Magnet size={21} aria-hidden />
+            <Magnet size={19} aria-hidden />
             {drawMagnet !== "off" && (
               <span className="absolute -right-1 -top-1 text-[7px] font-bold uppercase text-brand-300">{drawMagnet[0]}</span>
             )}
           </span>
         </ToolButton>
         <ToolButton label="Undo (Ctrl+Z)" onClick={() => drawingEngineRef.current?.undo()}>
-          <Undo2 size={21} aria-hidden />
+          <Undo2 size={19} aria-hidden />
         </ToolButton>
         <ToolButton label="Redo (Ctrl+Shift+Z)" onClick={() => drawingEngineRef.current?.redo()}>
-          <Redo2 size={21} aria-hidden />
+          <Redo2 size={19} aria-hidden />
         </ToolButton>
         {drawCount > 0 && (
           <ToolButton
@@ -3325,7 +3323,7 @@ export default function PriceChart({
             active={drawingsHidden}
             onClick={() => updateSettings({ drawings: drawingsHidden })}
           >
-            {drawingsHidden ? <EyeOff size={21} aria-hidden /> : <Eye size={21} aria-hidden />}
+            {drawingsHidden ? <EyeOff size={19} aria-hidden /> : <Eye size={19} aria-hidden />}
           </ToolButton>
         )}
         {drawCount > 0 && (
@@ -3334,33 +3332,29 @@ export default function PriceChart({
             active={drawingsLocked}
             onClick={() => updateSettings({ drawingsLocked: !drawingsLocked })}
           >
-            {drawingsLocked ? <Lock size={21} aria-hidden /> : <Unlock size={21} aria-hidden />}
+            {drawingsLocked ? <Lock size={19} aria-hidden /> : <Unlock size={19} aria-hidden />}
           </ToolButton>
         )}
         {drawCount > 0 && (
           <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
-            <Trash2 size={18} className="text-bear" aria-hidden />
+            <Trash2 size={17} className="text-bear" aria-hidden />
           </ToolButton>
         )}
       </div>
 
-      {/* Chart-view utilities */}
-      <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
-        {hasOlderHistory && (
+      {/* Chart-view utilities.
+          The magnet-crosshair and grid toggles used to sit here too, and
+          go-to-latest below them. All three are duplicates — the first two of
+          switches in the chart settings menu, the third of the chart's own
+          context menu — and none of them draws anything, so on a rail of
+          drawing tools they were three buttons of noise. */}
+      {hasOlderHistory && (
+        <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
           <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
-            {olderHistoryLoading ? <span className="h-4 w-4 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={21} aria-hidden />}
+            {olderHistoryLoading ? <span className="h-4 w-4 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={19} aria-hidden />}
           </ToolButton>
-        )}
-        <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => updateSettings({ magnet: !magnetCrosshair })}>
-          <Crosshair size={21} aria-hidden />
-        </ToolButton>
-        <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => updateSettings({ grid: !gridVisible })}>
-          <Grid3X3 size={21} aria-hidden />
-        </ToolButton>
-        <ToolButton label="Go to latest candle" onClick={goToLatest}>
-          <LocateFixed size={21} aria-hidden />
-        </ToolButton>
-      </div>
+        </div>
+      )}
     </div>
   );
 

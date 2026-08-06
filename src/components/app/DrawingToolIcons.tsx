@@ -331,11 +331,22 @@ export function PathToolIcon(props: DrawingIconProps) {
 // ---- brushes ----
 
 /**
- * The stroke itself, not the implement that made it. A paintbrush silhouette
- * reads as "art supplies"; a freehand squiggle reads as what the tool draws.
+ * A single tapered brush stroke: heavy and round where the brush landed at the
+ * lower left, thinning to a point where it lifted at the upper right. Filled
+ * rather than stroked, because a constant-width outline is exactly what a
+ * brush *isn't* — the varying weight is the whole signal, and it's what
+ * separates this from the trend line two groups up.
  */
 export function BrushToolIcon(props: DrawingIconProps) {
-  return <Glyph {...props}><path d="M3.5 16.5c2.5 0 3.5-9 6.5-9s2 8 4.5 8 3-6 6-6" strokeWidth={1.5} /></Glyph>;
+  return (
+    <Glyph {...props}>
+      <path
+        d="M3.2 19.4C4.7 9.8 13 13.4 20 4.2c-5 10.4-12.7 6-14.2 16a1.35 1.35 0 0 1-2.6-.8Z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </Glyph>
+  );
 }
 
 /** A thick, translucent stroke under a thin outline — a marker's wide flat tip. */

@@ -9,6 +9,7 @@ import {
   Camera,
   CandlestickChart,
   ChevronDown,
+  ChevronRight,
   Clock,
   Copy,
   Download,
@@ -545,8 +546,8 @@ function ToolButton({
       title={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex shrink-0 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
-        size === "sm" ? "h-6 min-w-6 px-1" : "h-8 min-w-8 px-2"
+      className={`relative inline-flex shrink-0 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
+        size === "sm" ? "h-6 min-w-6 px-1" : "h-10 min-w-10 px-2"
       } ${
         active
           ? "bg-brand-400/20 text-[var(--chart-text)]"
@@ -3192,7 +3193,7 @@ export default function PriceChart({
   );
 
   const drawingRail = (
-    <div className={`flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
+    <div className={`flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-2 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
       <ToolButton
         label={`Cursor mode: ${cursorMode === "pointer" ? "Pointer" : "Crosshair"}`}
         active={drawTool === null}
@@ -3203,7 +3204,7 @@ export default function PriceChart({
           setMenu("cursor");
         }}
       >
-        {cursorMode === "pointer" ? <MousePointer2 size={19} aria-hidden /> : <Crosshair size={19} aria-hidden />}
+        {cursorMode === "pointer" ? <MousePointer2 size={23} aria-hidden /> : <Crosshair size={23} aria-hidden />}
       </ToolButton>
 
       {DRAW_GROUPS.map((grp) => {
@@ -3220,7 +3221,17 @@ export default function PriceChart({
               setMenu(grp.key);
             }}
           >
-            <grp.Icon size={22} aria-hidden />
+            <grp.Icon size={27} aria-hidden />
+            {/* Every rail button here opens a flyout with more tools, not a
+                one-shot action — this is the same "more options" cue a
+                dropdown chevron gives, just small enough to sit in the
+                corner of a 40px button instead of taking a row of its own. */}
+            <ChevronRight
+              size={10}
+              strokeWidth={3}
+              aria-hidden
+              className={`absolute bottom-0.5 right-0.5 ${active ? "opacity-90" : "opacity-45"}`}
+            />
           </ToolButton>
         );
       })}
@@ -3232,17 +3243,17 @@ export default function PriceChart({
           onClick={() => setDrawMagnet((m) => MAGNET_MODES[(MAGNET_MODES.indexOf(m) + 1) % MAGNET_MODES.length]!)}
         >
           <span className="relative">
-            <Magnet size={18} aria-hidden />
+            <Magnet size={21} aria-hidden />
             {drawMagnet !== "off" && (
               <span className="absolute -right-1 -top-1 text-[7px] font-bold uppercase text-brand-300">{drawMagnet[0]}</span>
             )}
           </span>
         </ToolButton>
         <ToolButton label="Undo (Ctrl+Z)" onClick={() => drawingEngineRef.current?.undo()}>
-          <Undo2 size={18} aria-hidden />
+          <Undo2 size={21} aria-hidden />
         </ToolButton>
         <ToolButton label="Redo (Ctrl+Shift+Z)" onClick={() => drawingEngineRef.current?.redo()}>
-          <Redo2 size={18} aria-hidden />
+          <Redo2 size={21} aria-hidden />
         </ToolButton>
         {drawCount > 0 && (
           <ToolButton
@@ -3250,7 +3261,7 @@ export default function PriceChart({
             active={drawingsHidden}
             onClick={() => updateSettings({ drawings: drawingsHidden })}
           >
-            {drawingsHidden ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+            {drawingsHidden ? <EyeOff size={21} aria-hidden /> : <Eye size={21} aria-hidden />}
           </ToolButton>
         )}
         {drawCount > 0 && (
@@ -3259,12 +3270,12 @@ export default function PriceChart({
             active={drawingsLocked}
             onClick={() => updateSettings({ drawingsLocked: !drawingsLocked })}
           >
-            {drawingsLocked ? <Lock size={18} aria-hidden /> : <Unlock size={18} aria-hidden />}
+            {drawingsLocked ? <Lock size={21} aria-hidden /> : <Unlock size={21} aria-hidden />}
           </ToolButton>
         )}
         {drawCount > 0 && (
           <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
-            <Trash2 size={15} className="text-bear" aria-hidden />
+            <Trash2 size={18} className="text-bear" aria-hidden />
           </ToolButton>
         )}
       </div>
@@ -3273,17 +3284,17 @@ export default function PriceChart({
       <div className="mt-0.5 flex flex-col items-center gap-1 border-t app-border pt-1">
         {hasOlderHistory && (
           <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
-            {olderHistoryLoading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={18} aria-hidden />}
+            {olderHistoryLoading ? <span className="h-4 w-4 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={21} aria-hidden />}
           </ToolButton>
         )}
         <ToolButton label="Toggle magnet crosshair" active={magnetCrosshair} onClick={() => updateSettings({ magnet: !magnetCrosshair })}>
-          <Crosshair size={18} aria-hidden />
+          <Crosshair size={21} aria-hidden />
         </ToolButton>
         <ToolButton label="Toggle chart grid" active={gridVisible} onClick={() => updateSettings({ grid: !gridVisible })}>
-          <Grid3X3 size={18} aria-hidden />
+          <Grid3X3 size={21} aria-hidden />
         </ToolButton>
         <ToolButton label="Go to latest candle" onClick={goToLatest}>
-          <LocateFixed size={18} aria-hidden />
+          <LocateFixed size={21} aria-hidden />
         </ToolButton>
       </div>
     </div>
@@ -3313,7 +3324,7 @@ export default function PriceChart({
       {/* The drawing rail owns its own column; the chart begins after it instead
           of rendering underneath it. A pane whose rail lives in the workspace's
           own column keeps that width for price. */}
-      <div className={`relative min-h-0 flex-1 ${showRail && !railSlot ? "pl-12" : ""}`}>
+      <div className={`relative min-h-0 flex-1 ${showRail && !railSlot ? "pl-14" : ""}`}>
         <div
           ref={containerRef}
           className={`h-full w-full ${cursorMode === "crosshair" && drawTool == null ? "cursor-crosshair" : ""}`}
@@ -3372,7 +3383,7 @@ export default function PriceChart({
           // An inline rail is padding on this box, which the overlay's inset-0
           // would otherwise span — putting every drawing a rail's width out of
           // step with the candles it was placed against.
-          insetLeft={showRail && !railSlot ? 48 : 0}
+          insetLeft={showRail && !railSlot ? 56 : 0}
           viewVersion={viewVersion}
           onToolConsumed={() => setDrawTool(null)}
           onCountChange={setDrawCount}
@@ -3395,7 +3406,7 @@ export default function PriceChart({
             width={drawingEngineRef.current?.width ?? 0}
             height={drawingEngineRef.current?.height ?? 0}
             timeAxisHeight={timeAxisHeight}
-            insetLeft={showRail && !railSlot ? 48 : 0}
+            insetLeft={showRail && !railSlot ? 56 : 0}
             zone={settings.timeZone}
             viewVersion={viewVersion}
             revealBoundaryMs={revealBoundaryMs}

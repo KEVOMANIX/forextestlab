@@ -19,6 +19,13 @@ const FLAG_CURRENCIES = new Set([
   "AUD",
   "NZD",
   "CNY",
+  // No flag, but a mark just as widely read: the metals carry an ingot on their
+  // own colour — which is the whole distinction between the two — and bitcoin
+  // carries its ₿. Drawn rather than typed, because ₿ (U+20BF) is missing from
+  // enough system fonts to render as a box.
+  "XAU",
+  "XAG",
+  "BTC",
 ]);
 
 export function hasCurrencyFlag(currency: string): boolean {
@@ -41,6 +48,19 @@ function Star({ cx, cy, r, fill }: { cx: number; cy: number; r: number; fill: st
     return `${(cx + radius * Math.cos(angle)).toFixed(2)},${(cy + radius * Math.sin(angle)).toFixed(2)}`;
   }).join(" ");
   return <polygon points={points} fill={fill} />;
+}
+
+/**
+ * A cast ingot, seen slightly from above: the trapezoid face plus a lighter top.
+ * Shared by gold and silver, whose colour is the only thing that separates them.
+ */
+function Ingot({ dark, light }: { dark: string; light: string }) {
+  return (
+    <>
+      <path d="M3.4 11.4 4.9 7.6h6.2l1.5 3.8Z" fill={dark} />
+      <path d="M4.9 7.6h6.2l-.5-1.3H5.4Z" fill={light} />
+    </>
+  );
 }
 
 /** The Commonwealth canton shared by the Australian and New Zealand flags. */
@@ -148,6 +168,40 @@ function Field({ currency }: { currency: string }) {
           <Star cx={10.2} cy={8.6} r={1.7} fill="#c8102e" />
           <Star cx={13.4} cy={10.4} r={1.7} fill="#c8102e" />
           <Star cx={11} cy={13.4} r={1.7} fill="#c8102e" />
+        </>
+      );
+    case "XAU":
+      return (
+        <>
+          <rect x="0" y="0" width="16" height="16" fill="#8a6a12" />
+          <Ingot dark="#e0ab2b" light="#f7dc8a" />
+        </>
+      );
+    case "XAG":
+      return (
+        <>
+          <rect x="0" y="0" width="16" height="16" fill="#5c6672" />
+          <Ingot dark="#b9c2cc" light="#e8edf2" />
+        </>
+      );
+    case "BTC":
+      return (
+        <>
+          <rect x="0" y="0" width="16" height="16" fill="#f7931a" />
+          {/* The ₿: two stacked lobes with the pair of stems overshooting them.
+              The counters are punched back out in the field colour rather than
+              left as gaps in the lobes — filled lobes alone close up into a
+              blob well before this gets down to badge size. */}
+          <path
+            d="M6.7 2.7v1.6M8.9 2.7v1.6M6.7 11.7v1.6M8.9 11.7v1.6"
+            stroke="#ffffff"
+            strokeWidth="1.25"
+            strokeLinecap="round"
+          />
+          <path d="M5.1 4.3h4.2a1.95 1.95 0 0 1 0 3.9H5.1Z" fill="#ffffff" />
+          <path d="M5.1 7.9h4.6a2 2 0 0 1 0 4H5.1Z" fill="#ffffff" />
+          <rect x="6.85" y="5.45" width="2.5" height="1.45" rx="0.72" fill="#f7931a" />
+          <rect x="6.85" y="9.1" width="2.9" height="1.55" rx="0.77" fill="#f7931a" />
         </>
       );
     case "CNY":

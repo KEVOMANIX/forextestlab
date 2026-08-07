@@ -64,6 +64,11 @@ function currencyHue(code: string): number {
   return hash;
 }
 
+/** Symbols that are one instrument rather than a pair, and the mark they take. */
+const SINGLE_MARK_SYMBOLS: Record<string, string> = {
+  DXY: "USD",
+};
+
 /**
  * Currency-pair mark.
  *
@@ -80,6 +85,18 @@ function currencyHue(code: string): number {
 function SymbolBadge({ symbol }: { symbol: string }) {
   const base = symbol.slice(0, 3);
   const quote = symbol.length > 3 ? symbol.slice(3, 6) : "";
+
+  // An index is one instrument, not a pair, so it takes a single mark: the
+  // dollar index is a basket priced against the dollar, and the US flag is what
+  // a trader scanning the list is looking for.
+  const single = SINGLE_MARK_SYMBOLS[symbol];
+  if (single) {
+    return (
+      <span className="grid h-9 w-9 shrink-0 place-items-center" aria-hidden>
+        <CurrencyFlag currency={single} size={30} className="block" />
+      </span>
+    );
+  }
 
   if (quote && hasCurrencyFlag(base) && hasCurrencyFlag(quote)) {
     return (

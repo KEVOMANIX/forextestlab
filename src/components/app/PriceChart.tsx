@@ -3228,7 +3228,14 @@ export default function PriceChart({
       // border is brighter than `app-border`'s usual 10% white on purpose:
       // that's tuned for panels that sit against the app's own background,
       // and reads as barely-there floating over dark candles.
-      className="pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-1 rounded-lg border border-white/20 bg-[var(--app-panel-solid)] px-1.5 py-1 shadow-2xl shadow-black/50"
+      //
+      // `app-theme-surface` is what makes any of that true. The bar is portaled
+      // to `document.body`, outside `.app-shell`, so every scoped variable it
+      // named resolved to nothing: the background dropped out altogether and
+      // candles showed straight through the toolbox that was meant to be
+      // sitting on top of them, and the muted handle and button hovers went
+      // with it. The class carries the palette across the portal.
+      className={`app-theme-surface pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-1 rounded-lg border border-white/20 bg-[var(--app-panel-solid)] px-1.5 py-1 shadow-2xl shadow-black/50 ${theme === "light" ? "light" : ""}`}
       style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
       role="toolbar"
       aria-label="Favorite tools (drag to move)"

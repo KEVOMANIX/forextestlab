@@ -19,8 +19,6 @@ import {
 } from "./object";
 import {
   FIB_LEVELS,
-  POSITION_LOSS,
-  POSITION_PROFIT,
   defaultStyle,
   nextId,
   withAlpha,
@@ -696,15 +694,16 @@ class PositionTool extends DrawingObject {
     const right = Math.max(xE, xT);
     const w = Math.max(right - left, 8);
     const cx = left + w / 2;
-    const green = POSITION_PROFIT;
-    const red = POSITION_LOSS;
+    const green = "#22c3a0";
+    const red = "#f4646c";
 
     ctx.save();
     ctx.setLineDash([]);
-    // The profit (entry → target) and loss (entry → stop) fills are not drawn
-    // here: they are a pane primitive underneath the candles, so price stays
-    // vivid where it plays through a position. See position-zones.ts. This
-    // canvas keeps everything that belongs *over* the price.
+    // profit (entry → target) and loss (entry → stop) zones
+    ctx.fillStyle = withAlpha(green, selected ? 0.18 : 0.14);
+    ctx.fillRect(left, Math.min(yE, yT), w, Math.abs(yT - yE));
+    ctx.fillStyle = withAlpha(red, selected ? 0.18 : 0.14);
+    ctx.fillRect(left, Math.min(yE, yS), w, Math.abs(yS - yE));
 
     // Entry divider — always visible so the two zones read as one position.
     ctx.lineWidth = 1;

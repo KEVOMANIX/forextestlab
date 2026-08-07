@@ -125,11 +125,6 @@ export const EXTENDABLE_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
 export const SELECTION_BLUE = "#3b82f6";
 export const HANDLE_FILL = "#0b0f1a";
 
-/** Position tool profit/loss zones. Shared by the tool's chrome and its fills,
- *  which are drawn on different layers — see position-zones.ts. */
-export const POSITION_PROFIT = "#22c3a0";
-export const POSITION_LOSS = "#f4646c";
-
 export function defaultStyle(kind: ToolKind): DrawingStyle {
   const base: DrawingStyle = {
     color: "#5b8bff",

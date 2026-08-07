@@ -1073,6 +1073,9 @@ export function Backtester({
             axisCorner={
               <TimeZonePicker
                 zone={workspace.settings.timeZone}
+                // The same moment the session clock reads, so the two cannot
+                // disagree about the offset across a daylight-saving boundary.
+                at={state.currentTime ?? bt.lastCandle?.timestamp ?? null}
                 theme={theme}
                 onChange={(timeZone) => workspace.updateSettings({ timeZone })}
               />

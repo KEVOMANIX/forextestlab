@@ -20,25 +20,32 @@ const PANEL_MAX_HEIGHT = 440;
 
 export function TimeZonePicker({
   zone,
+  at,
   theme,
   onChange,
 }: {
   zone: string;
+  /**
+   * The moment being replayed, which is what the offsets are resolved against.
+   * Null before the replay has revealed a candle, which falls back to the wall
+   * clock — there is no session moment to answer with yet.
+   */
+  at: number | null;
   theme: "dark" | "light";
   onChange: (zone: string) => void;
 }) {
   /**
-   * Moment the offsets are resolved against. An offset only changes when a zone
-   * crosses a daylight-saving boundary, so this ticks once a minute rather than
-   * once a second — a 1 Hz re-render over a chart mid-replay bought nothing once
-   * the time itself stopped being displayed.
+   * Wall-clock fallback. An offset only changes when a zone crosses a
+   * daylight-saving boundary, so this ticks once a minute rather than once a
+   * second, and not at all once the replay supplies its own moment.
    */
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
+    if (at != null) return;
     const tick = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(tick);
-  }, []);
+  }, [at]);
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -70,7 +77,18 @@ export function TimeZonePicker({
     if (open) selectedRef.current?.scrollIntoView({ block: "center" });
   }, [open]);
 
-  const reference = now;
+  /**
+   * Resolved against the replayed moment, not today. New York is UTC-5 in
+   * winter and UTC-4 in summer, so a session replaying March 2024 read from a
+   * summer wall clock announced UTC-4 while the tick labels beside it — which
+   * have always formatted each bar at its own timestamp — rendered UTC-5, and
+   * the session clock in the status bar said UTC-5 too.
+   *
+   * One offset is still a simplification whenever the visible range straddles a
+   * transition. It is the offset of the bar the replay is on, which is the one
+   * the trader is reading.
+   */
+  const reference = at ?? now;
   const allOptions = useMemo(() => zoneOptionsAt(reference), [reference]);
   const options = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -103,17 +121,16 @@ export function TimeZonePicker({
           setQuery("");
           setOpen((value) => !value);
         }}
-        // Seated into the corner cell below the price scale, flush to the bottom
-        // and right edges with only the inner corner rounded and only the inner
-        // edges bordered, so it reads as axis furniture rather than a chip on top
-        // of it. The offset carries it alone — an icon or a chevron would push the
-        // badge out of the scale's column and onto the time axis, where it would
-        // clip the tick labels and the crosshair's date tooltip. Opaque, because
-        // the cell it covers is transparent.
-        className={`flex h-[26px] w-full items-center justify-center overflow-hidden whitespace-nowrap rounded-tl-md border-l border-t bg-[var(--app-panel-solid)] px-1 font-mono text-[10px] font-semibold transition-colors ${
+        // Bare text in the corner cell below the price scale — no chip, border
+        // or fill. It sits among the axis's own labels and is the same kind of
+        // thing they are, so it is lettered like them and lets the chart show
+        // through. The offset carries it alone: an icon or a chevron would push
+        // it out of the scale's column and onto the time axis, where it would
+        // clip the tick labels and the crosshair's date tooltip.
+        className={`flex h-[26px] w-full items-center justify-center overflow-hidden whitespace-nowrap px-1 font-mono text-[10px] font-semibold transition-colors ${
           open
-            ? "border-brand-400/60 text-[var(--app-accent-text)]"
-            : "app-border text-[var(--app-text)] hover:border-brand-400/50 hover:text-[var(--app-accent-text)]"
+            ? "text-[var(--app-accent-text)]"
+            : "text-[var(--app-text)] hover:text-[var(--app-accent-text)]"
         }`}
       >
         {offset}

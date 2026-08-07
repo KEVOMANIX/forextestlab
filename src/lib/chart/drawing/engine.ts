@@ -16,8 +16,11 @@ import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 import { CoordinateMapper, type Candle } from "./coords";
 import { DrawingObject, SELECTION_HANDLE, type RenderCtx } from "./object";
 import { createObject, newDrawing } from "./objects";
+import { PositionZonesPrimitive, type PositionZone } from "./position-zones";
 import {
   HANDLE_FILL,
+  POSITION_LOSS,
+  POSITION_PROFIT,
   SELECTION_BLUE,
   TOOL_POINTS,
   TOOLS_NEEDING_TEXT,
@@ -131,6 +134,9 @@ export class DrawingEngine {
 
   /** The chart's own root element — where we listen for drawing input. */
   private chartEl: HTMLElement;
+  /** Draws the position tools' profit/loss fills beneath the price. */
+  private zonesPrimitive: PositionZonesPrimitive | null = null;
+  private zonesSeries: ISeriesApi<SeriesType> | null = null;
   /** True while the chart's native pan/zoom is suspended for a drawing gesture. */
   private frozen = false;
   /** Ctrl/Cmd held → temporarily invert magnet (off↔strong), like TradingView. */
@@ -147,6 +153,17 @@ export class DrawingEngine {
     this.sceneCtx = this.scene.getContext("2d")!;
     this.overlayCtx = this.overlay.getContext("2d")!;
     this.chartEl = chart.chartElement();
+
+    // Position zones are the one thing that must draw *under* the candles; see
+    // position-zones.ts. Attaching can fail on a series the chart has already
+    // disposed, and a missing fill is not worth taking the whole engine down.
+    this.zonesSeries = series;
+    this.zonesPrimitive = new PositionZonesPrimitive(() => this.positionZones());
+    try {
+      series.attachPrimitive(this.zonesPrimitive);
+    } catch {
+      this.zonesPrimitive = null;
+    }
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -533,8 +550,59 @@ export class DrawingEngine {
     window.removeEventListener("pointercancel", this.onWindowUp);
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
+    if (this.zonesPrimitive && this.zonesSeries) {
+      try {
+        this.zonesSeries.detachPrimitive(this.zonesPrimitive);
+      } catch {
+        // The series may already be gone with the chart; nothing left to detach.
+      }
+    }
+    this.zonesPrimitive = null;
+    this.zonesSeries = null;
     this.scene.remove();
     this.overlay.remove();
+  }
+
+  /**
+   * The profit/loss rectangles for every visible position tool, in chart pane
+   * pixels. Hidden and unprojectable positions drop out here rather than in the
+   * renderer, so the primitive can skip its pane view entirely when there are
+   * none to draw.
+   */
+  private positionZones(): PositionZone[] {
+    if (!this.env.selectionEnabled && this.objects.length === 0) return [];
+    const zones: PositionZone[] = [];
+    for (const object of this.objects) {
+      if (object.kind !== "long" && object.kind !== "short") continue;
+      if (object.hidden) continue;
+      const [entry, stop, target] = object.points;
+      if (!entry || !stop || !target) continue;
+      const xE = this.mapper.timeToX(entry.time);
+      const xT = this.mapper.timeToX(target.time);
+      const yEntry = this.mapper.priceToY(entry.price);
+      const yStop = this.mapper.priceToY(stop.price);
+      const yTarget = this.mapper.priceToY(target.price);
+      if (xE == null || xT == null || yEntry == null || yStop == null || yTarget == null) continue;
+      const selected = object.id === this.selectedId;
+      zones.push({
+        left: Math.min(xE, xT),
+        right: Math.max(xE, xT),
+        yEntry,
+        yStop,
+        yTarget,
+        profitColor: POSITION_PROFIT,
+        lossColor: POSITION_LOSS,
+        // Behind the candles the fill can carry real weight, so this is a good
+        // deal stronger than the 0.14 wash it used while painting over the
+        // price. Sampling TradingView's own zones against a near-black
+        // background puts them at roughly this alpha — enough that the box
+        // reads as a solid region, not so much that it becomes the loudest
+        // thing on the pane.
+        profitAlpha: selected ? 0.28 : 0.22,
+        lossAlpha: selected ? 0.28 : 0.22,
+      });
+    }
+    return zones;
   }
 
   // ---- history ----

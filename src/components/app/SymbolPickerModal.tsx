@@ -18,6 +18,7 @@ import type { SymbolQuote } from "@/lib/backtest/symbol-quote";
 import { describeSymbol, formatSymbol } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
+import { CurrencyFlag, hasCurrencyFlag } from "./CurrencyFlag";
 
 /**
  * Symbol picker for a session in progress.
@@ -64,14 +65,31 @@ function currencyHue(code: string): number {
 }
 
 /**
- * Currency-pair mark: base code over quote code, each on its currency's colour,
- * mirroring how the pair is written. Text rather than flag art — a metal, an
- * index or a crypto pair has no flag, and a partial sprite sheet looks broken.
- * Overlapping discs were tried first and the front disc hid the base code.
+ * Currency-pair mark.
+ *
+ * A pair of both-sides-known currencies gets its two flags, base in front of
+ * quote — the convention every other terminal uses, and far faster to find in a
+ * list than reading six letters. The flags are the drawn {@link CurrencyFlag}
+ * discs the calendar badges already use, so nothing is fetched and each carries
+ * its own dark edge stroke, which is what separates the overlap on a row that
+ * may be transparent, hovered or accent-washed.
+ *
+ * Everything else keeps the stacked codes: a metal, an index or a crypto pair
+ * has no flag, and half a pair of flags looks broken rather than deliberate.
  */
 function SymbolBadge({ symbol }: { symbol: string }) {
   const base = symbol.slice(0, 3);
   const quote = symbol.length > 3 ? symbol.slice(3, 6) : "";
+
+  if (quote && hasCurrencyFlag(base) && hasCurrencyFlag(quote)) {
+    return (
+      <span className="relative block h-9 w-9 shrink-0" aria-hidden>
+        <CurrencyFlag currency={quote} size={22} className="absolute bottom-0 right-0 block" />
+        <CurrencyFlag currency={base} size={22} className="absolute left-0 top-0 block" />
+      </span>
+    );
+  }
+
   return (
     <span
       className="flex h-9 w-9 shrink-0 flex-col overflow-hidden rounded-xl font-sans text-[9px] font-bold leading-none tracking-tight text-white"

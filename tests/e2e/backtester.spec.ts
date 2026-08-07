@@ -483,11 +483,17 @@ test("completes a full public backtest workflow without login", async ({ page })
     page.getByRole("button", { name: /Close all/i }).click(),
   ]);
 
-  // (10)(11) balance + statistics update; trade recorded
+  // (10)(11) balance + statistics update; trade recorded.
+  // Analytics is a full-screen workbench over the terminal, so the dock behind
+  // it is only reachable again once "Continue session" closes it.
   await page
     .getByRole("button", { name: /Analytics/i })
     .evaluate((button: HTMLButtonElement) => button.click());
-  await expect(page.getByText(/Total trades/i)).toBeVisible();
+  const analytics = page.getByTestId("session-analytics-screen");
+  await expect(analytics).toBeVisible();
+  await expect(analytics.getByText(/Total trades/i)).toBeVisible();
+  await analytics.getByRole("button", { name: /Continue session/i }).click();
+  await expect(analytics).toBeHidden();
   await sessionPanelButton(page, /^Trades/).click();
   await expect(page.getByRole("cell", { name: /Long|Short/ }).first()).toBeVisible();
 

@@ -16,6 +16,7 @@ import type { ChartMarker } from "./PriceChart";
 import { BottomPanel, type BottomPanelTab } from "./BottomPanel";
 import { TradeReviewCard } from "./TradeReviewCard";
 import { PropFirmVerdict } from "./PropFirmVerdict";
+import { SessionAnalyticsScreen } from "./SessionAnalyticsScreen";
 import {
   buildJournalPrompts,
   dismissJournalPrompt,
@@ -274,6 +275,7 @@ export function Backtester({
     nonce: number;
   } | null>(null);
   const revealNonceRef = useRef(0);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [verdictOpen, setVerdictOpen] = useState(false);
   /**
    * The verdict is announced once, when the run reaches it. Afterwards it is
@@ -1143,6 +1145,14 @@ export function Backtester({
         />}
       </div>
 
+      {analyticsOpen && (
+        <SessionAnalyticsScreen
+          state={state}
+          fullAccess={entitlements.fullAnalytics}
+          onClose={() => setAnalyticsOpen(false)}
+        />
+      )}
+
       {propFirmRules && state.propFirm && verdictOpen && (
         <PropFirmVerdict
           rules={propFirmRules}
@@ -1166,6 +1176,7 @@ export function Backtester({
         onCloseAllPositions={requestCloseAllPositions}
         onSaveTradeJournal={actions.saveTradeJournal}
         revealTab={revealPanelTab}
+        onOpenAnalytics={() => setAnalyticsOpen(true)}
         onShowPropFirmVerdict={() => setVerdictOpen(true)}
         balancesHidden={workspace.settings.hideBalances}
         onToggleBalances={() =>

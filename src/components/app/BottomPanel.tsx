@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { BarChart3, ChevronUp } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { computeStatistics } from "@/lib/backtest/statistics";
 import type { PublicSessionState, TradeJournalUpdate } from "@/lib/backtest/types";
 import { AccountSummary } from "./AccountSummary";
 import { SessionClock } from "./SessionClock";
-import { StatsGrid } from "./StatsGrid";
 import { TradesTable } from "./TradesTable";
 import { TradeJournalEditor } from "./TradeJournalEditor";
 import { BookmarksPanel } from "./BookmarksPanel";
@@ -17,13 +15,12 @@ export type BottomPanelTab =
   | "position"
   | "trades"
   | "orders"
-  | "statistics"
   | "notes"
   | "bookmarks";
 
 type Tab = BottomPanelTab;
 
-const TABS: { id: Exclude<Tab, "statistics">; label: string }[] = [
+const TABS: { id: Tab; label: string }[] = [
   { id: "position", label: "Open Positions" },
   { id: "orders", label: "Pending Orders" },
   { id: "trades", label: "Trades" },
@@ -52,6 +49,12 @@ interface BottomPanelProps {
    * showing still re-expands a panel the trader has since collapsed.
    */
   revealTab?: { tab: BottomPanelTab; nonce: number } | null;
+  /**
+   * Opens the full-screen analytics workbench. The dock is 176px tall — too
+   * short for an equity curve, let alone the risk and timing views — so the
+   * button hands off to a screen rather than expanding a drawer.
+   */
+  onOpenAnalytics: () => void;
   /** Opens the prop-firm verdict from the challenge chip in the status bar. */
   onShowPropFirmVerdict?: () => void;
   /** Mask the account figures in the status bar. */
@@ -74,6 +77,7 @@ export function BottomPanel({
   onDeleteBookmark,
   onForkSession,
   revealTab = null,
+  onOpenAnalytics,
   onShowPropFirmVerdict,
   balancesHidden = false,
   onToggleBalances,
@@ -87,17 +91,6 @@ export function BottomPanel({
     setExpanded(true);
   }, [revealTab?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const [notes, setNotes] = useState(initialNotes);
-
-  const stats = useMemo(
-    () =>
-      computeStatistics({
-        startingBalance: state.config.startingBalance,
-        endingBalance: state.balance,
-        trades: state.closedTrades,
-        equityCurve: state.equityCurve,
-      }),
-    [state],
-  );
 
   const openCount = state.openPositions.length;
 
@@ -121,7 +114,7 @@ export function BottomPanel({
         <div
           id={`panel-${tab}`}
           role="group"
-          aria-labelledby={tab === "statistics" ? "analytics-button" : `tab-${tab}`}
+          aria-labelledby={`tab-${tab}`}
           className="min-h-0 flex-1 overflow-auto border-b app-border"
         >
           {tab === "position" &&
@@ -203,11 +196,6 @@ export function BottomPanel({
             )
           )}
 
-          {tab === "statistics" && (
-            <div className="p-4">
-              <StatsGrid stats={stats} />
-            </div>
-          )}
           {tab === "bookmarks" && (
             <BookmarksPanel
               bookmarks={state.bookmarks}
@@ -314,10 +302,9 @@ export function BottomPanel({
           <button
             id="analytics-button"
             type="button"
-            onClick={() => selectTab("statistics")}
+            onClick={onOpenAnalytics}
             className="ml-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-brand-500 px-2.5 font-semibold text-surface-950 transition-colors hover:bg-brand-400"
-            aria-expanded={expanded && tab === "statistics"}
-            aria-controls="panel-statistics"
+            aria-haspopup="dialog"
             aria-label="Analytics"
           >
             <BarChart3 size={13} aria-hidden />

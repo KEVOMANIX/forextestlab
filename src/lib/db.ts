@@ -42,8 +42,31 @@ export function createPrismaClient(url: string = connectionString()): PrismaClie
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+let cached: PrismaClient | undefined;
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+function client(): PrismaClient {
+  if (cached) return cached;
+  cached = globalForPrisma.prisma ?? createPrismaClient();
+  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = cached;
+  return cached;
 }
+
+/**
+ * Built on first use, not on import.
+ *
+ * `next build` evaluates every route module to collect page data, and the build
+ * environment has no database — it does not need one. Constructing the client
+ * at import time therefore failed the whole build on the first route that
+ * imports this file ("Failed to collect page data for /api/account"), because
+ * resolving the connection string throws when `DATABASE_URL` is unset. Prisma's
+ * own constructor is lazy about connecting for the same reason; the adapter
+ * needs its connection string up front, so the laziness moves out here.
+ */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, property) {
+    const value = Reflect.get(client(), property) as unknown;
+    // Model delegates (`prisma.session`) are plain objects; the client's own
+    // methods (`$transaction`, `$queryRaw`) need their `this` back.
+    return typeof value === "function" ? value.bind(client()) : value;
+  },
+});

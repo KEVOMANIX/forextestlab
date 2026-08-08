@@ -33,17 +33,18 @@ const DEMO_ENTITLEMENTS: PlanEntitlements = {
   freeSessionUsed: false,
 };
 
-export default async function BacktestPage({
-  searchParams,
-}: {
-  searchParams: { session?: string; trial?: string };
-}) {
+export default async function BacktestPage(
+  props: {
+    searchParams: Promise<{ session?: string; trial?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getCurrentUser();
   if (user) await ensureUserProfile(user);
   const entitlements = user
     ? await getUserEntitlements(
         user.id,
-        trialDeviceIdFromToken(cookies().get(TRIAL_DEVICE_COOKIE)?.value),
+        trialDeviceIdFromToken((await cookies()).get(TRIAL_DEVICE_COOKIE)?.value),
       )
     : DEMO_ENTITLEMENTS;
   const resumeSessionId =

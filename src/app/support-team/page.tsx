@@ -79,15 +79,16 @@ function slaHours(priority: string) {
         : 4;
 }
 
-export default async function SupportTeamPage({
-  searchParams,
-}: {
-  searchParams?: {
-    queue?: string;
-    conversation?: string;
-    q?: string;
-  };
-}) {
+export default async function SupportTeamPage(
+  props: {
+    searchParams?: Promise<{
+      queue?: string;
+      conversation?: string;
+      q?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const { agent } = await requireSupportAgent();
   const queue = searchParams?.queue ?? "waiting";
   const query = searchParams?.q?.trim().slice(0, 120) ?? "";

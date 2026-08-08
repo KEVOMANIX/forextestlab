@@ -55,7 +55,9 @@ export function useModalBehavior<T extends HTMLElement>({
   open: boolean;
   onClose?: () => void;
   closeOnEscape?: boolean;
-  initialFocus?: RefObject<HTMLElement>;
+  // Nullable element: React 19's `useRef<T>(null)` yields `RefObject<T | null>`
+  // rather than `RefObject<T>`, and every caller here passes exactly that.
+  initialFocus?: RefObject<HTMLElement | null>;
 }): MutableRefObject<T | null> {
   const containerRef = useRef<T | null>(null);
   const closeRef = useRef(onClose);

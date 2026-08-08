@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     user?.user_metadata?.full_name,
     user?.user_metadata?.name,
   ].find((value): value is string => typeof value === "string" && Boolean(value.trim()))?.trim() ?? null;
-  const storedTheme = cookies().get(THEME_COOKIE)?.value;
+  const storedTheme = (await cookies()).get(THEME_COOKIE)?.value;
   return (
     <AppThemeProvider initialTheme={isAppTheme(storedTheme) ? storedTheme : null}>
       <DeploymentRefresh />

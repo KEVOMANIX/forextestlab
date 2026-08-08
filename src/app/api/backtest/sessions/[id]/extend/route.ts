@@ -14,10 +14,8 @@ import { getCurrentUser } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await loadSession(params.id);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });

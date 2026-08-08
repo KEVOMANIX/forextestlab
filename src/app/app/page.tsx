@@ -99,14 +99,15 @@ function SignedOutDashboard() {
   );
 }
 
-export default async function AppHome({
-  searchParams,
-}: {
-  searchParams?: {
-    performance?: string;
-    session?: string;
-  };
-}) {
+export default async function AppHome(
+  props: {
+    searchParams?: Promise<{
+      performance?: string;
+      session?: string;
+    }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await getCurrentUser();
   if (!user) return <SignedOutDashboard />;
 

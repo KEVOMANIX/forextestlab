@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
       ? requestedNext
       : "/account/continue";
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   if (code && supabase) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);

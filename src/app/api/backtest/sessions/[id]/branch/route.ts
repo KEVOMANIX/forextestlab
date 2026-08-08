@@ -9,10 +9,8 @@ import { trialDeviceIdFromRequest } from "@/lib/trial-device";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ ok: false, error: "Sign in required." }, { status: 401 });
   await ensureUserProfile(user);

@@ -29,7 +29,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   if (!supabase) {
     return NextResponse.json(
       { ok: false, error: "Profile updates are temporarily unavailable." },

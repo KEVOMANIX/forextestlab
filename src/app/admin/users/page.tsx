@@ -12,11 +12,12 @@ import { prisma } from "@/lib/db";
 import { formatNewYorkDateTime } from "@/lib/date-time";
 import { requireAdmin } from "@/lib/admin";
 
-export default async function AdminUsersPage({
-  searchParams,
-}: {
-  searchParams: { q?: string };
-}) {
+export default async function AdminUsersPage(
+  props: {
+    searchParams: Promise<{ q?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   await requireAdmin("/admin/users");
   const q = searchParams.q?.trim().slice(0, 120) ?? "";
   const users = await prisma.userProfile.findMany({

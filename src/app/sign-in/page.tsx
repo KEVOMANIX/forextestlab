@@ -5,11 +5,12 @@ import { AuthShell } from "@/components/auth/AuthShell";
 
 export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 
-export default function SignInPage({
-  searchParams,
-}: {
-  searchParams: { next?: string; error?: string };
-}) {
+export default async function SignInPage(
+  props: {
+    searchParams: Promise<{ next?: string; error?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const callbackError = searchParams.error
     ? "Google sign-in could not be completed. Please try again."
     : undefined;

@@ -17,10 +17,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Public, read-only session state + the candles revealed so far. */
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await loadSession(params.id);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
@@ -40,10 +38,8 @@ export async function GET(
   });
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await loadSession(params.id);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
@@ -57,10 +53,8 @@ export async function DELETE(
   return NextResponse.json({ ok: true });
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await loadSession(params.id);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });

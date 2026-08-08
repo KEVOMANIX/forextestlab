@@ -13,7 +13,7 @@ import { TrialOffer } from "@/components/TrialOffer";
 import { TRIAL_SIGN_UP_PATH, TRIAL_START_PATH } from "@/lib/site";
 
 export async function PricingSection() {
-  const countryCode = countryCodeFromHeaders(headers());
+  const countryCode = countryCodeFromHeaders(await headers());
   const user = await getCurrentUser();
   const profile = user ? await prisma.userProfile.findUnique({
     where: { id: user.id },

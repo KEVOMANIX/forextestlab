@@ -22,7 +22,8 @@ function savedName(stateJson: string, symbol: string): string {
   }
 }
 
-export default async function AdminSessionsPage({ searchParams }: { searchParams: { q?: string } }) {
+export default async function AdminSessionsPage(props: { searchParams: Promise<{ q?: string }> }) {
+  const searchParams = await props.searchParams;
   await requireAdmin("/admin/sessions");
   const q = searchParams.q?.trim().toUpperCase().slice(0, 20) ?? "";
   const [sessions, active, completed, anonymous] = await prisma.$transaction([

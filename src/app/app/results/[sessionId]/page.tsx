@@ -24,7 +24,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function ResultsPage({ params }: { params: { sessionId: string } }) {
+export default async function ResultsPage(props: { params: Promise<{ sessionId: string }> }) {
+  const params = await props.params;
   const user = await requireUser(`/app/results/${params.sessionId}`);
   const results = await getSessionResults(params.sessionId, user.id);
   if (!results) notFound();

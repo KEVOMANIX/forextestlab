@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PricingPage() {
-  const requestHeaders = headers();
+  const requestHeaders = await headers();
   const countryCode = countryCodeFromHeaders(requestHeaders);
   const user = await getCurrentUser();
   const profile = user ? await prisma.userProfile.findUnique({

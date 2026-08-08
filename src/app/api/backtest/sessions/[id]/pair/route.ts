@@ -17,10 +17,8 @@ export const dynamic = "force-dynamic";
 
 const addPairSchema = z.object({ symbol: z.string().trim().min(1).max(24) });
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await loadSession(params.id);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
@@ -50,10 +48,8 @@ export async function GET(
  * measured against. This only widens the set of symbols the workspace may chart,
  * so a trader can bring up a correlated market without abandoning the session.
  */
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const session = await loadSession(params.id);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });

@@ -111,6 +111,7 @@ export const actionSchema = z.discriminatedUnion("type", [
     type: z.literal("sync"),
     targetIndex: z.number().int().nonnegative(),
     status: z.enum(["running", "paused"]).optional(),
+    requiresReplay: z.boolean().optional(),
   }),
   z.object({ type: z.literal("start") }),
   z.object({ type: z.literal("pause") }),

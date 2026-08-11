@@ -219,8 +219,8 @@ export function SupportChatWidget() {
   }, [visitorId]);
 
   useEffect(() => {
-    void loadConversation();
-    void loadHistory();
+    if (conversationId) void loadConversation();
+    if (open || showHistory || conversationId) void loadHistory();
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible" && !notifications) return;
       // A visitor who has never contacted support and isn't looking at the
@@ -241,7 +241,7 @@ export function SupportChatWidget() {
       window.removeEventListener("online", connection);
       window.removeEventListener("offline", connection);
     };
-  }, [conversationId, loadConversation, loadHistory, notifications]);
+  }, [conversationId, loadConversation, loadHistory, notifications, open, showHistory]);
 
   const unread = useMemo(
     () =>

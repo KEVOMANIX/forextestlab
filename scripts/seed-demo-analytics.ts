@@ -14,7 +14,7 @@
 
 import "dotenv/config";
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../src/generated/prisma/client";
 import type {
   ClosedTrade,
   EquityPoint,

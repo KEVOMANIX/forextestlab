@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createHmac } from "node:crypto";
 
-import { paddleBrowserEnvironment, paddleMode, requiredPaddleClientToken } from "./paddle";
+import {
+  paddleBrowserEnvironment,
+  paddleMode,
+  requiredPaddleClientToken,
+  unmarshalPaddleWebhook,
+} from "./paddle";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -23,5 +29,39 @@ describe("Paddle environment safety", () => {
     expect(() => requiredPaddleClientToken()).toThrow(/test_/);
     vi.stubEnv("PADDLE_SANDBOX_CLIENT_TOKEN", "test_valid");
     expect(requiredPaddleClientToken()).toBe("test_valid");
+  });
+});
+
+describe("Paddle webhook verification", () => {
+  it("verifies the raw body and maps Paddle event fields", async () => {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const secret = "pdl_ntfset_test_secret";
+    const body = JSON.stringify({
+      event_id: "evt_123",
+      event_type: "transaction.completed",
+      data: { id: "txn_123" },
+    });
+    const signature = createHmac("sha256", secret)
+      .update(`${timestamp}:${body}`)
+      .digest("hex");
+
+    await expect(
+      unmarshalPaddleWebhook(body, secret, `ts=${timestamp};h1=${signature}`),
+    ).resolves.toEqual({
+      eventId: "evt_123",
+      eventType: "transaction.completed",
+      data: { id: "txn_123" },
+    });
+  });
+
+  it("rejects a body that does not match the signature", async () => {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    await expect(
+      unmarshalPaddleWebhook(
+        '{"event_id":"changed"}',
+        "secret",
+        `ts=${timestamp};h1=${"0".repeat(64)}`,
+      ),
+    ).rejects.toThrow(/invalid/);
   });
 });

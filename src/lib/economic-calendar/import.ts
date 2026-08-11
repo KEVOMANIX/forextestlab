@@ -12,7 +12,7 @@ import { createReadStream } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { Readable } from "node:stream";
 
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
 import { streamCsv } from "@/lib/market-data/csv-parser";

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
-import { Backtester } from "@/components/app/Backtester";
+import { BacktesterClient } from "@/components/app/BacktesterClient";
 import { ensureUserProfile } from "@/lib/auth";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
@@ -52,7 +52,7 @@ export default async function BacktestPage(
       ? searchParams.session
       : null;
   return (
-    <Backtester
+    <BacktesterClient
       resumeSessionId={resumeSessionId}
       entitlements={entitlements}
       autoStartTrial={

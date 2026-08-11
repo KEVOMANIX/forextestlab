@@ -1,3 +1,8 @@
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+
+// Makes Wrangler bindings available while using the normal Next.js dev server.
+initOpenNextCloudflareForDev();
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
@@ -26,6 +31,23 @@ const buildVersion =
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  output: "standalone",
+  // Next's tracer follows pg-cloudflare's default (empty) export on Windows,
+  // while OpenNext/esbuild selects the real `workerd` export. Keep both in the
+  // server trace so the Cloudflare bundle can resolve the Worker socket shim.
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/pg-cloudflare/dist/**/*", "./node_modules/pg-cloudflare/esm/**/*"],
+  },
+  webpack(config) {
+    // Prisma's Cloudflare runtime imports its query compiler as a static WASM
+    // module. OpenNext rewrites the resulting chunk for workerd, but webpack
+    // first needs its async WASM parser enabled during `next build`.
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
+    return config;
+  },
   env: {
     NEXT_PUBLIC_BUILD_VERSION: buildVersion,
   },
@@ -43,6 +65,18 @@ const nextConfig = {
         source: "/api/:path*",
         headers: [
           { key: "Cache-Control", value: "no-store, max-age=0" },
+          ...securityHeaders,
+        ],
+      },
+      {
+        // Calendar releases are public and import-driven. This rule follows
+        // the generic API rule so its cache policy wins for this one endpoint.
+        source: "/api/calendar/events",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+          },
           ...securityHeaders,
         ],
       },

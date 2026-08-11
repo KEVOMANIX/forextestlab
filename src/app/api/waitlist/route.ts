@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getStorageProvider } from "@/lib/storage";
+import { prisma } from "@/lib/db";
 import type { ApiResult } from "@/lib/types";
 import { validateWaitlist } from "@/lib/validation";
 
@@ -31,7 +31,22 @@ export async function POST(request: Request): Promise<NextResponse<ApiResult>> {
   }
 
   try {
-    await getStorageProvider().saveWaitlist(result.data);
+    await prisma.waitlistEntry.upsert({
+      where: { email: result.data.email.trim().toLowerCase() },
+      create: {
+        name: result.data.name,
+        email: result.data.email.trim().toLowerCase(),
+        experience: result.data.experience,
+        pairsJson: JSON.stringify(result.data.pairs),
+        consent: result.data.consent,
+      },
+      update: {
+        name: result.data.name,
+        experience: result.data.experience,
+        pairsJson: JSON.stringify(result.data.pairs),
+        consent: result.data.consent,
+      },
+    });
   } catch (error) {
     console.error("Failed to save waitlist submission:", error);
     return NextResponse.json(

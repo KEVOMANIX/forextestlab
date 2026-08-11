@@ -9,7 +9,7 @@
 
 import "dotenv/config";
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../src/generated/prisma/client";
 
 import { SYMBOL_DEFINITIONS } from "../src/lib/market-data/symbols";
 import {

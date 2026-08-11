@@ -7,7 +7,9 @@
 // changes are required.
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  runtime  = "cloudflare"
 }
 
 datasource db {
@@ -73,6 +75,21 @@ model ContactMessage {
 
   @@index([status, createdAt])
   @@index([email, createdAt])
+}
+
+/// Durable waitlist signup. Pairs are stored as JSON so the form can evolve
+/// without a join table for a small, append-mostly marketing dataset.
+model WaitlistEntry {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  experience     String
+  pairsJson      String
+  consent        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 model SupportConversation {

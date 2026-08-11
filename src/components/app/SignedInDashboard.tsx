@@ -14,8 +14,6 @@ import {
   TrendingUp,
   Trophy,
 } from "lucide-react";
-import type { BacktestSession } from "@prisma/client";
-
 import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
 import {
@@ -26,7 +24,7 @@ import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
 import { PORTFOLIO_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { computeStatistics } from "@/lib/backtest/statistics";
-import type { ClosedTrade, SessionState } from "@/lib/backtest/types";
+import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import {
   formatNewYorkDate,
   formatNewYorkDateTime,
@@ -47,16 +45,23 @@ const WEEKDAYS = [
   "Saturday",
 ] as const;
 
-function safeState(value: string): SessionState | null {
-  try {
-    return JSON.parse(value) as SessionState;
-  } catch {
-    return null;
-  }
-}
-
-function sessionName(stateJson: string, fallbackSymbol: string): string {
-  return safeState(stateJson)?.config.name?.trim() || `${fallbackSymbol} backtest`;
+export interface DashboardSession {
+  id: string;
+  symbol: string;
+  symbols: string[];
+  name: string;
+  timeframe: string;
+  startTime: bigint;
+  endTime: bigint;
+  status: string;
+  visibleIndex: number;
+  totalCandles: number;
+  startingBalance: string;
+  balance: string;
+  maxDrawdown: string;
+  maxDrawdownPercent: string;
+  updatedAt: Date;
+  archived: boolean;
 }
 
 function formatMoney(value: Decimal): string {
@@ -66,11 +71,11 @@ function formatMoney(value: Decimal): string {
   return `${sign}$${grouped}.${frac}`;
 }
 
-function sessionProgress(state: SessionState | null): number {
-  if (!state?.totalCandles) return state?.status === "finished" ? 100 : 0;
+function sessionProgress(session: DashboardSession | null): number {
+  if (!session?.totalCandles) return session?.status === "finished" ? 100 : 0;
   return Math.min(
     100,
-    Math.max(0, ((state.visibleIndex + 1) / state.totalCandles) * 100),
+    Math.max(0, ((session.visibleIndex + 1) / session.totalCandles) * 100),
   );
 }
 
@@ -94,28 +99,25 @@ function aggregateTradePnl<T extends string | number>(
 
 export function SignedInDashboard({
   sessions,
+  selectedTrades,
+  selectedEquityCurve,
   displayName,
   selectedId,
   aiEnabled = false,
 }: {
-  sessions: BacktestSession[];
+  sessions: DashboardSession[];
+  selectedTrades: ClosedTrade[];
+  selectedEquityCurve: EquityPoint[];
   displayName: string;
   selectedId?: string | null;
   aiEnabled?: boolean;
 }) {
   const selectedSession =
     sessions.find((session) => session.id === selectedId) ?? sessions[0] ?? null;
-  const selectedState = selectedSession ? safeState(selectedSession.stateJson) : null;
-  const scopeLabel = selectedSession
-    ? sessionName(selectedSession.stateJson, selectedSession.symbol)
-    : "No session selected";
-  const selectedSymbols = selectedState?.config.symbols?.length
-    ? selectedState.config.symbols
-    : selectedSession
-      ? [selectedSession.symbol]
-      : [];
-  const progress = sessionProgress(selectedState);
-  const trades = selectedState?.closedTrades ?? [];
+  const scopeLabel = selectedSession?.name ?? "No session selected";
+  const selectedSymbols = selectedSession?.symbols ?? [];
+  const progress = sessionProgress(selectedSession);
+  const trades = selectedTrades;
   const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
   const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
   const winRate = trades.length ? (wins / trades.length) * 100 : 0;
@@ -127,16 +129,16 @@ export function SignedInDashboard({
     ? new Decimal(0)
     : totalNet.dividedBy(startingBalance).times(100);
   const stats =
-    selectedSession && selectedState
+    selectedSession
       ? computeStatistics({
           startingBalance: selectedSession.startingBalance,
           endingBalance: selectedSession.balance,
           trades,
-          equityCurve: selectedState.equityCurve,
+          equityCurve: selectedEquityCurve,
         })
       : null;
   const chartPoints =
-    selectedState?.equityCurve.map((point) => ({
+    selectedEquityCurve.map((point) => ({
       time: point.time,
       balance: Number(point.balance),
       equity: Number(point.equity),
@@ -147,12 +149,12 @@ export function SignedInDashboard({
   }));
 
   const lastReplayTime =
-    selectedSession && selectedState
+    selectedSession
       ? Math.min(
           Number(selectedSession.endTime),
           Number(selectedSession.startTime) +
-            Math.max(0, selectedState.visibleIndex) *
-              TIMEFRAME_MS[selectedState.config.timeframe],
+            Math.max(0, selectedSession.visibleIndex) *
+              (TIMEFRAME_MS[selectedSession.timeframe as keyof typeof TIMEFRAME_MS] ?? 0),
         )
       : null;
 
@@ -211,15 +213,11 @@ export function SignedInDashboard({
     .slice(0, 4);
 
   const sessionOptions = sessions.map((session) => {
-    const state = safeState(session.stateJson);
     const net = new Decimal(session.balance).minus(session.startingBalance);
-    const symbols = state?.config.symbols?.length
-      ? state.config.symbols
-      : [session.symbol];
     return {
       id: session.id,
-      name: sessionName(session.stateJson, session.symbol),
-      symbols: symbols.map(formatSymbol).join(", "),
+      name: session.name,
+      symbols: session.symbols.map(formatSymbol).join(", "),
       status: session.status === "finished" ? "Completed" : "Active",
       updatedAt: formatNewYorkDate(session.updatedAt, {
         day: "numeric",
@@ -232,16 +230,12 @@ export function SignedInDashboard({
 
   const sessionRows: DashboardSessionRow[] = sessions
     .map((session) => {
-      const state = safeState(session.stateJson);
-      if (state?.config.archived === true) return null;
+      if (session.archived) return null;
       const net = new Decimal(session.balance).minus(session.startingBalance);
-      const symbols = state?.config.symbols?.length
-        ? state.config.symbols
-        : [session.symbol];
       return {
         id: session.id,
-        name: sessionName(session.stateJson, session.symbol),
-        symbols: symbols.map(formatSymbol).join(", "),
+        name: session.name,
+        symbols: session.symbols.map(formatSymbol).join(", "),
         dateRange: `${formatNewYorkDate(Number(session.startTime), {
           day: "numeric",
           month: "short",
@@ -261,7 +255,7 @@ export function SignedInDashboard({
         })}`,
         pnl: net.toNumber(),
         pnlLabel: formatMoney(net),
-        progress: sessionProgress(state),
+        progress: sessionProgress(session),
         archived: false,
       };
     })
@@ -468,7 +462,7 @@ export function SignedInDashboard({
                   sessionId={selectedSession.id}
                   sessionName={scopeLabel}
                   status={selectedSession.status}
-                  archived={selectedState?.config.archived === true}
+                  archived={selectedSession.archived}
                   compact
                 />
               </div>

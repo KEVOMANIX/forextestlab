@@ -40,6 +40,11 @@ interface ActionOk {
   state: PublicSessionState;
   newCandle: Candle | null;
 }
+interface CheckpointOk {
+  ok: true;
+  savedAt: number;
+  visibleIndex: number;
+}
 interface StateOk {
   ok: true;
   state: PublicSessionState;
@@ -132,6 +137,38 @@ export async function sendAction(
     body: JSON.stringify(action),
   });
   return parse<ActionOk>(res) as Promise<ActionOk | ApiErr>;
+}
+
+interface ResumeStatePayload {
+  ok: true;
+  state: PublicSessionState;
+  replayCandles?: Candle[];
+  candles?: Candle[];
+  contextCandles?: Candle[];
+  notes: string;
+}
+
+/**
+ * Persist browser-local replay progress without downloading the complete
+ * public engine state again. Interactive actions still use `sendAction` and
+ * receive the authoritative state needed to reconcile optimistic UI changes.
+ */
+export async function sendCheckpoint(
+  sessionId: string,
+  token: string | null,
+  targetIndex: number,
+  status?: "running" | "paused",
+  requiresReplay = false,
+): Promise<CheckpointOk | ApiErr> {
+  const res = await fetch(`/api/backtest/sessions/${sessionId}/action`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "x-session-token": token } : {}),
+    },
+    body: JSON.stringify({ type: "sync", targetIndex, status, requiresReplay }),
+  });
+  return parse<CheckpointOk>(res) as Promise<CheckpointOk | ApiErr>;
 }
 
 /**
@@ -237,7 +274,17 @@ export async function getStateWithToken(
   if (!res) {
     return { ok: false, error: "Could not reach the server. Check your connection and try again." };
   }
-  return parse<StateOk>(res) as Promise<StateOk | ApiErr>;
+  const payload = await parse<ResumeStatePayload>(res);
+  if (!payload.ok) return payload;
+  const replayCandles = payload.replayCandles ?? payload.candles ?? [];
+  return {
+    ...payload,
+    replayCandles,
+    candles:
+      payload.candles ??
+      replayCandles.slice(0, Math.max(0, payload.state.visibleIndex + 1)),
+    contextCandles: payload.contextCandles ?? [],
+  };
 }
 
 export async function getPairChart(

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Prisma } from "@/generated/prisma/client";
 import {
   ArrowRight,
   BarChart3,
@@ -8,12 +9,16 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { SignedInDashboard } from "@/components/app/SignedInDashboard";
+import {
+  SignedInDashboard,
+  type DashboardSession,
+} from "@/components/app/SignedInDashboard";
 import { ensureUserProfile } from "@/lib/auth";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
+import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +28,13 @@ export const metadata: Metadata = {
     "Review private forex backtesting sessions, trading performance, and recent strategy-testing activity.",
   robots: { index: false, follow: false },
 };
+
+interface SessionMetadataRow {
+  id: string;
+  name: string | null;
+  symbols: unknown;
+  archived: boolean;
+}
 
 function SignedOutDashboard() {
   const previewCards = [
@@ -112,11 +124,26 @@ export default async function AppHome(
   if (!user) return <SignedOutDashboard />;
 
   await ensureUserProfile(user);
-  const [sessions, entitlements] = await Promise.all([
+  const [sessionRows, entitlements] = await Promise.all([
     prisma.backtestSession.findMany({
       where: { userId: user.id, anonymous: false },
       orderBy: { updatedAt: "desc" },
       take: 100,
+      select: {
+        id: true,
+        symbol: true,
+        timeframe: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        visibleIndex: true,
+        totalCandles: true,
+        startingBalance: true,
+        balance: true,
+        maxDrawdown: true,
+        maxDrawdownPercent: true,
+        updatedAt: true,
+      },
     }),
     getUserEntitlements(user.id),
   ]);
@@ -125,6 +152,68 @@ export default async function AppHome(
     ? searchParams.performance.slice("session:".length)
     : null;
   const selectedId = searchParams?.session ?? legacySelectedId;
+
+  // A full engine state can be several megabytes. The old dashboard selected
+  // and parsed stateJson for as many as 100 sessions, which exhausted the free
+  // Workers CPU allowance and truncated the React stream. PostgreSQL extracts
+  // the three small pieces of dashboard metadata so the isolate never receives
+  // the large JSON documents.
+  const metadataRows = sessionRows.length
+    ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
+        SELECT "id",
+               NULLIF("stateJson"::jsonb #>> '{config,name}', '') AS "name",
+               COALESCE(
+                 "stateJson"::jsonb #> '{config,symbols}',
+                 jsonb_build_array("symbol")
+               ) AS "symbols",
+               COALESCE(
+                 ("stateJson"::jsonb #>> '{config,archived}')::boolean,
+                 false
+               ) AS "archived"
+        FROM "BacktestSession"
+        WHERE "id" IN (${Prisma.join(sessionRows.map((session) => session.id))})
+      `)
+    : [];
+  const metadata = new Map(metadataRows.map((row) => [row.id, row]));
+  const sessions: DashboardSession[] = sessionRows.map((session) => {
+    const details = metadata.get(session.id);
+    const symbols = Array.isArray(details?.symbols)
+      ? details.symbols.filter((value): value is string => typeof value === "string")
+      : [];
+    return {
+      ...session,
+      name: details?.name?.trim() || `${session.symbol} backtest`,
+      symbols: symbols.length ? symbols : [session.symbol],
+      archived: details?.archived ?? false,
+    };
+  });
+  const selectedSession =
+    sessions.find((session) => session.id === selectedId) ?? sessions[0] ?? null;
+  const selectedDetails = selectedSession
+    ? await prisma.backtestSession.findFirst({
+        where: { id: selectedSession.id, userId: user.id, anonymous: false },
+        select: {
+          trades: { orderBy: { exitTime: "asc" } },
+          equitySnapshots: { orderBy: { index: "asc" } },
+        },
+      })
+    : null;
+  const trades: ClosedTrade[] = (selectedDetails?.trades ?? []).map((trade) => ({
+    ...trade,
+    direction: trade.direction as ClosedTrade["direction"],
+    exitReason: trade.exitReason as ClosedTrade["exitReason"],
+    entryTime: Number(trade.entryTime),
+    exitTime: Number(trade.exitTime),
+    notes: trade.notes ?? undefined,
+  }));
+  const equityCurve: EquityPoint[] = (selectedDetails?.equitySnapshots ?? []).map(
+    (point) => ({
+      index: point.index,
+      time: Number(point.time),
+      balance: point.balance,
+      equity: point.equity,
+    }),
+  );
 
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&
@@ -135,6 +224,8 @@ export default async function AppHome(
   return (
     <SignedInDashboard
       sessions={sessions}
+      selectedTrades={trades}
+      selectedEquityCurve={equityCurve}
       displayName={displayName}
       selectedId={selectedId}
       aiEnabled={entitlements.fullAnalytics}

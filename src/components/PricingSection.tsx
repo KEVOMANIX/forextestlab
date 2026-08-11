@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import Link from "next/link";
 import { ArrowRight, CreditCard, Globe2, ShieldCheck } from "lucide-react";
 
@@ -6,20 +5,10 @@ import { LocalizedPricing } from "@/components/billing/LocalizedPricing";
 import { Section } from "@/components/Section";
 import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billing/paddle";
 import { getPricingTiers } from "@/lib/billing/tiers";
-import { countryCodeFromHeaders } from "@/lib/request-country";
-import { getCurrentUser } from "@/lib/supabase/server";
-import { prisma } from "@/lib/db";
 import { TrialOffer } from "@/components/TrialOffer";
-import { TRIAL_SIGN_UP_PATH, TRIAL_START_PATH } from "@/lib/site";
+import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
-export async function PricingSection() {
-  const countryCode = countryCodeFromHeaders(await headers());
-  const user = await getCurrentUser();
-  const profile = user ? await prisma.userProfile.findUnique({
-    where: { id: user.id },
-    select: { paddleCustomerId: true },
-  }) : null;
-
+export function PricingSection() {
   return (
     <Section
       id="pricing"
@@ -32,16 +21,12 @@ export async function PricingSection() {
       <div className="mb-8 text-left">
         <TrialOffer
           compact
-          href={user ? TRIAL_START_PATH : TRIAL_SIGN_UP_PATH}
+          href={TRIAL_SIGN_UP_PATH}
         />
       </div>
       <LocalizedPricing
         compact
         tiers={getPricingTiers()}
-        countryCode={countryCode}
-        customerEmail={user?.email}
-        paddleCustomerId={profile?.paddleCustomerId ?? undefined}
-        userId={user?.id}
         clientToken={requiredPaddleClientToken()}
         environment={paddleBrowserEnvironment()}
       />

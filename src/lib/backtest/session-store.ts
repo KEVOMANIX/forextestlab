@@ -94,6 +94,25 @@ export interface LoadedSession {
   notes: string;
 }
 
+/**
+ * Minimal persisted data needed to resume a session in the browser.
+ *
+ * Keep `stateJson` opaque here. Parsing and cloning a large trading history in
+ * a Worker can exhaust the free-plan CPU allowance; the browser already
+ * normalises persisted state when it hydrates its local replay engine.
+ */
+export interface ResumeSessionSnapshot {
+  token: string;
+  userId: string | null;
+  anonymous: boolean;
+  anonymousExpiresAt: Date | null;
+  notes: string;
+  stateJson: string;
+  visibleIndex: number;
+  status: string;
+  candles: Candle[];
+}
+
 function currentCandleOf(ctx: EngineContext): Candle | null {
   const i = ctx.state.visibleIndex;
   if (i < 0 || i >= ctx.candles.length) return null;
@@ -282,6 +301,54 @@ async function fetchSeries(
     limit,
   });
   return candles.slice(0, limit);
+}
+
+export async function loadResumeSessionSnapshot(
+  id: string,
+): Promise<ResumeSessionSnapshot | null> {
+  const row = await prisma.backtestSession.findUnique({
+    where: { id },
+    select: {
+      token: true,
+      userId: true,
+      anonymous: true,
+      anonymousExpiresAt: true,
+      notes: true,
+      stateJson: true,
+      symbol: true,
+      timeframe: true,
+      startTime: true,
+      endTime: true,
+      visibleIndex: true,
+      status: true,
+      totalCandles: true,
+    },
+  });
+  if (!row) return null;
+
+  let series = candleCache.get(id);
+  if (!series) {
+    series = await fetchSeries(
+      row.symbol,
+      row.timeframe as Timeframe,
+      Number(row.startTime),
+      Number(row.endTime),
+      Math.max(MAX_SESSION_CANDLES, row.totalCandles),
+    );
+    cacheCandles(id, series);
+  }
+
+  return {
+    token: row.token,
+    userId: row.userId,
+    anonymous: row.anonymous,
+    anonymousExpiresAt: row.anonymousExpiresAt,
+    notes: row.notes ?? "",
+    stateJson: row.stateJson,
+    visibleIndex: row.visibleIndex,
+    status: row.status,
+    candles: series.slice(0, row.visibleIndex + 1 + MAX_BUFFER_CANDLES),
+  };
 }
 
 /**

@@ -36,22 +36,6 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const session = await loadSession(params.id);
-  if (!session) {
-    return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
-  }
-
-  const user = await getCurrentUser();
-  const token = request.headers.get("x-session-token");
-  if (!canAccessSession(session, user?.id ?? null, token)) {
-    return NextResponse.json({ ok: false, error: "Unauthorised." }, { status: 403 });
-  }
-
-  const limit = rateLimit(`action:${params.id}`, 1200, 60_000);
-  if (!limit.ok) {
-    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
-  }
-
   let body: unknown;
   try {
     body = await request.json();
@@ -68,6 +52,62 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   }
 
   const action = parsed.data;
+  const user = await getCurrentUser();
+  const token = request.headers.get("x-session-token");
+  const limit = rateLimit(`action:${params.id}`, 1200, 60_000);
+  if (!limit.ok) {
+    return NextResponse.json({ ok: false, error: "Too many requests." }, { status: 429 });
+  }
+
+  // A checkpoint without live orders needs no replay. A checkpoint *with*
+  // live orders still needs no replay when its cursor has not moved: this is
+  // what a resumed tab sends to change a stale `running` status to `paused`.
+  // Loading the whole candle range for that status-only write can exceed the
+  // Workers Free CPU budget on a large session even though there are zero new
+  // candles to evaluate.
+  if (action.type === "sync") {
+    const access = await prisma.backtestSession.findUnique({
+      where: { id: params.id },
+      select: {
+        token: true,
+        userId: true,
+        anonymous: true,
+        anonymousExpiresAt: true,
+        visibleIndex: true,
+        totalCandles: true,
+      },
+    });
+    if (!access) {
+      return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
+    }
+    if (!canAccessSession(access, user?.id ?? null, token)) {
+      return NextResponse.json({ ok: false, error: "Unauthorised." }, { status: 403 });
+    }
+    const cursorUnchanged = action.targetIndex === access.visibleIndex;
+    if (!action.requiresReplay || cursorUnchanged) {
+      // Do not clamp against totalCandles here. Older extended sessions may
+      // legitimately have a cursor beyond their stale loaded-batch count; a
+      // checkpoint must never move those sessions backwards.
+      const visibleIndex = Math.max(-1, action.targetIndex);
+      await prisma.backtestSession.update({
+        where: { id: params.id },
+        data: {
+          visibleIndex,
+          ...(action.status ? { status: action.status } : {}),
+        },
+      });
+      return NextResponse.json({ ok: true, savedAt: Date.now(), visibleIndex });
+    }
+  }
+
+  const session = await loadSession(params.id);
+  if (!session) {
+    return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
+  }
+  if (!canAccessSession(session, user?.id ?? null, token)) {
+    return NextResponse.json({ ok: false, error: "Unauthorised." }, { status: 403 });
+  }
+
   const ctx = session.ctx;
   let newCandle: Candle | null = null;
   let opError: string | undefined;
@@ -257,6 +297,14 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       { ok: false, error: opError, state: toPublicState(ctx, session.anonymous) },
       { status: 409 },
     );
+  }
+
+  if (action.type === "sync") {
+    return NextResponse.json({
+      ok: true,
+      savedAt: Date.now(),
+      visibleIndex: ctx.state.visibleIndex,
+    });
   }
 
   return NextResponse.json({

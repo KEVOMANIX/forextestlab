@@ -52,10 +52,16 @@ export async function GET(request: Request) {
       minImportance,
       limit: MAX_CALENDAR_EVENTS,
     });
-    // The client caches per window; releases only change when an import runs.
+    // Releases only change when an import runs, so exact query windows can be
+    // shared at the CDN instead of consuming database egress for every user.
     return NextResponse.json(
       { ok: true, events, truncated: events.length >= MAX_CALENDAR_EVENTS },
-      { headers: { "Cache-Control": "private, max-age=300" } },
+      {
+        headers: {
+          "Cache-Control":
+            "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+        },
+      },
     );
   } catch (error) {
     // An install that has not run the calendar migration has no table to read,

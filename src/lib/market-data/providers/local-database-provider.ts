@@ -7,7 +7,7 @@
 
 import { prisma } from "@/lib/db";
 import { aggregateCandles } from "../aggregation";
-import type { MarketCandle } from "@prisma/client";
+import type { MarketCandle } from "@/generated/prisma/client";
 import {
   TIMEFRAME_MS,
   TIMEFRAMES,

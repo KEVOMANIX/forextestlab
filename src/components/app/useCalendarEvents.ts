@@ -75,7 +75,7 @@ export function useCalendarEvents({
           importance: minImportance,
         });
         if (currencyKey) params.set("currencies", currencyKey);
-        const response = await fetch(`/api/calendar/events?${params}`, { cache: "no-store" });
+        const response = await fetch(`/api/calendar/events?${params}`);
         const data = (await response.json()) as { ok?: boolean; events?: CalendarEvent[] };
         if (cancelled) return;
         if (!data.ok || !Array.isArray(data.events)) {

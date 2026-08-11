@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 
 import {
   loadSession,
-  getChartContext,
+  loadResumeSessionSnapshot,
   toPublicState,
-  visibleCandles,
-  bufferedReplayCandles,
 } from "@/lib/backtest/session-store";
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -19,7 +17,7 @@ export const dynamic = "force-dynamic";
 /** Public, read-only session state + the candles revealed so far. */
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const session = await loadSession(params.id);
+  const session = await loadResumeSessionSnapshot(params.id);
   if (!session) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
   }
@@ -28,13 +26,38 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   if (!canAccessSession(session, user?.id ?? null, token)) {
     return NextResponse.json({ ok: false, error: "Unauthorised." }, { status: 403 });
   }
-  return NextResponse.json({
-    ok: true,
-    state: toPublicState(session.ctx, session.anonymous),
-    candles: visibleCandles(session.ctx),
-    replayCandles: bufferedReplayCandles(session.ctx),
-    contextCandles: await getChartContext(session),
-    notes: session.notes,
+  const current = session.candles[session.visibleIndex] ?? null;
+  const persistedState = session.stateJson.trim();
+  const closingBrace = persistedState.lastIndexOf("}");
+  if (closingBrace < 0) {
+    return NextResponse.json({ ok: false, error: "Saved session state is invalid." }, { status: 500 });
+  }
+
+  // Stream the already-serialised state instead of parsing, deep-cloning and
+  // serialising it again inside the Worker. The browser-side replay engine
+  // performs the compatibility normalisation after JSON.parse.
+  const publicFields = `,"visibleIndex":${session.visibleIndex},"status":${JSON.stringify(session.status)},"currentPrice":${JSON.stringify(current?.close ?? null)},"currentTime":${JSON.stringify(current?.timestamp ?? null)},"anonymous":${JSON.stringify(session.anonymous)}`;
+  const candlesJson = JSON.stringify(session.candles);
+  const notesJson = JSON.stringify(session.notes);
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode('{"ok":true,"state":'));
+      controller.enqueue(encoder.encode(persistedState.slice(0, closingBrace)));
+      controller.enqueue(encoder.encode(publicFields));
+      controller.enqueue(encoder.encode('},"replayCandles":'));
+      controller.enqueue(encoder.encode(candlesJson));
+      controller.enqueue(encoder.encode(',"notes":'));
+      controller.enqueue(encoder.encode(notesJson));
+      controller.enqueue(encoder.encode("}"));
+      controller.close();
+    },
+  });
+  return new Response(body, {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "private, no-store",
+    },
   });
 }
 

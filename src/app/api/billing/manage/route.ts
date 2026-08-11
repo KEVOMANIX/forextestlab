@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getPaddleInstance } from "@/lib/billing/paddle";
+import { createPaddlePortalSession } from "@/lib/billing/paddle";
 import { getSubscriptionManageLink } from "@/lib/billing/paystack";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -18,11 +18,11 @@ export async function POST() {
         where: { userId: user.id, provider: "paddle", status: { in: ["active", "trialing", "past_due"] } },
         select: { subscriptionCode: true },
       });
-      const session = await getPaddleInstance().customerPortalSessions.create(
+      const url = await createPaddlePortalSession(
         profile.paddleCustomerId,
         subscriptions.map((subscription) => subscription.subscriptionCode),
       );
-      return NextResponse.json({ ok: true, url: session.urls.general.overview });
+      return NextResponse.json({ ok: true, url });
     }
     const legacy = await prisma.billingSubscription.findFirst({
       where: { userId: user.id, provider: "paystack", status: { in: ["active", "attention", "non-renewing"] } },

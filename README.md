@@ -112,7 +112,7 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `NEXT_PUBLIC_SUPABASE_URL` | â€” | Supabase project URL used by Auth. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | â€” | Browser-safe Supabase publishable key. |
 | `SUPABASE_SECRET_KEY` | â€” | Server-only key used for permanent account deletion. |
-| `MARKET_DATA_PROVIDER` | `r2` | `r2` \| `local_database` \| `local_csv` \| `demo`. |
+| `MARKET_DATA_PROVIDER` | `r2` | `r2` \| `demo`. Production reads R2 through the Cloudflare `MARKET_DATA` binding. |
 | `ENABLE_DEMO_DATA` | `false` | Fall back to deterministic demo data when no stored data. Keep disabled in production. |
 | `R2_ENDPOINT` | â€” | Server-only Cloudflare R2 S3 endpoint. |
 | `R2_BUCKET_NAME` | â€” | R2 bucket containing the monthly Parquet files. |

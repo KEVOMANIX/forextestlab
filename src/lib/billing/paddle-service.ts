@@ -1,10 +1,10 @@
 import "server-only";
 
-import type { EventEntity } from "@paddle/paddle-node-sdk";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
 import { paddleProductKeyFromPriceId } from "./tiers";
+import type { PaddleWebhookEvent } from "./paddle";
 
 type PaddleData = Record<string, unknown>;
 
@@ -20,7 +20,7 @@ function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 86_400_000);
 }
 
-function eventData(event: EventEntity): PaddleData {
+function eventData(event: PaddleWebhookEvent): PaddleData {
   return objectValue(event.data);
 }
 
@@ -190,7 +190,7 @@ async function syncTransaction(data: PaddleData): Promise<void> {
   ]);
 }
 
-export async function processPaddleWebhook(event: EventEntity): Promise<void> {
+export async function processPaddleWebhook(event: PaddleWebhookEvent): Promise<void> {
   const id = event.eventId;
   if (await prisma.billingWebhookEvent.findUnique({ where: { id } })) return;
   const type = event.eventType;

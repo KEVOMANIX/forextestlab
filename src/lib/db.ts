@@ -15,8 +15,9 @@
  * import scripts) and Workers alike.
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -30,6 +31,12 @@ const globalForPrisma = globalThis as unknown as {
  * Everywhere else it is the ordinary `DATABASE_URL`.
  */
 function connectionString(): string {
+  try {
+    const hyperdrive = getCloudflareContext().env.HYPERDRIVE;
+    if (hyperdrive?.connectionString) return hyperdrive.connectionString;
+  } catch {
+    // Next.js, migration scripts, and Vercel have no Cloudflare request context.
+  }
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set.");
   return url;
@@ -45,6 +52,19 @@ export function createPrismaClient(url: string = connectionString()): PrismaClie
 let cached: PrismaClient | undefined;
 
 function client(): PrismaClient {
+  // Hyperdrive owns the actual connection pool. A node-postgres client must
+  // not survive into a later Worker invocation: Cloudflare may clean up its
+  // socket at the end of the first request, leaving the next request with a
+  // cached Prisma adapter whose connection is already closed. Constructing a
+  // request-local client is cheap here because Hyperdrive keeps the origin
+  // connections warm and shared.
+  try {
+    if (getCloudflareContext().env.HYPERDRIVE?.connectionString) {
+      return createPrismaClient();
+    }
+  } catch {
+    // Outside Workers, keep the ordinary Node/dev singleton below.
+  }
   if (cached) return cached;
   cached = globalForPrisma.prisma ?? createPrismaClient();
   if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = cached;
@@ -64,9 +84,10 @@ function client(): PrismaClient {
  */
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, property) {
-    const value = Reflect.get(client(), property) as unknown;
+    const current = client();
+    const value = Reflect.get(current, property) as unknown;
     // Model delegates (`prisma.session`) are plain objects; the client's own
     // methods (`$transaction`, `$queryRaw`) need their `this` back.
-    return typeof value === "function" ? value.bind(client()) : value;
+    return typeof value === "function" ? value.bind(current) : value;
   },
 });

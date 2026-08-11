@@ -12,6 +12,7 @@ import {
   getChartHistory,
   getStateWithToken,
   sendAction,
+  sendCheckpoint,
   nextReplayBatch,
   type CreateSessionBody,
   type CreatedSession,
@@ -172,6 +173,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const checkpointLatestRef = useRef<{
     targetIndex: number;
     statusOverride?: "running" | "paused";
+    requiresReplay: boolean;
   } | null>(null);
   const autoStepPendingRef = useRef(false);
   const replayExtendPromiseRef = useRef<ReturnType<typeof extendReplay> | null>(
@@ -354,14 +356,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
 
       // A browser tab closing cannot run a server replay timer, but its last
-      // persisted status may still be "running". Resume safely in paused mode.
+      // persisted status may still be "running". Pause the browser-local copy
+      // without making a second expensive server request during hydration.
+      // The next checkpoint/action persists the authoritative status.
       if (res.state.status === "running") {
-        const paused = await sendAction(resumeSessionId, storedToken, {
-          type: "pause",
-        });
-        if (paused.ok) {
-          res = { ...res, state: paused.state };
-        }
+        res = { ...res, state: { ...res.state, status: "paused" } };
       }
 
       if (cancelled) return;
@@ -790,10 +789,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
     checkpointLatestRef.current = {
       targetIndex: engine.state.visibleIndex,
       statusOverride,
+      requiresReplay:
+        engine.state.openPositions.length > 0 ||
+        engine.state.pendingOrders.length > 0,
     };
     patch({ saveStatus: "saving" });
 
-    // A slow database must not build an unbounded queue of stale 3-second
+    // A slow database must not build an unbounded queue of stale periodic
     // checkpoints. One request runs at a time and any calls received while it
     // is pending collapse into the newest index/status.
     if (!checkpointPendingRef.current) {
@@ -804,11 +806,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
           checkpointLatestRef.current = null;
           const saveStartedAt = performance.now();
           const task = actionQueueRef.current.then(() =>
-            sendAction(id, tokenRef.current, {
-              type: "sync",
-              targetIndex: requested.targetIndex,
-              status: requested.statusOverride,
-            }),
+            sendCheckpoint(
+              id,
+              tokenRef.current,
+              requested.targetIndex,
+              requested.statusOverride,
+              requested.requiresReplay,
+            ),
           );
           actionQueueRef.current = task.then(
             () => undefined,
@@ -845,9 +849,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
   }, [patch]);
 
   // Persist progress in batches. Closing/pausing also checkpoints immediately.
+  // A three-second interval amplified each hour of local replay into roughly
+  // 1,200 server/database round-trips. Thirty seconds still bounds resumable
+  // progress while cutting routine checkpoint traffic by about 90%.
   useEffect(() => {
     if (status !== "running") return;
-    const timer = window.setInterval(() => void checkpoint("running"), 3_000);
+    const timer = window.setInterval(() => void checkpoint("running"), 30_000);
     return () => window.clearInterval(timer);
   }, [checkpoint, status]);
 

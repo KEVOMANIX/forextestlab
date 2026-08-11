@@ -1,19 +1,82 @@
 "use client";
 
-import {
-  initializePaddle,
-  type Environments,
-  type Paddle,
-  type PricePreviewParams,
-  type PricePreviewResponse,
-} from "@paddle/paddle-js";
 import { ArrowRight, Check, Loader2, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { CopyWelcomeCode } from "@/components/WelcomeOffer";
 import type { BillingInterval, Tier } from "@/lib/billing/tier-types";
+import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type PaddlePrices = Record<string, string>;
+type Environments = "sandbox" | "production";
+
+interface PaddlePricePreviewParams {
+  items: { priceId: string; quantity: number }[];
+  address?: { countryCode: string };
+}
+
+interface PaddlePricePreviewResponse {
+  data: {
+    details: {
+      lineItems: {
+        price: { id: string };
+        formattedTotals: { total: string };
+      }[];
+    };
+  };
+}
+
+interface PaddleApi {
+  Initialized?: boolean;
+  Environment: { set(environment: Environments): void };
+  Initialize(options: PaddleInitialization): void;
+  Update(options: Partial<PaddleInitialization>): void;
+  PricePreview(params: PaddlePricePreviewParams): Promise<PaddlePricePreviewResponse>;
+  Checkout: {
+    open(options: {
+      items: { priceId: string; quantity: number }[];
+      customer?: { email: string };
+      customData?: Record<string, string>;
+      settings: {
+        displayMode: "overlay";
+        variant: "one-page";
+        theme: "dark";
+        allowLogout: boolean;
+        successUrl: string;
+      };
+    }): void;
+  };
+}
+
+interface PaddleInitialization {
+  token: string;
+  pwCustomer?: { id: string };
+  eventCallback?: (event: { name: string }) => void;
+}
+
+declare global {
+  interface Window {
+    Paddle?: PaddleApi;
+  }
+}
+
+let paddleScriptPromise: Promise<PaddleApi> | undefined;
+
+function loadPaddleScript(): Promise<PaddleApi> {
+  if (window.Paddle) return Promise.resolve(window.Paddle);
+  if (paddleScriptPromise) return paddleScriptPromise;
+  paddleScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://cdn.paddle.com/paddle/v2/paddle.js";
+    script.async = true;
+    script.onload = () => window.Paddle
+      ? resolve(window.Paddle)
+      : reject(new Error("Paddle.js did not initialize."));
+    script.onerror = () => reject(new Error("Paddle.js could not be loaded."));
+    document.head.appendChild(script);
+  });
+  return paddleScriptPromise;
+}
 
 interface LocalizedPricingProps {
   tiers: Tier[];
@@ -26,11 +89,11 @@ interface LocalizedPricingProps {
   compact?: boolean;
 }
 
-function previewItems(tiers: Tier[]): PricePreviewParams["items"] {
+function previewItems(tiers: Tier[]): PaddlePricePreviewParams["items"] {
   return tiers.flatMap((tier) => [tier.priceId.month, tier.priceId.year].map((priceId) => ({ priceId, quantity: 1 })));
 }
 
-function formattedPrices(response: PricePreviewResponse): PaddlePrices {
+function formattedPrices(response: PaddlePricePreviewResponse): PaddlePrices {
   return response.data.details.lineItems.reduce<PaddlePrices>((prices, item) => {
     prices[item.price.id] = item.formattedTotals.total;
     return prices;
@@ -48,18 +111,30 @@ export function LocalizedPricing({
   compact = false,
 }: LocalizedPricingProps) {
   const [interval, setInterval] = useState<BillingInterval>("month");
-  const [paddle, setPaddle] = useState<Paddle>();
+  const [paddle, setPaddle] = useState<PaddleApi>();
   const [prices, setPrices] = useState<PaddlePrices>({});
   const [loading, setLoading] = useState(true);
   const [openingPriceId, setOpeningPriceId] = useState<string>();
   const [error, setError] = useState<string>();
+  const [browserIdentity, setBrowserIdentity] = useState<{
+    email?: string;
+    userId?: string;
+  }>({ email: customerEmail, userId });
   const items = useMemo(() => previewItems(tiers), [tiers]);
 
   useEffect(() => {
+    if (customerEmail && userId) return;
+    const supabase = createBrowserSupabaseClient();
+    void supabase?.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (user) setBrowserIdentity({ email: user.email, userId: user.id });
+    });
+  }, [customerEmail, userId]);
+
+  useEffect(() => {
     let active = true;
-    initializePaddle({
+    const initialization: PaddleInitialization = {
       token: clientToken,
-      environment,
       ...(paddleCustomerId?.startsWith("ctm_") ? { pwCustomer: { id: paddleCustomerId } } : {}),
       eventCallback: (event) => {
         if (event.name === "checkout.closed") setOpeningPriceId(undefined);
@@ -68,9 +143,13 @@ export function LocalizedPricing({
           setOpeningPriceId(undefined);
         }
       },
-    })
+    };
+    loadPaddleScript()
       .then((instance) => {
-        if (active && instance) setPaddle(instance);
+        if (environment === "sandbox") instance.Environment.set("sandbox");
+        if (instance.Initialized) instance.Update(initialization);
+        else instance.Initialize(initialization);
+        if (active) setPaddle(instance);
       })
       .catch(() => {
         if (active) {
@@ -86,7 +165,7 @@ export function LocalizedPricing({
   useEffect(() => {
     if (!paddle) return;
     let active = true;
-    const params: PricePreviewParams = {
+    const params: PaddlePricePreviewParams = {
       items,
       ...(countryCode ? { address: { countryCode } } : {}),
     };
@@ -115,13 +194,13 @@ export function LocalizedPricing({
     setOpeningPriceId(priceId);
     paddle.Checkout.open({
       items: [{ priceId, quantity: 1 }],
-      ...(customerEmail ? { customer: { email: customerEmail } } : {}),
-      ...(userId ? { customData: { userId, productKey: `${tier.id}_${interval}` } } : {}),
+      ...(browserIdentity.email ? { customer: { email: browserIdentity.email } } : {}),
+      ...(browserIdentity.userId ? { customData: { userId: browserIdentity.userId, productKey: `${tier.id}_${interval}` } } : {}),
       settings: {
         displayMode: "overlay",
         variant: "one-page",
         theme: "dark",
-        allowLogout: !customerEmail,
+        allowLogout: !browserIdentity.email,
         successUrl: `${window.location.origin}/welcome`,
       },
     });

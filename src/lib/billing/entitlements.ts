@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { UserProfile } from "@prisma/client";
+import type { UserProfile } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
 import { TRIAL_SESSION_LIMIT } from "@/lib/trial-device";

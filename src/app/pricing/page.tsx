@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { CreditCard, Globe2, ReceiptText } from "lucide-react";
 
 import { LocalizedPricing } from "@/components/billing/LocalizedPricing";
 import { PageShell } from "@/components/PageShell";
 import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billing/paddle";
 import { getPricingTiers } from "@/lib/billing/tiers";
-import { countryCodeFromHeaders } from "@/lib/request-country";
-import { getCurrentUser } from "@/lib/supabase/server";
-import { prisma } from "@/lib/db";
 import { TrialOffer } from "@/components/TrialOffer";
-import { TRIAL_SIGN_UP_PATH, TRIAL_START_PATH } from "@/lib/site";
-
-export const dynamic = "force-dynamic";
+import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -20,14 +14,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/pricing" },
 };
 
-export default async function PricingPage() {
-  const requestHeaders = await headers();
-  const countryCode = countryCodeFromHeaders(requestHeaders);
-  const user = await getCurrentUser();
-  const profile = user ? await prisma.userProfile.findUnique({
-    where: { id: user.id },
-    select: { paddleCustomerId: true },
-  }) : null;
+export default function PricingPage() {
   const tiers = getPricingTiers();
   const clientToken = requiredPaddleClientToken();
   const environment = paddleBrowserEnvironment();
@@ -56,7 +43,7 @@ export default async function PricingPage() {
             </div>
             <TrialOffer
               variant="hero"
-              href={user ? TRIAL_START_PATH : TRIAL_SIGN_UP_PATH}
+              href={TRIAL_SIGN_UP_PATH}
             />
           </div>
         </div>
@@ -64,7 +51,7 @@ export default async function PricingPage() {
 
       <section className="py-12 sm:py-16">
         <div className="container-page">
-          <LocalizedPricing tiers={tiers} countryCode={countryCode} customerEmail={user?.email} paddleCustomerId={profile?.paddleCustomerId ?? undefined} userId={user?.id} clientToken={clientToken} environment={environment} />
+          <LocalizedPricing tiers={tiers} clientToken={clientToken} environment={environment} />
           <div className="mt-12 grid gap-4 sm:grid-cols-3">
             <div className="card p-5"><Globe2 size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Localized totals</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Paddle detects your market and returns the formatted total shown above.</p></div>
             <div className="card p-5"><CreditCard size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Secure overlay checkout</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Payment details stay inside Paddle&apos;s one-page checkout.</p></div>

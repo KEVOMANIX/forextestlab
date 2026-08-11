@@ -5,9 +5,11 @@
 
 import "server-only";
 
+import { Prisma, type SimulatedTrade } from "@/generated/prisma/client";
+
 import { prisma } from "@/lib/db";
 import { computeStatistics, type PerformanceStats } from "./statistics";
-import type { SessionState } from "./types";
+import type { ClosedTrade, EquityPoint, SessionState } from "./types";
 import { normalizeSessionState } from "./replay-engine";
 
 export interface SessionResults {
@@ -51,6 +53,36 @@ export interface ReviewSession {
   trades: SessionState["closedTrades"];
 }
 
+interface SessionMetadataRow {
+  id: string;
+  name: string | null;
+}
+
+function toClosedTrade(trade: SimulatedTrade): ClosedTrade {
+  return {
+    ...trade,
+    direction: trade.direction as ClosedTrade["direction"],
+    exitReason: trade.exitReason as ClosedTrade["exitReason"],
+    entryTime: Number(trade.entryTime),
+    exitTime: Number(trade.exitTime),
+    notes: trade.notes ?? undefined,
+  };
+}
+
+function toEquityPoint(point: {
+  index: number;
+  time: bigint;
+  balance: string;
+  equity: string;
+}): EquityPoint {
+  return {
+    index: point.index,
+    time: Number(point.time),
+    balance: point.balance,
+    equity: point.equity,
+  };
+}
+
 export async function getSessionResults(
   id: string,
   userId: string,
@@ -68,64 +100,91 @@ export async function getSessionResults(
     equityCurve: state.equityCurve,
   });
   const rootId = row.branchRootId ?? row.id;
-  const familyRows = await prisma.backtestSession.findMany({
-    where: {
-      userId,
-      anonymous: false,
-      OR: [{ id: rootId }, { branchRootId: rootId }],
-    },
-    orderBy: { createdAt: "asc" },
-  });
-  const reviewRows = await prisma.backtestSession.findMany({
-    where: { userId, anonymous: false },
-    orderBy: { updatedAt: "desc" },
-    take: 60,
-  });
+  // Cross-session analytics used to load and parse every complete stateJson.
+  // For established accounts that is tens of megabytes and exceeds the free
+  // Workers CPU budget. Relational trade/equity projections carry everything
+  // needed for comparisons without transferring the replay engine snapshots.
+  const [familyRows, reviewRows] = await Promise.all([
+    prisma.backtestSession.findMany({
+      where: {
+        userId,
+        anonymous: false,
+        OR: [{ id: rootId }, { branchRootId: rootId }],
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        symbol: true,
+        status: true,
+        parentSessionId: true,
+        branchPointIndex: true,
+        branchPointTime: true,
+        startingBalance: true,
+        balance: true,
+        trades: { orderBy: { exitTime: "asc" } },
+        equitySnapshots: { orderBy: { index: "asc" } },
+      },
+    }),
+    prisma.backtestSession.findMany({
+      where: { userId, anonymous: false },
+      orderBy: { updatedAt: "desc" },
+      take: 60,
+      select: {
+        id: true,
+        symbol: true,
+        timeframe: true,
+        createdAt: true,
+        parentSessionId: true,
+        branchRootId: true,
+        startingBalance: true,
+        balance: true,
+        trades: { orderBy: { exitTime: "asc" } },
+      },
+    }),
+  ]);
+  const metadataIds = [...new Set([
+    ...familyRows.map((session) => session.id),
+    ...reviewRows.map((session) => session.id),
+  ])];
+  const metadataRows = metadataIds.length
+    ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
+        SELECT "id", NULLIF("stateJson"::jsonb #>> '{config,name}', '') AS "name"
+        FROM "BacktestSession"
+        WHERE "id" IN (${Prisma.join(metadataIds)})
+      `)
+    : [];
+  const metadata = new Map(metadataRows.map((item) => [item.id, item]));
   const reviewSessions = reviewRows.map((session) => {
-    const sessionState = normalizeSessionState(
-      JSON.parse(session.stateJson) as SessionState,
-    );
     return {
       sessionId: session.id,
-      name:
-        sessionState.config.name?.trim() ||
-        `${session.symbol} backtest`,
+      name: metadata.get(session.id)?.name?.trim() || `${session.symbol} backtest`,
       symbol: session.symbol,
       timeframe: session.timeframe,
       createdAt: session.createdAt.toISOString(),
       parentSessionId: session.parentSessionId,
       branchRootId: session.branchRootId,
-      startingBalance: sessionState.config.startingBalance,
-      endingBalance: sessionState.balance,
-      trades: sessionState.closedTrades.map((trade) => ({
-        ...trade,
-        journal: trade.journal
-          ? {
-              ...trade.journal,
-              beforeEntrySnapshot: null,
-              afterExitSnapshot: null,
-            }
-          : undefined,
-      })),
+      startingBalance: session.startingBalance,
+      endingBalance: session.balance,
+      trades: session.trades.map(toClosedTrade),
     };
   });
   const branchComparison = familyRows.map((family) => {
-    const familyState = normalizeSessionState(JSON.parse(family.stateJson) as SessionState);
+    const trades = family.trades.map(toClosedTrade);
     const familyStats = computeStatistics({
-      startingBalance: familyState.config.startingBalance,
-      endingBalance: familyState.balance,
-      trades: familyState.closedTrades,
-      equityCurve: familyState.equityCurve,
+      startingBalance: family.startingBalance,
+      endingBalance: family.balance,
+      trades,
+      equityCurve: family.equitySnapshots.map(toEquityPoint),
     });
     return {
       sessionId: family.id,
-      name: familyState.config.name?.trim() || `${family.symbol} backtest`,
+      name: metadata.get(family.id)?.name?.trim() || `${family.symbol} backtest`,
       parentSessionId: family.parentSessionId,
       branchPointIndex: family.branchPointIndex,
       branchPointTime: family.branchPointTime ? Number(family.branchPointTime) : null,
       status: family.status,
-      trades: familyState.closedTrades.length,
-      balance: familyState.balance,
+      trades: trades.length,
+      balance: family.balance,
       netPnl: familyStats.netProfit,
       winRate: familyStats.winRate,
     };

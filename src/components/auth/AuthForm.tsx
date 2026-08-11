@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { siteConfig } from "@/lib/site";
@@ -37,17 +37,32 @@ export function AuthForm({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError ?? null);
 
+  useEffect(() => {
+    if (initialError || typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).has("error")) {
+      setError("Google sign-in could not be completed. Please try again.");
+    }
+  }, [initialError]);
+
   const needsPassword = mode === "sign-in" || mode === "sign-up";
   const supportsGoogle = mode === "sign-in" || mode === "sign-up";
 
   function safeNextPath(): string {
-    return nextPath?.startsWith("/") && !nextPath.startsWith("//")
-      ? nextPath
+    const requested = nextPath ?? (typeof window === "undefined"
+      ? undefined
+      : new URLSearchParams(window.location.search).get("next") ?? undefined);
+    return requested?.startsWith("/") && !requested.startsWith("//")
+      ? requested
       : "/account/continue";
   }
 
   function callbackUrl(next: string): string {
-    const callback = new URL("/auth/callback", siteConfig.url);
+    // OAuth must return to the deployment that initiated the flow. Using the
+    // configured production URL here sent Cloudflare preview sign-ins back to
+    // the Vercel/custom-domain deployment before the code exchange completed.
+    const origin =
+      typeof window === "undefined" ? siteConfig.url : window.location.origin;
+    const callback = new URL("/auth/callback", origin);
     callback.searchParams.set("next", next);
     return callback.toString();
   }

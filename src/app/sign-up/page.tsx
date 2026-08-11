@@ -5,15 +5,10 @@ import { AuthShell } from "@/components/auth/AuthShell";
 
 export const metadata: Metadata = { title: "Create account", robots: { index: false } };
 
-export default async function SignUpPage(
-  props: {
-    searchParams: Promise<{ next?: string }>;
-  }
-) {
-  const searchParams = await props.searchParams;
+export default function SignUpPage() {
   return (
     <AuthShell>
-      <AuthForm mode="sign-up" nextPath={searchParams.next} />
+      <AuthForm mode="sign-up" />
     </AuthShell>
   );
 }

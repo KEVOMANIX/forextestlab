@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getPaddleInstance } from "@/lib/billing/paddle";
+import {
+  cancelPaddleSubscription,
+  getPaddleSubscription,
+  resumePaddleSubscriptionRenewal,
+} from "@/lib/billing/paddle";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -43,20 +47,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const paddle = getPaddleInstance();
-    const current = await paddle.subscriptions.get(localSubscription.subscriptionCode);
-    if (current.customerId !== profile.paddleCustomerId) {
+    const current = await getPaddleSubscription(localSubscription.subscriptionCode);
+    if (current.customer_id !== profile.paddleCustomerId) {
       return NextResponse.json({ ok: false, error: "Subscription ownership could not be verified." }, { status: 403 });
     }
     if (!["active", "trialing"].includes(current.status)) {
       return NextResponse.json({ ok: false, error: "This subscription cannot be changed in its current state." }, { status: 409 });
     }
 
-    const isScheduledToCancel = current.scheduledChange?.action === "cancel";
+    const isScheduledToCancel = current.scheduled_change?.action === "cancel";
     if (parsed.data.action === "cancel" && !isScheduledToCancel) {
-      await paddle.subscriptions.cancel(current.id, { effectiveFrom: "next_billing_period" });
+      await cancelPaddleSubscription(current.id);
     } else if (parsed.data.action === "renew" && isScheduledToCancel) {
-      await paddle.subscriptions.update(current.id, { scheduledChange: null });
+      await resumePaddleSubscriptionRenewal(current.id);
     }
 
     const cancelAtPeriodEnd = parsed.data.action === "cancel";

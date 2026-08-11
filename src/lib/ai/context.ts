@@ -8,7 +8,7 @@
 
 import "server-only";
 
-import type { BacktestSession } from "@prisma/client";
+import type { BacktestSession } from "@/generated/prisma/client";
 
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, SessionState } from "@/lib/backtest/types";

@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db";
 import { formatNewYorkDate } from "@/lib/date-time";
 import { Decimal } from "@/lib/decimal";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
-import type { SessionState } from "@/lib/backtest/types";
 import { BackLink } from "@/components/app/BackLink";
 import { DeleteSessionButton } from "@/components/app/DeleteSessionButton";
 import { formatSymbol } from "@/lib/market-data/symbols";
@@ -18,20 +17,6 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-function sessionDetails(stateJson: string, fallbackSymbol: string) {
-  try {
-    const state = JSON.parse(stateJson) as SessionState;
-    return {
-      name: state.config.name?.trim() || `${fallbackSymbol} backtest`,
-      symbols: state.config.symbols?.length
-        ? state.config.symbols
-        : [fallbackSymbol],
-    };
-  } catch {
-    return { name: `${fallbackSymbol} backtest`, symbols: [fallbackSymbol] };
-  }
-}
-
 export default async function HistoryPage() {
   const user = await requireUser("/app/history");
   await ensureUserProfile(user);
@@ -39,9 +24,16 @@ export default async function HistoryPage() {
     where: { userId: user.id, anonymous: false },
     orderBy: { createdAt: "desc" },
     take: 25,
-    include: { _count: { select: { trades: true } } },
+    select: {
+      id: true,
+      symbol: true,
+      startTime: true,
+      endTime: true,
+      startingBalance: true,
+      balance: true,
+      _count: { select: { trades: true } },
+    },
   });
-
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <BackLink />
@@ -72,7 +64,10 @@ export default async function HistoryPage() {
               {sessions.map((s) => {
                 const net = new Decimal(s.balance).minus(s.startingBalance);
                 const positive = net.greaterThanOrEqualTo(0);
-                const details = sessionDetails(s.stateJson, s.symbol);
+                const details = {
+                  name: `${s.symbol} backtest`,
+                  symbols: [s.symbol],
+                };
                 return (
                   <tr key={s.id} className="border-b app-border/60">
                     <td className="px-4 py-3 font-semibold">{details.name}</td>

@@ -1,8 +1,8 @@
 /**
  * Market-data provider factory.
  *
- * The active provider is chosen by MARKET_DATA_PROVIDER (default
- * `local_database`). When the primary provider has no data for a request and
+ * The active provider is chosen by MARKET_DATA_PROVIDER (default `r2`). When
+ * the primary provider has no data for a request and
  * demo data is enabled, requests fall back to the deterministic DemoDataProvider
  * so the public beta always works without any external API key.
  */
@@ -10,8 +10,6 @@
 import "server-only";
 
 import { DemoDataProvider } from "./providers/demo-data-provider";
-import { LocalCsvProvider } from "./providers/local-csv-provider";
-import { LocalDatabaseProvider } from "./providers/local-database-provider";
 import { R2ParquetProvider } from "./providers/r2-parquet-provider";
 import type {
   Candle,
@@ -22,7 +20,7 @@ import type {
   Timeframe,
 } from "./types";
 
-export type ProviderKey = "local_database" | "local_csv" | "r2" | "demo";
+export type ProviderKey = "r2" | "demo";
 
 function demoEnabled(): boolean {
   // Enabled unless explicitly turned off.
@@ -33,13 +31,9 @@ function basePrimary(): MarketDataProvider {
   switch (process.env.MARKET_DATA_PROVIDER as ProviderKey | undefined) {
     case "demo":
       return new DemoDataProvider();
-    case "local_csv":
-      return new LocalCsvProvider();
     case "r2":
-      return new R2ParquetProvider();
-    case "local_database":
     default:
-      return new LocalDatabaseProvider();
+      return new R2ParquetProvider();
   }
 }
 

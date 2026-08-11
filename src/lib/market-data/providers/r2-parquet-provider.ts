@@ -3,10 +3,12 @@ import "server-only";
 import {
   GetObjectCommand,
   ListObjectsV2Command,
+  NoSuchKey,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { parquetReadObjects } from "hyparquet";
-import { compressors } from "hyparquet-compressors";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { decompress as decompressZstd } from "fzstd";
+import { parquetReadObjects, type Compressors } from "hyparquet";
 
 import { aggregateCandles } from "@/lib/market-data/aggregation";
 import { getSymbolDefinition, SYMBOL_DEFINITIONS } from "@/lib/market-data/symbols";
@@ -20,13 +22,22 @@ import type {
 import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
 const MANIFEST_TTL_MS = 5 * 60_000;
-const MAX_CACHED_MONTHS = 24;
+// A month of one-minute candles expands dramatically after Parquet decoding.
+// Workers isolates have 128 MB total memory, so retaining 24 decoded months
+// can terminate unrelated concurrent requests. Keep only the hottest month;
+// R2 remains the durable cache and a second month is decoded on demand.
+const MAX_CACHED_MONTHS = 1;
 const COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"];
+// Our importer writes only ZSTD parquet. Importing the all-codec convenience
+// map also instantiates hysnappy's inline WASM at module load, which workerd
+// intentionally disallows and which broke even metadata-only R2 requests.
+const PARQUET_COMPRESSORS: Compressors = {
+  ZSTD: (input) => decompressZstd(input),
+};
 
 interface R2Config {
-  bucket: string;
   prefix: string;
-  client: S3Client;
+  bucket: MarketDataR2Bucket;
 }
 
 interface StoredMonth {
@@ -43,30 +54,99 @@ interface ManifestCache {
 
 let manifestCache: ManifestCache | undefined;
 const candleCache = new Map<string, Promise<Candle[]>>();
+let s3Bucket: MarketDataR2Bucket | undefined;
 
-function requiredEnv(name: string, fallbackName?: string): string {
-  const value = process.env[name] ?? (fallbackName ? process.env[fallbackName] : undefined);
-  if (!value?.trim()) {
-    throw new Error(`Missing required server environment variable ${name}.`);
+/**
+ * Outside a Worker, access the same R2 bucket through its S3-compatible API.
+ * This keeps market data in R2 while allowing the Next.js server to run on a
+ * normal Node host such as AWS Lightsail.
+ */
+function s3BucketFromEnvironment(): MarketDataR2Bucket | undefined {
+  if (s3Bucket) return s3Bucket;
+
+  const endpoint = process.env.R2_ENDPOINT?.trim().replace(/\/$/, "");
+  const bucketName = process.env.R2_BUCKET_NAME?.trim();
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim();
+  if (!endpoint || !bucketName || !accessKeyId || !secretAccessKey) {
+    return undefined;
   }
-  return value.trim();
+
+  const client = new S3Client({
+    endpoint,
+    region: "auto",
+    forcePathStyle: true,
+    credentials: { accessKeyId, secretAccessKey },
+  });
+
+  s3Bucket = {
+    async list({ prefix, cursor }) {
+      const page = await client.send(
+        new ListObjectsV2Command({
+          Bucket: bucketName,
+          Prefix: prefix,
+          ContinuationToken: cursor,
+        }),
+      );
+      return {
+        objects: (page.Contents ?? []).flatMap((object) =>
+          object.Key ? [{ key: object.Key }] : [],
+        ),
+        truncated: Boolean(page.IsTruncated),
+        cursor: page.NextContinuationToken,
+      };
+    },
+    async get(key) {
+      try {
+        const object = await client.send(
+          new GetObjectCommand({ Bucket: bucketName, Key: key }),
+        );
+        if (!object.Body) return null;
+        const bytes = await object.Body.transformToByteArray();
+        return {
+          arrayBuffer: async () =>
+            bytes.buffer.slice(
+              bytes.byteOffset,
+              bytes.byteOffset + bytes.byteLength,
+            ) as ArrayBuffer,
+        };
+      } catch (error) {
+        if (error instanceof NoSuchKey) return null;
+        throw error;
+      }
+    },
+  };
+  return s3Bucket;
 }
 
 function r2Config(): R2Config {
-  const endpoint = requiredEnv("R2_ENDPOINT", "R2_ENDPOINT_URL").replace(/\/$/, "");
-  const bucket = requiredEnv("R2_BUCKET_NAME", "R2_BUCKET");
-  const accessKeyId = requiredEnv("R2_ACCESS_KEY_ID");
-  const secretAccessKey = requiredEnv("R2_SECRET_ACCESS_KEY");
-
-  return {
-    bucket,
-    prefix: (process.env.R2_PREFIX?.trim() || "market_data").replace(/^\/+|\/+$/g, ""),
-    client: new S3Client({
-      region: "auto",
-      endpoint,
-      credentials: { accessKeyId, secretAccessKey },
-    }),
-  };
+  try {
+    const bucket = getCloudflareContext().env.MARKET_DATA;
+    if (bucket) {
+      return {
+        prefix: (process.env.R2_PREFIX?.trim() || "market_data").replace(
+          /^\/+|\/+$/g,
+          "",
+        ),
+        bucket,
+      };
+    }
+  } catch {
+    // A normal Node deployment has no Cloudflare binding; use S3 below.
+  }
+  const bucket = s3BucketFromEnvironment();
+  if (bucket) {
+    return {
+      prefix: (process.env.R2_PREFIX?.trim() || "market_data").replace(
+        /^\/+|\/+$/g,
+        "",
+      ),
+      bucket,
+    };
+  }
+  throw new Error(
+    "R2 is not configured. Provide the MARKET_DATA Worker binding or R2_ENDPOINT, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY.",
+  );
 }
 
 export function parseStoredMonth(key: string, prefix: string): StoredMonth | undefined {
@@ -139,25 +219,21 @@ async function loadManifest(config: R2Config): Promise<Map<string, StoredMonth[]
   }
 
   const monthsBySymbol = new Map<string, StoredMonth[]>();
-  let continuationToken: string | undefined;
+  let cursor: string | undefined;
   do {
-    const page = await config.client.send(
-      new ListObjectsV2Command({
-        Bucket: config.bucket,
-        Prefix: `${config.prefix}/`,
-        ContinuationToken: continuationToken,
-      }),
-    );
-    for (const object of page.Contents ?? []) {
-      if (!object.Key) continue;
-      const month = parseStoredMonth(object.Key, config.prefix);
+    const page = await config.bucket.list({ prefix: `${config.prefix}/`, cursor });
+    const objects = page.objects;
+    const nextCursor = page.truncated ? page.cursor : undefined;
+    for (const object of objects) {
+      if (!object.key) continue;
+      const month = parseStoredMonth(object.key, config.prefix);
       if (!month) continue;
       const stored = monthsBySymbol.get(month.symbol) ?? [];
       stored.push(month);
       monthsBySymbol.set(month.symbol, stored);
     }
-    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
-  } while (continuationToken);
+    cursor = nextCursor;
+  } while (cursor);
 
   for (const months of monthsBySymbol.values()) {
     months.sort((a, b) => a.year - b.year || a.month - b.month);
@@ -175,13 +251,16 @@ async function readMonth(config: R2Config, stored: StoredMonth): Promise<Candle[
   }
 
   const pending = (async () => {
-    const response = await config.client.send(
-      new GetObjectCommand({ Bucket: config.bucket, Key: stored.key }),
-    );
-    if (!response.Body) throw new Error(`Cloudflare R2 returned an empty object for ${stored.key}.`);
-    const bytes = await response.Body.transformToByteArray();
-    const file = Uint8Array.from(bytes).buffer;
-    const rows = await parquetReadObjects({ file, compressors, columns: COLUMNS });
+    const object = await config.bucket.get(stored.key);
+    if (!object) {
+      throw new Error(`Cloudflare R2 returned no object for ${stored.key}.`);
+    }
+    const file = await object.arrayBuffer();
+    const rows = await parquetReadObjects({
+      file,
+      compressors: PARQUET_COMPRESSORS,
+      columns: COLUMNS,
+    });
     const candles = parquetRowsToCandles(rows);
     if (candles.length === 0) {
       throw new Error(`No valid candles were found in ${stored.key}.`);

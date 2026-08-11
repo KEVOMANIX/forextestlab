@@ -1,7 +1,11 @@
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
 // Makes Wrangler bindings available while using the normal Next.js dev server.
-initOpenNextCloudflareForDev();
+// A normal Node deployment (for example AWS Lightsail) uses DATABASE_URL and
+// R2's S3 API directly, so it must not try to start the local Hyperdrive shim.
+if (process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE) {
+  initOpenNextCloudflareForDev();
+}
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },

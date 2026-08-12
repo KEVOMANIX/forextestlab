@@ -34,6 +34,38 @@ export interface CalendarQuery {
  */
 export const MAX_CALENDAR_EVENTS = 1500;
 
+/**
+ * Cloudflare does not cache this JSON route by default, even when the response
+ * advertises a shared TTL. Keep a small, bounded cache in the long-running AWS
+ * process so repeated chart windows do not repeatedly read the same rows from
+ * Supabase.
+ */
+const QUERY_CACHE_TTL_MS = 60 * 60 * 1000;
+const QUERY_CACHE_MAX = 96;
+const queryCache = new Map<string, { expiresAt: number; events: CalendarEvent[] }>();
+
+function readCachedEvents(key: string): CalendarEvent[] | null {
+  const cached = queryCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    queryCache.delete(key);
+    return null;
+  }
+  queryCache.delete(key);
+  queryCache.set(key, cached);
+  return cached.events;
+}
+
+function cacheEvents(key: string, events: CalendarEvent[]): void {
+  queryCache.delete(key);
+  queryCache.set(key, { expiresAt: Date.now() + QUERY_CACHE_TTL_MS, events });
+  while (queryCache.size > QUERY_CACHE_MAX) {
+    const oldest = queryCache.keys().next().value;
+    if (!oldest) break;
+    queryCache.delete(oldest);
+  }
+}
+
 interface EventRow {
   id: string;
   name: string;
@@ -63,6 +95,17 @@ export async function findCalendarEvents(query: CalendarQuery): Promise<Calendar
   if (allowed.length === 0) return [];
 
   const limit = Math.max(1, Math.min(query.limit ?? MAX_CALENDAR_EVENTS, MAX_CALENDAR_EVENTS));
+  const from = Math.floor(query.from);
+  const to = Math.ceil(query.to);
+  const cacheKey = JSON.stringify([
+    from,
+    to,
+    [...currencies].sort(),
+    query.minImportance ?? "low",
+    limit,
+  ]);
+  const cached = readCachedEvents(cacheKey);
+  if (cached) return cached;
 
   // Ranked in SQL rather than by `orderBy: { importance: "desc" }`, which sorts
   // the words: alphabetically "none" outranks "high". A window busier than the
@@ -72,8 +115,8 @@ export async function findCalendarEvents(query: CalendarQuery): Promise<Calendar
            "timeMode", "actual", "forecast", "previous", "unit", "multiplier",
            "digits"
     FROM "EconomicEvent"
-    WHERE "timestamp" >= ${BigInt(Math.floor(query.from))}
-      AND "timestamp" <= ${BigInt(Math.ceil(query.to))}
+    WHERE "timestamp" >= ${BigInt(from)}
+      AND "timestamp" <= ${BigInt(to)}
       AND "importance" IN (${Prisma.join(allowed)})
       ${
         currencies.length > 0
@@ -90,7 +133,9 @@ export async function findCalendarEvents(query: CalendarQuery): Promise<Calendar
     LIMIT ${limit}
   `);
 
-  return rows.map(toCalendarEvent).sort((a, b) => a.timestamp - b.timestamp);
+  const events = rows.map(toCalendarEvent).sort((a, b) => a.timestamp - b.timestamp);
+  cacheEvents(cacheKey, events);
+  return events;
 }
 
 function toCalendarEvent(row: EventRow): CalendarEvent {

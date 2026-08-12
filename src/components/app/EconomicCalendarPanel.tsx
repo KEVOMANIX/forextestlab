@@ -60,6 +60,7 @@ interface FetchState {
   events: CalendarEvent[];
   loading: boolean;
   failed: boolean;
+  truncated: boolean;
 }
 
 export function EconomicCalendarPanel({
@@ -75,10 +76,11 @@ export function EconomicCalendarPanel({
 }: Props) {
   const [query, setQuery] = useState("");
   const [minImportance, setMinImportance] = useState<EventImportance>("medium");
-  const [{ events, loading, failed }, setFetchState] = useState<FetchState>({
+  const [{ events, loading, failed, truncated }, setFetchState] = useState<FetchState>({
     events: [],
     loading: false,
     failed: false,
+    truncated: false,
   });
 
   // Fetched once per (range, importance) — the panel is a lookup over a fixed
@@ -97,16 +99,23 @@ export function EconomicCalendarPanel({
     });
     fetch(`/api/calendar/events?${params}`, { cache: "no-store" })
       .then((response) => response.json())
-      .then((data: { ok?: boolean; events?: CalendarEvent[] }) => {
+      .then((data: { ok?: boolean; events?: CalendarEvent[]; truncated?: boolean }) => {
         if (cancelled) return;
         if (!data.ok || !Array.isArray(data.events)) {
-          setFetchState({ events: [], loading: false, failed: true });
+          setFetchState({ events: [], loading: false, failed: true, truncated: false });
           return;
         }
-        setFetchState({ events: data.events, loading: false, failed: false });
+        setFetchState({
+          events: data.events,
+          loading: false,
+          failed: false,
+          truncated: data.truncated === true,
+        });
       })
       .catch(() => {
-        if (!cancelled) setFetchState({ events: [], loading: false, failed: true });
+        if (!cancelled) {
+          setFetchState({ events: [], loading: false, failed: true, truncated: false });
+        }
       });
     return () => {
       cancelled = true;
@@ -181,6 +190,12 @@ export function EconomicCalendarPanel({
 
       <div className="flex-1 overflow-y-auto" data-testid="economic-calendar-panel-list">
         {loading && <p className="p-3 text-[12.5px] app-muted">Loading…</p>}
+        {!loading && !failed && truncated && (
+          <p className="border-b app-border bg-amber-400/10 px-3 py-2 text-[11.5px] text-amber-200">
+            This range contains more than 1,500 releases. Showing the highest-impact results;
+            shorten the session range for a complete list.
+          </p>
+        )}
         {!loading && failed && (
           <p className="p-3 text-[12.5px] app-muted">Could not load the calendar.</p>
         )}

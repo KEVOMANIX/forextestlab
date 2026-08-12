@@ -1,0 +1,20 @@
+[Unit]
+Description=Backfill ForexTestLab cross-pair history into Cloudflare R2
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/forextestlab
+EnvironmentFile=/home/ubuntu/forextestlab/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/flock /home/ubuntu/forextestlab/data/.market-data.lock /usr/bin/npm run data:sync-r2 -- --symbols=EURGBP,EURAUD,EURCAD,EURCHF,EURJPY,EURNZD,GBPAUD,GBPCAD,GBPCHF,GBPJPY,GBPNZD,AUDCAD,AUDCHF,AUDJPY,AUDNZD,CADCHF,CADJPY,CHFJPY,NZDCAD,NZDCHF,NZDJPY --bootstrap-from=2015-01-01 --overlap-days=2
+TimeoutStartSec=24h
+Restart=on-failure
+RestartSec=5m
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full

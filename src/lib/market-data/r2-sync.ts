@@ -234,7 +234,9 @@ async function downloadCandles(symbol: string, from: number, to: number): Promis
     batchSize: 10,
     pauseBetweenBatchesMs: 100,
     retryCount: 3,
-    retryOnEmpty: true,
+    // Weekend/holiday daily files are legitimately empty. The month-level
+    // guard below still refuses to upload when the whole requested span is empty.
+    retryOnEmpty: false,
     failAfterRetryCount: true,
     pauseBetweenRetriesMs: 1_000,
   });

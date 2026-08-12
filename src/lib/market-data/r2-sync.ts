@@ -231,14 +231,17 @@ async function downloadCandles(symbol: string, from: number, to: number): Promis
     format: "json",
     volumes: true,
     ignoreFlats: false,
-    batchSize: 10,
-    pauseBetweenBatchesMs: 100,
-    retryCount: 3,
+    // Be deliberately polite to the public historical feed. A full bootstrap
+    // spans thousands of daily files; small batches and long retry pauses avoid
+    // turning that one-off job into a burst of 429 responses.
+    batchSize: 4,
+    pauseBetweenBatchesMs: 750,
+    retryCount: 8,
     // Weekend/holiday daily files are legitimately empty. The month-level
     // guard below still refuses to upload when the whole requested span is empty.
     retryOnEmpty: false,
     failAfterRetryCount: true,
-    pauseBetweenRetriesMs: 1_000,
+    pauseBetweenRetriesMs: 15_000,
   });
   return rowsToCandles(rows as unknown as Record<string, unknown>[]);
 }

@@ -21,7 +21,6 @@ const buildVersion =
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  output: "standalone",
   env: {
     NEXT_PUBLIC_BUILD_VERSION: buildVersion,
   },

@@ -95,6 +95,30 @@ export interface LoadedSession {
 }
 
 /**
+ * Cache parsed state for active sessions in the long-running Lightsail process.
+ * Mutations are still persisted before their response is returned, so a
+ * restart safely falls back to PostgreSQL without losing progress.
+ */
+const activeSessionCache = new Map<string, LoadedSession>();
+const ACTIVE_SESSION_CACHE_MAX = 20;
+
+function cacheActiveSession(session: LoadedSession): LoadedSession {
+  activeSessionCache.delete(session.id);
+  activeSessionCache.set(session.id, session);
+  while (activeSessionCache.size > ACTIVE_SESSION_CACHE_MAX) {
+    const oldest = activeSessionCache.keys().next().value;
+    if (!oldest) break;
+    activeSessionCache.delete(oldest);
+  }
+  return session;
+}
+
+export function dropActiveSession(id: string): void {
+  activeSessionCache.delete(id);
+  candleCache.delete(id);
+}
+
+/**
  * Minimal persisted data needed to resume a session in the browser.
  *
  * Keep `stateJson` opaque here. Parsing and cloning a large trading history in
@@ -595,16 +619,23 @@ export async function createSession(
         }
         await tx.backtestSession.create({
           data: { ...sessionData, trialDeviceId: params.trialDeviceId },
+          select: { id: true },
         });
         return;
       }
-      await tx.backtestSession.create({ data: sessionData });
+      await tx.backtestSession.create({
+        data: sessionData,
+        select: { id: true },
+      });
     });
   } else {
-    await prisma.backtestSession.create({ data: sessionData });
+    await prisma.backtestSession.create({
+      data: sessionData,
+      select: { id: true },
+    });
   }
 
-  return {
+  return cacheActiveSession({
     id,
     token,
     userId: params.userId ?? null,
@@ -615,7 +646,7 @@ export async function createSession(
     ctx: { state, candles: series },
     contextCandles,
     notes: "",
-  };
+  });
 }
 
 async function ensureInstrument(symbol: string): Promise<string> {
@@ -639,6 +670,9 @@ async function ensureInstrument(symbol: string): Promise<string> {
 }
 
 export async function loadSession(id: string): Promise<LoadedSession | null> {
+  const cachedSession = activeSessionCache.get(id);
+  if (cachedSession) return cacheActiveSession(cachedSession);
+
   const row = await prisma.backtestSession.findUnique({ where: { id } });
   if (!row) return null;
 
@@ -656,7 +690,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
     cacheCandles(id, series);
   }
 
-  return {
+  return cacheActiveSession({
     id: row.id,
     token: row.token,
     userId: row.userId,
@@ -665,7 +699,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
     notes: row.notes ?? "",
     ctx: { state, candles: series },
     contextCandles: [],
-  };
+  });
 }
 
 /** Persist the engine state and refresh relational projections. */
@@ -691,7 +725,12 @@ export async function persistSession(
       notes: session.notes,
       stateJson: JSON.stringify(state),
     },
+    // Without a select Prisma returns the large stateJson we just uploaded.
+    // The caller discards it, but Supabase still counts that return as egress.
+    select: { id: true },
   });
+
+  cacheActiveSession(session);
 
   if (options.resetProjections) {
     await prisma.simulatedTrade.deleteMany({ where: { sessionId: session.id } });

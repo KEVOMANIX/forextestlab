@@ -119,6 +119,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     await prisma.backtestSession.update({
       where: { id: session.id },
       data: { stateJson: JSON.stringify(session.ctx.state) },
+      select: { id: true },
     });
     return NextResponse.json({ ok: true, symbols: next });
   } catch (error) {

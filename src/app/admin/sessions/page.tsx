@@ -1,4 +1,5 @@
 import { Activity, Search } from "lucide-react";
+import { Prisma } from "@/generated/prisma/client";
 
 import {
   AdminPageHeader,
@@ -13,13 +14,9 @@ import { formatNewYorkDateTime } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 import { requireAdmin } from "@/lib/admin";
 
-function savedName(stateJson: string, symbol: string): string {
-  try {
-    const parsed = JSON.parse(stateJson) as { config?: { name?: string } };
-    return parsed.config?.name?.trim() || `${formatSymbol(symbol)} backtest`;
-  } catch {
-    return `${formatSymbol(symbol)} backtest`;
-  }
+interface SessionMetadataRow {
+  id: string;
+  name: string | null;
 }
 
 export default async function AdminSessionsPage(props: { searchParams: Promise<{ q?: string }> }) {
@@ -31,12 +28,32 @@ export default async function AdminSessionsPage(props: { searchParams: Promise<{
       where: q ? { OR: [{ symbol: { contains: q } }, { user: { email: { contains: q, mode: "insensitive" } } }] } : undefined,
       orderBy: { updatedAt: "desc" },
       take: 150,
-      include: { user: true, _count: { select: { trades: true, orders: true } } },
+      select: {
+        id: true,
+        symbol: true,
+        timeframe: true,
+        status: true,
+        visibleIndex: true,
+        totalCandles: true,
+        dataSource: true,
+        demoData: true,
+        updatedAt: true,
+        user: { select: { email: true } },
+        _count: { select: { trades: true, orders: true } },
+      },
     }),
     prisma.backtestSession.count({ where: { anonymous: false, status: { not: "finished" } } }),
     prisma.backtestSession.count({ where: { anonymous: false, status: "finished" } }),
     prisma.backtestSession.count({ where: { anonymous: true } }),
   ]);
+  const metadataRows = sessions.length
+    ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
+        SELECT "id", NULLIF("stateJson"::jsonb #>> '{config,name}', '') AS "name"
+        FROM "BacktestSession"
+        WHERE "id" IN (${Prisma.join(sessions.map((session) => session.id))})
+      `)
+    : [];
+  const metadata = new Map(metadataRows.map((row) => [row.id, row.name]));
 
   return (
     <>
@@ -56,7 +73,7 @@ export default async function AdminSessionsPage(props: { searchParams: Promise<{
               const progress = session.totalCandles > 0 ? Math.min(100, Math.max(0, ((session.visibleIndex + 1) / session.totalCandles) * 100)) : 0;
               return (
                 <tr key={session.id}>
-                  <td className={adminTd}><p className="font-semibold">{savedName(session.stateJson, session.symbol)}</p><p className="mt-1 text-xs app-muted">{formatSymbol(session.symbol)} · {session.timeframe}</p></td>
+                  <td className={adminTd}><p className="font-semibold">{metadata.get(session.id)?.trim() || `${formatSymbol(session.symbol)} backtest`}</p><p className="mt-1 text-xs app-muted">{formatSymbol(session.symbol)} · {session.timeframe}</p></td>
                   <td className={adminTd}><p className="text-xs">{session.user?.email ?? "Anonymous trial"}</p></td>
                   <td className={adminTd}><AdminStatus value={session.status} /></td>
                   <td className={adminTd}><div className="h-1.5 w-28 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-brand-400" style={{ width: `${progress}%` }} /></div><p className="mt-1.5 text-[11px] app-muted">{progress.toFixed(0)}%</p></td>

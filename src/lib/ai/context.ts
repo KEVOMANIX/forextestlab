@@ -8,10 +8,10 @@
 
 import "server-only";
 
-import type { BacktestSession } from "@/generated/prisma/client";
+import type { SimulatedTrade } from "@/generated/prisma/client";
 
 import { computeStatistics } from "@/lib/backtest/statistics";
-import type { ClosedTrade, SessionState } from "@/lib/backtest/types";
+import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { Decimal } from "@/lib/decimal";
 import { formatNewYorkDate, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
@@ -143,45 +143,77 @@ interface PortfolioSession {
   maxDd: string;
 }
 
+export interface PortfolioContextSession {
+  name: string;
+  symbols: string[];
+  archived: boolean;
+  symbol: string;
+  timeframe: string;
+  status: string;
+  startTime: bigint;
+  endTime: bigint;
+  startingBalance: string;
+  balance: string;
+  trades: SimulatedTrade[];
+  equitySnapshots: Array<{
+    index: number;
+    time: bigint;
+    balance: string;
+    equity: string;
+  }>;
+}
+
+function toClosedTrade(trade: SimulatedTrade): ClosedTrade {
+  return {
+    ...trade,
+    direction: trade.direction as ClosedTrade["direction"],
+    exitReason: trade.exitReason as ClosedTrade["exitReason"],
+    entryTime: Number(trade.entryTime),
+    exitTime: Number(trade.exitTime),
+    notes: trade.notes ?? undefined,
+  };
+}
+
+function toEquityPoint(point: PortfolioContextSession["equitySnapshots"][number]): EquityPoint {
+  return {
+    index: point.index,
+    time: Number(point.time),
+    balance: point.balance,
+    equity: point.equity,
+  };
+}
+
 /**
  * A markdown fact-sheet across all of a user's saved (non-archived) sessions.
  * Includes the same drill-down breakdowns the per-session analytics show —
  * rolled up across sessions — so questions like "where am I losing the most"
  * can be answered by instrument, weekday, session window, and exit reason.
  */
-export function buildPortfolioContext(sessions: BacktestSession[]): string {
+export function buildPortfolioContext(sessions: PortfolioContextSession[]): string {
   const parsed: PortfolioSession[] = sessions
     .map((session) => {
-      let state: SessionState | null = null;
-      try {
-        state = JSON.parse(session.stateJson) as SessionState;
-      } catch {
-        return null;
-      }
-      if (state?.config.archived === true) return null;
-      const trades = state?.closedTrades ?? [];
+      if (session.archived) return null;
+      const trades = session.trades.map(toClosedTrade);
       const net = new Decimal(session.balance).minus(session.startingBalance);
-      const stats = state
-        ? computeStatistics({
-            startingBalance: session.startingBalance,
-            endingBalance: session.balance,
-            trades,
-            equityCurve: state.equityCurve,
-          })
-        : null;
-      const symbols = state?.config.symbols?.length ? state.config.symbols : [session.symbol];
+      const stats = computeStatistics({
+        startingBalance: session.startingBalance,
+        endingBalance: session.balance,
+        trades,
+        equityCurve: session.equitySnapshots.map(toEquityPoint),
+      });
+      const symbols = session.symbols.length ? session.symbols : [session.symbol];
       return {
-        name: state?.config.name?.trim() || `${session.symbol} backtest`,
-        symbol: state?.config.symbol || session.symbol,
+        name: session.name.trim() || `${session.symbol} backtest`,
+        symbol: session.symbol,
         symbols: symbols.map(formatSymbol).join(", "),
         timeframe: session.timeframe,
         status: session.status,
         period: `${formatNewYorkDate(Number(session.startTime), { day: "numeric", month: "short" })}–${formatNewYorkDate(Number(session.endTime), { day: "numeric", month: "short", year: "numeric" })}`,
         trades,
         net: net.toNumber(),
-        winRate: stats?.winRate ?? "Not available",
-        profitFactor: stats?.profitFactor ?? "Not available",
-        maxDd: stats?.maxDrawdown ?? "$0.00",
+        winRate: stats.winRate,
+        profitFactor: stats.profitFactor,
+        maxDd: stats.maxDrawdown,
       };
     })
     .filter((row): row is PortfolioSession => row !== null);

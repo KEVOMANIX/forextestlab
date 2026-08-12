@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  dropActiveSession,
   loadSession,
   loadResumeSessionSnapshot,
   toPublicState,
@@ -63,16 +64,23 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 
 export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const session = await loadSession(params.id);
-  if (!session) {
+  const access = await prisma.backtestSession.findUnique({
+    where: { id: params.id },
+    select: { token: true, userId: true, anonymous: true, anonymousExpiresAt: true },
+  });
+  if (!access) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
   }
   const user = await getCurrentUser();
   const token = request.headers.get("x-session-token");
-  if (!canAccessSession(session, user?.id ?? null, token)) {
+  if (!canAccessSession(access, user?.id ?? null, token)) {
     return NextResponse.json({ ok: false, error: "Unauthorised." }, { status: 403 });
   }
-  await prisma.backtestSession.delete({ where: { id: params.id } });
+  await prisma.backtestSession.delete({
+    where: { id: params.id },
+    select: { id: true },
+  });
+  dropActiveSession(params.id);
   return NextResponse.json({ ok: true });
 }
 
@@ -104,6 +112,7 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
   await prisma.backtestSession.update({
     where: { id: params.id },
     data: { stateJson: JSON.stringify(state) },
+    select: { id: true },
   });
   return NextResponse.json({ ok: true, state: toPublicState(session.ctx, false) });
 }

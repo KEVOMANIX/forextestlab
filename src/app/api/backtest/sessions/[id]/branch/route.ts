@@ -58,6 +58,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           branchPointIndex: source.ctx.state.visibleIndex,
           branchPointTime: candle ? BigInt(candle.timestamp) : null,
         },
+        select: { id: true },
       }),
     ]);
     return NextResponse.json({ ok: true, sessionId: branch.id }, { status: 201 });

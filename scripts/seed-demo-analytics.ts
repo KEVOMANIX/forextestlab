@@ -363,6 +363,7 @@ async function main() {
     where: { id: SESSION_ID },
     update: common,
     create: { id: SESSION_ID, ...common },
+    select: { id: true },
   });
 
   console.log(`\nUpserted session ${SESSION_ID} for ${TARGET_EMAIL}.`);

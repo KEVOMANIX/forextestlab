@@ -94,6 +94,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           visibleIndex,
           ...(action.status ? { status: action.status } : {}),
         },
+        select: { id: true },
       });
       return NextResponse.json({ ok: true, savedAt: Date.now(), visibleIndex });
     }

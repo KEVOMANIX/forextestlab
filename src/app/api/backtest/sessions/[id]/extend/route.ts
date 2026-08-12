@@ -128,6 +128,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           endTime: BigInt(requestedEndTime),
           stateJson: JSON.stringify(session.ctx.state),
         },
+        select: { id: true },
       });
     }
     return NextResponse.json({ ok: true, ...page });

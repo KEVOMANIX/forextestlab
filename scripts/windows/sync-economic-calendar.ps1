@@ -36,8 +36,10 @@ $compiler = Start-Process -FilePath $metaEditor -ArgumentList @(
   "/compile:`"$compiledSource`"",
   "/log:`"$compileLog`""
 ) -PassThru -Wait
-if ($compiler.ExitCode -ne 0 -or !(Test-Path -LiteralPath $compiledProgram)) {
-  $details = if (Test-Path -LiteralPath $compileLog) { Get-Content -LiteralPath $compileLog -Raw } else { "No compiler log." }
+$details = if (Test-Path -LiteralPath $compileLog) { Get-Content -LiteralPath $compileLog -Raw } else { "No compiler log." }
+# MetaEditor can return a non-zero process exit code after a successful command-line
+# compilation. Its compiler result and emitted EX5 are the authoritative signals.
+if (!(Test-Path -LiteralPath $compiledProgram) -or $details -notmatch "Result:\s+0 errors") {
   throw "MT5 calendar exporter compilation failed.`n$details"
 }
 

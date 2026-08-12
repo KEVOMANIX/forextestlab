@@ -1,6 +1,9 @@
 import "server-only";
 
+import path from "node:path";
+
 import nodemailer from "nodemailer";
+import type { SendMailOptions, Transporter } from "nodemailer";
 
 import type { ContactSubmission } from "@/lib/types";
 
@@ -13,6 +16,23 @@ type SmtpConfig = {
   from: string;
   to: string;
 };
+
+type EmailAction = {
+  label: string;
+  href: string;
+};
+
+type BrandEmailOptions = {
+  preheader: string;
+  eyebrow: string;
+  title: string;
+  intro: string;
+  contentHtml: string;
+  action?: EmailAction;
+  closing?: string;
+};
+
+const LOGO_CID = "forextestlab-logo";
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
@@ -40,6 +60,18 @@ function getSmtpConfig(): SmtpConfig {
   };
 }
 
+function smtpTransport(config: SmtpConfig): Transporter {
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.username, pass: config.password },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+  });
+}
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => {
     const entities: Record<string, string> = {
@@ -53,63 +85,182 @@ function escapeHtml(value: string): string {
   });
 }
 
+function siteUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
+    "https://forextestlab.com"
+  );
+}
+
+function logoAttachment(): NonNullable<SendMailOptions["attachments"]>[number] {
+  return {
+    filename: "forextestlab-logo.png",
+    path: path.join(process.cwd(), "public", "logo-full.png"),
+    cid: LOGO_CID,
+    contentDisposition: "inline",
+  };
+}
+
+function renderBrandEmail({
+  preheader,
+  eyebrow,
+  title,
+  intro,
+  contentHtml,
+  action,
+  closing = "ForexTestLab Support",
+}: BrandEmailOptions): string {
+  const baseUrl = siteUrl();
+  const safeBaseUrl = escapeHtml(baseUrl);
+  const actionHtml = action
+    ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:28px 0 4px"><tr><td bgcolor="#16c784" style="border-radius:10px"><a href="${escapeHtml(action.href)}" style="display:inline-block;padding:14px 22px;font-family:Arial,sans-serif;font-size:14px;line-height:18px;font-weight:700;color:#04130e;text-decoration:none;border-radius:10px">${escapeHtml(action.label)} &nbsp;→</a></td></tr></table>`
+    : "";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>${escapeHtml(title)}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef3f7;color:#142433">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">${escapeHtml(preheader)}&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#eef3f7">
+    <tr>
+      <td align="center" style="padding:28px 12px">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:640px;background:#ffffff;border:1px solid #dbe5ec;border-radius:18px;overflow:hidden;box-shadow:0 8px 30px rgba(15,35,50,.08)">
+          <tr>
+            <td bgcolor="#071925" style="padding:28px 34px;border-bottom:3px solid #16c784">
+              <a href="${safeBaseUrl}" style="display:inline-block;text-decoration:none">
+                <img src="cid:${LOGO_CID}" width="270" alt="ForexTestLab — Backtest. Analyze. Improve." style="display:block;width:270px;max-width:100%;height:auto;border:0">
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:42px 40px 36px">
+              <p style="margin:0 0 12px;font-family:Arial,sans-serif;font-size:11px;line-height:16px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:#079669">${escapeHtml(eyebrow)}</p>
+              <h1 style="margin:0 0 18px;font-family:Arial,sans-serif;font-size:30px;line-height:38px;font-weight:750;color:#071925">${escapeHtml(title)}</h1>
+              <p style="margin:0 0 26px;font-family:Arial,sans-serif;font-size:16px;line-height:26px;color:#526574">${escapeHtml(intro)}</p>
+              ${contentHtml}
+              ${actionHtml}
+              <p style="margin:30px 0 0;font-family:Arial,sans-serif;font-size:14px;line-height:22px;color:#526574">Kind regards,<br><strong style="color:#142433">${escapeHtml(closing)}</strong></p>
+            </td>
+          </tr>
+          <tr>
+            <td bgcolor="#f7fafc" style="padding:24px 40px;border-top:1px solid #e2eaf0">
+              <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;color:#718391">ForexTestLab is educational backtesting and market-replay software. It does not provide financial advice or execute live trades.</p>
+              <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;line-height:20px;color:#718391">
+                <a href="${safeBaseUrl}" style="color:#079669;text-decoration:none;font-weight:700">forextestlab.com</a>
+                &nbsp;·&nbsp;
+                <a href="${safeBaseUrl}/support" style="color:#526574;text-decoration:none">Support</a>
+                &nbsp;·&nbsp;
+                <a href="${safeBaseUrl}/privacy" style="color:#526574;text-decoration:none">Privacy</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:18px 0 0;font-family:Arial,sans-serif;font-size:11px;line-height:17px;color:#8a9aa6">© ${new Date().getUTCFullYear()} ForexTestLab. Backtest. Analyze. Improve.</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function deliver(
+  config: SmtpConfig,
+  message: SendMailOptions,
+): Promise<void> {
+  await smtpTransport(config).sendMail({
+    ...message,
+    attachments: [logoAttachment(), ...(message.attachments ?? [])],
+  });
+}
+
 export async function sendContactEmail(
   submission: ContactSubmission,
 ): Promise<void> {
   const config = getSmtpConfig();
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: {
-      user: config.username,
-      pass: config.password,
-    },
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
-  });
-
   const safeName = escapeHtml(submission.name);
   const safeEmail = escapeHtml(submission.email);
-  const safeSubject = escapeHtml(submission.subject);
-  const safeMessage = escapeHtml(submission.message).replace(/\r?\n/g, "<br />");
+  const safeMessage = escapeHtml(submission.message).replace(/\r?\n/g, "<br>");
+  const replyHref = `mailto:${encodeURIComponent(submission.email)}?subject=${encodeURIComponent(`Re: ${submission.subject}`)}`;
 
-  await transporter.sendMail({
+  await deliver(config, {
     from: `ForexTestLab Contact <${config.from}>`,
     to: config.to,
-    replyTo: {
-      name: submission.name,
-      address: submission.email,
-    },
+    replyTo: { name: submission.name, address: submission.email },
     subject: `[ForexTestLab] ${submission.subject}`,
     text: [
+      "New ForexTestLab enquiry",
+      "",
       `Name: ${submission.name}`,
       `Email: ${submission.email}`,
       `Subject: ${submission.subject}`,
       "",
       submission.message,
     ].join("\n"),
-    html: `
-      <h2>New ForexTestLab enquiry</h2>
-      <p><strong>Name:</strong> ${safeName}</p>
-      <p><strong>Email:</strong> <a href="mailto:${safeEmail}">${safeEmail}</a></p>
-      <p><strong>Subject:</strong> ${safeSubject}</p>
-      <hr />
-      <p>${safeMessage}</p>
-    `,
+    html: renderBrandEmail({
+      preheader: `${submission.name} sent a new ForexTestLab enquiry.`,
+      eyebrow: "New customer enquiry",
+      title: submission.subject,
+      intro: "A new message was submitted through ForexTestLab.",
+      contentHtml: `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f7fafc;border:1px solid #e1e9ef;border-radius:12px">
+          <tr><td style="padding:20px 22px">
+            <p style="margin:0 0 6px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;text-transform:uppercase;letter-spacing:1px;color:#7a8b98">From</p>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:15px;line-height:23px;font-weight:700;color:#142433">${safeName}</p>
+            <p style="margin:2px 0 20px;font-family:Arial,sans-serif;font-size:14px;line-height:21px"><a href="mailto:${safeEmail}" style="color:#079669;text-decoration:none">${safeEmail}</a></p>
+            <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;text-transform:uppercase;letter-spacing:1px;color:#7a8b98">Message</p>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:15px;line-height:25px;color:#344a5a">${safeMessage}</p>
+          </td></tr>
+        </table>`,
+      action: { label: "Reply to customer", href: replyHref },
+    }),
   });
 }
 
-export async function sendContactReceipt(submission: ContactSubmission): Promise<void> {
+export async function sendContactReceipt(
+  submission: ContactSubmission,
+): Promise<void> {
   const config = getSmtpConfig();
-  const transporter = nodemailer.createTransport({ host: config.host, port: config.port, secure: config.secure, auth: { user: config.username, pass: config.password }, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000 });
-  const safeName = escapeHtml(submission.name);
-  await transporter.sendMail({
-    from: `ForexTestLab Support <${config.from}>`, to: submission.email, replyTo: config.to,
+  const safeSubject = escapeHtml(submission.subject);
+
+  await deliver(config, {
+    from: `ForexTestLab Support <${config.from}>`,
+    to: submission.email,
+    replyTo: config.to,
     subject: "We received your ForexTestLab support request",
-    text: [`Hi ${submission.name},`, "", "We received your support request and our team is reviewing it.", "We will reply to this email as soon as possible.", "", "ForexTestLab Support"].join("\n"),
-    html: `<p>Hi ${safeName},</p><p>We received your support request and our team is reviewing it.</p><p>We will reply to this email as soon as possible.</p><p>ForexTestLab Support</p>`,
+    text: [
+      `Hi ${submission.name},`,
+      "",
+      "We received your support request and our team is reviewing it.",
+      `Subject: ${submission.subject}`,
+      "We will reply as soon as possible.",
+      "",
+      `Open your support inbox: ${siteUrl()}/app/support`,
+      "",
+      "ForexTestLab Support",
+    ].join("\n"),
+    html: renderBrandEmail({
+      preheader: "Your ForexTestLab support request has been received.",
+      eyebrow: "Request received",
+      title: `Thanks, ${submission.name}`,
+      intro:
+        "Your message has reached our support team. We are reviewing it and will reply as soon as possible.",
+      contentHtml: `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#effaf6;border-left:4px solid #16c784;border-radius:10px">
+          <tr><td style="padding:18px 20px">
+            <p style="margin:0 0 5px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;text-transform:uppercase;letter-spacing:1px;color:#528071">Your request</p>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:15px;line-height:23px;font-weight:700;color:#142433">${safeSubject}</p>
+          </td></tr>
+        </table>`,
+      action: {
+        label: "Open support inbox",
+        href: `${siteUrl()}/app/support`,
+      },
+    }),
   });
 }
 
@@ -125,22 +276,10 @@ export async function sendSupportReplyNotification({
   preview: string;
 }): Promise<void> {
   const config = getSmtpConfig();
-  const transporter = nodemailer.createTransport({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.username, pass: config.password },
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
-  });
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://www.forextestlab.com";
-  const safeName = escapeHtml(name);
   const safeSubject = escapeHtml(subject);
-  const safePreview = escapeHtml(preview);
-  await transporter.sendMail({
+  const safePreview = escapeHtml(preview).replace(/\r?\n/g, "<br>");
+
+  await deliver(config, {
     from: `ForexTestLab Support <${config.from}>`,
     to: email,
     replyTo: config.to,
@@ -148,11 +287,27 @@ export async function sendSupportReplyNotification({
     text: [
       `Hi ${name},`,
       "",
-      "ForexTestLab Support replied to your conversation:",
+      `ForexTestLab Support replied to “${subject}”:`,
       preview,
       "",
-      `Open your support inbox: ${baseUrl}/app/support`,
+      `Open your support inbox: ${siteUrl()}/app/support`,
     ].join("\n"),
-    html: `<p>Hi ${safeName},</p><p>ForexTestLab Support replied to <strong>${safeSubject}</strong>:</p><blockquote>${safePreview}</blockquote><p><a href="${baseUrl}/app/support">Open your support inbox</a></p>`,
+    html: renderBrandEmail({
+      preheader: `ForexTestLab Support replied to ${subject}.`,
+      eyebrow: "New support reply",
+      title: `Hi ${name}, we replied`,
+      intro: `There is a new response in your conversation about “${subject}”.`,
+      contentHtml: `
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f7fafc;border:1px solid #e1e9ef;border-radius:12px">
+          <tr><td style="padding:20px 22px">
+            <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;text-transform:uppercase;letter-spacing:1px;color:#7a8b98">${safeSubject}</p>
+            <p style="margin:0;font-family:Arial,sans-serif;font-size:15px;line-height:25px;color:#344a5a">${safePreview}</p>
+          </td></tr>
+        </table>`,
+      action: {
+        label: "Read full reply",
+        href: `${siteUrl()}/app/support`,
+      },
+    }),
   });
 }

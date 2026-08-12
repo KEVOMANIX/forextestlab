@@ -413,8 +413,9 @@ download or overwrite the same month concurrently.
 
 Calendar refresh has two halves. On Windows, `scripts/windows/sync-economic-calendar.ps1`
 compiles and launches the rolling MT5 exporter, then atomically uploads its CSV
-to Lightsail. `install-calendar-task.ps1` schedules that bridge every 30
-minutes. On Lightsail, the matching timer checks the uploaded file every 30
+to Lightsail. `install-calendar-task.ps1` schedules that bridge once daily at
+09:00 local time by default (override with `-DailyAt HH:mm`). On Lightsail, the
+matching timer checks for an uploaded file every 30
 minutes; a SHA-256 checksum prevents repeat imports, while database upserts
 change only releases whose forecast, actual, revision, or metadata changed.
 

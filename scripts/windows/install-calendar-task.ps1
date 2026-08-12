@@ -1,7 +1,7 @@
 param(
   [string]$TaskName = "ForexTestLab Economic Calendar",
   [string]$SyncScript = (Join-Path $PSScriptRoot "sync-economic-calendar.ps1"),
-  [string]$DailyAt = "09:00"
+  [string]$DailyAt = "11:00"
 )
 
 $ErrorActionPreference = "Stop"

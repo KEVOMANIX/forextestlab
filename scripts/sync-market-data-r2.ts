@@ -15,6 +15,7 @@ async function main() {
   const report = await syncMarketDataToR2({
     symbols: input.symbols?.split(","),
     from: date(input.from, "from"),
+    bootstrapFrom: date(input["bootstrap-from"], "bootstrap-from"),
     to: date(input.to, "to"),
     bootstrapDays: input["bootstrap-days"] ? Number(input["bootstrap-days"]) : undefined,
     overlapDays: input["overlap-days"] ? Number(input["overlap-days"]) : undefined,

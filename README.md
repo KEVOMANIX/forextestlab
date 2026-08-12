@@ -387,8 +387,9 @@ object back for verification, and only then uploads it to R2. Existing history
 is never fetched during replay.
 
 ```bash
-# Normal incremental update for all 28 FX pairs. New pairs receive 45 days.
-npm run data:sync-r2 -- --bootstrap-days=45 --overlap-days=2
+# Normal incremental update for all 28 FX pairs. New pairs begin in 2015;
+# interrupted pairs resume from their newest stored month.
+npm run data:sync-r2 -- --bootstrap-from=2015-01-01 --overlap-days=2
 
 # Explicit backfill or a no-write verification run.
 npm run data:sync-r2 -- --symbols=AUDCAD,GBPJPY --from=2015-01-01

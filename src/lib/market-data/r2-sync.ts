@@ -28,6 +28,7 @@ export const AUTOMATED_FX_SYMBOLS = SYMBOL_DEFINITIONS.filter(
 export interface R2MarketSyncOptions {
   symbols?: string[];
   from?: Date;
+  bootstrapFrom?: Date;
   to?: Date;
   bootstrapDays?: number;
   overlapDays?: number;
@@ -272,7 +273,7 @@ export async function syncMarketDataToR2(
       const last = latest.at(-1)?.timestamp;
       start = last === undefined ? end - bootstrapDays * DAY_MS : last - overlapDays * DAY_MS;
     }
-    start ??= end - bootstrapDays * DAY_MS;
+    start ??= options.bootstrapFrom?.getTime() ?? end - bootstrapDays * DAY_MS;
     if (!Number.isFinite(start)) throw new Error("Invalid sync start date.");
     start = Math.floor(start / MINUTE_MS) * MINUTE_MS;
     if (start >= end) {

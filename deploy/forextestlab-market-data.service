@@ -11,6 +11,7 @@ WorkingDirectory=/home/ubuntu/forextestlab
 EnvironmentFile=/home/ubuntu/forextestlab/.env
 Environment=NODE_ENV=production
 ExecStart=/usr/bin/npm run data:sync-r2 -- --bootstrap-from=2015-01-01 --overlap-days=2
+TimeoutStartSec=24h
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true

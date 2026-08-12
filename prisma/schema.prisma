@@ -392,7 +392,12 @@ model BacktestSession {
   notes              String?
   /// Serialised engine SessionState — the authoritative source for stepping.
   /// Relational trade/equity rows below are queryable projections of it.
-  stateJson          String            @default("{}")
+    stateJson          String            @default("{}")
+    /// Private R2 key for a compressed large snapshot. When set, stateJson
+    /// retains only compact config metadata for list and dashboard queries.
+    stateObjectKey     String?
+    /// Uncompressed snapshot size for monitoring and migration decisions.
+    stateSizeBytes     Int               @default(0)
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   orders             SimulatedOrder[]

@@ -32,6 +32,10 @@ import type {
 } from "./types";
 import { normalizeReplaySpeed } from "./types";
 import { TRIAL_SESSION_LIMIT } from "@/lib/trial-device";
+import {
+  prepareSessionSnapshot,
+  readSessionSnapshot,
+} from "./state-snapshot-store";
 
 /** Bounded replay chunk size; longer sessions are extended progressively. */
 const MAX_SESSION_CANDLES = 1500;
@@ -92,6 +96,7 @@ export interface LoadedSession {
   ctx: EngineContext;
   contextCandles: Candle[];
   notes: string;
+  stateObjectKey: string | null;
 }
 
 /**
@@ -339,6 +344,7 @@ export async function loadResumeSessionSnapshot(
       anonymousExpiresAt: true,
       notes: true,
       stateJson: true,
+      stateObjectKey: true,
       symbol: true,
       timeframe: true,
       startTime: true,
@@ -349,6 +355,7 @@ export async function loadResumeSessionSnapshot(
     },
   });
   if (!row) return null;
+  const stateJson = await readSessionSnapshot(row.stateJson, row.stateObjectKey);
 
   let series = candleCache.get(id);
   if (!series) {
@@ -368,7 +375,7 @@ export async function loadResumeSessionSnapshot(
     anonymous: row.anonymous,
     anonymousExpiresAt: row.anonymousExpiresAt,
     notes: row.notes ?? "",
-    stateJson: row.stateJson,
+    stateJson,
     visibleIndex: row.visibleIndex,
     status: row.status,
     candles: series.slice(0, row.visibleIndex + 1 + MAX_BUFFER_CANDLES),
@@ -534,6 +541,7 @@ export async function createSession(
   });
 
   const instrumentId = instrument?.id ?? (await ensureInstrument(def.symbol));
+  const initialStateJson = JSON.stringify(state);
   const sessionData = {
       id,
       token,
@@ -566,7 +574,8 @@ export async function createSession(
       dataSource: source,
       demoData,
       notes: "",
-      stateJson: JSON.stringify(state),
+      stateJson: initialStateJson,
+      stateSizeBytes: Buffer.byteLength(initialStateJson),
   };
 
   if (params.userId) {
@@ -646,6 +655,7 @@ export async function createSession(
     ctx: { state, candles: series },
     contextCandles,
     notes: "",
+    stateObjectKey: null,
   });
 }
 
@@ -676,7 +686,8 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
   const row = await prisma.backtestSession.findUnique({ where: { id } });
   if (!row) return null;
 
-  const state = normalizeSessionState(JSON.parse(row.stateJson) as SessionState);
+  const stateJson = await readSessionSnapshot(row.stateJson, row.stateObjectKey);
+  const state = normalizeSessionState(JSON.parse(stateJson) as SessionState);
   state.speed = normalizeReplaySpeed(Number(state.speed));
   let series = candleCache.get(id);
   if (!series) {
@@ -697,6 +708,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
     anonymous: row.anonymous,
     anonymousExpiresAt: row.anonymousExpiresAt,
     notes: row.notes ?? "",
+    stateObjectKey: row.stateObjectKey,
     ctx: { state, candles: series },
     contextCandles: [],
   });
@@ -708,6 +720,11 @@ export async function persistSession(
   options: { resetProjections?: boolean } = {},
 ): Promise<void> {
   const { state } = session.ctx;
+  const snapshot = await prepareSessionSnapshot(
+    session.id,
+    state,
+    session.stateObjectKey,
+  );
 
   await prisma.backtestSession.update({
     where: { id: session.id },
@@ -723,12 +740,16 @@ export async function persistSession(
       maxDrawdown: state.maxDrawdown,
       maxDrawdownPercent: state.maxDrawdownPercent,
       notes: session.notes,
-      stateJson: JSON.stringify(state),
+      stateJson: snapshot.stateJson,
+      stateObjectKey: snapshot.stateObjectKey,
+      stateSizeBytes: snapshot.stateSizeBytes,
     },
     // Without a select Prisma returns the large stateJson we just uploaded.
     // The caller discards it, but Supabase still counts that return as egress.
     select: { id: true },
   });
+
+  session.stateObjectKey = snapshot.stateObjectKey;
 
   cacheActiveSession(session);
 

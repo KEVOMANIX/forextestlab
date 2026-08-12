@@ -4,10 +4,10 @@ import { z } from "zod";
 import { canAccessSession } from "@/lib/backtest/session-access";
 import {
   loadSession,
+  persistSession,
   visiblePairCandles,
 } from "@/lib/backtest/session-store";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
-import { prisma } from "@/lib/db";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { rateLimit } from "@/lib/rate-limit";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -116,11 +116,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     if (pair.candles.length < 2) {
       throw new Error("No market data for this symbol over the session's dates.");
     }
-    await prisma.backtestSession.update({
-      where: { id: session.id },
-      data: { stateJson: JSON.stringify(session.ctx.state) },
-      select: { id: true },
-    });
+    await persistSession(session);
     return NextResponse.json({ ok: true, symbols: next });
   } catch (error) {
     config.symbols = current;

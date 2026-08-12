@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { computeStatistics, type PerformanceStats } from "./statistics";
 import type { ClosedTrade, EquityPoint, SessionState } from "./types";
 import { normalizeSessionState } from "./replay-engine";
+import { readSessionSnapshot } from "./state-snapshot-store";
 
 export interface SessionResults {
   sessionId: string;
@@ -92,7 +93,8 @@ export async function getSessionResults(
   });
   if (!row) return null;
 
-  const state = normalizeSessionState(JSON.parse(row.stateJson) as SessionState);
+  const stateJson = await readSessionSnapshot(row.stateJson, row.stateObjectKey);
+  const state = normalizeSessionState(JSON.parse(stateJson) as SessionState);
   const stats = computeStatistics({
     startingBalance: state.config.startingBalance,
     endingBalance: state.balance,

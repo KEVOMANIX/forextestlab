@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { canAccessSession } from "@/lib/backtest/session-access";
-import { extendReplaySeries, loadSession } from "@/lib/backtest/session-store";
+import {
+  extendReplaySeries,
+  loadSession,
+  persistSession,
+} from "@/lib/backtest/session-store";
 import { extendBufferSchema, extendSessionSchema } from "@/lib/backtest/schemas";
 import {
   FREE_SESSION_MAX_MS,
@@ -122,12 +126,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       );
     }
     if (requestedEndTime !== null) {
+      await persistSession(session);
       await prisma.backtestSession.update({
         where: { id: session.id },
-        data: {
-          endTime: BigInt(requestedEndTime),
-          stateJson: JSON.stringify(session.ctx.state),
-        },
+        data: { endTime: BigInt(requestedEndTime) },
         select: { id: true },
       });
     }

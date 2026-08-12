@@ -4,8 +4,10 @@ import {
   dropActiveSession,
   loadSession,
   loadResumeSessionSnapshot,
+  persistSession,
   toPublicState,
 } from "@/lib/backtest/session-store";
+import { deleteSessionSnapshot } from "@/lib/backtest/state-snapshot-store";
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { prisma } from "@/lib/db";
@@ -66,7 +68,13 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
   const params = await props.params;
   const access = await prisma.backtestSession.findUnique({
     where: { id: params.id },
-    select: { token: true, userId: true, anonymous: true, anonymousExpiresAt: true },
+    select: {
+      token: true,
+      userId: true,
+      anonymous: true,
+      anonymousExpiresAt: true,
+      stateObjectKey: true,
+    },
   });
   if (!access) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
@@ -81,6 +89,9 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
     select: { id: true },
   });
   dropActiveSession(params.id);
+  void deleteSessionSnapshot(access.stateObjectKey).catch((error) => {
+    console.error("Could not remove deleted session snapshot:", error);
+  });
   return NextResponse.json({ ok: true });
 }
 
@@ -109,10 +120,6 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       ? { archived: parsed.data.archived }
       : {}),
   };
-  await prisma.backtestSession.update({
-    where: { id: params.id },
-    data: { stateJson: JSON.stringify(state) },
-    select: { id: true },
-  });
+  await persistSession(session);
   return NextResponse.json({ ok: true, state: toPublicState(session.ctx, false) });
 }

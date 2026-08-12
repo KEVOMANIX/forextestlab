@@ -357,6 +357,8 @@ async function main() {
       "Synthetic showcase session for reviewing the analytics dashboard. " +
       "London-session breakout strategy on EUR/USD 15m.",
     stateJson: JSON.stringify(state),
+    stateObjectKey: null,
+    stateSizeBytes: Buffer.byteLength(JSON.stringify(state)),
   } as const;
 
   await prisma.backtestSession.upsert({

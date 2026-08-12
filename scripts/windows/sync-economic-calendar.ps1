@@ -76,9 +76,13 @@ if ((Get-Item -LiteralPath $calendarFile).Length -lt 512) {
   throw "MT5 produced an unexpectedly small calendar export."
 }
 
-& scp -q -i $SshKey $calendarFile "${RemoteHost}:/home/ubuntu/forextestlab/data/forextestlab-calendar.csv.incoming"
+$sshOptions = @(
+  "-o", "BatchMode=yes",
+  "-o", "StrictHostKeyChecking=accept-new",
+  "-o", "ConnectTimeout=15",
+  "-i", $SshKey
+)
+& scp -q @sshOptions $calendarFile "${RemoteHost}:/home/ubuntu/forextestlab/data/forextestlab-calendar.csv.incoming"
 if ($LASTEXITCODE -ne 0) { throw "Calendar upload failed." }
-& ssh -i $SshKey $RemoteHost "mv /home/ubuntu/forextestlab/data/forextestlab-calendar.csv.incoming /home/ubuntu/forextestlab/data/forextestlab-calendar.csv"
-if ($LASTEXITCODE -ne 0) { throw "Calendar activation failed." }
 
 Write-Output "Economic calendar exported and uploaded successfully."

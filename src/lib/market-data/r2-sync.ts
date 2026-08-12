@@ -37,9 +37,9 @@ export interface R2MarketSyncOptions {
 
 export interface R2MarketSyncReport {
   symbols: number;
-  objectsWritten: number;
+  objectsPrepared: number;
   candlesDownloaded: number;
-  bytesWritten: number;
+  bytesPrepared: number;
   skippedMonths: number;
 }
 
@@ -258,9 +258,9 @@ export async function syncMarketDataToR2(
 
   const report: R2MarketSyncReport = {
     symbols: symbols.length,
-    objectsWritten: 0,
+    objectsPrepared: 0,
     candlesDownloaded: 0,
-    bytesWritten: 0,
+    bytesPrepared: 0,
     skippedMonths: 0,
   };
 
@@ -322,8 +322,8 @@ export async function syncMarketDataToR2(
           }),
         );
       }
-      report.objectsWritten += 1;
-      report.bytesWritten += parquet.byteLength;
+      report.objectsPrepared += 1;
+      report.bytesPrepared += parquet.byteLength;
       log(`  ${key}: ${merged.length.toLocaleString()} candles, ${(parquet.byteLength / 1024).toFixed(1)} KiB${options.dryRun ? " (dry run)" : ""}.`);
     }
   }

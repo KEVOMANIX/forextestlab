@@ -10,10 +10,12 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/forextestlab
 EnvironmentFile=/home/ubuntu/forextestlab/.env
 Environment=NODE_ENV=production
+# The Windows bridge uploads to `.incoming`; activate it locally so the importer
+# can never observe a partially transferred CSV. A missing incoming file is fine.
+ExecStartPre=-/usr/bin/mv /home/ubuntu/forextestlab/data/forextestlab-calendar.csv.incoming /home/ubuntu/forextestlab/data/forextestlab-calendar.csv
 ExecStart=/usr/bin/npm run calendar:sync -- --file data/forextestlab-calendar.csv
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ReadWritePaths=/home/ubuntu/forextestlab/data
-

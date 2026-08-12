@@ -1,23 +1,7 @@
 import "dotenv/config";
 
+import { parseCliFlags } from "../src/lib/cli-flags";
 import { syncMarketDataToR2 } from "../src/lib/market-data/r2-sync";
-
-function flags(argv: string[]): Record<string, string> {
-  const parsed: Record<string, string> = {};
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (!arg?.startsWith("--")) continue;
-    const equal = arg.indexOf("=");
-    if (equal >= 0) {
-      parsed[arg.slice(2, equal)] = arg.slice(equal + 1);
-    } else if (!argv[index + 1]?.startsWith("--")) {
-      parsed[arg.slice(2)] = argv[++index]!;
-    } else {
-      parsed[arg.slice(2)] = "true";
-    }
-  }
-  return parsed;
-}
 
 function date(value: string | undefined, name: string): Date | undefined {
   if (!value) return undefined;
@@ -27,7 +11,7 @@ function date(value: string | undefined, name: string): Date | undefined {
 }
 
 async function main() {
-  const input = flags(process.argv.slice(2));
+  const input = parseCliFlags(process.argv.slice(2));
   const report = await syncMarketDataToR2({
     symbols: input.symbols?.split(","),
     from: date(input.from, "from"),
@@ -39,9 +23,9 @@ async function main() {
   });
   console.log("\nR2 market-data sync complete");
   console.log(`Symbols:            ${report.symbols}`);
-  console.log(`Objects written:    ${report.objectsWritten}`);
+  console.log(`Objects prepared:   ${report.objectsPrepared}`);
   console.log(`Candles downloaded: ${report.candlesDownloaded}`);
-  console.log(`Bytes written:      ${report.bytesWritten}`);
+  console.log(`Bytes prepared:     ${report.bytesPrepared}`);
   console.log(`Empty months:       ${report.skippedMonths}`);
 }
 

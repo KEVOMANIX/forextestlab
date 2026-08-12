@@ -102,6 +102,24 @@ function upsertBatch(rows: EconomicEventRecord[]): Prisma.Sql {
       "digits"          = EXCLUDED."digits",
       "revision"        = EXCLUDED."revision",
       "updatedAt"       = NOW()
+    WHERE (
+      "EconomicEvent"."seriesId", "EconomicEvent"."eventCode",
+      "EconomicEvent"."name", "EconomicEvent"."currency",
+      "EconomicEvent"."country", "EconomicEvent"."importance",
+      "EconomicEvent"."timestamp", "EconomicEvent"."timeMode",
+      "EconomicEvent"."period", "EconomicEvent"."actual",
+      "EconomicEvent"."forecast", "EconomicEvent"."previous",
+      "EconomicEvent"."revisedPrevious", "EconomicEvent"."unit",
+      "EconomicEvent"."multiplier", "EconomicEvent"."digits",
+      "EconomicEvent"."revision"
+    ) IS DISTINCT FROM (
+      EXCLUDED."seriesId", EXCLUDED."eventCode", EXCLUDED."name",
+      EXCLUDED."currency", EXCLUDED."country", EXCLUDED."importance",
+      EXCLUDED."timestamp", EXCLUDED."timeMode", EXCLUDED."period",
+      EXCLUDED."actual", EXCLUDED."forecast", EXCLUDED."previous",
+      EXCLUDED."revisedPrevious", EXCLUDED."unit", EXCLUDED."multiplier",
+      EXCLUDED."digits", EXCLUDED."revision"
+    )
   `;
 }
 

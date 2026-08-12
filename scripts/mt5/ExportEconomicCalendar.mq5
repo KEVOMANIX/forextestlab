@@ -31,8 +31,11 @@
 #property description "Export the MT5 economic calendar (with history) to CSV."
 #property script_show_inputs
 
-input datetime InpFrom         = D'2007.01.01';               // From (server time)
-input datetime InpTo           = D'2028.01.01';               // To (server time)
+input bool     InpRollingWindow = true;                        // Scheduled refresh window
+input int      InpLookbackDays  = 14;                          // Refresh recent actuals/revisions
+input int      InpForwardDays   = 90;                          // Keep upcoming forecasts current
+input datetime InpFrom          = D'2007.01.01';               // Full export from (when rolling=false)
+input datetime InpTo            = D'2028.01.01';               // Full export to (when rolling=false)
 input string   InpCurrencies   = "";                          // Currencies, comma separated (blank = all)
 input string   InpFileName     = "forextestlab-calendar.csv";  // Output file name
 input bool     InpCommonFolder = true;                        // Write to Terminal\Common\Files
@@ -274,6 +277,20 @@ string DescribeEvent(const ulong eventId)
 //+------------------------------------------------------------------+
 void OnStart()
   {
+   datetime exportFrom = InpFrom;
+   datetime exportTo = InpTo;
+   if(InpRollingWindow)
+     {
+      const datetime serverNow = TimeTradeServer();
+      exportFrom = serverNow - (datetime)MathMax(1, InpLookbackDays) * DAY_SECONDS;
+      exportTo = serverNow + (datetime)MathMax(1, InpForwardDays) * DAY_SECONDS;
+     }
+   if(exportTo <= exportFrom)
+     {
+      Print("The calendar export end must be after its start.");
+      return;
+     }
+
    const int flags = FILE_WRITE | FILE_BIN | (InpCommonFolder ? FILE_COMMON : 0);
    const int handle = FileOpen(InpFileName, flags);
    if(handle == INVALID_HANDLE)
@@ -319,15 +336,15 @@ void OnStart()
       StringTrimRight(currency);
       StringToUpper(currency);
 
-      datetime cursor = InpFrom;
+      datetime cursor = exportFrom;
       int chunkDays = CHUNK_DAYS_MAX;
       int reportedYear = 0;
 
-      while(cursor < InpTo && !IsStopped())
+      while(cursor < exportTo && !IsStopped())
         {
          datetime next = cursor + (datetime)chunkDays * DAY_SECONDS;
-         if(next > InpTo)
-            next = InpTo;
+         if(next > exportTo)
+            next = exportTo;
 
          MqlCalendarValue values[];
          const int count = FetchChunk(values, cursor, next, currency);

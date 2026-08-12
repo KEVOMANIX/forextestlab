@@ -40,6 +40,7 @@ next-env.d.ts
 # local mock database (waitlist / contact submissions)
 /data/*.csv
 /data/*.json
+/data/.forextestlab-calendar.sha256
 !/data/.gitkeep
 
 # local editor / assistant settings

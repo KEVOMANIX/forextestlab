@@ -21,6 +21,7 @@ import type {
 import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
 const MANIFEST_TTL_MS = 5 * 60_000;
+const CANDLE_CACHE_TTL_MS = 15 * 60_000;
 // A month of one-minute candles expands dramatically after Parquet decoding.
 // Keep only the hottest month to leave memory for concurrent app requests;
 // R2 remains durable and another month is decoded on demand.
@@ -59,7 +60,7 @@ interface ManifestCache {
 }
 
 let manifestCache: ManifestCache | undefined;
-const candleCache = new Map<string, Promise<Candle[]>>();
+const candleCache = new Map<string, { expiresAt: number; candles: Promise<Candle[]> }>();
 let s3Bucket: R2BucketAdapter | undefined;
 
 /**
@@ -234,11 +235,12 @@ async function loadManifest(config: R2Config): Promise<Map<string, StoredMonth[]
 
 async function readMonth(config: R2Config, stored: StoredMonth): Promise<Candle[]> {
   const cached = candleCache.get(stored.key);
-  if (cached) {
+  if (cached && cached.expiresAt > Date.now()) {
     candleCache.delete(stored.key);
     candleCache.set(stored.key, cached);
-    return cached;
+    return cached.candles;
   }
+  if (cached) candleCache.delete(stored.key);
 
   const pending = (async () => {
     const object = await config.bucket.get(stored.key);
@@ -258,7 +260,10 @@ async function readMonth(config: R2Config, stored: StoredMonth): Promise<Candle[
     return candles;
   })();
 
-  candleCache.set(stored.key, pending);
+  candleCache.set(stored.key, {
+    expiresAt: Date.now() + CANDLE_CACHE_TTL_MS,
+    candles: pending,
+  });
   while (candleCache.size > MAX_CACHED_MONTHS) {
     const oldestKey = candleCache.keys().next().value as string | undefined;
     if (!oldestKey) break;

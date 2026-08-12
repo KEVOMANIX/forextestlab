@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily ForexTestLab market-data refresh
+
+[Timer]
+OnCalendar=Mon..Sat *-*-* 00:20:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+Unit=forextestlab-market-data.service
+
+[Install]
+WantedBy=timers.target
+

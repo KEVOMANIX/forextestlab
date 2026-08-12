@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for a new ForexTestLab calendar export every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00 UTC
+Persistent=true
+Unit=forextestlab-calendar-import.service
+
+[Install]
+WantedBy=timers.target
+

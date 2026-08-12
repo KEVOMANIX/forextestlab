@@ -91,7 +91,9 @@ npm run test:e2e   # Playwright E2E (see below)
 npm run db:push    # sync Prisma schema to the database
 npm run db:seed    # seed demo data
 npm run data:import -- ...      # import a CSV (see below)
+npm run data:sync-r2 -- ...     # incrementally refresh authorised Dukascopy data
 npm run calendar:import -- ...  # import an MT5 economic calendar export
+npm run calendar:sync -- ...    # import an export only when its checksum changes
 ```
 
 ## Environment variables
@@ -113,6 +115,7 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `R2_BUCKET_NAME` | â€” | R2 bucket containing the monthly Parquet files. |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | â€” | Server-only R2 API credentials. |
 | `R2_PREFIX` | `market_data` | Object-key prefix before `<SYMBOL>/<YEAR>/<MONTH>.parquet`. |
+| `DUKASCOPY_DATA_AUTHORIZED` | `false` | Safety acknowledgement required before the automated downloader will run. Enable only after confirming public-display/redistribution rights. |
 | `ADMIN_IMPORT_TOKEN` | — | Bearer token for any admin import endpoint. |
 | `DEFAULT_ACCOUNT_BALANCE` / `DEFAULT_SPREAD_PIPS` / `DEFAULT_COMMISSION_PER_LOT` / `DEFAULT_SLIPPAGE_PIPS` | `10000` / `1.0` / `0` / `0` | Simulation defaults. |
 | `PADDLE_MODE` | `sandbox` | Paddle environment: `sandbox` or `live`. |
@@ -365,10 +368,60 @@ apex. Nginx also has a Let's Encrypt origin certificate for both hostnames.
   that currently exist in R2.
 - Parquet files remain private. The server downloads and decodes them; R2
   credentials and object URLs are never sent to the browser.
-- Source data is one-minute UTC OHLCV with ZSTD compression. Replay requests are
+- Source data is one-minute UTC OHLCV with ZSTD or Snappy compression. Replay requests are
   aggregated to the requested timeframe on the server.
 - The expected object layout is
   `market_data/<SYMBOL>/<YEAR>/<two-digit-month>.parquet`.
+
+### Automated data refresh
+
+The catalogue contains the seven USD majors and all 21 standard non-USD
+crosses. Currency pairs automatically use the two code-drawn currency flags in
+the symbol picker. A pair becomes selectable as soon as at least one monthly R2
+object exists for it.
+
+`npm run data:sync-r2` downloads authorised one-minute Dukascopy bid candles,
+validates their timestamps and OHLC relationships, merges a two-day overlap,
+deduplicates by timestamp, writes a monthly Snappy Parquet object, reads that
+object back for verification, and only then uploads it to R2. Existing history
+is never fetched during replay.
+
+```bash
+# Normal incremental update for all 28 FX pairs. New pairs receive 45 days.
+npm run data:sync-r2 -- --bootstrap-days=45 --overlap-days=2
+
+# Explicit backfill or a no-write verification run.
+npm run data:sync-r2 -- --symbols=AUDCAD,GBPJPY --from=2015-01-01
+npm run data:sync-r2 -- --symbols=AUDCAD --from=2026-08-01 --dry-run
+```
+
+The checked-in `forextestlab-market-data.timer` runs at 00:20 UTC Monday
+through Saturday. Install it on Lightsail only after
+`DUKASCOPY_DATA_AUTHORIZED=true` has deliberately been set:
+
+```bash
+sudo cp deploy/forextestlab-market-data.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now forextestlab-market-data.timer
+```
+
+Calendar refresh has two halves. On Windows, `scripts/windows/sync-economic-calendar.ps1`
+compiles and launches the rolling MT5 exporter, then atomically uploads its CSV
+to Lightsail. `install-calendar-task.ps1` schedules that bridge every 30
+minutes. On Lightsail, the matching timer checks the uploaded file every 30
+minutes; a SHA-256 checksum prevents repeat imports, while database upserts
+change only releases whose forecast, actual, revision, or metadata changed.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\windows\install-calendar-task.ps1
+```
+
+```bash
+mkdir -p /home/ubuntu/forextestlab/data
+sudo cp deploy/forextestlab-calendar-import.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now forextestlab-calendar-import.timer
+```
 
 ## Adding an authorised external provider
 

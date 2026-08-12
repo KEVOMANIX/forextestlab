@@ -13,9 +13,7 @@ Review every item before pointing `forextestlab.com` at production traffic.
 - [ ] Update the "Last updated" dates on the legal pages.
 
 ## Data & forms
-- [ ] Replace the local JSON storage with a real backend (Supabase or similar) —
-      the Vercel filesystem is ephemeral and will lose local writes.
-      See `src/lib/storage.ts`.
+- [ ] Confirm waitlist, contact, and support records are written to PostgreSQL.
 - [ ] Connect an email provider (Resend / Mailchimp / ConvertKit) if you want
       notifications or a marketing list.
 - [ ] Confirm both forms validate and submit successfully in production.
@@ -24,7 +22,7 @@ Review every item before pointing `forextestlab.com` at production traffic.
 
 ## Environment & config
 - [ ] Set `NEXT_PUBLIC_SITE_URL` to the final production domain.
-- [ ] Add all required environment variables in Vercel (Production/Preview).
+- [ ] Add all required environment variables to `/home/ubuntu/forextestlab/.env`.
 - [ ] Confirm no secrets are committed and `.env.local` is git-ignored.
 
 ## SEO & metadata
@@ -47,6 +45,6 @@ Review every item before pointing `forextestlab.com` at production traffic.
 - [ ] Cross-browser check (Chrome, Firefox, Safari, mobile Safari).
 
 ## Domain & deploy
-- [ ] Domain `forextestlab.com` added and verified in Vercel.
+- [ ] Cloudflare DNS points the apex and `www` records at the Lightsail IP.
 - [ ] HTTPS active; `www` ↔ apex redirect configured.
 - [ ] Confirm the deployed canonical URLs match the live domain.

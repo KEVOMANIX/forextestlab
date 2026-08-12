@@ -101,9 +101,9 @@ export async function getSessionResults(
   });
   const rootId = row.branchRootId ?? row.id;
   // Cross-session analytics used to load and parse every complete stateJson.
-  // For established accounts that is tens of megabytes and exceeds the free
-  // Workers CPU budget. Relational trade/equity projections carry everything
-  // needed for comparisons without transferring the replay engine snapshots.
+  // For established accounts that can be tens of megabytes. Relational
+  // trade/equity projections carry everything needed for comparisons without
+  // transferring replay engine snapshots from PostgreSQL.
   const [familyRows, reviewRows] = await Promise.all([
     prisma.backtestSession.findMany({
       where: {

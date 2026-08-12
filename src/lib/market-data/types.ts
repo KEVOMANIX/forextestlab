@@ -171,7 +171,7 @@ export interface Candle {
   askHigh?: string;
   askLow?: string;
   askClose?: string;
-  /** Where this candle came from, e.g. "demo", "manual-import", "twelvedata". */
+  /** Where this candle came from, e.g. "demo", "manual-import", "dukascopy-r2". */
   source: string;
 }
 

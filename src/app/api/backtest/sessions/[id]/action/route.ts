@@ -62,9 +62,8 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   // A checkpoint without live orders needs no replay. A checkpoint *with*
   // live orders still needs no replay when its cursor has not moved: this is
   // what a resumed tab sends to change a stale `running` status to `paused`.
-  // Loading the whole candle range for that status-only write can exceed the
-  // Workers Free CPU budget on a large session even though there are zero new
-  // candles to evaluate.
+  // Loading the whole candle range for that status-only write wastes memory,
+  // database traffic, and R2 reads when there are zero new candles to evaluate.
   if (action.type === "sync") {
     const access = await prisma.backtestSession.findUnique({
       where: { id: params.id },

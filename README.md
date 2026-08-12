@@ -46,17 +46,12 @@ Lightweight Charts™.
 Browser (React, Lightweight Charts)
   │   fetch /api/backtest/* (session token in header for mutations)
   ▼
-Next.js API routes  ──►  Zod validation ──►  Replay/trading engine (pure TS, decimal.js)
-  │                                              │
-  │  future-data protection: server holds the    │  framework-independent, unit-tested
-  │  full candle series, exposes only revealed    ▼
-  │  candles                                   Prisma
-  ▼                                              │
-Market-data provider factory                     ▼
-  local_database (default) ─┐                PostgreSQL (prod) / SQLite (dev)
-  demo (deterministic)  ────┤  ← candles + sessions + trades + equity
-  local_csv (import)    ────┤
-  external (disabled)   ────┘  twelvedata / tradermade / dukascopy (env-gated, server-only)
+AWS Lightsail: Next.js API routes ──► replay/trading engine
+  │                                      │
+  │  future-data protection              ├──► Supabase PostgreSQL
+  │  exposes only revealed candles       │    accounts, sessions, trades
+  ▼                                      │
+Cloudflare R2 monthly Parquet files ◄────┘
 ```
 
 - **Prices are stored as strings and all money math uses `decimal.js`** — no JS
@@ -77,7 +72,7 @@ Market-data provider factory                     ▼
 ```bash
 npm install                 # installs deps + generates the Prisma client
 cp .env.example .env         # then adjust values as needed
-npm run db:push              # create the SQLite schema (dev)
+npm run db:push              # create/update the PostgreSQL schema
 npm run db:seed              # seed instruments + EUR/USD 5m demo data
 npm run dev                  # http://localhost:3000  (backtester at /app/backtest)
 ```
@@ -112,15 +107,12 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `NEXT_PUBLIC_SUPABASE_URL` | â€” | Supabase project URL used by Auth. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | â€” | Browser-safe Supabase publishable key. |
 | `SUPABASE_SECRET_KEY` | â€” | Server-only key used for permanent account deletion. |
-| `MARKET_DATA_PROVIDER` | `r2` | `r2` \| `demo`. Production reads R2 through the Cloudflare `MARKET_DATA` binding. |
+| `MARKET_DATA_PROVIDER` | `r2` | `r2` \| `demo`. Production reads R2 through its S3-compatible API. |
 | `ENABLE_DEMO_DATA` | `false` | Fall back to deterministic demo data when no stored data. Keep disabled in production. |
 | `R2_ENDPOINT` | â€” | Server-only Cloudflare R2 S3 endpoint. |
 | `R2_BUCKET_NAME` | â€” | R2 bucket containing the monthly Parquet files. |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | â€” | Server-only R2 API credentials. |
 | `R2_PREFIX` | `market_data` | Object-key prefix before `<SYMBOL>/<YEAR>/<MONTH>.parquet`. |
-| `TWELVE_DATA_ENABLED` / `TWELVE_DATA_API_KEY` | `false` / — | Disabled external adapter. |
-| `TRADERMADE_ENABLED` / `TRADERMADE_API_KEY` | `false` / — | Disabled external adapter. |
-| `DUKASCOPY_DATA_AUTHORIZED` | `false` | Manual, owner-authorised import gate. |
 | `ADMIN_IMPORT_TOKEN` | — | Bearer token for any admin import endpoint. |
 | `DEFAULT_ACCOUNT_BALANCE` / `DEFAULT_SPREAD_PIPS` / `DEFAULT_COMMISSION_PER_LOT` / `DEFAULT_SLIPPAGE_PIPS` | `10000` / `1.0` / `0` / `0` | Simulation defaults. |
 | `PADDLE_MODE` | `sandbox` | Paddle environment: `sandbox` or `live`. |
@@ -189,22 +181,19 @@ environment-specific `/ips` response before signature verification.
 
 ## Database setup & migration
 
-The Prisma datasource is configured for **PostgreSQL** (works locally and on
-Vercel). Recommended: **Supabase** (or Neon / Vercel Postgres).
+The Prisma datasource is configured for **PostgreSQL**. Production uses
+Supabase through its pooled connection endpoint.
 
 1. Create the database and copy two connection strings into `.env`
    (Supabase → Project Settings → Database → **Connection pooling**):
    - `DATABASE_URL` → **pooled**, port `6543`, with `?pgbouncer=true&connection_limit=1`
-     (used by the app; required for serverless).
+     (used by the app).
    - `DIRECT_URL` → **session** pooler, port `5432` (used by `db push` / migrations).
    > URL-encode special characters in the password (e.g. `#` → `%23`). Use the
    > **pooler** host (`aws-0-<region>.pooler.supabase.com`), not the IPv6-only
    > direct `db.<ref>.supabase.co` host.
 2. `npm run db:push` to create the tables, then `npm run db:seed` for EUR/USD
    demo data. No column-type changes are needed — prices are stored as strings.
-
-To develop fully offline instead, switch the datasource `provider` to `sqlite`
-and set `DATABASE_URL="file:./dev.db"`.
 
 ## Seed data & demonstration data
 
@@ -348,27 +337,27 @@ npm run build
 npm start
 ```
 
-## Deploying to Vercel
+## Deploying to AWS Lightsail
 
-1. Push the repo to GitHub, then import it at <https://vercel.com/new>.
-2. **Provision Postgres** (Supabase / Neon / Vercel Postgres). The schema is
-   already PostgreSQL.
-3. Add env vars in **Project → Settings → Environment Variables**: `DATABASE_URL`
-   (pooled), `DIRECT_URL` (direct/session), `NEXT_PUBLIC_APP_URL`,
-   `MARKET_DATA_PROVIDER=r2`, `ENABLE_DEMO_DATA=false`, and the five `R2_*`
-   variables documented above. Use `R2_PREFIX=market_data` for the downloader's
-   default upload structure.
-4. Create + seed the tables against Postgres — run `npm run db:push` and
-   `npm run db:seed` locally with the production `DATABASE_URL`/`DIRECT_URL` in
-   your `.env` (a one-off). `postinstall` runs `prisma generate` on Vercel.
-5. Deploy.
+Production runs as a long-lived Next.js Node process behind Nginx. The checked-in
+service and reverse-proxy templates are in `deploy/`.
 
-### Connect the domain `forextestlab.com`
+```bash
+git pull origin aws-lightsail
+npm ci
+npx prisma migrate deploy
+npm run build
+sudo systemctl restart forextestlab
+sudo systemctl --no-pager --full status forextestlab
+```
 
-**Project → Settings → Domains → Add** `forextestlab.com` (+ `www`). At your
-registrar set the records Vercel shows — apex `A` → `76.76.21.21`, `www` `CNAME`
-→ `cname.vercel-dns.com`. HTTPS is provisioned automatically. Set
-`NEXT_PUBLIC_APP_URL` to the final domain and redeploy.
+Keep production variables in `/home/ubuntu/forextestlab/.env`. The application
+needs the pooled Supabase `DATABASE_URL`, `DIRECT_URL`, Supabase Auth values,
+`MARKET_DATA_PROVIDER=r2`, `ENABLE_DEMO_DATA=false`, and the five `R2_*` values.
+
+Cloudflare remains the authoritative DNS and HTTPS proxy. Its proxied apex `A`
+record points to the Lightsail static IP, and `www` is a proxied CNAME to the
+apex. Nginx also has a Let's Encrypt origin certificate for both hostnames.
 
 ## Cloudflare R2 historical-data provider
 
@@ -381,24 +370,21 @@ registrar set the records Vercel shows — apex `A` → `76.76.21.21`, `www` `CN
 - The expected object layout is
   `market_data/<SYMBOL>/<YEAR>/<two-digit-month>.parquet`.
 
-## Replacing the local provider / adding an authorised external provider
+## Adding an authorised external provider
 
 - The active provider is chosen by `MARKET_DATA_PROVIDER`; unknown symbols/ranges
   fall back to deterministic demo data when `ENABLE_DEMO_DATA=true`.
-- To add an authorised provider, implement the `ExternalApiProvider` interface in
-  `src/lib/market-data/providers/`. The contract is: **fetch server-side →
-  validate → normalise → store in the DB → serve replay from the DB**
-  (`persistExternalCandles` helps). Disabled `twelvedata` and `tradermade`
-  adapters are included as templates.
+- New providers should fetch server-side, validate and normalize their data,
+  write monthly Parquet objects to R2, and serve replay through the existing R2
+  provider. Confirm public-display and redistribution rights before integration.
 
 ### API-key security requirements
 
 - All third-party requests are made **server-side only**. Never place provider
   credentials in client JS, `NEXT_PUBLIC_*`, HTML, network responses, source
   maps, or logs.
-- External adapters are env-gated and disabled by default; they fail safely and
-  fall back to local data. Do not call an external API during candle replay —
-  ingest into the DB first, then replay from the DB.
+- Do not call an external data API during candle replay. Import data into R2
+  first, then replay from the private R2 bucket.
 
 ### ⚠️ Market-data licensing warning
 
@@ -407,9 +393,7 @@ registrar set the records Vercel shows — apex `A` → `76.76.21.21`, `www` `CN
 > ForexTestLab platform, the project owner must review the provider’s current
 > terms and obtain any required written permission or commercial licence.
 
-The Dukascopy adapter supports **manual import of files you have lawfully
-downloaded yourself** only. It performs no automatic download or scraping, and
-Dukascopy is not an authorised ForexTestLab partner.
+Only import files you are legally permitted to use and redistribute.
 
 ## Lightweight Charts licence & attribution
 

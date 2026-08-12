@@ -3,7 +3,7 @@ import type { MarketSymbol } from "./types";
 /**
  * Instrument catalogue supported by the ForexTestLab architecture. A symbol is
  * only surfaced as `enabled` in the UI when a provider actually has data for
- * it (the LocalDatabaseProvider decides this from seeded/imported candles).
+ * it (the active R2 provider decides this from stored monthly files).
  */
 export interface SymbolDefinition extends Omit<MarketSymbol, "enabled"> {
   /** Approximate starting price used only by the deterministic demo generator. */

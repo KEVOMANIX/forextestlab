@@ -9,7 +9,6 @@ export function GET() {
       headers: {
         "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
         "CDN-Cache-Control": "no-store",
-        "Vercel-CDN-Cache-Control": "no-store",
       },
     },
   );

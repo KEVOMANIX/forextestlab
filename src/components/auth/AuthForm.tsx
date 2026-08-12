@@ -57,9 +57,7 @@ export function AuthForm({
   }
 
   function callbackUrl(next: string): string {
-    // OAuth must return to the deployment that initiated the flow. Using the
-    // configured production URL here sent Cloudflare preview sign-ins back to
-    // the Vercel/custom-domain deployment before the code exchange completed.
+    // OAuth must return to the public origin that initiated the flow.
     const origin =
       typeof window === "undefined" ? siteConfig.url : window.location.origin;
     const callback = new URL("/auth/callback", origin);

@@ -7,7 +7,7 @@ function withCountry(value: string | null): Pick<Headers, "get"> {
 }
 
 describe("countryCodeFromHeaders", () => {
-  it("normalizes a valid Vercel country header", () => {
+  it("normalizes a valid Cloudflare country header", () => {
     expect(countryCodeFromHeaders(withCountry("ke"))).toBe("KE");
   });
 

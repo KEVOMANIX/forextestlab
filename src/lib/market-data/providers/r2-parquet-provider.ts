@@ -6,7 +6,6 @@ import {
   NoSuchKey,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { decompress as decompressZstd } from "fzstd";
 import { parquetReadObjects, type Compressors } from "hyparquet";
 
@@ -23,21 +22,28 @@ import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
 const MANIFEST_TTL_MS = 5 * 60_000;
 // A month of one-minute candles expands dramatically after Parquet decoding.
-// Workers isolates have 128 MB total memory, so retaining 24 decoded months
-// can terminate unrelated concurrent requests. Keep only the hottest month;
-// R2 remains the durable cache and a second month is decoded on demand.
+// Keep only the hottest month to leave memory for concurrent app requests;
+// R2 remains durable and another month is decoded on demand.
 const MAX_CACHED_MONTHS = 1;
 const COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"];
-// Our importer writes only ZSTD parquet. Importing the all-codec convenience
-// map also instantiates hysnappy's inline WASM at module load, which workerd
-// intentionally disallows and which broke even metadata-only R2 requests.
+// Our importer writes only ZSTD Parquet, so loading the other codecs would add
+// startup work and dependencies that production never uses.
 const PARQUET_COMPRESSORS: Compressors = {
   ZSTD: (input) => decompressZstd(input),
 };
 
 interface R2Config {
   prefix: string;
-  bucket: MarketDataR2Bucket;
+  bucket: R2BucketAdapter;
+}
+
+interface R2BucketAdapter {
+  list(options: { prefix: string; cursor?: string }): Promise<{
+    objects: Array<{ key: string }>;
+    truncated: boolean;
+    cursor?: string;
+  }>;
+  get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
 }
 
 interface StoredMonth {
@@ -54,14 +60,12 @@ interface ManifestCache {
 
 let manifestCache: ManifestCache | undefined;
 const candleCache = new Map<string, Promise<Candle[]>>();
-let s3Bucket: MarketDataR2Bucket | undefined;
+let s3Bucket: R2BucketAdapter | undefined;
 
 /**
- * Outside a Worker, access the same R2 bucket through its S3-compatible API.
- * This keeps market data in R2 while allowing the Next.js server to run on a
- * normal Node host such as AWS Lightsail.
+ * Access the private R2 bucket through its S3-compatible API from Lightsail.
  */
-function s3BucketFromEnvironment(): MarketDataR2Bucket | undefined {
+function s3BucketFromEnvironment(): R2BucketAdapter | undefined {
   if (s3Bucket) return s3Bucket;
 
   const endpoint = process.env.R2_ENDPOINT?.trim().replace(/\/$/, "");
@@ -120,20 +124,6 @@ function s3BucketFromEnvironment(): MarketDataR2Bucket | undefined {
 }
 
 function r2Config(): R2Config {
-  try {
-    const bucket = getCloudflareContext().env.MARKET_DATA;
-    if (bucket) {
-      return {
-        prefix: (process.env.R2_PREFIX?.trim() || "market_data").replace(
-          /^\/+|\/+$/g,
-          "",
-        ),
-        bucket,
-      };
-    }
-  } catch {
-    // A normal Node deployment has no Cloudflare binding; use S3 below.
-  }
   const bucket = s3BucketFromEnvironment();
   if (bucket) {
     return {
@@ -145,7 +135,7 @@ function r2Config(): R2Config {
     };
   }
   throw new Error(
-    "R2 is not configured. Provide the MARKET_DATA Worker binding or R2_ENDPOINT, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY.",
+    "R2 is not configured. Provide R2_ENDPOINT, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY.",
   );
 }
 

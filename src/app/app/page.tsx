@@ -154,10 +154,9 @@ export default async function AppHome(
   const selectedId = searchParams?.session ?? legacySelectedId;
 
   // A full engine state can be several megabytes. The old dashboard selected
-  // and parsed stateJson for as many as 100 sessions, which exhausted the free
-  // Workers CPU allowance and truncated the React stream. PostgreSQL extracts
-  // the three small pieces of dashboard metadata so the isolate never receives
-  // the large JSON documents.
+  // and parsed stateJson for as many as 100 sessions. PostgreSQL extracts the
+  // three small pieces of dashboard metadata so Node never receives the large
+  // JSON documents.
   const metadataRows = sessionRows.length
     ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
         SELECT "id",

@@ -1,48 +1,24 @@
 /**
- * Prisma client singleton. Server-only. Reused across hot reloads in dev so we
- * don't exhaust database connections.
- *
- * Goes through the `pg` driver adapter rather than Prisma's default engine.
- * That default is a native binary (`libquery_engine`) which dynamically links
- * OpenSSL and opens its own TCP socket, and a Cloudflare Worker is a V8 isolate
- * with neither — which is exactly what the deployed Worker kept reporting:
- *
- *     prisma:warn Prisma failed to detect the libssl/openssl version to use
- *     at Object.loadLibrary → _r.loadEngine → _r.instantiateLibrary
- *
- * Handing Prisma an adapter switches it to the WebAssembly engine and lets the
- * driver own the connection, so one client serves Node (Vercel, local, the
- * import scripts) and Workers alike.
+ * Lazily constructed Prisma singleton for the long-running Lightsail process.
+ * Reusing one pg adapter prevents a new Supabase connection pool per request.
  */
 
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-/**
- * On Workers this has to be Hyperdrive's connection string rather than
- * Supabase's own — Hyperdrive is what terminates and pools the TCP connection
- * the isolate cannot open itself, and its string is only readable from the
- * binding at request time, which is why {@link createPrismaClient} takes one.
- * Everywhere else it is the ordinary `DATABASE_URL`.
- */
 function connectionString(): string {
-  try {
-    const hyperdrive = getCloudflareContext().env.HYPERDRIVE;
-    if (hyperdrive?.connectionString) return hyperdrive.connectionString;
-  } catch {
-    // Next.js, migration scripts, and Vercel have no Cloudflare request context.
-  }
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set.");
   return url;
 }
 
-export function createPrismaClient(url: string = connectionString()): PrismaClient {
+export function createPrismaClient(
+  url: string = connectionString(),
+): PrismaClient {
   return new PrismaClient({
     adapter: new PrismaPg({ connectionString: url }),
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
@@ -52,19 +28,6 @@ export function createPrismaClient(url: string = connectionString()): PrismaClie
 let cached: PrismaClient | undefined;
 
 function client(): PrismaClient {
-  // Hyperdrive owns the actual connection pool. A node-postgres client must
-  // not survive into a later Worker invocation: Cloudflare may clean up its
-  // socket at the end of the first request, leaving the next request with a
-  // cached Prisma adapter whose connection is already closed. Constructing a
-  // request-local client is cheap here because Hyperdrive keeps the origin
-  // connections warm and shared.
-  try {
-    if (getCloudflareContext().env.HYPERDRIVE?.connectionString) {
-      return createPrismaClient();
-    }
-  } catch {
-    // Outside Workers, keep the ordinary Node/dev singleton below.
-  }
   if (cached) return cached;
   cached = globalForPrisma.prisma ?? createPrismaClient();
   if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = cached;
@@ -72,22 +35,13 @@ function client(): PrismaClient {
 }
 
 /**
- * Built on first use, not on import.
- *
- * `next build` evaluates every route module to collect page data, and the build
- * environment has no database — it does not need one. Constructing the client
- * at import time therefore failed the whole build on the first route that
- * imports this file ("Failed to collect page data for /api/account"), because
- * resolving the connection string throws when `DATABASE_URL` is unset. Prisma's
- * own constructor is lazy about connecting for the same reason; the adapter
- * needs its connection string up front, so the laziness moves out here.
+ * Build the adapter on first use rather than on import. Next.js evaluates route
+ * modules during a build, when DATABASE_URL may intentionally be unavailable.
  */
 export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, property) {
     const current = client();
     const value = Reflect.get(current, property) as unknown;
-    // Model delegates (`prisma.session`) are plain objects; the client's own
-    // methods (`$transaction`, `$queryRaw`) need their `this` back.
     return typeof value === "function" ? value.bind(current) : value;
   },
 });

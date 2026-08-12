@@ -14,25 +14,21 @@ Nothing in the landing/legal layer is rewritten; the backtester is additive.
 | Concern | Decision | Rationale |
 | --- | --- | --- |
 | Prices | Stored as **strings** in the DB; all math via **decimal.js** | No JS float error for balances/P&L; portable across SQLite/Postgres |
-| Database (dev + default build) | **SQLite** via Prisma | Zero-config, seedable, testable, builds out of the box |
-| Database (production) | **PostgreSQL** (Neon/Vercel Postgres/Supabase) — one-line datasource change | Serverless write persistence; see README |
-| Market data | **Local DB** provider by default; deterministic **Demo** provider fallback | No external API key required for the public beta |
+| Database | **Supabase PostgreSQL** via Prisma's pooled connection | Durable application and session records |
+| Application host | **AWS Lightsail** with Nginx and systemd | Long-running Node process with predictable resources |
+| Market data | **Cloudflare R2** monthly Parquet; deterministic **Demo** fallback | Large candle files do not consume Supabase database egress |
 | Replay control | **Server-authoritative**: server holds the full series, client only ever receives revealed candles | True future-data protection (not client-side hiding) |
 | Session state | Persisted in DB, addressed by a server-issued **session token** | Public demo needs no login; ownership verified by token |
 | Engine | Pure, framework-independent modules under `src/lib/backtest` | Unit-testable without React or DB |
 
 ## 3. Provider-independent market-data architecture
 
-`MarketDataProvider` interface with implementations:
+`MarketDataProvider` has two active implementations:
 
-- `DemoDataProvider` — deterministic synthetic candles (labelled demonstration data).
-- `LocalDatabaseProvider` — reads seeded/imported candles from the DB (**default**).
-- `LocalCsvProvider` — imports CSV → DB.
-- `ExternalApiProvider` — reusable interface for future authorised providers.
-- `TwelveDataProvider`, `TraderMadeProvider` — **disabled** server-side adapters (env-gated).
-- `DukascopyImportAdapter` — manual, authorised import only (env-gated).
+- `R2ParquetProvider` — reads private monthly Parquet objects through R2's S3 API.
+- `DemoDataProvider` — deterministic synthetic candles, clearly labelled.
 
-Selected via `MARKET_DATA_PROVIDER` (default `local_database`, falling back to demo when a range has no data).
+Selected via `MARKET_DATA_PROVIDER` (default `r2`, with optional demo fallback).
 
 ## 4. Phases
 

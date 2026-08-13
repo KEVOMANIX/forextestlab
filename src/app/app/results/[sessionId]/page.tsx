@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ChevronDown, Crown, LockKeyhole, Plus } from "lucide-react";
+import { AlertTriangle, ChevronDown, LockKeyhole, Plus } from "lucide-react";
 
 import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
 import { BackLink } from "@/components/app/BackLink";
@@ -42,37 +42,23 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
     <div className="analytics-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
       <BackLink label="Back to dashboard" fallback="/app" />
 
-      <header className="relative mt-4 overflow-hidden rounded-2xl border border-brand-400/25 bg-[linear-gradient(135deg,rgba(34,195,160,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-4 shadow-card sm:p-5">
-        <div aria-hidden className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-brand-400/10 blur-3xl" />
-        <div className="relative flex flex-col gap-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">Session analytics</p>
-                {entitlements.fullAnalytics && <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-200"><Crown size={10} aria-hidden /> Pro workspace</span>}
-              </div>
-              <h1 className="mt-1.5 truncate text-2xl font-bold tracking-tight sm:text-3xl">{results.name}</h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs app-muted">
-                <span className={`rounded-full px-2.5 py-1 font-semibold ${state.status === "finished" ? "bg-brand-400/10 text-brand-300" : "bg-amber-400/10 text-amber-300"}`}>{state.status === "finished" ? "Completed" : "Active"}</span>
-                {results.symbols.map((symbol) => <span key={symbol} className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold">{formatSymbol(symbol)}</span>)}
-                <span>{formatNewYorkDate(state.config.startTime)} – {formatNewYorkDate(state.config.endTime)} · New York time</span>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <SessionCardActions sessionId={results.sessionId} sessionName={results.name} status={state.status} archived={archived} showAnalytics={false} compact command />
-              {entitlements.csvExports ? (
-                <ExportTradesButton trades={state.closedTrades} symbol={results.symbol} sessionId={results.sessionId} />
-              ) : (
-                <Link href="/account/billing" className="btn-secondary py-2 text-xs" title="CSV exports are included with Pro">
-                  <LockKeyhole size={14} aria-hidden /> Export with Pro
-                </Link>
-              )}
-              <Link href="/app/backtest" className="btn-secondary px-3 py-2 text-xs"><Plus size={14} /> New session</Link>
+      <header className="mt-4 border-b app-border pb-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] app-muted">Session report</p>
+            <h1 className="mt-1 truncate text-2xl font-bold tracking-tight">{results.name}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs app-muted">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-[var(--app-text)]"><i className={`h-1.5 w-1.5 rounded-full ${state.status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} />{state.status === "finished" ? "Completed" : "Active"}</span>
+              <span className="font-mono font-semibold text-[var(--app-text)]">{results.symbols.map(formatSymbol).join(" · ")}</span>
+              <span>{formatNewYorkDate(state.config.startTime)} – {formatNewYorkDate(state.config.endTime)}</span>
+              <span>New York time</span>
+              <span className="inline-flex items-center gap-2"><span>Replay {progress.toFixed(0)}%</span><span className="h-1 w-16 overflow-hidden rounded-full bg-white/[0.08]"><span className="block h-full rounded-full bg-brand-500" style={{ width: `${progress}%` }} /></span></span>
             </div>
           </div>
-          <div className="border-t app-border pt-3">
-            <div className="flex items-center justify-between text-xs"><span className="font-semibold app-muted">Replay progress</span><span className="font-mono font-semibold">{progress.toFixed(0)}%</span></div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${progress}%` }} /></div>
+          <div className="flex flex-wrap items-center gap-2">
+            <SessionCardActions sessionId={results.sessionId} sessionName={results.name} status={state.status} archived={archived} showAnalytics={false} compact command />
+            {entitlements.csvExports ? <ExportTradesButton trades={state.closedTrades} symbol={results.symbol} sessionId={results.sessionId} compact /> : <Link href="/account/billing" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05]" title="CSV exports are included with Pro"><LockKeyhole size={14} aria-hidden /> Export</Link>}
+            <Link href="/app/backtest" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"><Plus size={14} /> New session</Link>
           </div>
         </div>
       </header>
@@ -93,11 +79,13 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
         sessions={results.reviewSessions}
       />
 
-      <SessionTradeJournal sessionId={results.sessionId} initialTrades={state.closedTrades} collapsible />
+      <div id="trade-journal" className="scroll-mt-24">
+        <SessionTradeJournal sessionId={results.sessionId} initialTrades={state.closedTrades} collapsible />
+      </div>
       <BranchComparison currentId={results.sessionId} branches={results.branchComparison} />
       {state.status === "finished" && <SessionFeedback sessionId={results.sessionId} />}
 
-      <div className="mt-6">
+      <div id="ai-review" className="mt-6 scroll-mt-24">
         {entitlements.fullAnalytics ? (
           <AiInsightsPanel
             scope="session"

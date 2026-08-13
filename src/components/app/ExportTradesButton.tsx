@@ -12,10 +12,12 @@ export function ExportTradesButton({
   trades,
   symbol,
   sessionId,
+  compact = false,
 }: {
   trades: ClosedTrade[];
   symbol: string;
   sessionId: string;
+  compact?: boolean;
 }) {
   function download() {
     const header = [
@@ -73,9 +75,9 @@ export function ExportTradesButton({
       type="button"
       onClick={download}
       disabled={trades.length === 0}
-      className="btn-secondary py-2 text-xs disabled:opacity-40"
+      className={compact ? "inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted transition-colors hover:bg-white/[0.05] hover:text-[var(--app-text)] disabled:opacity-40" : "btn-secondary py-2 text-xs disabled:opacity-40"}
     >
-      <Download size={14} aria-hidden /> Export trades (CSV)
+      <Download size={14} aria-hidden /> {compact ? "Export" : "Export trades (CSV)"}
     </button>
   );
 }

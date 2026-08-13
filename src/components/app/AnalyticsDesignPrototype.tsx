@@ -5,11 +5,14 @@ import { useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
+  BarChart3,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
+  Clock3,
   Download,
   FlaskConical,
+  Gauge,
   LineChart,
   NotebookPen,
   Play,
@@ -44,6 +47,30 @@ const CALENDAR = [
   null, null, null, null, null, null, null,
 ];
 
+const MONTHLY_RETURNS = [2.4, -0.8, 3.1, 1.7, -1.2, 4.3, 0.6, 2.8, -0.5, 3.6, 1.1, 2.2];
+const DRAWDOWN = [0, -120, -80, -340, -260, -610, -430, -920, -710, -1492, -980, -620, -830, -410, -180, -390, -140, 0];
+const WEEKDAY_RESULTS = [
+  { label: "Mon", value: 980, trades: 4 },
+  { label: "Tue", value: 1440, trades: 5 },
+  { label: "Wed", value: 2010, trades: 4 },
+  { label: "Thu", value: -360, trades: 3 },
+  { label: "Fri", value: 750, trades: 3 },
+];
+const SESSION_RESULTS = [
+  { label: "London open", value: 2940, rate: 74 },
+  { label: "New York open", value: 1510, rate: 63 },
+  { label: "London close", value: 620, rate: 60 },
+  { label: "Asia", value: -250, rate: 40 },
+];
+const R_DISTRIBUTION = [
+  { label: "<−1R", count: 1 },
+  { label: "−1R", count: 3 },
+  { label: "0R", count: 2 },
+  { label: "+1R", count: 6 },
+  { label: "+2R", count: 5 },
+  { label: ">+2R", count: 2 },
+];
+
 function linePath(values: number[]) {
   const width = 920;
   const height = 280;
@@ -54,6 +81,18 @@ function linePath(values: number[]) {
   const x = (index: number) => pad + index * ((width - pad * 2) / (values.length - 1));
   const y = (value: number) => pad + (1 - (value - min) / spread) * (height - pad * 2);
   return values.map((value, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
+}
+
+function normalizedPath(values: number[], width = 920, height = 220) {
+  const pad = 16;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const spread = max - min || 1;
+  return values.map((value, index) => {
+    const x = pad + index * ((width - pad * 2) / (values.length - 1));
+    const y = pad + (1 - (value - min) / spread) * (height - pad * 2);
+    return `${index ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
 }
 
 function PrototypeBadge() {
@@ -179,8 +218,141 @@ export function AnalyticsDesignPrototype() {
 
       {tab === "trades" && <PrototypePlaceholder icon={LineChart} title="Trade explorer" description="This direction uses a dense, sortable trade ledger with a synchronized P/L curve and a slide-over trade review." />}
       {tab === "journal" && <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries, rule adherence, screenshots, setup tags, and emotions are reviewed in one focused timeline." />}
-      {tab === "reports" && <PrototypePlaceholder icon={Sparkles} title="Strategy reports" description="Risk, timing, setup performance, and AI findings live in focused reports instead of competing on one screen." />}
+      {tab === "reports" && <ReportsWorkspace />}
     </div>
+  );
+}
+
+function ReportsWorkspace() {
+  const drawdownPath = normalizedPath(DRAWDOWN);
+
+  return (
+    <main className="mt-5 space-y-4">
+      <section className="flex flex-col gap-4 rounded-2xl bg-[var(--app-panel)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Strategy reports</p>
+          <h2 className="mt-1 text-xl font-semibold">Find where the edge comes from</h2>
+          <p className="mt-1 text-xs app-muted">All 19 closed trades · Jan 2019 – Jan 2024 · New York time</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted"><CalendarDays size={14} /> Entire test</button>
+          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted"><BarChart3 size={14} /> Closed trades</button>
+        </div>
+      </section>
+
+      <section className="grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ["Return / drawdown", "3.23", "Healthy"],
+          ["Recovery time", "18 trades", "From deepest trough"],
+          ["Positive months", "9 of 12", "75% consistency"],
+          ["Statistical confidence", "Developing", "11 more trades needed"],
+        ].map(([label, value, detail]) => (
+          <div key={label} className="bg-[var(--app-panel)] px-4 py-4">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.11em] app-muted">{label}</p>
+            <p className="mt-2 font-mono text-lg font-semibold">{value}</p>
+            <p className="mt-1 text-[10px] app-muted">{detail}</p>
+          </div>
+        ))}
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.7fr)]">
+        <ReportCard eyebrow="Risk profile" title="Drawdown and recovery" icon={TrendingDown}>
+          <div className="mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
+            <svg viewBox="0 0 920 220" preserveAspectRatio="none" className="h-60 w-full" role="img" aria-label="Drawdown curve">
+              <defs>
+                <linearGradient id="drawdown-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fb7185" stopOpacity=".04"/><stop offset="1" stopColor="#fb7185" stopOpacity=".25"/></linearGradient>
+                <pattern id="report-grid" width="115" height="55" patternUnits="userSpaceOnUse"><path d="M115 0H0V55" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern>
+              </defs>
+              <rect width="920" height="220" fill="url(#report-grid)" className="app-muted" />
+              <path d={`${drawdownPath} L904,16 L16,16 Z`} fill="url(#drawdown-fill)" />
+              <path d={drawdownPath} fill="none" stroke="#fb7185" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+              <line x1="16" y1="16" x2="904" y2="16" stroke="currentColor" strokeOpacity=".13" />
+            </svg>
+          </div>
+          <div className="mt-3 flex justify-between text-[10px] app-muted"><span>Trade 1</span><span>Deepest: −$1,492</span><span>Recovered</span><span>Trade 19</span></div>
+        </ReportCard>
+
+        <ReportCard eyebrow="Risk diagnosis" title="What the drawdown says" icon={Gauge}>
+          <div className="mt-5 rounded-xl border app-border p-4">
+            <div className="flex items-end justify-between"><div><p className="text-[10px] uppercase tracking-[0.12em] app-muted">Maximum depth</p><p className="mt-1 font-mono text-2xl font-semibold text-bear">−1.49%</p></div><p className="font-mono text-xs app-muted">−$1,492</p></div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full w-[38%] rounded-full bg-bear" /></div>
+            <p className="mt-2 text-[10px] app-muted">38% of your provisional 4% risk budget</p>
+          </div>
+          <dl className="mt-4 divide-y app-border">
+            {[["Average drawdown", "−$412"], ["Longest recovery", "18 trades"], ["Time below peak", "31%"], ["Open risk", "$0.00"]].map(([label, value]) => <div key={label} className="flex justify-between py-3 text-xs"><dt className="app-muted">{label}</dt><dd className="font-mono font-semibold">{value}</dd></div>)}
+          </dl>
+        </ReportCard>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)]">
+        <ReportCard eyebrow="Consistency" title="Monthly returns" icon={BarChart3}>
+          <div className="mt-6 grid h-56 grid-cols-12 items-center gap-2 border-b app-border px-1">
+            {MONTHLY_RETURNS.map((value, index) => {
+              const height = Math.max(12, Math.abs(value) / 4.3 * 86);
+              return (
+                <div key={index} className="flex h-full flex-col items-center justify-center">
+                  <div className="flex h-[172px] w-full flex-col justify-center">
+                    <div className="relative h-1/2 border-b border-white/10">
+                      {value > 0 && <div className="absolute bottom-0 left-1/2 w-[72%] -translate-x-1/2 rounded-t bg-brand-400/80" style={{ height: `${height}%` }} />}
+                    </div>
+                    <div className="relative h-1/2">
+                      {value < 0 && <div className="absolute left-1/2 top-0 w-[72%] -translate-x-1/2 rounded-b bg-bear/80" style={{ height: `${height}%` }} />}
+                    </div>
+                  </div>
+                  <span className="mt-2 text-[9px] app-muted">{["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][index]}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="app-muted">Best month <b className="ml-1 font-mono text-brand-300">+4.3%</b></span><span className="app-muted">Worst month <b className="ml-1 font-mono text-bear">−1.2%</b></span><span className="app-muted">Average <b className="ml-1 font-mono text-[var(--app-text)]">+1.61%</b></span></div>
+        </ReportCard>
+
+        <ReportCard eyebrow="Market timing" title="Performance by session" icon={Clock3}>
+          <div className="mt-5 space-y-5">
+            {SESSION_RESULTS.map((session) => (
+              <div key={session.label}>
+                <div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold">{session.label}</span><span className={`font-mono font-semibold ${session.value >= 0 ? "text-brand-300" : "text-bear"}`}>{session.value >= 0 ? "+" : "−"}${Math.abs(session.value).toLocaleString()}</span></div>
+                <div className="mt-2 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]"><div className={`h-full rounded-full ${session.value >= 0 ? "bg-brand-400" : "bg-bear"}`} style={{ width: `${Math.max(12, Math.abs(session.value) / 2940 * 100)}%` }} /></div><span className="w-8 text-right font-mono text-[9px] app-muted">{session.rate}%</span></div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 rounded-xl bg-brand-400/[0.07] p-3 text-xs leading-5 app-muted"><b className="text-brand-300">London open</b> produces 61% of net profit with the strongest win rate.</div>
+        </ReportCard>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ReportCard eyebrow="Timing" title="Performance by weekday" icon={CalendarDays}>
+          <div className="mt-5 space-y-4">
+            {WEEKDAY_RESULTS.map((day) => (
+              <div key={day.label} className="grid grid-cols-[34px_minmax(0,1fr)_72px] items-center gap-3 text-xs">
+                <span className="font-semibold">{day.label}</span>
+                <div className="h-7 overflow-hidden rounded-md bg-white/[0.035]"><div className={`flex h-full items-center rounded-md px-2 ${day.value >= 0 ? "bg-brand-400/15" : "bg-bear/15"}`} style={{ width: `${Math.max(18, Math.abs(day.value) / 2010 * 100)}%` }}><span className="text-[9px] app-muted">{day.trades} trades</span></div></div>
+                <span className={`text-right font-mono font-semibold ${day.value >= 0 ? "text-brand-300" : "text-bear"}`}>{day.value >= 0 ? "+" : "−"}${Math.abs(day.value)}</span>
+              </div>
+            ))}
+          </div>
+        </ReportCard>
+
+        <ReportCard eyebrow="Trade outcomes" title="R-multiple distribution" icon={Target}>
+          <div className="mt-6 grid h-44 grid-cols-6 items-end gap-3 border-b app-border px-2">
+            {R_DISTRIBUTION.map((bucket) => <div key={bucket.label} className="flex h-full flex-col justify-end text-center"><span className="mb-2 font-mono text-[10px] app-muted">{bucket.count}</span><div className={`mx-auto w-[72%] rounded-t ${bucket.label.startsWith("+") || bucket.label.startsWith(">") ? "bg-brand-400/75" : bucket.label === "0R" ? "bg-white/20" : "bg-bear/75"}`} style={{ height: `${bucket.count / 6 * 80}%` }} /><span className="mt-2 pb-2 text-[9px] app-muted">{bucket.label}</span></div>)}
+          </div>
+          <p className="mt-4 text-xs leading-5 app-muted">The distribution is positively skewed: <b className="text-[var(--app-text)]">7 trades closed above +1R</b>, while losses remain concentrated near −1R.</p>
+        </ReportCard>
+      </div>
+    </main>
+  );
+}
+
+function ReportCard({ eyebrow, title, icon: Icon, children }: { eyebrow: string; title: string; icon: typeof LineChart; children: React.ReactNode }) {
+  return (
+    <section className="min-w-0 rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">{eyebrow}</p><h3 className="mt-1 text-lg font-semibold">{title}</h3></div>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/[0.04] app-muted"><Icon size={16} /></span>
+      </div>
+      {children}
+    </section>
   );
 }
 

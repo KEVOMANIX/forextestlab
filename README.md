@@ -451,6 +451,11 @@ pg_restore --exit-on-error --no-owner --no-acl --dbname="$RECOVERY_DATABASE_URL"
 Always restore into a separate recovery database first and verify account,
 session, trade, subscription, and calendar counts before any production cutover.
 
+The `Production smoke test` GitHub Actions workflow runs daily at 08:15 Nairobi
+time and can also be launched manually. It checks public navigation, Google-auth
+entry, pricing, support, market-data and calendar contracts, and security headers
+without creating accounts, consuming trials, or initiating payments.
+
 ## Adding an authorised external provider
 
 - The active provider is chosen by `MARKET_DATA_PROVIDER`; unknown symbols/ranges

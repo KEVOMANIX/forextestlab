@@ -846,27 +846,27 @@ function TradingActivityCalendar({ trades, startingBalance }: { trades: ClosedTr
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => move(-1)} aria-label={`Previous ${view}`} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:border-brand-400/40 hover:text-brand-300"><ChevronLeft size={17} /></button>
-          <button type="button" onClick={() => move(1)} aria-label={`Next ${view}`} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:border-brand-400/40 hover:text-brand-300"><ChevronRight size={17} /></button>
-          <select aria-label="Calendar month" value={visibleMonth} onChange={(event) => selectMonth(Number(event.target.value))} className="h-9 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-xs font-semibold outline-none focus:border-brand-400/50">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => move(-1)} aria-label={`Previous ${view}`} className="grid h-8 w-8 place-items-center rounded-md border app-border app-muted transition-colors hover:border-brand-400/40 hover:text-brand-300"><ChevronLeft size={15} /></button>
+          <button type="button" onClick={() => move(1)} aria-label={`Next ${view}`} className="grid h-8 w-8 place-items-center rounded-md border app-border app-muted transition-colors hover:border-brand-400/40 hover:text-brand-300"><ChevronRight size={15} /></button>
+          <select aria-label="Calendar month" value={visibleMonth} onChange={(event) => selectMonth(Number(event.target.value))} className="h-8 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-[11px] font-semibold outline-none focus:border-brand-400/50">
             {Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{new Intl.DateTimeFormat("en", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2020, index, 1)))}</option>)}
           </select>
-          <select aria-label="Calendar year" value={visibleYear} onChange={(event) => selectYear(Number(event.target.value))} className="h-9 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-xs font-semibold outline-none focus:border-brand-400/50">
+          <select aria-label="Calendar year" value={visibleYear} onChange={(event) => selectYear(Number(event.target.value))} className="h-8 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-[11px] font-semibold outline-none focus:border-brand-400/50">
             {years.map((year) => <option key={year} value={year}>{year}</option>)}
           </select>
         </div>
-        <div className="grid grid-cols-2 rounded-lg bg-[var(--app-panel-2)] p-1 text-xs font-semibold">
-          {(["week", "month"] as const).map((option) => <button key={option} type="button" aria-pressed={view === option} onClick={() => setView(option)} className={`rounded-md px-5 py-1.5 capitalize transition-colors ${view === option ? "bg-[var(--app-panel)] text-brand-300 shadow-sm" : "app-muted hover:text-[var(--app-text)]"}`}>{option}</button>)}
+        <div className="grid grid-cols-2 rounded-md bg-[var(--app-panel-2)] p-0.5 text-[11px] font-semibold">
+          {(["week", "month"] as const).map((option) => <button key={option} type="button" aria-pressed={view === option} onClick={() => setView(option)} className={`rounded px-4 py-1.5 capitalize transition-colors ${view === option ? "bg-[var(--app-panel)] text-brand-300 shadow-sm" : "app-muted hover:text-[var(--app-text)]"}`}>{option}</button>)}
         </div>
       </div>
 
-      <p className="mt-4 text-sm font-semibold">{view === "month" ? `${monthName} ${visibleYear}` : `Week of ${cells[0]!.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`}</p>
-      <div className="mt-3 grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold app-muted sm:gap-2">
-        {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => <span key={day} className="py-1"><span className="sm:hidden">{day.slice(0, 3)}</span><span className="hidden sm:inline">{day}</span></span>)}
+      <p className="mt-2.5 text-xs font-semibold">{view === "month" ? `${monthName} ${visibleYear}` : `Week of ${cells[0]!.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`}</p>
+      <div className="mt-1.5 grid grid-cols-7 gap-1 text-center text-[9px] font-semibold app-muted sm:gap-1.5">
+        {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => <span key={day} className="py-0.5"><span className="sm:hidden">{day.slice(0, 3)}</span><span className="hidden sm:inline">{day}</span></span>)}
       </div>
-      <div className="mt-1 grid grid-cols-7 gap-1.5 sm:gap-2">
+      <div className="mt-0.5 grid grid-cols-7 gap-1 sm:gap-1.5">
         {cells.map((date) => {
           const key = calendarKey(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
           const summary = summaries.get(key);
@@ -874,17 +874,17 @@ function TradingActivityCalendar({ trades, startingBalance }: { trades: ClosedTr
           const positive = (summary?.pnl ?? 0) >= 0;
           const winRate = summary?.trades ? (summary.wins / summary.trades) * 100 : 0;
           return (
-            <div key={key} title={summary ? `${summary.trades} closed trade${summary.trades === 1 ? "" : "s"} · ${money(summary.pnl)} · ${pct(summary.returnPct, 2)} return · ${pct(winRate, 0)} win rate` : `No closed trades on ${key}`} className={`min-h-20 rounded-lg border p-2 transition-colors sm:min-h-24 ${summary ? positive ? "border-brand-400/25 bg-brand-500/[0.16]" : "border-bear/25 bg-bear/[0.16]" : "app-border bg-[var(--app-panel-2)]/45"} ${view === "month" && !inMonth ? "opacity-35" : ""}`}>
-              <div className="flex items-start justify-between gap-1 text-[10px] sm:text-xs">
+            <div key={key} title={summary ? `${summary.trades} closed trade${summary.trades === 1 ? "" : "s"} · ${money(summary.pnl)} · ${pct(summary.returnPct, 2)} return · ${pct(winRate, 0)} win rate` : `No closed trades on ${key}`} className={`min-h-14 rounded-md border p-1.5 transition-colors sm:min-h-16 ${summary ? positive ? "border-brand-400/25 bg-brand-500/[0.16]" : "border-bear/25 bg-bear/[0.16]" : "app-border bg-[var(--app-panel-2)]/45"} ${view === "month" && !inMonth ? "opacity-35" : ""}`}>
+              <div className="flex items-start justify-between gap-0.5 text-[9px] sm:text-[10px]">
                 <span className="font-semibold">{date.getUTCDate()}<span className="hidden sm:inline"> {date.toLocaleDateString("en", { month: "short", timeZone: "UTC" })}</span></span>
-                {summary && <span className={positive ? "text-brand-300" : "text-bear"}>{positive ? "↗" : "↘"} {pct(Math.abs(summary.returnPct), 2)}</span>}
+                {summary && <span className={`hidden md:inline ${positive ? "text-brand-300" : "text-bear"}`}>{positive ? "↗" : "↘"} {pct(Math.abs(summary.returnPct), 2)}</span>}
               </div>
-              {summary && <div className="mt-3 space-y-1"><p className={`font-mono text-[11px] font-semibold sm:text-sm ${positive ? "text-brand-300" : "text-bear"}`}>{money(summary.pnl)}</p><p className="text-[9px] app-muted sm:text-[10px]">{summary.trades} trade{summary.trades === 1 ? "" : "s"} · {pct(winRate, 0)} wins</p></div>}
+              {summary && <div className="mt-1.5"><p className={`truncate font-mono text-[9px] font-semibold sm:text-[11px] ${positive ? "text-brand-300" : "text-bear"}`}>{money(summary.pnl)}</p><p className="mt-0.5 hidden truncate text-[8px] app-muted sm:block">{summary.trades} trade{summary.trades === 1 ? "" : "s"} · {pct(winRate, 0)} wins</p></div>}
             </div>
           );
         })}
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] app-muted"><span>Closed trades grouped by exit date in New York · return uses that day&apos;s opening balance</span><span className="flex items-center gap-3"><i className="h-2.5 w-2.5 rounded-sm bg-brand-500/60" /> Profit <i className="h-2.5 w-2.5 rounded-sm bg-bear/60" /> Loss</span></div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[9px] app-muted"><span>Exit date in New York · return uses the day&apos;s opening balance</span><span className="flex items-center gap-2"><i className="h-2 w-2 rounded-sm bg-brand-500/60" /> Profit <i className="h-2 w-2 rounded-sm bg-bear/60" /> Loss</span></div>
     </div>
   );
 }

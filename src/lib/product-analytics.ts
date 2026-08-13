@@ -46,3 +46,15 @@ export async function recordProductEvent(input: {
     },
   });
 }
+
+export async function recordProductEventOncePerUser(input: {
+  name: ProductEventName;
+  userId: string;
+  path?: string | null;
+}) {
+  const existing = await prisma.productEvent.findFirst({
+    where: { name: input.name, userId: input.userId },
+    select: { id: true },
+  });
+  if (!existing) await recordProductEvent(input);
+}

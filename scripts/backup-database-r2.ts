@@ -14,9 +14,9 @@ function required(name: string): string {
   return value;
 }
 
-function run(command: string, args: string[]): Promise<void> {
+function run(command: string, args: string[], quiet = false): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "inherit", "inherit"] });
+    const child = spawn(command, args, { stdio: ["ignore", quiet ? "ignore" : "inherit", "inherit"] });
     child.once("error", reject);
     child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`${command} exited with code ${code}.`)));
   });
@@ -43,7 +43,7 @@ async function main() {
 
   try {
     await run("pg_dump", ["--format=custom", "--compress=6", "--no-owner", "--no-acl", `--file=${archive}`, databaseUrl]);
-    await run("pg_restore", ["--list", archive]);
+    await run("pg_restore", ["--list", archive], true);
     const digest = await checksum(archive);
     const info = await stat(archive);
     const now = new Date();

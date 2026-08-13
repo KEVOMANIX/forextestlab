@@ -38,6 +38,9 @@ async function main() {
   await prisma.operationalCheck.deleteMany({
     where: { checkedAt: { lt: new Date(Date.now() - 30 * 86_400_000) } },
   });
+  await prisma.productEvent.deleteMany({
+    where: { createdAt: { lt: new Date(Date.now() - 180 * 86_400_000) } },
+  });
 
   const previous = await readState().catch(() => null);
   const lastAlert = previous?.lastAlertAt ? new Date(previous.lastAlertAt).getTime() : 0;

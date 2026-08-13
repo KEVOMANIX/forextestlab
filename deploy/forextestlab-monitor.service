@@ -10,6 +10,9 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/forextestlab
 EnvironmentFile=/home/ubuntu/forextestlab/.env
 Environment=NODE_ENV=production
+# Standalone scripts run outside Next's resolver. This selects the marker
+# package's empty server export while preserving its client-import protection.
+Environment=NODE_OPTIONS=--conditions=react-server
 ExecStart=/usr/bin/npm run operations:monitor
 TimeoutStartSec=5m
 UMask=0077

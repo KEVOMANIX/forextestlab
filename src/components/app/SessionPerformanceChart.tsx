@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { formatNewYorkDateTime } from "@/lib/date-time";
+import { formatNewYorkDate, formatNewYorkDateTime } from "@/lib/date-time";
 
 export interface SessionChartPoint {
   time: number;
@@ -55,7 +55,7 @@ export function SessionPerformanceChart({
 
   if (visible.length < 2) {
     return (
-      <div className="mt-5 grid min-h-72 place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/40 p-6 text-center">
+      <div className="mt-5 grid min-h-48 place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/40 p-6 text-center">
         <div>
           <p className="font-semibold">Performance history will appear here</p>
           <p className="mt-1 text-sm app-muted">
@@ -67,7 +67,7 @@ export function SessionPerformanceChart({
   }
 
   const width = 860;
-  const height = 290;
+  const height = 250;
   const padX = 20;
   const padY = 20;
   const values = visible.flatMap((point) => [
@@ -183,7 +183,7 @@ export function SessionPerformanceChart({
         </div>
         <svg
           viewBox={`0 0 ${width} ${height}`}
-          className="h-72 w-full touch-none sm:h-80"
+          className="h-56 w-full touch-none sm:h-64"
           preserveAspectRatio="none"
           role="img"
           aria-label="Interactive balance and equity chart"
@@ -270,8 +270,12 @@ export function SessionPerformanceChart({
             vectorEffect="non-scaling-stroke"
           />
         </svg>
+        <div className="pointer-events-none absolute inset-x-3 bottom-2 flex items-center justify-between text-[9px] app-muted">
+          <span>{formatNewYorkDate(startTime, { day: "numeric", month: "short", year: "numeric" })}</span>
+          <span>{formatNewYorkDate(endTime, { day: "numeric", month: "short", year: "numeric" })}</span>
+        </div>
         {tradeMarkers.length > 0 && (
-          <div className="absolute bottom-3 right-3 flex items-center gap-3 rounded-md bg-[var(--app-panel)]/85 px-2.5 py-1.5 text-[10px] app-muted backdrop-blur">
+          <div className="absolute bottom-7 right-3 flex items-center gap-3 rounded-md bg-[var(--app-panel)]/85 px-2.5 py-1.5 text-[10px] app-muted backdrop-blur">
             <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-brand-400" /> Win</span>
             <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-bear" /> Loss</span>
           </div>

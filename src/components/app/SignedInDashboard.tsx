@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowRight,
   Clock3,
+  Crown,
   Gauge,
   Lightbulb,
   ListChecks,
@@ -170,12 +171,12 @@ export function SignedInDashboard({
     ? [
         {
           icon: Trophy,
-          title: `${WEEKDAYS[Number(dayLeaders[0]?.key ?? 0)]} is your strongest day`,
-          detail: `${formatMoney(dayLeaders[0]?.pnl ?? new Decimal(0))} across ${dayLeaders[0]?.count ?? 0} closed trade${dayLeaders[0]?.count === 1 ? "" : "s"}.`,
+          title: `${trades.length < 10 ? "Early signal: " : ""}${WEEKDAYS[Number(dayLeaders[0]?.key ?? 0)]} is your strongest day`,
+          detail: `${formatMoney(dayLeaders[0]?.pnl ?? new Decimal(0))} across ${dayLeaders[0]?.count ?? 0} closed trade${dayLeaders[0]?.count === 1 ? "" : "s"}.${trades.length < 10 ? " Build toward 10+ trades before treating this as a pattern." : ""}`,
         },
         {
           icon: Clock3,
-          title: `${marketSessionLeaders[0]?.key ?? "New York"} leads your session results`,
+          title: `${trades.length < 10 ? "Early signal: " : ""}${marketSessionLeaders[0]?.key ?? "New York"} leads your session results`,
           detail: `${formatMoney(marketSessionLeaders[0]?.pnl ?? new Decimal(0))} from ${marketSessionLeaders[0]?.count ?? 0} trade${marketSessionLeaders[0]?.count === 1 ? "" : "s"} entered in this market window.`,
         },
         {
@@ -323,21 +324,39 @@ export function SignedInDashboard({
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 sm:py-9">
-      <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+      <header className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
-            Strategy workspace
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
+              Strategy workspace
+            </p>
+            {aiEnabled && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-200">
+                <Crown size={11} aria-hidden /> Pro
+              </span>
+            )}
+          </div>
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
             Welcome back, {displayName}
           </h1>
           <p className="mt-2 text-sm app-muted">
-            Continue your latest replay or review the decisions behind your results.
+            Your strategy command center for replay, review, and improvement.
           </p>
         </div>
-        <Link href="/app/backtest" className="btn-primary shrink-0 shadow-glow">
-          <Plus size={17} aria-hidden /> New backtest
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedSession && (
+            <SessionCardActions
+              sessionId={selectedSession.id}
+              sessionName={scopeLabel}
+              status={selectedSession.status}
+              archived={selectedSession.archived}
+              compact
+            />
+          )}
+          <Link href="/app/backtest" className={`${selectedSession ? "btn-secondary" : "btn-primary shadow-glow"} shrink-0 px-4 py-2.5 text-xs`}>
+            <Plus size={16} aria-hidden /> New backtest
+          </Link>
+        </div>
       </header>
 
       {!selectedSession ? (
@@ -379,17 +398,18 @@ export function SignedInDashboard({
       ) : (
         <>
           <section
-            className="relative mt-7 overflow-hidden rounded-2xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.11),var(--app-panel)_50%,rgba(59,107,255,0.08))] p-5 shadow-card sm:p-6"
+            className="relative mt-7 overflow-hidden rounded-2xl border border-brand-300/30 bg-[linear-gradient(125deg,rgba(34,195,160,0.14),var(--app-panel)_46%,rgba(59,107,255,0.12))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.18)] sm:p-6"
             aria-label="Selected dashboard session"
           >
             <div
               aria-hidden
-              className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-brand-400/10 blur-3xl"
+              className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent-400/15 blur-3xl"
             />
             <div className="relative">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
+                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-300 shadow-[0_0_12px_rgba(34,195,160,0.9)]" aria-hidden />
                     {selectedSession.status === "finished"
                       ? "Review completed session"
                       : "Continue where you stopped"}
@@ -427,8 +447,8 @@ export function SignedInDashboard({
                 />
               </div>
 
-              <div className="mt-6 grid gap-3 border-t app-border pt-5 sm:grid-cols-3">
-                <div className="rounded-xl bg-black/[0.08] p-4">
+              <div className="mt-5 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
+                <div className="bg-[var(--app-panel)]/90 p-4">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold app-muted">Replay progress</span>
                     <span className="font-mono font-semibold">{progress.toFixed(0)}%</span>
@@ -440,31 +460,20 @@ export function SignedInDashboard({
                     />
                   </div>
                 </div>
-                <div className="rounded-xl bg-black/[0.08] p-4">
-                  <p className="text-xs font-semibold app-muted">Last replay candle</p>
+                <div className="bg-[var(--app-panel)]/90 p-4">
+                  <p className="text-xs font-semibold app-muted">Current balance</p>
+                  <p className="mt-2 font-mono text-lg font-semibold">
+                    {formatMoney(new Decimal(selectedSession.balance))}
+                  </p>
+                  <p className="mt-1 text-[10px] app-muted">Started at {formatMoney(new Decimal(selectedSession.startingBalance))}</p>
+                </div>
+                <div className="bg-[var(--app-panel)]/90 p-4">
+                  <p className="text-xs font-semibold app-muted">Replay position</p>
                   <p className="mt-2 text-sm font-semibold">
                     {lastReplayTime ? formatNewYorkDateTime(lastReplayTime) : "Not started"}
                   </p>
+                  <p className="mt-1 text-[10px] app-muted">Saved {formatNewYorkDateTime(selectedSession.updatedAt)}</p>
                 </div>
-                <div className="rounded-xl bg-black/[0.08] p-4">
-                  <p className="text-xs font-semibold app-muted">Last activity</p>
-                  <p className="mt-2 text-sm font-semibold">
-                    {formatNewYorkDateTime(selectedSession.updatedAt)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-col gap-3 border-t app-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-xs app-muted">
-                  Your replay position and trades are saved automatically.
-                </p>
-                <SessionCardActions
-                  sessionId={selectedSession.id}
-                  sessionName={scopeLabel}
-                  status={selectedSession.status}
-                  archived={selectedSession.archived}
-                  compact
-                />
               </div>
             </div>
           </section>
@@ -474,7 +483,7 @@ export function SignedInDashboard({
             aria-label="Selected session summary"
           >
             {summaryCards.map(({ label, value, detail, icon: Icon, tone, accent, visual }) => (
-              <article key={label} className="panel relative overflow-hidden p-5">
+              <article key={label} className="panel group relative overflow-hidden p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-400/25 hover:shadow-card sm:p-5">
                 <span aria-hidden className={`absolute inset-y-0 left-0 w-0.5 ${accent}`} />
                 <div
                   aria-hidden
@@ -484,9 +493,9 @@ export function SignedInDashboard({
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-xs font-medium app-muted">{label}</p>
-                      <p className={`mt-3 font-mono text-2xl font-semibold ${tone}`}>{value}</p>
+                      <p className={`mt-2 font-mono text-2xl font-semibold tracking-tight ${tone}`}>{value}</p>
                     </div>
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--app-panel-2)]">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border app-border bg-[var(--app-panel-2)] transition-colors group-hover:border-brand-400/25">
                       <Icon size={18} className={tone} aria-hidden />
                     </span>
                   </div>
@@ -497,13 +506,13 @@ export function SignedInDashboard({
             ))}
           </section>
 
-          <section className="panel mt-4 p-5 sm:p-6">
+          <section className="panel mt-4 p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
                   Performance
                 </p>
-                <h2 className="mt-2 text-xl font-semibold">Balance and equity</h2>
+                <h2 className="mt-1.5 text-xl font-semibold">Balance and equity</h2>
               </div>
               <div className="flex items-center gap-3">
                 <span
@@ -584,7 +593,7 @@ export function SignedInDashboard({
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-xs font-semibold capitalize">
-                              {trade.direction} position · {trade.exitReason.replace("-", " ")}
+                              {selectedSymbols.map(formatSymbol).join(", ")} · {trade.direction} · {trade.exitReason.replace("-", " ")}
                             </span>
                             <span className="mt-1 block text-[11px] app-muted">
                               {formatNewYorkDateTime(trade.exitTime, {

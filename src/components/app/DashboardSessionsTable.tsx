@@ -104,75 +104,33 @@ export function DashboardSessionsTable({
         </div>
       ) : (
         <>
-          <div className="hidden lg:block">
-            <table className="w-full table-fixed text-left text-sm">
-              <caption className="sr-only">Recent backtesting sessions</caption>
-              <thead className="text-xs app-muted">
-                <tr className="border-b app-border">
-                  <th className="w-[26%] px-5 py-3 font-medium">Session</th>
-                  <th className="w-[14%] px-4 py-3 font-medium">Market</th>
-                  <th className="w-[18%] px-4 py-3 font-medium">Test period</th>
-                  <th className="w-[12%] px-4 py-3 font-medium">Progress</th>
-                  <th className="w-[11%] px-4 py-3 text-right font-medium">Net P/L</th>
-                  <th className="px-5 py-3 text-right font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((session) => (
-                  <tr
-                    key={session.id}
-                    className="border-b app-border/70 transition-colors last:border-0 hover:bg-white/[0.025]"
-                  >
-                    <td className="px-5 py-4">
-                      <Link
-                        href={`/app?session=${encodeURIComponent(session.id)}`}
-                        className="block truncate font-semibold hover:text-brand-300"
-                      >
-                        {session.name}
-                      </Link>
-                      <span className="mt-1 block text-xs app-muted">
-                        {session.updatedLabel}
-                      </span>
-                    </td>
-                    <td className="truncate px-4 py-4 font-mono text-xs">
-                      {session.symbols}
-                    </td>
-                    <td className="truncate px-4 py-4 text-xs app-muted">
-                      {session.dateRange}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.07]">
-                          <div
-                            className="h-full rounded-full bg-brand-500"
-                            style={{ width: `${session.progress}%` }}
-                          />
-                        </div>
-                        <span className="w-8 text-right font-mono text-[11px]">
-                          {session.progress.toFixed(0)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td
-                      className={`px-4 py-4 text-right font-mono font-semibold ${
-                        session.pnl >= 0 ? "text-brand-300" : "text-bear"
-                      }`}
-                    >
-                      {session.pnlLabel}
-                    </td>
-                    <td className="px-5 py-4">
-                      <SessionCardActions
-                        sessionId={session.id}
-                        sessionName={session.name}
-                        status={session.status === "Completed" ? "finished" : "paused"}
-                        archived={session.archived}
-                        compact
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="hidden gap-3 p-4 lg:grid xl:grid-cols-2">
+            {visible.map((session) => (
+              <article key={session.id} className="group relative overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/45 p-4 transition-all hover:-translate-y-0.5 hover:border-brand-400/25 hover:shadow-card">
+                <span aria-hidden className={`absolute inset-y-0 left-0 w-0.5 ${session.pnl >= 0 ? "bg-brand-400/70" : "bg-bear/70"}`} />
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${session.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} />
+                      <Link href={`/app?session=${encodeURIComponent(session.id)}`} className="truncate font-semibold transition-colors group-hover:text-brand-300">{session.name}</Link>
+                    </div>
+                    <p className="mt-2 truncate font-mono text-[11px] app-muted">{session.symbols}</p>
+                  </div>
+                  <p className={`shrink-0 font-mono text-sm font-semibold ${session.pnl >= 0 ? "text-brand-300" : "text-bear"}`}>{session.pnlLabel}</p>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 text-[11px]">
+                  <div><p className="app-muted">Test period</p><p className="mt-1 truncate font-medium">{session.dateRange}</p></div>
+                  <div><p className="app-muted">Last activity</p><p className="mt-1 font-medium">{session.updatedLabel.replace("Updated ", "")}</p></div>
+                </div>
+                <div className="mt-4">
+                  <div className="mb-2 flex items-center justify-between text-[10px] app-muted"><span>{session.status}</span><span className="font-mono">{session.progress.toFixed(0)}%</span></div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${session.progress}%` }} /></div>
+                </div>
+                <div className="mt-4 border-t app-border pt-3">
+                  <SessionCardActions sessionId={session.id} sessionName={session.name} status={session.status === "Completed" ? "finished" : "paused"} archived={session.archived} compact command />
+                </div>
+              </article>
+            ))}
           </div>
 
           <div className="divide-y app-border lg:hidden">

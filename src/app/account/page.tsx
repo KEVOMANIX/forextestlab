@@ -7,6 +7,7 @@ import {
   ChevronRight,
   CircleUserRound,
   CreditCard,
+  Crown,
   KeyRound,
   LayoutDashboard,
   Mail,
@@ -74,8 +75,8 @@ export default async function AccountPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">Profile</p>
-                    <span className="rounded-full border app-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider app-muted">
-                      {currentPlan}
+                    <span className={hasPro ? "inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-200" : "rounded-full border app-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider app-muted"}>
+                      {hasPro && <Crown size={11} aria-hidden />}{currentPlan}
                     </span>
                   </div>
                   <h1 className="mt-2 truncate text-2xl font-bold tracking-tight sm:text-3xl">{displayName}</h1>
@@ -155,11 +156,12 @@ export default async function AccountPage() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-brand-400/20 bg-brand-400/[0.06] p-5">
+            <section className={`relative overflow-hidden rounded-xl border p-5 ${hasPro ? "border-amber-300/25 bg-[linear-gradient(135deg,rgba(251,191,36,0.09),rgba(34,195,160,0.06))]" : "border-brand-400/20 bg-brand-400/[0.06]"}`}>
+              {hasPro && <div aria-hidden className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-300/10 blur-2xl" />}
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">Your plan</p>
               <div className="mt-3 flex items-end justify-between gap-3">
                 <div><p className="text-xl font-bold">{currentPlan}</p><p className="mt-1 text-xs app-muted">{hasPro ? "Paid workspace access is active." : "Core replay access."}</p></div>
-                <Sparkles size={22} className="text-brand-300" aria-hidden />
+                {hasPro ? <Crown size={22} className="text-amber-200" aria-hidden /> : <Sparkles size={22} className="text-brand-300" aria-hidden />}
               </div>
               <Link href="/account/billing" className="mt-5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-300 hover:text-brand-200">
                 Manage subscription <ArrowRight size={14} aria-hidden />

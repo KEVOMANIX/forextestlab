@@ -88,6 +88,10 @@ export function SessionPerformanceChart({
           `${index ? "L" : "M"}${x(index).toFixed(1)},${y(point[key]).toFixed(1)}`,
       )
       .join(" ");
+  const drawdownPath = `${visible.map((point, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(point.equity).toFixed(1)}`).join(" ")} ${[...visible].reverse().map((point, reverseIndex) => {
+    const index = visible.length - 1 - reverseIndex;
+    return `L${x(index).toFixed(1)},${y(point.balance).toFixed(1)}`;
+  }).join(" ")} Z`;
   const activeIndex = hovered ?? visible.length - 1;
   const active = visible[activeIndex]!;
   const activePeak = Math.max(...visible.slice(0, activeIndex + 1).map((point) => point.equity));
@@ -202,6 +206,10 @@ export function SessionPerformanceChart({
               <stop offset="0%" stopColor="#22c3a0" stopOpacity="0.22" />
               <stop offset="100%" stopColor="#22c3a0" stopOpacity="0" />
             </linearGradient>
+            <linearGradient id="session-drawdown-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f4646c" stopOpacity="0.03" />
+              <stop offset="100%" stopColor="#f4646c" stopOpacity="0.16" />
+            </linearGradient>
             <pattern id="session-grid" width="86" height="48" patternUnits="userSpaceOnUse">
               <path
                 d="M 86 0 L 0 0 0 48"
@@ -213,6 +221,7 @@ export function SessionPerformanceChart({
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#session-grid)" className="app-muted" />
+          {showEquity && showBalance && <path d={drawdownPath} fill="url(#session-drawdown-fill)" />}
           {showEquity && (
             <>
               <path
@@ -270,6 +279,8 @@ export function SessionPerformanceChart({
             vectorEffect="non-scaling-stroke"
           />
         </svg>
+        <div className="pointer-events-none absolute right-3 top-3 text-right font-mono text-[9px] app-muted"><p>{money(max)}</p><p className="mt-1 text-[8px] uppercase tracking-wider">range</p></div>
+        <div className="pointer-events-none absolute bottom-7 right-3 font-mono text-[9px] app-muted">{money(min)}</div>
         <div className="pointer-events-none absolute inset-x-3 bottom-2 flex items-center justify-between text-[9px] app-muted">
           <span>{formatNewYorkDate(startTime, { day: "numeric", month: "short", year: "numeric" })}</span>
           <span>{formatNewYorkDate(endTime, { day: "numeric", month: "short", year: "numeric" })}</span>

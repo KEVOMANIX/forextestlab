@@ -1,29 +1,22 @@
 import Link from "next/link";
 import {
-  Activity,
   ArrowRight,
-  Clock3,
   Crown,
   Gauge,
-  Lightbulb,
   ListChecks,
-  Play,
   Plus,
-  Sparkles,
   Target,
   TrendingDown,
   TrendingUp,
-  Trophy,
 } from "lucide-react";
-import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
+import { DashboardReviewWorkspace, type DashboardInsight } from "@/components/app/DashboardReviewWorkspace";
 import {
   DashboardSessionsTable,
   type DashboardSessionRow,
 } from "@/components/app/DashboardSessionsTable";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
-import { PORTFOLIO_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import {
@@ -167,20 +160,20 @@ export function SignedInDashboard({
     getTradingSession(trade.entryTime),
   );
 
-  const insightCards = trades.length
+  const insightCards: DashboardInsight[] = trades.length
     ? [
         {
-          icon: Trophy,
+          icon: "trophy",
           title: `${trades.length < 10 ? "Early signal: " : ""}${WEEKDAYS[Number(dayLeaders[0]?.key ?? 0)]} is your strongest day`,
           detail: `${formatMoney(dayLeaders[0]?.pnl ?? new Decimal(0))} across ${dayLeaders[0]?.count ?? 0} closed trade${dayLeaders[0]?.count === 1 ? "" : "s"}.${trades.length < 10 ? " Build toward 10+ trades before treating this as a pattern." : ""}`,
         },
         {
-          icon: Clock3,
+          icon: "clock",
           title: `${trades.length < 10 ? "Early signal: " : ""}${marketSessionLeaders[0]?.key ?? "New York"} leads your session results`,
           detail: `${formatMoney(marketSessionLeaders[0]?.pnl ?? new Decimal(0))} from ${marketSessionLeaders[0]?.count ?? 0} trade${marketSessionLeaders[0]?.count === 1 ? "" : "s"} entered in this market window.`,
         },
         {
-          icon: Gauge,
+          icon: "gauge",
           title:
             stats?.expectancy === "Not available"
               ? "Build a larger trade sample"
@@ -193,17 +186,17 @@ export function SignedInDashboard({
       ]
     : [
         {
-          icon: Play,
+          icon: "play",
           title: "Resume replay and place your first trade",
           detail: "Insights become specific to this session as you close positions.",
         },
         {
-          icon: Target,
+          icon: "target",
           title: `${progress.toFixed(0)}% of the replay completed`,
           detail: "Continue from the last saved candle whenever you are ready.",
         },
         {
-          icon: Lightbulb,
+          icon: "lightbulb",
           title: "Use notes to capture the reason behind each decision",
           detail: "A consistent record makes the analytics more useful later.",
         },
@@ -535,122 +528,20 @@ export function SignedInDashboard({
             <SessionPerformanceChart points={chartPoints} trades={chartTrades} />
           </section>
 
-          <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
-            <article className="panel p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-                    Performance insights
-                  </p>
-                  <h2 className="mt-2 text-xl font-semibold">
-                    Patterns worth reviewing
-                  </h2>
-                </div>
-                <Sparkles size={20} className="text-brand-300" aria-hidden />
-              </div>
-              <div className="mt-5 grid gap-3 md:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                {insightCards.map(({ icon: Icon, title, detail }) => (
-                  <div
-                    key={title}
-                    className="rounded-xl border app-border bg-[var(--app-panel-2)]/65 p-4 transition-colors hover:border-brand-400/25"
-                  >
-                    <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-400/10 text-brand-300">
-                      <Icon size={16} aria-hidden />
-                    </span>
-                    <h3 className="mt-3 text-sm font-semibold leading-5">{title}</h3>
-                    <p className="mt-2 text-xs leading-5 app-muted">{detail}</p>
-                  </div>
-                ))}
-              </div>
-            </article>
-
-            <aside className="panel p-5 sm:p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-                Recent activity
-              </p>
-              <h2 className="mt-2 text-xl font-semibold">Latest decisions</h2>
-              <div className="mt-5">
-                {recentTradeActivity.length ? (
-                  <ol className="space-y-1">
-                    {recentTradeActivity.map((trade) => {
-                      const pnl = new Decimal(trade.pnl);
-                      return (
-                        <li
-                          key={trade.id}
-                          className="flex items-center gap-3 rounded-xl px-2 py-3 hover:bg-white/[0.025]"
-                        >
-                          <span
-                            className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-                              pnl.gte(0)
-                                ? "bg-brand-400/10 text-brand-300"
-                                : "bg-bear/10 text-bear"
-                            }`}
-                          >
-                            {pnl.gte(0) ? (
-                              <TrendingUp size={14} aria-hidden />
-                            ) : (
-                              <TrendingDown size={14} aria-hidden />
-                            )}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-semibold capitalize">
-                              {selectedSymbols.map(formatSymbol).join(", ")} · {trade.direction} · {trade.exitReason.replace("-", " ")}
-                            </span>
-                            <span className="mt-1 block text-[11px] app-muted">
-                              {formatNewYorkDateTime(trade.exitTime, {
-                                day: "numeric",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </span>
-                          <span
-                            className={`font-mono text-xs font-semibold ${
-                              pnl.gte(0) ? "text-brand-300" : "text-bear"
-                            }`}
-                          >
-                            {formatMoney(pnl)}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ol>
-                ) : (
-                  <div className="rounded-xl bg-[var(--app-panel-2)]/60 px-4 py-8 text-center">
-                    <Activity size={20} className="mx-auto text-brand-300" aria-hidden />
-                    <p className="mt-3 text-sm font-semibold">No closed trades yet</p>
-                    <p className="mt-1 text-xs app-muted">
-                      Your latest decisions will appear here.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </aside>
-          </section>
-
-          <section className="mt-4">
-            {aiEnabled ? (
-              <AiInsightsPanel
-                scope="portfolio"
-                suggestions={PORTFOLIO_SUGGESTED_QUESTIONS}
-                title="Ask your trading data"
-                subtitle="AI analysis across all your saved sessions"
-              />
-            ) : (
-              <div className="flex flex-col gap-3 rounded-xl border border-brand-400/25 bg-brand-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-semibold">Meet your AI trading analyst</p>
-                  <p className="mt-1 text-xs app-muted">
-                    Pro adds an assistant that reviews every session, spots patterns, and recommends what to improve.
-                  </p>
-                </div>
-                <Link href="/account/billing" className="btn-primary shrink-0 px-4 py-2 text-xs">
-                  View Pro plans
-                </Link>
-              </div>
-            )}
-          </section>
+          <DashboardReviewWorkspace
+            insights={insightCards}
+            activity={recentTradeActivity.map((trade) => {
+              const pnl = new Decimal(trade.pnl);
+              return {
+                id: trade.id,
+                label: `${selectedSymbols.map(formatSymbol).join(", ")} · ${trade.direction} · ${trade.exitReason.replace("-", " ")}`,
+                date: formatNewYorkDateTime(trade.exitTime, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
+                pnl: formatMoney(pnl),
+                positive: pnl.gte(0),
+              };
+            })}
+            aiEnabled={aiEnabled}
+          />
         </>
       )}
 

@@ -70,6 +70,23 @@ const R_DISTRIBUTION = [
   { label: "+2R", count: 5 },
   { label: ">+2R", count: 2 },
 ];
+const SETUP_RESULTS = [
+  { label: "London breakout", value: 3721, trades: 8, winRate: 75 },
+  { label: "Opening range", value: 1117, trades: 4, winRate: 75 },
+  { label: "Liquidity sweep", value: 342, trades: 4, winRate: 50 },
+  { label: "NY reversal", value: -360, trades: 3, winRate: 33 },
+];
+const PAIR_RESULTS = [
+  { label: "EUR/USD", value: 3190, trades: 11, share: 66 },
+  { label: "GBP/USD", value: 1094, trades: 5, share: 23 },
+  { label: "USD/JPY", value: 536, trades: 3, share: 11 },
+];
+const HOLDING_RESULTS = [
+  { label: "< 1 hour", value: -220, trades: 4 },
+  { label: "1–4 hours", value: 3560, trades: 9 },
+  { label: "4–8 hours", value: 1120, trades: 4 },
+  { label: "> 8 hours", value: 360, trades: 2 },
+];
 
 function linePath(values: number[]) {
   const width = 920;
@@ -338,6 +355,72 @@ function ReportsWorkspace() {
             {R_DISTRIBUTION.map((bucket) => <div key={bucket.label} className="flex h-full flex-col justify-end text-center"><span className="mb-2 font-mono text-[10px] app-muted">{bucket.count}</span><div className={`mx-auto w-[72%] rounded-t ${bucket.label.startsWith("+") || bucket.label.startsWith(">") ? "bg-brand-400/75" : bucket.label === "0R" ? "bg-white/20" : "bg-bear/75"}`} style={{ height: `${bucket.count / 6 * 80}%` }} /><span className="mt-2 pb-2 text-[9px] app-muted">{bucket.label}</span></div>)}
           </div>
           <p className="mt-4 text-xs leading-5 app-muted">The distribution is positively skewed: <b className="text-[var(--app-text)]">7 trades closed above +1R</b>, while losses remain concentrated near −1R.</p>
+        </ReportCard>
+      </div>
+      <section className="pt-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Edge breakdowns</p>
+        <h2 className="mt-1 text-xl font-semibold">Understand what is driving the result</h2>
+        <p className="mt-1 text-xs app-muted">Compare repeatable sources of profit and identify weak conditions to remove from the plan.</p>
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.75fr)]">
+        <ReportCard eyebrow="Strategy execution" title="Performance by setup" icon={Target}>
+          <div className="mt-5 overflow-x-auto">
+            <div className="min-w-[580px] divide-y app-border">
+              <div className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] gap-4 pb-2 text-[9px] font-semibold uppercase tracking-[0.1em] app-muted"><span>Setup</span><span>Trades</span><span>Win rate</span><span className="text-right">Net P/L</span></div>
+              {SETUP_RESULTS.map((setup) => (
+                <div key={setup.label} className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] items-center gap-4 py-3 text-xs">
+                  <div><p className="font-semibold">{setup.label}</p><div className="mt-2 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[0.05]"><div className={`h-full rounded-full ${setup.value >= 0 ? "bg-brand-400" : "bg-bear"}`} style={{ width: `${Math.max(10, Math.abs(setup.value) / 3721 * 100)}%` }} /></div></div>
+                  <span className="font-mono app-muted">{setup.trades}</span>
+                  <span className="font-mono">{setup.winRate}%</span>
+                  <span className={`text-right font-mono font-semibold ${setup.value >= 0 ? "text-brand-300" : "text-bear"}`}>{setup.value >= 0 ? "+" : "−"}${Math.abs(setup.value).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ReportCard>
+
+        <ReportCard eyebrow="Market selection" title="Performance by pair" icon={BarChart3}>
+          <div className="mt-5 space-y-5">
+            {PAIR_RESULTS.map((pair) => (
+              <div key={pair.label}>
+                <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold">{pair.label}</p><p className="mt-1 text-[9px] app-muted">{pair.trades} trades · {pair.share}% of profit</p></div><p className="font-mono text-xs font-semibold text-brand-300">+${pair.value.toLocaleString()}</p></div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-brand-400" style={{ width: `${pair.share}%` }} /></div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-6 rounded-xl bg-amber-300/[0.06] p-3 text-xs leading-5 app-muted"><b className="text-amber-200">Concentration note:</b> EUR/USD generates two thirds of profit. Validate the edge on more pairs before scaling.</p>
+        </ReportCard>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <ReportCard eyebrow="Direction" title="Long versus short" icon={TrendingUp}>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-brand-400/[0.07] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">Long</p><p className="mt-2 font-mono text-xl font-semibold text-brand-300">+$3,420</p><p className="mt-1 text-[10px] app-muted">11 trades · 73% won</p></div>
+            <div className="rounded-xl bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">Short</p><p className="mt-2 font-mono text-xl font-semibold">+$1,400</p><p className="mt-1 text-[10px] app-muted">8 trades · 63% won</p></div>
+          </div>
+          <p className="mt-4 text-xs leading-5 app-muted">Long entries contribute <b className="text-[var(--app-text)]">71% of net profit</b>, but both directions remain profitable.</p>
+        </ReportCard>
+
+        <ReportCard eyebrow="Trade management" title="Performance by holding time" icon={Clock3}>
+          <div className="mt-5 space-y-3">
+            {HOLDING_RESULTS.map((bucket) => (
+              <div key={bucket.label} className="grid grid-cols-[76px_minmax(0,1fr)_72px] items-center gap-2 text-[10px]">
+                <span className="app-muted">{bucket.label}</span>
+                <div className="h-5 overflow-hidden rounded bg-white/[0.035]"><div className={`h-full rounded ${bucket.value >= 0 ? "bg-brand-400/20" : "bg-bear/20"}`} style={{ width: `${Math.max(12, Math.abs(bucket.value) / 3560 * 100)}%` }} /></div>
+                <span className={`text-right font-mono font-semibold ${bucket.value >= 0 ? "text-brand-300" : "text-bear"}`}>{bucket.value >= 0 ? "+" : "−"}${Math.abs(bucket.value)}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 text-xs leading-5 app-muted">Your strongest trades resolve within <b className="text-[var(--app-text)]">one to four hours</b>. Very fast exits are currently unprofitable.</p>
+        </ReportCard>
+
+        <ReportCard eyebrow="Robustness" title="Profit concentration" icon={ShieldCheck}>
+          <div className="mt-5 flex items-center gap-5">
+            <div className="relative grid h-24 w-24 shrink-0 place-items-center rounded-full" style={{ background: "conic-gradient(#22c3a0 0 44%, rgba(255,255,255,.08) 44% 100%)" }}><div className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--app-panel)]"><div className="text-center"><p className="font-mono text-lg font-semibold">44%</p><p className="text-[8px] app-muted">top 3</p></div></div></div>
+            <div><p className="text-xs font-semibold">Not dependent on one trade</p><p className="mt-2 text-xs leading-5 app-muted">The three largest winners produce 44% of profit. Removing the best trade leaves the strategy profitable.</p></div>
+          </div>
+          <dl className="mt-4 divide-y app-border"><div className="flex justify-between py-2.5 text-xs"><dt className="app-muted">P/L without best trade</dt><dd className="font-mono font-semibold text-brand-300">+$3,580</dd></div><div className="flex justify-between py-2.5 text-xs"><dt className="app-muted">Largest trade contribution</dt><dd className="font-mono font-semibold">25.7%</dd></div></dl>
         </ReportCard>
       </div>
     </main>

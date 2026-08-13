@@ -1,0 +1,39 @@
+name: Production smoke test
+
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: aws-lightsail
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:production
+        env:
+          PRODUCTION_BASE_URL: https://forextestlab.com
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: production-smoke-failure
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

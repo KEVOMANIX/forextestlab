@@ -6,6 +6,8 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Filter,
   Gauge,
@@ -746,6 +748,147 @@ function TimingHeatmap({ trades }: { trades: ClosedTrade[] }) {
   );
 }
 
+type CalendarView = "week" | "month";
+
+interface TradingDaySummary {
+  pnl: number;
+  trades: number;
+  wins: number;
+  returnPct: number;
+}
+
+function calendarKey(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function utcCalendarDate(key: string): Date {
+  const [year, month, day] = key.split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, day!));
+}
+
+function shiftCalendarDate(date: Date, days: number): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days));
+}
+
+function TradingActivityCalendar({ trades, startingBalance }: { trades: ClosedTrade[]; startingBalance: number }) {
+  const latestTrade = trades.reduce((latest, trade) => Math.max(latest, trade.exitTime), 0);
+  const initialParts = getNewYorkDateParts(latestTrade || Date.now());
+  const [view, setView] = useState<CalendarView>("month");
+  const [visibleMonth, setVisibleMonth] = useState(initialParts.month);
+  const [visibleYear, setVisibleYear] = useState(initialParts.year);
+  const [weekAnchor, setWeekAnchor] = useState(() => calendarKey(initialParts.year, initialParts.month, initialParts.day));
+
+  const summaries = useMemo(() => {
+    const result = new Map<string, TradingDaySummary>();
+    let balance = startingBalance;
+    let activeKey = "";
+    let dayStartBalance = balance;
+    for (const trade of [...trades].sort((left, right) => left.exitTime - right.exitTime)) {
+      const parts = getNewYorkDateParts(trade.exitTime);
+      const key = calendarKey(parts.year, parts.month, parts.day);
+      if (key !== activeKey) {
+        activeKey = key;
+        dayStartBalance = balance;
+      }
+      const pnl = Number(trade.pnl);
+      const current = result.get(key) ?? { pnl: 0, trades: 0, wins: 0, returnPct: 0 };
+      current.pnl += pnl;
+      current.trades += 1;
+      if (pnl > 0) current.wins += 1;
+      current.returnPct = dayStartBalance ? (current.pnl / dayStartBalance) * 100 : 0;
+      result.set(key, current);
+      balance += pnl;
+    }
+    return result;
+  }, [startingBalance, trades]);
+
+  const years = useMemo(() => {
+    const values = new Set<number>([initialParts.year, visibleYear]);
+    trades.forEach((trade) => values.add(getNewYorkDateParts(trade.exitTime).year));
+    return [...values].sort((a, b) => b - a);
+  }, [initialParts.year, trades, visibleYear]);
+
+  const cells = useMemo(() => {
+    if (view === "week") {
+      const anchor = utcCalendarDate(weekAnchor);
+      const start = shiftCalendarDate(anchor, -anchor.getUTCDay());
+      return Array.from({ length: 7 }, (_, index) => shiftCalendarDate(start, index));
+    }
+    const first = new Date(Date.UTC(visibleYear, visibleMonth - 1, 1));
+    const start = shiftCalendarDate(first, -first.getUTCDay());
+    return Array.from({ length: 42 }, (_, index) => shiftCalendarDate(start, index));
+  }, [view, visibleMonth, visibleYear, weekAnchor]);
+
+  const move = (direction: -1 | 1) => {
+    if (view === "week") {
+      const next = shiftCalendarDate(utcCalendarDate(weekAnchor), direction * 7);
+      setWeekAnchor(calendarKey(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()));
+      setVisibleMonth(next.getUTCMonth() + 1);
+      setVisibleYear(next.getUTCFullYear());
+      return;
+    }
+    const next = new Date(Date.UTC(visibleYear, visibleMonth - 1 + direction, 1));
+    setVisibleMonth(next.getUTCMonth() + 1);
+    setVisibleYear(next.getUTCFullYear());
+    setWeekAnchor(calendarKey(next.getUTCFullYear(), next.getUTCMonth() + 1, 1));
+  };
+
+  const selectMonth = (month: number) => {
+    setVisibleMonth(month);
+    setWeekAnchor(calendarKey(visibleYear, month, 1));
+  };
+  const selectYear = (year: number) => {
+    setVisibleYear(year);
+    setWeekAnchor(calendarKey(year, visibleMonth, 1));
+  };
+
+  const monthName = new Intl.DateTimeFormat("en", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(visibleYear, visibleMonth - 1, 1)));
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => move(-1)} aria-label={`Previous ${view}`} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:border-brand-400/40 hover:text-brand-300"><ChevronLeft size={17} /></button>
+          <button type="button" onClick={() => move(1)} aria-label={`Next ${view}`} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:border-brand-400/40 hover:text-brand-300"><ChevronRight size={17} /></button>
+          <select aria-label="Calendar month" value={visibleMonth} onChange={(event) => selectMonth(Number(event.target.value))} className="h-9 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-xs font-semibold outline-none focus:border-brand-400/50">
+            {Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{new Intl.DateTimeFormat("en", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2020, index, 1)))}</option>)}
+          </select>
+          <select aria-label="Calendar year" value={visibleYear} onChange={(event) => selectYear(Number(event.target.value))} className="h-9 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-xs font-semibold outline-none focus:border-brand-400/50">
+            {years.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select>
+        </div>
+        <div className="grid grid-cols-2 rounded-lg bg-[var(--app-panel-2)] p-1 text-xs font-semibold">
+          {(["week", "month"] as const).map((option) => <button key={option} type="button" aria-pressed={view === option} onClick={() => setView(option)} className={`rounded-md px-5 py-1.5 capitalize transition-colors ${view === option ? "bg-[var(--app-panel)] text-brand-300 shadow-sm" : "app-muted hover:text-[var(--app-text)]"}`}>{option}</button>)}
+        </div>
+      </div>
+
+      <p className="mt-4 text-sm font-semibold">{view === "month" ? `${monthName} ${visibleYear}` : `Week of ${cells[0]!.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`}</p>
+      <div className="mt-3 grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold app-muted sm:gap-2">
+        {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => <span key={day} className="py-1"><span className="sm:hidden">{day.slice(0, 3)}</span><span className="hidden sm:inline">{day}</span></span>)}
+      </div>
+      <div className="mt-1 grid grid-cols-7 gap-1.5 sm:gap-2">
+        {cells.map((date) => {
+          const key = calendarKey(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
+          const summary = summaries.get(key);
+          const inMonth = date.getUTCMonth() + 1 === visibleMonth;
+          const positive = (summary?.pnl ?? 0) >= 0;
+          const winRate = summary?.trades ? (summary.wins / summary.trades) * 100 : 0;
+          return (
+            <div key={key} title={summary ? `${summary.trades} closed trade${summary.trades === 1 ? "" : "s"} · ${money(summary.pnl)} · ${pct(summary.returnPct, 2)} return · ${pct(winRate, 0)} win rate` : `No closed trades on ${key}`} className={`min-h-20 rounded-lg border p-2 transition-colors sm:min-h-24 ${summary ? positive ? "border-brand-400/25 bg-brand-500/[0.16]" : "border-bear/25 bg-bear/[0.16]" : "app-border bg-[var(--app-panel-2)]/45"} ${view === "month" && !inMonth ? "opacity-35" : ""}`}>
+              <div className="flex items-start justify-between gap-1 text-[10px] sm:text-xs">
+                <span className="font-semibold">{date.getUTCDate()}<span className="hidden sm:inline"> {date.toLocaleDateString("en", { month: "short", timeZone: "UTC" })}</span></span>
+                {summary && <span className={positive ? "text-brand-300" : "text-bear"}>{positive ? "↗" : "↘"} {pct(Math.abs(summary.returnPct), 2)}</span>}
+              </div>
+              {summary && <div className="mt-3 space-y-1"><p className={`font-mono text-[11px] font-semibold sm:text-sm ${positive ? "text-brand-300" : "text-bear"}`}>{money(summary.pnl)}</p><p className="text-[9px] app-muted sm:text-[10px]">{summary.trades} trade{summary.trades === 1 ? "" : "s"} · {pct(winRate, 0)} wins</p></div>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] app-muted"><span>Closed trades grouped by exit date in New York · return uses that day&apos;s opening balance</span><span className="flex items-center gap-3"><i className="h-2.5 w-2.5 rounded-sm bg-brand-500/60" /> Profit <i className="h-2.5 w-2.5 rounded-sm bg-bear/60" /> Loss</span></div>
+    </div>
+  );
+}
+
 function RiskScatter({ trades }: { trades: ClosedTrade[] }) {
   const recorded = trades.filter((t) => Number(t.initialRiskAmount) > 0);
   if (!recorded.length) return <EmptyChart text="MAE/MFE and initial-risk tracking is available for trades opened after the analytics upgrade." />;
@@ -1309,6 +1452,9 @@ export function SessionAnalyticsWorkbench({
 
       {tab === "timing" && (
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <ChartCard title="Trading activity calendar" subtitle="Daily realised performance and trading frequency" className="lg:col-span-2">
+            <TradingActivityCalendar trades={filtered} startingBalance={start} />
+          </ChartCard>
           <ChartCard title="Entry-time heatmap" subtitle="Day of week × hour in New York" className="lg:col-span-2">
             <TimingHeatmap trades={filtered} />
           </ChartCard>

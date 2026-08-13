@@ -5,18 +5,14 @@ import { useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  BarChart3,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Filter,
   Gauge,
   LockKeyhole,
-  Percent,
-  Scale,
   Search,
   ShieldAlert,
-  Target,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -137,7 +133,7 @@ function ChartCard({
   className?: string;
 }) {
   return (
-    <article className={`panel min-w-0 p-5 ${className}`}>
+    <article className={`panel min-w-0 p-4 ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-semibold leading-tight">{title}</h3>
@@ -183,7 +179,7 @@ function HeroSummary({
   }, [points]);
 
   return (
-    <section className="panel relative overflow-hidden p-5 sm:p-6" aria-label="Session performance summary">
+    <section className="panel relative overflow-hidden p-4 sm:p-5" aria-label="Session performance summary">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-70"
@@ -193,11 +189,11 @@ function HeroSummary({
             : "radial-gradient(120% 120% at 0% 0%, rgba(244,100,108,0.10), transparent 55%)",
         }}
       />
-      <div className="relative grid gap-6 lg:grid-cols-[1.1fr_1.4fr] lg:items-center">
+      <div className="relative grid gap-5 lg:grid-cols-[0.9fr_1.35fr] lg:items-center">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">Net profit &amp; loss</p>
           <div className="mt-1.5 flex flex-wrap items-end gap-x-3 gap-y-1">
-            <span className={`font-mono text-4xl font-bold tracking-tight sm:text-5xl ${positive ? "text-brand-300" : "text-bear"}`}>
+            <span className={`font-mono text-3xl font-bold tracking-tight sm:text-4xl ${positive ? "text-brand-300" : "text-bear"}`}>
               {money(net)}
             </span>
             <span
@@ -212,7 +208,7 @@ function HeroSummary({
           <p className="mt-2 font-mono text-xs app-muted">
             {compactMoney(startingBalance)} → <span className="text-[var(--app-text)]">{compactMoney(endingBalance)}</span>
           </p>
-          <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
+          <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
             {[
               { k: "Trades", v: String(trades) },
               { k: "Win rate", v: winRate === null ? "—" : pct(winRate) },
@@ -1139,6 +1135,7 @@ export function SessionAnalyticsWorkbench({
   const [setupFilter, setSetupFilter] = useState("all");
   const [mistakeFilter, setMistakeFilter] = useState("all");
   const [ruleFilter, setRuleFilter] = useState<RuleFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [compareLeft, setCompareLeft] = useState(currentSessionId);
   const [compareRight, setCompareRight] = useState(
     sessions.find((session) => session.sessionId !== currentSessionId)?.sessionId ??
@@ -1180,6 +1177,14 @@ export function SessionAnalyticsWorkbench({
   const timeframeOptions = useMemo(() => [...new Set(availableSessions.map((session) => session.timeframe))], [availableSessions]);
   const setupOptions = useMemo(() => [...new Set(reviewTrades.flatMap((trade) => trade.journal?.setupTags ?? []))].sort(), [reviewTrades]);
   const mistakeOptions = useMemo(() => [...new Set(reviewTrades.flatMap((trade) => trade.journal?.mistakeTags ?? []))].sort(), [reviewTrades]);
+  const advancedFilterCount = [
+    sessionFilter !== currentSessionId,
+    pairFilter !== "all",
+    timeframeFilter !== "all",
+    setupFilter !== "all",
+    mistakeFilter !== "all",
+    ruleFilter !== "all",
+  ].filter(Boolean).length;
 
   const filtered = useMemo(
     () =>
@@ -1204,7 +1209,16 @@ export function SessionAnalyticsWorkbench({
     [filtered, query],
   );
 
-  const start = Number(startingBalance);
+  const filteredSessionIds = new Set(filtered.map((trade) => trade.reviewSessionId));
+  const capitalSessions = availableSessions.filter((session) =>
+    sessionFilter === "all"
+      ? filteredSessionIds.size === 0 || filteredSessionIds.has(session.sessionId)
+      : session.sessionId === sessionFilter,
+  );
+  const start = capitalSessions.reduce(
+    (sum, session) => sum + Number(session.startingBalance),
+    0,
+  ) || Number(startingBalance);
   const analyticsEquityCurve = useMemo<EquityPoint[]>(() => {
     const currentUnfiltered =
       sessionFilter === currentSessionId &&
@@ -1214,19 +1228,27 @@ export function SessionAnalyticsWorkbench({
       mistakeFilter === "all" &&
       ruleFilter === "all" &&
       filter === "all";
-    if (currentUnfiltered) return equityCurve;
+    if (currentUnfiltered && equityCurve.length >= 2) return equityCurve;
+    const sorted = [...filtered].sort((left, right) => left.exitTime - right.exitTime);
+    if (!sorted.length) return [];
     let balance = start;
-    return [...filtered]
-      .sort((left, right) => left.exitTime - right.exitTime)
-      .map((trade, index) => {
+    return [
+      {
+        index: 0,
+        time: Math.min(sorted[0]!.entryTime, sorted[0]!.exitTime - 1),
+        balance: balance.toFixed(2),
+        equity: balance.toFixed(2),
+      },
+      ...sorted.map((trade, index) => {
         balance += Number(trade.pnl);
         return {
-          index,
+          index: index + 1,
           time: trade.exitTime,
           balance: balance.toFixed(2),
           equity: balance.toFixed(2),
         };
-      });
+      }),
+    ];
   }, [currentSessionId, equityCurve, filter, filtered, mistakeFilter, pairFilter, ruleFilter, sessionFilter, setupFilter, start, timeframeFilter]);
   const wins = filtered.filter((t) => Number(t.pnl) > 0);
   const losses = filtered.filter((t) => Number(t.pnl) < 0);
@@ -1234,7 +1256,7 @@ export function SessionAnalyticsWorkbench({
   const grossWin = wins.reduce((s, t) => s + Number(t.pnl), 0);
   const grossLoss = Math.abs(losses.reduce((s, t) => s + Number(t.pnl), 0));
   const expectancy = filtered.length ? net / filtered.length : 0;
-  const profitFactor = grossLoss ? (grossWin / grossLoss).toFixed(2) : "—";
+  const profitFactor = grossLoss ? (grossWin / grossLoss).toFixed(2) : grossWin ? "∞" : "—";
   const winRate = filtered.length ? (wins.length / filtered.length) * 100 : null;
   const endingBalance = start + net;
   const returnPct = start ? (net / start) * 100 : 0;
@@ -1280,20 +1302,22 @@ export function SessionAnalyticsWorkbench({
         : "flat";
 
   const kpis = [
-    { label: "Win rate", value: winRate === null ? "—" : pct(winRate), sub: `${wins.length}W · ${losses.length}L`, tone: "text-brand-300", icon: Target },
-    { label: "Profit factor", value: profitFactor, sub: "gross win ÷ gross loss", tone: "", icon: Scale },
     { label: "Expectancy", value: filtered.length ? money(expectancy) : "—", sub: "per trade", tone: expectancy >= 0 ? "text-brand-300" : "text-bear", icon: Activity },
     { label: "Average R", value: averageR === null ? "—" : `${averageR.toFixed(2)}R`, sub: "realised risk multiple", tone: averageR !== null && averageR >= 0 ? "text-brand-300" : "text-bear", icon: Gauge },
     { label: "Max drawdown", value: money(-maxDd), sub: start ? pct((maxDd / start) * 100) + " of start" : "", tone: "text-bear", icon: ShieldAlert },
-    { label: "Avg win / loss", value: `${wins.length ? compactMoney(grossWin / wins.length) : "—"} / ${losses.length ? compactMoney(-grossLoss / losses.length) : "—"}`, sub: "average outcome", tone: "", icon: Percent },
-    { label: "Best / worst", value: filtered.length ? `${compactMoney(Math.max(...filtered.map((t) => Number(t.pnl))))} / ${compactMoney(Math.min(...filtered.map((t) => Number(t.pnl))))}` : "—", sub: "single-trade extremes", tone: "", icon: BarChart3 },
     { label: "Current streak", value: currentStreak ? `${currentStreak} ${streakWord}` : "—", sub: `avg hold ${filtered.length ? durationLabel(avgHoldMs) : "—"}`, tone: streakType === "Win" ? "text-brand-300" : streakType === "Loss" ? "text-bear" : "", icon: Clock3 },
   ];
+  const tabHeading = {
+    overview: ["Performance overview", "The essential evidence for judging this session."],
+    risk: ["Risk and execution", "Drawdown, trade distribution, excursion and exposure quality."],
+    timing: ["Timing intelligence", "When the strategy performs, stalls, and takes risk."],
+    trades: ["Trade evidence", "Inspect the sequence and every individual execution."],
+  }[tab];
 
   return (
-    <div className="mt-7">
-      <div className="sticky top-16 z-30 flex flex-col gap-3 rounded-xl border app-border bg-[var(--app-panel)]/95 p-2 shadow-lg backdrop-blur lg:flex-row lg:items-center lg:justify-between">
-        <div role="tablist" aria-label="Analytics views" className="flex overflow-x-auto">
+    <div className="mt-5">
+      <div className="sticky top-16 z-30 flex flex-col gap-2 rounded-2xl border app-border bg-[var(--app-panel)]/95 p-2 shadow-xl backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+        <div role="tablist" aria-label="Analytics views" className="flex overflow-x-auto rounded-xl bg-[var(--app-panel-2)]/60 p-1">
           {([["overview", "Overview"], ["risk", "Risk"], ["timing", "Timing"], ["trades", "Trades"]] as const).map(([id, label]) => {
             const locked = !fullAccess && (id === "risk" || id === "timing");
             return (
@@ -1305,7 +1329,7 @@ export function SessionAnalyticsWorkbench({
                 disabled={locked}
                 title={locked ? `${label} analytics are included with Pro` : undefined}
                 onClick={() => setTab(id)}
-                className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${tab === id ? "bg-brand-500 text-surface-950" : "app-muted hover:text-brand-300"} disabled:cursor-not-allowed disabled:opacity-45`}
+                className={`shrink-0 rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${tab === id ? "bg-brand-500 text-surface-950 shadow-sm" : "app-muted hover:bg-white/[0.04] hover:text-brand-300"} disabled:cursor-not-allowed disabled:opacity-45`}
               >
                 {locked && <LockKeyhole size={11} className="mr-1 inline" />}
                 {label}
@@ -1313,30 +1337,48 @@ export function SessionAnalyticsWorkbench({
             );
           })}
         </div>
-        <div className="flex items-center gap-1 overflow-x-auto">
-          <Filter size={13} className="ml-2 shrink-0 app-muted" />
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          <span className="mr-1 shrink-0 text-[10px] font-semibold uppercase tracking-wider app-muted">Outcome</span>
           {([["all", "All"], ["long", "Buy"], ["short", "Sell"], ["winners", "Winners"], ["losers", "Losers"]] as const).map(([id, label]) => (
             <button
               key={id}
               type="button"
               onClick={() => setFilter(id)}
               aria-pressed={filter === id}
-              className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors ${filter === id ? "border-brand-400/40 bg-brand-400/10 text-brand-300" : "app-border app-muted hover:text-brand-300"}`}
+              className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${filter === id ? "bg-white/[0.08] text-[var(--app-text)]" : "app-muted hover:text-brand-300"}`}
             >
               {label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            className={`ml-1 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-semibold transition-colors ${filtersOpen || advancedFilterCount ? "border-brand-400/40 bg-brand-400/10 text-brand-300" : "app-border app-muted hover:border-brand-400/30 hover:text-brand-300"}`}
+          >
+            <Filter size={13} aria-hidden /> Filters
+            {advancedFilterCount > 0 && <span className="grid h-4 min-w-4 place-items-center rounded-full bg-brand-500 px-1 text-[9px] font-bold text-surface-950">{advancedFilterCount}</span>}
+          </button>
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2 rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-3 sm:grid-cols-2 lg:grid-cols-6">
-        <FilterSelect label="Session" value={sessionFilter} onChange={setSessionFilter} options={[["all", "All sessions"], ...availableSessions.map((session) => [session.sessionId, session.name] as [string, string])]} />
-        <FilterSelect label="Pair" value={pairFilter} onChange={setPairFilter} options={[["all", "All pairs"], ...pairOptions.map((value) => [value, value] as [string, string])]} />
-        <FilterSelect label="Timeframe" value={timeframeFilter} onChange={setTimeframeFilter} options={[["all", "All timeframes"], ...timeframeOptions.map((value) => [value, value] as [string, string])]} />
-        <FilterSelect label="Setup" value={setupFilter} onChange={setSetupFilter} options={[["all", "All setups"], ...setupOptions.map((value) => [value, value] as [string, string])]} />
-        <FilterSelect label="Mistake" value={mistakeFilter} onChange={setMistakeFilter} options={[["all", "All mistakes"], ...mistakeOptions.map((value) => [value, value] as [string, string])]} />
-        <FilterSelect label="Rules" value={ruleFilter} onChange={(value) => setRuleFilter(value as RuleFilter)} options={[["all", "All reviews"], ["followed", "Rules followed"], ["broken", "Rules broken"], ["unreviewed", "Not reviewed"]]} />
-      </div>
+      {filtersOpen && (
+        <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-3 shadow-card">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <FilterSelect label="Session" value={sessionFilter} onChange={setSessionFilter} options={[["all", "All sessions"], ...availableSessions.map((session) => [session.sessionId, session.name] as [string, string])]} />
+            <FilterSelect label="Pair" value={pairFilter} onChange={setPairFilter} options={[["all", "All pairs"], ...pairOptions.map((value) => [value, value] as [string, string])]} />
+            <FilterSelect label="Timeframe" value={timeframeFilter} onChange={setTimeframeFilter} options={[["all", "All timeframes"], ...timeframeOptions.map((value) => [value, value] as [string, string])]} />
+            <FilterSelect label="Setup" value={setupFilter} onChange={setSetupFilter} options={[["all", "All setups"], ...setupOptions.map((value) => [value, value] as [string, string])]} />
+            <FilterSelect label="Mistake" value={mistakeFilter} onChange={setMistakeFilter} options={[["all", "All mistakes"], ...mistakeOptions.map((value) => [value, value] as [string, string])]} />
+            <FilterSelect label="Rules" value={ruleFilter} onChange={(value) => setRuleFilter(value as RuleFilter)} options={[["all", "All reviews"], ["followed", "Rules followed"], ["broken", "Rules broken"], ["unreviewed", "Not reviewed"]]} />
+          </div>
+          {advancedFilterCount > 0 && (
+            <div className="mt-3 flex justify-end border-t app-border pt-3">
+              <button type="button" onClick={() => { setSessionFilter(currentSessionId); setPairFilter("all"); setTimeframeFilter("all"); setSetupFilter("all"); setMistakeFilter("all"); setRuleFilter("all"); }} className="text-xs font-semibold app-muted hover:text-brand-300">Clear advanced filters</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {filtered.length < 30 && (
         <div role="note" className="mt-3 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-xs text-amber-200">
@@ -1368,38 +1410,30 @@ export function SessionAnalyticsWorkbench({
         />
       </div>
 
-      <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Filtered analytics summary">
+      <section className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Filtered analytics summary">
         {kpis.map(({ label, value, sub, tone, icon: Icon }) => (
-          <article key={label} className="panel relative overflow-hidden p-4 transition-transform hover:-translate-y-0.5">
+          <article key={label} className="panel relative overflow-hidden p-3.5 transition-transform hover:-translate-y-0.5">
             <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-brand-400/40" />
             <div className="flex items-start justify-between">
               <div className="min-w-0">
                 <p className="text-xs app-muted">{label}</p>
-                <p className={`mt-2 font-mono text-lg font-semibold ${tone}`}>{value}</p>
+                <p className={`mt-1.5 font-mono text-lg font-semibold ${tone}`}>{value}</p>
                 {sub && <p className="mt-1 text-[10px] app-muted">{sub}</p>}
               </div>
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.04] app-muted"><Icon size={16} /></span>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.04] app-muted"><Icon size={15} /></span>
             </div>
           </article>
         ))}
       </section>
 
+      <div className="mt-6 border-b app-border pb-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">{tab === "overview" ? "Summary" : tab}</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight">{tabHeading[0]}</h2>
+        <p className="mt-1 text-xs app-muted">{tabHeading[1]}</p>
+      </div>
+
       {tab === "overview" && (
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <OutcomeBreakdown title="Performance by strategy" rows={strategyRows} />
-          <OutcomeBreakdown title="Rule-followed vs rule-broken" rows={ruleRows} />
-          <ChartCard title="Planned R vs realised R" subtitle="Compares the journal plan with the completed outcome">
-            {plannedRealized.length ? (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-white/[0.03] p-3"><p className="text-xs app-muted">Average planned</p><p className="mt-1 font-mono text-lg font-semibold">{(plannedRealized.reduce((sum, item) => sum + item.planned, 0) / plannedRealized.length).toFixed(2)}R</p></div>
-                  <div className="rounded-xl bg-white/[0.03] p-3"><p className="text-xs app-muted">Average realised</p><p className="mt-1 font-mono text-lg font-semibold">{(plannedRealized.reduce((sum, item) => sum + item.realized, 0) / plannedRealized.length).toFixed(2)}R</p></div>
-                </div>
-                <p className="text-xs app-muted">{plannedRealized.filter((item) => item.realized >= item.planned).length} of {plannedRealized.length} trades met or exceeded the plan.</p>
-              </div>
-            ) : <EmptyChart text="Planned and realised R will appear after journalled trades close." />}
-          </ChartCard>
-          <SessionComparison sessions={availableSessions} leftId={compareLeft} rightId={compareRight} onLeft={setCompareLeft} onRight={setCompareRight} />
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
           <ChartCard title="Equity, balance & drawdown" subtitle="Hover to inspect synchronized account values and trade exits" className="lg:col-span-2">
             <EquityDrawdownChart points={analyticsEquityCurve} trades={filtered} />
           </ChartCard>
@@ -1409,29 +1443,25 @@ export function SessionAnalyticsWorkbench({
           <ChartCard title="Rolling win rate" subtitle="Consistency of the edge over a moving window of trades">
             <RollingWinRateChart trades={filtered} />
           </ChartCard>
-          <ChartCard title="Profit by day of week" subtitle="Net P/L grouped by entry day in New York">
-            <WeekdayProfitChart trades={filtered} />
-          </ChartCard>
-          <ChartCard title="Profit by trading session" subtitle="Asia, London, New York, and rollover by New York entry time">
-            <TradingSessionProfitChart trades={filtered} />
-          </ChartCard>
-          <ChartCard title="Exit reasons" subtitle="How positions were closed">
-            <ExitDonut trades={filtered} />
-          </ChartCard>
-          <ChartCard title="P/L distribution" subtitle="Frequency of typical wins, losses, and outliers">
-            <PnlHistogram trades={filtered} />
-          </ChartCard>
-          <ChartCard title="Buy vs Sell" subtitle="Direction-level consistency">
-            <DirectionComparison trades={filtered} />
-          </ChartCard>
-          <ChartCard title="Trade sequence" subtitle="Hover a result to synchronize it with cumulative P/L" className="lg:col-span-2">
-            <StreakChart trades={filtered} hovered={hoveredTrade} onHover={setHoveredTrade} />
-          </ChartCard>
+          <OutcomeBreakdown title="Performance by strategy" rows={strategyRows} />
+          <OutcomeBreakdown title="Rule-followed vs rule-broken" rows={ruleRows} />
+          {plannedRealized.length > 0 && <ChartCard title="Planned R vs realised R" subtitle="Compares the journal plan with the completed outcome">
+            {(
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-white/[0.03] p-3"><p className="text-xs app-muted">Average planned</p><p className="mt-1 font-mono text-lg font-semibold">{(plannedRealized.reduce((sum, item) => sum + item.planned, 0) / plannedRealized.length).toFixed(2)}R</p></div>
+                  <div className="rounded-xl bg-white/[0.03] p-3"><p className="text-xs app-muted">Average realised</p><p className="mt-1 font-mono text-lg font-semibold">{(plannedRealized.reduce((sum, item) => sum + item.realized, 0) / plannedRealized.length).toFixed(2)}R</p></div>
+                </div>
+                <p className="text-xs app-muted">{plannedRealized.filter((item) => item.realized >= item.planned).length} of {plannedRealized.length} trades met or exceeded the plan.</p>
+              </div>
+            )}
+          </ChartCard>}
+          <SessionComparison sessions={availableSessions} leftId={compareLeft} rightId={compareRight} onLeft={setCompareLeft} onRight={setCompareRight} />
         </div>
       )}
 
       {tab === "risk" && (
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
           <ChartCard title="Drawdown & recovery" subtitle={`Recovery factor ${maxDd ? (net / maxDd).toFixed(2) : "—"} · Maximum drawdown ${money(-maxDd)}`} className="lg:col-span-2">
             <EquityDrawdownChart points={analyticsEquityCurve} trades={filtered} />
           </ChartCard>
@@ -1447,11 +1477,17 @@ export function SessionAnalyticsWorkbench({
           <ChartCard title="Hold-time distribution" subtitle="How long positions stayed open, and the net from each band">
             <DurationDistribution trades={filtered} />
           </ChartCard>
+          <ChartCard title="Exit reasons" subtitle="How positions were closed">
+            <ExitDonut trades={filtered} />
+          </ChartCard>
+          <ChartCard title="Buy vs Sell" subtitle="Direction-level consistency">
+            <DirectionComparison trades={filtered} />
+          </ChartCard>
         </div>
       )}
 
       {tab === "timing" && (
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
           <ChartCard title="Trading activity calendar" subtitle="Daily realised performance and trading frequency" className="lg:col-span-2">
             <TradingActivityCalendar trades={filtered} startingBalance={start} />
           </ChartCard>
@@ -1467,15 +1503,25 @@ export function SessionAnalyticsWorkbench({
           <ChartCard title="Trade duration & R multiple" subtitle="Find whether longer holds improve outcomes" className="lg:col-span-2">
             <RiskScatter trades={filtered} />
           </ChartCard>
+          <ChartCard title="Profit by day of week" subtitle="Net P/L grouped by entry day in New York">
+            <WeekdayProfitChart trades={filtered} />
+          </ChartCard>
+          <ChartCard title="Profit by trading session" subtitle="Asia, London, New York, and rollover by New York entry time">
+            <TradingSessionProfitChart trades={filtered} />
+          </ChartCard>
         </div>
       )}
 
       {tab === "trades" && (
-        <section className="panel mt-4 overflow-hidden">
+        <div className="mt-3 space-y-3">
+          <ChartCard title="Trade sequence" subtitle="Hover a result to synchronize it with cumulative P/L">
+            <StreakChart trades={filtered} hovered={hoveredTrade} onHover={setHoveredTrade} />
+          </ChartCard>
+        <section className="panel overflow-hidden">
           <div className="flex flex-col gap-3 border-b app-border p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="font-semibold">Trade history</h3>
-              <p className="mt-1 text-xs app-muted">{searched.length} of {trades.length} trades shown</p>
+              <p className="mt-1 text-xs app-muted">{searched.length} of {filtered.length} filtered trades shown</p>
             </div>
             <label className="flex h-9 items-center gap-2 rounded-lg border app-border bg-[var(--app-panel-2)] px-3">
               <Search size={14} className="app-muted" />
@@ -1484,6 +1530,7 @@ export function SessionAnalyticsWorkbench({
           </div>
           <TradesTable trades={searched} />
         </section>
+        </div>
       )}
     </div>
   );

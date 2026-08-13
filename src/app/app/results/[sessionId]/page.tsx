@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangle, ChevronDown, LockKeyhole, Plus } from "lucide-react";
+import { AlertTriangle, ChevronDown, Crown, LockKeyhole, Plus } from "lucide-react";
 
 import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
 import { BackLink } from "@/components/app/BackLink";
@@ -39,23 +39,27 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
     : 0;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:py-10">
+    <div className="analytics-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
       <BackLink label="Back to dashboard" fallback="/app" />
 
-      <header className="relative mt-5 overflow-hidden rounded-2xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.11),var(--app-panel)_48%,rgba(59,107,255,0.08))] p-5 shadow-card sm:p-7">
+      <header className="relative mt-4 overflow-hidden rounded-2xl border border-brand-400/25 bg-[linear-gradient(135deg,rgba(34,195,160,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-4 shadow-card sm:p-5">
         <div aria-hidden className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-brand-400/10 blur-3xl" />
-        <div className="relative flex flex-col gap-6">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="relative flex flex-col gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">Session analytics</p>
-              <h1 className="mt-2 truncate text-3xl font-bold tracking-tight sm:text-4xl">{results.name}</h1>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs app-muted">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">Session analytics</p>
+                {entitlements.fullAnalytics && <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-200"><Crown size={10} aria-hidden /> Pro workspace</span>}
+              </div>
+              <h1 className="mt-1.5 truncate text-2xl font-bold tracking-tight sm:text-3xl">{results.name}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs app-muted">
                 <span className={`rounded-full px-2.5 py-1 font-semibold ${state.status === "finished" ? "bg-brand-400/10 text-brand-300" : "bg-amber-400/10 text-amber-300"}`}>{state.status === "finished" ? "Completed" : "Active"}</span>
                 {results.symbols.map((symbol) => <span key={symbol} className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold">{formatSymbol(symbol)}</span>)}
                 <span>{formatNewYorkDate(state.config.startTime)} – {formatNewYorkDate(state.config.endTime)} · New York time</span>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <SessionCardActions sessionId={results.sessionId} sessionName={results.name} status={state.status} archived={archived} showAnalytics={false} compact command />
               {entitlements.csvExports ? (
                 <ExportTradesButton trades={state.closedTrades} symbol={results.symbol} sessionId={results.sessionId} />
               ) : (
@@ -63,11 +67,10 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
                   <LockKeyhole size={14} aria-hidden /> Export with Pro
                 </Link>
               )}
-              <SessionCardActions sessionId={results.sessionId} status={state.status} archived={archived} showAnalytics={false} />
-              <Link href="/app/backtest" className="btn-primary px-3 py-2 text-xs"><Plus size={14} /> New session</Link>
+              <Link href="/app/backtest" className="btn-secondary px-3 py-2 text-xs"><Plus size={14} /> New session</Link>
             </div>
           </div>
-          <div className="border-t app-border pt-4">
+          <div className="border-t app-border pt-3">
             <div className="flex items-center justify-between text-xs"><span className="font-semibold app-muted">Replay progress</span><span className="font-mono font-semibold">{progress.toFixed(0)}%</span></div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${progress}%` }} /></div>
           </div>
@@ -90,10 +93,7 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
         sessions={results.reviewSessions}
       />
 
-      <SessionTradeJournal
-        sessionId={results.sessionId}
-        initialTrades={state.closedTrades}
-      />
+      <SessionTradeJournal sessionId={results.sessionId} initialTrades={state.closedTrades} collapsible />
       <BranchComparison currentId={results.sessionId} branches={results.branchComparison} />
       {state.status === "finished" && <SessionFeedback sessionId={results.sessionId} />}
 

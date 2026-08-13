@@ -184,6 +184,16 @@
     line-height: 1.25rem;
   }
 
+  .app-shell .analytics-workspace .text-xs {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+
+  .app-shell .analytics-workspace .text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
   .app-shell.light,
   .app-theme-surface.light {
     --app-bg: #eef2f6;

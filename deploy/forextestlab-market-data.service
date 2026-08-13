@@ -10,7 +10,7 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/forextestlab
 EnvironmentFile=/home/ubuntu/forextestlab/.env
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/flock /home/ubuntu/forextestlab/data/.market-data.lock /usr/bin/npm run data:sync-r2 -- --bootstrap-days=45 --overlap-days=2
+ExecStart=/usr/bin/flock /home/ubuntu/forextestlab/data/.market-data.lock /usr/bin/npm run data:sync-r2 -- --bootstrap-days=45 --overlap-days=1
 TimeoutStartSec=24h
 UMask=0077
 NoNewPrivileges=true

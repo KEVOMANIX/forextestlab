@@ -200,6 +200,8 @@ function formatVolume(volume: number): string {
 }
 
 interface PriceChartProps {
+  /** Fires after the canvas and its initial price series have been created. */
+  onReady?: () => void;
   initialCandles: Candle[];
   contextCandles: Candle[];
   lastCandle: Candle | null;
@@ -583,6 +585,7 @@ function ToolButton({
 }
 
 export default function PriceChart({
+  onReady,
   initialCandles,
   contextCandles,
   lastCandle,
@@ -636,6 +639,8 @@ export default function PriceChart({
   orderTicket = null,
   axisCorner = null,
 }: PriceChartProps) {
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
   // Drawings belong to the instrument; the rest of the view belongs to the cell.
   const viewStorageKey = viewKey ?? storageKey;
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1634,6 +1639,12 @@ export default function PriceChart({
     setChartApi(chart);
     createSeriesPair(chartTypeRef.current);
     resetLatestViewport();
+    // Let Lightweight Charts complete its first layout and paint before the
+    // terminal removes the full-screen loader. Two frames prevents a flash of
+    // an empty canvas on slower devices.
+    let readyFrame = requestAnimationFrame(() => {
+      readyFrame = requestAnimationFrame(() => onReadyRef.current?.());
+    });
 
     if (viewStorageKey) {
       try {
@@ -1802,6 +1813,7 @@ export default function PriceChart({
     observer.observe(container);
 
     return () => {
+      cancelAnimationFrame(readyFrame);
       observer.disconnect();
       container.removeEventListener("pointerdown", focusCell, true);
       container.removeEventListener("pointerdown", beginViewportInteraction, true);

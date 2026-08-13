@@ -25,7 +25,7 @@ const MARKET_QUOTES = [
   "One disciplined setup is worth more than a hundred forced trades.",
 ] as const;
 
-export function PageLoader() {
+export function PageLoader({ message = "Loading…" }: { message?: string }) {
   const [quoteIndex, setQuoteIndex] = useState(0);
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export function PageLoader() {
         <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-white/10">
           <div className="page-loader-progress h-full w-2/5 rounded-full bg-gradient-to-r from-brand-500 via-brand-300 to-accent-400" />
         </div>
-        <p className="mt-3 text-xs font-medium text-slate-400">Loading…</p>
+        <p className="mt-3 text-xs font-medium text-slate-400">{message}</p>
 
         <div className="mt-6 w-full border-t border-white/10 pt-5" aria-hidden="true">
           <blockquote

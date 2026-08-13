@@ -118,6 +118,8 @@ function readStoredLayout(storageKey: string): StoredLayout | null {
 }
 
 interface ChartGridProps {
+  /** Fires once every initially visible pane has painted its chart canvas. */
+  onReady?: () => void;
   state: PublicSessionState;
   /**
    * The session symbol's whole series. Cells reveal it against the replay clock
@@ -185,6 +187,7 @@ interface ChartGridProps {
 }
 
 export default function ChartGrid({
+  onReady,
   state,
   sessionSeries,
   sessionContextCandles,
@@ -233,6 +236,7 @@ export default function ChartGrid({
   const [focusedId, setFocusedId] = useState("cell-1");
   const [restored, setRestored] = useState(false);
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+  const [readyCells, setReadyCells] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const saved = readStoredLayout(storageKey);
@@ -274,6 +278,14 @@ export default function ChartGrid({
     }
     return next;
   }, [cells, layout, focusedId, sessionSymbol, storageKey]);
+  const visibleIdentity = visibleCells.map((cell) => `${cell.id}:${cell.symbol}`).join("|");
+
+  useEffect(() => setReadyCells(new Set()), [visibleIdentity]);
+  useEffect(() => {
+    if (!restored || !onReady) return;
+    const allReady = visibleCells.every((cell) => readyCells.has(`${cell.id}:${cell.symbol}`));
+    if (allReady) onReady();
+  }, [onReady, readyCells, restored, visibleCells]);
 
   // Persist cells the layout has grown into. Shrinking keeps the hidden cells'
   // configuration so switching back to a wider layout restores it.
@@ -481,6 +493,13 @@ export default function ChartGrid({
               }`}
             >
               <ChartCellView
+                onReady={() => setReadyCells((current) => {
+                  const key = `${cell.id}:${cell.symbol}`;
+                  if (current.has(key)) return current;
+                  const next = new Set(current);
+                  next.add(key);
+                  return next;
+                })}
                 cell={cell}
                 state={state}
                 isSession={isSession}
@@ -544,6 +563,7 @@ export default function ChartGrid({
 }
 
 interface ChartCellViewProps {
+  onReady: () => void;
   cell: ChartCell;
   state: PublicSessionState;
   isSession: boolean;
@@ -599,6 +619,7 @@ interface ChartCellViewProps {
 }
 
 function ChartCellView({
+  onReady,
   cell,
   state,
   isSession,
@@ -658,6 +679,7 @@ function ChartCellView({
 
   return (
       <PriceChart
+        onReady={onReady}
         key={`${cell.id}-${cell.symbol}`}
         onFocus={onFocus}
         initialCandles={reveal.initialCandles}

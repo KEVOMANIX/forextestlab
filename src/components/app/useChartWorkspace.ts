@@ -21,6 +21,8 @@ const REPLAY_POSITION_KEY = "forextestlab:replay-position";
  * its own panel to manage, for a benefit nobody was getting.
  */
 export interface ChartWorkspace {
+  /** Local and, when signed in, server preferences have finished restoring. */
+  ready: boolean;
   settings: ChartSettings;
   updateSettings: (patch: Partial<ChartSettings>) => void;
   resetSettings: () => void;
@@ -109,7 +111,9 @@ export function useChartWorkspace(
 ): ChartWorkspace {
   const [settings, setSettings] = useState<ChartSettings>(DEFAULT_CHART_SETTINGS);
   const [favorites, setFavorites] = useState<Set<ToolKind>>(new Set());
-  const [restored, setRestored] = useState(false);
+  const [restoredStorageKey, setRestoredStorageKey] = useState<string | null>(null);
+  const restored = restoredStorageKey === storageKey;
+  const [serverRestoredStorageKey, setServerRestoredStorageKey] = useState<string | null>(null);
   /**
    * Background sync state, kept internal. Nothing surfaces it: preferences are
    * cheap to re-set and local storage stays authoritative, so a failed sync is
@@ -130,7 +134,7 @@ export function useChartWorkspace(
     ) ?? migrateFromCell(storageKey);
     if (saved) setSettings((current) => ({ ...current, ...saved }));
     setFavorites(new Set(parse<ToolKind[]>(window.localStorage.getItem(FAVOURITES_KEY), [])));
-    setRestored(true);
+    setRestoredStorageKey(storageKey);
   }, [storageKey]);
 
   useEffect(() => {
@@ -141,9 +145,16 @@ export function useChartWorkspace(
   useEffect(() => {
     if (!signedIn || !restored) return;
     let cancelled = false;
+    setSyncStatus("loading");
+    setServerRestoredStorageKey(null);
     void fetch("/api/workspace", { cache: "no-store" }).then(async (response) => {
       const data = await response.json() as { ok?: boolean; workspace?: { payload: WorkspacePayload; updatedAt: string } | null };
-      if (cancelled || !data.ok) { setSyncStatus("error"); return; }
+      if (cancelled) return;
+      if (!data.ok) {
+        setSyncStatus("error");
+        setServerRestoredStorageKey(storageKey);
+        return;
+      }
       if (data.workspace) {
         applyWorkspace(storageKey, data.workspace.payload);
         setSettings({ ...DEFAULT_CHART_SETTINGS, ...data.workspace.payload.settings });
@@ -152,7 +163,12 @@ export function useChartWorkspace(
         lastSavedRef.current = JSON.stringify(data.workspace.payload);
       }
       setSyncStatus("saved");
-    }).catch(() => setSyncStatus("error"));
+      setServerRestoredStorageKey(storageKey);
+    }).catch(() => {
+      if (cancelled) return;
+      setSyncStatus("error");
+      setServerRestoredStorageKey(storageKey);
+    });
     return () => { cancelled = true; };
   }, [restored, signedIn, storageKey]);
 
@@ -220,5 +236,13 @@ export function useChartWorkspace(
     });
   }, []);
 
-  return { settings, updateSettings, resetSettings, favorites, toggleFavorite, revision };
+  return {
+    ready: restored && (!signedIn || serverRestoredStorageKey === storageKey),
+    settings,
+    updateSettings,
+    resetSettings,
+    favorites,
+    toggleFavorite,
+    revision,
+  };
 }

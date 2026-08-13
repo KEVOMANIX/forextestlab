@@ -138,6 +138,13 @@ export function Backtester({
   );
   // Chart preferences are shared by every chart in the session's workspace.
   const workspace = useChartWorkspace(String(bt.sessionId ?? "new"), Boolean(state && !state.anonymous), workspaceSymbols);
+  const chartLoadIdentity = state
+    ? `${state.sessionId}:${bt.resetNonce}:${workspace.revision}`
+    : null;
+  const [readyChartIdentity, setReadyChartIdentity] = useState<string | null>(null);
+  const markChartReady = useCallback(() => {
+    if (chartLoadIdentity) setReadyChartIdentity(chartLoadIdentity);
+  }, [chartLoadIdentity]);
   // Same per-symbol currency mapping each chart pane already badges its own
   // releases with, just unioned across every symbol open in this workspace.
   const workspaceCurrencies = useMemo(() => {
@@ -704,10 +711,11 @@ export function Backtester({
   }, [actions.closeAllPositions, holdReplayFor, state?.openPositions.length]);
 
   if (bt.phase === "loading") {
-    return <PageLoader />;
+    return <PageLoader message="Loading market data…" />;
   }
 
   if (bt.phase === "setup" || !state) {
+    if (bt.busy) return <PageLoader message="Preparing your backtest…" />;
     return (
       <div className="mx-auto max-w-[1600px] px-4 py-8">
         <div className="mx-auto mb-4 max-w-5xl">
@@ -1007,6 +1015,7 @@ export function Backtester({
       <div className="flex min-h-0 flex-1">
         <div className="relative min-w-0 flex-1 overflow-hidden">
           <ChartGrid
+            onReady={markChartReady}
             key={`${state.sessionId}-${bt.resetNonce}-${workspace.revision}`}
             state={state}
             sessionSeries={bt.replayCandles}
@@ -1193,6 +1202,9 @@ export function Backtester({
         onForkSession={() => void forkSession()}
       />}
       <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
+      {(!workspace.ready || readyChartIdentity !== chartLoadIdentity) && (
+        <PageLoader message="Preparing chart and candles…" />
+      )}
       <PositionEditorModal
         state={state}
         position={state.openPositions.find((item) => item.id === editorPositionId) ?? null}

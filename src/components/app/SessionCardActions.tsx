@@ -111,11 +111,11 @@ export function SessionCardActions({
 
   return (
     <>
-    <div className={command ? "inline-flex flex-wrap items-center gap-1 rounded-xl border app-border bg-[var(--app-panel-2)]/80 p-1 shadow-sm" : "flex flex-wrap items-center justify-end gap-2"}>
+    <div className="flex flex-wrap items-center justify-end gap-2">
       {!finished && (
         <Link
           href={`/app/backtest?session=${encodeURIComponent(sessionId)}`}
-          className={command ? "inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-glow transition-colors hover:bg-brand-400" : "btn-primary px-3 py-2 text-xs"}
+          className={command ? "inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm transition-colors hover:bg-brand-400" : "btn-primary px-3 py-2 text-xs"}
         >
           <Play size={14} aria-hidden /> Resume
         </Link>
@@ -123,7 +123,7 @@ export function SessionCardActions({
       {showAnalytics && (
         <Link
           href={`/app/results/${sessionId}`}
-          className={command ? `inline-flex h-9 items-center gap-2 rounded-lg px-4 text-xs font-semibold transition-colors ${finished ? "bg-brand-500 text-surface-950 shadow-glow hover:bg-brand-400" : "text-[var(--app-text)] hover:bg-white/[0.07] hover:text-brand-300"}` : `${finished ? "btn-primary" : "btn-secondary"} px-3 py-2 text-xs`}
+          className={command ? `inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${finished ? "border-brand-400/40 bg-brand-500 text-surface-950 shadow-sm hover:bg-brand-400" : "app-border bg-[var(--app-panel-2)] text-[var(--app-text)] hover:border-brand-400/35 hover:text-brand-300"}` : `${finished ? "btn-primary" : "btn-secondary"} px-3 py-2 text-xs`}
         >
           <BarChart3 size={14} aria-hidden /> Analytics
         </Link>
@@ -131,7 +131,7 @@ export function SessionCardActions({
       {compact ? (
         <details className="group relative">
           <summary
-            className={`grid cursor-pointer list-none place-items-center rounded-lg app-muted transition-colors hover:text-brand-300 ${command ? "h-9 w-9 hover:bg-white/[0.07]" : "h-8 w-8 border app-border hover:border-brand-400/35"}`}
+            className={`grid cursor-pointer list-none place-items-center rounded-lg border app-border app-muted transition-colors hover:border-brand-400/35 hover:text-brand-300 ${command ? "h-9 w-9 bg-[var(--app-panel-2)]" : "h-8 w-8"}`}
             aria-label="More session actions"
             title="More actions"
           >

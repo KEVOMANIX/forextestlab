@@ -52,13 +52,14 @@ export function DashboardSessionSwitcher({
 
   return (
     <div className="relative">
-      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">Change session</p>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-10 min-w-48 items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-left text-sm font-semibold transition-colors hover:border-brand-400/40"
+        className="inline-flex h-9 min-w-44 items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-left text-xs font-semibold transition-colors hover:border-brand-400/40 hover:bg-white/[0.04]"
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label="Change dashboard session"
+        title="Change dashboard session"
       >
         <span className="truncate">{selected?.name ?? "Choose session"}</span>
         <ChevronDown size={15} className="shrink-0 app-muted" aria-hidden />

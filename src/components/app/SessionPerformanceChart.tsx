@@ -55,11 +55,11 @@ export function SessionPerformanceChart({
 
   if (visible.length < 2) {
     return (
-      <div className="mt-5 grid min-h-48 place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/40 p-6 text-center">
+      <div className="mt-4 grid min-h-32 place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/40 p-5 text-center">
         <div>
           <p className="font-semibold">Performance history will appear here</p>
           <p className="mt-1 text-sm app-muted">
-            Resume this session and close a trade to start building the curve.
+            Close a trade to start building your balance and equity curve.
           </p>
         </div>
       </div>

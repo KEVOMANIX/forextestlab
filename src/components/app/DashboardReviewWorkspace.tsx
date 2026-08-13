@@ -42,7 +42,7 @@ export function DashboardReviewWorkspace({ insights, activity, aiEnabled }: { in
 
   return (
     <section className="panel mt-4 overflow-hidden">
-      <div className="flex flex-col gap-3 border-b app-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="flex flex-col gap-3 border-b app-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">Review workspace</p>
           <h2 className="mt-1 text-lg font-semibold">Turn results into better decisions</h2>
@@ -56,12 +56,12 @@ export function DashboardReviewWorkspace({ insights, activity, aiEnabled }: { in
         </div>
       </div>
 
-      <div className="p-4 sm:p-5">
+      <div className="p-3 sm:p-4">
         {tab === "insights" && (
           <div className="grid gap-3 md:grid-cols-3">
             {insights.map(({ icon, title, detail }) => {
               const Icon = INSIGHT_ICONS[icon];
-              return <article key={title} className="rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4"><span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-400/10 text-brand-300"><Icon size={16} aria-hidden /></span><h3 className="mt-3 text-sm font-semibold leading-5">{title}</h3><p className="mt-2 text-xs leading-5 app-muted">{detail}</p></article>;
+              return <article key={title} className="flex gap-3 rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-3.5"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-400/10 text-brand-300"><Icon size={16} aria-hidden /></span><div className="min-w-0"><h3 className="text-sm font-semibold leading-5">{title}</h3><p className="mt-1 text-xs leading-5 app-muted">{detail}</p></div></article>;
             })}
           </div>
         )}

@@ -49,6 +49,7 @@ export function DashboardSessionsTable({
         return right.updatedAt - left.updatedAt;
       });
   }, [query, sessions, sort, status]);
+  const displayed = visible.slice(0, 6);
 
   return (
     <div className="panel mt-4">
@@ -104,9 +105,9 @@ export function DashboardSessionsTable({
         </div>
       ) : (
         <>
-          <div className="hidden gap-3 p-4 lg:grid xl:grid-cols-2">
-            {visible.map((session) => (
-              <article key={session.id} className="group relative overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/45 p-4 transition-all hover:-translate-y-0.5 hover:border-brand-400/25 hover:shadow-card">
+          <div className="hidden gap-3 p-3 lg:grid lg:grid-cols-2 xl:grid-cols-3">
+            {displayed.map((session) => (
+              <article key={session.id} className="group relative overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/45 p-3.5 transition-all hover:-translate-y-0.5 hover:border-brand-400/25 hover:shadow-card">
                 <span aria-hidden className={`absolute inset-y-0 left-0 w-0.5 ${session.pnl >= 0 ? "bg-brand-400/70" : "bg-bear/70"}`} />
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
@@ -114,27 +115,27 @@ export function DashboardSessionsTable({
                       <span className={`h-2 w-2 shrink-0 rounded-full ${session.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} />
                       <Link href={`/app?session=${encodeURIComponent(session.id)}`} className="truncate font-semibold transition-colors group-hover:text-brand-300">{session.name}</Link>
                     </div>
-                    <p className="mt-2 truncate font-mono text-[11px] app-muted">{session.symbols}</p>
+                    <p className="mt-1.5 truncate font-mono text-[11px] app-muted">{session.symbols}</p>
                   </div>
                   <p className={`shrink-0 font-mono text-sm font-semibold ${session.pnl >= 0 ? "text-brand-300" : "text-bear"}`}>{session.pnlLabel}</p>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-[11px]">
-                  <div><p className="app-muted">Test period</p><p className="mt-1 truncate font-medium">{session.dateRange}</p></div>
-                  <div><p className="app-muted">Last activity</p><p className="mt-1 font-medium">{session.updatedLabel.replace("Updated ", "")}</p></div>
+                <div className="mt-3 flex items-center justify-between gap-3 text-[11px] app-muted">
+                  <p className="truncate">{session.dateRange}</p>
+                  <p className="shrink-0">{session.updatedLabel}</p>
                 </div>
-                <div className="mt-4">
+                <div className="mt-3">
                   <div className="mb-2 flex items-center justify-between text-[10px] app-muted"><span>{session.status}</span><span className="font-mono">{session.progress.toFixed(0)}%</span></div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${session.progress}%` }} /></div>
                 </div>
-                <div className="mt-4 border-t app-border pt-3">
-                  <SessionCardActions sessionId={session.id} sessionName={session.name} status={session.status === "Completed" ? "finished" : "paused"} archived={session.archived} compact command />
+                <div className="mt-3 border-t app-border pt-3">
+                  <SessionCardActions sessionId={session.id} sessionName={session.name} status={session.status === "Completed" ? "finished" : "paused"} archived={session.archived} compact />
                 </div>
               </article>
             ))}
           </div>
 
           <div className="divide-y app-border lg:hidden">
-            {visible.map((session) => (
+            {displayed.map((session) => (
               <article key={session.id} className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -191,6 +192,11 @@ export function DashboardSessionsTable({
               </article>
             ))}
           </div>
+          {visible.length > displayed.length && (
+            <div className="border-t app-border px-4 py-3 text-center text-xs app-muted">
+              Showing {displayed.length} of {visible.length} sessions. Use search or open full history to see more.
+            </div>
+          )}
         </>
       )}
     </div>

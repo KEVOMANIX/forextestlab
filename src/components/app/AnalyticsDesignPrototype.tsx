@@ -70,16 +70,16 @@ const R_DISTRIBUTION = [
   { label: "+2R", count: 5 },
   { label: ">+2R", count: 2 },
 ];
-const SETUP_RESULTS = [
-  { label: "London breakout", value: 3721, trades: 8, winRate: 75 },
-  { label: "Opening range", value: 1117, trades: 4, winRate: 75 },
-  { label: "Liquidity sweep", value: 342, trades: 4, winRate: 50 },
-  { label: "NY reversal", value: -360, trades: 3, winRate: 33 },
+const EXIT_RESULTS = [
+  { label: "Take profit", value: 4080, trades: 6, winRate: 100 },
+  { label: "Manual close", value: 1420, trades: 9, winRate: 67 },
+  { label: "Stop loss", value: -680, trades: 3, winRate: 0 },
+  { label: "Session end", value: 0, trades: 1, winRate: 0 },
 ];
-const PAIR_RESULTS = [
-  { label: "EUR/USD", value: 3190, trades: 11, share: 66 },
-  { label: "GBP/USD", value: 1094, trades: 5, share: 23 },
-  { label: "USD/JPY", value: 536, trades: 3, share: 11 },
+const SIZE_RESULTS = [
+  { label: "Under 0.50 lots", value: 780, trades: 5, share: 16 },
+  { label: "0.50–0.99 lots", value: 1540, trades: 7, share: 32 },
+  { label: "1.00 lots and above", value: 2500, trades: 7, share: 52 },
 ];
 const HOLDING_RESULTS = [
   { label: "< 1 hour", value: -220, trades: 4 },
@@ -364,32 +364,32 @@ function ReportsWorkspace() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.75fr)]">
-        <ReportCard eyebrow="Strategy execution" title="Performance by setup" icon={Target}>
+        <ReportCard eyebrow="Trade exits" title="Performance by exit reason" icon={Target}>
           <div className="mt-5 overflow-x-auto">
             <div className="min-w-[580px] divide-y app-border">
-              <div className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] gap-4 pb-2 text-[9px] font-semibold uppercase tracking-[0.1em] app-muted"><span>Setup</span><span>Trades</span><span>Win rate</span><span className="text-right">Net P/L</span></div>
-              {SETUP_RESULTS.map((setup) => (
-                <div key={setup.label} className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] items-center gap-4 py-3 text-xs">
-                  <div><p className="font-semibold">{setup.label}</p><div className="mt-2 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[0.05]"><div className={`h-full rounded-full ${setup.value >= 0 ? "bg-brand-400" : "bg-bear"}`} style={{ width: `${Math.max(10, Math.abs(setup.value) / 3721 * 100)}%` }} /></div></div>
-                  <span className="font-mono app-muted">{setup.trades}</span>
-                  <span className="font-mono">{setup.winRate}%</span>
-                  <span className={`text-right font-mono font-semibold ${setup.value >= 0 ? "text-brand-300" : "text-bear"}`}>{setup.value >= 0 ? "+" : "−"}${Math.abs(setup.value).toLocaleString()}</span>
+              <div className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] gap-4 pb-2 text-[9px] font-semibold uppercase tracking-[0.1em] app-muted"><span>Exit reason</span><span>Trades</span><span>Win rate</span><span className="text-right">Net P/L</span></div>
+              {EXIT_RESULTS.map((exit) => (
+                <div key={exit.label} className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] items-center gap-4 py-3 text-xs">
+                  <div><p className="font-semibold">{exit.label}</p><div className="mt-2 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[0.05]"><div className={`h-full rounded-full ${exit.value >= 0 ? "bg-brand-400" : "bg-bear"}`} style={{ width: `${Math.max(10, Math.abs(exit.value) / 4080 * 100)}%` }} /></div></div>
+                  <span className="font-mono app-muted">{exit.trades}</span>
+                  <span className="font-mono">{exit.winRate}%</span>
+                  <span className={`text-right font-mono font-semibold ${exit.value > 0 ? "text-brand-300" : exit.value < 0 ? "text-bear" : "app-muted"}`}>{exit.value > 0 ? "+" : exit.value < 0 ? "−" : ""}${Math.abs(exit.value).toLocaleString()}</span>
                 </div>
               ))}
             </div>
           </div>
         </ReportCard>
 
-        <ReportCard eyebrow="Market selection" title="Performance by pair" icon={BarChart3}>
+        <ReportCard eyebrow="Risk allocation" title="Performance by position size" icon={BarChart3}>
           <div className="mt-5 space-y-5">
-            {PAIR_RESULTS.map((pair) => (
-              <div key={pair.label}>
-                <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold">{pair.label}</p><p className="mt-1 text-[9px] app-muted">{pair.trades} trades · {pair.share}% of profit</p></div><p className="font-mono text-xs font-semibold text-brand-300">+${pair.value.toLocaleString()}</p></div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-brand-400" style={{ width: `${pair.share}%` }} /></div>
+            {SIZE_RESULTS.map((bucket) => (
+              <div key={bucket.label}>
+                <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold">{bucket.label}</p><p className="mt-1 text-[9px] app-muted">{bucket.trades} trades · {bucket.share}% of profit</p></div><p className="font-mono text-xs font-semibold text-brand-300">+${bucket.value.toLocaleString()}</p></div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-brand-400" style={{ width: `${bucket.share}%` }} /></div>
               </div>
             ))}
           </div>
-          <p className="mt-6 rounded-xl bg-amber-300/[0.06] p-3 text-xs leading-5 app-muted"><b className="text-amber-200">Concentration note:</b> EUR/USD generates two thirds of profit. Validate the edge on more pairs before scaling.</p>
+          <p className="mt-6 rounded-xl bg-amber-300/[0.06] p-3 text-xs leading-5 app-muted"><b className="text-amber-200">Sizing note:</b> Larger positions generate 52% of profit. Compare this with drawdown before increasing risk.</p>
         </ReportCard>
       </div>
 

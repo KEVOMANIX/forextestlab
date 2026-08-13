@@ -311,3 +311,32 @@ export async function sendSupportReplyNotification({
     }),
   });
 }
+
+export async function sendOperationalAlert({
+  status,
+  summary,
+  details,
+}: {
+  status: "failed" | "degraded" | "recovered";
+  summary: string;
+  details: string[];
+}): Promise<void> {
+  const config = getSmtpConfig();
+  const safeDetails = details.map((detail) => `<li style="margin:0 0 8px">${escapeHtml(detail)}</li>`).join("");
+  await deliver(config, {
+    from: `ForexTestLab Monitor <${config.from}>`,
+    to: process.env.OPERATIONS_ALERT_EMAIL?.trim() || config.to,
+    replyTo: config.to,
+    subject: `[ForexTestLab ${status.toUpperCase()}] ${summary}`,
+    text: [summary, "", ...details, "", `${siteUrl()}/admin/operations`].join("\n"),
+    html: renderBrandEmail({
+      preheader: summary,
+      eyebrow: status === "recovered" ? "Service recovered" : "Operations alert",
+      title: summary,
+      intro: status === "recovered" ? "All monitored services are healthy again." : "ForexTestLab needs operational attention.",
+      contentHtml: `<ul style="margin:0;padding:18px 22px 10px 40px;background:#f7fafc;border:1px solid #e1e9ef;border-radius:12px;font-family:Arial,sans-serif;font-size:14px;line-height:22px;color:#344a5a">${safeDetails}</ul>`,
+      action: { label: "Open operations dashboard", href: `${siteUrl()}/admin/operations` },
+      closing: "ForexTestLab Monitor",
+    }),
+  });
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { trackProductEvent } from "@/components/ProductAnalytics";
 
 const STEPS = [
   {
@@ -31,11 +32,17 @@ export function TradingOnboarding() {
   const [step, setStep] = useState(0);
 
   useEffect(() => {
-    setOpen(window.localStorage.getItem("forextestlab:onboarding") !== "done");
+    const shouldOpen = window.localStorage.getItem("forextestlab:onboarding") !== "done";
+    setOpen(shouldOpen);
+    if (shouldOpen && window.localStorage.getItem("forextestlab:onboarding-started") !== "yes") {
+      window.localStorage.setItem("forextestlab:onboarding-started", "yes");
+      trackProductEvent("onboarding_started");
+    }
   }, []);
 
   function close() {
     window.localStorage.setItem("forextestlab:onboarding", "done");
+    if (step === STEPS.length - 1) trackProductEvent("onboarding_completed");
     setOpen(false);
   }
 

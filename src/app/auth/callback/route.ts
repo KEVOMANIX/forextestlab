@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getPublicRequestOrigin } from "@/lib/request-origin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { recordProductEvent } from "@/lib/product-analytics";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -16,7 +17,11 @@ export async function GET(request: Request) {
 
   if (code && supabase) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(new URL(next, publicOrigin));
+    if (!error) {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) await recordProductEvent({ name: "signup_completed", userId: data.user.id, path: next }).catch(() => undefined);
+      return NextResponse.redirect(new URL(next, publicOrigin));
+    }
     console.error("Supabase authentication callback failed", {
       errorCode: error.code,
       message: error.message,

@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   BarChart3,
   Database,
+  HeartPulse,
   FileClock,
   Mail,
   MessagesSquare,
@@ -19,10 +20,12 @@ import { Logo } from "@/components/Logo";
 
 const links = [
   { label: "Overview", href: "/admin", icon: BarChart3 },
+  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { label: "Users", href: "/admin/users", icon: Users },
   { label: "Subscriptions", href: "/admin/subscriptions", icon: ReceiptText },
   { label: "Sessions", href: "/admin/sessions", icon: Activity },
   { label: "Market data", href: "/admin/market-data", icon: Database },
+  { label: "Operations", href: "/admin/operations", icon: HeartPulse },
   { label: "Enquiries", href: "/admin/enquiries", icon: Mail },
   { label: "Support inbox", href: "/support-team", icon: MessagesSquare },
   { label: "Audit log", href: "/admin/audit", icon: FileClock },

@@ -9,6 +9,7 @@ import { ExportTradesButton } from "@/components/app/ExportTradesButton";
 import { SessionAnalyticsWorkbench } from "@/components/app/SessionAnalyticsWorkbench";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionTradeJournal } from "@/components/app/SessionTradeJournal";
+import { SessionFeedback } from "@/components/app/SessionFeedback";
 import { BranchComparison } from "@/components/app/BranchComparison";
 import { SESSION_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { requireUser } from "@/lib/auth";
@@ -94,6 +95,7 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
         initialTrades={state.closedTrades}
       />
       <BranchComparison currentId={results.sessionId} branches={results.branchComparison} />
+      {state.status === "finished" && <SessionFeedback sessionId={results.sessionId} />}
 
       <div className="mt-6">
         {entitlements.fullAnalytics ? (

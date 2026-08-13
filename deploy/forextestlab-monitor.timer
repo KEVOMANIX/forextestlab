@@ -1,0 +1,11 @@
+[Unit]
+Description=Monitor ForexTestLab every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+RandomizedDelaySec=30s
+Persistent=true
+Unit=forextestlab-monitor.service
+
+[Install]
+WantedBy=timers.target

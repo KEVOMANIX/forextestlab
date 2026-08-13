@@ -30,6 +30,7 @@ import { canAccessSession } from "@/lib/backtest/session-access";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { updateTradeJournal } from "@/lib/backtest/trade-journal";
+import { recordProductEvent } from "@/lib/product-analytics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -291,6 +292,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     persistSession(session, { resetProjections: action.type === "restart" }),
     orderProjection,
   ]);
+  if (action.type === "end") {
+    await recordProductEvent({ name: "backtest_completed", userId: user?.id, path: "/app/backtest", metadata: { symbol: ctx.state.config.symbol, anonymous: session.anonymous } }).catch(() => undefined);
+  }
 
   if (opError) {
     return NextResponse.json(

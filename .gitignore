@@ -42,6 +42,7 @@ next-env.d.ts
 /data/*.json
 /data/.forextestlab-calendar.sha256
 /data/.market-data.lock
+/data/.operations-monitor.json
 !/data/.gitkeep
 
 # local editor / assistant settings

@@ -1,0 +1,18 @@
+[Unit]
+Description=Back up ForexTestLab PostgreSQL to private Cloudflare R2
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/forextestlab
+EnvironmentFile=/home/ubuntu/forextestlab/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run database:backup
+TimeoutStartSec=30m
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full

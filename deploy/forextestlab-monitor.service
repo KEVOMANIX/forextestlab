@@ -1,0 +1,19 @@
+[Unit]
+Description=Check ForexTestLab production health and send state-change alerts
+Wants=network-online.target
+After=network-online.target forextestlab.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/forextestlab
+EnvironmentFile=/home/ubuntu/forextestlab/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm run operations:monitor
+TimeoutStartSec=5m
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/home/ubuntu/forextestlab/data

@@ -55,12 +55,14 @@ export function AdminStat({
 
 const statusTones: Record<string, string> = {
   active: "border-brand-400/25 bg-brand-400/10 text-brand-300",
+  healthy: "border-brand-400/25 bg-brand-400/10 text-brand-300",
   completed: "border-brand-400/25 bg-brand-400/10 text-brand-300",
   delivered: "border-brand-400/25 bg-brand-400/10 text-brand-300",
   resolved: "border-brand-400/25 bg-brand-400/10 text-brand-300",
   open: "border-amber-400/25 bg-amber-400/10 text-amber-300",
   pending: "border-amber-400/25 bg-amber-400/10 text-amber-300",
   attention: "border-amber-400/25 bg-amber-400/10 text-amber-300",
+  degraded: "border-amber-400/25 bg-amber-400/10 text-amber-300",
   failed: "border-bear/25 bg-bear/10 text-bear",
   canceled: "border-white/10 bg-white/5 app-muted",
   inactive: "border-white/10 bg-white/5 app-muted",
@@ -96,4 +98,3 @@ export function AdminTable({
 
 export const adminTh = "bg-[var(--app-panel-2)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] app-muted";
 export const adminTd = "border-t app-border px-4 py-3.5 align-middle";
-

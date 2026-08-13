@@ -12,6 +12,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { ensureUserProfile } from "@/lib/auth";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { trialDeviceIdFromRequest } from "@/lib/trial-device";
+import { recordProductEvent } from "@/lib/product-analytics";
 
 const SESSION_BASE_TIMEFRAME: Timeframe = "1m";
 
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
       userId: user?.id,
       trialDeviceId: trialDeviceIdFromRequest(request),
     });
+    await recordProductEvent({ name: "backtest_created", userId: user?.id, path: "/app/backtest", metadata: { symbol: parsed.data.symbols[0]!, anonymous: !user } }).catch(() => undefined);
 
     return NextResponse.json(
       {

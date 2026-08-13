@@ -234,6 +234,53 @@ model AdminAuditEvent {
   @@index([targetType, targetId])
 }
 
+/// Bounded operational history written by the Lightsail monitor. Detailed
+/// provider responses stay out of the public API; admins only see status and a
+/// short diagnostic message.
+model OperationalCheck {
+  id         String   @id @default(cuid())
+  component  String
+  status     String
+  latencyMs  Int?
+  message    String?
+  metadataJson String?
+  checkedAt  DateTime @default(now())
+
+  @@index([component, checkedAt])
+  @@index([status, checkedAt])
+}
+
+/// First-party, low-cardinality product telemetry. It deliberately excludes IP
+/// addresses, user agents and arbitrary page contents.
+model ProductEvent {
+  id           String   @id @default(cuid())
+  name         String
+  userId       String?
+  anonymousId  String?
+  path         String?
+  metadataJson String?
+  createdAt    DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
+  @@index([anonymousId, createdAt])
+  @@index([createdAt])
+}
+
+/// Short, voluntary feedback captured after a user completes a replay.
+model ProductFeedback {
+  id        String   @id @default(cuid())
+  userId    String?
+  sessionId String?
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([sessionId])
+}
+
 model BillingPayment {
   id                    String      @id @default(cuid())
   user                  UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)

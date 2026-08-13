@@ -430,6 +430,27 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now forextestlab-calendar-import.timer
 ```
 
+## Production monitoring and recovery
+
+`forextestlab-monitor.timer` runs every 15 minutes, retains 30 days of compact
+check results, and emails `OPERATIONS_ALERT_EMAIL` (or the support recipient)
+only when health changes or a problem remains for six hours. The private admin
+page `/admin/operations` shows database/R2 usage, host capacity, backup age, and
+per-pair market-data coverage.
+
+`forextestlab-database-backup.timer` creates a PostgreSQL custom-format archive
+daily at 02:30 UTC, verifies its catalogue with `pg_restore --list`, uploads it
+to the private R2 `database_backups` prefix, and retains seven days by default.
+To restore into a newly created recovery database, download the chosen `.dump`,
+verify the R2 `sha256` metadata, then run:
+
+```bash
+pg_restore --exit-on-error --no-owner --no-acl --dbname="$RECOVERY_DATABASE_URL" forextestlab-....dump
+```
+
+Always restore into a separate recovery database first and verify account,
+session, trade, subscription, and calendar counts before any production cutover.
+
 ## Adding an authorised external provider
 
 - The active provider is chosen by `MARKET_DATA_PROVIDER`; unknown symbols/ranges

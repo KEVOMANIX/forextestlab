@@ -284,8 +284,11 @@ export default function ChartGrid({
   useEffect(() => {
     if (!restored || !onReady) return;
     const allReady = visibleCells.every((cell) => readyCells.has(`${cell.id}:${cell.symbol}`));
-    if (allReady) onReady();
-  }, [onReady, readyCells, restored, visibleCells]);
+    const allPairDataAvailable = visibleCells.every(
+      (cell) => cell.symbol === sessionSymbol || Boolean(pairs[cell.symbol]),
+    );
+    if (allReady && allPairDataAvailable) onReady();
+  }, [onReady, pairs, readyCells, restored, sessionSymbol, visibleCells]);
 
   // Persist cells the layout has grown into. Shrinking keeps the hidden cells'
   // configuration so switching back to a wider layout restores it.

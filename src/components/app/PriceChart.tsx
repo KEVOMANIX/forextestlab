@@ -752,6 +752,11 @@ export default function PriceChart({
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
   const historyTimeframeRef = useRef<Timeframe>(initialTimeframe ?? baseTimeframe);
   const historyLoadingRef = useRef(false);
+  const [initialHistoryPending, setInitialHistoryPending] = useState(
+    contextCandles.length === 0 || (initialTimeframe ?? baseTimeframe) !== baseTimeframe,
+  );
+  const [initialCanvasPainted, setInitialCanvasPainted] = useState(false);
+  const readySentRef = useRef(false);
   /** Invalidates history responses started for a timeframe the cell has left. */
   const historyRequestRef = useRef(0);
   const historyHasMoreRef = useRef(true);
@@ -911,7 +916,10 @@ export default function PriceChart({
     } finally {
       if (requestId === historyRequestRef.current) {
         historyLoadingRef.current = false;
-        if (replace) setHistoryLoading(false);
+        if (replace) {
+          setHistoryLoading(false);
+          setInitialHistoryPending(false);
+        }
         else setOlderHistoryLoading(false);
       }
     }
@@ -1643,7 +1651,7 @@ export default function PriceChart({
     // terminal removes the full-screen loader. Two frames prevents a flash of
     // an empty canvas on slower devices.
     let readyFrame = requestAnimationFrame(() => {
-      readyFrame = requestAnimationFrame(() => onReadyRef.current?.());
+      readyFrame = requestAnimationFrame(() => setInitialCanvasPainted(true));
     });
 
     if (viewStorageKey) {
@@ -1843,6 +1851,18 @@ export default function PriceChart({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!initialCanvasPainted || initialHistoryPending || readySentRef.current) return;
+    // Conditions can change in the same render cycle when a saved timeframe is
+    // restored. Delay once more and cancel if its history request begins.
+    const frame = requestAnimationFrame(() => {
+      if (historyLoadingRef.current || readySentRef.current) return;
+      readySentRef.current = true;
+      onReadyRef.current?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [initialCanvasPainted, initialHistoryPending]);
 
   // Rebuild the price series when the chart type changes.
   useEffect(() => {
@@ -2075,6 +2095,15 @@ export default function PriceChart({
       // new layout finally gets the view it was stored with.
       resetLatestViewport();
     }
+    if (initialHistoryPending && !historyLoadingRef.current) {
+      if (displayTimeframeRef.current === baseTimeframe && contextCandles.length > 0) {
+        historyCandlesRef.current = contextCandles;
+        historyTimeframeRef.current = displayTimeframeRef.current;
+        setInitialHistoryPending(false);
+      } else {
+        void loadHistoryPage(true);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCandles]);
 
@@ -2094,11 +2123,13 @@ export default function PriceChart({
       historyHasMoreRef.current = true;
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, contextCandles.map(toOHLCV));
       setHistoryLoading(false);
+      setInitialHistoryPending(false);
     } else {
       historyCandlesRef.current = [];
       historyTimeframeRef.current = displayTimeframe;
       historyHasMoreRef.current = true;
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, []);
+      setInitialHistoryPending(true);
     }
     renderMain(true);
     if (displayTimeframe !== baseTimeframe || contextCandles.length === 0) {

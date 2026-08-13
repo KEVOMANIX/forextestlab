@@ -204,7 +204,7 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
       const backupAgeHours = latestBackup?.modified ? (Date.now() - latestBackup.modified.getTime()) / 3_600_000 : Infinity;
       checks.push({
         component: "database-backup",
-        status: backupAgeHours <= 36 ? "healthy" : "degraded",
+        status: backupAgeHours <= 8 * 24 ? "healthy" : "degraded",
         latencyMs: 0,
         message: latestBackup ? `Latest backup is ${backupAgeHours.toFixed(1)} hours old.` : "No database backup exists yet.",
         metadata: { count: backupCount, latestBackupAt },

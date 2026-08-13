@@ -439,8 +439,12 @@ page `/admin/operations` shows database/R2 usage, host capacity, backup age, and
 per-pair market-data coverage.
 
 `forextestlab-database-backup.timer` creates a PostgreSQL custom-format archive
-daily at 02:30 UTC, verifies its catalogue with `pg_restore --list`, uploads it
-to the private R2 `database_backups` prefix, and retains seven days by default.
+each Sunday at 02:30 UTC, verifies its catalogue with `pg_restore --list`, uploads
+it to the private R2 `database_backups` prefix, and retains the four newest
+weekly copies. The backup excludes row data from the regenerable economic
+calendar, market candles, import logs, product telemetry, and monitor history;
+their schemas remain in the archive while critical accounts, authentication,
+sessions, trades, billing, support, feedback, and configuration data are kept.
 To restore into a newly created recovery database, download the chosen `.dump`,
 verify the R2 `sha256` metadata, then run:
 

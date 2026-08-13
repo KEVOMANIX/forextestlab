@@ -1,8 +1,8 @@
 [Unit]
-Description=Back up ForexTestLab database daily
+Description=Back up critical ForexTestLab database data weekly
 
 [Timer]
-OnCalendar=*-*-* 02:30:00 UTC
+OnCalendar=Sun *-*-* 02:30:00 UTC
 RandomizedDelaySec=10m
 Persistent=true
 Unit=forextestlab-database-backup.service

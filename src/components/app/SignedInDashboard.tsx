@@ -344,15 +344,6 @@ export function SignedInDashboard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {selectedSession && (
-            <SessionCardActions
-              sessionId={selectedSession.id}
-              sessionName={scopeLabel}
-              status={selectedSession.status}
-              archived={selectedSession.archived}
-              compact
-            />
-          )}
           <Link href="/app/backtest" className={`${selectedSession ? "btn-secondary" : "btn-primary shadow-glow"} shrink-0 px-4 py-2.5 text-xs`}>
             <Plus size={16} aria-hidden /> New backtest
           </Link>
@@ -441,10 +432,20 @@ export function SignedInDashboard({
                     </span>
                   </div>
                 </div>
-                <DashboardSessionSwitcher
-                  selectedId={selectedSession.id}
-                  sessions={sessionOptions}
-                />
+                <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
+                  <DashboardSessionSwitcher
+                    selectedId={selectedSession.id}
+                    sessions={sessionOptions}
+                  />
+                  <SessionCardActions
+                    sessionId={selectedSession.id}
+                    sessionName={scopeLabel}
+                    status={selectedSession.status}
+                    archived={selectedSession.archived}
+                    compact
+                    command
+                  />
+                </div>
               </div>
 
               <div className="mt-5 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">

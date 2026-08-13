@@ -435,7 +435,7 @@ export default function ChartGrid({
   );
 
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="flex h-full w-full flex-col" data-tour="chart-workspace">
       {/* Layout has its own far-right header slot, independent from timeframe controls. */}
       {layoutSlot
         ? createPortal(layoutPicker, layoutSlot)

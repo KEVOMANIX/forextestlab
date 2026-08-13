@@ -952,6 +952,7 @@ export function Backtester({
               <span className="hidden sm:inline">Go to</span>
             </button>
             <button
+              data-tour="new-order"
               type="button"
               onClick={() => activateOrderTicket("long")}
               disabled={!canTrade}
@@ -1145,6 +1146,7 @@ export function Backtester({
           onOpenSettings={() => openSettings()}
           calendarOpen={calendarOpen}
           onToggleCalendar={() => setCalendarOpen((value) => !value)}
+          onStartTour={() => window.dispatchEvent(new Event("forextestlab:start-tour"))}
         />}
       </div>
 

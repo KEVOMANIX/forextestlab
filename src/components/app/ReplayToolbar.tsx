@@ -278,6 +278,7 @@ export function ReplayToolbar({
     <div
       ref={toolboxRef}
       data-testid="replay-toolbox"
+      data-tour="replay-controls"
       onPointerDown={compact ? undefined : startDrag}
       // No backdrop blur: blurring the chart canvas underneath smears candles
       // around the toolbox. The panel colour is opaque enough on its own.

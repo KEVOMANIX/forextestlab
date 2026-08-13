@@ -105,6 +105,7 @@ export function BottomPanel({
 
   return (
     <section
+      data-tour="session-panel"
       className={`relative flex shrink-0 flex-col overflow-hidden border-t app-border bg-[var(--app-panel)] transition-[height] duration-200 ease-out ${
         expanded ? (tab === "notes" || tab === "bookmarks" ? "h-[min(72dvh,620px)]" : "h-44 md:h-48") : "h-11"
       }`}

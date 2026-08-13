@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookOpenText,
   CalendarClock,
+  CircleHelp,
   ChevronDown,
   Expand,
   FolderOpen,
@@ -128,6 +129,7 @@ export function TerminalTopBar({
 
   return (
     <header
+      data-tour="trading-header"
       aria-label="Trading header"
       className="relative flex h-11 shrink-0 items-center gap-1.5 border-b app-border bg-[var(--app-panel)] px-1.5 shadow-[0_1px_0_rgba(255,255,255,0.03)]"
     >
@@ -149,7 +151,7 @@ export function TerminalTopBar({
 
       <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
 
-      <div ref={menuRef} className="relative shrink-0">
+      <div ref={menuRef} className="relative shrink-0" data-tour="session-menu">
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
@@ -202,7 +204,7 @@ export function TerminalTopBar({
           internally) so the cluster on the right is never pushed off the edge.
           The trade actions follow them, so the order is timeframes, chart type,
           indicators, then what to do about any of it. */}
-      <div className="flex min-w-0 flex-1 items-center">
+      <div className="flex min-w-0 flex-1 items-center" data-tour="chart-controls">
         {children}
         {tradeControls && (
           <>
@@ -314,6 +316,7 @@ export function TerminalRightRail({
   onOpenSettings,
   calendarOpen,
   onToggleCalendar,
+  onStartTour,
 }: {
   state: PublicSessionState;
   onNewSession: () => void;
@@ -323,9 +326,12 @@ export function TerminalRightRail({
   /** Whether the economic calendar panel is currently docked open. */
   calendarOpen: boolean;
   onToggleCalendar: () => void;
+  /** Replays the anchored backtester walkthrough. */
+  onStartTour: () => void;
 }) {
   return (
     <aside
+      data-tour="workspace-rail"
       aria-label="Workspace shortcuts"
       className="hidden w-11 shrink-0 flex-col items-center gap-1 border-l app-border bg-[var(--app-panel)] py-2 md:flex"
     >
@@ -381,6 +387,9 @@ export function TerminalRightRail({
       */}
       <RailButton label="Settings" onClick={onOpenSettings}>
         <Settings size={17} aria-hidden />
+      </RailButton>
+      <RailButton label="Backtester tour" onClick={onStartTour}>
+        <CircleHelp size={17} aria-hidden />
       </RailButton>
       <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
       <RailButton label="Exit to session setup" onClick={onNewSession}>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   Crown,
+  FlaskConical,
   Gauge,
   ListChecks,
   Plus,
@@ -379,6 +380,13 @@ export function SignedInDashboard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/app/design-lab/analytics"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-brand-400/25 bg-brand-400/[0.07] px-4 text-xs font-semibold text-brand-300 transition-colors hover:bg-brand-400/[0.12]"
+            title="Preview a complete analytics report with sample trades"
+          >
+            <FlaskConical size={15} aria-hidden /> Show demo data
+          </Link>
           <Link href="/app/backtest" className={`${selectedSession ? "btn-secondary" : "btn-primary shadow-glow"} shrink-0 px-4 py-2.5 text-xs`}>
             <Plus size={16} aria-hidden /> New backtest
           </Link>

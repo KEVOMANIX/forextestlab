@@ -134,6 +134,11 @@ export function AnalyticsDesignPrototype() {
         <PrototypeBadge />
       </div>
 
+      <div role="note" className="mt-4 flex items-start gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100">
+        <FlaskConical size={14} className="mt-0.5 shrink-0" aria-hidden />
+        <span><strong>Demo data:</strong> this report is an example of the completed analytics experience. It does not use or change your saved sessions.</span>
+      </div>
+
       <header className="mt-5 flex flex-col gap-5 border-b app-border pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-xs app-muted">

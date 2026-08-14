@@ -18,7 +18,7 @@ const VIEWS = [
     src: "/product/market-replay-20260814-v2.webp",
     width: 1786,
     height: 880,
-    imageIncludesChrome: true,
+    imageIncludesChrome: false,
     alt: "ForexTestLab market replay terminal",
     icon: Play,
   },
@@ -164,7 +164,11 @@ export function ProductPreview() {
                 width={active.width}
                 height={active.height}
                 sizes="(max-width: 1024px) 100vw, 70vw"
-                className="h-full w-full object-contain"
+                className={
+                  active.id === "replay"
+                    ? "h-auto w-full origin-top -translate-y-[4%] scale-[1.01]"
+                    : "h-full w-full object-contain"
+                }
               />
             </div>
           </div>

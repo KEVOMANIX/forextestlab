@@ -71,29 +71,15 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               aria-hidden
               className="absolute -inset-8 rounded-[2rem] bg-brand-400/[0.08] blur-3xl"
             />
-            <div className="absolute inset-x-0 top-0 overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 p-1.5 shadow-[0_40px_120px_-45px_rgba(0,0,0,.95)]">
-              <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/95 px-3">
-                <span className="flex gap-1.5" aria-hidden>
-                  <span className="h-2 w-2 rounded-full bg-bear/75" />
-                  <span className="h-2 w-2 rounded-full bg-amber-400/75" />
-                  <span className="h-2 w-2 rounded-full bg-brand-400/75" />
-                </span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.17em] text-slate-500">
-                  Market replay terminal
-                </span>
-                <span className="flex items-center gap-1.5 text-[9px] text-brand-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-                  Session active
-                </span>
-              </div>
+            <div className="absolute inset-x-0 top-0 overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 shadow-[0_40px_120px_-45px_rgba(0,0,0,.95)]">
               <Image
-                src="/product/market-replay.webp"
+                src="/product/market-replay-20260814-v2.webp"
                 alt="ForexTestLab historical market replay terminal"
-                width={1600}
-                height={940}
+                width={1786}
+                height={880}
                 priority
                 sizes="60vw"
-                className="h-auto w-full rounded-b-xl"
+                className="h-auto w-full rounded-2xl"
               />
             </div>
           </div>

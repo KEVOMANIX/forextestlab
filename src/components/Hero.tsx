@@ -19,37 +19,45 @@ function ScreenFrame({
   label,
   priority = false,
   className = "",
+  imageIncludesChrome = false,
+  width = 1600,
+  height = 940,
 }: {
   src: string;
   alt: string;
   label: string;
   priority?: boolean;
   className?: string;
+  imageIncludesChrome?: boolean;
+  width?: number;
+  height?: number;
 }) {
   return (
     <div
-      className={`overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 p-1.5 shadow-[0_45px_140px_-45px_rgba(0,0,0,.95)] ${className}`}
+      className={`overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 shadow-[0_45px_140px_-45px_rgba(0,0,0,.95)] ${imageIncludesChrome ? "p-0" : "p-1.5"} ${className}`}
     >
-      <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/95 px-3">
-        <span className="flex gap-1.5" aria-hidden>
-          <span className="h-2 w-2 rounded-full bg-bear/80" />
-          <span className="h-2 w-2 rounded-full bg-amber-400/80" />
-          <span className="h-2 w-2 rounded-full bg-brand-400/80" />
-        </span>
-        <span className="text-[9px] font-semibold uppercase tracking-[0.17em] text-slate-500">
-          {label}
-        </span>
-        <span className="flex items-center gap-1.5 text-[9px] font-medium text-brand-300">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
-          Live
-        </span>
-      </div>
-      <div className="relative overflow-hidden rounded-b-xl">
+      {!imageIncludesChrome && (
+        <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/95 px-3">
+          <span className="flex gap-1.5" aria-hidden>
+            <span className="h-2 w-2 rounded-full bg-bear/80" />
+            <span className="h-2 w-2 rounded-full bg-amber-400/80" />
+            <span className="h-2 w-2 rounded-full bg-brand-400/80" />
+          </span>
+          <span className="text-[9px] font-semibold uppercase tracking-[0.17em] text-slate-500">
+            {label}
+          </span>
+          <span className="flex items-center gap-1.5 text-[9px] font-medium text-brand-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
+            Live
+          </span>
+        </div>
+      )}
+      <div className={`relative overflow-hidden ${imageIncludesChrome ? "rounded-2xl" : "rounded-b-xl"}`}>
         <Image
           src={src}
           alt={alt}
-          width={1600}
-          height={940}
+          width={width}
+          height={height}
           priority={priority}
           sizes="(max-width: 1024px) 100vw, 78vw"
           className="h-auto w-full"
@@ -181,10 +189,13 @@ export function Hero() {
               className="absolute -inset-10 -z-10 rounded-[3rem] bg-brand-400/[0.12] blur-[70px]"
             />
             <ScreenFrame
-              src="/product/market-replay.webp"
+              src="/product/market-replay-20260814-v2.webp"
               alt="ForexTestLab historical market replay terminal with candlestick chart, positions, execution controls, and session metrics"
               label="Market replay terminal"
               priority
+              imageIncludesChrome
+              width={1786}
+              height={880}
             />
 
             <div className="absolute -bottom-5 left-1/2 hidden -translate-x-1/2 items-center gap-1.5 rounded-xl border border-white/[0.11] bg-surface-900/95 p-1.5 shadow-2xl backdrop-blur sm:flex">

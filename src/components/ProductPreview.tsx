@@ -15,7 +15,10 @@ const VIEWS = [
     description:
       "Move through historical price action, place positions instantly, adjust chart context, and control replay without losing your place.",
     detail: "1m–1D chart context · draggable replay controls · multi-position execution",
-    src: "/product/market-replay.webp",
+    src: "/product/market-replay-20260814-v2.webp",
+    width: 1786,
+    height: 880,
+    imageIncludesChrome: true,
     alt: "ForexTestLab market replay terminal",
     icon: Play,
   },
@@ -28,6 +31,9 @@ const VIEWS = [
       "Resume active tests, switch between strategies, and see progress and account performance from one clean dashboard.",
     detail: "Saved sessions · replay progress · session-level performance",
     src: "/product/session-dashboard-20260814.webp",
+    width: 1600,
+    height: 940,
+    imageIncludesChrome: false,
     alt: "ForexTestLab session dashboard",
     icon: Gauge,
   },
@@ -40,6 +46,9 @@ const VIEWS = [
       "Study equity, drawdown, expectancy, timing, day-of-week performance, trading sessions, and the sequence behind your results.",
     detail: "Equity and drawdown · timing analysis · trade distributions",
     src: "/product/session-analytics-20260814.webp",
+    width: 1600,
+    height: 940,
+    imageIncludesChrome: false,
     alt: "ForexTestLab session analytics",
     icon: BarChart3,
   },
@@ -134,24 +143,26 @@ export function ProductPreview() {
             aria-hidden
             className="absolute -inset-7 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_50%_55%,rgba(34,195,160,.12),transparent_65%)] blur-2xl"
           />
-          <div className="overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/90 p-1.5 shadow-[0_38px_100px_-40px_rgba(0,0,0,.95)]">
-            <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/90 px-3">
-              <span className="flex gap-1.5" aria-hidden>
-                <span className="h-2 w-2 rounded-full bg-bear/75" />
-                <span className="h-2 w-2 rounded-full bg-amber-400/75" />
-                <span className="h-2 w-2 rounded-full bg-brand-400/75" />
-              </span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                {active.label}
-              </span>
-              <span className="h-1.5 w-12 rounded-full bg-white/[0.06]" />
-            </div>
-            <div key={active.src} className="real-screen-enter overflow-hidden rounded-b-xl">
+          <div className={`overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/90 shadow-[0_38px_100px_-40px_rgba(0,0,0,.95)] ${active.imageIncludesChrome ? "p-0" : "p-1.5"}`}>
+            {!active.imageIncludesChrome && (
+              <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/90 px-3">
+                <span className="flex gap-1.5" aria-hidden>
+                  <span className="h-2 w-2 rounded-full bg-bear/75" />
+                  <span className="h-2 w-2 rounded-full bg-amber-400/75" />
+                  <span className="h-2 w-2 rounded-full bg-brand-400/75" />
+                </span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  {active.label}
+                </span>
+                <span className="h-1.5 w-12 rounded-full bg-white/[0.06]" />
+              </div>
+            )}
+            <div key={active.src} className={`real-screen-enter overflow-hidden ${active.imageIncludesChrome ? "rounded-2xl" : "rounded-b-xl"}`}>
               <Image
                 src={active.src}
                 alt={active.alt}
-                width={1600}
-                height={940}
+                width={active.width}
+                height={active.height}
                 sizes="(max-width: 1024px) 100vw, 70vw"
                 className="h-auto w-full"
               />

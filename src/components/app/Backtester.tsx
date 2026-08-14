@@ -292,6 +292,7 @@ export function Backtester({
   const announcedVerdictRef = useRef<string | null>(null);
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   const [goToOpen, setGoToOpen] = useState(false);
+  const [jumpDestinationLabel, setJumpDestinationLabel] = useState<string | null>(null);
   const goToButtonRef = useRef<HTMLButtonElement | null>(null);
   const [goToAnchor, setGoToAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -820,43 +821,90 @@ export function Backtester({
     setGoToOpen(false);
     releaseReplayFor("go-to", false);
   };
+  const undoJump = (timestamp: number) => {
+    setNotifications((current) => current.filter((item) => item.id !== "go-to"));
+    setJumpDestinationLabel("previous chart position");
+    window.requestAnimationFrame(() => {
+      void actions
+        .jumpTo({ kind: "time", timestamp })
+        .then((outcome) => {
+          const restored = outcome.reason === "target";
+          notify({
+            id: `go-to-undo-${Date.now()}`,
+            title: restored ? "Jump undone" : "Could not undo jump",
+            detail: restored
+              ? "Returned to the candle shown before the jump."
+              : "The previous chart position is no longer available.",
+            tone: restored ? "closed" : "warning",
+          });
+        })
+        .catch(() => {
+          notify({
+            id: `go-to-undo-${Date.now()}`,
+            title: "Could not undo jump",
+            detail: "The previous chart position could not be restored.",
+            tone: "warning",
+          });
+        })
+        .finally(() => setJumpDestinationLabel(null));
+    });
+  };
   const runJump = (target: GoToTarget, label: string) => {
     // Return to the chart immediately. Starting on the next animation frame
     // lets the picker disappear before the chart-side loader begins.
+    const previousTimestamp =
+      state.currentTime ?? bt.lastCandle?.timestamp ?? state.config.startTime;
     closeGoTo();
+    setJumpDestinationLabel(label);
     window.requestAnimationFrame(() => {
-      void actions.jumpTo(target).then((outcome) => {
-        if (outcome.reason === "target") {
+      void actions
+        .jumpTo(target)
+        .then((outcome) => {
+          if (outcome.reason === "target") {
+            notify(
+              {
+                id: "go-to",
+                title: `Jumped to ${label}`,
+                detail: `${outcome.candles.toLocaleString()} ${
+                  outcome.candles === 1 ? "candle" : "candles"
+                } replayed.`,
+                tone: "closed",
+                actionLabel: "Undo jump",
+                onAction: () => undoJump(previousTimestamp),
+              },
+              10_000,
+            );
+            return;
+          }
+          // Anything short of the target is worth saying plainly: the replay has
+          // moved, so silence would leave the trader guessing where they are.
+          const detail =
+            outcome.reason === "end-of-data"
+              ? "The session ran out of data first."
+              : outcome.reason === "behind"
+                ? "That moment is behind the replay, which cannot rewind that far."
+                : outcome.reason === "unavailable"
+                  ? "The replay is not ready yet."
+                  : "Stopped part way to keep the session responsive. Go again to continue.";
+          notify(
+            {
+              id: "go-to",
+              title: `Did not reach ${label}`,
+              detail,
+              tone: "warning",
+            },
+            7_000,
+          );
+        })
+        .catch(() => {
           notify({
             id: "go-to",
-            title: `Jumped to ${label}`,
-            detail: `${outcome.candles.toLocaleString()} ${
-              outcome.candles === 1 ? "candle" : "candles"
-            } replayed.`,
-            tone: "closed",
-          });
-          return;
-        }
-        // Anything short of the target is worth saying plainly: the replay has
-        // moved, so silence would leave the trader guessing where they are.
-        const detail =
-          outcome.reason === "end-of-data"
-            ? "The session ran out of data first."
-            : outcome.reason === "behind"
-              ? "That moment is behind the replay, which cannot rewind that far."
-              : outcome.reason === "unavailable"
-                ? "The replay is not ready yet."
-                : "Stopped part way to keep the session responsive. Go again to continue.";
-        notify(
-          {
-            id: "go-to",
-            title: `Did not reach ${label}`,
-            detail,
+            title: `Could not jump to ${label}`,
+            detail: "The chart could not load that destination. Please try again.",
             tone: "warning",
-          },
-          7_000,
-        );
-      });
+          });
+        })
+        .finally(() => setJumpDestinationLabel(null));
     });
   };
   const navigateFromChart = (href: string) => {
@@ -1048,6 +1096,7 @@ export function Backtester({
             onTakeProfitChange={changeTarget}
             onLoadHistory={actions.loadHistory}
             jumping={bt.jumping}
+            jumpLabel={jumpDestinationLabel}
             theme={theme}
             storageKey={String(state.sessionId)}
             focusedSymbol={activeSymbol}

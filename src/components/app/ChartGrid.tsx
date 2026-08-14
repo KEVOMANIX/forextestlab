@@ -163,6 +163,8 @@ interface ChartGridProps {
   loading?: boolean;
   /** A "Go to"/calendar jump is fast-forwarding the session's own replay. */
   jumping?: boolean;
+  /** Human-readable destination selected in the Go To panel. */
+  jumpLabel?: string | null;
   error?: string | null;
   storageKey: string;
   headerSlot?: HTMLElement | null;
@@ -213,6 +215,7 @@ export default function ChartGrid({
   onLoadHistory,
   loading = false,
   jumping = false,
+  jumpLabel = null,
   error = null,
   storageKey,
   headerSlot = null,
@@ -529,6 +532,7 @@ export default function ChartGrid({
                 onLoadHistory={onLoadHistory}
                 loading={loading}
                 jumping={jumping && isFocused}
+                jumpLabel={jumpLabel}
                 error={error}
                 storageKey={storageKey}
                 workspace={workspace}
@@ -605,6 +609,7 @@ interface ChartCellViewProps {
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading: boolean;
   jumping: boolean;
+  jumpLabel: string | null;
   error: string | null;
   storageKey: string;
   onFocus: () => void;
@@ -649,6 +654,7 @@ function ChartCellView({
   onLoadHistory,
   loading,
   jumping,
+  jumpLabel,
   error,
   storageKey,
   onFocus,
@@ -715,6 +721,7 @@ function ChartCellView({
         onLoadHistory={loadHistory}
         loading={isSession ? loading : pairLoading && !pair}
         jumping={jumping}
+        jumpLabel={jumpLabel}
         error={isSession ? error : null}
         storageKey={`${storageKey}:${cell.symbol}`}
         viewKey={`${storageKey}:${cell.id}`}

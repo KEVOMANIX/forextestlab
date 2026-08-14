@@ -821,38 +821,42 @@ export function Backtester({
     releaseReplayFor("go-to", false);
   };
   const runJump = (target: GoToTarget, label: string) => {
-    void actions.jumpTo(target).then((outcome) => {
-      closeGoTo();
-      if (outcome.reason === "target") {
-        notify({
-          id: "go-to",
-          title: `Jumped to ${label}`,
-          detail: `${outcome.candles.toLocaleString()} ${
-            outcome.candles === 1 ? "candle" : "candles"
-          } replayed.`,
-          tone: "closed",
-        });
-        return;
-      }
-      // Anything short of the target is worth saying plainly: the replay has
-      // moved, so silence would leave the trader guessing where they are.
-      const detail =
-        outcome.reason === "end-of-data"
-          ? "The session ran out of data first."
-          : outcome.reason === "behind"
-            ? "That moment is behind the replay, which cannot rewind that far."
-            : outcome.reason === "unavailable"
-              ? "The replay is not ready yet."
-              : "Stopped part way to keep the session responsive. Go again to continue.";
-      notify(
-        {
-          id: "go-to",
-          title: `Did not reach ${label}`,
-          detail,
-          tone: "warning",
-        },
-        7_000,
-      );
+    // Return to the chart immediately. Starting on the next animation frame
+    // lets the picker disappear before the chart-side loader begins.
+    closeGoTo();
+    window.requestAnimationFrame(() => {
+      void actions.jumpTo(target).then((outcome) => {
+        if (outcome.reason === "target") {
+          notify({
+            id: "go-to",
+            title: `Jumped to ${label}`,
+            detail: `${outcome.candles.toLocaleString()} ${
+              outcome.candles === 1 ? "candle" : "candles"
+            } replayed.`,
+            tone: "closed",
+          });
+          return;
+        }
+        // Anything short of the target is worth saying plainly: the replay has
+        // moved, so silence would leave the trader guessing where they are.
+        const detail =
+          outcome.reason === "end-of-data"
+            ? "The session ran out of data first."
+            : outcome.reason === "behind"
+              ? "That moment is behind the replay, which cannot rewind that far."
+              : outcome.reason === "unavailable"
+                ? "The replay is not ready yet."
+                : "Stopped part way to keep the session responsive. Go again to continue.";
+        notify(
+          {
+            id: "go-to",
+            title: `Did not reach ${label}`,
+            detail,
+            tone: "warning",
+          },
+          7_000,
+        );
+      });
     });
   };
   const navigateFromChart = (href: string) => {

@@ -528,7 +528,7 @@ export default function ChartGrid({
                 onTakeProfitChange={onTakeProfitChange}
                 onLoadHistory={onLoadHistory}
                 loading={loading}
-                jumping={jumping}
+                jumping={jumping && isFocused}
                 error={error}
                 storageKey={storageKey}
                 workspace={workspace}

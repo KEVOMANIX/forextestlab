@@ -339,11 +339,7 @@ export function GoToModal({
 
   if (!open) return null;
 
-  /**
-   * The dialog stays open while the jump runs, showing its progress line, and
-   * the caller closes it once the replay has arrived. Closing on the click would
-   * leave a long fast-forward running with nothing on screen to say so.
-   */
+  /** Selection returns to the chart immediately; its right-edge loader reports progress. */
   const jump = (target: GoToTarget, label: string) => onJump(target, label);
 
   const submitDate = () => {

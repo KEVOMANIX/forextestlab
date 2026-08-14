@@ -4195,9 +4195,11 @@ export default function PriceChart({
           <div
             className="pointer-events-none absolute right-3 top-3 z-30 flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/90 px-2.5 py-1.5 text-[12px] app-muted shadow-lg"
             data-testid="chart-jump-indicator"
+            role="status"
+            aria-live="polite"
           >
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
-            Jumping…
+            Loading destination&hellip;
           </div>
         )}
 

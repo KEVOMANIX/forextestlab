@@ -99,9 +99,9 @@ export function zoneOffsetLabel(zone: string, at: number): string {
     .formatToParts(at)
     .find((item) => item.type === "timeZoneName")?.value;
   if (!part) return "UTC";
-  const normalized = part.replace("GMT", "").replace(/^([+-])0?/, "$1");
+  const normalized = part.replace("GMT", "").replace(/^([+-])0?/, "$1").replace(":00", "");
   if (normalized === "" || normalized === "+0" || normalized === "-0") return "UTC";
-  return `UTC${normalized.replace(":00", "")}`;
+  return `UTC${normalized}`;
 }
 
 const timeFormatters = new Map<string, Intl.DateTimeFormat>();

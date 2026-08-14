@@ -20,8 +20,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function ResultsPage(props: { params: Promise<{ sessionId: string }> }) {
+export default async function ResultsPage(props: { params: Promise<{ sessionId: string }>; searchParams?: Promise<{ demo?: string }> }) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
   const user = await requireUser(`/app/results/${params.sessionId}`);
   const results = await getSessionResults(params.sessionId, user.id);
   if (!results) notFound();
@@ -73,6 +74,7 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
   return (
     <AnalyticsDesignPrototype
       mode="live"
+      initialDemo={searchParams?.demo === "1"}
       sessionId={results.sessionId}
       sessionName={results.name}
       symbols={results.symbols}

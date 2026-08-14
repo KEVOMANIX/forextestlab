@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import {
   ArrowRight,
   Crown,
@@ -39,6 +42,39 @@ const WEEKDAYS = [
   "Friday",
   "Saturday",
 ] as const;
+
+const DEMO_START = Date.UTC(2025, 1, 3, 13, 0);
+const DEMO_PNLS = [541, 260, -444, -930, -584, 304, 557, -1492, 362, -71, 522, 620, -125, 740, 410, -280, 860, 1240, 2330];
+const DEMO_TRADES: ClosedTrade[] = DEMO_PNLS.map((pnl, index) => {
+  const entryTime = DEMO_START + index * 86_400_000;
+  return {
+    id: `demo-trade-${index + 1}`,
+    direction: index % 3 === 1 ? "short" : "long",
+    entryPrice: (1.082 + index * 0.0004).toFixed(5),
+    exitPrice: (1.082 + index * 0.0004 + (pnl >= 0 ? 0.0012 : -0.0008)).toFixed(5),
+    entryTime,
+    exitTime: entryTime + (1 + index % 5) * 3_600_000,
+    entryIndex: index * 100,
+    exitIndex: index * 100 + 12,
+    lots: index % 4 === 0 ? "1.20" : index % 3 === 0 ? "0.80" : "0.40",
+    stopLoss: "1.07800",
+    takeProfit: "1.08800",
+    initialStopLoss: "1.07800",
+    initialTakeProfit: "1.08800",
+    initialRiskAmount: "500",
+    commission: "7.00",
+    pnl: String(pnl),
+    pips: String((pnl / 10).toFixed(1)),
+    exitReason: pnl > 500 ? "take-profit" : pnl < 0 ? "stop-loss" : "manual",
+    intrabarAmbiguous: false,
+  };
+});
+const DEMO_EQUITY_CURVE: EquityPoint[] = DEMO_TRADES.reduce<EquityPoint[]>((points, trade, index) => {
+  const previous = Number(points[points.length - 1]?.balance ?? 100000);
+  const balance = previous + Number(trade.pnl);
+  points.push({ index, time: trade.exitTime, balance: String(balance), equity: String(balance) });
+  return points;
+}, [{ index: 0, time: DEMO_START, balance: "100000", equity: "100000" }]);
 
 export interface DashboardSession {
   id: string;
@@ -95,7 +131,7 @@ function aggregateTradePnl<T extends string | number>(
 export function SignedInDashboard({
   sessions,
   selectedTrades,
-  selectedEquityCurve,
+  selectedEquityCurve: realEquityCurve,
   displayName,
   selectedId,
   aiEnabled = false,
@@ -107,12 +143,33 @@ export function SignedInDashboard({
   selectedId?: string | null;
   aiEnabled?: boolean;
 }) {
-  const selectedSession =
+  const [showDemoData, setShowDemoData] = useState(false);
+  const realSelectedSession =
     sessions.find((session) => session.id === selectedId) ?? sessions[0] ?? null;
+  const demoSession: DashboardSession = {
+    id: realSelectedSession?.id ?? "demo-preview",
+    symbol: realSelectedSession?.symbol ?? "EURUSD",
+    symbols: realSelectedSession?.symbols?.length ? realSelectedSession.symbols : ["EURUSD"],
+    name: "London-session breakout — demo",
+    timeframe: realSelectedSession?.timeframe ?? "15m",
+    startTime: BigInt(Date.UTC(2025, 1, 1)),
+    endTime: BigInt(Date.UTC(2025, 1, 28, 23, 59)),
+    status: "finished",
+    visibleIndex: 999,
+    totalCandles: 1000,
+    startingBalance: "100000",
+    balance: "104820",
+    maxDrawdown: "1492",
+    maxDrawdownPercent: "1.49",
+    updatedAt: new Date(Date.UTC(2025, 1, 28, 18, 0)),
+    archived: false,
+  };
+  const selectedSession = showDemoData ? demoSession : realSelectedSession;
   const scopeLabel = selectedSession?.name ?? "No session selected";
   const selectedSymbols = selectedSession?.symbols ?? [];
   const progress = sessionProgress(selectedSession);
-  const trades = selectedTrades;
+  const trades = showDemoData ? DEMO_TRADES : selectedTrades;
+  const selectedEquityCurve = showDemoData ? DEMO_EQUITY_CURVE : realEquityCurve;
   const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
   const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
   const winRate = trades.length ? (wins / trades.length) * 100 : 0;
@@ -380,18 +437,21 @@ export function SignedInDashboard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/app/design-lab/analytics"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-brand-400/25 bg-brand-400/[0.07] px-4 text-xs font-semibold text-brand-300 transition-colors hover:bg-brand-400/[0.12]"
-            title="Preview a complete analytics report with sample trades"
+          <button
+            type="button"
+            onClick={() => setShowDemoData((value) => !value)}
+            className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-xs font-semibold transition-colors ${showDemoData ? "border-amber-300/35 bg-amber-300/[0.12] text-amber-200" : "border-brand-400/25 bg-brand-400/[0.07] text-brand-300 hover:bg-brand-400/[0.12]"}`}
+            title={showDemoData ? "Return to your saved session data" : "Preview a complete dashboard with sample trades"}
           >
-            <FlaskConical size={15} aria-hidden /> Show demo data
-          </Link>
+            <FlaskConical size={15} aria-hidden /> {showDemoData ? "Show my data" : "Show demo data"}
+          </button>
           <Link href="/app/backtest" className={`${selectedSession ? "btn-secondary" : "btn-primary shadow-glow"} shrink-0 px-4 py-2.5 text-xs`}>
             <Plus size={16} aria-hidden /> New backtest
           </Link>
         </div>
       </header>
+
+      {showDemoData && <div role="note" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100"><span><strong>Demo data is on.</strong> The dashboard is previewing a completed strategy. Your saved sessions have not been changed.</span><button type="button" onClick={() => setShowDemoData(false)} className="shrink-0 font-semibold underline underline-offset-2">Use my data</button></div>}
 
       {!selectedSession ? (
         <section className="relative mt-7 overflow-hidden rounded-3xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-6 shadow-card sm:p-9">
@@ -476,18 +536,7 @@ export function SignedInDashboard({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <DashboardSessionSwitcher
-                    selectedId={selectedSession.id}
-                    sessions={sessionOptions}
-                  />
-                  <SessionCardActions
-                    sessionId={selectedSession.id}
-                    sessionName={scopeLabel}
-                    status={selectedSession.status}
-                    archived={selectedSession.archived}
-                    compact
-                    command
-                  />
+                  {showDemoData ? realSelectedSession && <Link href={`/app/results/${realSelectedSession.id}?demo=1`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400">Open full demo analytics <ArrowRight size={14} aria-hidden /></Link> : <><DashboardSessionSwitcher selectedId={selectedSession.id} sessions={sessionOptions} /><SessionCardActions sessionId={selectedSession.id} sessionName={scopeLabel} status={selectedSession.status} archived={selectedSession.archived} compact command /></>}
                 </div>
               </div>
 
@@ -567,12 +616,12 @@ export function SignedInDashboard({
                   {netPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                   {formatMoney(totalNet)}
                 </span>
-                <Link
-                  href={`/app/results/${selectedSession.id}`}
+                {realSelectedSession && <Link
+                  href={`/app/results/${realSelectedSession.id}${showDemoData ? "?demo=1" : ""}`}
                   className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200"
                 >
                   Open full analytics <ArrowRight size={14} aria-hidden />
-                </Link>
+                </Link>}
               </div>
             </div>
             <SessionPerformanceChart points={chartPoints} trades={chartTrades} />

@@ -132,6 +132,7 @@ interface AnalyticsModel {
 
 export interface AnalyticsDesignPrototypeProps {
   mode?: "demo" | "live";
+  initialDemo?: boolean;
   sessionId?: string;
   sessionName?: string;
   symbols?: string[];
@@ -286,13 +287,14 @@ function normalizedPath(values: number[], width = 920, height = 220) {
 function PrototypeBadge() {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/25 bg-amber-300/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-200">
-      <FlaskConical size={11} aria-hidden /> Design prototype
+      <FlaskConical size={11} aria-hidden /> Demo data
     </span>
   );
 }
 
 export function AnalyticsDesignPrototype({
   mode = "demo",
+  initialDemo = false,
   sessionId,
   sessionName = "London-session breakout",
   symbols = ["EURUSD"],
@@ -310,7 +312,8 @@ export function AnalyticsDesignPrototype({
 }: AnalyticsDesignPrototypeProps = {}) {
   const [tab, setTab] = useState<PrototypeTab>("overview");
   const [range, setRange] = useState("All");
-  const demo = mode === "demo";
+  const [showDemoData, setShowDemoData] = useState(initialDemo);
+  const demo = mode === "demo" || showDemoData;
   const pairLabel = symbols.map(formatSymbol).join(" · ");
   const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, pairLabel), [demo, trades, equityCurve, startingBalance, pairLabel]);
   const path = linePath(model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance]);
@@ -321,33 +324,36 @@ export function AnalyticsDesignPrototype({
     <div className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Dashboard</Link>}
-        {demo ? <PrototypeBadge /> : <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-300"><ShieldCheck size={11} aria-hidden /> Session analytics</span>}
+        <div className="flex flex-wrap items-center gap-2">
+          {mode === "live" && <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel)] p-1" aria-label="Analytics data source"><button type="button" onClick={() => setShowDemoData(false)} className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Your data</button><button type="button" onClick={() => setShowDemoData(true)} className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Show demo data</button></div>}
+          {demo ? <PrototypeBadge /> : <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-300"><ShieldCheck size={11} aria-hidden /> Session analytics</span>}
+        </div>
       </div>
 
       {demo && <div role="note" className="mt-4 flex items-start gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100">
         <FlaskConical size={14} className="mt-0.5 shrink-0" aria-hidden />
         <span><strong>Demo data:</strong> this report is an example of the completed analytics experience. It does not use or change your saved sessions.</span>
       </div>}
-      {notice}
+      {!demo && notice}
 
       <header className="mt-5 flex flex-col gap-5 border-b app-border pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-xs app-muted">
-            <span className={`inline-flex items-center gap-1.5 font-semibold ${status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {status === "finished" ? "Completed" : "Active"}</span>
+            <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
             <span>{demo ? "EUR/USD" : pairLabel}</span><span>·</span><span>{demo ? "Jan 9, 2019 – Jan 19, 2024" : periodLabel}</span>
           </div>
-          <h1 className="mt-2 truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{sessionName}</h1>
+          <h1 className="mt-2 truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{demo ? "London-session breakout — demo" : sessionName}</h1>
           <p className="mt-1 text-sm app-muted">Strategy performance report · New York time</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {demo ? <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><Download size={14} /> Export</button> : fullAccess ? <ExportTradesButton trades={trades} symbol={symbols[0] ?? "EURUSD"} sessionId={sessionId ?? "session"} compact /> : <Link href="/account/billing" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"><Download size={14} /> Export with Pro</Link>}
+          {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><Download size={14} /> Demo preview</span> : fullAccess ? <ExportTradesButton trades={trades} symbol={symbols[0] ?? "EURUSD"} sessionId={sessionId ?? "session"} compact /> : <Link href="/account/billing" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"><Download size={14} /> Export with Pro</Link>}
           {onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>}
         </div>
       </header>
 
       <nav className="flex overflow-x-auto border-b app-border" aria-label="Prototype report sections">
         {(["overview", "trades", "journal", "reports"] as const).map((item) => (
-          <button key={item} type="button" onClick={() => setTab(item)} disabled={item === "reports" && !fullAccess} title={item === "reports" && !fullAccess ? "Advanced reports are included with Pro" : undefined} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}</button>
+          <button key={item} type="button" onClick={() => setTab(item)} disabled={item === "reports" && !fullAccess && !demo} title={item === "reports" && !fullAccess && !demo ? "Advanced reports are included with Pro" : undefined} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}</button>
         ))}
       </nav>
 
@@ -430,8 +436,8 @@ export function AnalyticsDesignPrototype({
       )}
 
       {tab === "trades" && (demo ? <PrototypePlaceholder icon={LineChart} title="Trade explorer" description="The live report uses a dense, paginated trade ledger with entry, exit, size, risk controls, result, and timing." /> : <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="border-b app-border p-5"><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div><TradesTable trades={trades} /></section>)}
-      {tab === "journal" && (journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description={demo ? "The live report brings journal notes, rule adherence, screenshots, and emotions into one focused review timeline." : "Journal entries for this session will appear here."} />)}
-      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} />{reportFooter}</>}
+      {tab === "journal" && (demo ? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Switch back to Your data to review and edit this session's real journal entries." /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
+      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} />{!demo && reportFooter}</>}
     </div>
   );
 }

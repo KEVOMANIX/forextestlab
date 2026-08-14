@@ -77,7 +77,7 @@ export function ProductPreview() {
         className="absolute left-1/2 top-1/2 -z-10 h-[40rem] w-[70rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-400/[0.055] blur-[130px]"
       />
 
-      <div className="grid items-end gap-8 lg:grid-cols-[minmax(270px,.38fr)_minmax(0,1fr)]">
+      <div className="grid items-end gap-8 lg:grid-cols-[minmax(270px,.38fr)_minmax(0,1fr)] xl:-mx-16">
         <div className="lg:pb-8">
           <p className="eyebrow">
             <Sparkles size={13} aria-hidden />

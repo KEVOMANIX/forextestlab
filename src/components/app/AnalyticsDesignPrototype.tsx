@@ -25,6 +25,7 @@ import {
 
 import { TradesTable } from "@/components/app/TradesTable";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
+import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
@@ -36,14 +37,6 @@ const EQUITY = [
   100000, 100180, 100040, 100390, 100720, 100610, 100960, 101340,
   101120, 101680, 101940, 101760, 102150, 102720, 102490, 102960,
   103310, 103080, 103520, 103910, 103640, 104110, 103940, 104820,
-];
-
-const RECENT_TRADES = [
-  { pair: "EUR/USD", side: "Buy", setup: "London breakout", result: "+$620.00", r: "+2.1R", time: "Feb 21 · 10:42", positive: true },
-  { pair: "GBP/USD", side: "Sell", setup: "Liquidity sweep", result: "−$125.00", r: "−0.5R", time: "Feb 20 · 09:18", positive: false },
-  { pair: "EUR/USD", side: "Buy", setup: "Opening range", result: "+$557.00", r: "+1.8R", time: "Feb 14 · 11:05", positive: true },
-  { pair: "USD/JPY", side: "Sell", setup: "NY reversal", result: "+$362.00", r: "+1.2R", time: "Feb 13 · 15:24", positive: true },
-  { pair: "EUR/USD", side: "Buy", setup: "London breakout", result: "−$1,492.00", r: "−1.0R", time: "Feb 12 · 08:51", positive: false },
 ];
 
 const CALENDAR = [
@@ -128,6 +121,23 @@ interface AnalyticsModel {
   holding: ResultRow[];
   directions: { long: ResultRow; short: ResultRow };
   concentration: number;
+  daysProcessed: number;
+  monthsProcessed: number;
+  tradingDays: number;
+  winningTrades: number;
+  losingTrades: number;
+  maxConsecutiveWins: number;
+  maxConsecutiveLosses: number;
+  tradesPerDay: number;
+  tradesPerMonth: number;
+  grossProfit: number;
+  grossLoss: number;
+  averageTrade: number;
+  averageWin: number;
+  averageLoss: number;
+  profitPerMonth: number;
+  maxLot: number;
+  recoveryFactor: number;
 }
 
 export interface AnalyticsDesignPrototypeProps {
@@ -199,6 +209,14 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
   const averageR = validR.length ? `${validR.reduce((sum, value) => sum + value, 0) / validR.length >= 0 ? "+" : ""}${(validR.reduce((sum, value) => sum + value, 0) / validR.length).toFixed(2)}R` : "—";
   const wins = pnls.filter((value) => value > 0);
   const losses = pnls.filter((value) => value < 0);
+  const firstTradeTime = trades.length ? Math.min(...trades.map((trade) => trade.entryTime)) : 0;
+  const lastTradeTime = trades.length ? Math.max(...trades.map((trade) => trade.exitTime)) : 0;
+  const daysProcessed = trades.length ? Math.max(1, (lastTradeTime - firstTradeTime) / 86_400_000) : 0;
+  const monthsProcessed = daysProcessed / 30.4375;
+  const tradingDays = new Set(trades.map((trade) => {
+    const point = getNewYorkDateParts(trade.entryTime);
+    return `${point.year}-${point.month}-${point.day}`;
+  })).size;
   const averageWin = wins.length ? wins.reduce((sum, value) => sum + value, 0) / wins.length : 0;
   const averageLoss = losses.length ? Math.abs(losses.reduce((sum, value) => sum + value, 0) / losses.length) : 0;
   let peak = equity[0] ?? startingBalance;
@@ -244,16 +262,38 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
     calendar: calendar.cells, calendarLabel: calendar.label,
     recentTrades: [...trades].slice(-5).reverse().map((trade, index) => ({ pair, side: trade.direction === "long" ? "Buy" : "Sell", setup: exits.find((row) => row.label.toLowerCase().startsWith(trade.exitReason.split("-")[0]!))?.label ?? trade.exitReason.replaceAll("-", " "), result: money(Number(trade.pnl), true), r: riskMultiples[trades.length - 1 - index] == null ? "—" : `${riskMultiples[trades.length - 1 - index]! >= 0 ? "+" : ""}${riskMultiples[trades.length - 1 - index]!.toFixed(1)}R`, time: formatNewYorkDateTime(trade.exitTime, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }), positive: Number(trade.pnl) >= 0 })),
     monthlyReturns, drawdown, weekdays, sessions, rDistribution, exits, sizes, holding,
-    directions: { long, short }, concentration: netProfit > 0 ? Math.min(100, topThree / netProfit * 100) : 0,
+    directions: { long, short }, concentration: wins.length ? Math.min(100, topThree / wins.reduce((sum, value) => sum + value, 0) * 100) : 0,
+    daysProcessed,
+    monthsProcessed,
+    tradingDays,
+    winningTrades: wins.length,
+    losingTrades: losses.length,
+    maxConsecutiveWins: stats.maxConsecutiveWins,
+    maxConsecutiveLosses: stats.maxConsecutiveLosses,
+    tradesPerDay: tradingDays ? trades.length / tradingDays : 0,
+    tradesPerMonth: monthsProcessed ? trades.length / monthsProcessed : 0,
+    grossProfit: wins.reduce((sum, value) => sum + value, 0),
+    grossLoss: Math.abs(losses.reduce((sum, value) => sum + value, 0)),
+    averageTrade: trades.length ? netProfit / trades.length : 0,
+    averageWin,
+    averageLoss,
+    profitPerMonth: monthsProcessed ? netProfit / monthsProcessed : 0,
+    maxLot: trades.length ? Math.max(...trades.map((trade) => Number(trade.lots) || 0)) : 0,
+    recoveryFactor: modelSafeDivide(netProfit, Number(stats.maxDrawdown) || 0),
   };
 }
 
+function modelSafeDivide(value: number, divisor: number): number {
+  return divisor ? value / divisor : 0;
+}
+
 function createDemoModel(): AnalyticsModel {
+  const calculated = createLiveModel(DEMO_ANALYTICS_TRADES, DEMO_ANALYTICS_EQUITY_CURVE, "100000", "EUR/USD");
   const calendar: CalendarCell[] = CALENDAR.map((value, index) => ({ day: value == null ? null : index + 1, value }));
   return {
-    equity: EQUITY, endingBalance: 104820, netProfit: 4820, returnPercent: 4.82, winRate: "68.4", profitFactor: "1.92", expectancy: 253.68,
-    maxDrawdown: 1492, maxDrawdownPercent: 1.49, closedTrades: 19, averageR: "+0.84R", payoffRatio: "1.47", averageHold: "3.2h", bestTrade: 1240, worstTrade: -1492, streak: "3 wins",
-    calendar, calendarLabel: "February 2025", recentTrades: RECENT_TRADES, monthlyReturns: MONTHLY_RETURNS, drawdown: DRAWDOWN,
+    ...calculated,
+    equity: EQUITY,
+    calendar, calendarLabel: "February 2025", monthlyReturns: MONTHLY_RETURNS, drawdown: DRAWDOWN,
     weekdays: WEEKDAY_RESULTS, sessions: SESSION_RESULTS.map((row) => ({ ...row, trades: 0 })), rDistribution: R_DISTRIBUTION,
     exits: EXIT_RESULTS.map((row) => ({ ...row, rate: row.winRate })), sizes: SIZE_RESULTS, holding: HOLDING_RESULTS,
     directions: { long: { label: "Long", value: 3420, trades: 11, rate: 73 }, short: { label: "Short", value: 1400, trades: 8, rate: 63 } }, concentration: 44,
@@ -408,6 +448,8 @@ export function AnalyticsDesignPrototype({
             ].map(([label, value]) => <div key={label} className="bg-[var(--app-panel)] px-4 py-3.5"><p className="text-[10px] font-semibold uppercase tracking-[0.11em] app-muted">{label}</p><p className="mt-1.5 font-mono text-base font-semibold">{value}</p></div>)}
           </section>
 
+          <ProjectAnalyticsOverview model={model} />
+
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.75fr)]">
             <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
               <div className="flex items-center justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Consistency</p><h2 className="mt-1 text-lg font-semibold">Trading activity</h2></div><span className="inline-flex items-center gap-1.5 text-xs font-semibold app-muted"><CalendarDays size={14}/> {model.calendarLabel}</span></div>
@@ -435,10 +477,107 @@ export function AnalyticsDesignPrototype({
         </main>
       )}
 
-      {tab === "trades" && (demo ? <PrototypePlaceholder icon={LineChart} title="Trade explorer" description="The live report uses a dense, paginated trade ledger with entry, exit, size, risk controls, result, and timing." /> : <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="border-b app-border p-5"><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div><TradesTable trades={trades} /></section>)}
-      {tab === "journal" && (demo ? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Switch back to Your data to review and edit this session's real journal entries." /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
+      {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">19 demo trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_TRADES : trades} /></section>}
+      {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
       {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} />{!demo && reportFooter}</>}
     </div>
+  );
+}
+
+function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
+  const groups = [
+    {
+      icon: Clock3,
+      eyebrow: "Time",
+      title: "Test coverage",
+      tone: "text-accent-400",
+      rows: [
+        ["Days processed", model.daysProcessed.toFixed(1)],
+        ["Months processed", model.monthsProcessed.toFixed(2)],
+        ["Trading days", String(model.tradingDays)],
+        ["Trades / active day", model.tradesPerDay.toFixed(2)],
+      ],
+    },
+    {
+      icon: Target,
+      eyebrow: "Trades",
+      title: "Outcome profile",
+      tone: "text-amber-300",
+      rows: [
+        ["Winning / losing", `${model.winningTrades} / ${model.losingTrades}`],
+        ["Trades / month", model.tradesPerMonth.toFixed(1)],
+        ["Best win streak", String(model.maxConsecutiveWins)],
+        ["Worst loss streak", String(model.maxConsecutiveLosses)],
+      ],
+    },
+    {
+      icon: TrendingUp,
+      eyebrow: "Results",
+      title: "Profit quality",
+      tone: "text-brand-300",
+      rows: [
+        ["Gross profit", money(model.grossProfit, true)],
+        ["Gross loss", money(-model.grossLoss)],
+        ["Average win / loss", `${money(model.averageWin)} / ${money(-model.averageLoss)}`],
+        ["Profit / month", money(model.profitPerMonth, true)],
+      ],
+    },
+    {
+      icon: ShieldCheck,
+      eyebrow: "Risk",
+      title: "Robustness",
+      tone: "text-bear",
+      rows: [
+        ["Maximum drawdown", money(-model.maxDrawdown)],
+        ["Recovery factor", model.recoveryFactor.toFixed(2)],
+        ["Maximum lot used", model.maxLot.toFixed(2)],
+        ["Average trade", money(model.averageTrade, true)],
+      ],
+    },
+  ] as const;
+
+  return (
+    <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Project analytics</p><h2 className="mt-1 text-lg font-semibold">The test at a glance</h2><p className="mt-1 text-xs app-muted">Coverage, execution frequency, outcome quality, and risk in one compact read.</p></div>
+        <span className="rounded-full border app-border bg-[var(--app-panel-2)] px-3 py-1.5 font-mono text-[10px] app-muted">{model.closedTrades} closed trades</span>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {groups.map(({ icon: Icon, eyebrow, title, tone, rows }) => (
+          <article key={title} className="relative overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/38 p-4">
+            <span aria-hidden className={`absolute inset-x-0 top-0 h-px bg-current opacity-40 ${tone}`} />
+            <div className="flex items-center gap-3"><span className={`grid h-8 w-8 place-items-center rounded-lg bg-white/[0.04] ${tone}`}><Icon size={15} aria-hidden /></span><div><p className="text-[9px] font-semibold uppercase tracking-[0.14em] app-muted">{eyebrow}</p><h3 className="mt-0.5 text-sm font-semibold">{title}</h3></div></div>
+            <dl className="mt-4 divide-y app-border">
+              {rows.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 py-2.5"><dt className="text-[11px] app-muted">{label}</dt><dd className="text-right font-mono text-xs font-semibold">{value}</dd></div>)}
+            </dl>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DemoJournalWorkspace() {
+  const entries = [...DEMO_ANALYTICS_TRADES].slice(-6).reverse();
+  const adherence = Math.round(DEMO_ANALYTICS_TRADES.flatMap((trade) => trade.journal?.ruleChecklist ?? []).filter((rule) => rule.followed).length / DEMO_ANALYTICS_TRADES.flatMap((trade) => trade.journal?.ruleChecklist ?? []).length * 100);
+  const confidence = DEMO_ANALYTICS_TRADES.reduce((sum, trade) => sum + (trade.journal?.confidence ?? 0), 0) / DEMO_ANALYTICS_TRADES.length;
+  return (
+    <main className="mt-5 space-y-4">
+      <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Trading journal</p><h2 className="mt-1 text-xl font-semibold">Decision review</h2><p className="mt-1 text-xs app-muted">A realistic example of how plans, emotions, rules, and post-trade lessons appear.</p></div><span className="rounded-full bg-amber-300/10 px-3 py-1.5 text-[10px] font-semibold text-amber-200">Read-only demo</span></div>
+        <div className="mt-5 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
+          {[["Journal coverage", "19 / 19", "Every demo trade reviewed"], ["Rule adherence", `${adherence}%`, "Across all checklist items"], ["Average confidence", `${confidence.toFixed(1)} / 10`, "Confidence recorded at entry"]].map(([label, value, detail]) => <div key={label} className="bg-[var(--app-panel-2)]/60 p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">{label}</p><p className="mt-2 font-mono text-xl font-semibold">{value}</p><p className="mt-1 text-[10px] app-muted">{detail}</p></div>)}
+        </div>
+      </section>
+      <section className="grid gap-3 lg:grid-cols-2">
+        {entries.map((trade, index) => {
+          const journal = trade.journal!;
+          const followed = journal.ruleChecklist.filter((rule) => rule.followed).length;
+          const positive = Number(trade.pnl) >= 0;
+          return <article key={trade.id} className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><span className={`grid h-9 w-9 place-items-center rounded-xl ${positive ? "bg-brand-400/10 text-brand-300" : "bg-bear/10 text-bear"}`}>{positive ? <TrendingUp size={16}/> : <TrendingDown size={16}/>}</span><div><p className="text-sm font-semibold">EUR/USD · {trade.direction === "long" ? "Long" : "Short"}</p><p className="mt-1 text-[10px] app-muted">Trade {DEMO_ANALYTICS_TRADES.length - index} · {formatNewYorkDateTime(trade.exitTime, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p></div></div><p className={`font-mono text-sm font-semibold ${positive ? "text-brand-300" : "text-bear"}`}>{money(Number(trade.pnl), true)}</p></div><div className="mt-4 flex flex-wrap gap-1.5">{journal.setupTags.map((tag) => <span key={tag} className="rounded-md bg-brand-400/[0.08] px-2 py-1 text-[9px] font-semibold text-brand-300">{tag}</span>)}{journal.mistakeTags.map((tag) => <span key={tag} className="rounded-md bg-bear/[0.08] px-2 py-1 text-[9px] font-semibold text-bear">{tag}</span>)}</div><div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-[var(--app-panel-2)]/55 p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] app-muted">Entry thesis</p><p className="mt-2 text-xs leading-5">{journal.entryReason}</p></div><div className="rounded-xl bg-[var(--app-panel-2)]/55 p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] app-muted">Exit review</p><p className="mt-2 text-xs leading-5">{journal.exitReview}</p></div></div><div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t app-border pt-3 text-[10px] app-muted"><span>{followed}/{journal.ruleChecklist.length} rules followed</span><span>{journal.emotion} · confidence {journal.confidence}/10</span><span className="font-mono">{Number(journal.realizedR) >= 0 ? "+" : ""}{journal.realizedR}R</span></div></article>;
+        })}
+      </section>
+    </main>
   );
 }
 

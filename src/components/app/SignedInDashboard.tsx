@@ -21,6 +21,7 @@ import {
 } from "@/components/app/DashboardSessionsTable";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
+import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import {
@@ -42,39 +43,6 @@ const WEEKDAYS = [
   "Friday",
   "Saturday",
 ] as const;
-
-const DEMO_START = Date.UTC(2025, 1, 3, 13, 0);
-const DEMO_PNLS = [541, 260, -444, -930, -584, 304, 557, -1492, 362, -71, 522, 620, -125, 740, 410, -280, 860, 1240, 2330];
-const DEMO_TRADES: ClosedTrade[] = DEMO_PNLS.map((pnl, index) => {
-  const entryTime = DEMO_START + index * 86_400_000;
-  return {
-    id: `demo-trade-${index + 1}`,
-    direction: index % 3 === 1 ? "short" : "long",
-    entryPrice: (1.082 + index * 0.0004).toFixed(5),
-    exitPrice: (1.082 + index * 0.0004 + (pnl >= 0 ? 0.0012 : -0.0008)).toFixed(5),
-    entryTime,
-    exitTime: entryTime + (1 + index % 5) * 3_600_000,
-    entryIndex: index * 100,
-    exitIndex: index * 100 + 12,
-    lots: index % 4 === 0 ? "1.20" : index % 3 === 0 ? "0.80" : "0.40",
-    stopLoss: "1.07800",
-    takeProfit: "1.08800",
-    initialStopLoss: "1.07800",
-    initialTakeProfit: "1.08800",
-    initialRiskAmount: "500",
-    commission: "7.00",
-    pnl: String(pnl),
-    pips: String((pnl / 10).toFixed(1)),
-    exitReason: pnl > 500 ? "take-profit" : pnl < 0 ? "stop-loss" : "manual",
-    intrabarAmbiguous: false,
-  };
-});
-const DEMO_EQUITY_CURVE: EquityPoint[] = DEMO_TRADES.reduce<EquityPoint[]>((points, trade, index) => {
-  const previous = Number(points[points.length - 1]?.balance ?? 100000);
-  const balance = previous + Number(trade.pnl);
-  points.push({ index, time: trade.exitTime, balance: String(balance), equity: String(balance) });
-  return points;
-}, [{ index: 0, time: DEMO_START, balance: "100000", equity: "100000" }]);
 
 export interface DashboardSession {
   id: string;
@@ -168,8 +136,8 @@ export function SignedInDashboard({
   const scopeLabel = selectedSession?.name ?? "No session selected";
   const selectedSymbols = selectedSession?.symbols ?? [];
   const progress = sessionProgress(selectedSession);
-  const trades = showDemoData ? DEMO_TRADES : selectedTrades;
-  const selectedEquityCurve = showDemoData ? DEMO_EQUITY_CURVE : realEquityCurve;
+  const trades = showDemoData ? DEMO_ANALYTICS_TRADES : selectedTrades;
+  const selectedEquityCurve = showDemoData ? DEMO_ANALYTICS_EQUITY_CURVE : realEquityCurve;
   const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
   const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
   const winRate = trades.length ? (wins / trades.length) * 100 : 0;

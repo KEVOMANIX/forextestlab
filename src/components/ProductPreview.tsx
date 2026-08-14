@@ -27,7 +27,7 @@ const VIEWS = [
     description:
       "Resume active tests, switch between strategies, and see progress and account performance from one clean dashboard.",
     detail: "Saved sessions · replay progress · session-level performance",
-    src: "/product/session-dashboard.webp",
+    src: "/product/session-dashboard-20260814.webp",
     alt: "ForexTestLab session dashboard",
     icon: Gauge,
   },
@@ -39,7 +39,7 @@ const VIEWS = [
     description:
       "Study equity, drawdown, expectancy, timing, day-of-week performance, trading sessions, and the sequence behind your results.",
     detail: "Equity and drawdown · timing analysis · trade distributions",
-    src: "/product/session-analytics.webp",
+    src: "/product/session-analytics-20260814.webp",
     alt: "ForexTestLab session analytics",
     icon: BarChart3,
   },

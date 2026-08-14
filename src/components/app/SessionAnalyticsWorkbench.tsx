@@ -126,7 +126,7 @@ function ChartCard({
   className?: string;
 }) {
   return (
-    <article className={`min-w-0 rounded-xl bg-[var(--app-panel)] p-4 ${className}`}>
+    <article className={`min-w-0 rounded-2xl bg-[var(--app-panel)] p-4 shadow-[0_18px_55px_-42px_rgba(0,0,0,0.9)] sm:p-5 ${className}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-semibold leading-tight">{title}</h3>
@@ -1333,28 +1333,32 @@ export function SessionAnalyticsWorkbench({
         </div>
       )}
 
-      <section className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3 lg:grid-cols-6" aria-label="Filtered analytics summary">
-        {primaryMetrics.map(({ label, value, tone }) => (
-          <div key={label} className="bg-[var(--app-panel)] px-4 py-3.5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">{label}</p>
-            <p className={`mt-1.5 font-mono text-lg font-semibold ${tone}`}>{value}</p>
-          </div>
-        ))}
-      </section>
-
-      <div className="mt-6 border-b app-border pb-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">{tab === "overview" ? "Summary" : tab}</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight">{tabHeading[0]}</h2>
-        <p className="mt-1 text-xs app-muted">{tabHeading[1]}</p>
-      </div>
+      {tab !== "overview" && (
+        <div className="mt-6 border-b app-border pb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">{tab}</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight">{tabHeading[0]}</h2>
+          <p className="mt-1 text-xs app-muted">{tabHeading[1]}</p>
+        </div>
+      )}
 
       {tab === "overview" && (
-        <div className="mt-3 space-y-3">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(280px,0.72fr)]">
-            <ChartCard title="Performance curve" subtitle="Equity, realised balance, and underwater drawdown">
+        <div className="mt-5 space-y-4">
+          <section className="overflow-hidden rounded-2xl bg-[var(--app-panel)] shadow-[0_18px_55px_-38px_rgba(0,0,0,0.9)]">
+          <div className="grid xl:grid-cols-[minmax(0,1.8fr)_360px]">
+            <div className="min-w-0 p-4 sm:p-5 lg:p-6">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Account equity</p>
+                  <div className="mt-1.5 flex items-end gap-3">
+                    <p className="font-mono text-2xl font-semibold tracking-tight sm:text-3xl">{money(start + net).replace("+", "")}</p>
+                    <span className={`mb-1 text-xs font-semibold ${returnPct >= 0 ? "text-brand-300" : "text-bear"}`}>{returnPct >= 0 ? "+" : ""}{pct(returnPct)}</span>
+                  </div>
+                </div>
+                <p className="text-right text-[10px] leading-5 app-muted">Equity, realised balance,<br />and underwater drawdown</p>
+              </div>
               <EquityDrawdownChart points={analyticsEquityCurve} trades={filtered} />
-            </ChartCard>
-            <aside className="rounded-xl bg-[var(--app-panel)] p-5">
+            </div>
+            <aside className="border-t app-border bg-[var(--app-panel-2)]/38 p-5 xl:border-l xl:border-t-0 xl:p-6">
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Session verdict</p>
               <h3 className="mt-2 text-xl font-semibold tracking-tight">{verdict}</h3>
               <div className="mt-3">
@@ -1370,6 +1374,15 @@ export function SessionAnalyticsWorkbench({
               <p className="mt-4 text-xs leading-5 app-muted">{filtered.length < 30 ? `Add ${30 - filtered.length} more trades before treating this result as dependable.` : `Average hold ${durationLabel(avgHoldMs)} across the selected sample.`}</p>
             </aside>
           </div>
+          </section>
+          <section className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3 lg:grid-cols-6" aria-label="Filtered analytics summary">
+            {primaryMetrics.map(({ label, value, tone }) => (
+              <div key={label} className="bg-[var(--app-panel)] px-4 py-3.5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">{label}</p>
+                <p className={`mt-1.5 font-mono text-lg font-semibold ${tone}`}>{value}</p>
+              </div>
+            ))}
+          </section>
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.7fr)]">
             <ChartCard title="Trading activity" subtitle="Daily realised performance and trading frequency">
               <TradingActivityCalendar trades={filtered} startingBalance={start} />

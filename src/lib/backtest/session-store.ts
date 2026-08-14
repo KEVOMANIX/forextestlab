@@ -490,7 +490,7 @@ export async function createSession(
   const demoData = source === "demo";
   if (!params.userId && !demoData) {
     throw new Error(
-      "Create a free account to use saved historical market data. Anonymous access is demonstration-only.",
+      "Create a free account to use saved historical market data. Anonymous access uses sample data only.",
     );
   }
   const contextCandles = await fetchChartContext(

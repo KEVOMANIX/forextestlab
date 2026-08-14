@@ -78,7 +78,7 @@ export default async function AdminSessionsPage(props: { searchParams: Promise<{
                   <td className={adminTd}><AdminStatus value={session.status} /></td>
                   <td className={adminTd}><div className="h-1.5 w-28 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-brand-400" style={{ width: `${progress}%` }} /></div><p className="mt-1.5 text-[11px] app-muted">{progress.toFixed(0)}%</p></td>
                   <td className={adminTd}><p>{session._count.trades} trades</p><p className="mt-1 text-xs app-muted">{session._count.orders} orders</p></td>
-                  <td className={adminTd}><p className="text-xs capitalize">{session.dataSource.replaceAll("-", " ")}</p>{session.demoData && <p className="mt-1 text-[11px] text-amber-300">Demo data</p>}</td>
+                  <td className={adminTd}><p className="text-xs capitalize">{session.dataSource.replaceAll("-", " ")}</p>{session.demoData && <p className="mt-1 text-[11px] text-amber-300">Sample data</p>}</td>
                   <td className={`${adminTd} text-xs app-muted`}>{formatNewYorkDateTime(session.updatedAt)}</td>
                 </tr>
               );

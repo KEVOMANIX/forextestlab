@@ -522,13 +522,13 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                 onSelect={() => setChallengePreset(null)}
               />
               <ModeCard
-                title="FTMO Challenge"
+                title="Prop firm challenge"
                 detail="Phase 1 - 10% target"
                 selected={challengePreset === "ftmo-phase-1"}
                 onSelect={() => setChallengePreset("ftmo-phase-1")}
               />
               <ModeCard
-                title="FTMO Verification"
+                title="Prop firm verification"
                 detail="Phase 2 - 5% target"
                 selected={challengePreset === "ftmo-phase-2"}
                 onSelect={() => setChallengePreset("ftmo-phase-2")}

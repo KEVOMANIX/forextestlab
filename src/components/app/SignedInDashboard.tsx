@@ -118,7 +118,7 @@ export function SignedInDashboard({
     id: realSelectedSession?.id ?? "demo-preview",
     symbol: realSelectedSession?.symbol ?? "EURUSD",
     symbols: realSelectedSession?.symbols?.length ? realSelectedSession.symbols : ["EURUSD"],
-    name: "London-session breakout — demo",
+    name: "London-session breakout — sample",
     timeframe: realSelectedSession?.timeframe ?? "15m",
     startTime: BigInt(Date.UTC(2025, 1, 1)),
     endTime: BigInt(Date.UTC(2025, 1, 28, 23, 59)),
@@ -411,7 +411,7 @@ export function SignedInDashboard({
             className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-xs font-semibold transition-colors ${showDemoData ? "border-amber-300/35 bg-amber-300/[0.12] text-amber-200" : "border-brand-400/25 bg-brand-400/[0.07] text-brand-300 hover:bg-brand-400/[0.12]"}`}
             title={showDemoData ? "Return to your saved session data" : "Preview a complete dashboard with sample trades"}
           >
-            <FlaskConical size={15} aria-hidden /> {showDemoData ? "Show my data" : "Show demo data"}
+            <FlaskConical size={15} aria-hidden /> {showDemoData ? "Show my data" : "Show sample data"}
           </button>
           <Link href="/app/backtest" className={`${selectedSession ? "btn-secondary" : "btn-primary shadow-glow"} shrink-0 px-4 py-2.5 text-xs`}>
             <Plus size={16} aria-hidden /> New backtest
@@ -419,7 +419,7 @@ export function SignedInDashboard({
         </div>
       </header>
 
-      {showDemoData && <div role="note" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100"><span><strong>Demo data is on.</strong> The dashboard is previewing a completed strategy. Your saved sessions have not been changed.</span><button type="button" onClick={() => setShowDemoData(false)} className="shrink-0 font-semibold underline underline-offset-2">Use my data</button></div>}
+      {showDemoData && <div role="note" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100"><span><strong>Sample data is on.</strong> The dashboard is previewing a completed strategy. Your saved sessions have not been changed.</span><button type="button" onClick={() => setShowDemoData(false)} className="shrink-0 font-semibold underline underline-offset-2">Use my data</button></div>}
 
       {!selectedSession ? (
         <section className="relative mt-7 overflow-hidden rounded-3xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-6 shadow-card sm:p-9">
@@ -504,7 +504,7 @@ export function SignedInDashboard({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {showDemoData ? realSelectedSession && <Link href={`/app/results/${realSelectedSession.id}?demo=1`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400">Open full demo analytics <ArrowRight size={14} aria-hidden /></Link> : <><DashboardSessionSwitcher selectedId={selectedSession.id} sessions={sessionOptions} /><SessionCardActions sessionId={selectedSession.id} sessionName={scopeLabel} status={selectedSession.status} archived={selectedSession.archived} compact command /></>}
+                  {showDemoData ? realSelectedSession && <Link href={`/app/results/${realSelectedSession.id}?demo=1`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400">Open full sample analytics <ArrowRight size={14} aria-hidden /></Link> : <><DashboardSessionSwitcher selectedId={selectedSession.id} sessions={sessionOptions} /><SessionCardActions sessionId={selectedSession.id} sessionName={scopeLabel} status={selectedSession.status} archived={selectedSession.archived} compact command /></>}
                 </div>
               </div>
 

@@ -315,7 +315,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         busy: false,
         error: null,
         notice: normalizedState.demoData
-          ? "This session uses generated demonstration data and does not represent an actual market feed."
+          ? "This session uses generated sample data and does not represent an actual market feed."
           : null,
         notes: "",
         activeSymbol: normalizedState.config.symbol,

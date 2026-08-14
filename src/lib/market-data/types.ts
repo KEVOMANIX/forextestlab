@@ -199,4 +199,4 @@ export interface MarketDataProvider {
 
 /** Human-readable notice attached to synthetic data. */
 export const DEMO_DATA_LABEL =
-  "Demonstration data generated for software testing. It is not live market data.";
+  "Sample data generated for software testing. It is not live market data.";

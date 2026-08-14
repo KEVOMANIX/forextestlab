@@ -1,5 +1,5 @@
 import { formatInZone } from "./timezones";
-import { TIMEFRAME_MS, type Timeframe } from "../market-data/types";
+import { isCalendarTimeframe, TIMEFRAME_MS, type Timeframe } from "../market-data/types";
 
 /**
  * Mirrors lightweight-charts' `TickMarkType` so this module stays pure and
@@ -73,7 +73,7 @@ export function formatTickMark(
   timeframe: Timeframe,
 ): string {
   if (timeframe === "1yr") return formatInZone(at, zone, YEAR);
-  if (timeframe === "1M") {
+  if (isCalendarTimeframe(timeframe)) {
     return formatInZone(at, zone, tickMarkType === TICK_YEAR ? YEAR : MONTH);
   }
   if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) {
@@ -101,7 +101,7 @@ export function formatTickMark(
  * the reservation to the labels actually used lets it place more useful ticks.
  */
 export function timeframeTickMarkMaxCharacters(timeframe: Timeframe): number {
-  if (timeframe === "1M" || timeframe === "1yr") return 4;
+  if (isCalendarTimeframe(timeframe)) return 4;
   if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) return 6;
   return 5;
 }

@@ -51,6 +51,9 @@ describe("formatTickMark", () => {
     expect(formatTickMark(at, TICK_TIME, "UTC", "1d")).toBe("Mar 29");
     expect(formatTickMark(at, TICK_DAY_OF_MONTH, "UTC", "1w")).toBe("Mar 29");
     expect(formatTickMark(at, TICK_DAY_OF_MONTH, "UTC", "1M")).toBe("Mar");
+    expect(formatTickMark(at, TICK_DAY_OF_MONTH, "UTC", "3M")).toBe("Mar");
+    expect(formatTickMark(at, TICK_DAY_OF_MONTH, "UTC", "4M")).toBe("Mar");
+    expect(formatTickMark(at, TICK_DAY_OF_MONTH, "UTC", "6M")).toBe("Mar");
     expect(formatTickMark(at, TICK_MONTH, "UTC", "1yr")).toBe("2024");
   });
 
@@ -59,6 +62,9 @@ describe("formatTickMark", () => {
     expect(timeframeTickMarkMaxCharacters("12h")).toBe(5);
     expect(timeframeTickMarkMaxCharacters("1d")).toBe(6);
     expect(timeframeTickMarkMaxCharacters("1M")).toBe(4);
+    expect(timeframeTickMarkMaxCharacters("3M")).toBe(4);
+    expect(timeframeTickMarkMaxCharacters("4M")).toBe(4);
+    expect(timeframeTickMarkMaxCharacters("6M")).toBe(4);
     expect(timeframeTickMarkMaxCharacters("1yr")).toBe(4);
   });
 });

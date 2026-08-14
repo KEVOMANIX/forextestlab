@@ -8,7 +8,11 @@
 
 import { Decimal, d } from "@/lib/decimal";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
-import { canAggregateTimeframes, TIMEFRAME_MS } from "@/lib/market-data/types";
+import {
+  calendarMonthsForTimeframe,
+  canAggregateTimeframes,
+  TIMEFRAME_MS,
+} from "@/lib/market-data/types";
 
 /** Start (UTC epoch ms) of the bucket that `timestampMs` falls into for `timeframe`. */
 export function candleBucketStart(
@@ -20,11 +24,11 @@ export function candleBucketStart(
     const daysSinceMonday = (date.getUTCDay() + 6) % 7;
     return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - daysSinceMonday);
   }
-  if (timeframe === "1M") {
-    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
-  }
-  if (timeframe === "1yr") {
-    return Date.UTC(date.getUTCFullYear(), 0, 1);
+  const calendarMonths = calendarMonthsForTimeframe(timeframe);
+  if (calendarMonths !== null) {
+    const bucketMonth =
+      Math.floor(date.getUTCMonth() / calendarMonths) * calendarMonths;
+    return Date.UTC(date.getUTCFullYear(), bucketMonth, 1);
   }
   const size = TIMEFRAME_MS[timeframe];
   return timestampMs - (timestampMs % size);

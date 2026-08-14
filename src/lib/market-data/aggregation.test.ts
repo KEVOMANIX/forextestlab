@@ -2,7 +2,14 @@ import { describe, it, expect } from "vitest";
 
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import type { Candle } from "@/lib/market-data/types";
-import { canAggregateTimeframes, nextForexTimeframeTimestamp, TIMEFRAMES, TIMEFRAME_MS } from "@/lib/market-data/types";
+import {
+  canAggregateTimeframes,
+  isCalendarTimeframe,
+  nextForexTimeframeTimestamp,
+  nextTimeframeTimestamp,
+  TIMEFRAMES,
+  TIMEFRAME_MS,
+} from "@/lib/market-data/types";
 
 describe("forex session timestamps", () => {
   it("compresses the weekend for 4h candles", () => {
@@ -24,6 +31,13 @@ describe("forex session timestamps", () => {
   it("walks backward across the closure too", () => {
     const monday = Date.UTC(2025, 7, 4);
     expect(nextForexTimeframeTimestamp(monday, "4h", -1)).toBe(Date.UTC(2025, 7, 3, 20));
+  });
+
+  it("moves multi-month candles by real calendar boundaries", () => {
+    const january = Date.UTC(2024, 0, 1);
+    expect(nextTimeframeTimestamp(january, "3M")).toBe(Date.UTC(2024, 3, 1));
+    expect(nextTimeframeTimestamp(january, "4M")).toBe(Date.UTC(2024, 4, 1));
+    expect(nextTimeframeTimestamp(january, "6M", 2)).toBe(Date.UTC(2025, 0, 1));
   });
 });
 
@@ -68,7 +82,7 @@ describe("aggregation provenance", () => {
 
 describe("candleBucketStart", () => {
   it("floors fixed intraday and daily timeframes to UTC-aligned starts", () => {
-    const fixed = TIMEFRAMES.filter((tf) => tf !== "1w" && tf !== "1M" && tf !== "1yr");
+    const fixed = TIMEFRAMES.filter((tf) => tf !== "1w" && !isCalendarTimeframe(tf));
     for (const tf of fixed) {
       const size = TIMEFRAME_MS[tf];
       // A timestamp partway through the second bucket of the day.
@@ -81,10 +95,13 @@ describe("candleBucketStart", () => {
     }
   });
 
-  it("uses Monday, calendar-month, and calendar-year boundaries", () => {
+  it("uses Monday and calendar-aligned month boundaries", () => {
     expect(candleBucketStart(Date.UTC(2024, 0, 7, 23, 59), "1w")).toBe(Date.UTC(2024, 0, 1));
     expect(candleBucketStart(Date.UTC(2024, 0, 8), "1w")).toBe(Date.UTC(2024, 0, 8));
     expect(candleBucketStart(Date.UTC(2024, 1, 29, 18), "1M")).toBe(Date.UTC(2024, 1, 1));
+    expect(candleBucketStart(Date.UTC(2024, 4, 29, 18), "3M")).toBe(Date.UTC(2024, 3, 1));
+    expect(candleBucketStart(Date.UTC(2024, 7, 29, 18), "4M")).toBe(Date.UTC(2024, 4, 1));
+    expect(candleBucketStart(Date.UTC(2024, 10, 29, 18), "6M")).toBe(Date.UTC(2024, 6, 1));
     expect(candleBucketStart(Date.UTC(2024, 11, 31, 23), "1yr")).toBe(Date.UTC(2024, 0, 1));
   });
 
@@ -316,6 +333,18 @@ describe("aggregateCandles - larger single-bucket aggregations", () => {
       Date.UTC(2024, 0, 1),
       Date.UTC(2024, 1, 1),
     ]);
+    expect(aggregateCandles(daily, "1d", "3M").map((c) => c.timestamp)).toEqual([
+      Date.UTC(2023, 9, 1),
+      Date.UTC(2024, 0, 1),
+    ]);
+    expect(aggregateCandles(daily, "1d", "4M").map((c) => c.timestamp)).toEqual([
+      Date.UTC(2023, 8, 1),
+      Date.UTC(2024, 0, 1),
+    ]);
+    expect(aggregateCandles(daily, "1d", "6M").map((c) => c.timestamp)).toEqual([
+      Date.UTC(2023, 6, 1),
+      Date.UTC(2024, 0, 1),
+    ]);
     expect(aggregateCandles(daily, "1d", "1yr").map((c) => c.timestamp)).toEqual([
       Date.UTC(2023, 0, 1),
       Date.UTC(2024, 0, 1),
@@ -444,6 +473,9 @@ describe("aggregateCandles - invalid timeframe pairs", () => {
     expect(canAggregateTimeframes("1w", "1M")).toBe(false);
     expect(canAggregateTimeframes("1w", "1yr")).toBe(false);
     expect(canAggregateTimeframes("1M", "1yr")).toBe(true);
+    expect(canAggregateTimeframes("1M", "3M")).toBe(true);
+    expect(canAggregateTimeframes("3M", "6M")).toBe(true);
+    expect(canAggregateTimeframes("4M", "6M")).toBe(false);
   });
 
   it("returns an empty array for empty input", () => {

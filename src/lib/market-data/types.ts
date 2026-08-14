@@ -22,6 +22,9 @@ export type Timeframe =
   | "1d"
   | "1w"
   | "1M"
+  | "3M"
+  | "4M"
+  | "6M"
   | "1yr";
 
 export const TIMEFRAMES: Timeframe[] = [
@@ -40,6 +43,9 @@ export const TIMEFRAMES: Timeframe[] = [
   "1d",
   "1w",
   "1M",
+  "3M",
+  "4M",
+  "6M",
   "1yr",
 ];
 
@@ -63,31 +69,54 @@ export const TIMEFRAME_MS: Record<Timeframe, number> = {
   "1d": 24 * 60 * 60_000,
   "1w": 7 * 24 * 60 * 60_000,
   "1M": 30 * 24 * 60 * 60_000,
+  "3M": 90 * 24 * 60 * 60_000,
+  "4M": 120 * 24 * 60 * 60_000,
+  "6M": 180 * 24 * 60 * 60_000,
   "1yr": 365 * 24 * 60 * 60_000,
 };
 
+const CALENDAR_TIMEFRAME_MONTHS: Partial<Record<Timeframe, number>> = {
+  "1M": 1,
+  "3M": 3,
+  "4M": 4,
+  "6M": 6,
+  "1yr": 12,
+};
+
+/** Number of real calendar months in a calendar-aligned timeframe. */
+export function calendarMonthsForTimeframe(timeframe: Timeframe): number | null {
+  return CALENDAR_TIMEFRAME_MONTHS[timeframe] ?? null;
+}
+
 export function isCalendarTimeframe(timeframe: Timeframe): boolean {
-  return timeframe === "1M" || timeframe === "1yr";
+  return calendarMonthsForTimeframe(timeframe) !== null;
 }
 
 /** Whether source candles can be grouped without crossing target boundaries. */
 export function canAggregateTimeframes(from: Timeframe, to: Timeframe): boolean {
   if (from === to) return true;
-  if (to === "1M") return TIMEFRAME_MS[from] <= TIMEFRAME_MS["1d"];
-  if (to === "1yr") return from === "1M" || TIMEFRAME_MS[from] <= TIMEFRAME_MS["1d"];
+  const targetMonths = calendarMonthsForTimeframe(to);
+  if (targetMonths !== null) {
+    const sourceMonths = calendarMonthsForTimeframe(from);
+    if (sourceMonths !== null) {
+      return targetMonths > sourceMonths && targetMonths % sourceMonths === 0;
+    }
+    return TIMEFRAME_MS[from] <= TIMEFRAME_MS["1d"];
+  }
   if (isCalendarTimeframe(from)) return false;
   return TIMEFRAME_MS[to] > TIMEFRAME_MS[from] && TIMEFRAME_MS[to] % TIMEFRAME_MS[from] === 0;
 }
 
 /** Move by whole candle boundaries, respecting real UTC months and years. */
 export function nextTimeframeTimestamp(timestampMs: number, timeframe: Timeframe, count = 1): number {
-  if (timeframe === "1M") {
+  const calendarMonths = calendarMonthsForTimeframe(timeframe);
+  if (calendarMonths !== null) {
     const date = new Date(timestampMs);
-    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + count, 1);
-  }
-  if (timeframe === "1yr") {
-    const date = new Date(timestampMs);
-    return Date.UTC(date.getUTCFullYear() + count, 0, 1);
+    return Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth() + calendarMonths * count,
+      1,
+    );
   }
   return timestampMs + TIMEFRAME_MS[timeframe] * count;
 }
@@ -102,7 +131,7 @@ export function nextTimeframeTimestamp(timestampMs: number, timeframe: Timeframe
  * DST-sensitive exact open minute.
  */
 export function isForexSessionTimestamp(timestampMs: number, timeframe: Timeframe): boolean {
-  if (timeframe === "1w" || timeframe === "1M" || timeframe === "1yr") return true;
+  if (timeframe === "1w" || isCalendarTimeframe(timeframe)) return true;
   const date = new Date(timestampMs);
   const day = date.getUTCDay();
   if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) return day >= 1 && day <= 5;
@@ -129,13 +158,15 @@ export function nextForexTimeframeTimestamp(timestampMs: number, timeframe: Time
 
 /** Count whole timeframe intervals between two aligned candle timestamps. */
 export function timeframeIntervalsBetween(fromMs: number, toMs: number, timeframe: Timeframe): number {
-  if (timeframe === "1M") {
+  const calendarMonths = calendarMonthsForTimeframe(timeframe);
+  if (calendarMonths !== null) {
     const from = new Date(fromMs);
     const to = new Date(toMs);
-    return (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + to.getUTCMonth() - from.getUTCMonth();
-  }
-  if (timeframe === "1yr") {
-    return new Date(toMs).getUTCFullYear() - new Date(fromMs).getUTCFullYear();
+    const months =
+      (to.getUTCFullYear() - from.getUTCFullYear()) * 12 +
+      to.getUTCMonth() -
+      from.getUTCMonth();
+    return Math.round(months / calendarMonths);
   }
   return Math.round((toMs - fromMs) / TIMEFRAME_MS[timeframe]);
 }

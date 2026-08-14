@@ -192,6 +192,7 @@ export async function visiblePairCandles(
   symbol: string,
   full = false,
   after?: number,
+  requestedClock?: number,
 ): Promise<{
   candles: Candle[];
   contextCandles: Candle[];
@@ -217,13 +218,27 @@ export async function visiblePairCandles(
     };
   }
 
-  const current = currentCandleOf(session.ctx)?.timestamp;
-  const timeframe = session.ctx.state.config.timeframe;
-  // Same runway as `bufferedReplayCandles`, expressed in time rather than an
-  // index — this series is fetched fresh from the provider, not sliced from
-  // the session's own revealed-index array.
+  const primary = session.ctx.candles;
+  const serverClock = currentCandleOf(session.ctx)?.timestamp;
+  const requested = Number.isFinite(requestedClock)
+    ? Math.min(requestedClock!, primary.at(-1)?.timestamp ?? requestedClock!)
+    : serverClock;
+  let clockIndex = session.ctx.state.visibleIndex;
+  if (requested != null) {
+    let low = 0;
+    let high = primary.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if ((primary[mid]?.timestamp ?? 0) <= requested) low = mid + 1;
+      else high = mid;
+    }
+    clockIndex = Math.max(0, low - 1);
+  }
+  const current = primary[clockIndex]?.timestamp ?? serverClock;
+  // Match the exact final timestamp in the primary chart's candle buffer.
   const bufferCutoff =
-    current != null ? current + MAX_BUFFER_CANDLES * TIMEFRAME_MS[timeframe] : null;
+    primary[Math.min(primary.length - 1, clockIndex + MAX_BUFFER_CANDLES)]?.timestamp ??
+    current;
   await ensureSessionPairCandles(session, [symbol]);
   const series = session.ctx.pairCandles?.[symbol] ?? [];
   const contextCandles = after == null ? await getChartContext(session, symbol) : [];
@@ -231,7 +246,7 @@ export async function visiblePairCandles(
     ? bufferCutoff != null
       ? series.filter((candle) => candle.timestamp <= bufferCutoff)
       : series.slice(0, session.ctx.state.config.initialVisibleCount + MAX_BUFFER_CANDLES)
-    : current
+    : current != null
       ? series.filter((candle) => candle.timestamp <= current)
       : series.slice(0, session.ctx.state.config.initialVisibleCount);
   return {
@@ -254,41 +269,53 @@ export async function ensureSessionPairCandles(
   const { ctx } = session;
   const target = ctx.candles.at(-1)?.timestamp;
   if (target == null) return;
-  ctx.pairCandles ??= {};
-  for (const symbol of symbols) {
-    if (symbol === ctx.state.config.symbol) continue;
-    const current = ctx.pairCandles[symbol] ?? [];
-    let start = current.at(-1)
-      ? nextTimeframeTimestamp(current.at(-1)!.timestamp, ctx.state.config.timeframe)
-      : ctx.state.config.startTime;
-    const additions: Candle[] = [];
-    while (start <= target) {
-      const page = await fetchSeries(
-        symbol,
-        ctx.state.config.timeframe,
-        start,
-        target,
-      );
-      const fresh = page.filter(
-        (candle) => candle.timestamp >= start && candle.timestamp <= target,
-      );
-      if (!fresh.length) break;
-      additions.push(...fresh);
-      const newest = fresh.at(-1)!;
-      if (newest.timestamp >= target || fresh.length < MAX_SESSION_CANDLES) break;
-      const next = nextTimeframeTimestamp(newest.timestamp, ctx.state.config.timeframe);
-      if (next <= start) break;
-      start = next;
-    }
-    if (additions.length) {
-      const merged = [...current, ...additions];
-      ctx.pairCandles[symbol] = merged.filter(
-        (candle, index) => index === 0 || candle.timestamp !== merged[index - 1]?.timestamp,
-      );
-    } else if (!ctx.pairCandles[symbol]) {
-      ctx.pairCandles[symbol] = [];
-    }
-  }
+  const pairCandles = (ctx.pairCandles ??= {});
+  await Promise.all(
+    symbols
+      .filter((symbol) => symbol !== ctx.state.config.symbol)
+      .map(async (symbol) => {
+        const current = pairCandles[symbol] ?? [];
+        let start = current.at(-1)
+          ? nextTimeframeTimestamp(
+              current.at(-1)!.timestamp,
+              ctx.state.config.timeframe,
+            )
+          : ctx.state.config.startTime;
+        const additions: Candle[] = [];
+        let pages = 0;
+        while (start <= target && pages < 100) {
+          pages += 1;
+          const page = await fetchSeries(
+            symbol,
+            ctx.state.config.timeframe,
+            start,
+            target,
+          );
+          const fresh = page.filter(
+            (candle) => candle.timestamp >= start && candle.timestamp <= target,
+          );
+          if (!fresh.length) break;
+          additions.push(...fresh);
+          const newest = fresh.at(-1)!;
+          if (newest.timestamp >= target) break;
+          const next = nextTimeframeTimestamp(
+            newest.timestamp,
+            ctx.state.config.timeframe,
+          );
+          if (next <= start) break;
+          start = next;
+        }
+        if (additions.length) {
+          const merged = [...current, ...additions];
+          pairCandles[symbol] = merged.filter(
+            (candle, index) =>
+              index === 0 || candle.timestamp !== merged[index - 1]?.timestamp,
+          );
+        } else if (!pairCandles[symbol]) {
+          pairCandles[symbol] = [];
+        }
+      }),
+  );
 }
 
 async function fetchChartContext(

@@ -211,6 +211,8 @@ interface PriceChartProps {
   replaySessionId?: string;
   /** Reattach this cell to the live edge when replay starts or resumes. */
   replayRunning?: boolean;
+  /** A newly loaded symbol must open on the session's current replay candle. */
+  alignToReplayClockOnLoad?: boolean;
   markers: ChartMarker[];
   positions: OpenPosition[];
   pendingOrders: PendingOrder[];
@@ -594,6 +596,7 @@ export default function PriceChart({
   replaySeries,
   replaySessionId,
   replayRunning = false,
+  alignToReplayClockOnLoad = false,
   markers,
   positions,
   pendingOrders,
@@ -1671,6 +1674,7 @@ export default function PriceChart({
           setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
         }
         if (
+          !alignToReplayClockOnLoad &&
           saved.timeRange &&
           Number.isFinite(saved.timeRange.from) &&
           Number.isFinite(saved.timeRange.to) &&
@@ -2092,6 +2096,10 @@ export default function PriceChart({
     } else if (visibleRange) {
       setFollowLatest(false, "preserved-range");
       scale?.setVisibleLogicalRange(visibleRange);
+    } else if (alignToReplayClockOnLoad) {
+      savedTimeRangeRef.current = null;
+      setFollowLatest(true);
+      resetLatestViewport();
     } else if (!restoreSavedTimeRange()) {
       // The series has only just arrived, so this is where a cell cloned into a
       // new layout finally gets the view it was stored with.
@@ -2107,7 +2115,7 @@ export default function PriceChart({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCandles]);
+  }, [initialCandles, alignToReplayClockOnLoad]);
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;

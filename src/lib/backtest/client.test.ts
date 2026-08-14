@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getStateWithToken } from "./client";
+import { getPairChart, getStateWithToken } from "./client";
 
 /**
  * `getStateWithToken` drives the resume flow on every page load. A transient
@@ -83,5 +83,31 @@ describe("getStateWithToken", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toBe("Unauthorised.");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getPairChart", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends the browser replay clock when aligning a newly added pair", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      status: 200,
+      json: async () => ({
+        ok: true,
+        symbol: "USDJPY",
+        candles: [],
+        contextCandles: [],
+        pipSize: "0.01",
+        pricePrecision: 3,
+      }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getPairChart("session-1", "token", "USDJPY", true, undefined, 123456);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/backtest/sessions/session-1/pair?symbol=USDJPY&full=1&at=123456",
+      expect.objectContaining({ cache: "no-store" }),
+    );
   });
 });

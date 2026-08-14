@@ -261,17 +261,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
           (candle) => candle.timestamp > newestTimestamp,
         );
         if (newCandles.length > 0) {
-          // Never mutate the array React already owns. Mutating it here and
-          // then appending the same chunk in setS duplicated extension candles
-          // and repeatedly forced the chart through its data-swap path.
-          engine.candles = [...engine.candles, ...newCandles];
-          engine.state.totalCandles = engine.candles.length;
-          if (!deferReplaySeriesPublishRef.current) {
-            setS((prev) => ({
-              ...prev,
-              replayCandles: engine.candles,
-            }));
-          }
+          // Ask each secondary series through the same newly downloaded primary
+          // tail. Using only the current visible candle leaves the primary with a
+          // longer runway, so its buffer scheduler would refresh too late for the
+          // shorter pane.
+          const extensionTail = newCandles.at(-1)?.timestamp;
           const refreshedPairs = await Promise.all(
             Object.keys(engine.pairCandles ?? {}).map(async (symbol) => {
               const existing = engine.pairCandles?.[symbol] ?? [];
@@ -281,29 +275,55 @@ export function useBacktester(resumeSessionId: string | null = null) {
                 symbol,
                 true,
                 existing.at(-1)?.timestamp,
+                extensionTail,
               );
-              if (!result.ok || result.candles.length === 0) return null;
+              if (!result.ok) return { symbol, error: result.error };
               const merged = [...existing, ...result.candles].filter(
                 (candle, index, all) =>
                   index === 0 || candle.timestamp !== all[index - 1]?.timestamp,
               );
-              engine.pairCandles ??= {};
-              engine.pairCandles[symbol] = merged;
               return { symbol, result: { ...result, candles: merged } };
             }),
           );
-          const updates = refreshedPairs.filter(
-            (item): item is NonNullable<typeof item> => item !== null,
-          );
-          if (updates.length) {
-            setS((prev) => ({
-              ...prev,
-              pairs: updates.reduce(
-                (pairs, item) => ({ ...pairs, [item.symbol]: item.result }),
-                prev.pairs,
-              ),
-            }));
+          const failed = refreshedPairs.find((item) => "error" in item);
+          if (failed && "error" in failed) {
+            return {
+              ok: false as const,
+              error: failed.error || `Could not extend ${failed.symbol} market data.`,
+            };
           }
+          const updates = refreshedPairs.filter(
+            (item): item is Extract<(typeof refreshedPairs)[number], { result: unknown }> =>
+              "result" in item,
+          );
+          engine.pairCandles ??= {};
+          for (const item of updates) {
+            engine.pairCandles[item.symbol] = item.result.candles;
+          }
+          // Publish the primary and every active secondary buffer together. A
+          // replay tick can therefore never enter a chunk that only some panes
+          // have received.
+          engine.candles = [...engine.candles, ...newCandles];
+          engine.state.totalCandles = engine.candles.length;
+          setS((prev) => ({
+            ...prev,
+            ...(deferReplaySeriesPublishRef.current
+              ? {}
+              : { replayCandles: engine.candles }),
+            pairs: updates.reduce(
+              (pairs, item) => ({
+                ...pairs,
+                [item.symbol]: {
+                  ...item.result,
+                  contextCandles:
+                    pairs[item.symbol]?.contextCandles.length
+                      ? pairs[item.symbol]!.contextCandles
+                      : item.result.contextCandles,
+                },
+              }),
+              prev.pairs,
+            ),
+          }));
         }
         return { ...extension, candles: newCandles };
       });
@@ -1581,7 +1601,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
           ? prev.pairLoadingSymbols
           : [...prev.pairLoadingSymbols, symbol],
       }));
-      const pair = await getPairChart(id, tokenRef.current, symbol, true);
+      const engine = localEngineRef.current;
+      const replayClock = engine?.candles[engine.state.visibleIndex]?.timestamp;
+      const pair = await getPairChart(
+        id,
+        tokenRef.current,
+        symbol,
+        true,
+        undefined,
+        replayClock,
+      );
       pairRequestsRef.current.delete(symbol);
       if (pair.ok && localEngineRef.current) {
         localEngineRef.current.pairCandles ??= {};

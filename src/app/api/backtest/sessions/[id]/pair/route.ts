@@ -32,12 +32,15 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const symbol = query.get("symbol") ?? "";
   const afterParam = query.get("after");
   const after = afterParam == null ? undefined : Number(afterParam);
+  const clockParam = query.get("at");
+  const clock = clockParam == null ? undefined : Number(clockParam);
   try {
     const pair = await visiblePairCandles(
       session,
       symbol,
       query.get("full") === "1",
       Number.isFinite(after) ? after : undefined,
+      Number.isFinite(clock) ? clock : undefined,
     );
     return NextResponse.json({ ok: true, symbol, ...pair });
   } catch (error) {

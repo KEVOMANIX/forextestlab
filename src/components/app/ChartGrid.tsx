@@ -90,11 +90,18 @@ interface StoredLayout {
  * Seed a new cell's view state from the cell it was cloned from, unless it
  * already has its own from an earlier visit to this layout.
  */
-function cloneCellView(storageKey: string, fromCellId: string, toCellId: string) {
+function cloneCellView(
+  storageKey: string,
+  symbol: string,
+  fromCellId: string,
+  toCellId: string,
+) {
   try {
-    const target = `forextestlab:chart:${storageKey}:${toCellId}`;
+    const target = `forextestlab:chart:${storageKey}:${toCellId}:${symbol}`;
     if (window.localStorage.getItem(target)) return;
-    const source = window.localStorage.getItem(`forextestlab:chart:${storageKey}:${fromCellId}`);
+    const source = window.localStorage.getItem(
+      `forextestlab:chart:${storageKey}:${fromCellId}:${symbol}`,
+    );
     if (source) window.localStorage.setItem(target, source);
   } catch {
     // A cell without seeded state just opens on the defaults.
@@ -272,7 +279,7 @@ export default function ChartGrid({
     const template = cells.find((cell) => cell.id === focusedId) ?? cells[0];
     while (next.length < count) {
       const id = `cell-${next.length + 1}`;
-      if (template) cloneCellView(storageKey, template.id, id);
+      if (template) cloneCellView(storageKey, template.symbol, template.id, id);
       next.push({
         id,
         symbol: template?.symbol ?? sessionSymbol,
@@ -709,6 +716,7 @@ function ChartCellView({
         replaySeries={isSession ? sessionSeries : pair?.candles}
         replaySessionId={state.sessionId}
         replayRunning={state.status === "running"}
+        alignToReplayClockOnLoad={!isSession}
         markers={tradable ? cellMarkers : []}
         positions={tradable ? cellPositions : []}
         pendingOrders={tradable ? cellPendingOrders : []}
@@ -735,7 +743,7 @@ function ChartCellView({
         jumpLabel={jumpLabel}
         error={isSession ? error : null}
         storageKey={`${storageKey}:${cell.symbol}`}
-        viewKey={`${storageKey}:${cell.id}`}
+        viewKey={`${storageKey}:${cell.id}:${cell.symbol}`}
         initialTimeframe={cell.timeframe ?? undefined}
         onDisplayTimeframeChange={onTimeframeChange}
         headerSlot={headerSlot}

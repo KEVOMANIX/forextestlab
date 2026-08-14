@@ -294,9 +294,10 @@ export async function getPairChart(
   /** Fetch the whole session series so the browser can reveal it on its own clock. */
   full = false,
   after?: number,
+  at?: number,
 ): Promise<({ ok: true } & PairChartData) | ApiErr> {
   const res = await fetch(
-    `/api/backtest/sessions/${sessionId}/pair?symbol=${encodeURIComponent(symbol)}${full ? "&full=1" : ""}${after == null ? "" : `&after=${after}`}`,
+    `/api/backtest/sessions/${sessionId}/pair?symbol=${encodeURIComponent(symbol)}${full ? "&full=1" : ""}${after == null ? "" : `&after=${after}`}${at == null ? "" : `&at=${at}`}`,
     {
       cache: "no-store",
       headers: token ? { "x-session-token": token } : undefined,

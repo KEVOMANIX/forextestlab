@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { actionSchema } from "@/lib/backtest/schemas";
 import {
   loadSession,
+  ensureSessionPairCandles,
   persistSession,
   toPublicState,
 } from "@/lib/backtest/session-store";
@@ -110,6 +111,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   }
 
   const ctx = session.ctx;
+  await ensureSessionPairCandles(session);
   let newCandle: Candle | null = null;
   let opError: string | undefined;
   let orderProjection: Promise<unknown> | null = null;
@@ -188,6 +190,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     case "place-order": {
       const r = placeOrder(ctx, {
         clientOrderId: action.clientOrderId,
+        symbol: action.symbol,
         direction: action.direction,
         orderType: action.orderType,
         entryPrice: action.entryPrice,

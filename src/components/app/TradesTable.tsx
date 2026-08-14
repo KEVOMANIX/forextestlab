@@ -37,6 +37,7 @@ export function TradesTable({ trades }: { trades: ClosedTrade[] }) {
           <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted">
             <tr className="border-b app-border">
               <th scope="col" className="px-3 py-2 font-medium">Direction</th>
+              <th scope="col" className="px-3 py-2 font-medium">Symbol</th>
               <th scope="col" className="px-3 py-2 font-medium">Entry</th>
               <th scope="col" className="px-3 py-2 font-medium">Exit</th>
               <th scope="col" className="px-3 py-2 font-medium">Size</th>
@@ -56,6 +57,7 @@ export function TradesTable({ trades }: { trades: ClosedTrade[] }) {
                       {t.direction === "long" ? "▲ Long" : "▼ Short"}
                     </span>
                   </td>
+                  <td className="px-3 py-2 font-semibold">{t.symbol ?? "—"}</td>
                   <td className="px-3 py-2">
                     {t.entryPrice}
                     <span className="block app-muted">{fmtTime(t.entryTime)}</span>

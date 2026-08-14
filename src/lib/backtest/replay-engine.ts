@@ -41,6 +41,7 @@ import type {
   SessionState,
 } from "./types";
 import { DEFAULT_REPLAY_SPEED } from "./types";
+import { configForSymbol, recordSymbol } from "./instrument-config";
 import {
   captureTradeSnapshot,
   createTradeJournal,
@@ -72,6 +73,7 @@ export function normalizeSessionState(state: SessionState): SessionState {
   state.pendingOrders ??= [];
   state.bookmarks ??= [];
   for (const position of state.openPositions) {
+    position.symbol ??= state.config.symbol;
     position.journalId ??= position.id;
     position.journal =
       normalizeTradeJournal(position.journal) ??
@@ -89,6 +91,7 @@ export function normalizeSessionState(state: SessionState): SessionState {
     position.maxAdversePnl ??= "0.00";
   }
   for (const trade of state.closedTrades) {
+    trade.symbol ??= state.config.symbol;
     trade.journalId ??= trade.id;
     trade.journal =
       normalizeTradeJournal(trade.journal) ??
@@ -106,6 +109,9 @@ export function normalizeSessionState(state: SessionState): SessionState {
         .dividedBy(trade.initialRiskAmount)
         .toFixed(2);
     }
+  }
+  for (const order of state.pendingOrders) {
+    order.symbol ??= state.config.symbol;
   }
   return state;
 }
@@ -142,6 +148,52 @@ export function currentCandle(ctx: EngineContext): Candle | null {
     return null;
   }
   return candles[state.visibleIndex] ?? null;
+}
+
+/** Latest candle for `symbol` at the primary session's replay clock. */
+export function currentCandleForSymbol(
+  ctx: EngineContext,
+  symbol: string,
+): Candle | null {
+  if (symbol === ctx.state.config.symbol) return currentCandle(ctx);
+  const series = ctx.pairCandles?.[symbol];
+  const clock = currentCandle(ctx)?.timestamp;
+  if (!series?.length || clock == null) return null;
+  let low = 0;
+  let high = series.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if ((series[mid]?.timestamp ?? 0) <= clock) low = mid + 1;
+    else high = mid;
+  }
+  return low > 0 ? series[low - 1] ?? null : null;
+}
+
+/** Pair candles revealed between two ticks of the shared replay clock. */
+function symbolCandlesBetween(
+  ctx: EngineContext,
+  symbol: string,
+  after: number,
+  through: number,
+): Candle[] {
+  if (symbol === ctx.state.config.symbol) {
+    const candle = currentCandle(ctx);
+    return candle && candle.timestamp > after && candle.timestamp <= through
+      ? [candle]
+      : [];
+  }
+  const series = ctx.pairCandles?.[symbol] ?? [];
+  const upperBound = (timestamp: number) => {
+    let low = 0;
+    let high = series.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if ((series[mid]?.timestamp ?? 0) <= timestamp) low = mid + 1;
+      else high = mid;
+    }
+    return low;
+  };
+  return series.slice(upperBound(after), upperBound(through));
 }
 
 function pipValueAccountPerLot(config: SessionConfig, price: string): string {
@@ -214,21 +266,23 @@ export function createSessionState(
 /** Unrealised P&L of one open position at the current candle. */
 function unrealizedPnl(ctx: EngineContext, pos: OpenPosition): string {
   const { state } = ctx;
-  const candle = currentCandle(ctx);
+  const symbol = recordSymbol(pos, state.config);
+  const config = configForSymbol(state.config, symbol);
+  const candle = currentCandleForSymbol(ctx, symbol);
   if (!candle) return "0.00";
   const exit = exitFillPrice(
     pos.direction,
     candle,
-    state.config.spreadPips,
-    state.config.pipSize,
+    config.spreadPips,
+    config.pipSize,
   ).toString();
   const { pnl } = computePnl({
     direction: pos.direction,
     entryPrice: pos.entryPrice,
     exitPrice: exit,
     lots: pos.lots,
-    pipSize: state.config.pipSize,
-    pipValueAccountPerLot: pipValueAccountPerLot(state.config, exit),
+    pipSize: config.pipSize,
+    pipValueAccountPerLot: pipValueAccountPerLot(config, exit),
     commission: pos.commission,
   });
   return pnl;
@@ -237,7 +291,8 @@ function unrealizedPnl(ctx: EngineContext, pos: OpenPosition): string {
 /** Record intrabar best/worst marked-to-market outcomes for MAE/MFE analytics. */
 function updateExcursion(ctx: EngineContext, pos: OpenPosition, candle: Candle): void {
   const { state } = ctx;
-  const bidAsk = deriveBidAsk(candle, state.config.spreadPips, state.config.pipSize);
+  const config = configForSymbol(state.config, recordSymbol(pos, state.config));
+  const bidAsk = deriveBidAsk(candle, config.spreadPips, config.pipSize);
   const favorablePrice = pos.direction === "long" ? bidAsk.bidHigh : bidAsk.askLow;
   const adversePrice = pos.direction === "long" ? bidAsk.bidLow : bidAsk.askHigh;
   const pnlAt = (price: Decimal) => computePnl({
@@ -245,8 +300,8 @@ function updateExcursion(ctx: EngineContext, pos: OpenPosition, candle: Candle):
     entryPrice: pos.entryPrice,
     exitPrice: price.toString(),
     lots: pos.lots,
-    pipSize: state.config.pipSize,
-    pipValueAccountPerLot: pipValueAccountPerLot(state.config, price.toString()),
+    pipSize: config.pipSize,
+    pipValueAccountPerLot: pipValueAccountPerLot(config, price.toString()),
     commission: pos.commission,
   }).pnl;
   pos.maxFavorablePnl = Decimal.max(d(pos.maxFavorablePnl ?? 0), d(pnlAt(favorablePrice))).toFixed(2);
@@ -268,11 +323,15 @@ function tightenTrailingStop(
   ) {
     return;
   }
+  const config = configForSymbol(
+    ctx.state.config,
+    recordSymbol(position, ctx.state.config),
+  );
   const reference = exitFillPrice(
     position.direction,
     candle,
-    ctx.state.config.spreadPips,
-    ctx.state.config.pipSize,
+    config.spreadPips,
+    config.pipSize,
   );
   const previousBest = position.trailingBestPrice
     ? d(position.trailingBestPrice)
@@ -282,7 +341,7 @@ function tightenTrailingStop(
       ? Decimal.max(previousBest, reference)
       : Decimal.min(previousBest, reference);
   const distance = d(position.trailingStopPips).times(
-    ctx.state.config.pipSize,
+    config.pipSize,
   );
   const candidate =
     position.direction === "long"
@@ -296,10 +355,10 @@ function tightenTrailingStop(
       : candidate.lessThan(current));
 
   position.trailingBestPrice = best.toFixed(
-    ctx.state.config.pricePrecision,
+    config.pricePrecision,
   );
   if (tighter) {
-    position.stopLoss = candidate.toFixed(ctx.state.config.pricePrecision);
+    position.stopLoss = candidate.toFixed(config.pricePrecision);
   }
 }
 
@@ -373,10 +432,13 @@ function closeAt(
   reason: ExitReason,
   intrabarAmbiguous: boolean,
   requestedLots?: string,
+  executionCandle?: Candle,
 ): void {
   const { state } = ctx;
   const pos = state.openPositions.find((position) => position.id === positionId);
-  const candle = currentCandle(ctx);
+  const symbol = pos ? recordSymbol(pos, state.config) : state.config.symbol;
+  const config = configForSymbol(state.config, symbol);
+  const candle = executionCandle ?? currentCandleForSymbol(ctx, symbol);
   if (!pos || !candle) return;
 
   const closeLots = requestedLots
@@ -395,20 +457,21 @@ function closeAt(
     entryPrice: pos.entryPrice,
     exitPrice,
     lots: closeLots.toString(),
-    pipSize: state.config.pipSize,
-    pipValueAccountPerLot: pipValueAccountPerLot(state.config, exitPrice),
+    pipSize: config.pipSize,
+    pipValueAccountPerLot: pipValueAccountPerLot(config, exitPrice),
     commission,
   });
 
   const trade: ClosedTrade = {
     id: makeId("trade"),
+    symbol,
     journalId: pos.journalId ?? pos.id,
     journal: pos.journal ? structuredClone(pos.journal) : undefined,
     direction: pos.direction,
     entryPrice: pos.entryPrice,
-    exitPrice: money(exitPrice) === "NaN" ? exitPrice : d(exitPrice).toFixed(state.config.pricePrecision),
+    exitPrice: money(exitPrice) === "NaN" ? exitPrice : d(exitPrice).toFixed(config.pricePrecision),
     entryTime: pos.entryTime,
-    exitTime: candle.timestamp,
+    exitTime: currentCandle(ctx)?.timestamp ?? candle.timestamp,
     entryIndex: pos.entryIndex,
     exitIndex: state.visibleIndex,
     lots: closeLots.toString(),
@@ -448,7 +511,7 @@ function closeAt(
   const totalPnl = journalRecords.reduce((sum, item) => sum.plus(item.pnl), d(0));
   const journal = trade.journal;
   if (journal) {
-    if (closingAll) journal.afterExitSnapshot = captureTradeSnapshot(ctx);
+    if (closingAll) journal.afterExitSnapshot = captureTradeSnapshot(ctx, undefined, symbol);
     journal.realizedR = totalRisk.greaterThan(0)
       ? totalPnl.dividedBy(totalRisk).toFixed(2)
       : null;
@@ -480,15 +543,17 @@ function closeAt(
 function finishSession(ctx: EngineContext): void {
   const { state } = ctx;
   for (const position of [...state.openPositions]) {
-    const candle = currentCandle(ctx);
+    const symbol = recordSymbol(position, state.config);
+    const config = configForSymbol(state.config, symbol);
+    const candle = currentCandleForSymbol(ctx, symbol);
     if (candle) {
       const price = exitFillPrice(
         position.direction,
         candle,
-        state.config.spreadPips,
-        state.config.pipSize,
+        config.spreadPips,
+        config.pipSize,
       ).toString();
-      closeAt(ctx, position.id, price, "session-end", false);
+      closeAt(ctx, position.id, price, "session-end", false, undefined, candle);
     }
   }
   const finalTime = currentCandle(ctx)?.timestamp ?? state.config.endTime;
@@ -510,11 +575,15 @@ function finishSession(ctx: EngineContext): void {
  * would have failed. Every open position is marked at the worst price the
  * candle reached, in its own direction.
  */
-function worstCaseEquity(ctx: EngineContext, candle: Candle): string {
+function worstCaseEquity(ctx: EngineContext): string {
   const { state } = ctx;
-  const bidAsk = deriveBidAsk(candle, state.config.spreadPips, state.config.pipSize);
   let worst = d(state.balance);
   for (const position of state.openPositions) {
+    const symbol = recordSymbol(position, state.config);
+    const config = configForSymbol(state.config, symbol);
+    const candle = currentCandleForSymbol(ctx, symbol);
+    if (!candle) continue;
+    const bidAsk = deriveBidAsk(candle, config.spreadPips, config.pipSize);
     const adverse =
       position.direction === "long" ? bidAsk.bidLow : bidAsk.askHigh;
     const { pnl } = computePnl({
@@ -522,8 +591,8 @@ function worstCaseEquity(ctx: EngineContext, candle: Candle): string {
       entryPrice: position.entryPrice,
       exitPrice: adverse.toString(),
       lots: position.lots,
-      pipSize: state.config.pipSize,
-      pipValueAccountPerLot: pipValueAccountPerLot(state.config, adverse.toString()),
+      pipSize: config.pipSize,
+      pipValueAccountPerLot: pipValueAccountPerLot(config, adverse.toString()),
       commission: position.commission,
     });
     worst = worst.plus(pnl);
@@ -567,7 +636,7 @@ function enforcePropFirm(ctx: EngineContext, candle: Candle): void {
     rules,
     startingBalance: state.config.startingBalance,
     equity: state.equity,
-    lowEquity: worstCaseEquity(ctx, candle),
+    lowEquity: worstCaseEquity(ctx),
     peakEquity: state.maxEquity,
     runtime: state.propFirm,
     at: candle.timestamp,
@@ -588,27 +657,65 @@ export function revealNext(ctx: EngineContext): boolean {
     return false;
   }
 
+  const previousTime = candles[state.visibleIndex]?.timestamp ?? Number.NEGATIVE_INFINITY;
   state.visibleIndex += 1;
   const candle = candles[state.visibleIndex];
 
   if (candle) {
     rollPropFirmDay(ctx, candle);
-    processPendingOrders(ctx, candle);
-    for (const position of [...state.openPositions]) {
-      updateExcursion(ctx, position, candle);
-      const hit = checkStopTakeProfit(
-        position.direction,
-        position.stopLoss,
-        position.takeProfit,
-        candle,
-        state.config.spreadPips,
-        state.config.pipSize,
-        state.config.executionPolicy,
-      );
-      if (hit) {
-        closeAt(ctx, position.id, hit.price, hit.reason, hit.intrabarAmbiguous);
-      } else {
-        tightenTrailingStop(ctx, position, candle);
+    for (const order of state.pendingOrders) {
+      if (
+        order.status === "pending" &&
+        order.expiresAt != null &&
+        candle.timestamp >= order.expiresAt
+      ) {
+        order.status = "expired";
+        order.expiredTime = candle.timestamp;
+        order.updatedTime = candle.timestamp;
+      }
+    }
+    const symbols = new Set<string>([
+      state.config.symbol,
+      ...state.pendingOrders
+        .filter((order) => order.status === "pending")
+        .map((order) => recordSymbol(order, state.config)),
+      ...state.openPositions.map((position) => recordSymbol(position, state.config)),
+    ]);
+    for (const symbol of symbols) {
+      const config = configForSymbol(state.config, symbol);
+      for (const symbolCandle of symbolCandlesBetween(
+        ctx,
+        symbol,
+        previousTime,
+        candle.timestamp,
+      )) {
+        processPendingOrders(ctx, symbolCandle, symbol);
+        for (const position of [...state.openPositions]) {
+          if (recordSymbol(position, state.config) !== symbol) continue;
+          updateExcursion(ctx, position, symbolCandle);
+          const hit = checkStopTakeProfit(
+            position.direction,
+            position.stopLoss,
+            position.takeProfit,
+            symbolCandle,
+            config.spreadPips,
+            config.pipSize,
+            config.executionPolicy,
+          );
+          if (hit) {
+            closeAt(
+              ctx,
+              position.id,
+              hit.price,
+              hit.reason,
+              hit.intrabarAmbiguous,
+              undefined,
+              symbolCandle,
+            );
+          } else {
+            tightenTrailingStop(ctx, position, symbolCandle);
+          }
+        }
       }
     }
   }
@@ -777,10 +884,14 @@ function pendingExecutablePrices(
   candle: Candle,
   order: PendingOrder,
 ): { touched: boolean; fillPrice: string | null } {
+  const config = configForSymbol(
+    ctx.state.config,
+    recordSymbol(order, ctx.state.config),
+  );
   const prices = deriveBidAsk(
     candle,
-    ctx.state.config.spreadPips,
-    ctx.state.config.pipSize,
+    config.spreadPips,
+    config.pipSize,
   );
   const requested = d(order.entryPrice);
   const isBuy = order.direction === "long";
@@ -810,8 +921,8 @@ function pendingExecutablePrices(
   // execute at the requested level; stop orders therefore preserve realistic
   // adverse gap slippage and limit orders receive favorable opening improvement.
   const rawFill = gapThrough ? open : requested;
-  const slippage = d(ctx.state.config.slippagePips).times(
-    ctx.state.config.pipSize,
+  const slippage = d(config.slippagePips).times(
+    config.pipSize,
   );
   const fill =
     order.orderType === "stop"
@@ -821,7 +932,7 @@ function pendingExecutablePrices(
       : rawFill;
   return {
     touched: true,
-    fillPrice: fill.toFixed(ctx.state.config.pricePrecision),
+    fillPrice: fill.toFixed(config.pricePrecision),
   };
 }
 
@@ -831,8 +942,10 @@ function activatePendingOrder(
   candle: Candle,
   fillPrice: string,
 ): void {
+  const symbol = recordSymbol(order, ctx.state.config);
+  const config = configForSymbol(ctx.state.config, symbol);
   const commission = commissionForLots(
-    ctx.state.config.commissionPerLot,
+    config.commissionPerLot,
     order.lots,
   );
   const initialRiskAmount = order.stopLoss
@@ -842,9 +955,9 @@ function activatePendingOrder(
           entryPrice: fillPrice,
           exitPrice: order.stopLoss,
           lots: order.lots,
-          pipSize: ctx.state.config.pipSize,
+          pipSize: config.pipSize,
           pipValueAccountPerLot: pipValueAccountPerLot(
-            ctx.state.config,
+            config,
             order.stopLoss,
           ),
           commission,
@@ -855,6 +968,7 @@ function activatePendingOrder(
     : null;
   const position: OpenPosition = {
     id: `${order.id}:position`,
+    symbol,
     journalId: `${order.id}:position`,
     direction: order.direction,
     entryPrice: fillPrice,
@@ -878,6 +992,7 @@ function activatePendingOrder(
     fillPrice,
     order.stopLoss,
     order.takeProfit,
+    symbol,
   );
   ctx.state.openPositions.push(position);
   order.status = "activated";
@@ -887,9 +1002,14 @@ function activatePendingOrder(
   order.activatedPositionId = position.id;
 }
 
-function processPendingOrders(ctx: EngineContext, candle: Candle): void {
+function processPendingOrders(
+  ctx: EngineContext,
+  candle: Candle,
+  symbol: string,
+): void {
   for (const order of ctx.state.pendingOrders) {
     if (order.status !== "pending") continue;
+    if (recordSymbol(order, ctx.state.config) !== symbol) continue;
     if (order.expiresAt != null && candle.timestamp >= order.expiresAt) {
       order.status = "expired";
       order.expiredTime = candle.timestamp;
@@ -920,26 +1040,28 @@ export function previewPosition(
   req: OrderRequest,
   id = "pending-position",
 ): PositionPreviewResult {
+  const symbol = req.symbol ?? state.config.symbol;
+  const config = configForSymbol(state.config, symbol);
   const entry = entryFillPrice(
     req.direction,
     candle,
-    state.config.spreadPips,
-    state.config.pipSize,
-    state.config.slippagePips,
-  ).toFixed(state.config.pricePrecision);
+    config.spreadPips,
+    config.pipSize,
+    config.slippagePips,
+  ).toFixed(config.pricePrecision);
   const stopLoss = req.stopLoss ?? null;
   const takeProfit = req.takeProfit ?? null;
 
   const sizing = calculatePositionSize({
     accountBalance: state.balance,
-    accountCurrency: state.config.accountCurrency,
+    accountCurrency: config.accountCurrency,
     riskPercent: req.riskPercent,
     entryPrice: entry,
     stopLoss: stopLoss ?? undefined,
-    pipSize: state.config.pipSize,
-    symbol: state.config.symbol,
-    quoteCurrency: state.config.quoteCurrency,
-    baseCurrency: state.config.baseCurrency,
+    pipSize: config.pipSize,
+    symbol: config.symbol,
+    quoteCurrency: config.quoteCurrency,
+    baseCurrency: config.baseCurrency,
     fixedLots: req.sizingMode === "fixed-lots" ? req.lots : undefined,
   });
 
@@ -948,15 +1070,15 @@ export function previewPosition(
     return { ok: false, error: "Calculated position size is zero." };
   }
 
-  const commission = commissionForLots(state.config.commissionPerLot, lots);
+  const commission = commissionForLots(config.commissionPerLot, lots);
   const initialRiskAmount = stopLoss
     ? d(computePnl({
         direction: req.direction,
         entryPrice: entry,
         exitPrice: stopLoss,
         lots,
-        pipSize: state.config.pipSize,
-        pipValueAccountPerLot: pipValueAccountPerLot(state.config, stopLoss),
+        pipSize: config.pipSize,
+        pipValueAccountPerLot: pipValueAccountPerLot(config, stopLoss),
         commission,
       }).pnl).abs().toFixed(2)
     : null;
@@ -965,6 +1087,7 @@ export function previewPosition(
     ok: true,
     position: {
       id,
+      symbol,
       journalId: id,
       direction: req.direction,
       entryPrice: entry,
@@ -995,7 +1118,12 @@ export function placeOrder(
   if (state.status === "finished") {
     return { ok: false, error: "Session has finished." };
   }
-  const candle = currentCandle(ctx);
+  const symbol = req.symbol ?? state.config.symbol;
+  if (!(state.config.symbols ?? [state.config.symbol]).includes(symbol)) {
+    return { ok: false, error: `${symbol} is not active in this session.` };
+  }
+  const config = configForSymbol(state.config, symbol);
+  const candle = currentCandleForSymbol(ctx, symbol);
   if (!candle) return { ok: false, error: "No current candle." };
   const orderType = req.orderType ?? "market";
   if (orderType !== "market") {
@@ -1020,14 +1148,14 @@ export function placeOrder(
     }
     const sizing = calculatePositionSize({
       accountBalance: state.balance,
-      accountCurrency: state.config.accountCurrency,
+      accountCurrency: config.accountCurrency,
       riskPercent: req.riskPercent,
       entryPrice: req.entryPrice,
       stopLoss: req.stopLoss,
-      pipSize: state.config.pipSize,
-      symbol: state.config.symbol,
-      quoteCurrency: state.config.quoteCurrency,
-      baseCurrency: state.config.baseCurrency,
+      pipSize: config.pipSize,
+      symbol: config.symbol,
+      quoteCurrency: config.quoteCurrency,
+      baseCurrency: config.baseCurrency,
       fixedLots: req.sizingMode === "fixed-lots" ? req.lots : undefined,
     });
     if (d(sizing.lots).lessThanOrEqualTo(0)) {
@@ -1035,9 +1163,10 @@ export function placeOrder(
     }
     const pending: PendingOrder = {
       id: req.clientOrderId ?? makeId("ord"),
+      symbol,
       direction: req.direction,
       orderType,
-      entryPrice: d(req.entryPrice).toFixed(state.config.pricePrecision),
+      entryPrice: d(req.entryPrice).toFixed(config.pricePrecision),
       sizingMode: req.sizingMode,
       lots: sizing.lots,
       riskPercent: req.riskPercent,
@@ -1071,6 +1200,7 @@ export function placeOrder(
     preview.position.entryPrice,
     preview.position.stopLoss,
     preview.position.takeProfit,
+    symbol,
   );
   state.openPositions.push(preview.position);
   state.lockedBeforeIndex = state.visibleIndex;
@@ -1090,7 +1220,9 @@ export function modifyPendingOrder(
   if (!d(price).isFinite() || d(price).lessThanOrEqualTo(0)) {
     return { ok: false, error: "Order price must be greater than zero." };
   }
-  const candle = currentCandle(ctx);
+  const symbol = recordSymbol(order, ctx.state.config);
+  const config = configForSymbol(ctx.state.config, symbol);
+  const candle = currentCandleForSymbol(ctx, symbol);
   if (!candle) return { ok: false, error: "No current candle." };
   const market = d(candle.close);
   const entry = d(price);
@@ -1108,7 +1240,7 @@ export function modifyPendingOrder(
       error: `${order.direction === "long" ? "Buy" : "Sell"} ${order.orderType} price is on the wrong side of market.`,
     };
   }
-  order.entryPrice = d(price).toFixed(ctx.state.config.pricePrecision);
+  order.entryPrice = d(price).toFixed(config.pricePrecision);
   order.updatedTime = candle.timestamp;
   ctx.state.lockedBeforeIndex = Math.max(
     ctx.state.lockedBeforeIndex,
@@ -1147,6 +1279,10 @@ export function modifyStopLoss(
   if (!position) {
     return { ok: false, error: "No open position." };
   }
+  const config = configForSymbol(
+    ctx.state.config,
+    recordSymbol(position, ctx.state.config),
+  );
   const establishesRisk =
     price != null &&
     (position.direction === "long"
@@ -1160,9 +1296,9 @@ export function modifyStopLoss(
         entryPrice: position.entryPrice,
         exitPrice: price,
         lots: position.lots,
-        pipSize: ctx.state.config.pipSize,
+        pipSize: config.pipSize,
         pipValueAccountPerLot: pipValueAccountPerLot(
-          ctx.state.config,
+          config,
           price,
         ),
         commission: position.commission,
@@ -1208,7 +1344,14 @@ export function modifyTrailingStop(
 
   position.trailingStopPips = d(pips).toString();
   position.trailingBestPrice = null;
-  const candle = currentCandle(ctx);
+  const config = configForSymbol(
+    ctx.state.config,
+    recordSymbol(position, ctx.state.config),
+  );
+  const candle = currentCandleForSymbol(
+    ctx,
+    recordSymbol(position, ctx.state.config),
+  );
   if (candle) tightenTrailingStop(ctx, position, candle);
   const establishesRisk =
     position.stopLoss != null &&
@@ -1223,9 +1366,9 @@ export function modifyTrailingStop(
         entryPrice: position.entryPrice,
         exitPrice: position.stopLoss,
         lots: position.lots,
-        pipSize: ctx.state.config.pipSize,
+        pipSize: config.pipSize,
         pipValueAccountPerLot: pipValueAccountPerLot(
-          ctx.state.config,
+          config,
           position.stopLoss,
         ),
         commission: position.commission,
@@ -1276,15 +1419,17 @@ export function closePosition(
     ? state.openPositions.find((item) => item.id === positionId)
     : state.openPositions[0];
   if (!position) return { ok: false, error: "No open position." };
-  const candle = currentCandle(ctx);
+  const symbol = recordSymbol(position, state.config);
+  const config = configForSymbol(state.config, symbol);
+  const candle = currentCandleForSymbol(ctx, symbol);
   if (!candle) return { ok: false, error: "No current candle." };
   const price = exitFillPrice(
     position.direction,
     candle,
-    state.config.spreadPips,
-    state.config.pipSize,
-  ).toFixed(state.config.pricePrecision);
-  closeAt(ctx, position.id, price, "manual", false, lots);
+    config.spreadPips,
+    config.pipSize,
+  ).toFixed(config.pricePrecision);
+  closeAt(ctx, position.id, price, "manual", false, lots, candle);
   recomputeEquity(ctx, false);
   return { ok: true };
 }

@@ -30,8 +30,15 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   }
   const query = new URL(request.url).searchParams;
   const symbol = query.get("symbol") ?? "";
+  const afterParam = query.get("after");
+  const after = afterParam == null ? undefined : Number(afterParam);
   try {
-    const pair = await visiblePairCandles(session, symbol, query.get("full") === "1");
+    const pair = await visiblePairCandles(
+      session,
+      symbol,
+      query.get("full") === "1",
+      Number.isFinite(after) ? after : undefined,
+    );
     return NextResponse.json({ ok: true, symbol, ...pair });
   } catch (error) {
     return NextResponse.json(
@@ -42,11 +49,11 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 }
 
 /**
- * Add a reference pair to a session already in progress.
+ * Add an active, tradable pair to a session already in progress.
  *
  * The traded instrument never changes — that is what the session's results are
- * measured against. This only widens the set of symbols the workspace may chart,
- * so a trader can bring up a correlated market without abandoning the session.
+ * measured against. Every admitted symbol shares the session replay clock and
+ * can receive simulated orders from its focused chart.
  */
 export async function POST(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -100,7 +107,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         {
           ok: false,
           error:
-            "Charting more than one symbol in a session is part of Pro. Upgrade to add reference pairs.",
+            "Trading more than one symbol in a session is part of Pro. Upgrade to add pairs.",
         },
         { status: 403 },
       );

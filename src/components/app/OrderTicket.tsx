@@ -58,7 +58,6 @@ interface OrderTicketProps {
   lots: string;
   onLotsChange: (lots: string) => void;
   oneClickTrading: boolean;
-  referencePair?: string | null;
   activationRequest?: {
     id: number;
     direction: TradeDirection;
@@ -94,7 +93,6 @@ export function OrderTicket({
   lots,
   onLotsChange: setLots,
   oneClickTrading,
-  referencePair = null,
   activationRequest = null,
   onActivationHandled,
   onOpenChange,
@@ -122,7 +120,6 @@ export function OrderTicket({
   const unavailable =
     state.status === "finished" ||
     !state.currentPrice ||
-    Boolean(referencePair) ||
     busy;
   const precision = state.config.pricePrecision ?? 5;
   const pip = Number(state.config.pipSize) || 0;
@@ -463,12 +460,6 @@ export function OrderTicket({
         </div>
       </header>
 
-      {referencePair ? (
-        <div className="mx-3 mb-3 rounded border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
-          {referencePair} is a reference chart. Select {state.config.symbol} to
-          place a trade.
-        </div>
-      ) : (
         <>
           <div className="mx-3 grid grid-cols-2 overflow-hidden rounded-md">
             <QuoteSide
@@ -692,7 +683,6 @@ export function OrderTicket({
             )}
           </div>
         </>
-      )}
     </section>
   );
 }

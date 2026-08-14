@@ -36,7 +36,7 @@ import { useBacktester } from "./useBacktester";
 import { useChartWorkspace } from "./useChartWorkspace";
 import { BackLink } from "./BackLink";
 import { TradingOnboarding } from "./TradingOnboarding";
-import type { OrderRequest, OrderType } from "@/lib/backtest/types";
+import type { OrderRequest, OrderType, PublicSessionState } from "@/lib/backtest/types";
 import {
   defaultTradePlan,
   type TradePlan,
@@ -62,6 +62,7 @@ import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { currenciesForSymbol } from "@/lib/economic-calendar/types";
 import type { Timeframe } from "@/lib/market-data/types";
+import { configForSymbol } from "@/lib/backtest/instrument-config";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
@@ -131,6 +132,22 @@ export function Backtester({
   const { theme, toggle } = useAppTheme();
   const bt = useBacktester(resumeSessionId);
   const { state, actions } = bt;
+  const activeSymbol = bt.activeSymbol ?? state?.config.symbol ?? "";
+  const activeTradingState = useMemo<PublicSessionState | null>(() => {
+    if (!state || !activeSymbol) return null;
+    const series =
+      activeSymbol === state.config.symbol
+        ? bt.replayCandles
+        : bt.pairs[activeSymbol]?.candles;
+    const quote = series?.length
+      ? symbolQuoteAt(series, state.currentTime ?? bt.lastCandle?.timestamp ?? null)
+      : null;
+    return {
+      ...state,
+      config: configForSymbol(state.config, activeSymbol),
+      currentPrice: quote == null ? null : String(quote.last),
+    };
+  }, [activeSymbol, bt.lastCandle?.timestamp, bt.pairs, bt.replayCandles, state]);
   const workspaceSymbols = useMemo(
     () => state?.config.symbols?.length ? state.config.symbols : state ? [state.config.symbol] : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -381,10 +398,11 @@ export function Backtester({
    * position — not a prompt.
    */
   const submitOrder = useCallback((order: OrderRequest) => {
-    if (!state) return;
+    if (!activeTradingState) return;
+    const symbolOrder = { ...order, symbol: activeSymbol };
     // The challenge is the harder contract, so it is asked first: its message
     // names the rule that would actually end the run.
-    const breach = propFirmGuardMessage(state, order);
+    const breach = propFirmGuardMessage(activeTradingState, symbolOrder);
     if (breach) {
       notify({
         id: `prop-guard-${Date.now()}`,
@@ -394,7 +412,7 @@ export function Backtester({
       });
       return;
     }
-    const guard = tradingGuardMessage(state, order, {
+    const guard = tradingGuardMessage(activeTradingState, symbolOrder, {
       maxRiskPerTradePercent: workspace.settings.maxRiskPerTradePercent,
       dailyLossLimitPercent: workspace.settings.dailyLossLimitPercent,
       maxDrawdownLimitPercent: workspace.settings.maxDrawdownLimitPercent,
@@ -410,8 +428,8 @@ export function Backtester({
       });
       return;
     }
-    actions.placeOrder(order);
-  }, [actions, notify, state, workspace.settings]);
+    actions.placeOrder(symbolOrder);
+  }, [actions, activeSymbol, activeTradingState, notify, workspace.settings]);
 
   useEffect(() => {
     if (
@@ -491,7 +509,7 @@ export function Backtester({
 
   useEffect(() => {
     setTradePlan(null);
-  }, [state?.sessionId]);
+  }, [activeSymbol, state?.sessionId]);
 
   useEffect(() => {
     if (state && state.speed > entitlements.maxReplaySpeed) {
@@ -533,7 +551,7 @@ export function Backtester({
       ...added.map((position) => ({
         id: `open-${position.id}-${Date.now()}`,
         title: `${position.direction === "long" ? "Buy" : "Sell"} position opened`,
-        detail: `${state.config.symbol}, ${position.lots} lot, open ${position.entryPrice}, SL ${position.stopLoss ?? "—"}, TP ${position.takeProfit ?? "—"}`,
+        detail: `${position.symbol ?? state.config.symbol}, ${position.lots} lot, open ${position.entryPrice}, SL ${position.stopLoss ?? "—"}, TP ${position.takeProfit ?? "—"}`,
         tone: position.direction as "long" | "short",
       })),
       ...newlyClosed.filter((trade) => !reviewed.has(trade.id)).map((trade) => ({
@@ -541,7 +559,7 @@ export function Backtester({
         title: trade.intrabarAmbiguous ? "Ambiguous candle resolved" : trade.exitReason === "take-profit" ? "Take profit filled" : trade.exitReason === "stop-loss" ? "Stop loss filled" : "Position closed",
         detail: trade.intrabarAmbiguous
           ? `SL and TP were touched in one candle. The ${state.config.executionPolicy} policy selected ${trade.exitReason}.`
-          : `${state.config.symbol}, ${trade.lots} lot, exit ${trade.exitPrice}, P&L ${trade.pnl}`,
+          : `${trade.symbol ?? state.config.symbol}, ${trade.lots} lot, exit ${trade.exitPrice}, P&L ${trade.pnl}`,
         tone: (trade.intrabarAmbiguous ? "warning" : "closed") as TradeNotification["tone"],
       })),
       ...state.pendingOrders
@@ -558,8 +576,8 @@ export function Backtester({
               : "Pending order expired",
           detail:
             order.status === "activated"
-              ? `${state.config.symbol}, ${order.lots} lot filled at ${order.fillPrice}`
-              : `${state.config.symbol} ${order.direction === "long" ? "buy" : "sell"} ${order.orderType} at ${order.entryPrice}`,
+              ? `${order.symbol ?? state.config.symbol}, ${order.lots} lot filled at ${order.fillPrice}`
+              : `${order.symbol ?? state.config.symbol} ${order.direction === "long" ? "buy" : "sell"} ${order.orderType} at ${order.entryPrice}`,
           tone: (order.status === "activated"
             ? order.direction
             : "closed") as TradeNotification["tone"],
@@ -601,6 +619,7 @@ export function Backtester({
     const result: ChartMarker[] = [];
     for (const trade of state.closedTrades) {
       result.push({
+        symbol: trade.symbol ?? state.config.symbol,
         time: trade.entryTime,
         position: trade.direction === "long" ? "belowBar" : "aboveBar",
         color: trade.direction === "long" ? "#22c3a0" : "#f4646c",
@@ -608,6 +627,7 @@ export function Backtester({
         text: trade.direction === "long" ? "Buy" : "Sell",
       });
       result.push({
+        symbol: trade.symbol ?? state.config.symbol,
         time: trade.exitTime,
         position: trade.direction === "long" ? "aboveBar" : "belowBar",
         color: "#93a1b8",
@@ -617,6 +637,7 @@ export function Backtester({
     }
     for (const position of state.openPositions) {
       result.push({
+        symbol: position.symbol ?? state.config.symbol,
         time: position.entryTime,
         position:
           position.direction === "long" ? "belowBar" : "aboveBar",
@@ -632,7 +653,7 @@ export function Backtester({
 
   /**
    * A symbol's quote at the replay clock. The traded symbol reads from the
-   * session series; reference pairs from their own loaded series, which is null
+   * session series; additional pairs from their own loaded series, which is null
    * until a chart (or the picker) has asked for it.
    */
   const symbolQuote = useCallback(
@@ -741,7 +762,16 @@ export function Backtester({
     );
   }
 
-  const position = state.openPositions.find((item) => item.id === selectedPositionId) ?? state.openPositions.at(-1) ?? null;
+  const position =
+    state.openPositions.find(
+      (item) =>
+        item.id === selectedPositionId &&
+        (item.symbol ?? state.config.symbol) === activeSymbol,
+    ) ??
+    [...state.openPositions]
+      .reverse()
+      .find((item) => (item.symbol ?? state.config.symbol) === activeSymbol) ??
+    null;
   const chartStop = position?.stopLoss ?? null;
   const chartTarget = position?.takeProfit ?? null;
 
@@ -753,7 +783,7 @@ export function Backtester({
   };
   const choosePlanDirection = (direction: "long" | "short") => {
     if (tradePlan?.direction === direction) return;
-    setTradePlan(defaultTradePlan(state, direction));
+    setTradePlan(defaultTradePlan(activeTradingState ?? state, direction));
   };
   const changeTradePlan = (
     level: keyof Omit<TradePlan, "direction">,
@@ -763,9 +793,6 @@ export function Backtester({
       current ? { ...current, [level]: value } : current,
     );
   };
-  const activeSymbol = bt.activeSymbol ?? state.config.symbol;
-  const referencePair =
-    activeSymbol === state.config.symbol ? null : activeSymbol;
   const activateOrderTicket = (
     direction: "long" | "short",
     orderType?: OrderType,
@@ -796,7 +823,7 @@ export function Backtester({
     entryPrice: string,
     orderType: OrderType,
   ) => {
-    const base = defaultTradePlan(state, direction);
+    const base = defaultTradePlan(activeTradingState ?? state, direction);
     if (!base) return;
     // The plan carries the clicked price; the activation carries the order type
     // the chart worked out from which side of the market that price fell on.
@@ -804,7 +831,7 @@ export function Backtester({
     activateOrderTicket(direction, orderType);
   };
   const canTrade = Boolean(
-    state.status !== "finished" && state.currentPrice && !referencePair,
+    activeTradingState?.status !== "finished" && activeTradingState?.currentPrice,
   );
   /**
    * Playback is paused while "Go to" is open: every destination it offers is
@@ -1019,9 +1046,9 @@ export function Backtester({
               title={
                 canTrade
                   ? "New order"
-                  : referencePair
-                    ? `Switch back to ${state.config.symbol} to trade`
-                    : "This session has finished"
+                  : activeTradingState?.currentPrice
+                    ? "This session has finished"
+                    : `Loading ${activeSymbol} market data`
               }
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-xs font-semibold text-surface-950 shadow-sm transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -1112,7 +1139,7 @@ export function Backtester({
             actionsSlot={chartActionsSlot}
             orderTicket={
               <OrderTicket
-                state={state}
+                state={activeTradingState ?? state}
                 busy={bt.busy}
                 tradePlan={tradePlan}
                 onDirectionChange={choosePlanDirection}
@@ -1123,7 +1150,6 @@ export function Backtester({
                 lots={lots}
                 onLotsChange={setLots}
                 oneClickTrading={workspace.settings.oneClickTrading}
-                referencePair={referencePair}
                 activationRequest={orderTicketActivation}
                 onActivationHandled={(id) =>
                   setOrderTicketActivation((current) =>
@@ -1146,7 +1172,7 @@ export function Backtester({
           />
           <ReplayToolbar
             key={`replay-toolbar-${workspace.revision}`}
-            state={state}
+            state={activeTradingState ?? state}
             busy={bt.busy}
             onPlay={actions.play}
             onPause={actions.pause}

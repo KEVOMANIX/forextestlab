@@ -18,14 +18,30 @@ export const DEFAULT_JOURNAL_RULES = [
 export function captureTradeSnapshot(
   ctx: EngineContext,
   index = ctx.state.visibleIndex,
+  symbol = ctx.state.config.symbol,
 ): TradeChartSnapshot | null {
-  const end = Math.min(index, ctx.candles.length - 1);
+  const series =
+    symbol === ctx.state.config.symbol
+      ? ctx.candles
+      : (ctx.pairCandles?.[symbol] ?? []);
+  const clock = ctx.candles[Math.min(index, ctx.candles.length - 1)]?.timestamp;
+  let end = -1;
+  if (clock != null) {
+    let low = 0;
+    let high = series.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if ((series[mid]?.timestamp ?? 0) <= clock) low = mid + 1;
+      else high = mid;
+    }
+    end = low - 1;
+  }
   if (end < 0) return null;
   const start = Math.max(0, end - SNAPSHOT_CANDLES + 1);
   return {
     capturedAt: ctx.candles[end]?.timestamp ?? Date.now(),
     index: end,
-    symbol: ctx.state.config.symbol,
+    symbol,
     timeframe: ctx.state.config.timeframe,
     candles: ctx.candles.slice(start, end + 1).map((candle) => ({
       timestamp: candle.timestamp,
@@ -53,6 +69,7 @@ export function createTradeJournal(
   entryPrice: string,
   stopLoss: string | null,
   takeProfit: string | null,
+  symbol = ctx.state.config.symbol,
 ): TradeJournal {
   return {
     entryReason: "",
@@ -65,7 +82,7 @@ export function createTradeJournal(
     plannedRR: plannedRiskReward(entryPrice, stopLoss, takeProfit),
     realizedR: null,
     validity: "valid",
-    beforeEntrySnapshot: captureTradeSnapshot(ctx),
+    beforeEntrySnapshot: captureTradeSnapshot(ctx, undefined, symbol),
     afterExitSnapshot: null,
     updatedAt: Date.now(),
   };

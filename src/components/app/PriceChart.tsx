@@ -120,6 +120,7 @@ import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
 import { TradePlanOverlay } from "./TradePlanOverlay";
 
 export interface ChartMarker {
+  symbol?: string;
   time: number;
   position: "aboveBar" | "belowBar";
   color: string;

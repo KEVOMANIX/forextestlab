@@ -546,7 +546,7 @@ export default function ChartGrid({
                 showControls={isFocused}
                 railSlot={railHost}
                 showRail={isFocused}
-                orderTicket={isSession && isFocused ? orderTicket : null}
+                orderTicket={isFocused ? orderTicket : null}
                 // One clock for the workspace, always in its outer bottom-right
                 // corner regardless of which independently movable cell is focused.
                 axisCorner={
@@ -677,8 +677,19 @@ function ChartCellView({
     [onLoadHistory, cell.symbol],
   );
 
-  // Trading overlays only exist on cells showing the traded instrument.
-  const tradable = isSession;
+  const tradable = Boolean(isSession || pair);
+  const cellPositions = positions.filter(
+    (position) => (position.symbol ?? state.config.symbol) === cell.symbol,
+  );
+  const cellPendingOrders = pendingOrders.filter(
+    (order) => (order.symbol ?? state.config.symbol) === cell.symbol,
+  );
+  const cellMarkers = markers.filter(
+    (marker) => (marker.symbol ?? state.config.symbol) === cell.symbol,
+  );
+  const focusedPosition = cellPositions.find(
+    (position) => position.id === activePositionId,
+  );
   // The chart body is driven by the revealed-series cursor, so its live price
   // must come from that same cursor. Reading state.currentPrice directly makes
   // the line render one React pass before the candle delta reaches the chart.
@@ -698,26 +709,26 @@ function ChartCellView({
         replaySeries={isSession ? sessionSeries : pair?.candles}
         replaySessionId={state.sessionId}
         replayRunning={state.status === "running"}
-        markers={tradable ? markers : []}
-        positions={tradable ? positions : []}
-        pendingOrders={tradable ? pendingOrders : []}
+        markers={tradable ? cellMarkers : []}
+        positions={tradable ? cellPositions : []}
+        pendingOrders={tradable ? cellPendingOrders : []}
         onModifyPendingOrder={tradable ? onModifyPendingOrder : noop}
         onCancelPendingOrder={tradable ? onCancelPendingOrder : noop}
-        activePositionId={tradable ? activePositionId : null}
+        activePositionId={focusedPosition?.id ?? null}
         onEditPosition={onEditPosition}
-        stopLoss={tradable ? stopLoss : null}
-        takeProfit={tradable ? takeProfit : null}
-        positionDirection={tradable ? positionDirection : null}
-        tradePlan={tradable ? tradePlan : null}
-        onTradePlanChange={tradable ? onTradePlanChange : noop}
+        stopLoss={tradable && showControls ? stopLoss : null}
+        takeProfit={tradable && showControls ? takeProfit : null}
+        positionDirection={tradable && showControls ? positionDirection : null}
+        tradePlan={tradable && showControls ? tradePlan : null}
+        onTradePlanChange={tradable && showControls ? onTradePlanChange : noop}
         currentPrice={currentPrice}
         baseTimeframe={state.config.timeframe}
         pipSize={Number(isSession ? state.config.pipSize : pair?.pipSize ?? state.config.pipSize)}
         precision={isSession ? state.config.pricePrecision : pair?.pricePrecision ?? state.config.pricePrecision}
         accountCurrency={state.config.accountCurrency}
         theme={theme}
-        onStopLossChange={tradable ? onStopLossChange : noop}
-        onTakeProfitChange={tradable ? onTakeProfitChange : noop}
+        onStopLossChange={tradable && showControls ? onStopLossChange : noop}
+        onTakeProfitChange={tradable && showControls ? onTakeProfitChange : noop}
         onLoadHistory={loadHistory}
         loading={isSession ? loading : pairLoading && !pair}
         jumping={jumping}

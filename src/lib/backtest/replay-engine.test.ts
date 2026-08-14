@@ -77,6 +77,45 @@ describe("replay indexing", () => {
   });
 });
 
+describe("multi-symbol replay", () => {
+  it("uses one replay clock while executing each pair on its own candles", () => {
+    const primary = [
+      c(0, "1.10000", "1.10100", "1.09900", "1.10000"),
+      c(1, "1.10000", "1.10100", "1.09900", "1.10000"),
+    ];
+    const engine = ctx(primary, cfg({ symbols: ["EURUSD", "USDJPY"] }));
+    engine.pairCandles = {
+      USDJPY: [
+        c(0, "150.000", "150.100", "149.900", "150.000"),
+        c(1, "150.000", "150.700", "149.950", "150.600"),
+      ],
+    };
+
+    expect(
+      placeOrder(engine, {
+        symbol: "USDJPY",
+        direction: "long",
+        sizingMode: "fixed-lots",
+        lots: "1",
+        takeProfit: "150.500",
+      }).ok,
+    ).toBe(true);
+    expect(engine.state.openPositions[0]).toMatchObject({
+      symbol: "USDJPY",
+      entryPrice: "150.000",
+    });
+
+    expect(revealNext(engine)).toBe(true);
+    expect(engine.state.visibleIndex).toBe(1);
+    expect(engine.state.openPositions).toHaveLength(0);
+    expect(engine.state.closedTrades[0]).toMatchObject({
+      symbol: "USDJPY",
+      exitPrice: "150.500",
+      exitTime: 1,
+    });
+  });
+});
+
 describe("batched replay equivalence", () => {
   it("produces identical order, execution, and statistics state", () => {
     const candles = [

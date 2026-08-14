@@ -191,6 +191,7 @@ export async function visiblePairCandles(
   session: LoadedSession,
   symbol: string,
   full = false,
+  after?: number,
 ): Promise<{
   candles: Candle[];
   contextCandles: Candle[];
@@ -207,9 +208,10 @@ export async function visiblePairCandles(
   if (!definition) throw new Error("Unknown currency pair.");
 
   if (symbol === session.ctx.state.config.symbol) {
+    const candles = full ? bufferedReplayCandles(session.ctx) : visibleCandles(session.ctx);
     return {
-      candles: full ? bufferedReplayCandles(session.ctx) : visibleCandles(session.ctx),
-      contextCandles: await getChartContext(session, symbol),
+      candles: after == null ? candles : candles.filter((candle) => candle.timestamp > after),
+      contextCandles: after == null ? await getChartContext(session, symbol) : [],
       pipSize: definition.pipSize,
       pricePrecision: definition.pricePrecision,
     };
@@ -222,27 +224,71 @@ export async function visiblePairCandles(
   // the session's own revealed-index array.
   const bufferCutoff =
     current != null ? current + MAX_BUFFER_CANDLES * TIMEFRAME_MS[timeframe] : null;
-  const [series, contextCandles] = await Promise.all([
-    fetchSeries(
-      symbol,
-      timeframe,
-      session.ctx.state.config.startTime,
-      session.ctx.state.config.endTime,
-    ),
-    getChartContext(session, symbol),
-  ]);
+  await ensureSessionPairCandles(session, [symbol]);
+  const series = session.ctx.pairCandles?.[symbol] ?? [];
+  const contextCandles = after == null ? await getChartContext(session, symbol) : [];
+  const visible = full
+    ? bufferCutoff != null
+      ? series.filter((candle) => candle.timestamp <= bufferCutoff)
+      : series.slice(0, session.ctx.state.config.initialVisibleCount + MAX_BUFFER_CANDLES)
+    : current
+      ? series.filter((candle) => candle.timestamp <= current)
+      : series.slice(0, session.ctx.state.config.initialVisibleCount);
   return {
-    candles: full
-      ? bufferCutoff != null
-        ? series.filter((candle) => candle.timestamp <= bufferCutoff)
-        : series.slice(0, session.ctx.state.config.initialVisibleCount + MAX_BUFFER_CANDLES)
-      : current
-        ? series.filter((candle) => candle.timestamp <= current)
-        : series.slice(0, session.ctx.state.config.initialVisibleCount),
+    candles: after == null ? visible : visible.filter((candle) => candle.timestamp > after),
     contextCandles,
     pipSize: definition.pipSize,
     pricePrecision: definition.pricePrecision,
   };
+}
+
+/**
+ * Keep every active symbol loaded through the primary series' latest timestamp.
+ * The primary symbol remains the replay clock; secondary series may omit market
+ * bars, but they can never silently end merely because they were added later.
+ */
+export async function ensureSessionPairCandles(
+  session: LoadedSession,
+  symbols = session.ctx.state.config.symbols ?? [session.ctx.state.config.symbol],
+): Promise<void> {
+  const { ctx } = session;
+  const target = ctx.candles.at(-1)?.timestamp;
+  if (target == null) return;
+  ctx.pairCandles ??= {};
+  for (const symbol of symbols) {
+    if (symbol === ctx.state.config.symbol) continue;
+    const current = ctx.pairCandles[symbol] ?? [];
+    let start = current.at(-1)
+      ? nextTimeframeTimestamp(current.at(-1)!.timestamp, ctx.state.config.timeframe)
+      : ctx.state.config.startTime;
+    const additions: Candle[] = [];
+    while (start <= target) {
+      const page = await fetchSeries(
+        symbol,
+        ctx.state.config.timeframe,
+        start,
+        target,
+      );
+      const fresh = page.filter(
+        (candle) => candle.timestamp >= start && candle.timestamp <= target,
+      );
+      if (!fresh.length) break;
+      additions.push(...fresh);
+      const newest = fresh.at(-1)!;
+      if (newest.timestamp >= target || fresh.length < MAX_SESSION_CANDLES) break;
+      const next = nextTimeframeTimestamp(newest.timestamp, ctx.state.config.timeframe);
+      if (next <= start) break;
+      start = next;
+    }
+    if (additions.length) {
+      const merged = [...current, ...additions];
+      ctx.pairCandles[symbol] = merged.filter(
+        (candle, index) => index === 0 || candle.timestamp !== merged[index - 1]?.timestamp,
+      );
+    } else if (!ctx.pairCandles[symbol]) {
+      ctx.pairCandles[symbol] = [];
+    }
+  }
 }
 
 async function fetchChartContext(
@@ -428,6 +474,7 @@ export async function extendReplaySeries(
 
   ctx.candles.push(...candles);
   ctx.state.totalCandles = ctx.candles.length;
+  await ensureSessionPairCandles(session);
   cacheCandles(session.id, ctx.candles);
   await persistSession(session);
 

@@ -157,6 +157,8 @@ export interface SessionConfig {
 export interface OrderRequest {
   /** Shared by optimistic browser execution and the server checkpoint. */
   clientOrderId?: string;
+  /** Instrument traded by the focused chart. Defaults to the session's first pair. */
+  symbol?: string;
   direction: TradeDirection;
   orderType?: OrderType;
   /** Required for limit and stop orders. */
@@ -174,6 +176,8 @@ export interface OrderRequest {
 
 export interface PendingOrder {
   id: string;
+  /** Absent only on sessions saved before multi-pair execution was introduced. */
+  symbol?: string;
   direction: TradeDirection;
   orderType: PendingOrderType;
   entryPrice: string;
@@ -196,6 +200,8 @@ export interface PendingOrder {
 
 export interface OpenPosition {
   id: string;
+  /** Absent only on sessions saved before multi-pair execution was introduced. */
+  symbol?: string;
   journalId?: string;
   journal?: TradeJournal;
   direction: TradeDirection;
@@ -224,6 +230,8 @@ export interface OpenPosition {
 
 export interface ClosedTrade {
   id: string;
+  /** Absent only on sessions saved before multi-pair execution was introduced. */
+  symbol?: string;
   journalId?: string;
   journal?: TradeJournal;
   direction: TradeDirection;
@@ -325,4 +333,6 @@ export interface PublicSessionState {
 export interface EngineContext {
   state: SessionState;
   candles: Candle[];
+  /** Additional session instruments, all governed by the primary replay clock. */
+  pairCandles?: Record<string, Candle[]>;
 }

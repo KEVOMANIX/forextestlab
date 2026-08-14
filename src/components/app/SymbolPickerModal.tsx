@@ -317,7 +317,7 @@ export function SymbolPickerModal({
               Select your symbol
             </h2>
             <p className="mt-1 truncate text-xs app-muted">
-              Trading {formatSymbol(tradedSymbol)}. Other symbols chart as reference.
+              All session symbols are synchronized and tradable. The replay clock is anchored to {formatSymbol(tradedSymbol)}.
             </p>
           </div>
           <button

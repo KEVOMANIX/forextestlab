@@ -152,6 +152,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("place-order"),
+    symbol: z.string().trim().regex(/^[A-Z0-9]{6,12}$/).optional(),
     clientOrderId: z.string().uuid().optional(),
     targetIndex: z.number().int().nonnegative().optional(),
     direction: z.enum(["long", "short"]),

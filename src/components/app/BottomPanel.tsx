@@ -130,11 +130,12 @@ export function BottomPanel({
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[760px] text-left text-xs">
                   {/* The dock is short, so headers stick instead of scrolling away. */}
-                  <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted"><tr className="border-b app-border"><th scope="col" className="px-3 py-2">Side</th><th scope="col">Lots</th><th scope="col">Entry</th><th scope="col">SL</th><th scope="col">TP</th><th scope="col">Commission</th><th scope="col">Unrealised</th></tr></thead>
+                  <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted"><tr className="border-b app-border"><th scope="col" className="px-3 py-2">Symbol</th><th scope="col">Side</th><th scope="col">Lots</th><th scope="col">Entry</th><th scope="col">SL</th><th scope="col">TP</th><th scope="col">Commission</th><th scope="col">Unrealised</th></tr></thead>
                   <tbody>
                     {state.openPositions.map((position) => (
                       <tr key={position.id} className="border-b app-border font-mono">
-                        <td className={`px-3 py-2 font-semibold ${position.direction === "long" ? "text-brand-300" : "text-bear"}`}>{position.direction === "long" ? "BUY" : "SELL"}</td>
+                        <td className="px-3 py-2 font-semibold">{position.symbol ?? state.config.symbol}</td>
+                        <td className={`font-semibold ${position.direction === "long" ? "text-brand-300" : "text-bear"}`}>{position.direction === "long" ? "BUY" : "SELL"}</td>
                         <td>{position.lots}</td><td>{position.entryPrice}</td><td>{position.stopLoss ?? "—"}</td><td>{position.takeProfit ?? "—"}</td><td>{position.commission}</td>
                         <td className={Number(position.unrealizedPnl) >= 0 ? "text-brand-300" : "text-bear"}>{position.unrealizedPnl}</td>
                       </tr>
@@ -155,7 +156,7 @@ export function BottomPanel({
                 <table className="w-full min-w-[920px] text-left text-xs">
                   <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted">
                     <tr className="border-b app-border">
-                      <th scope="col" className="px-3 py-2">Status</th><th scope="col">Type</th><th scope="col">Side</th>
+                      <th scope="col" className="px-3 py-2">Status</th><th scope="col">Symbol</th><th scope="col">Type</th><th scope="col">Side</th>
                       <th scope="col">Lots</th><th scope="col">Price</th><th scope="col">Created</th><th scope="col">Updated</th>
                       <th scope="col">Expiry</th><th scope="col"><span className="sr-only">Actions</span></th>
                     </tr>
@@ -172,6 +173,7 @@ export function BottomPanel({
                                 : "bg-white/[0.06] app-muted"
                           }`}>{order.status}</span>
                         </td>
+                        <td>{order.symbol ?? state.config.symbol}</td>
                         <td className="uppercase">{order.orderType}</td>
                         <td className={order.direction === "long" ? "text-brand-300" : "text-bear"}>
                           {order.direction === "long" ? "BUY" : "SELL"}

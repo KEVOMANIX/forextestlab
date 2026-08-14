@@ -242,7 +242,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       .then(() =>
         retryReplayChunk(() => extendReplay(id, tokenRef.current, engine.candles.length)),
       )
-      .then((extension) => {
+      .then(async (extension) => {
         if (
           !extension.ok ||
           localEngineRef.current !== engine ||
@@ -270,6 +270,38 @@ export function useBacktester(resumeSessionId: string | null = null) {
             setS((prev) => ({
               ...prev,
               replayCandles: engine.candles,
+            }));
+          }
+          const refreshedPairs = await Promise.all(
+            Object.keys(engine.pairCandles ?? {}).map(async (symbol) => {
+              const existing = engine.pairCandles?.[symbol] ?? [];
+              const result = await getPairChart(
+                id,
+                tokenRef.current,
+                symbol,
+                true,
+                existing.at(-1)?.timestamp,
+              );
+              if (!result.ok || result.candles.length === 0) return null;
+              const merged = [...existing, ...result.candles].filter(
+                (candle, index, all) =>
+                  index === 0 || candle.timestamp !== all[index - 1]?.timestamp,
+              );
+              engine.pairCandles ??= {};
+              engine.pairCandles[symbol] = merged;
+              return { symbol, result: { ...result, candles: merged } };
+            }),
+          );
+          const updates = refreshedPairs.filter(
+            (item): item is NonNullable<typeof item> => item !== null,
+          );
+          if (updates.length) {
+            setS((prev) => ({
+              ...prev,
+              pairs: updates.reduce(
+                (pairs, item) => ({ ...pairs, [item.symbol]: item.result }),
+                prev.pairs,
+              ),
             }));
           }
         }
@@ -1316,6 +1348,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
       return runAction({
         type: "place-order",
+        symbol: sharedOrder.symbol,
         clientOrderId: sharedOrder.clientOrderId,
         direction: sharedOrder.direction,
         orderType: sharedOrder.orderType,
@@ -1550,6 +1583,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }));
       const pair = await getPairChart(id, tokenRef.current, symbol, true);
       pairRequestsRef.current.delete(symbol);
+      if (pair.ok && localEngineRef.current) {
+        localEngineRef.current.pairCandles ??= {};
+        localEngineRef.current.pairCandles[symbol] = pair.candles;
+      }
       setS((prev) => ({
         ...prev,
         error: pair.ok ? prev.error : pair.error,
@@ -1569,8 +1606,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   );
 
   /**
-   * Add a symbol to the session's chartable set, then focus it. The traded
-   * instrument is unchanged; the new symbol charts as a reference.
+   * Add a synchronized, tradable symbol to the session, then focus it.
    */
   const addPair = useCallback(
     async (symbol: string): Promise<boolean> => {

@@ -183,7 +183,7 @@ export function Hero() {
             />
           </div>
 
-          <div className="dimension-stage-main relative z-10 mx-auto w-full lg:w-[72%]">
+          <div className="dimension-stage-main relative z-10 mx-auto w-full lg:w-[82%]">
             <div
               aria-hidden
               className="absolute -inset-10 -z-10 rounded-[3rem] bg-brand-400/[0.12] blur-[70px]"

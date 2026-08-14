@@ -795,9 +795,21 @@ function useRevealedSeries(series: Candle[] | null, currentTime: number | null):
       setNewCandles([]);
       return;
     }
-    // Identity changes when the series is replaced or extended, not per tick.
-    if (sourceRef.current === series) return;
+    // A downloaded chunk replaces the array identity but keeps the existing
+    // prefix intact. Adopt that larger source without rebuilding the revealed
+    // slice; rebuilding it made the chart clear and redraw for every chunk
+    // fetched during a long Go To jump.
+    const previousSource = sourceRef.current;
+    if (previousSource === series) return;
+    const isAppendOnlyExtension =
+      previousSource !== null &&
+      series.length >= previousSource.length &&
+      (previousSource.length === 0 ||
+        (series[0]?.timestamp === previousSource[0]?.timestamp &&
+          series[previousSource.length - 1]?.timestamp ===
+            previousSource[previousSource.length - 1]?.timestamp));
     sourceRef.current = series;
+    if (isAppendOnlyExtension) return;
     const revealed = revealedUpTo(series, currentTime);
     cursorRef.current = revealed.length;
     lastRef.current = revealed[revealed.length - 1] ?? null;

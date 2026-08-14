@@ -4193,7 +4193,7 @@ export default function PriceChart({
 
         {jumping && (
           <div
-            className="pointer-events-none absolute right-3 top-3 z-30 flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/90 px-2.5 py-1.5 text-[12px] app-muted shadow-lg"
+            className="pointer-events-none absolute left-3 top-1/2 z-30 flex -translate-y-1/2 items-center gap-2 rounded-lg border border-brand-400/25 bg-[var(--app-panel-solid)]/95 px-3 py-2 text-[12px] app-muted shadow-xl backdrop-blur"
             data-testid="chart-jump-indicator"
             role="status"
             aria-live="polite"

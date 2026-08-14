@@ -179,6 +179,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayExtendPromiseRef = useRef<ReturnType<typeof extendReplay> | null>(
     null,
   );
+  /** Hold downloaded extension chunks off-screen until an in-flight jump arrives. */
+  const deferReplaySeriesPublishRef = useRef(false);
   const replayFetchLatencyRef = useRef(4_500);
   const replayStepRef = useRef<ReplayStepMinutes>(1);
   const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
@@ -259,12 +261,17 @@ export function useBacktester(resumeSessionId: string | null = null) {
           (candle) => candle.timestamp > newestTimestamp,
         );
         if (newCandles.length > 0) {
-          engine.candles.push(...newCandles);
+          // Never mutate the array React already owns. Mutating it here and
+          // then appending the same chunk in setS duplicated extension candles
+          // and repeatedly forced the chart through its data-swap path.
+          engine.candles = [...engine.candles, ...newCandles];
           engine.state.totalCandles = engine.candles.length;
-          setS((prev) => ({
-            ...prev,
-            replayCandles: [...prev.replayCandles, ...newCandles],
-          }));
+          if (!deferReplaySeriesPublishRef.current) {
+            setS((prev) => ({
+              ...prev,
+              replayCandles: engine.candles,
+            }));
+          }
         }
         return { ...extension, candles: newCandles };
       });
@@ -1079,6 +1086,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       stopLocalScheduler();
       engine.state.status = "paused";
       engineGenerationRef.current += 1;
+      deferReplaySeriesPublishRef.current = true;
       patch({ busy: true, jumping: true, error: null });
 
       const generation = engineGenerationRef.current;
@@ -1123,22 +1131,15 @@ export function useBacktester(resumeSessionId: string | null = null) {
             reason = "target";
             break;
           }
-          if (
-            candle &&
-            (engine.state.visibleIndex - startIndex) % JUMP_YIELD_EVERY === 0
-          ) {
-            // Yield so a long jump cannot lock the tab, and let the chart paint
-            // the intermediate candle so the jump visibly progresses.
-            publishReplayVisual({
-              sessionId: engine.state.sessionId,
-              currentTime: candle.timestamp,
-              visibleIndex: engine.state.visibleIndex,
-              currentPrice: Number(candle.close),
-            });
+          if ((engine.state.visibleIndex - startIndex) % JUMP_YIELD_EVERY === 0) {
+            // Keep the loader animated and the tab responsive, but do not
+            // publish intermediate positions. The chart stays stable until the
+            // destination is ready, then receives one atomic jump below.
             await new Promise((resolve) => window.setTimeout(resolve, 0));
           }
         }
       } finally {
+        deferReplaySeriesPublishRef.current = false;
         const candle = engine.candles[engine.state.visibleIndex] ?? null;
         if (candle) {
           publishReplayVisual({
@@ -1151,6 +1152,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         setS((prev) => ({
           ...prev,
           state: publicSessionState(engine, prev.state?.anonymous ?? false),
+          replayCandles: engine.candles,
           lastCandle: candle,
           lastCandles: [],
           busy: false,

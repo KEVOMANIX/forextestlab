@@ -157,7 +157,7 @@ export function Hero() {
             className="absolute -left-[4%] top-[14%] hidden w-[46%] lg:block"
           >
             <ScreenFrame
-              src="/product/session-dashboard.webp"
+              src="/product/session-dashboard-20260814.webp"
               alt=""
               label="Session dashboard"
               className="dimension-stage-left opacity-60"
@@ -168,7 +168,7 @@ export function Hero() {
             className="absolute -right-[4%] top-[14%] hidden w-[46%] lg:block"
           >
             <ScreenFrame
-              src="/product/session-analytics.webp"
+              src="/product/session-analytics-20260814.webp"
               alt=""
               label="Session analytics"
               className="dimension-stage-right opacity-60"

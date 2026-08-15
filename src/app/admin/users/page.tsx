@@ -1,4 +1,4 @@
-import { Search, ShieldPlus } from "lucide-react";
+import { Headphones, Search, ShieldPlus, Users } from "lucide-react";
 
 import {
   AdminPageHeader,
@@ -8,6 +8,7 @@ import {
   adminTh,
 } from "@/components/admin/AdminUI";
 import { grantManualAccess, revokeManualAccess } from "@/app/admin/actions";
+import { addSupportAgent } from "@/app/support-team/actions";
 import { prisma } from "@/lib/db";
 import { formatNewYorkDateTime } from "@/lib/date-time";
 import { requireAdmin } from "@/lib/admin";
@@ -34,6 +35,13 @@ export default async function AdminUsersPage(
     include: {
       _count: { select: { sessions: true, billingSubscriptions: true, billingPayments: true } },
     },
+  });
+  // Support-team membership is account administration, so it lives here rather
+  // than beside an open customer conversation in /support-team.
+  const supportAgents = await prisma.supportAgent.findMany({
+    where: { active: true },
+    orderBy: { displayName: "asc" },
+    select: { id: true, displayName: true, email: true, role: true },
   });
 
   return (
@@ -78,6 +86,37 @@ export default async function AdminUsersPage(
             ))}
           </tbody>
         </AdminTable>
+      </section>
+
+      <section className="panel mt-6 p-4 sm:p-5">
+        <div className="flex items-center gap-2">
+          <Headphones size={16} className="text-brand-300" aria-hidden />
+          <h2 className="text-sm font-semibold">Support team access</h2>
+        </div>
+        <p className="mt-1.5 text-xs app-muted">
+          Grant access to the support workspace at /support-team. The person must already have a ForexTestLab account.
+        </p>
+        <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,320px)_1fr]">
+          <form action={addSupportAgent} className="space-y-2">
+            <input name="email" type="email" required placeholder="Agent account email" className="app-input w-full text-sm" />
+            <select name="role" aria-label="Support role" className="app-input w-full text-sm">
+              <option value="agent">Support agent</option>
+              <option value="supervisor">Supervisor</option>
+              <option value="viewer">Read only</option>
+            </select>
+            <button className="btn-secondary w-full justify-center px-3 py-2 text-xs"><Users size={13} aria-hidden /> Add team member</button>
+          </form>
+          <div className="space-y-1.5">
+            {supportAgents.map((member) => (
+              <div key={member.id} className="flex items-center gap-3 rounded-lg border app-border px-3 py-2 text-xs">
+                <span className="min-w-0 flex-1 truncate font-medium">{member.displayName}</span>
+                <span className="hidden min-w-0 flex-1 truncate app-muted sm:inline">{member.email}</span>
+                <span className="shrink-0 capitalize app-muted">{member.role}</span>
+              </div>
+            ))}
+            {!supportAgents.length && <p className="text-xs app-muted">No support agents yet.</p>}
+          </div>
+        </div>
       </section>
     </>
   );

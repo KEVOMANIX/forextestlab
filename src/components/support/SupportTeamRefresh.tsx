@@ -1,9 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-const POLL_INTERVAL_MS = 5_000;
+import { useSupportRealtime } from "@/components/support/useSupportRealtime";
+
+// Realtime events refresh immediately. This long interval is only a fallback
+// for a process restart or a proxy that temporarily interrupted the stream.
+const POLL_INTERVAL_MS = 60_000;
 const NAVIGATION_GRACE_MS = 15_000;
 
 /**
@@ -17,36 +21,43 @@ const NAVIGATION_GRACE_MS = 15_000;
 export function SupportTeamRefresh() {
   const router = useRouter();
   const [connected, setConnected] = useState(true);
+  const navigatingAtRef = useRef(0);
+  const lastUrlRef = useRef("");
+
+  const refresh = useCallback(() => {
+    if (document.visibilityState !== "visible") return;
+    setConnected(navigator.onLine);
+    if (window.location.href !== lastUrlRef.current) {
+      lastUrlRef.current = window.location.href;
+      navigatingAtRef.current = 0;
+    }
+    if (
+      navigatingAtRef.current &&
+      Date.now() - navigatingAtRef.current < NAVIGATION_GRACE_MS
+    ) {
+      return;
+    }
+    const active = document.activeElement;
+    const editing =
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLSelectElement;
+    if (navigator.onLine && !editing) router.refresh();
+  }, [router]);
+
+  useSupportRealtime({
+    conversationId: "*",
+    onConversationChange: refresh,
+    role: "agent",
+  });
 
   useEffect(() => {
-    const navigatingSince = { at: 0 };
-    let lastUrl = window.location.href;
+    lastUrlRef.current = window.location.href;
 
     const onClick = (event: MouseEvent) => {
       const link =
         event.target instanceof Element ? event.target.closest("a[href]") : null;
-      if (link) navigatingSince.at = Date.now();
-    };
-
-    const refresh = () => {
-      if (document.visibilityState !== "visible") return;
-      setConnected(navigator.onLine);
-      if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
-        navigatingSince.at = 0;
-      }
-      if (
-        navigatingSince.at &&
-        Date.now() - navigatingSince.at < NAVIGATION_GRACE_MS
-      ) {
-        return;
-      }
-      const active = document.activeElement;
-      const editing =
-        active instanceof HTMLInputElement ||
-        active instanceof HTMLTextAreaElement ||
-        active instanceof HTMLSelectElement;
-      if (navigator.onLine && !editing) router.refresh();
+      if (link) navigatingAtRef.current = Date.now();
     };
 
     const connection = () => setConnected(navigator.onLine);
@@ -60,7 +71,7 @@ export function SupportTeamRefresh() {
       window.removeEventListener("online", connection);
       window.removeEventListener("offline", connection);
     };
-  }, [router]);
+  }, [refresh]);
 
   return (
     <span

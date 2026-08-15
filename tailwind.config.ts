@@ -106,6 +106,10 @@ const config: Config = {
               "0 0 0 6px rgba(34,195,160,0.14), 0 22px 64px -18px rgba(34,195,160,0.52)",
           },
         },
+        "typing-dot": {
+          "0%, 60%, 100%": { opacity: "0.3", transform: "translateY(0)" },
+          "30%": { opacity: "1", transform: "translateY(-2px)" },
+        },
         nudge: {
           "0%, 88%, 100%": { transform: "rotate(0deg)" },
           "91%": { transform: "rotate(-11deg)" },
@@ -139,6 +143,7 @@ const config: Config = {
         nudge: "nudge 5s ease-in-out infinite",
         "launcher-float": "launcher-float 3.6s ease-in-out infinite",
         "help-breathe": "help-breathe 2.8s ease-in-out infinite",
+        "typing-dot": "typing-dot 1s ease-in-out infinite",
         "launcher-in": "launcher-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) both",
         "panel-in": "panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both",
         "message-in": "message-in 0.25s ease-out both",

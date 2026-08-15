@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { publishSupportConversationChanged } from "@/lib/support-realtime";
 import {
   canAccessSupportConversation,
   CUSTOMER_CLOSED_MESSAGE,
@@ -106,5 +107,6 @@ export async function POST(request: Request) {
     });
     return created;
   });
+  publishSupportConversationChanged(conversationId);
   return NextResponse.json({ ok: true, message }, { status: 201 });
 }

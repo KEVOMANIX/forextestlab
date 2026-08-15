@@ -13,7 +13,7 @@ import {
   Star,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   SUPPORT_ACTIVE_KEY,
@@ -29,12 +29,18 @@ import {
   playSupportChime,
   setSupportMuted,
 } from "@/lib/support-sound";
+import {
+  TypingIndicator,
+  useSupportRealtime,
+} from "./useSupportRealtime";
 
 /**
  * The panel only polls while it is open and visible, so a widget mounted on
  * every page costs nothing until somebody actually asks for help.
  */
-const POLL_INTERVAL_MS = 10_000;
+// Realtime invalidations load new messages immediately. This is only a quiet
+// recovery path for a proxy interruption or a server restart.
+const POLL_INTERVAL_MS = 60_000;
 const CLOSED_STATUSES = ["resolved", "closed"];
 
 type View = "home" | "new" | "thread";
@@ -82,6 +88,10 @@ export function SupportChatPanel({
   // notice later.
   const [justJoined, setJustJoined] = useState(false);
   const knownAgentRef = useRef<string | null>(null);
+  const realtimeAuthHeaders = useMemo(
+    () => (conversationId ? supportHeaders(conversationId) : {}),
+    [conversationId],
+  );
 
   useEffect(() => {
     setMuted(isSupportMuted());
@@ -336,6 +346,17 @@ export function SupportChatPanel({
       ? ""
       : "Waiting for support to join";
   const inThread = view === "thread" && Boolean(conversationId);
+  const realtime = useSupportRealtime({
+    authHeaders: realtimeAuthHeaders,
+    conversationId,
+    enabled: inThread && !ended,
+    onConversationChange: () => void loadThread(),
+    role: "customer",
+    visitorId,
+  });
+  const agentTyping = realtime.participants.find(
+    (participant) => participant.role === "agent",
+  );
   const title = inThread
     ? conversation?.assignedAgentName || "Support"
     : view === "new"
@@ -678,9 +699,15 @@ export function SupportChatPanel({
                   {error}
                 </p>
               )}
+              {agentTyping && (
+                <div className="mb-2 px-1" aria-live="polite">
+                  <TypingIndicator name={agentTyping.name} />
+                </div>
+              )}
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
+                  realtime.stop();
                   void send();
                 }}
                 className="flex items-end gap-2"
@@ -707,10 +734,17 @@ export function SupportChatPanel({
                 />
                 <textarea
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setInput(next);
+                    if (next.trim()) realtime.pulse();
+                    else realtime.stop();
+                  }}
+                  onBlur={realtime.stop}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
+                      realtime.stop();
                       void send();
                     }
                   }}

@@ -4,10 +4,14 @@ import { CheckCircle2, Headphones, Inbox, Paperclip, Plus, Send } from "lucide-r
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { playSupportChime } from "@/lib/support-sound";
+import {
+  TypingIndicator,
+  useSupportRealtime,
+} from "./useSupportRealtime";
 
 /** Signed-in users get their replies by email too, so the inbox refreshes at a
  * calm cadence instead of hammering the database from every open tab. */
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 60_000;
 
 /** Resolving a conversation ends it for the customer; the thread stays
  * readable and a follow-up starts a new one. */
@@ -228,6 +232,15 @@ export function SupportCustomerInbox({
   const closed = Boolean(
     conversation && CLOSED_STATUSES.includes(conversation.status),
   );
+  const realtime = useSupportRealtime({
+    conversationId: selectedId,
+    enabled: Boolean(selectedId && conversation && !closed),
+    onConversationChange: () => void loadThread(),
+    role: "customer",
+  });
+  const agentTyping = realtime.participants.find(
+    (participant) => participant.role === "agent",
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -425,9 +438,15 @@ export function SupportCustomerInbox({
                   {error}
                 </p>
               )}
+              {agentTyping && (
+                <div className="mb-2 px-1" aria-live="polite">
+                  <TypingIndicator name={agentTyping.name} />
+                </div>
+              )}
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
+                  realtime.stop();
                   void send();
                 }}
                 className="flex items-end gap-2"
@@ -454,10 +473,17 @@ export function SupportCustomerInbox({
                 />
                 <textarea
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setInput(next);
+                    if (next.trim()) realtime.pulse();
+                    else realtime.stop();
+                  }}
+                  onBlur={realtime.stop}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
                       event.preventDefault();
+                      realtime.stop();
                       void send();
                     }
                   }}

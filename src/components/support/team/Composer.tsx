@@ -8,6 +8,10 @@ import {
   replyToConversation,
   saveReplyTemplate,
 } from "@/app/support-team/actions";
+import {
+  TypingIndicator,
+  useSupportRealtime,
+} from "@/components/support/useSupportRealtime";
 import { Modal, PopoverMenu } from "./controls";
 
 type SavedReply = { id: string; title: string; body: string };
@@ -34,6 +38,14 @@ export function Composer({
   const [saveOpen, setSaveOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const note = mode === "note";
+  const { participants, pulse, stop } = useSupportRealtime({
+    conversationId,
+    enabled: !closed,
+    role: "agent",
+  });
+  const customerTyping = participants.find(
+    (participant) => participant.role === "customer",
+  );
 
   const [state, submit, pending] = useActionState<Result, FormData>(
     async (previous, formData) => {
@@ -65,8 +77,15 @@ export function Composer({
   );
 
   useEffect(() => {
-    if (state.sent > 0) setValue("");
-  }, [state.sent]);
+    if (state.sent > 0) {
+      setValue("");
+      stop();
+    }
+  }, [state.sent, stop]);
+
+  useEffect(() => {
+    if (note) stop();
+  }, [note, stop]);
 
   useEffect(() => {
     const element = textareaRef.current;
@@ -90,8 +109,17 @@ export function Composer({
   return (
     <>
       <div className="shrink-0 border-t app-border bg-[var(--app-panel)] px-4 py-4 sm:px-6">
+        {customerTyping && (
+          <div
+            className="mx-auto mb-2 max-w-[800px] px-1"
+            aria-live="polite"
+          >
+            <TypingIndicator name={customerTyping.name} />
+          </div>
+        )}
         <form
           action={submit}
+          onSubmit={stop}
           className={`mx-auto max-w-[800px] rounded-xl border bg-[var(--app-panel-solid)] transition-colors ${
             note
               ? "border-amber-300/30 focus-within:border-amber-300/60"
@@ -171,7 +199,13 @@ export function Composer({
             maxLength={4_000}
             rows={3}
             value={value}
-            onChange={(event) => setValue(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setValue(next);
+              if (!note && next.trim()) pulse();
+              else stop();
+            }}
+            onBlur={stop}
             onKeyDown={(event) => {
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();

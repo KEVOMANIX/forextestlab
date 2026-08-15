@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { sendContactEmail, sendContactReceipt } from "@/lib/contact-email";
 import { prisma } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { publishSupportConversationChanged } from "@/lib/support-realtime";
 import {
   canAccessSupportConversation,
   CUSTOMER_CLOSED_MESSAGE,
@@ -234,6 +235,7 @@ export async function POST(request: Request) {
       message,
       consent: true as const,
     };
+    publishSupportConversationChanged(conversation.id);
     try {
       await sendContactEmail(submission);
       await sendContactReceipt(submission);
@@ -290,6 +292,7 @@ export async function POST(request: Request) {
         data: { readAt: new Date() },
       }),
     ]);
+    publishSupportConversationChanged(conversationId);
     return NextResponse.json({ ok: true });
   }
 
@@ -309,6 +312,7 @@ export async function POST(request: Request) {
         satisfactionAt: new Date(),
       },
     });
+    publishSupportConversationChanged(conversationId);
     return NextResponse.json({ ok: true });
   }
 
@@ -359,6 +363,7 @@ export async function POST(request: Request) {
       include: publicInclude,
     });
   });
+  publishSupportConversationChanged(conversationId);
   return NextResponse.json({
     ok: true,
     conversation: publicConversation(updated),

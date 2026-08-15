@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
 import { sendSupportReplyNotification } from "@/lib/contact-email";
+import { publishSupportConversationChanged } from "@/lib/support-realtime";
 import {
   requireSupportAgent,
   SUPPORT_CATEGORIES,
@@ -125,6 +126,7 @@ export async function replyToConversation(formData: FormData): Promise<WriteResu
     });
     return { ...conversation, shouldNotify };
   });
+  publishSupportConversationChanged(conversationId);
   if (recipient?.customerEmail && recipient.shouldNotify) {
     try {
       await sendSupportReplyNotification({
@@ -165,6 +167,7 @@ export async function addInternalNote(formData: FormData): Promise<WriteResult> 
     },
   });
   await audit(actor, "support.note_added", conversationId);
+  publishSupportConversationChanged(conversationId);
   refresh(conversationId);
   return { ok: true };
 }
@@ -193,6 +196,7 @@ export async function assignConversation(formData: FormData) {
   await audit(actor, "support.assigned", conversationId, {
     assignedAgentId: agent?.id ?? null,
   });
+  publishSupportConversationChanged(conversationId);
   refresh(conversationId);
 }
 
@@ -234,6 +238,7 @@ export async function updateConversation(formData: FormData) {
     priority: validPriority ? priority : undefined,
     category: validCategory ? category : undefined,
   });
+  publishSupportConversationChanged(conversationId);
   refresh(conversationId);
 }
 
@@ -254,6 +259,7 @@ export async function snoozeConversation(formData: FormData) {
     minutes,
     snoozedUntil,
   });
+  publishSupportConversationChanged(conversationId);
   refresh(conversationId);
 }
 
@@ -275,6 +281,7 @@ export async function addConversationTag(formData: FormData) {
     update: {},
   });
   await audit(actor, "support.tag_added", conversationId, { tag: name });
+  publishSupportConversationChanged(conversationId);
   refresh(conversationId);
 }
 

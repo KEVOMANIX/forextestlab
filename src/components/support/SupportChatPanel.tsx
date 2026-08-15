@@ -86,7 +86,8 @@ export function SupportChatPanel({
   useEffect(() => {
     setMuted(isSupportMuted());
     setCanAskAlerts(
-      typeof Notification !== "undefined" && Notification.permission === "default",
+      typeof Notification !== "undefined" &&
+        Notification.permission === "default",
     );
   }, []);
 
@@ -142,7 +143,11 @@ export function SupportChatPanel({
     }
     lastAgentRef.current = newestAgent?.id ?? "";
     const joined = next.assignedAgentName ?? "";
-    if (knownAgentRef.current !== null && joined && knownAgentRef.current !== joined) {
+    if (
+      knownAgentRef.current !== null &&
+      joined &&
+      knownAgentRef.current !== joined
+    ) {
       setJustJoined(true);
       window.setTimeout(() => setJustJoined(false), 7_000);
     }
@@ -314,13 +319,22 @@ export function SupportChatPanel({
     void loadPrevious();
   }
 
-  const ended = Boolean(conversation && CLOSED_STATUSES.includes(conversation.status));
+  const ended = Boolean(
+    conversation && CLOSED_STATUSES.includes(conversation.status),
+  );
   const agentName = conversation?.assignedAgentName ?? "";
-  // The first non-customer message is where an agent actually appeared, so the
-  // "joined" marker sits there rather than floating at the top of the thread.
-  const firstAgentIndex =
-    conversation?.messages.findIndex((message) => message.senderType !== "customer") ??
-    -1;
+  // Presence belongs directly after the customer's opening message. Assignment
+  // can happen before an agent writes, so tying "joined" to the first agent
+  // reply leaves the customer with no acknowledgement at the moment it matters.
+  const firstCustomerIndex =
+    conversation?.messages.findIndex(
+      (message) => message.senderType === "customer",
+    ) ?? -1;
+  const presenceText = agentName
+    ? `${agentName} just joined`
+    : ended
+      ? ""
+      : "Waiting for support to join";
   const inThread = view === "thread" && Boolean(conversationId);
   const title = inThread
     ? conversation?.assignedAgentName || "Support"
@@ -394,11 +408,17 @@ export function SupportChatPanel({
             if (!next) playSupportChime("sent");
           }}
           aria-pressed={muted}
-          aria-label={muted ? "Turn notification sound on" : "Turn notification sound off"}
+          aria-label={
+            muted ? "Turn notification sound on" : "Turn notification sound off"
+          }
           title={muted ? "Sound off" : "Sound on"}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
         >
-          {muted ? <BellOff size={16} aria-hidden /> : <Bell size={16} aria-hidden />}
+          {muted ? (
+            <BellOff size={16} aria-hidden />
+          ) : (
+            <Bell size={16} aria-hidden />
+          )}
         </button>
         <button
           type="button"
@@ -433,7 +453,11 @@ export function SupportChatPanel({
                 className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 px-3 py-2.5 text-left text-xs text-slate-300 transition-colors hover:border-brand-400/30 hover:bg-white/[0.03]"
               >
                 {label}
-                <ChevronRight size={14} aria-hidden className="shrink-0 text-slate-500" />
+                <ChevronRight
+                  size={14}
+                  aria-hidden
+                  className="shrink-0 text-slate-500"
+                />
               </button>
             ))}
           </div>
@@ -523,71 +547,81 @@ export function SupportChatPanel({
             aria-live="polite"
           >
             {!conversation && (
-              <p className="py-8 text-center text-xs text-slate-500">Loading…</p>
+              <p className="py-8 text-center text-xs text-slate-500">
+                Loading…
+              </p>
             )}
             {conversation?.messages.map((message, index) => (
               <div key={message.id}>
-                {index === firstAgentIndex && (
-                  <p className="my-3 flex items-center gap-2 text-center text-[10px] text-slate-500">
-                    <span className="h-px flex-1 bg-white/10" />
-                    {message.senderName} joined the conversation
-                    <span className="h-px flex-1 bg-white/10" />
-                  </p>
-                )}
                 <div
                   className={`flex animate-message-in motion-reduce:animate-none ${
-                    message.senderType === "customer" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${
                     message.senderType === "customer"
-                      ? "rounded-br-md bg-brand-500 text-surface-950"
-                      : "rounded-bl-md bg-white/[0.06] text-slate-200"
+                      ? "justify-end"
+                      : "justify-start"
                   }`}
                 >
-                  {message.senderType !== "customer" && (
-                    <p className="mb-1 text-[10px] font-semibold text-brand-300">
-                      {message.senderName}
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${
+                      message.senderType === "customer"
+                        ? "rounded-br-md bg-brand-500 text-surface-950"
+                        : "rounded-bl-md bg-white/[0.06] text-slate-200"
+                    }`}
+                  >
+                    {message.senderType !== "customer" && (
+                      <p className="mb-1 text-[10px] font-semibold text-brand-300">
+                        {message.senderName}
+                      </p>
+                    )}
+                    <p className="whitespace-pre-wrap break-words">
+                      {message.body}
                     </p>
-                  )}
-                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
-                  {message.attachments.map((attachment) => (
-                    <button
-                      key={attachment.id}
-                      type="button"
-                      onClick={() => void download(attachment)}
-                      className="mt-2 block w-full truncate rounded-lg border border-current/20 px-2 py-1.5 text-left text-[10px] underline-offset-2 hover:underline"
-                    >
-                      {attachment.fileName}
-                    </button>
-                  ))}
+                    {message.attachments.map((attachment) => (
+                      <button
+                        key={attachment.id}
+                        type="button"
+                        onClick={() => void download(attachment)}
+                        className="mt-2 block w-full truncate rounded-lg border border-current/20 px-2 py-1.5 text-left text-[10px] underline-offset-2 hover:underline"
+                      >
+                        {attachment.fileName}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              </div>
-            ))}
-
-            {conversation && !agentName && !ended && (
-              <div className="animate-message-in rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-center motion-reduce:animate-none">
-                <span className="mx-auto block h-2 w-2 animate-pulse-soft rounded-full bg-brand-400 motion-reduce:animate-none" />
-                <p className="mt-2 text-[11px] font-semibold text-white">
-                  Waiting for a support agent to join
-                </p>
-                <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                  You can switch tabs or close this window. We will chime here and
-                  email you the moment someone replies.
-                </p>
-                {canAskAlerts && (
-                  <button
-                    type="button"
-                    onClick={() => void enableAlerts()}
-                    className="mt-2.5 rounded-lg border border-white/10 px-3 py-1.5 text-[10px] font-semibold text-brand-300 transition-colors hover:border-brand-400/40"
+                {index === firstCustomerIndex && presenceText && (
+                  <div
+                    className="my-4 animate-message-in motion-reduce:animate-none"
+                    aria-label={presenceText}
                   >
-                    Also alert me on my desktop
-                  </button>
+                    <div className="flex items-center gap-2.5">
+                      <span className="h-px flex-1 bg-white/10" />
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-[10px] font-medium text-slate-400">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            agentName
+                              ? "bg-brand-400"
+                              : "animate-pulse-soft bg-amber-300 motion-reduce:animate-none"
+                          }`}
+                          aria-hidden
+                        />
+                        {presenceText}
+                      </span>
+                      <span className="h-px flex-1 bg-white/10" />
+                    </div>
+                    {!agentName && canAskAlerts && (
+                      <div className="mt-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => void enableAlerts()}
+                          className="text-[10px] font-medium text-brand-300 underline-offset-4 hover:underline"
+                        >
+                          Alert me when support replies
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
+            ))}
             {conversation?.status === "resolved" && (
               <div className="rounded-xl border border-white/10 p-3 text-center">
                 <p className="text-[11px] font-semibold text-white">
@@ -633,7 +667,8 @@ export function SupportChatPanel({
                 onClick={() => startNew()}
                 className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-xs font-bold text-surface-950 transition-colors hover:bg-brand-400"
               >
-                <MessageSquarePlus size={14} aria-hidden /> Start a new conversation
+                <MessageSquarePlus size={14} aria-hidden /> Start a new
+                conversation
               </button>
             </div>
           ) : (

@@ -1,10 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  content: [
-    "./src/app/**/*.{ts,tsx}",
-    "./src/components/**/*.{ts,tsx}",
-  ],
+  content: ["./src/app/**/*.{ts,tsx}", "./src/components/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
@@ -40,8 +37,22 @@ const config: Config = {
         // Do not put an undefined custom property first here. When --font-sans
         // is absent, the whole font-family declaration becomes invalid and the
         // browser falls back to Times New Roman.
-        sans: ["Inter", "ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
-        mono: ["ui-monospace", "SFMono-Regular", "Cascadia Code", "Roboto Mono", "monospace"],
+        sans: [
+          "Inter",
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "sans-serif",
+        ],
+        mono: [
+          "ui-monospace",
+          "SFMono-Regular",
+          "Cascadia Code",
+          "Roboto Mono",
+          "monospace",
+        ],
       },
       backgroundImage: {
         "grid-faint":
@@ -83,6 +94,18 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-2.5px)" },
         },
+        // Keep the launcher itself visibly alive without moving its hit target.
+        // The expanding ring makes the motion readable even on a dark page.
+        "help-breathe": {
+          "0%, 100%": {
+            boxShadow:
+              "0 0 0 0 rgba(34,195,160,0), 0 20px 60px -20px rgba(34,195,160,0.35)",
+          },
+          "50%": {
+            boxShadow:
+              "0 0 0 6px rgba(34,195,160,0.14), 0 22px 64px -18px rgba(34,195,160,0.52)",
+          },
+        },
         nudge: {
           "0%, 88%, 100%": { transform: "rotate(0deg)" },
           "91%": { transform: "rotate(-11deg)" },
@@ -115,6 +138,7 @@ const config: Config = {
         "halo-idle": "halo-idle 3.2s cubic-bezier(0, 0, 0.2, 1) infinite",
         nudge: "nudge 5s ease-in-out infinite",
         "launcher-float": "launcher-float 3.6s ease-in-out infinite",
+        "help-breathe": "help-breathe 2.8s ease-in-out infinite",
         "launcher-in": "launcher-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) both",
         "panel-in": "panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both",
         "message-in": "message-in 0.25s ease-out both",

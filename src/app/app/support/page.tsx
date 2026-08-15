@@ -17,15 +17,12 @@ export default async function SupportInboxPage() {
   const conversations = await prisma.supportConversation.findMany({
     where: { userId: user.id },
     orderBy: { lastMessageAt: "desc" },
-    take: 50,
+    take: 30,
     select: {
       id: true,
       subject: true,
-      category: true,
-      priority: true,
       status: true,
       customerUnreadCount: true,
-      assignedAgentName: true,
       lastMessageAt: true,
       messages: {
         where: { visibility: "customer", deletedAt: null },

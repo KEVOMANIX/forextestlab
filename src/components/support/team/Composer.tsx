@@ -38,8 +38,18 @@ export function Composer({
   const [state, submit, pending] = useActionState<Result, FormData>(
     async (previous, formData) => {
       try {
-        if (String(formData.get("mode")) === "note") await addInternalNote(formData);
-        else await replyToConversation(formData);
+        const result =
+          String(formData.get("mode")) === "note"
+            ? await addInternalNote(formData)
+            : await replyToConversation(formData);
+        // Expected refusals come back as data, so the agent sees why rather
+        // than a redacted production error, and keeps the text they typed.
+        if (!result.ok) {
+          return {
+            error: result.message ?? "That could not be sent.",
+            sent: previous.sent,
+          };
+        }
         return { error: "", sent: previous.sent + 1 };
       } catch (error) {
         return {
@@ -173,7 +183,11 @@ export function Composer({
           />
 
           <div className="flex items-center justify-between gap-3 px-3 pb-3">
-            <p className="min-w-0 truncate text-[11px] app-muted">
+            <p
+              className={`min-w-0 text-[11px] app-muted ${
+                state.error ? "leading-4" : "truncate"
+              }`}
+            >
               {state.error ? (
                 <span role="alert" className="text-bear">
                   {state.error}

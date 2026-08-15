@@ -257,6 +257,7 @@ export default async function SupportTeamPage(props: {
           <>
             <ConversationHeader
               conversation={selected}
+              agentId={agent.id}
               backHref={listHref}
               readOnly={readOnly}
               details={

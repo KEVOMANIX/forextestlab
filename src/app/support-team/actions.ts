@@ -22,6 +22,14 @@ async function supportWriter() {
   return actor;
 }
 
+/**
+ * Expected refusals are returned, not thrown. Next redacts the message of a
+ * thrown Server Action error in production builds, so throwing left an agent
+ * staring at "An error occurred in the Server Components render" with no idea
+ * that the conversation simply belonged to a colleague.
+ */
+type WriteResult = { ok: boolean; message?: string };
+
 async function audit(
   actor: { user: { id: string; email?: string | null } },
   action: string,
@@ -47,11 +55,27 @@ function refresh(conversationId?: string) {
   }
 }
 
-export async function replyToConversation(formData: FormData) {
-  const actor = await supportWriter();
+export async function replyToConversation(formData: FormData): Promise<WriteResult> {
+  const actor = await requireSupportAgent();
+  if (actor.agent.role === "viewer") {
+    return { ok: false, message: "Your support role is read-only." };
+  }
   const conversationId = clean(formData.get("conversationId"), 100);
   const body = clean(formData.get("body"), 4_000);
-  if (!conversationId || !body) return;
+  if (!conversationId || !body) {
+    return { ok: false, message: "Write a reply before sending." };
+  }
+  const owner = await prisma.supportConversation.findUnique({
+    where: { id: conversationId },
+    select: { assignedAgentId: true, assignedAgentName: true },
+  });
+  if (!owner) return { ok: false, message: "This conversation no longer exists." };
+  if (owner.assignedAgentId && owner.assignedAgentId !== actor.agent.id) {
+    return {
+      ok: false,
+      message: `${owner.assignedAgentName ?? "Another agent"} is handling this conversation. Use Take over to reply.`,
+    };
+  }
   const now = new Date();
   const recipient = await prisma.$transaction(async (tx) => {
     const conversation = await tx.supportConversation.findUnique({
@@ -67,12 +91,6 @@ export async function replyToConversation(formData: FormData) {
       },
     });
     if (!conversation) return null;
-    if (
-      conversation.assignedAgentId &&
-      conversation.assignedAgentId !== actor.agent.id
-    ) {
-      throw new Error("This conversation is being handled by another agent.");
-    }
     await tx.supportMessage.create({
       data: {
         conversationId,
@@ -121,13 +139,19 @@ export async function replyToConversation(formData: FormData) {
   }
   await audit(actor, "support.reply_sent", conversationId);
   refresh(conversationId);
+  return { ok: true };
 }
 
-export async function addInternalNote(formData: FormData) {
-  const actor = await supportWriter();
+export async function addInternalNote(formData: FormData): Promise<WriteResult> {
+  const actor = await requireSupportAgent();
+  if (actor.agent.role === "viewer") {
+    return { ok: false, message: "Your support role is read-only." };
+  }
   const conversationId = clean(formData.get("conversationId"), 100);
   const body = clean(formData.get("body"), 4_000);
-  if (!conversationId || !body) return;
+  if (!conversationId || !body) {
+    return { ok: false, message: "Write a note before saving it." };
+  }
   await prisma.supportMessage.create({
     data: {
       conversationId,
@@ -142,6 +166,7 @@ export async function addInternalNote(formData: FormData) {
   });
   await audit(actor, "support.note_added", conversationId);
   refresh(conversationId);
+  return { ok: true };
 }
 
 export async function assignConversation(formData: FormData) {

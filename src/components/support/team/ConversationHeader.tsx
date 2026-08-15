@@ -8,6 +8,7 @@ import { initials, priorityTone, statusTone } from "./format";
 
 export function ConversationHeader({
   conversation,
+  agentId,
   backHref,
   readOnly,
   details,
@@ -24,11 +25,16 @@ export function ConversationHeader({
     assignedAgentId: string | null;
     assignedAgentName: string | null;
   };
+  agentId: string;
   backHref: string;
   readOnly: boolean;
   details: React.ReactNode;
 }) {
   const tone = statusTone(conversation.status);
+  // Replies are refused while a colleague owns the conversation, so the way
+  // out of that refusal belongs next to their name.
+  const heldByOther =
+    !!conversation.assignedAgentId && conversation.assignedAgentId !== agentId;
   const finished =
     conversation.status === "resolved" || conversation.status === "closed";
   const meta = [
@@ -60,7 +66,9 @@ export function ConversationHeader({
       <div className="flex shrink-0 items-center gap-2">
         {conversation.assignedAgentName ? (
           <span
-            className="hidden items-center gap-2 rounded-lg border app-border px-2.5 py-1.5 xl:inline-flex"
+            className={`hidden items-center gap-2 rounded-lg border px-2.5 py-1.5 xl:inline-flex ${
+              heldByOther ? "border-amber-300/30" : "app-border"
+            }`}
             title={`Assigned to ${conversation.assignedAgentName}`}
           >
             <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-400/15 text-[10px] font-semibold text-brand-200">
@@ -80,6 +88,19 @@ export function ConversationHeader({
               </button>
             </form>
           )
+        )}
+
+        {heldByOther && !readOnly && (
+          <form action={assignConversation}>
+            <input type="hidden" name="conversationId" value={conversation.id} />
+            <input type="hidden" name="agentId" value="self" />
+            <button
+              title={`Reassign this conversation from ${conversation.assignedAgentName} to you`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 px-2.5 py-1.5 text-xs font-medium text-amber-200 transition-colors hover:bg-amber-300/10"
+            >
+              <UserPlus size={13} aria-hidden /> Take over
+            </button>
+          </form>
         )}
 
         {!readOnly && (

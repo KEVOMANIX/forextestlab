@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 
+import { SupportTerminalAlert } from "@/components/support/SupportTerminalAlert";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 
 const Backtester = dynamic(
@@ -26,10 +27,15 @@ export function BacktesterClient({
   autoStartTrial: boolean;
 }) {
   return (
-    <Backtester
-      resumeSessionId={resumeSessionId}
-      entitlements={entitlements}
-      autoStartTrial={autoStartTrial}
-    />
+    <>
+      <Backtester
+        resumeSessionId={resumeSessionId}
+        entitlements={entitlements}
+        autoStartTrial={autoStartTrial}
+      />
+      {/* The terminal hides the floating launcher, so support activity reaches
+          the trader through this instead. */}
+      <SupportTerminalAlert />
+    </>
   );
 }

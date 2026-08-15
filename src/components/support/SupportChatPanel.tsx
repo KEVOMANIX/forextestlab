@@ -77,6 +77,11 @@ export function SupportChatPanel({
   const lastAgentRef = useRef<string | null>(null);
 
   const [canAskAlerts, setCanAskAlerts] = useState(false);
+  // Held for a few seconds after an agent picks the conversation up, so the
+  // handover is something the customer sees happen rather than something they
+  // notice later.
+  const [justJoined, setJustJoined] = useState(false);
+  const knownAgentRef = useRef<string | null>(null);
 
   useEffect(() => {
     setMuted(isSupportMuted());
@@ -96,6 +101,7 @@ export function SupportChatPanel({
     setConversation(null);
     setError("");
     lastAgentRef.current = null;
+    knownAgentRef.current = null;
     if (id) {
       window.localStorage.setItem(SUPPORT_ACTIVE_KEY, id);
       setView("thread");
@@ -135,6 +141,12 @@ export function SupportChatPanel({
       playSupportChime("incoming");
     }
     lastAgentRef.current = newestAgent?.id ?? "";
+    const joined = next.assignedAgentName ?? "";
+    if (knownAgentRef.current !== null && joined && knownAgentRef.current !== joined) {
+      setJustJoined(true);
+      window.setTimeout(() => setJustJoined(false), 7_000);
+    }
+    knownAgentRef.current = joined;
     setConversation(next);
     if (next.customerUnreadCount > 0) {
       onUnread(0);
@@ -332,7 +344,11 @@ export function SupportChatPanel({
       aria-label="ForexTestLab support"
       className="app-theme-surface fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] top-3 z-[120] flex animate-panel-in flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-900 shadow-2xl shadow-black/50 motion-reduce:animate-none sm:inset-x-auto sm:right-4 sm:top-auto sm:h-[560px] sm:max-h-[calc(100dvh-7rem)] sm:w-[380px] sm:bottom-24"
     >
-      <header className="flex shrink-0 items-center gap-2.5 border-b border-white/10 px-3 py-3">
+      <header
+        className={`flex shrink-0 items-center gap-2.5 border-b border-white/10 px-3 py-3 transition-colors duration-500 ${
+          justJoined ? "bg-brand-400/10" : ""
+        }`}
+      >
         {view !== "home" ? (
           <button
             type="button"
@@ -347,9 +363,27 @@ export function SupportChatPanel({
             <Headset size={17} aria-hidden />
           </span>
         )}
+        {inThread && agentName && (
+          <span
+            key={agentName}
+            className="grid h-9 w-9 shrink-0 animate-badge-pop place-items-center rounded-full bg-brand-400/15 text-[11px] font-bold text-brand-200 motion-reduce:animate-none"
+          >
+            {agentName
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part[0]?.toUpperCase())
+              .join("")}
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-white">{title}</p>
-          <p className="mt-0.5 truncate text-[11px] text-slate-400">{subtitle}</p>
+          <p
+            className={`mt-0.5 truncate text-[11px] ${
+              justJoined ? "text-brand-300" : "text-slate-400"
+            }`}
+          >
+            {justJoined ? "just joined the conversation" : subtitle}
+          </p>
         </div>
         <button
           type="button"

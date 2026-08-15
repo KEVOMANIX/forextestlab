@@ -159,19 +159,35 @@ export function SupportChatWidget() {
         aria-controls="support-panel"
         aria-label={open ? "Close support chat" : "Open support chat"}
       >
+        {/* Two staggered halos keep something moving out of the launcher at
+            all times; they double in strength once a reply is waiting. */}
         {!open && (
-          <span
-            aria-hidden
-            className={`absolute inset-0 -z-10 rounded-full motion-reduce:animate-none ${
-              unread > 0
-                ? "animate-halo-ping bg-brand-400/45"
-                : "animate-halo-idle bg-brand-400/35"
-            }`}
-          />
+          <>
+            <span
+              aria-hidden
+              className={`absolute inset-0 -z-10 rounded-full motion-reduce:animate-none ${
+                unread > 0
+                  ? "animate-halo-ping bg-brand-400/45"
+                  : "animate-halo-idle bg-brand-400/40"
+              }`}
+            />
+            <span
+              aria-hidden
+              className={`absolute inset-0 -z-10 rounded-full [animation-delay:1.6s] motion-reduce:animate-none ${
+                unread > 0
+                  ? "animate-halo-ping bg-brand-400/35"
+                  : "animate-halo-idle bg-brand-400/25"
+              }`}
+            />
+          </>
         )}
         <span
-          className={`relative grid h-[17px] w-[17px] place-items-center ${
-            !open && unread > 0 ? "animate-nudge motion-reduce:animate-none" : ""
+          className={`relative grid h-[17px] w-[17px] place-items-center motion-reduce:animate-none ${
+            !open && unread > 0
+              ? "animate-nudge"
+              : !open
+                ? "animate-launcher-float"
+                : ""
           }`}
         >
           <MessageCircle

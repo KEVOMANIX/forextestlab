@@ -76,6 +76,13 @@ const config: Config = {
           "70%": { transform: "scale(1.32)", opacity: "0" },
           "100%": { transform: "scale(1.32)", opacity: "0" },
         },
+        // The launcher is never completely still, but only its contents move:
+        // animating the button itself would drag the hit target out from under
+        // a cursor or thumb mid-tap.
+        "launcher-float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-2.5px)" },
+        },
         nudge: {
           "0%, 88%, 100%": { transform: "rotate(0deg)" },
           "91%": { transform: "rotate(-11deg)" },
@@ -107,6 +114,7 @@ const config: Config = {
         "halo-ping": "halo-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite",
         "halo-idle": "halo-idle 3.2s cubic-bezier(0, 0, 0.2, 1) infinite",
         nudge: "nudge 5s ease-in-out infinite",
+        "launcher-float": "launcher-float 3.6s ease-in-out infinite",
         "launcher-in": "launcher-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) both",
         "panel-in": "panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both",
         "message-in": "message-in 0.25s ease-out both",

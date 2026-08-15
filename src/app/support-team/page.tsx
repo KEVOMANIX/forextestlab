@@ -25,6 +25,7 @@ import {
   snoozeConversation,
   updateConversation,
 } from "./actions";
+import { ScrollToLatest } from "@/components/support/ScrollToLatest";
 import { SupportTeamRefresh } from "@/components/support/SupportTeamRefresh";
 import { prisma } from "@/lib/db";
 import { formatNewYorkDateTime } from "@/lib/date-time";
@@ -265,9 +266,12 @@ export default async function SupportTeamPage(
   ] as const;
 
   return (
-    <main className="min-h-[calc(100dvh-4rem)]">
-      <section className="grid gap-px bg-[var(--app-border)] xl:grid-cols-[260px_minmax(420px,1fr)_330px]">
-        <aside className="min-h-[calc(100dvh-4rem)] bg-[var(--app-panel-2)] p-4">
+    // The thread column scrolls inside itself so the reply box stays pinned to
+    // the bottom of the viewport instead of being pushed below a long
+    // conversation.
+    <main className="min-h-[calc(100dvh-4rem)] xl:h-[calc(100dvh-4rem)] xl:overflow-hidden">
+      <section className="grid gap-px bg-[var(--app-border)] xl:h-full xl:grid-cols-[260px_minmax(420px,1fr)_330px]">
+        <aside className="bg-[var(--app-panel-2)] p-4 xl:h-full xl:overflow-y-auto">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="font-semibold">Team inbox</h1>
@@ -344,13 +348,13 @@ export default async function SupportTeamPage(
           </div>
         </aside>
 
-        <section className="grid min-h-[calc(100dvh-4rem)] bg-[var(--app-bg)] lg:grid-cols-[300px_1fr]">
-          <div className="border-r app-border">
-            <div className="border-b app-border px-4 py-3 text-xs font-semibold">
+        <section className="grid h-[calc(100dvh-4rem)] min-h-0 bg-[var(--app-bg)] lg:grid-cols-[300px_1fr] xl:h-full">
+          <div className="flex min-h-0 flex-col border-r app-border">
+            <div className="shrink-0 border-b app-border px-4 py-3 text-xs font-semibold">
               {conversations.length} conversation
               {conversations.length === 1 ? "" : "s"}
             </div>
-            <div className="max-h-[calc(100dvh-7rem)] overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto">
               {conversations.map((conversation) => {
                 const overdue =
                   !conversation.firstResponseAt &&
@@ -410,7 +414,7 @@ export default async function SupportTeamPage(
 
           {selected ? (
             <div className="flex min-h-0 flex-col">
-              <header className="border-b app-border px-4 py-3">
+              <header className="shrink-0 border-b app-border px-4 py-3">
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -474,49 +478,66 @@ export default async function SupportTeamPage(
                     )}
                 </div>
               </header>
-              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-                {selected.messages.map((message) => (
-                  <article
-                    key={message.id}
-                    className={`max-w-[88%] rounded-xl px-3.5 py-3 text-xs ${
-                      message.visibility === "internal"
-                        ? "mx-auto border border-amber-300/25 bg-amber-300/[0.06]"
-                        : message.senderType === "customer"
-                          ? "mr-auto bg-[var(--app-panel-2)]"
-                          : "ml-auto border border-brand-400/20 bg-brand-400/[0.08]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-4 text-[9px] app-muted">
-                      <strong
-                        className={
-                          message.visibility === "internal"
-                            ? "text-amber-200"
-                            : "text-brand-300"
-                        }
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+                {selected.messages.map((message) => {
+                  const internal = message.visibility === "internal";
+                  const fromCustomer = message.senderType === "customer";
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex ${internal ? "justify-center" : fromCustomer ? "justify-start" : "justify-end"}`}
+                    >
+                      <article
+                        className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs ${
+                          internal
+                            ? "w-full max-w-[92%] border border-amber-300/30 bg-amber-300/[0.08] text-amber-100"
+                            : fromCustomer
+                              ? "rounded-bl-md border app-border bg-[var(--app-panel-solid)]"
+                              : "rounded-br-md bg-brand-500 text-surface-950"
+                        }`}
                       >
-                        {message.visibility === "internal"
-                          ? `Internal note · ${message.senderName}`
-                          : message.senderName}
-                      </strong>
-                      <span>{formatNewYorkDateTime(message.createdAt)}</span>
+                        <div
+                          className={`flex items-center justify-between gap-4 text-[9px] ${
+                            internal
+                              ? "text-amber-200/80"
+                              : fromCustomer
+                                ? "app-muted"
+                                : "text-surface-950/70"
+                          }`}
+                        >
+                          <strong>
+                            {internal
+                              ? `Internal note · ${message.senderName}`
+                              : message.senderName}
+                          </strong>
+                          <span>{formatNewYorkDateTime(message.createdAt)}</span>
+                        </div>
+                        <p className="mt-1.5 whitespace-pre-wrap leading-5">
+                          {message.deletedAt ? "Message deleted" : message.body}
+                        </p>
+                        {message.attachments.map((attachment) => (
+                          <a
+                            key={attachment.id}
+                            href={`/api/support/attachments/${attachment.id}`}
+                            className={`mt-2 block truncate rounded-lg px-3 py-2 text-[10px] underline-offset-2 hover:underline ${
+                              fromCustomer || internal
+                                ? "border app-border text-brand-300"
+                                : "bg-surface-950/10"
+                            }`}
+                          >
+                            {attachment.fileName} ·{" "}
+                            {Math.ceil(attachment.size / 1_024)} KB
+                          </a>
+                        ))}
+                      </article>
                     </div>
-                    <p className="mt-1.5 whitespace-pre-wrap leading-5">
-                      {message.deletedAt ? "Message deleted" : message.body}
-                    </p>
-                    {message.attachments.map((attachment) => (
-                      <a
-                        key={attachment.id}
-                        href={`/api/support/attachments/${attachment.id}`}
-                        className="mt-2 block rounded-lg border app-border px-3 py-2 text-[10px] text-brand-300"
-                      >
-                        {attachment.fileName} ·{" "}
-                        {Math.ceil(attachment.size / 1_024)} KB
-                      </a>
-                    ))}
-                  </article>
-                ))}
+                  );
+                })}
+                <ScrollToLatest
+                  marker={`${selected.id}:${selected.messages.length}`}
+                />
               </div>
-              <div className="border-t app-border bg-[var(--app-panel)] p-4">
+              <div className="shrink-0 border-t app-border bg-[var(--app-panel)] p-4">
                 {savedReplies.length > 0 && (
                   <div className="mb-3 flex gap-2 overflow-x-auto">
                     {savedReplies.map((reply) => (
@@ -533,7 +554,10 @@ export default async function SupportTeamPage(
                     ))}
                   </div>
                 )}
-                <form action={replyToConversation} className="flex gap-2">
+                {/* One box, two destinations: the same text either goes to the
+                    customer or stays as an internal note, so agents no longer
+                    pick a field before they start typing. */}
+                <form action={replyToConversation}>
                   <input type="hidden" name="conversationId" value={selected.id} />
                   <textarea
                     name="body"
@@ -541,24 +565,19 @@ export default async function SupportTeamPage(
                     maxLength={4_000}
                     rows={3}
                     placeholder="Reply to customer…"
-                    className="app-input min-w-0 flex-1 resize-none text-xs"
+                    className="app-input w-full resize-none text-xs"
                   />
-                  <button className="btn-primary self-end px-4 py-3 text-xs">
-                    <Send size={14} /> Send
-                  </button>
-                </form>
-                <form action={addInternalNote} className="mt-2 flex gap-2">
-                  <input type="hidden" name="conversationId" value={selected.id} />
-                  <input
-                    name="body"
-                    required
-                    maxLength={4_000}
-                    placeholder="Add an internal note…"
-                    className="app-input min-w-0 flex-1 py-2 text-xs"
-                  />
-                  <button className="btn-secondary px-3 py-2 text-xs">
-                    <StickyNote size={13} /> Note
-                  </button>
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <button
+                      formAction={addInternalNote}
+                      className="btn-secondary px-3 py-2 text-xs"
+                    >
+                      <StickyNote size={13} /> Save as note
+                    </button>
+                    <button className="btn-primary px-4 py-2 text-xs">
+                      <Send size={14} /> Send reply
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>
@@ -575,7 +594,7 @@ export default async function SupportTeamPage(
           )}
         </section>
 
-        <aside className="min-h-[calc(100dvh-4rem)] bg-[var(--app-panel-2)] p-4">
+        <aside className="bg-[var(--app-panel-2)] p-4 xl:h-full xl:overflow-y-auto">
           {selected ? (
             <div className="space-y-5">
               <section>

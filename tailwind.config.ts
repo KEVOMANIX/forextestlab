@@ -69,6 +69,19 @@ const config: Config = {
           "70%": { transform: "scale(1.5)", opacity: "0" },
           "100%": { transform: "scale(1.5)", opacity: "0" },
         },
+        // A permanent, low-contrast breath so the launcher reads as live even
+        // with nothing waiting; the louder ping is reserved for unread replies.
+        "halo-idle": {
+          "0%": { transform: "scale(0.92)", opacity: "0.28" },
+          "70%": { transform: "scale(1.32)", opacity: "0" },
+          "100%": { transform: "scale(1.32)", opacity: "0" },
+        },
+        nudge: {
+          "0%, 88%, 100%": { transform: "rotate(0deg)" },
+          "91%": { transform: "rotate(-11deg)" },
+          "94%": { transform: "rotate(9deg)" },
+          "97%": { transform: "rotate(-5deg)" },
+        },
         "launcher-in": {
           "0%": { transform: "translateY(14px) scale(0.9)", opacity: "0" },
           "60%": { transform: "translateY(-2px) scale(1.02)", opacity: "1" },
@@ -92,6 +105,8 @@ const config: Config = {
         "fade-up": "fade-up 0.6s ease-out both",
         "pulse-soft": "pulse-soft 2.4s ease-in-out infinite",
         "halo-ping": "halo-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite",
+        "halo-idle": "halo-idle 3.2s cubic-bezier(0, 0, 0.2, 1) infinite",
+        nudge: "nudge 5s ease-in-out infinite",
         "launcher-in": "launcher-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) both",
         "panel-in": "panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both",
         "message-in": "message-in 0.25s ease-out both",

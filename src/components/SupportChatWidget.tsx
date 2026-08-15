@@ -3,14 +3,14 @@
 import { MessageCircle, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   SUPPORT_ACTIVE_KEY,
   existingSupportVisitorId,
   type SupportChatSummary,
 } from "@/lib/support-client";
-import { primeSupportSound } from "@/lib/support-sound";
+import { playSupportChime, primeSupportSound } from "@/lib/support-sound";
 
 /**
  * The panel is the bulk of the support chat, and almost nobody opens it, so it
@@ -28,39 +28,106 @@ const SupportChatPanel = dynamic(
  */
 const HIDDEN_ROUTES = ["/app/backtest", "/app/support", "/support-team"];
 
+/**
+ * A reply should reach the customer while they are reading something else, so
+ * the watcher keeps running on a hidden tab — just more slowly, and only for
+ * visitors who actually have a conversation open with support.
+ */
+const VISIBLE_POLL_MS = 15_000;
+const HIDDEN_POLL_MS = 45_000;
+
 export function SupportChatWidget() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
+  const openRef = useRef(open);
+  openRef.current = open;
   const hidden = HIDDEN_ROUTES.some((route) => pathname?.startsWith(route));
 
   useEffect(() => {
-    // One lookup per page load, and only for visitors who have actually
-    // written in — an unread reply needs a conversation to exist first. Agents
-    // replying also send email, so there is no polling loop behind this badge.
     if (hidden) return;
     const visitorId = existingSupportVisitorId();
-    if (!visitorId || !window.localStorage.getItem(SUPPORT_ACTIVE_KEY)) return;
-    let active = true;
-    void (async () => {
+    if (!visitorId) return;
+
+    let stopped = false;
+    let timer = 0;
+    let seen: number | null = null;
+    const baseTitle = document.title;
+
+    const announce = (total: number, summaries: SupportChatSummary[]) => {
+      // The tab strip is the only surface a background reply can use without
+      // asking permission, so the count goes in the title too.
+      document.title = total > 0 ? `(${total}) ${baseTitle}` : baseTitle;
+      if (seen === null || total <= seen) {
+        seen = total;
+        return;
+      }
+      seen = total;
+      if (!openRef.current) playSupportChime("incoming");
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted" &&
+        document.visibilityState !== "visible"
+      ) {
+        const latest = summaries.find((item) => item.customerUnreadCount > 0);
+        const notification = new Notification("ForexTestLab Support", {
+          body: latest?.messages[0]?.body?.slice(0, 140) ?? "You have a new reply.",
+          tag: "forextestlab-support",
+        });
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+      }
+    };
+
+    const check = async () => {
+      // An unread reply needs a conversation to exist first: visitors who have
+      // never written in are never polled. While the panel is open it is
+      // already polling the thread and marking it read, so this stands down.
+      if (openRef.current) return;
+      if (!window.localStorage.getItem(SUPPORT_ACTIVE_KEY)) return;
       const response = await fetch(
         `/api/support/chat?visitorId=${encodeURIComponent(visitorId)}&list=1`,
         { cache: "no-store" },
       );
-      if (!response.ok || !active) return;
+      if (!response.ok || stopped) return;
       const payload = (await response.json()) as {
         conversations?: SupportChatSummary[];
       };
-      if (!active) return;
-      setUnread(
-        (payload.conversations ?? []).reduce(
-          (total, item) => total + item.customerUnreadCount,
-          0,
-        ),
+      if (stopped) return;
+      const summaries = payload.conversations ?? [];
+      const total = summaries.reduce(
+        (sum, item) => sum + item.customerUnreadCount,
+        0,
       );
-    })();
+      setUnread(total);
+      announce(total, summaries);
+    };
+
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(
+        () => {
+          void check().finally(schedule);
+        },
+        document.visibilityState === "visible" ? VISIBLE_POLL_MS : HIDDEN_POLL_MS,
+      );
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void check();
+      schedule();
+    };
+
+    void check();
+    schedule();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
-      active = false;
+      stopped = true;
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      document.title = baseTitle;
     };
   }, [hidden]);
 
@@ -70,7 +137,15 @@ export function SupportChatWidget() {
 
   return (
     <>
-      {open && <SupportChatPanel onClose={close} onUnread={setUnread} />}
+      {open && (
+        <SupportChatPanel
+          onClose={close}
+          onUnread={(next) => {
+            setUnread(next);
+            if (next === 0) document.title = document.title.replace(/^\(\d+\)\s/, "");
+          }}
+        />
+      )}
       <button
         type="button"
         onClick={() => {
@@ -79,20 +154,26 @@ export function SupportChatWidget() {
           primeSupportSound();
           setOpen((current) => !current);
         }}
-        className="group fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-[120] inline-flex animate-launcher-in items-center gap-2 rounded-full border border-brand-300/30 bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-[transform,background-color] duration-200 hover:-translate-y-0.5 hover:bg-brand-400 active:scale-95 motion-reduce:animate-none motion-reduce:transition-none sm:px-4"
+        className="group fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-[120] inline-flex animate-launcher-in items-center gap-2 rounded-full border border-brand-300/30 bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-[transform,background-color] duration-200 hover:-translate-y-0.5 hover:bg-brand-400 active:scale-95 motion-reduce:animate-none motion-reduce:transition-none"
         aria-expanded={open}
         aria-controls="support-panel"
         aria-label={open ? "Close support chat" : "Open support chat"}
       >
-        {/* An expanding halo only while a reply is waiting, so the animation
-            means something instead of decorating the page permanently. */}
-        {!open && unread > 0 && (
+        {!open && (
           <span
             aria-hidden
-            className="absolute inset-0 -z-10 animate-halo-ping rounded-full bg-brand-400/45 motion-reduce:animate-none"
+            className={`absolute inset-0 -z-10 rounded-full motion-reduce:animate-none ${
+              unread > 0
+                ? "animate-halo-ping bg-brand-400/45"
+                : "animate-halo-idle bg-brand-400/35"
+            }`}
           />
         )}
-        <span className="relative grid h-[17px] w-[17px] place-items-center">
+        <span
+          className={`relative grid h-[17px] w-[17px] place-items-center ${
+            !open && unread > 0 ? "animate-nudge motion-reduce:animate-none" : ""
+          }`}
+        >
           <MessageCircle
             size={17}
             aria-hidden

@@ -76,7 +76,20 @@ export function SupportChatPanel({
   // rather than firing again on every poll or on the first render.
   const lastAgentRef = useRef<string | null>(null);
 
-  useEffect(() => setMuted(isSupportMuted()), []);
+  const [canAskAlerts, setCanAskAlerts] = useState(false);
+
+  useEffect(() => {
+    setMuted(isSupportMuted());
+    setCanAskAlerts(
+      typeof Notification !== "undefined" && Notification.permission === "default",
+    );
+  }, []);
+
+  async function enableAlerts() {
+    if (typeof Notification === "undefined") return;
+    const permission = await Notification.requestPermission();
+    setCanAskAlerts(permission === "default");
+  }
 
   const select = useCallback((id: string) => {
     setConversationId(id);
@@ -148,10 +161,9 @@ export function SupportChatPanel({
   useEffect(() => {
     void loadThread();
     void loadPrevious();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      void loadThread();
-    }, POLL_INTERVAL_MS);
+    // Deliberately polls on a hidden tab as well: an open conversation should
+    // land its reply while the customer is reading something else.
+    const timer = window.setInterval(() => void loadThread(), POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [conversationId, loadPrevious, loadThread]);
 
@@ -291,6 +303,12 @@ export function SupportChatPanel({
   }
 
   const ended = Boolean(conversation && CLOSED_STATUSES.includes(conversation.status));
+  const agentName = conversation?.assignedAgentName ?? "";
+  // The first non-customer message is where an agent actually appeared, so the
+  // "joined" marker sits there rather than floating at the top of the thread.
+  const firstAgentIndex =
+    conversation?.messages.findIndex((message) => message.senderType !== "customer") ??
+    -1;
   const inThread = view === "thread" && Boolean(conversationId);
   const title = inThread
     ? conversation?.assignedAgentName || "Support"
@@ -473,13 +491,20 @@ export function SupportChatPanel({
             {!conversation && (
               <p className="py-8 text-center text-xs text-slate-500">Loading…</p>
             )}
-            {conversation?.messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex animate-message-in motion-reduce:animate-none ${
-                  message.senderType === "customer" ? "justify-end" : "justify-start"
-                }`}
-              >
+            {conversation?.messages.map((message, index) => (
+              <div key={message.id}>
+                {index === firstAgentIndex && (
+                  <p className="my-3 flex items-center gap-2 text-center text-[10px] text-slate-500">
+                    <span className="h-px flex-1 bg-white/10" />
+                    {message.senderName} joined the conversation
+                    <span className="h-px flex-1 bg-white/10" />
+                  </p>
+                )}
+                <div
+                  className={`flex animate-message-in motion-reduce:animate-none ${
+                    message.senderType === "customer" ? "justify-end" : "justify-start"
+                  }`}
+                >
                 <div
                   className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${
                     message.senderType === "customer"
@@ -503,9 +528,32 @@ export function SupportChatPanel({
                       {attachment.fileName}
                     </button>
                   ))}
+                  </div>
                 </div>
               </div>
             ))}
+
+            {conversation && !agentName && !ended && (
+              <div className="animate-message-in rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-center motion-reduce:animate-none">
+                <span className="mx-auto block h-2 w-2 animate-pulse-soft rounded-full bg-brand-400 motion-reduce:animate-none" />
+                <p className="mt-2 text-[11px] font-semibold text-white">
+                  Waiting for a support agent to join
+                </p>
+                <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                  You can switch tabs or close this window. We will chime here and
+                  email you the moment someone replies.
+                </p>
+                {canAskAlerts && (
+                  <button
+                    type="button"
+                    onClick={() => void enableAlerts()}
+                    className="mt-2.5 rounded-lg border border-white/10 px-3 py-1.5 text-[10px] font-semibold text-brand-300 transition-colors hover:border-brand-400/40"
+                  >
+                    Also alert me on my desktop
+                  </button>
+                )}
+              </div>
+            )}
             {conversation?.status === "resolved" && (
               <div className="rounded-xl border border-white/10 p-3 text-center">
                 <p className="text-[11px] font-semibold text-white">

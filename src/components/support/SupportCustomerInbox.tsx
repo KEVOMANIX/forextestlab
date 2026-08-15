@@ -384,6 +384,17 @@ export function SupportCustomerInbox({
                   </div>
                 </div>
               ))}
+              {!conversation.assignedAgentName && !closed && (
+                <div className="rounded-xl border app-border px-4 py-3 text-center">
+                  <span className="mx-auto block h-2 w-2 animate-pulse-soft rounded-full bg-brand-400 motion-reduce:animate-none" />
+                  <p className="mt-2 text-xs font-semibold">
+                    Waiting for a support agent to join
+                  </p>
+                  <p className="mt-1 text-[11px] app-muted">
+                    You can leave this page. Replies arrive here and by email.
+                  </p>
+                </div>
+              )}
               <div ref={endRef} />
             </div>
             {closed ? (

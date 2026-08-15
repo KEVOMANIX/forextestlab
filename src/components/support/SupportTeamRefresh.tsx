@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const POLL_INTERVAL_MS = 5_000;
 const NAVIGATION_GRACE_MS = 15_000;

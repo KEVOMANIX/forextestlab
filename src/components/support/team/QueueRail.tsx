@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 
 import { SupportTeamRefresh } from "@/components/support/SupportTeamRefresh";
+import { InboxSound } from "./InboxSound";
 
 export type QueueCounts = {
   waiting: number;
@@ -35,10 +36,12 @@ export function QueueRail({
   queue,
   counts,
   query,
+  unread,
 }: {
   queue: string;
   counts: QueueCounts;
   query: string;
+  unread: number;
 }) {
   const suffix = query ? `&q=${encodeURIComponent(query)}` : "";
   return (
@@ -50,7 +53,10 @@ export function QueueRail({
         <span className="hidden text-sm font-semibold min-[1440px]:inline">
           Team inbox
         </span>
-        <SupportTeamRefresh />
+        <span className="flex items-center gap-1">
+          <SupportTeamRefresh />
+          <InboxSound unread={unread} />
+        </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2 min-[1440px]:p-3">

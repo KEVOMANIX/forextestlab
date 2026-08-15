@@ -107,6 +107,7 @@ export default async function SupportTeamPage(props: {
     allCount,
     agents,
     savedReplies,
+    unreadTotal,
   ] = await prisma.$transaction([
       prisma.supportConversation.findMany({
         where,
@@ -149,6 +150,9 @@ export default async function SupportTeamPage(props: {
         take: 30,
         select: { id: true, title: true, body: true },
       }),
+      // Total unread customer messages: the notification chime watches this
+      // number across the poller's re-renders.
+      prisma.supportConversation.aggregate({ _sum: { agentUnreadCount: true } }),
     ]);
 
   const queueCounts = {
@@ -234,7 +238,12 @@ export default async function SupportTeamPage(props: {
 
   return (
     <main className="flex h-full overflow-hidden">
-      <QueueRail queue={queue} counts={queueCounts} query={query} />
+      <QueueRail
+        queue={queue}
+        counts={queueCounts}
+        query={query}
+        unread={unreadTotal._sum.agentUnreadCount ?? 0}
+      />
 
       <ConversationList
         conversations={conversations}

@@ -10,6 +10,7 @@ import {
   existingSupportVisitorId,
   type SupportChatSummary,
 } from "@/lib/support-client";
+import { primeSupportSound } from "@/lib/support-sound";
 
 /**
  * The panel is the bulk of the support chat, and almost nobody opens it, so it
@@ -72,22 +73,44 @@ export function SupportChatWidget() {
       {open && <SupportChatPanel onClose={close} onUnread={setUnread} />}
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="fixed bottom-5 right-4 z-[120] inline-flex items-center gap-2 rounded-full border border-brand-300/30 bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-transform hover:-translate-y-0.5"
+        onClick={() => {
+          // Creating the audio context inside the click keeps later chimes
+          // playable: browsers refuse audio that no gesture ever authorised.
+          primeSupportSound();
+          setOpen((current) => !current);
+        }}
+        className="group fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-[120] inline-flex animate-launcher-in items-center gap-2 rounded-full border border-brand-300/30 bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-[transform,background-color] duration-200 hover:-translate-y-0.5 hover:bg-brand-400 active:scale-95 motion-reduce:animate-none motion-reduce:transition-none sm:px-4"
         aria-expanded={open}
         aria-controls="support-panel"
+        aria-label={open ? "Close support chat" : "Open support chat"}
       >
-        {open ? (
-          <>
-            <X size={17} aria-hidden /> Close
-          </>
-        ) : (
-          <>
-            <MessageCircle size={17} aria-hidden /> Help
-          </>
-        )}
+        {/* An expanding halo only while a reply is waiting, so the animation
+            means something instead of decorating the page permanently. */}
         {!open && unread > 0 && (
-          <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-bear px-1 text-[8px] font-bold text-white">
+          <span
+            aria-hidden
+            className="absolute inset-0 -z-10 animate-halo-ping rounded-full bg-brand-400/45 motion-reduce:animate-none"
+          />
+        )}
+        <span className="relative grid h-[17px] w-[17px] place-items-center">
+          <MessageCircle
+            size={17}
+            aria-hidden
+            className={`absolute transition-all duration-200 ${
+              open ? "rotate-90 scale-0 opacity-0" : "rotate-0 scale-100 opacity-100"
+            }`}
+          />
+          <X
+            size={17}
+            aria-hidden
+            className={`absolute transition-all duration-200 ${
+              open ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-0 opacity-0"
+            }`}
+          />
+        </span>
+        {open ? "Close" : "Help"}
+        {!open && unread > 0 && (
+          <span className="absolute -right-1 -top-1 grid h-4 min-w-4 animate-badge-pop place-items-center rounded-full bg-bear px-1 text-[10px] font-bold text-white motion-reduce:animate-none">
             {unread > 99 ? "99+" : unread}
           </span>
         )}

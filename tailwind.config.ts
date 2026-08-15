@@ -62,10 +62,40 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.55" },
         },
+        // Support launcher: a halo that expands out of the button, so an
+        // unread reply reads as a live signal rather than a static badge.
+        "halo-ping": {
+          "0%": { transform: "scale(0.85)", opacity: "0.55" },
+          "70%": { transform: "scale(1.5)", opacity: "0" },
+          "100%": { transform: "scale(1.5)", opacity: "0" },
+        },
+        "launcher-in": {
+          "0%": { transform: "translateY(14px) scale(0.9)", opacity: "0" },
+          "60%": { transform: "translateY(-2px) scale(1.02)", opacity: "1" },
+          "100%": { transform: "translateY(0) scale(1)", opacity: "1" },
+        },
+        "panel-in": {
+          "0%": { transform: "translateY(16px) scale(0.97)", opacity: "0" },
+          "100%": { transform: "translateY(0) scale(1)", opacity: "1" },
+        },
+        "message-in": {
+          "0%": { transform: "translateY(6px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
+        },
+        "badge-pop": {
+          "0%": { transform: "scale(0.4)", opacity: "0" },
+          "70%": { transform: "scale(1.15)", opacity: "1" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.6s ease-out both",
         "pulse-soft": "pulse-soft 2.4s ease-in-out infinite",
+        "halo-ping": "halo-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite",
+        "launcher-in": "launcher-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) both",
+        "panel-in": "panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "message-in": "message-in 0.25s ease-out both",
+        "badge-pop": "badge-pop 0.35s cubic-bezier(0.22, 1.4, 0.36, 1) both",
       },
     },
   },

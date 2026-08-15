@@ -18,6 +18,20 @@ export const SUPPORT_STATUSES = [
   "closed",
 ] as const;
 export const SUPPORT_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
+
+/**
+ * Resolving ends the conversation for the customer: the thread stays readable
+ * and rateable, but no further customer messages or attachments are accepted.
+ * An agent reopening it puts the conversation back in play.
+ */
+export const CUSTOMER_CLOSED_STATUSES = ["resolved", "closed"] as const;
+
+export function isCustomerClosed(status: string) {
+  return (CUSTOMER_CLOSED_STATUSES as readonly string[]).includes(status);
+}
+
+export const CUSTOMER_CLOSED_MESSAGE =
+  "This conversation has been resolved and closed. Start a new conversation and we will pick it up from there.";
 export const SUPPORT_CATEGORIES = [
   "account",
   "billing",

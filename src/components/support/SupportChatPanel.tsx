@@ -1,6 +1,18 @@
 "use client";
 
-import { Headset, Paperclip, Plus, Send, Star, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Bell,
+  BellOff,
+  CheckCircle2,
+  ChevronRight,
+  Headset,
+  MessageSquarePlus,
+  Paperclip,
+  Send,
+  Star,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -12,12 +24,28 @@ import {
   type SupportChatConversation,
   type SupportChatSummary,
 } from "@/lib/support-client";
+import {
+  isSupportMuted,
+  playSupportChime,
+  setSupportMuted,
+} from "@/lib/support-sound";
 
 /**
  * The panel only polls while it is open and visible, so a widget mounted on
  * every page costs nothing until somebody actually asks for help.
  */
 const POLL_INTERVAL_MS = 10_000;
+const CLOSED_STATUSES = ["resolved", "closed"];
+
+type View = "home" | "new" | "thread";
+
+/** Openers that put the agent in the right area immediately; the API derives
+ * the subject from the first line, so these also title the conversation. */
+const TOPICS = [
+  ["Replay or charts", "I need help with replay or charts: "],
+  ["Billing or plan", "I need help with billing or my plan: "],
+  ["Something is broken", "Something is not working: "],
+] as const;
 
 export function SupportChatPanel({
   onClose,
@@ -30,6 +58,9 @@ export function SupportChatPanel({
   const [conversationId, setConversationId] = useState(
     () => window.localStorage.getItem(SUPPORT_ACTIVE_KEY) ?? "",
   );
+  const [view, setView] = useState<View>(() =>
+    window.localStorage.getItem(SUPPORT_ACTIVE_KEY) ? "thread" : "home",
+  );
   const [conversation, setConversation] =
     useState<SupportChatConversation | null>(null);
   const [previous, setPrevious] = useState<SupportChatSummary[]>([]);
@@ -38,15 +69,26 @@ export function SupportChatPanel({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [muted, setMuted] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  // Tracks the newest agent message already seen, so the chime marks arrivals
+  // rather than firing again on every poll or on the first render.
+  const lastAgentRef = useRef<string | null>(null);
+
+  useEffect(() => setMuted(isSupportMuted()), []);
 
   const select = useCallback((id: string) => {
     setConversationId(id);
     setConversation(null);
     setError("");
-    if (id) window.localStorage.setItem(SUPPORT_ACTIVE_KEY, id);
-    else window.localStorage.removeItem(SUPPORT_ACTIVE_KEY);
+    lastAgentRef.current = null;
+    if (id) {
+      window.localStorage.setItem(SUPPORT_ACTIVE_KEY, id);
+      setView("thread");
+    } else {
+      window.localStorage.removeItem(SUPPORT_ACTIVE_KEY);
+    }
   }, []);
 
   const loadThread = useCallback(async () => {
@@ -58,15 +100,30 @@ export function SupportChatPanel({
     if (!response.ok) {
       // The stored conversation is gone or no longer ours — fall back to the
       // start form instead of leaving the panel stuck on "Loading".
-      if (response.status === 404) select("");
+      if (response.status === 404) {
+        select("");
+        setView("home");
+      }
       return;
     }
     const payload = (await response.json()) as {
       conversation?: SupportChatConversation | null;
     };
     if (!payload.conversation) return;
-    setConversation(payload.conversation);
-    if (payload.conversation.customerUnreadCount > 0) {
+    const next = payload.conversation;
+    const newestAgent = [...next.messages]
+      .reverse()
+      .find((message) => message.senderType !== "customer");
+    if (
+      newestAgent &&
+      lastAgentRef.current !== null &&
+      newestAgent.id !== lastAgentRef.current
+    ) {
+      playSupportChime("incoming");
+    }
+    lastAgentRef.current = newestAgent?.id ?? "";
+    setConversation(next);
+    if (next.customerUnreadCount > 0) {
       onUnread(0);
       void fetch("/api/support/chat", {
         method: "POST",
@@ -90,7 +147,7 @@ export function SupportChatPanel({
 
   useEffect(() => {
     void loadThread();
-    if (!conversationId) void loadPrevious();
+    void loadPrevious();
     const timer = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       void loadThread();
@@ -99,7 +156,7 @@ export function SupportChatPanel({
   }, [conversationId, loadPrevious, loadThread]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
+    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   }, [conversation?.messages.length]);
 
   async function post(body: Record<string, unknown>) {
@@ -118,6 +175,7 @@ export function SupportChatPanel({
       };
       if (!response.ok || !payload.conversation) {
         setError(payload.message ?? "Message could not be sent. Please retry.");
+        if (response.status === 409) void loadThread();
         return null;
       }
       return payload;
@@ -142,7 +200,10 @@ export function SupportChatPanel({
       saveSupportToken(payload.conversation.id, payload.accessToken);
     select(payload.conversation.id);
     setConversation(payload.conversation);
+    lastAgentRef.current = "";
     setInput("");
+    playSupportChime("sent");
+    void loadPrevious();
   }
 
   async function send() {
@@ -157,7 +218,10 @@ export function SupportChatPanel({
       clientMessageId: crypto.randomUUID(),
     });
     if (!payload?.conversation) setInput(text);
-    else setConversation(payload.conversation);
+    else {
+      setConversation(payload.conversation);
+      playSupportChime("sent");
+    }
   }
 
   async function upload(file: File) {
@@ -213,12 +277,33 @@ export function SupportChatPanel({
     await loadThread();
   }
 
-  const closed = conversation?.status === "closed";
-  const subtitle = conversation?.assignedAgentName
-    ? `${conversation.assignedAgentName} is on this conversation`
-    : conversationId
-      ? "Sent — we reply here and by email"
-      : "Usually answered within one business day";
+  function startNew(starter = "") {
+    select("");
+    setInput(starter);
+    setError("");
+    setView("new");
+  }
+
+  function goHome() {
+    setView("home");
+    setError("");
+    void loadPrevious();
+  }
+
+  const ended = Boolean(conversation && CLOSED_STATUSES.includes(conversation.status));
+  const inThread = view === "thread" && Boolean(conversationId);
+  const title = inThread
+    ? conversation?.assignedAgentName || "Support"
+    : view === "new"
+      ? "New conversation"
+      : "Support";
+  const subtitle = inThread
+    ? ended
+      ? "Conversation closed"
+      : conversation?.assignedAgentName
+        ? "Support agent"
+        : "We reply here and by email"
+    : "Usually answered within one business day";
 
   // `app-theme-surface` carries the --app-* variables the shared input styles
   // read: the widget also mounts on marketing pages, which sit outside the app
@@ -227,45 +312,118 @@ export function SupportChatPanel({
     <section
       id="support-panel"
       aria-label="ForexTestLab support"
-      className="app-theme-surface fixed bottom-24 right-4 z-[120] flex h-[560px] max-h-[calc(100dvh-7rem)] w-[min(calc(100vw-2rem),380px)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-900 shadow-2xl shadow-black/50"
+      className="app-theme-surface fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] top-3 z-[120] flex animate-panel-in flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface-900 shadow-2xl shadow-black/50 motion-reduce:animate-none sm:inset-x-auto sm:right-4 sm:top-auto sm:h-[560px] sm:max-h-[calc(100dvh-7rem)] sm:w-[380px] sm:bottom-24"
     >
-      <header className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3.5">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-400/15 text-brand-200">
-          <Headset size={17} aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">Support</p>
-          <p className="mt-0.5 truncate text-[11px] text-slate-400">{subtitle}</p>
-        </div>
-        {conversationId && (
+      <header className="flex shrink-0 items-center gap-2.5 border-b border-white/10 px-3 py-3">
+        {view !== "home" ? (
           <button
             type="button"
-            onClick={() => {
-              select("");
-              setInput("");
-              void loadPrevious();
-            }}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"
-            aria-label="Start a new conversation"
+            onClick={goHome}
+            aria-label="Back to conversations"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
           >
-            <Plus size={16} aria-hidden />
+            <ArrowLeft size={17} aria-hidden />
           </button>
+        ) : (
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-400/15 text-brand-200">
+            <Headset size={17} aria-hidden />
+          </span>
         )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-white">{title}</p>
+          <p className="mt-0.5 truncate text-[11px] text-slate-400">{subtitle}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const next = !muted;
+            setMuted(next);
+            setSupportMuted(next);
+            if (!next) playSupportChime("sent");
+          }}
+          aria-pressed={muted}
+          aria-label={muted ? "Turn notification sound on" : "Turn notification sound off"}
+          title={muted ? "Sound off" : "Sound on"}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          {muted ? <BellOff size={16} aria-hidden /> : <Bell size={16} aria-hidden />}
+        </button>
         <button
           type="button"
           onClick={onClose}
-          className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white"
           aria-label="Close support"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
         >
           <X size={16} aria-hidden />
         </button>
       </header>
 
-      {!conversationId ? (
+      {view === "home" ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <p className="text-sm leading-6 text-slate-300">
-            Tell us what you need help with. We’ll reply right here and email you
-            a copy.
+            Hi there. Ask us anything about your account, your plan or the
+            backtester and we’ll reply here and by email.
+          </p>
+          <button
+            type="button"
+            onClick={() => startNew()}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 transition-colors hover:bg-brand-400"
+          >
+            <MessageSquarePlus size={15} aria-hidden /> Start a conversation
+          </button>
+
+          <div className="mt-3 space-y-1.5">
+            {TOPICS.map(([label, starter]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => startNew(starter)}
+                className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 px-3 py-2.5 text-left text-xs text-slate-300 transition-colors hover:border-brand-400/30 hover:bg-white/[0.03]"
+              >
+                {label}
+                <ChevronRight size={14} aria-hidden className="shrink-0 text-slate-500" />
+              </button>
+            ))}
+          </div>
+
+          {previous.length > 0 && (
+            <div className="mt-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Your conversations
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {previous.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => select(item.id)}
+                    className="block w-full rounded-xl border border-white/10 px-3 py-2.5 text-left transition-colors hover:border-brand-400/30 hover:bg-white/[0.03]"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-white">
+                        {item.subject}
+                      </span>
+                      {item.customerUnreadCount > 0 && (
+                        <span className="animate-badge-pop rounded-full bg-brand-500 px-1.5 text-[10px] font-bold text-surface-950 motion-reduce:animate-none">
+                          {item.customerUnreadCount}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-1 block truncate text-[11px] text-slate-500">
+                      {CLOSED_STATUSES.includes(item.status)
+                        ? "Closed"
+                        : item.messages[0]?.body}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : view === "new" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <p className="text-sm leading-6 text-slate-300">
+            Tell us what you need help with.
           </p>
           <div className="mt-4 space-y-2.5">
             <input
@@ -300,43 +458,11 @@ export function SupportChatPanel({
               type="button"
               onClick={() => void start()}
               disabled={busy || !input.trim() || !name.trim() || !email.trim()}
-              className="w-full rounded-lg bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 transition-opacity disabled:opacity-40"
+              className="w-full rounded-lg bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 transition-opacity hover:bg-brand-400 disabled:opacity-40"
             >
               {busy ? "Sending…" : "Send message"}
             </button>
           </div>
-
-          {previous.length > 0 && (
-            <div className="mt-6 border-t border-white/10 pt-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                Earlier conversations
-              </p>
-              <div className="mt-2 space-y-1.5">
-                {previous.slice(0, 5).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => select(item.id)}
-                    className="block w-full rounded-lg border border-white/10 px-3 py-2 text-left hover:border-brand-400/30 hover:bg-white/[0.03]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-white">
-                        {item.subject}
-                      </span>
-                      {item.customerUnreadCount > 0 && (
-                        <span className="rounded-full bg-brand-500 px-1.5 text-[8px] font-bold text-surface-950">
-                          {item.customerUnreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 truncate text-[10px] text-slate-500">
-                      {item.messages[0]?.body}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       ) : (
         <>
@@ -350,7 +476,9 @@ export function SupportChatPanel({
             {conversation?.messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${message.senderType === "customer" ? "justify-end" : "justify-start"}`}
+                className={`flex animate-message-in motion-reduce:animate-none ${
+                  message.senderType === "customer" ? "justify-end" : "justify-start"
+                }`}
               >
                 <div
                   className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-5 ${
@@ -364,7 +492,7 @@ export function SupportChatPanel({
                       {message.senderName}
                     </p>
                   )}
-                  <p className="whitespace-pre-wrap">{message.body}</p>
+                  <p className="whitespace-pre-wrap break-words">{message.body}</p>
                   {message.attachments.map((attachment) => (
                     <button
                       key={attachment.id}
@@ -390,12 +518,12 @@ export function SupportChatPanel({
                       type="button"
                       onClick={() => void rate(score)}
                       aria-label={`Rate support ${score} out of 5`}
-                      className={
+                      className={`transition-transform hover:scale-110 ${
                         conversation.satisfactionScore &&
                         score <= conversation.satisfactionScore
                           ? "text-amber-300"
                           : "text-slate-600 hover:text-amber-200"
-                      }
+                      }`}
                     >
                       <Star size={17} fill="currentColor" aria-hidden />
                     </button>
@@ -405,64 +533,86 @@ export function SupportChatPanel({
             )}
             <div ref={endRef} />
           </div>
-          <div className="shrink-0 border-t border-white/10 p-3">
-            {error && (
-              <p role="alert" className="mb-2 text-[10px] text-bear">
-                {error}
-              </p>
-            )}
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                void send();
-              }}
-              className="flex items-end gap-2"
-            >
+
+          {ended ? (
+            <div className="shrink-0 border-t border-white/10 p-3">
+              <div className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+                <CheckCircle2
+                  size={15}
+                  aria-hidden
+                  className="mt-0.5 shrink-0 text-brand-300"
+                />
+                <p className="text-[11px] leading-4 text-slate-400">
+                  Support closed this conversation. You can still read it here.
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={busy || closed}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 hover:text-white disabled:opacity-40"
-                aria-label="Attach a file"
+                onClick={() => startNew()}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-xs font-bold text-surface-950 transition-colors hover:bg-brand-400"
               >
-                <Paperclip size={15} aria-hidden />
+                <MessageSquarePlus size={14} aria-hidden /> Start a new conversation
               </button>
-              <input
-                ref={fileRef}
-                type="file"
-                className="hidden"
-                accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.json"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void upload(file);
-                  event.target.value = "";
+            </div>
+          ) : (
+            <div className="shrink-0 border-t border-white/10 p-3">
+              {error && (
+                <p role="alert" className="mb-2 text-[11px] text-bear">
+                  {error}
+                </p>
+              )}
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void send();
                 }}
-              />
-              <textarea
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void send();
-                  }
-                }}
-                rows={2}
-                maxLength={4_000}
-                disabled={closed}
-                placeholder={closed ? "This conversation is closed" : "Message support…"}
-                className="app-input min-w-0 flex-1 resize-none text-xs"
-              />
-              <button
-                type="submit"
-                disabled={busy || closed || !input.trim()}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-500 text-surface-950 disabled:opacity-40"
-                aria-label="Send message"
+                className="flex items-end gap-2"
               >
-                <Send size={15} aria-hidden />
-              </button>
-            </form>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={busy}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-slate-400 transition-colors hover:text-white disabled:opacity-40"
+                  aria-label="Attach a file"
+                >
+                  <Paperclip size={15} aria-hidden />
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  className="hidden"
+                  accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.json"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void upload(file);
+                    event.target.value = "";
+                  }}
+                />
+                <textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void send();
+                    }
+                  }}
+                  rows={2}
+                  maxLength={4_000}
+                  placeholder="Message support…"
+                  className="app-input min-w-0 flex-1 resize-none text-xs"
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !input.trim()}
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-500 text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
+                  aria-label="Send message"
+                >
+                  <Send size={15} aria-hidden />
+                </button>
+              </form>
+            </div>
+          )}
         </>
       )}
     </section>

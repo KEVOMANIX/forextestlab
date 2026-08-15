@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { canAccessSupportConversation } from "@/lib/support";
+import {
+  canAccessSupportConversation,
+  CUSTOMER_CLOSED_MESSAGE,
+  isCustomerClosed,
+} from "@/lib/support";
 
 export const runtime = "nodejs";
 
@@ -53,6 +57,12 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, message: "Conversation not found." },
       { status: 404 },
+    );
+  }
+  if (isCustomerClosed(conversation.status)) {
+    return NextResponse.json(
+      { ok: false, message: CUSTOMER_CLOSED_MESSAGE },
+      { status: 409 },
     );
   }
   const bytes = Buffer.from(await file.arrayBuffer());

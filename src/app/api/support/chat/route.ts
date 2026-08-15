@@ -5,7 +5,9 @@ import { prisma } from "@/lib/db";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import {
   canAccessSupportConversation,
+  CUSTOMER_CLOSED_MESSAGE,
   hashSupportToken,
+  isCustomerClosed,
   SUPPORT_CATEGORIES,
   supportToken,
 } from "@/lib/support";
@@ -316,9 +318,9 @@ export async function POST(request: Request) {
       { status: 422 },
     );
   }
-  if (conversation.status === "closed") {
+  if (isCustomerClosed(conversation.status)) {
     return NextResponse.json(
-      { ok: false, message: "This conversation is closed." },
+      { ok: false, message: CUSTOMER_CLOSED_MESSAGE },
       { status: 409 },
     );
   }

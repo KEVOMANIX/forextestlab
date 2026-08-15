@@ -1,11 +1,17 @@
 "use client";
 
-import { Headphones, Inbox, Paperclip, Plus, Send } from "lucide-react";
+import { CheckCircle2, Headphones, Inbox, Paperclip, Plus, Send } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { playSupportChime } from "@/lib/support-sound";
 
 /** Signed-in users get their replies by email too, so the inbox refreshes at a
  * calm cadence instead of hammering the database from every open tab. */
 const POLL_INTERVAL_MS = 10_000;
+
+/** Resolving a conversation ends it for the customer; the thread stays
+ * readable and a follow-up starts a new one. */
+const CLOSED_STATUSES = ["resolved", "closed"];
 
 const CATEGORIES = [
   ["replay", "Replay"],
@@ -62,6 +68,7 @@ export function SupportCustomerInbox({
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const lastAgentRef = useRef<string | null>(null);
 
   const loadList = useCallback(async () => {
     const response = await fetch("/api/support/chat?list=1", {
@@ -83,6 +90,17 @@ export function SupportCustomerInbox({
       conversation?: Conversation | null;
     };
     if (!payload.conversation) return;
+    const newestAgent = [...payload.conversation.messages]
+      .reverse()
+      .find((message) => message.senderType !== "customer");
+    if (
+      newestAgent &&
+      lastAgentRef.current !== null &&
+      newestAgent.id !== lastAgentRef.current
+    ) {
+      playSupportChime("incoming");
+    }
+    lastAgentRef.current = newestAgent?.id ?? "";
     setConversation(payload.conversation);
     if (payload.conversation.customerUnreadCount > 0) {
       void fetch("/api/support/chat", {
@@ -201,12 +219,15 @@ export function SupportCustomerInbox({
   function openConversation(id: string) {
     setSelectedId(id);
     setConversation(null);
+    lastAgentRef.current = null;
     setComposing(false);
     setInput("");
     setError("");
   }
 
-  const closed = conversation?.status === "closed";
+  const closed = Boolean(
+    conversation && CLOSED_STATUSES.includes(conversation.status),
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -365,6 +386,28 @@ export function SupportCustomerInbox({
               ))}
               <div ref={endRef} />
             </div>
+            {closed ? (
+              <div className="shrink-0 border-t app-border p-4">
+                <div className="flex items-center gap-3 rounded-xl border app-border px-4 py-3">
+                  <CheckCircle2 size={16} aria-hidden className="shrink-0 text-brand-300" />
+                  <p className="min-w-0 flex-1 text-xs app-muted">
+                    Support closed this conversation. Start a new one and we will pick it up from there.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setComposing(true);
+                      setConversation(null);
+                      setInput("");
+                      setError("");
+                    }}
+                    className="btn-primary shrink-0 px-3 py-2 text-xs"
+                  >
+                    <Plus size={14} aria-hidden /> New message
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div className="shrink-0 border-t app-border p-4">
               {error && (
                 <p role="alert" className="mb-2 text-xs text-bear">
@@ -423,6 +466,7 @@ export function SupportCustomerInbox({
                 </button>
               </form>
             </div>
+            )}
           </div>
         ) : (
           <div className="grid place-items-center p-10 text-center">

@@ -27,7 +27,6 @@ export function DashboardSessionSwitcher({
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const selected = sessions.find((session) => session.id === selectedId);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return sessions;
@@ -55,13 +54,20 @@ export function DashboardSessionSwitcher({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 min-w-44 items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-left text-xs font-semibold transition-colors hover:border-brand-400/40 hover:bg-white/[0.04]"
+        className="inline-flex h-9 items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-left text-xs font-semibold transition-colors hover:border-brand-400/40 hover:bg-white/[0.04]"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="Change dashboard session"
         title="Change dashboard session"
       >
-        <span className="truncate">{selected?.name ?? "Choose session"}</span>
+        {/* The card heading beside this already names the session, so the
+            trigger says what it does instead of repeating it. */}
+        <span className="truncate">
+          Switch session
+          {sessions.length > 1 && (
+            <span className="ml-1.5 font-mono app-muted">{sessions.length}</span>
+          )}
+        </span>
         <ChevronDown size={15} className="shrink-0 app-muted" aria-hidden />
       </button>
 

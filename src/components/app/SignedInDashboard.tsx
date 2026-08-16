@@ -63,11 +63,35 @@ export interface DashboardSession {
   archived: boolean;
 }
 
+/** Signed, for a profit or loss where the direction is the point. */
 function formatMoney(value: Decimal): string {
   const sign = value.isPositive() ? "+" : value.isNegative() ? "−" : "";
+  // formatBalance signs negatives itself, so hand it the magnitude.
+  return `${sign}${formatBalance(value.abs())}`;
+}
+
+/**
+ * Unsigned, for a balance. A balance is always a positive number, so a "+"
+ * in front of it says nothing about the session and reads as a gain — which
+ * it is not when the account has fallen below where it started.
+ */
+function formatBalance(value: Decimal): string {
   const [whole, frac] = value.abs().toFixed(2).split(".");
   const grouped = whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${sign}$${grouped}.${frac}`;
+  return `${value.isNegative() ? "−" : ""}$${grouped}.${frac}`;
+}
+
+/** "3 hours ago" beats a second absolute timestamp beside a market one. */
+function savedAgo(value: Date | string | number): string {
+  const then = new Date(value).getTime();
+  const minutes = Math.round((Date.now() - then) / 60_000);
+  if (!Number.isFinite(minutes) || minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return formatNewYorkDate(then);
 }
 
 function sessionProgress(session: DashboardSession | null): number {
@@ -136,6 +160,15 @@ export function SignedInDashboard({
   const scopeLabel = selectedSession?.name ?? "No session selected";
   const selectedSymbols = selectedSession?.symbols ?? [];
   const progress = sessionProgress(selectedSession);
+  // The card used to show a balance and a starting balance and leave the
+  // subtraction to the reader; these give it the number it was missing.
+  const sessionNet = selectedSession
+    ? new Decimal(selectedSession.balance).minus(selectedSession.startingBalance)
+    : new Decimal(0);
+  const sessionReturnPercent =
+    selectedSession && !new Decimal(selectedSession.startingBalance).isZero()
+      ? sessionNet.dividedBy(selectedSession.startingBalance).times(100).toNumber()
+      : null;
   const trades = showDemoData ? DEMO_ANALYTICS_TRADES : selectedTrades;
   const selectedEquityCurve = showDemoData ? DEMO_ANALYTICS_EQUITY_CURVE : realEquityCurve;
   const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
@@ -489,15 +522,26 @@ export function SignedInDashboard({
                     >
                       {selectedSession.status === "finished" ? "Completed" : "Active"}
                     </span>
-                    {selectedSymbols.map((symbol) => (
+                    {/* The first symbol is the session's active chart. The
+                        rest collapse, so eight pairs cannot push the card
+                        onto a second line or bury which one is in play. */}
+                    {selectedSymbols.slice(0, 1).map((symbol) => (
                       <span
                         key={symbol}
-                        className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold"
+                        className="rounded-md border border-brand-400/30 bg-brand-400/10 px-2 py-1 font-mono font-semibold text-brand-200"
                       >
                         {formatSymbol(symbol)}
                       </span>
                     ))}
-                    <span>
+                    {selectedSymbols.length > 1 && (
+                      <span
+                        className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold"
+                        title={selectedSymbols.slice(1).map(formatSymbol).join(", ")}
+                      >
+                        +{selectedSymbols.length - 1}
+                      </span>
+                    )}
+                    <span className="text-[11px]">
                       {formatNewYorkDate(Number(selectedSession.startTime))} –{" "}
                       {formatNewYorkDate(Number(selectedSession.endTime))}
                     </span>
@@ -508,6 +552,10 @@ export function SignedInDashboard({
                 </div>
               </div>
 
+              {/* Four equal cells. Net P/L is the one a trader opens the
+                  dashboard for, and it used to be absent: the card showed a
+                  balance and a starting balance and left the subtraction to
+                  the reader. */}
               <div className="mt-4 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
                 <div className="bg-[var(--app-panel)]/90 p-3.5">
                   <div className="flex items-center justify-between text-xs">
@@ -520,20 +568,35 @@ export function SignedInDashboard({
                       style={{ width: `${progress}%` }}
                     />
                   </div>
+                  <p className="mt-2 text-[11px] app-muted">
+                    {selectedSession.totalCandles
+                      ? `Candle ${(selectedSession.visibleIndex + 1).toLocaleString()} of ${selectedSession.totalCandles.toLocaleString()}`
+                      : selectedSession.status === "finished"
+                        ? "Session complete"
+                        : "Not started"}
+                  </p>
                 </div>
                 <div className="bg-[var(--app-panel)]/90 p-3.5">
                   <p className="text-xs font-semibold app-muted">Current balance</p>
                   <p className="mt-1.5 font-mono text-base font-semibold">
-                    {formatMoney(new Decimal(selectedSession.balance))}
+                    {formatBalance(new Decimal(selectedSession.balance))}
                   </p>
-                  <p className="mt-1 text-[10px] app-muted">Started at {formatMoney(new Decimal(selectedSession.startingBalance))}</p>
+                  <p className="mt-1 text-[11px] app-muted">
+                    <span className={sessionNet.isNegative() ? "font-semibold text-bear" : sessionNet.isZero() ? "" : "font-semibold text-brand-300"}>
+                      {formatMoney(sessionNet)}
+                      {sessionReturnPercent === null ? "" : ` (${sessionNet.isNegative() ? "−" : sessionNet.isZero() ? "" : "+"}${Math.abs(sessionReturnPercent).toFixed(2)}%)`}
+                    </span>{" "}
+                    from {formatBalance(new Decimal(selectedSession.startingBalance))}
+                  </p>
                 </div>
                 <div className="bg-[var(--app-panel)]/90 p-3.5">
                   <p className="text-xs font-semibold app-muted">Replay position</p>
                   <p className="mt-1.5 text-sm font-semibold">
                     {lastReplayTime ? formatNewYorkDateTime(lastReplayTime) : "Not started"}
                   </p>
-                  <p className="mt-1 text-[10px] app-muted">Saved {formatNewYorkDateTime(selectedSession.updatedAt)}</p>
+                  {/* Market time and wall-clock time sat side by side with
+                      nothing to tell them apart, which read as a data error. */}
+                  <p className="mt-1 text-[11px] app-muted">Market time · saved {savedAgo(selectedSession.updatedAt)}</p>
                 </div>
               </div>
             </div>

@@ -42,18 +42,21 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
     </div>
   );
 
+  // The analyst gets its own tab rather than the foot of the Reports tab: it
+  // is the most useful part of the report and was the hardest thing to find.
+  const aiPanel = entitlements.fullAnalytics ? (
+    <AiInsightsPanel scope="session" sessionId={results.sessionId} suggestions={SESSION_SUGGESTED_QUESTIONS} title="Ask this session" subtitle="AI analysis grounded in this backtest" />
+  ) : (
+    <div className="flex flex-col gap-3 rounded-2xl border border-brand-400/25 bg-brand-400/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div><p className="font-semibold">Ask an analyst about this session</p><p className="mt-1 max-w-xl text-xs leading-5 app-muted">Pro adds an AI analyst grounded in this backtest — it reads your real trades, points at the ones driving the result, and suggests what to change. The full strategy breakdown is included too.</p></div>
+      <Link href="/account/billing" className="btn-primary shrink-0 px-4 py-2 text-xs">View Pro plans</Link>
+    </div>
+  );
+
   const reportFooter = (
     <div className="mt-5 space-y-5">
       <BranchComparison currentId={results.sessionId} branches={results.branchComparison} />
       {state.status === "finished" && <SessionFeedback sessionId={results.sessionId} />}
-      {entitlements.fullAnalytics ? (
-        <AiInsightsPanel scope="session" sessionId={results.sessionId} suggestions={SESSION_SUGGESTED_QUESTIONS} title="Ask this session" subtitle="AI analysis grounded in this backtest" />
-      ) : (
-        <div className="flex flex-col gap-3 rounded-xl border border-brand-400/25 bg-brand-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="font-semibold">Unlock advanced reports and AI review</p><p className="mt-1 text-xs app-muted">Pro adds the full strategy breakdown and an AI analyst grounded in this session.</p></div>
-          <Link href="/account/billing" className="btn-primary shrink-0 px-4 py-2 text-xs">View Pro plans</Link>
-        </div>
-      )}
       <details className="rounded-2xl bg-[var(--app-panel)] p-5">
         <summary className="cursor-pointer text-sm font-semibold">Session details and notes</summary>
         <dl className="mt-5 grid grid-cols-2 gap-4 border-t app-border pt-5 font-mono text-xs sm:grid-cols-4">
@@ -86,6 +89,7 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
       startingBalance={state.config.startingBalance}
       fullAccess={entitlements.fullAnalytics}
       journalContent={journal}
+      aiPanel={aiPanel}
       reportFooter={reportFooter}
       notice={notice}
     />

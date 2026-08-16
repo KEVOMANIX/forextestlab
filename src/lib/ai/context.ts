@@ -103,23 +103,28 @@ export function buildSessionContext(results: SessionResults): string {
       lines.push(`- ${row.key}: ${row.count} trades, net ${money(row.net)}`);
     }
 
-    const sorted = [...trades].sort((a, b) => Number(b.pnl) - Number(a.pnl));
+    // Every trade carries the same number the ledger and journal show, so the
+    // model can point at one and the interface can turn that into a link.
+    const numbered = trades.map((trade, index) => ({ trade, number: index + 1 }));
+    const describe = ({ trade, number }: { trade: ClosedTrade; number: number }) =>
+      `- [#${number}] ${formatNewYorkDate(trade.entryTime, { day: "numeric", month: "short" })} ` +
+      `${trade.direction} ${money(Number(trade.pnl))} (${trade.pips} pips, exit ${trade.exitReason})`;
+
+    const sorted = [...numbered].sort((a, b) => Number(b.trade.pnl) - Number(a.trade.pnl));
     lines.push("\n## Best trades");
-    for (const t of sorted.slice(0, 3)) {
-      lines.push(`- ${t.direction} ${money(Number(t.pnl))} (${t.pips} pips, exit ${t.exitReason})`);
-    }
+    for (const row of sorted.slice(0, 3)) lines.push(describe(row));
     lines.push("## Worst trades");
-    for (const t of sorted.slice(-3).reverse()) {
-      lines.push(`- ${t.direction} ${money(Number(t.pnl))} (${t.pips} pips, exit ${t.exitReason})`);
-    }
+    for (const row of sorted.slice(-3).reverse()) lines.push(describe(row));
 
     lines.push("\n## Most recent trades (up to 12, newest first)");
-    for (const t of [...trades].sort((a, b) => b.exitTime - a.exitTime).slice(0, 12)) {
-      lines.push(
-        `- ${formatNewYorkDate(t.entryTime, { day: "numeric", month: "short" })} ${t.direction} ` +
-          `${money(Number(t.pnl))} (${t.pips} pips, exit ${t.exitReason})`,
-      );
+    for (const row of [...numbered].sort((a, b) => b.trade.exitTime - a.trade.exitTime).slice(0, 12)) {
+      lines.push(describe(row));
     }
+
+    lines.push(
+      `\nTrade numbers run [#1] (first closed) to [#${trades.length}] (most recent) and match the ` +
+        `numbers shown in the trade ledger and journal.`,
+    );
   }
 
   if (results.notes?.trim()) {

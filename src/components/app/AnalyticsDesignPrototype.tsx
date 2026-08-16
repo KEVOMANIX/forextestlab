@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -23,6 +23,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { JournalReview, type ReviewRecord } from "@/components/app/journal/JournalReview";
+import { TradeFocusProvider } from "@/components/app/TradeFocusContext";
 import { TradesTable } from "@/components/app/TradesTable";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
@@ -31,7 +33,9 @@ import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
-type PrototypeTab = "overview" | "trades" | "journal" | "reports";
+type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "ask";
+
+const TABS = ["overview", "trades", "journal", "reports", "ask"] as const;
 
 const EQUITY = [
   100000, 100180, 100040, 100390, 100720, 100610, 100960, 101340,
@@ -155,6 +159,12 @@ export interface AnalyticsDesignPrototypeProps {
   fullAccess?: boolean;
   onClose?: () => void;
   journalContent?: ReactNode;
+  /**
+   * The AI analyst. It used to sit at the bottom of the Reports tab, which put
+   * the most differentiated part of the report behind the longest scroll on
+   * the screen; it now has a tab of its own.
+   */
+  aiPanel?: ReactNode;
   reportFooter?: ReactNode;
   notice?: ReactNode;
 }
@@ -347,10 +357,12 @@ export function AnalyticsDesignPrototype({
   fullAccess = true,
   onClose,
   journalContent,
+  aiPanel,
   reportFooter,
   notice,
 }: AnalyticsDesignPrototypeProps = {}) {
   const [tab, setTab] = useState<PrototypeTab>("overview");
+  const [focusedTrade, setFocusedTrade] = useState<number | null>(null);
   const [range, setRange] = useState("All");
   const [showDemoData, setShowDemoData] = useState(initialDemo);
   const demo = mode === "demo" || showDemoData;
@@ -360,7 +372,18 @@ export function AnalyticsDesignPrototype({
   const periodLabel = startTime && endTime ? `${formatNewYorkDate(startTime)} – ${formatNewYorkDate(endTime)}` : "Session period";
   const resumeHref = sessionId ? `/app/backtest?session=${encodeURIComponent(sessionId)}` : "/app/backtest";
 
+  // A trade number cited in an AI answer opens the ledger on that trade.
+  const focusTrade = useCallback((tradeNumber: number) => {
+    setFocusedTrade(tradeNumber);
+    setTab("trades");
+  }, []);
+  const tradeFocus = useMemo(
+    () => (demo ? null : { tradeCount: trades.length, focusTrade }),
+    [demo, focusTrade, trades.length],
+  );
+
   return (
+    <TradeFocusProvider value={tradeFocus}>
     <div className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Dashboard</Link>}
@@ -392,7 +415,7 @@ export function AnalyticsDesignPrototype({
       </header>
 
       <nav className="flex overflow-x-auto border-b app-border" aria-label="Prototype report sections">
-        {(["overview", "trades", "journal", "reports"] as const).map((item) => (
+        {TABS.filter((item) => item !== "ask" || Boolean(aiPanel)).map((item) => (
           <button key={item} type="button" onClick={() => setTab(item)} disabled={item === "reports" && !fullAccess && !demo} title={item === "reports" && !fullAccess && !demo ? "Advanced reports are included with Pro" : undefined} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}</button>
         ))}
       </nav>
@@ -477,10 +500,12 @@ export function AnalyticsDesignPrototype({
         </main>
       )}
 
-      {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">19 sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_TRADES : trades} /></section>}
+      {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">19 sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_TRADES : trades} focusedTrade={demo ? null : focusedTrade} /></section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
       {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} />{!demo && reportFooter}</>}
+      {tab === "ask" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
+    </TradeFocusProvider>
   );
 }
 
@@ -557,29 +582,35 @@ function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
   );
 }
 
+/**
+ * The sample journal now renders the very component the live journal uses in
+ * Review mode. Previously this was a bespoke read-only design, so the sample
+ * advertised a review experience the real product did not have.
+ */
 function DemoJournalWorkspace() {
-  const entries = [...DEMO_ANALYTICS_TRADES].slice(-6).reverse();
-  const adherence = Math.round(DEMO_ANALYTICS_TRADES.flatMap((trade) => trade.journal?.ruleChecklist ?? []).filter((rule) => rule.followed).length / DEMO_ANALYTICS_TRADES.flatMap((trade) => trade.journal?.ruleChecklist ?? []).length * 100);
-  const confidence = DEMO_ANALYTICS_TRADES.reduce((sum, trade) => sum + (trade.journal?.confidence ?? 0), 0) / DEMO_ANALYTICS_TRADES.length;
+  const records: ReviewRecord[] = DEMO_ANALYTICS_TRADES.map((trade, index) => ({
+    journalId: trade.id,
+    number: index + 1,
+    direction: trade.direction,
+    entryTime: trade.entryTime,
+    pnl: trade.pnl,
+    journal: trade.journal!,
+  }));
   return (
-    <main className="mt-5 space-y-4">
-      <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Trading journal</p><h2 className="mt-1 text-xl font-semibold">Decision review</h2><p className="mt-1 text-xs app-muted">A realistic example of how plans, emotions, rules, and post-trade lessons appear.</p></div><span className="rounded-full bg-amber-300/10 px-3 py-1.5 text-[10px] font-semibold text-amber-200">Read-only sample</span></div>
-        <div className="mt-5 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
-          {[["Journal coverage", "19 / 19", "Every sample trade reviewed"], ["Rule adherence", `${adherence}%`, "Across all checklist items"], ["Average confidence", `${confidence.toFixed(1)} / 5`, "Confidence recorded at entry"]].map(([label, value, detail]) => <div key={label} className="bg-[var(--app-panel-2)]/60 p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">{label}</p><p className="mt-2 font-mono text-xl font-semibold">{value}</p><p className="mt-1 text-[10px] app-muted">{detail}</p></div>)}
+    <main className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b app-border p-4 sm:p-5">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-300">Trading journal</p>
+          <h2 className="mt-1 text-xl font-semibold">Decision review</h2>
+          <p className="mt-1 text-xs app-muted">A realistic example of how plans, emotions, rules, and post-trade lessons appear.</p>
         </div>
-      </section>
-      <section className="grid gap-3 lg:grid-cols-2">
-        {entries.map((trade, index) => {
-          const journal = trade.journal!;
-          const followed = journal.ruleChecklist.filter((rule) => rule.followed).length;
-          const positive = Number(trade.pnl) >= 0;
-          return <article key={trade.id} className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><span className={`grid h-9 w-9 place-items-center rounded-xl ${positive ? "bg-brand-400/10 text-brand-300" : "bg-bear/10 text-bear"}`}>{positive ? <TrendingUp size={16}/> : <TrendingDown size={16}/>}</span><div><p className="text-sm font-semibold">EUR/USD · {trade.direction === "long" ? "Long" : "Short"}</p><p className="mt-1 text-[10px] app-muted">Trade {DEMO_ANALYTICS_TRADES.length - index} · {formatNewYorkDateTime(trade.exitTime, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p></div></div><p className={`font-mono text-sm font-semibold ${positive ? "text-brand-300" : "text-bear"}`}>{money(Number(trade.pnl), true)}</p></div><div className="mt-4 flex flex-wrap gap-1.5">{journal.setupTags.map((tag) => <span key={tag} className="rounded-md bg-brand-400/[0.08] px-2 py-1 text-[9px] font-semibold text-brand-300">{tag}</span>)}{journal.mistakeTags.map((tag) => <span key={tag} className="rounded-md bg-bear/[0.08] px-2 py-1 text-[9px] font-semibold text-bear">{tag}</span>)}</div><div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-[var(--app-panel-2)]/55 p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] app-muted">Entry thesis</p><p className="mt-2 text-xs leading-5">{journal.entryReason}</p></div><div className="rounded-xl bg-[var(--app-panel-2)]/55 p-3"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] app-muted">Exit review</p><p className="mt-2 text-xs leading-5">{journal.exitReview}</p></div></div><div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t app-border pt-3 text-[10px] app-muted"><span>{followed}/{journal.ruleChecklist.length} rules followed</span><span>{journal.emotion} · confidence {journal.confidence}/5</span><span className="font-mono">{Number(journal.realizedR) >= 0 ? "+" : ""}{journal.realizedR}R</span></div></article>;
-        })}
-      </section>
+        <span className="rounded-full bg-amber-300/10 px-3 py-1.5 text-[11px] font-semibold text-amber-200">Read-only sample</span>
+      </div>
+      <JournalReview records={records} onEdit={() => undefined} />
     </main>
   );
 }
+
 
 function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; periodLabel: string }) {
   const drawdownValues = model.drawdown.length > 1 ? model.drawdown : [0, 0];

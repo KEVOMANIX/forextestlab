@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ClosedTrade } from "@/lib/backtest/types";
 import { formatNewYorkDateTime } from "@/lib/date-time";
@@ -18,16 +18,39 @@ const EXIT_LABEL: Record<ClosedTrade["exitReason"], string> = {
   "session-end": "Session end",
 };
 
-export function TradesTable({ trades }: { trades: ClosedTrade[] }) {
+export function TradesTable({
+  trades,
+  focusedTrade,
+}: {
+  trades: ClosedTrade[];
+  /**
+   * 1-based ledger number to reveal, set when an AI answer cites a trade. The
+   * table pages to it and highlights the row until another one is chosen.
+   */
+  focusedTrade?: number | null;
+}) {
   const [page, setPage] = useState(0);
+  const rowRef = useRef<HTMLTableRowElement>(null);
+
+  const pageCount = Math.max(1, Math.ceil(trades.length / PAGE_SIZE));
+
+  useEffect(() => {
+    if (!focusedTrade) return;
+    setPage(Math.floor((focusedTrade - 1) / PAGE_SIZE));
+  }, [focusedTrade]);
+
+  useEffect(() => {
+    if (!focusedTrade) return;
+    rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focusedTrade, page]);
 
   if (trades.length === 0) {
     return <p className="p-4 text-sm app-muted">No trades yet. Place a simulated Buy or Sell to begin.</p>;
   }
 
-  const pageCount = Math.ceil(trades.length / PAGE_SIZE);
   const clamped = Math.min(page, pageCount - 1);
-  const rows = trades.slice(clamped * PAGE_SIZE, clamped * PAGE_SIZE + PAGE_SIZE);
+  const offset = clamped * PAGE_SIZE;
+  const rows = trades.slice(offset, offset + PAGE_SIZE);
 
   return (
     <div>
@@ -36,6 +59,7 @@ export function TradesTable({ trades }: { trades: ClosedTrade[] }) {
           <caption className="sr-only">Simulated trade history</caption>
           <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted">
             <tr className="border-b app-border">
+              <th scope="col" className="px-3 py-2 font-medium">#</th>
               <th scope="col" className="px-3 py-2 font-medium">Direction</th>
               <th scope="col" className="px-3 py-2 font-medium">Symbol</th>
               <th scope="col" className="px-3 py-2 font-medium">Entry</th>
@@ -48,10 +72,17 @@ export function TradesTable({ trades }: { trades: ClosedTrade[] }) {
             </tr>
           </thead>
           <tbody className="font-mono">
-            {rows.map((t) => {
+            {rows.map((t, rowIndex) => {
               const win = Number(t.pnl) >= 0;
+              const number = offset + rowIndex + 1;
+              const focused = number === focusedTrade;
               return (
-                <tr key={t.id} className="border-b app-border/60">
+                <tr
+                  key={t.id}
+                  ref={focused ? rowRef : undefined}
+                  className={`border-b app-border/60 ${focused ? "bg-brand-400/[0.12] outline outline-1 outline-brand-400/40" : ""}`}
+                >
+                  <td className="px-3 py-2 app-muted">{number}</td>
                   <td className="px-3 py-2">
                     <span className={win ? "text-brand-300" : "text-bear"}>
                       {t.direction === "long" ? "▲ Long" : "▼ Short"}

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { tradeExcursion } from "@/lib/backtest/exit-quality";
 import type { ClosedTrade } from "@/lib/backtest/types";
 import { formatNewYorkDateTime } from "@/lib/date-time";
 
@@ -67,6 +68,7 @@ export function TradesTable({
               <th scope="col" className="px-3 py-2 font-medium">Size</th>
               <th scope="col" className="px-3 py-2 font-medium">SL / TP</th>
               <th scope="col" className="px-3 py-2 font-medium">Exit reason</th>
+              <th scope="col" className="px-3 py-2 text-right font-medium" title="Best the trade was ever worth, in units of its initial risk">Peak</th>
               <th scope="col" className="px-3 py-2 text-right font-medium">Pips</th>
               <th scope="col" className="px-3 py-2 text-right font-medium">P/L</th>
             </tr>
@@ -75,6 +77,7 @@ export function TradesTable({
             {rows.map((t, rowIndex) => {
               const win = Number(t.pnl) >= 0;
               const number = offset + rowIndex + 1;
+              const { peakR: peak, capturedR: captured } = tradeExcursion(t);
               const focused = number === focusedTrade;
               return (
                 <tr
@@ -112,6 +115,9 @@ export function TradesTable({
                         ⚠
                       </span>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-right app-muted" title={peak === null ? "This trade defined no risk, so R has no meaning" : `Peak ${peak.toFixed(2)}R, kept ${(captured ?? 0).toFixed(2)}R`}>
+                    {peak === null ? "—" : `${peak >= 0 ? "+" : "−"}${Math.abs(peak).toFixed(2)}R`}
                   </td>
                   <td className="px-3 py-2 text-right">{t.pips}</td>
                   <td className={`px-3 py-2 text-right ${win ? "text-brand-300" : "text-bear"}`}>

@@ -10,6 +10,7 @@ import { SessionFeedback } from "@/components/app/SessionFeedback";
 import { SessionTradeJournal } from "@/components/app/SessionTradeJournal";
 import { SESSION_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { requireUser } from "@/lib/auth";
+import { buildExitQualityReport } from "@/lib/backtest/exit-quality-server";
 import { getSessionResults } from "@/lib/backtest/results";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 
@@ -27,6 +28,9 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
   const results = await getSessionResults(params.sessionId, user.id);
   if (!results) notFound();
   const entitlements = await getUserEntitlements(user.id);
+  // Only ever computed for a finished session: the candles it walks are the
+  // ones a running replay has not revealed.
+  const exitQuality = await buildExitQualityReport(results.state);
   const { state } = results;
 
   const notice = results.hasAmbiguousTrades ? (
@@ -89,6 +93,7 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
       startingBalance={state.config.startingBalance}
       fullAccess={entitlements.fullAnalytics}
       journalContent={journal}
+      exitQuality={exitQuality?.summary ?? null}
       aiPanel={aiPanel}
       reportFooter={reportFooter}
       notice={notice}

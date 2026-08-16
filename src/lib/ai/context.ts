@@ -10,6 +10,7 @@ import "server-only";
 
 import type { SimulatedTrade } from "@/generated/prisma/client";
 
+import { summariseExcursions, tradeExcursion } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { Decimal } from "@/lib/decimal";
@@ -125,6 +126,45 @@ export function buildSessionContext(results: SessionResults): string {
       `\nTrade numbers run [#1] (first closed) to [#${trades.length}] (most recent) and match the ` +
         `numbers shown in the trade ledger and journal.`,
     );
+    // What each trade reached versus what was banked. The analyst is asked
+    // about cutting winners early often enough that inferring it from net P/L
+    // alone would be answering a different question.
+    const excursion = summariseExcursions(trades);
+    if (excursion.tested) {
+      lines.push("\n## Exit quality (how much of each move was kept)");
+      if (excursion.captureRate !== null) {
+        lines.push(
+          `- Capture rate: ${(excursion.captureRate * 100).toFixed(0)}% of the open profit that appeared was banked`,
+        );
+      }
+      if (excursion.averageGiveBackR !== null) {
+        lines.push(
+          `- Average give-back: ${excursion.averageGiveBackR.toFixed(2)}R between each trade's peak and its close`,
+        );
+      }
+      lines.push(
+        `- ${excursion.gaveBackOverOneR} of ${excursion.tested} trades handed back more than 1R of open profit`,
+      );
+      if (excursion.averageWinnerTroughR !== null) {
+        lines.push(
+          `- Winners went ${excursion.averageWinnerTroughR.toFixed(2)}R against the trader on average before working`,
+        );
+      }
+      const worst = numbered
+        .map((row) => ({ ...row, excursion: tradeExcursion(row.trade) }))
+        .filter((row) => (row.excursion.giveBackR ?? 0) > 0)
+        .sort((a, b) => (b.excursion.giveBackR ?? 0) - (a.excursion.giveBackR ?? 0))
+        .slice(0, 3);
+      if (worst.length) {
+        lines.push("### Largest give-backs");
+        for (const row of worst) {
+          lines.push(
+            `- [#${row.number}] peaked at ${row.excursion.peakR!.toFixed(2)}R, closed at ` +
+              `${row.excursion.capturedR!.toFixed(2)}R (gave back ${row.excursion.giveBackR!.toFixed(2)}R)`,
+          );
+        }
+      }
+    }
   }
 
   if (results.notes?.trim()) {

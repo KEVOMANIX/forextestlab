@@ -29,6 +29,11 @@ export const DEMO_ANALYTICS_TRADES: ClosedTrade[] = DEMO_ANALYTICS_PNLS.map((pnl
     initialTakeProfit: "1.08800",
     initialRiskAmount: String(risk),
     commission: "7.00",
+    // The engine records peak and trough open P/L on every real position, so
+    // the sample carries them too, otherwise the exit-quality report is blank
+    // in the preview and the feature looks like it does not exist.
+    maxFavorablePnl: String(Math.round(won ? pnl * (1.25 + (index % 4) * 0.22) : risk * (0.18 + (index % 3) * 0.16))),
+    maxAdversePnl: String(-Math.round(won ? risk * (0.22 + (index % 4) * 0.14) : Math.abs(pnl))),
     pnl: String(pnl),
     pips: String((pnl / 10).toFixed(1)),
     exitReason: pnl > 500 ? "take-profit" : pnl < 0 ? "stop-loss" : "manual",

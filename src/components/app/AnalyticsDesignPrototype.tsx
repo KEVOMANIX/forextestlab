@@ -24,10 +24,12 @@ import {
 } from "lucide-react";
 
 import { JournalReview, type ReviewRecord } from "@/components/app/journal/JournalReview";
+import { ExitQualityCard } from "@/components/app/ExitQualityCard";
 import { TradeFocusProvider } from "@/components/app/TradeFocusContext";
 import { TradesTable } from "@/components/app/TradesTable";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
+import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
@@ -165,6 +167,13 @@ export interface AnalyticsDesignPrototypeProps {
    * the screen; it now has a tab of its own.
    */
   aiPanel?: ReactNode;
+  /**
+   * The counterfactual: what the hand-closed trades would have done if their
+   * original stop and target had been left alone. Null while the session is
+   * still being replayed, because working it out needs candles the trader has
+   * not been shown.
+   */
+  exitQuality?: PlanSummary | null;
   reportFooter?: ReactNode;
   notice?: ReactNode;
 }
@@ -350,6 +359,7 @@ export function AnalyticsDesignPrototype({
   onClose,
   journalContent,
   aiPanel,
+  exitQuality = null,
   reportFooter,
   notice,
 }: AnalyticsDesignPrototypeProps = {}) {
@@ -490,7 +500,7 @@ export function AnalyticsDesignPrototype({
 
       {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">19 sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_TRADES : trades} focusedTrade={demo ? null : focusedTrade} /></section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
-      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} />{!demo && reportFooter}</>}
+      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_TRADES : trades} plan={demo ? null : exitQuality} />{!demo && reportFooter}</>}
       {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
     </TradeFocusProvider>

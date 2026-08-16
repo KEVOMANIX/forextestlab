@@ -73,53 +73,23 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.55" },
         },
-        // Support launcher: a halo that expands out of the button, so an
-        // unread reply reads as a live signal rather than a static badge.
-        "halo-ping": {
-          "0%": { transform: "scale(0.85)", opacity: "0.55" },
-          "70%": { transform: "scale(1.5)", opacity: "0" },
-          "100%": { transform: "scale(1.5)", opacity: "0" },
-        },
-        // A permanent, low-contrast breath so the launcher reads as live even
-        // with nothing waiting; the louder ping is reserved for unread replies.
-        "halo-idle": {
-          "0%": { transform: "scale(0.92)", opacity: "0.28" },
-          "70%": { transform: "scale(1.32)", opacity: "0" },
-          "100%": { transform: "scale(1.32)", opacity: "0" },
-        },
-        // The launcher is never completely still, but only its contents move:
-        // animating the button itself would drag the hit target out from under
-        // a cursor or thumb mid-tap.
+        // Support launcher. It is never completely still, but only its
+        // contents move: animating the button itself would drag the hit target
+        // out from under a cursor or thumb mid-tap.
         "launcher-float": {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-2.5px)" },
         },
-        // Keep the launcher itself visibly alive without moving its hit target.
-        // The expanding ring makes the motion readable even on a dark page.
-        "help-breathe": {
-          "0%, 100%": {
-            boxShadow:
-              "0 0 0 0 rgba(34,195,160,0), 0 20px 60px -20px rgba(34,195,160,0.35)",
-          },
-          "50%": {
-            boxShadow:
-              "0 0 0 6px rgba(34,195,160,0.14), 0 22px 64px -18px rgba(34,195,160,0.52)",
-          },
+        // The fill is a tall vertical gradient that drifts upwards, so the
+        // colour appears to well up through the pill.
+        "wave-drift": {
+          "0%, 100%": { backgroundPosition: "50% 0%" },
+          "50%": { backgroundPosition: "50% 100%" },
         },
-        // The launcher's surface is never a flat fill: the gradient drifts, a
-        // ring turns behind it and a highlight sweeps across, all without
-        // moving the button's own box.
-        "gradient-pan": {
-          "0%, 100%": { backgroundPosition: "0% 50%" },
-          "50%": { backgroundPosition: "100% 50%" },
-        },
-        "ring-spin": {
-          "0%": { transform: "rotate(0deg)" },
-          "100%": { transform: "rotate(360deg)" },
-        },
-        "shine-sweep": {
-          "0%, 55%": { transform: "translateX(-160%) skewX(-20deg)" },
-          "85%, 100%": { transform: "translateX(320%) skewX(-20deg)" },
+        // One crisp ring leaving the launcher's edge, like sonar.
+        sonar: {
+          "0%": { transform: "scale(1)", opacity: "0.7" },
+          "80%, 100%": { transform: "scale(1.65)", opacity: "0" },
         },
         "typing-dot": {
           "0%, 60%, 100%": { opacity: "0.3", transform: "translateY(0)" },
@@ -153,15 +123,11 @@ const config: Config = {
       animation: {
         "fade-up": "fade-up 0.6s ease-out both",
         "pulse-soft": "pulse-soft 2.4s ease-in-out infinite",
-        "halo-ping": "halo-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite",
-        "halo-idle": "halo-idle 3.2s cubic-bezier(0, 0, 0.2, 1) infinite",
         nudge: "nudge 5s ease-in-out infinite",
         "launcher-float": "launcher-float 3.6s ease-in-out infinite",
-        "help-breathe": "help-breathe 2.8s ease-in-out infinite",
         "typing-dot": "typing-dot 1s ease-in-out infinite",
-        "gradient-pan": "gradient-pan 7s ease-in-out infinite",
-        "ring-spin": "ring-spin 5.5s linear infinite",
-        "shine-sweep": "shine-sweep 4.5s ease-in-out infinite",
+        "wave-drift": "wave-drift 6s ease-in-out infinite",
+        sonar: "sonar 4s cubic-bezier(0, 0, 0.2, 1) infinite",
         "launcher-in": "launcher-in 0.5s cubic-bezier(0.22, 1.2, 0.36, 1) both",
         "panel-in": "panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both",
         "message-in": "message-in 0.25s ease-out both",

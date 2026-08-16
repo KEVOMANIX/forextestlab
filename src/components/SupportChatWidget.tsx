@@ -160,17 +160,23 @@ export function SupportChatWidget() {
             primeSupportSound();
             setOpen((current) => !current);
           }}
-          className={`group relative isolate inline-flex items-center gap-2 overflow-visible rounded-full border border-brand-300/30 bg-brand-500 px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-[transform,background-color] duration-200 hover:-translate-y-0.5 hover:bg-brand-400 active:scale-95 motion-reduce:animate-none motion-reduce:transition-none ${
-            open ? "" : "animate-help-breathe"
+          className={`group relative isolate inline-flex items-center gap-2 overflow-visible rounded-full border border-brand-200/40 bg-[linear-gradient(110deg,#0c866d_0%,#12a888_25%,#4fd8ba_50%,#12a888_75%,#0c866d_100%)] bg-[length:250%_100%] px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95 motion-reduce:animate-none motion-reduce:transition-none ${
+            open ? "" : "animate-gradient-pan animate-help-breathe"
           }`}
           aria-expanded={open}
           aria-controls="support-panel"
           aria-label={open ? "Close support chat" : "Open support chat"}
         >
-          {/* Two staggered halos keep something moving out of the launcher at
-            all times; they double in strength once a reply is waiting. */}
+          {/* Layered motion, none of which moves the button's own box: a ring
+              turning behind the pill, two staggered halos pushing outwards, and
+              a highlight sweeping across the surface. All of it doubles in
+              strength once a reply is actually waiting. */}
           {!open && (
             <>
+              <span
+                aria-hidden
+                className="absolute -inset-[2px] -z-20 animate-ring-spin rounded-full bg-[conic-gradient(from_0deg,rgba(79,216,186,0)_0deg,rgba(143,233,211,0.95)_40deg,rgba(34,195,160,0)_140deg,rgba(79,216,186,0.7)_230deg,rgba(79,216,186,0)_330deg)] blur-[1.5px] motion-reduce:animate-none"
+              />
               <span
                 aria-hidden
                 className={`absolute inset-0 -z-10 rounded-full motion-reduce:animate-none ${
@@ -187,10 +193,16 @@ export function SupportChatWidget() {
                     : "animate-halo-idle bg-brand-400/25"
                 }`}
               />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 overflow-hidden rounded-full"
+              >
+                <span className="absolute inset-y-0 left-0 w-1/2 animate-shine-sweep bg-gradient-to-r from-transparent via-white/45 to-transparent motion-reduce:animate-none" />
+              </span>
             </>
           )}
           <span
-            className={`relative grid h-[17px] w-[17px] place-items-center motion-reduce:animate-none ${
+            className={`relative z-10 grid h-[17px] w-[17px] place-items-center motion-reduce:animate-none ${
               !open && unread > 0
                 ? "animate-nudge"
                 : !open
@@ -217,9 +229,9 @@ export function SupportChatWidget() {
               }`}
             />
           </span>
-          {open ? "Close" : "Help"}
+          <span className="relative z-10">{open ? "Close" : "Help"}</span>
           {!open && unread > 0 && (
-            <span className="absolute -right-1 -top-1 grid h-4 min-w-4 animate-badge-pop place-items-center rounded-full bg-bear px-1 text-[10px] font-bold text-white motion-reduce:animate-none">
+            <span className="absolute -right-1 -top-1 z-10 grid h-4 min-w-4 animate-badge-pop place-items-center rounded-full bg-bear px-1 text-[10px] font-bold text-white ring-2 ring-surface-950/40 motion-reduce:animate-none">
               {unread > 99 ? "99+" : unread}
             </span>
           )}

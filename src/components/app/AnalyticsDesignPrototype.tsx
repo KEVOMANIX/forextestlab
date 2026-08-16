@@ -334,14 +334,6 @@ function normalizedPath(values: number[], width = 920, height = 220) {
   }).join(" ");
 }
 
-function PrototypeBadge() {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/25 bg-amber-300/[0.07] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-200">
-      <FlaskConical size={11} aria-hidden /> Sample data
-    </span>
-  );
-}
-
 export function AnalyticsDesignPrototype({
   mode = "demo",
   initialDemo = false,
@@ -388,22 +380,18 @@ export function AnalyticsDesignPrototype({
       <div className="flex flex-wrap items-center justify-between gap-3">
         {onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Dashboard</Link>}
         <div className="flex flex-wrap items-center gap-2">
-          {mode === "live" && <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel)] p-1" aria-label="Analytics data source"><button type="button" onClick={() => setShowDemoData(false)} className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Your data</button><button type="button" onClick={() => setShowDemoData(true)} className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Show sample data</button></div>}
-          {demo ? <PrototypeBadge /> : <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-300"><LineChart size={11} aria-hidden /> Session analytics</span>}
+          {mode === "live" && <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel)] p-1" role="group" aria-label="Analytics data source"><button type="button" onClick={() => setShowDemoData(false)} aria-pressed={!showDemoData} title="Show your own session data" className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Your data</button><button type="button" onClick={() => setShowDemoData(true)} aria-pressed={showDemoData} title="Preview a completed report with sample trades" className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}><FlaskConical size={11} aria-hidden /> Sample</button></div>}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-300"><LineChart size={11} aria-hidden /> Session analytics</span>
         </div>
       </div>
 
-      {demo && <div role="note" className="mt-4 flex items-start gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100">
-        <FlaskConical size={14} className="mt-0.5 shrink-0" aria-hidden />
-        <span><strong>Sample data:</strong> this report is an example of the completed analytics experience. It does not use or change your saved sessions.</span>
-      </div>}
       {!demo && notice}
 
       <header className="mt-5 flex flex-col gap-5 border-b app-border pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-xs app-muted">
             <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
-            <span>{demo ? "EUR/USD" : pairLabel}</span><span>·</span><span>{demo ? "Jan 9, 2019 – Jan 19, 2024" : periodLabel}</span>
+            <span>{demo ? "EUR/USD" : pairLabel}</span><span>·</span><span>{demo ? "Jan 9, 2019 – Jan 19, 2024" : periodLabel}</span>{demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
           </div>
           <h1 className="mt-2 truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{demo ? "London-session breakout — sample" : sessionName}</h1>
           <p className="mt-1 text-sm app-muted">Strategy performance report · New York time</p>

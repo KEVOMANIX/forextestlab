@@ -26,6 +26,7 @@ export function PricingSection() {
       </div>
       <LocalizedPricing
         compact
+        showOffer={false}
         tiers={getPricingTiers()}
         clientToken={requiredPaddleClientToken()}
         environment={paddleBrowserEnvironment()}

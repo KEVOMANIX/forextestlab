@@ -127,12 +127,12 @@ export function ProductPreview() {
           </div>
 
           <div key={active.id} className="showcase-copy mt-7 border-l border-brand-400/40 pl-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">
               {active.eyebrow}
             </p>
             <h3 className="mt-2 text-xl font-semibold text-white">{active.title}</h3>
             <p className="mt-3 text-sm leading-6 text-slate-400">{active.description}</p>
-            <p className="mt-4 font-mono text-[10px] leading-5 text-slate-500">
+            <p className="mt-4 font-mono text-[11px] leading-5 text-slate-500">
               {active.detail}
             </p>
           </div>
@@ -143,7 +143,7 @@ export function ProductPreview() {
             aria-hidden
             className="absolute -inset-7 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_50%_55%,rgba(34,195,160,.12),transparent_65%)] blur-2xl"
           />
-          <div className={`flex aspect-[19/10] flex-col overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/90 shadow-[0_38px_100px_-40px_rgba(0,0,0,.95)] ${active.imageIncludesChrome ? "p-0" : "p-1.5"}`}>
+          <div className={`flex aspect-[4/3] flex-col overflow-hidden rounded-2xl sm:aspect-[19/10] border border-white/[0.12] bg-surface-800/90 shadow-[0_38px_100px_-40px_rgba(0,0,0,.95)] ${active.imageIncludesChrome ? "p-0" : "p-1.5"}`}>
             {!active.imageIncludesChrome && (
               <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/90 px-3">
                 <span className="flex gap-1.5" aria-hidden>
@@ -151,13 +151,13 @@ export function ProductPreview() {
                   <span className="h-2 w-2 rounded-full bg-amber-400/75" />
                   <span className="h-2 w-2 rounded-full bg-brand-400/75" />
                 </span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                   {active.label}
                 </span>
                 <span className="h-1.5 w-12 rounded-full bg-white/[0.06]" />
               </div>
             )}
-            <div key={active.src} className={`real-screen-enter flex min-h-0 flex-1 items-center justify-center overflow-hidden ${active.imageIncludesChrome ? "rounded-2xl" : "rounded-b-xl"}`}>
+            <div key={active.src} className={`real-screen-enter flex min-h-0 flex-1 items-center justify-start overflow-hidden sm:justify-center ${active.imageIncludesChrome ? "rounded-2xl" : "rounded-b-xl"}`}>
               <Image
                 src={active.src}
                 alt={active.alt}
@@ -166,8 +166,8 @@ export function ProductPreview() {
                 sizes="(max-width: 1024px) 100vw, 70vw"
                 className={
                   active.id === "replay"
-                    ? "h-auto w-full origin-top -translate-y-[4%] scale-[1.01]"
-                    : "h-full w-full object-contain"
+                    ? "h-full w-[200%] max-w-none shrink-0 -translate-x-[6%] object-cover object-left-top sm:h-auto sm:shrink sm:w-full sm:object-center sm:origin-top sm:-translate-x-0 sm:-translate-y-[4%] sm:scale-[1.01] sm:object-contain"
+                    : "h-full w-[190%] max-w-none shrink-0 object-cover object-left-top sm:w-full sm:shrink sm:object-contain sm:object-center"
                 }
               />
             </div>

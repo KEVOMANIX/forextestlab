@@ -41,11 +41,13 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-300">
               Your strategy workspace
             </p>
-            <h1 className="mt-5 text-balance text-4xl font-bold leading-[1.02] tracking-[-0.035em] text-white xl:text-5xl">
-              Practise with purpose.
+            {/* Marketing copy, not the page's heading: the form these pages
+                wrap around owns the h1, and two h1s break the outline. */}
+            <p className="mt-5 text-balance text-4xl font-bold leading-[1.02] tracking-[-0.035em] text-white xl:text-5xl">
+              Practise with purpose.{" "}
               <br />
               Review with evidence.
-            </h1>
+            </p>
             <p className="mt-5 max-w-xl text-base leading-7 app-muted">
               Access your private market-replay workspace, saved testing
               sessions, trade journal, and performance analytics.

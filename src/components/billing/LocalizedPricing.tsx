@@ -87,6 +87,8 @@ interface LocalizedPricingProps {
   clientToken: string;
   environment: Environments;
   compact?: boolean;
+  /** Hidden where the sitewide launch-offer banner already says the same thing. */
+  showOffer?: boolean;
 }
 
 function previewItems(tiers: Tier[]): PaddlePricePreviewParams["items"] {
@@ -109,6 +111,7 @@ export function LocalizedPricing({
   clientToken,
   environment,
   compact = false,
+  showOffer = true,
 }: LocalizedPricingProps) {
   const [interval, setInterval] = useState<BillingInterval>("month");
   const [paddle, setPaddle] = useState<PaddleApi>();
@@ -222,8 +225,11 @@ export function LocalizedPricing({
         ))}
       </div>
 
-      {interval === "month" && (
-        <div className="mx-auto mt-3 flex w-fit flex-wrap items-center justify-center gap-2 rounded-xl border border-brand-100/45 bg-gradient-to-r from-brand-300 via-cyan-300 to-accent-300 px-3 py-2 text-center text-xs font-semibold text-surface-950 shadow-[0_12px_30px_-18px_rgba(45,212,191,.95)]">
+      {/* The home page already carries the sitewide launch-offer banner, so
+          repeating it between the toggle and the cards was the same message
+          twice on one screen. /pricing has no banner and still shows it. */}
+      {showOffer && interval === "month" && (
+        <div className="mx-auto mt-3 flex w-fit flex-wrap items-center justify-center gap-2 rounded-xl border border-brand-100/45 bg-gradient-to-r from-brand-300 via-cyan-300 to-accent-300 px-4 py-2.5 text-center text-xs font-semibold text-surface-950 shadow-[0_12px_30px_-18px_rgba(45,212,191,.95)]">
           <Sparkles size={13} aria-hidden />
           <span>
             Launch offer: 20% off your first month. Apply in checkout.
@@ -244,7 +250,7 @@ export function LocalizedPricing({
               key={tier.id}
               className={`relative flex flex-col overflow-hidden rounded-3xl border p-6 shadow-card ${tier.featured ? "border-brand-400/55 bg-[linear-gradient(155deg,rgba(34,195,160,.17),rgba(17,23,37,.96)_48%)] shadow-glow lg:-translate-y-2" : "border-white/10 bg-surface-800/70"}`}
             >
-              {tier.featured && <span className="absolute right-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-brand-400/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-brand-200"><Sparkles size={11} aria-hidden /> Most popular</span>}
+              {tier.featured && <span className="absolute right-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-brand-400/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-brand-200"><Sparkles size={11} aria-hidden /> Most popular</span>}
               <p className="text-sm font-semibold text-slate-300">{tier.name}</p>
               <div className="mt-5 flex min-h-12 items-end gap-2">
                 {loading || !price ? <span className="h-10 w-32 animate-pulse rounded-lg bg-white/10" aria-label="Loading localized price" /> : <strong className="text-4xl font-bold tracking-tight text-white">{price}</strong>}

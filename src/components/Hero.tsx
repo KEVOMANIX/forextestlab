@@ -20,6 +20,7 @@ function ScreenFrame({
   priority = false,
   className = "",
   imageIncludesChrome = false,
+  mobileZoom = false,
   width = 1600,
   height = 940,
 }: {
@@ -29,6 +30,13 @@ function ScreenFrame({
   priority?: boolean;
   className?: string;
   imageIncludesChrome?: boolean;
+  /**
+   * A full desktop terminal shrunk to a 390px phone is unreadable, and this
+   * section's whole claim is that these are real screens. On small viewports
+   * the frame becomes a fixed-ratio window onto the chart itself, at roughly
+   * 2x, instead of showing the entire UI at an illegible size.
+   */
+  mobileZoom?: boolean;
   width?: number;
   height?: number;
 }) {
@@ -43,24 +51,36 @@ function ScreenFrame({
             <span className="h-2 w-2 rounded-full bg-amber-400/80" />
             <span className="h-2 w-2 rounded-full bg-brand-400/80" />
           </span>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.17em] text-slate-500">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.17em] text-slate-400">
             {label}
           </span>
-          <span className="flex items-center gap-1.5 text-[9px] font-medium text-brand-300">
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-brand-300">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-300" />
             Live
           </span>
         </div>
       )}
-      <div className={`relative overflow-hidden ${imageIncludesChrome ? "rounded-2xl" : "rounded-b-xl"}`}>
+      <div
+        className={`relative overflow-hidden ${imageIncludesChrome ? "rounded-2xl" : "rounded-b-xl"} ${
+          mobileZoom ? "aspect-[4/3] sm:aspect-auto" : ""
+        }`}
+      >
         <Image
           src={src}
           alt={alt}
           width={width}
           height={height}
           priority={priority}
-          sizes="(max-width: 1024px) 100vw, 78vw"
-          className="h-auto w-full"
+          sizes={
+            mobileZoom
+              ? "(max-width: 640px) 200vw, (max-width: 1024px) 100vw, 78vw"
+              : "(max-width: 1024px) 100vw, 78vw"
+          }
+          className={
+            mobileZoom
+              ? "absolute -left-[12%] -top-[8%] h-auto w-[200%] max-w-none sm:static sm:left-auto sm:top-auto sm:w-full"
+              : "h-auto w-full"
+          }
         />
       </div>
     </div>
@@ -110,7 +130,9 @@ export function Hero() {
                 Replay historical forex markets, practise entries and exits,
                 and review every session through structured performance analytics.
               </p>
-              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2">
+              {/* One per line on a phone: wrapping three items across two
+                  lines left a lone item above a pair and read as a mistake. */}
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-5">
                 {["Replay without future candles", "Execute simulated trades", "Review session analytics"].map(
                   (item) => (
                     <span
@@ -194,6 +216,7 @@ export function Hero() {
               label="Market replay terminal"
               priority
               imageIncludesChrome
+              mobileZoom
               width={1786}
               height={880}
             />
@@ -202,7 +225,7 @@ export function Hero() {
               {PROOF_POINTS.map(({ icon: Icon, label }, index) => (
                 <div
                   key={label}
-                  className={`flex items-center gap-2 px-3 py-2 text-[10px] font-semibold text-slate-300 ${
+                  className={`flex items-center gap-2 px-3 py-2 text-[11px] font-semibold text-slate-300 ${
                     index > 0 ? "border-l border-white/[0.08]" : ""
                   }`}
                 >

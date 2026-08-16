@@ -151,7 +151,7 @@ export function SupportChatWidget() {
           }}
         />
       )}
-      <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-[120] animate-launcher-in motion-reduce:animate-none">
+      <div className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-5 z-[120] animate-launcher-in motion-reduce:animate-none">
         <LauncherButton
           open={open}
           unread={unread}

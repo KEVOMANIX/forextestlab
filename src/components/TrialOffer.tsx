@@ -23,7 +23,7 @@ export function TrialOffer({
       <div className={`relative flex flex-col gap-6 ${hero ? "" : "lg:flex-row lg:items-center lg:justify-between"}`}>
         <div className="max-w-2xl">
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-brand-300/25 bg-brand-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-brand-200">
+            <span className="rounded-full border border-brand-300/25 bg-brand-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-brand-200">
               {hero ? "Start free" : "Free trial"}
             </span>
             <span className="text-xs font-medium text-slate-400">No payment required</span>

@@ -17,12 +17,12 @@ function FooterColumn({
   return (
     <div>
       <h3 className="text-sm font-semibold text-white">{title}</h3>
-      <ul className="mt-4 space-y-3">
+      <ul className="mt-2 space-y-0.5 sm:mt-4 sm:space-y-3">
         {links.map((link) => (
           <li key={link.label}>
             <Link
               href={link.href}
-              className="text-sm text-slate-400 transition-colors hover:text-slate-200"
+              className="-mx-2 inline-flex min-h-11 items-center rounded-lg px-2 text-sm text-slate-400 transition-colors hover:text-slate-200 sm:mx-0 sm:min-h-0 sm:px-0"
             >
               {link.label}
             </Link>
@@ -46,19 +46,16 @@ export function Footer() {
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
               Historical market replay, simulated execution, and performance review.
             </p>
-            <div className="mt-6 space-y-1 text-sm">
-              <a
-                href={`mailto:${siteConfig.emails.hello}`}
-                className="block text-slate-400 hover:text-slate-200"
-              >
-                {siteConfig.emails.hello}
-              </a>
-              <a
-                href={`mailto:${siteConfig.emails.support}`}
-                className="block text-slate-400 hover:text-slate-200"
-              >
-                {siteConfig.emails.support}
-              </a>
+            <div className="mt-6 text-sm">
+              {[siteConfig.emails.hello, siteConfig.emails.support].map((email) => (
+                <a
+                  key={email}
+                  href={`mailto:${email}`}
+                  className="-mx-2 flex min-h-11 w-fit items-center rounded-lg px-2 text-slate-400 hover:text-slate-200 sm:mx-0 sm:min-h-0 sm:px-0 sm:py-0.5"
+                >
+                  {email}
+                </a>
+              ))}
             </div>
           </div>
 

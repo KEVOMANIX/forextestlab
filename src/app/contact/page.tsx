@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <PageShell>
-      <ContactSection />
+      <ContactSection headingLevel={1} />
     </PageShell>
   );
 }

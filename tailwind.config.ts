@@ -32,6 +32,12 @@ const config: Config = {
         },
         bull: "#22c3a0",
         bear: "#f4646c",
+        // Tailwind's stock slate-500 (#64748b) is the site's muted-text token,
+        // but on these surfaces it lands at ~4.0:1 — under the 4.5:1 WCAG AA
+        // threshold, and it carries real content (the risk warning, price
+        // intervals, the trial qualifier). Lifted just far enough to clear it
+        // with margin on every panel shade, dark through surface-700.
+        slate: { 500: "#8593a6" },
       },
       fontFamily: {
         // Do not put an undefined custom property first here. When --font-sans
@@ -86,10 +92,12 @@ const config: Config = {
           "0%, 100%": { backgroundPosition: "50% 0%" },
           "50%": { backgroundPosition: "50% 100%" },
         },
-        // One crisp ring leaving the launcher's edge, like sonar.
+        // One crisp ring leaving the launcher's edge, like sonar. The scale is
+        // capped so the ring stays inside the viewport: at 1.65 it reached
+        // ~24px past the pill and was cut flat by the right screen edge.
         sonar: {
           "0%": { transform: "scale(1)", opacity: "0.7" },
-          "80%, 100%": { transform: "scale(1.65)", opacity: "0" },
+          "80%, 100%": { transform: "scale(1.45)", opacity: "0" },
         },
         "typing-dot": {
           "0%, 60%, 100%": { opacity: "0.3", transform: "translateY(0)" },

@@ -33,9 +33,9 @@ import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
-type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "ask";
+type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "analyst";
 
-const TABS = ["overview", "trades", "journal", "reports", "ask"] as const;
+const TABS = ["overview", "trades", "journal", "reports", "analyst"] as const;
 
 const EQUITY = [
   100000, 100180, 100040, 100390, 100720, 100610, 100960, 101340,
@@ -415,7 +415,7 @@ export function AnalyticsDesignPrototype({
       </header>
 
       <nav className="flex overflow-x-auto border-b app-border" aria-label="Prototype report sections">
-        {TABS.filter((item) => item !== "ask" || Boolean(aiPanel)).map((item) => (
+        {TABS.filter((item) => item !== "analyst" || Boolean(aiPanel)).map((item) => (
           <button key={item} type="button" onClick={() => setTab(item)} disabled={item === "reports" && !fullAccess && !demo} title={item === "reports" && !fullAccess && !demo ? "Advanced reports are included with Pro" : undefined} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}</button>
         ))}
       </nav>
@@ -503,7 +503,7 @@ export function AnalyticsDesignPrototype({
       {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">19 sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_TRADES : trades} focusedTrade={demo ? null : focusedTrade} /></section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
       {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} />{!demo && reportFooter}</>}
-      {tab === "ask" && aiPanel && <div className="mt-5">{aiPanel}</div>}
+      {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
     </TradeFocusProvider>
   );

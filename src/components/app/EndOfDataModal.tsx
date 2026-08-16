@@ -7,8 +7,8 @@ import {
   CalendarPlus,
   Check,
   CheckCircle2,
+  Flag,
   Loader2,
-  Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -95,7 +95,7 @@ export function EndOfDataModal({
             <div className="relative">
               <div className="flex items-center justify-between gap-4">
                 <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-400/15 text-brand-300">
-                  <Sparkles size={22} aria-hidden />
+                  <Flag size={22} aria-hidden />
                 </span>
                 <span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-brand-300">
                   Trial complete

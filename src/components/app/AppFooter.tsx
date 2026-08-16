@@ -1,4 +1,4 @@
-import { ArrowRight, Headphones, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Headphones, Info } from "lucide-react";
 import Link from "next/link";
 
 import { Logo } from "@/components/Logo";
@@ -82,7 +82,6 @@ export function AppFooter() {
               <div className="flex flex-wrap items-center gap-3">
                 <Logo className="h-8" />
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-400/20 bg-brand-400/[0.07] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.13em] text-brand-300">
-                  <Sparkles size={10} aria-hidden />
                   Strategy workspace
                 </span>
               </div>
@@ -121,7 +120,7 @@ export function AppFooter() {
 
           <div className="relative flex flex-col gap-4 border-t app-border px-5 py-4 sm:px-7 lg:flex-row lg:items-center lg:justify-between lg:px-8">
             <div className="flex items-start gap-2.5 text-[10px] leading-4 app-muted">
-              <ShieldCheck
+              <Info
                 size={14}
                 className="mt-px shrink-0 text-brand-300"
                 aria-hidden

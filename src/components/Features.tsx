@@ -1,12 +1,12 @@
 import {
+  AlignVerticalSpaceAround,
+  ArrowUpDown,
   BarChart3,
-  BookOpen,
-  ClipboardList,
-  GaugeCircle,
+  Calculator,
   History,
-  Layers,
-  MousePointerClick,
-  Scale,
+  LayoutGrid,
+  ListChecks,
+  NotebookPen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,25 +26,25 @@ const FEATURES: Feature[] = [
       "Step through historical currency-market data candle by candle, without seeing future price action.",
   },
   {
-    icon: MousePointerClick,
+    icon: ArrowUpDown,
     title: "Manual Trade Simulation",
     description:
       "Place simulated buy and sell orders and practise execution as the replay advances.",
   },
   {
-    icon: Scale,
+    icon: AlignVerticalSpaceAround,
     title: "Stop-Loss & Take-Profit Testing",
     description:
       "Attach protective levels to simulated positions and observe how they would have behaved.",
   },
   {
-    icon: GaugeCircle,
+    icon: Calculator,
     title: "Position-Sizing Tools",
     description:
       "Model risk per trade and calculate position size against a simulated account balance.",
   },
   {
-    icon: BookOpen,
+    icon: NotebookPen,
     title: "Trading Journal",
     description:
       "Log each simulated trade with notes and tags to build a documented testing process.",
@@ -56,13 +56,13 @@ const FEATURES: Feature[] = [
       "Review win rate, profit factor, drawdown, and other summary metrics for a test session.",
   },
   {
-    icon: Layers,
+    icon: LayoutGrid,
     title: "Multi-Timeframe Analysis",
     description:
       "Reference multiple timeframes while replaying to study context around your entries.",
   },
   {
-    icon: ClipboardList,
+    icon: ListChecks,
     title: "Strategy Review",
     description:
       "Compare sessions and revisit decisions to refine and document your strategy rules.",

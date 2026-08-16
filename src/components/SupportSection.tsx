@@ -2,10 +2,10 @@ import {
   ArrowRight,
   BookOpenCheck,
   CircleHelp,
+  Headphones,
   LifeBuoy,
   Mail,
   MessageCircleQuestion,
-  ShieldCheck,
 } from "lucide-react";
 
 import { ContactForm } from "@/components/ContactForm";
@@ -46,7 +46,7 @@ export function SupportSection() {
               </p>
 
               <div className="mt-8 flex items-center gap-3 rounded-2xl border border-brand-400/20 bg-brand-400/[0.07] p-4">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-400/15 text-brand-300"><ShieldCheck size={19} aria-hidden /></span>
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-400/15 text-brand-300"><Headphones size={19} aria-hidden /></span>
                 {/* This page offers two channels at once — the form below and
                     the floating chat — so say plainly which one does what. */}
                 <div><p className="text-sm font-semibold text-white">Two ways to reach us</p><p className="mt-1 text-xs text-slate-400">Use the form for a reply by email, or the Help button for a live chat. Both are monitored during business hours.</p></div>

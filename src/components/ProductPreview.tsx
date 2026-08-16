@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { BarChart3, Gauge, Play, Sparkles } from "lucide-react";
+import { BarChart3, Gauge, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Section } from "@/components/Section";
@@ -79,10 +79,7 @@ export function ProductPreview() {
 
       <div className="grid items-end gap-8 lg:grid-cols-[minmax(270px,.38fr)_minmax(0,1fr)] xl:-mx-16">
         <div className="lg:pb-8">
-          <p className="eyebrow">
-            <Sparkles size={13} aria-hidden />
-            The real workspace
-          </p>
+          <p className="eyebrow">The real workspace</p>
           <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
             From first candle to final review.
           </h2>

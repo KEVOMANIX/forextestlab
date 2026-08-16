@@ -8,7 +8,6 @@ import {
   LogIn,
   Play,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
@@ -113,7 +112,6 @@ export function Hero() {
         <div className="mx-auto max-w-[1240px]">
           <div className="text-center">
             <p className="eyebrow animate-fade-up">
-              <Sparkles size={13} aria-hidden />
               A workspace for deliberate strategy testing
             </p>
             <h1 className="mx-auto mt-6 max-w-6xl text-balance text-5xl font-bold leading-[0.98] tracking-[-0.05em] text-white animate-fade-up sm:text-6xl lg:text-[5rem]">

@@ -17,7 +17,7 @@ import {
   NotebookPen,
   Play,
   ShieldCheck,
-  Sparkles,
+  Sigma,
   Target,
   TrendingDown,
   TrendingUp,
@@ -389,7 +389,7 @@ export function AnalyticsDesignPrototype({
         {onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Dashboard</Link>}
         <div className="flex flex-wrap items-center gap-2">
           {mode === "live" && <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel)] p-1" aria-label="Analytics data source"><button type="button" onClick={() => setShowDemoData(false)} className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Your data</button><button type="button" onClick={() => setShowDemoData(true)} className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Show sample data</button></div>}
-          {demo ? <PrototypeBadge /> : <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-300"><ShieldCheck size={11} aria-hidden /> Session analytics</span>}
+          {demo ? <PrototypeBadge /> : <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-300"><LineChart size={11} aria-hidden /> Session analytics</span>}
         </div>
       </div>
 
@@ -451,13 +451,13 @@ export function AnalyticsDesignPrototype({
               <aside className="border-t app-border bg-[var(--app-panel-2)]/38 p-5 xl:border-l xl:border-t-0 xl:p-6">
                 <div className="flex items-start justify-between gap-3">
                   <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Performance summary</p><p className={`mt-2 font-mono text-3xl font-semibold ${model.netProfit >= 0 ? "text-brand-300" : "text-bear"}`}>{money(model.netProfit, true)}</p><p className="mt-1 text-xs app-muted">Net realised P/L</p></div>
-                  <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-400/10 text-brand-300"><ShieldCheck size={20} /></span>
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-400/10 text-brand-300"><Sigma size={20} aria-hidden /></span>
                 </div>
                 <dl className="mt-6 divide-y app-border border-y app-border">
                   {[["Win rate", model.winRate === "Not available" ? "—" : `${model.winRate}%`], ["Profit factor", model.profitFactor === "Not available" ? "—" : model.profitFactor], ["Expectancy", model.closedTrades ? money(model.expectancy, true) : "—"], ["Max drawdown", money(-model.maxDrawdown)], ["Closed trades", String(model.closedTrades)]].map(([label,value]) => <div key={label} className="flex items-center justify-between py-3"><dt className="text-xs app-muted">{label}</dt><dd className="font-mono text-sm font-semibold">{value}</dd></div>)}
                 </dl>
                 <div className="mt-5 rounded-xl bg-brand-400/[0.07] p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-brand-300"><Sparkles size={14} /> Edge forming</div>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-brand-300"><TrendingUp size={14} aria-hidden /> Edge forming</div>
                   <p className="mt-2 text-xs leading-5 app-muted">{model.closedTrades >= 30 ? "The sample is large enough to start judging consistency across market conditions." : `${model.netProfit >= 0 ? "Profitable" : "Developing"} sample with ${model.maxDrawdownPercent.toFixed(1)}% maximum drawdown. Add ${Math.max(0, 30 - model.closedTrades)} trades before treating the result as dependable.`}</p>
                 </div>
               </aside>

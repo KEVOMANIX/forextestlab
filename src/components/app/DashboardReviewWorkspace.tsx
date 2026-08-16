@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, Bot, Clock3, Gauge, Lightbulb, Play, Sparkles, Target, TrendingDown, TrendingUp, Trophy } from "lucide-react";
+import { Activity, Bot, Clock3, Gauge, Lightbulb, Play, Target, TrendingDown, TrendingUp, Trophy } from "lucide-react";
 import { useState } from "react";
 
 import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
@@ -35,7 +35,7 @@ export interface DashboardActivity {
 export function DashboardReviewWorkspace({ insights, activity, aiEnabled }: { insights: DashboardInsight[]; activity: DashboardActivity[]; aiEnabled: boolean }) {
   const [tab, setTab] = useState<Tab>("insights");
   const tabs = [
-    { id: "insights" as const, label: "Insights", icon: Sparkles },
+    { id: "insights" as const, label: "Insights", icon: Lightbulb },
     { id: "activity" as const, label: "Activity", icon: Activity },
     { id: "analyst" as const, label: "AI analyst", icon: Bot, pro: true },
   ];

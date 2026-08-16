@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   Mail,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 
 import { AccountActions } from "@/components/account/AccountActions";
@@ -95,7 +94,7 @@ export default async function AccountPage() {
 
           <div className="grid border-t app-border sm:grid-cols-3">
             {[
-              { label: "Current plan", value: currentPlan, icon: Sparkles },
+              { label: "Current plan", value: currentPlan, icon: CreditCard },
               { label: "Saved sessions", value: String(profile._count.sessions), icon: CircleUserRound },
               { label: "Member since", value: joined, icon: CalendarDays },
             ].map(({ label, value, icon: Icon }, index) => (
@@ -161,7 +160,7 @@ export default async function AccountPage() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">Your plan</p>
               <div className="mt-3 flex items-end justify-between gap-3">
                 <div><p className="text-xl font-bold">{currentPlan}</p><p className="mt-1 text-xs app-muted">{hasPro ? "Paid workspace access is active." : "Core replay access."}</p></div>
-                {hasPro ? <Crown size={22} className="text-amber-200" aria-hidden /> : <Sparkles size={22} className="text-brand-300" aria-hidden />}
+                {hasPro ? <Crown size={22} className="text-amber-200" aria-hidden /> : <CreditCard size={22} className="text-brand-300" aria-hidden />}
               </div>
               <Link href="/account/billing" className="mt-5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-300 hover:text-brand-200">
                 Manage subscription <ArrowRight size={14} aria-hidden />

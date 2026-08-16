@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CreditCard, Globe2, ShieldCheck } from "lucide-react";
+import { ArrowRight, CreditCard, Globe2, SlidersHorizontal } from "lucide-react";
 
 import { LocalizedPricing } from "@/components/billing/LocalizedPricing";
 import { Section } from "@/components/Section";
@@ -34,7 +34,7 @@ export function PricingSection() {
       <div className="mt-8 grid gap-3 rounded-2xl border border-white/10 bg-surface-900/70 p-4 text-sm text-slate-400 sm:grid-cols-3 sm:p-5">
         <span className="flex items-center gap-2"><Globe2 size={16} className="text-brand-300" aria-hidden /> Country-localized totals</span>
         <span className="flex items-center gap-2"><CreditCard size={16} className="text-brand-300" aria-hidden /> Secure checkout via Paddle</span>
-        <span className="flex items-center gap-2"><ShieldCheck size={16} className="text-brand-300" aria-hidden /> Account-based billing controls</span>
+        <span className="flex items-center gap-2"><SlidersHorizontal size={16} className="text-brand-300" aria-hidden /> Account-based billing controls</span>
       </div>
       <div className="mt-6 text-center">
         <Link href="/pricing" className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">Compare all plan details <ArrowRight size={15} aria-hidden /></Link>

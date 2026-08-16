@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarRange, Loader2, Play, ShieldCheck } from "lucide-react";
+import { CalendarRange, Flag, Loader2, Play } from "lucide-react";
 
 export function TrialSessionLauncher({
   remaining,
@@ -18,7 +18,7 @@ export function TrialSessionLauncher({
     return (
       <section className="panel mx-auto w-full max-w-2xl p-7 text-center sm:p-10">
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
-          <ShieldCheck size={22} aria-hidden />
+          <Flag size={22} aria-hidden />
         </span>
         <h2 className="mt-5 text-2xl font-semibold">Your device trial is complete</h2>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed app-muted">

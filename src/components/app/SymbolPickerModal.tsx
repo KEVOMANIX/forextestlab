@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   Check,
+  Crown,
   Loader2,
   Lock,
   Plus,
   Search,
-  Sparkles,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -521,7 +521,7 @@ export function SymbolPickerModal({
                 href="/pricing?from=symbol-picker"
                 className="btn-primary shrink-0 px-3.5 py-2 text-xs"
               >
-                <Sparkles size={14} aria-hidden />
+                <Crown size={14} aria-hidden />
                 Upgrade plan
               </Link>
             </>

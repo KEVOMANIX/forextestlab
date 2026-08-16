@@ -28,7 +28,8 @@ export default function PricingPage() {
             <div>
               <p className="eyebrow w-fit">Simple plans. Serious testing.</p>
               <h1 className="mt-6 max-w-3xl text-balance text-5xl font-bold leading-[.98] tracking-[-0.045em] text-white sm:text-6xl lg:text-[4.5rem]">
-                Build confidence.<br />
+                Build confidence.{" "}
+                <br />
                 <span className="bg-gradient-to-r from-brand-200 via-cyan-300 to-accent-400 bg-clip-text text-transparent">
                   Trade with evidence.
                 </span>

@@ -1,3 +1,8 @@
+import {
+  summarisePlanTests,
+  type PlanSummary,
+  type PlanTest,
+} from "@/lib/backtest/exit-quality";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 
 export const DEMO_ANALYTICS_START = Date.UTC(2025, 1, 3, 13, 0);
@@ -67,3 +72,49 @@ export const DEMO_ANALYTICS_EQUITY_CURVE: EquityPoint[] = DEMO_ANALYTICS_TRADES.
   points.push({ index: index + 1, time: trade.exitTime, balance: String(balance), equity: String(balance) });
   return points;
 }, [{ index: 0, time: DEMO_ANALYTICS_START, balance: "100000", equity: "100000" }]);
+
+/**
+ * The sample report's exit-quality counterfactual.
+ *
+ * A real one is worked out by walking market history the trade never saw, and
+ * a synthetic trade has none — so the sample supplies plausible outcomes and
+ * runs them through the same summariser the live report uses. The arithmetic a
+ * visitor reads in the preview is therefore the real arithmetic; only the
+ * per-trade verdicts are authored.
+ *
+ * Each shape uses the 2R plan the demo journals already claim, and one is a
+ * stop-loss so the preview shows cutting saving money as well as costing it.
+ */
+const DEMO_PLAN_SHAPES = [
+  { outcome: "take-profit", planR: 2, peakR: 2.3, candles: 26 },
+  { outcome: "take-profit", planR: 2, peakR: 2.15, candles: 18 },
+  { outcome: "stop-loss", planR: -1, peakR: 0.85, candles: 11 },
+  { outcome: "unresolved", planR: 1.3, peakR: 1.6, candles: 64 },
+] as const;
+
+export const DEMO_EXIT_QUALITY: PlanSummary = summarisePlanTests(
+  DEMO_ANALYTICS_TRADES.filter((trade) => trade.exitReason === "manual").map(
+    (trade, index): PlanTest => {
+      const shape = DEMO_PLAN_SHAPES[index % DEMO_PLAN_SHAPES.length]!;
+      const risk = Number(trade.initialRiskAmount);
+      const capturedR = Number(trade.pnl) / risk;
+      // The plan's window contains the holding period, so its peak can never
+      // be lower than the peak the trade reached while it was open.
+      const heldPeakR = Number(trade.maxFavorablePnl ?? 0) / risk;
+      return {
+        tradeId: trade.id,
+        outcome: shape.outcome,
+        planR: shape.planR,
+        capturedR,
+        deltaR: shape.planR - capturedR,
+        peakR: Math.max(shape.peakR, heldPeakR),
+        troughR:
+          shape.outcome === "stop-loss"
+            ? -1
+            : Number(trade.maxAdversePnl ?? 0) / risk,
+        candles: shape.candles,
+        intrabarAmbiguous: false,
+      };
+    },
+  ),
+);

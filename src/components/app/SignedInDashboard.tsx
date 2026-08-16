@@ -438,21 +438,39 @@ export function SignedInDashboard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowDemoData((value) => !value)}
-            className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-xs font-semibold transition-colors ${showDemoData ? "border-amber-300/35 bg-amber-300/[0.12] text-amber-200" : "border-brand-400/25 bg-brand-400/[0.07] text-brand-300 hover:bg-brand-400/[0.12]"}`}
-            title={showDemoData ? "Return to your saved session data" : "Preview a complete dashboard with sample trades"}
+          {/* Both states visible at once, so the control says which one is
+              active without a banner underneath repeating it. Same pattern as
+              the session report's data-source switch. */}
+          <div
+            className="inline-flex h-10 items-center rounded-lg border app-border bg-[var(--app-panel-2)] p-1"
+            role="group"
+            aria-label="Dashboard data source"
           >
-            <FlaskConical size={15} aria-hidden /> {showDemoData ? "Show my data" : "Show sample data"}
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowDemoData(false)}
+              aria-pressed={!showDemoData}
+              title="Show your saved session data"
+              className={`inline-flex h-full items-center rounded-md px-3 text-xs font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
+            >
+              Your data
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDemoData(true)}
+              aria-pressed={showDemoData}
+              title="Preview a complete dashboard with sample trades"
+              className={`inline-flex h-full items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
+            >
+              <FlaskConical size={14} aria-hidden /> Sample
+            </button>
+          </div>
           <Link href="/app/backtest" className={`${selectedSession ? "btn-secondary" : "btn-primary shadow-glow"} shrink-0 px-4 py-2.5 text-xs`}>
             <Plus size={16} aria-hidden /> New backtest
           </Link>
         </div>
       </header>
 
-      {showDemoData && <div role="note" className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-4 py-3 text-xs text-amber-100"><span><strong>Sample data is on.</strong> The dashboard is previewing a completed strategy. Your saved sessions have not been changed.</span><button type="button" onClick={() => setShowDemoData(false)} className="shrink-0 font-semibold underline underline-offset-2">Use my data</button></div>}
 
       {!selectedSession ? (
         <section className="relative mt-7 overflow-hidden rounded-3xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-6 shadow-card sm:p-9">
@@ -508,6 +526,13 @@ export function SignedInDashboard({
                     {selectedSession.status === "finished"
                       ? "Review completed session"
                       : "Continue where you stopped"}
+                    {/* The state belongs where the data is, not only in the
+                        header control several inches away. */}
+                    {showDemoData && (
+                      <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">
+                        SAMPLE
+                      </span>
+                    )}
                   </p>
                   <h2 className="mt-1.5 truncate text-2xl font-bold tracking-tight">
                     {scopeLabel}

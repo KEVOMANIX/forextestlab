@@ -169,8 +169,8 @@ export function TradeJournalEditor({
 
   const patch = (value: Partial<TradeJournalUpdate>) => setDraft((current) => current ? { ...current, ...value } : current);
   return (
-    <div className="grid min-h-[360px] md:grid-cols-[210px_minmax(0,1fr)]">
-      <aside className="border-b app-border p-2 md:border-b-0 md:border-r">
+    <div className="grid min-h-[360px] grid-cols-[minmax(0,1fr)] md:grid-cols-[210px_minmax(0,1fr)]">
+      <aside className="min-w-0 border-b app-border p-2 md:border-b-0 md:border-r">
         <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wider app-muted">Trade journals</p>
         <div className="flex gap-1 overflow-x-auto md:block md:max-h-[470px] md:space-y-1 md:overflow-y-auto">
           {records.map((record, index) => (
@@ -186,7 +186,7 @@ export function TradeJournalEditor({
         </div>
       </aside>
 
-      <div className="space-y-4 p-4">
+      <div className="min-w-0 space-y-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-2">
             {(["valid", "invalid", "experimental"] as const).map((value) => (

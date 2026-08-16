@@ -77,3 +77,20 @@ export type SupportChatSummary = {
   customerUnreadCount: number;
   messages: Array<{ body: string }>;
 };
+
+/**
+ * Routes where the floating support launcher would cover something that
+ * matters: the trading dock's account read-out, and the performance figures in
+ * the session report's right-hand panel. Those pages link to /app/support
+ * instead. Kept here, apart from the widget, so it can be tested directly.
+ */
+export const LAUNCHER_HIDDEN_ROUTES = [
+  "/app/backtest",
+  "/app/results",
+  "/app/support",
+  "/support-team",
+] as const;
+
+export function isLauncherHidden(pathname: string | null | undefined) {
+  return LAUNCHER_HIDDEN_ROUTES.some((route) => pathname?.startsWith(route));
+}

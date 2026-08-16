@@ -40,7 +40,7 @@ export const DEMO_ANALYTICS_TRADES: ClosedTrade[] = DEMO_ANALYTICS_PNLS.map((pnl
       setupTags: [setup, index % 2 === 0 ? "A-grade" : "Session setup"],
       mistakeTags: won ? [] : index % 2 === 0 ? ["Entered early"] : ["Weak confirmation"],
       emotion: emotions[index % emotions.length]!,
-      confidence: 7 + index % 3,
+      confidence: 3 + (index % 3),
       ruleChecklist: [
         { id: `trend-${index}`, label: "Higher-timeframe direction confirmed", followed: true },
         { id: `risk-${index}`, label: "Risk defined before entry", followed: true },

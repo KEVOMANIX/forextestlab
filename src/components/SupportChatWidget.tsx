@@ -8,6 +8,7 @@ import { LauncherButton } from "@/components/support/LauncherButton";
 import {
   SUPPORT_ACTIVE_KEY,
   existingSupportVisitorId,
+  isLauncherHidden,
   type SupportChatSummary,
 } from "@/lib/support-client";
 import { playSupportChime, primeSupportSound } from "@/lib/support-sound";
@@ -23,13 +24,6 @@ const SupportChatPanel = dynamic(
 );
 
 /**
- * Routes that own the whole viewport and have their own bottom-right chrome. A
- * floating launcher there would sit on top of the trading dock's account
- * read-out, so the widget stands down and those pages link to /app/support.
- */
-const HIDDEN_ROUTES = ["/app/backtest", "/app/support", "/support-team"];
-
-/**
  * A reply should reach the customer while they are reading something else, so
  * the watcher keeps running on a hidden tab — just more slowly, and only for
  * visitors who actually have a conversation open with support.
@@ -43,7 +37,7 @@ export function SupportChatWidget() {
   const [unread, setUnread] = useState(0);
   const openRef = useRef(open);
   openRef.current = open;
-  const hidden = HIDDEN_ROUTES.some((route) => pathname?.startsWith(route));
+  const hidden = isLauncherHidden(pathname);
 
   useEffect(() => {
     if (hidden) return;

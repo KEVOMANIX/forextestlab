@@ -23,9 +23,16 @@ const r = (value: number) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFix
 export function ExitQualityCard({
   trades,
   plan,
+  planUnavailable,
 }: {
   trades: ClosedTrade[];
   plan: PlanSummary | null;
+  /**
+   * Why the second half is missing, when it is. Without this the card simply
+   * stops after the first four figures and reads as though the feature is
+   * broken rather than waiting on something.
+   */
+  planUnavailable?: string;
 }) {
   const excursion = summariseExcursions(trades);
   if (!excursion.tested && !plan) return null;
@@ -79,6 +86,15 @@ export function ExitQualityCard({
             detail="How far winners went against you before they worked"
           />
         </div>
+      )}
+
+      {!plan && planUnavailable && (
+        <p className="border-t app-border px-5 py-4 text-xs leading-5 app-muted">
+          <strong className="font-semibold text-[var(--app-text)]">
+            If you had left the plan alone:
+          </strong>{" "}
+          {planUnavailable}
+        </p>
       )}
 
       {plan && (

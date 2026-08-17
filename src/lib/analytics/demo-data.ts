@@ -112,6 +112,7 @@ export const DEMO_EXIT_QUALITY: PlanSummary = summarisePlanTests(
           shape.outcome === "stop-loss"
             ? -1
             : Number(trade.maxAdversePnl ?? 0) / risk,
+        risk,
         candles: shape.candles,
         intrabarAmbiguous: false,
       };

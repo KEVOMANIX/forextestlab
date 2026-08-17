@@ -53,7 +53,13 @@ export interface Excursion {
   troughR: number | null;
   /** R actually taken. */
   capturedR: number | null;
-  /** peakR − capturedR, never below zero. What was on the table and left. */
+  /**
+   * Profit that existed and was surrendered, never below zero and never more
+   * than the peak. A loss is not a give-back: a trade that poked 0.3R into
+   * profit and then lost 3R gave back 0.3R, not 3.3R. Subtracting a negative
+   * close from the peak would have made every large loser look like a winner
+   * cut short, which is the opposite of the lesson.
+   */
   giveBackR: number | null;
 }
 
@@ -91,13 +97,32 @@ export function tradeExcursion(trade: ClosedTrade): Excursion {
     peakR,
     troughR,
     capturedR,
-    giveBackR: peakR === null ? null : Math.max(0, peakR - capturedR),
+    giveBackR:
+      peakR === null ? null : Math.max(0, peakR - Math.max(0, capturedR)),
   };
+}
+
+/** The trade with the widest gap between its peak and where it was closed. */
+export interface WidestGap {
+  /** Ledger number, matching the trades table and the journal. */
+  tradeNumber: number;
+  peakR: number;
+  capturedR: number;
+  giveBackR: number;
 }
 
 export interface ExcursionSummary {
   /** Trades with both a defined risk and a recorded excursion. */
   tested: number;
+  /** Open profit that appeared at some point, in account currency. */
+  favourableMoney: number;
+  /** How much of it was banked. */
+  bankedMoney: number;
+  /**
+   * One trade named concretely. A single "reached +2.3R, closed at +0.5R" does
+   * more for comprehension than any of the ratios above it.
+   */
+  widestGap: WidestGap | null;
   /**
    * Share of the favourable movement that was actually banked, 0–1. A trade
    * that peaked at +$50 and closed at a loss captured none of it, so the
@@ -119,11 +144,21 @@ export function summariseExcursions(trades: ClosedTrade[]): ExcursionSummary {
   const winnerTroughs: number[] = [];
   let gaveBackOverOneR = 0;
   let tested = 0;
+  let widestGap: WidestGap | null = null;
 
-  for (const trade of trades) {
+  trades.forEach((trade, index) => {
     const excursion = tradeExcursion(trade);
-    if (excursion.peakR === null || excursion.capturedR === null) continue;
+    if (excursion.peakR === null || excursion.capturedR === null) return;
     tested += 1;
+    if (!widestGap || (excursion.giveBackR ?? 0) > widestGap.giveBackR) {
+      widestGap = {
+        // Ledger numbering: position in the closed-trade list, oldest first.
+        tradeNumber: index + 1,
+        peakR: excursion.peakR,
+        capturedR: excursion.capturedR,
+        giveBackR: excursion.giveBackR ?? 0,
+      };
+    }
 
     const peak = d(trade.maxFavorablePnl ?? 0);
     if (peak.greaterThan(0)) {
@@ -136,10 +171,13 @@ export function summariseExcursions(trades: ClosedTrade[]): ExcursionSummary {
     if (d(trade.pnl).greaterThan(0) && excursion.troughR !== null) {
       winnerTroughs.push(excursion.troughR);
     }
-  }
+  });
 
   return {
     tested,
+    favourableMoney: favourable.toNumber(),
+    bankedMoney: banked.toNumber(),
+    widestGap: (widestGap as WidestGap | null)?.giveBackR ? widestGap : null,
     captureRate: favourable.greaterThan(0)
       ? banked.dividedBy(favourable).toNumber()
       : null,
@@ -171,6 +209,8 @@ export interface PlanTest {
   /** Best R reached at any point before the plan resolved. */
   peakR: number;
   troughR: number;
+  /** The trade's initial risk in account currency, so R can be shown in money. */
+  risk: number;
   /** Candles from entry to resolution, or to the end of the data. */
   candles: number;
   /** The resolving candle touched both levels; the session policy decided. */
@@ -289,6 +329,7 @@ export function testTradePlan(
       deltaR: planR - capturedR,
       peakR: peak.dividedBy(risk).toNumber(),
       troughR: trough.dividedBy(risk).toNumber(),
+      risk: risk.toNumber(),
       candles: walked,
       intrabarAmbiguous: hit.intrabarAmbiguous,
     };
@@ -310,6 +351,7 @@ export function testTradePlan(
     deltaR: planR - capturedR,
     peakR: peak.dividedBy(risk).toNumber(),
     troughR: trough.dividedBy(risk).toNumber(),
+    risk: risk.toNumber(),
     candles: walked,
     intrabarAmbiguous: false,
   };
@@ -321,12 +363,17 @@ export interface LadderRung {
   hit: number;
   /** Net R if every trade had used this fixed target and its original stop. */
   netR: number;
+  netMoney: number;
 }
 
 export interface PlanSummary {
   tested: number;
   /** Total R actually taken on the tested trades, for comparing the ladder to. */
   capturedR: number;
+  capturedMoney: number;
+  /** Total R the untouched plan would have produced. */
+  planR: number;
+  planMoney: number;
   /** Sum of deltaR. Positive means cutting cost you; negative means it saved you. */
   netDeltaR: number;
   cutEarly: number;
@@ -341,23 +388,24 @@ export function summarisePlanTests(tests: PlanTest[]): PlanSummary {
   const ladder = LADDER_TARGETS.map((target) => {
     let hit = 0;
     let netR = 0;
+    let netMoney = 0;
     for (const test of tests) {
-      if (test.peakR >= target) {
-        hit += 1;
-        netR += target;
-      } else if (test.outcome === "stop-loss") {
-        netR += test.planR;
-      } else {
-        // Never reached the target and never stopped: it ends where it ended.
-        netR += test.planR;
-      }
+      // Reached the target before the plan resolved, so the target pays.
+      // Otherwise the trade ends wherever its own plan left it.
+      const outcomeR = test.peakR >= target ? target : test.planR;
+      if (test.peakR >= target) hit += 1;
+      netR += outcomeR;
+      netMoney += outcomeR * test.risk;
     }
-    return { target, hit, netR };
+    return { target, hit, netR, netMoney };
   });
 
   return {
     tested: tests.length,
     capturedR: tests.reduce((sum, test) => sum + test.capturedR, 0),
+    capturedMoney: tests.reduce((sum, test) => sum + test.capturedR * test.risk, 0),
+    planR: tests.reduce((sum, test) => sum + test.planR, 0),
+    planMoney: tests.reduce((sum, test) => sum + test.planR * test.risk, 0),
     netDeltaR: tests.reduce((sum, test) => sum + test.deltaR, 0),
     cutEarly: tests.filter((test) => test.deltaR > 0).length,
     cutWell: tests.filter((test) => test.deltaR < 0).length,

@@ -276,6 +276,7 @@ describe("tier 2 — session summary", () => {
     deltaR: 1.5,
     peakR: 2,
     troughR: -0.3,
+    risk: 200,
     candles: 10,
     intrabarAmbiguous: false,
     ...patch,
@@ -312,5 +313,35 @@ describe("tier 2 — session summary", () => {
     // A 3R target: nobody, so everything falls back to what it did.
     expect(rung(3).hit).toBe(0);
     expect(rung(3).netR).toBeCloseTo(2 + 2 - 1, 5);
+  });
+});
+
+describe("give-back is surrendered profit, not loss", () => {
+  it("caps at the profit that actually existed", () => {
+    // Poked 0.3R into profit, then lost 3R. Only 0.3R was ever there to give.
+    const result = tradeExcursion(
+      trade({ maxFavorablePnl: "60.00", maxAdversePnl: "-600.00", pnl: "-600.00" }),
+    );
+    expect(result.peakR).toBeCloseTo(0.3, 5);
+    expect(result.capturedR).toBeCloseTo(-3, 5);
+    expect(result.giveBackR).toBeCloseTo(0.3, 5);
+  });
+
+  it("still measures a winner cut short in full", () => {
+    const result = tradeExcursion(
+      trade({ maxFavorablePnl: "480.00", maxAdversePnl: "-40.00", pnl: "160.00" }),
+    );
+    expect(result.giveBackR).toBeCloseTo(1.6, 5);
+  });
+
+  it("names a trade that had profit to give, not the biggest loser", () => {
+    const summary = summariseExcursions([
+      // A large loser that was barely ever in profit.
+      trade({ id: "a", maxFavorablePnl: "60.00", maxAdversePnl: "-900.00", pnl: "-900.00" }),
+      // A winner that reached 2.4R and kept 0.5R.
+      trade({ id: "b", maxFavorablePnl: "480.00", maxAdversePnl: "-40.00", pnl: "100.00" }),
+    ]);
+    expect(summary.widestGap?.tradeNumber).toBe(2);
+    expect(summary.widestGap?.giveBackR).toBeCloseTo(1.9, 5);
   });
 });

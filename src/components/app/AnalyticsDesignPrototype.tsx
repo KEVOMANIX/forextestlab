@@ -32,11 +32,12 @@ import { ReportTimeZone } from "@/components/app/ReportTimeZone";
 import { TradeFocusProvider } from "@/components/app/TradeFocusContext";
 import { TradesTable } from "@/components/app/TradesTable";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
-import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY } from "@/lib/analytics/demo-data";
+import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_PERIOD, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY } from "@/lib/analytics/demo-data";
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { monthlyReturnSeries, type MonthlyReturn } from "@/lib/analytics/monthly-returns";
+import { RELIABLE_SAMPLE_TRADES, sampleIsReliable, tradesUntilReliable } from "@/lib/analytics/sample-size";
 import { WEEKDAY_LABELS, createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
@@ -44,62 +45,6 @@ import { formatSymbol } from "@/lib/market-data/symbols";
 type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "analyst";
 
 const TABS = ["overview", "trades", "journal", "reports", "analyst"] as const;
-
-const EQUITY = [
-  100000, 100180, 100040, 100390, 100720, 100610, 100960, 101340,
-  101120, 101680, 101940, 101760, 102150, 102720, 102490, 102960,
-  103310, 103080, 103520, 103910, 103640, 104110, 103940, 104820,
-];
-
-const MONTHLY_RETURNS: MonthlyReturn[] = [2.4, -0.8, 3.1, 1.7, -1.2, 4.3, 0.6, 2.8, -0.5, 3.6, 1.1, 2.2].map(
-  (percent, index) => ({
-    key: `2024-${String(index + 1).padStart(2, "0")}`,
-    label: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][index]!,
-    year: 2024,
-    month: index + 1,
-    profit: percent * 1000,
-    percent,
-  }),
-);
-const DRAWDOWN = [0, -120, -80, -340, -260, -610, -430, -920, -710, -1492, -980, -620, -830, -410, -180, -390, -140, 0];
-const WEEKDAY_RESULTS = [
-  { label: "Mon", value: 980, trades: 4 },
-  { label: "Tue", value: 1440, trades: 5 },
-  { label: "Wed", value: 2010, trades: 4 },
-  { label: "Thu", value: -360, trades: 3 },
-  { label: "Fri", value: 750, trades: 3 },
-];
-const SESSION_RESULTS = [
-  { label: "London open", value: 2940, rate: 74 },
-  { label: "New York open", value: 1510, rate: 63 },
-  { label: "London close", value: 620, rate: 60 },
-  { label: "Asia", value: -250, rate: 40 },
-];
-const R_DISTRIBUTION = [
-  { label: "<−1R", count: 1 },
-  { label: "−1R", count: 3 },
-  { label: "0R", count: 2 },
-  { label: "+1R", count: 6 },
-  { label: "+2R", count: 5 },
-  { label: ">+2R", count: 2 },
-];
-const EXIT_RESULTS = [
-  { label: "Take profit", value: 4080, trades: 6, winRate: 100 },
-  { label: "Manual close", value: 1420, trades: 9, winRate: 67 },
-  { label: "Stop loss", value: -680, trades: 3, winRate: 0 },
-  { label: "Session end", value: 0, trades: 1, winRate: 0 },
-];
-const SIZE_RESULTS = [
-  { label: "Under 0.50 lots", value: 780, trades: 5, share: 16 },
-  { label: "0.50–0.99 lots", value: 1540, trades: 7, share: 32 },
-  { label: "1.00 lots and above", value: 2500, trades: 7, share: 52 },
-];
-const HOLDING_RESULTS = [
-  { label: "< 1 hour", value: -220, trades: 4 },
-  { label: "1–4 hours", value: 3560, trades: 9 },
-  { label: "4–8 hours", value: 1120, trades: 4 },
-  { label: "> 8 hours", value: 360, trades: 2 },
-];
 
 type ResultRow = { label: string; value: number; trades: number; rate?: number; winRate?: number; share?: number };
 
@@ -111,8 +56,9 @@ interface AnalyticsModel {
   winRate: string;
   profitFactor: string;
   expectancy: number;
-  maxDrawdown: number;
-  maxDrawdownPercent: number;
+  /** Null when there is no equity history to measure it against. */
+  maxDrawdown: number | null;
+  maxDrawdownPercent: number | null;
   closedTrades: number;
   averageR: string;
   payoffRatio: string;
@@ -185,6 +131,11 @@ export interface AnalyticsDesignPrototypeProps {
 
 const money = (value: number, signed = false) => `${signed && value > 0 ? "+" : value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const percentage = (value: number) => `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}%`;
+/** A drawdown that was never recorded reads as absent, not as zero. */
+const drawdownMoney = (value: number | null) => (value === null ? "—" : money(-value));
+const drawdownPercent = (value: number | null, digits = 1) =>
+  value === null ? "—" : `${value.toFixed(digits)}%`;
+
 /** toFixed emits an ASCII hyphen; every other figure on these screens uses −. */
 const ratio = (value: number) => `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}`;
 
@@ -259,7 +210,7 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
   return {
     equity, endingBalance, netProfit, returnPercent: startingBalance ? netProfit / startingBalance * 100 : 0,
     winRate: stats.winRate, profitFactor: stats.profitFactor, expectancy: Number(stats.expectancy) || 0,
-    maxDrawdown: Number(stats.maxDrawdown) || 0, maxDrawdownPercent: Number(stats.maxDrawdownPercent) || 0,
+    maxDrawdown: numberOrNull(stats.maxDrawdown), maxDrawdownPercent: numberOrNull(stats.maxDrawdownPercent),
     closedTrades: trades.length, averageR, payoffRatio: averageLoss ? (averageWin / averageLoss).toFixed(2) : "—", averageHold,
     bestTrade: wins.length ? Math.max(...wins) : 0, worstTrade: losses.length ? Math.min(...losses) : 0,
     streak: streakTrade ? `${streakCount} ${Number(streakTrade.pnl) > 0 ? "wins" : "losses"}` : "—",
@@ -283,26 +234,42 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
     averageLoss,
     profitPerMonth: monthsProcessed ? netProfit / monthsProcessed : 0,
     maxLot: trades.length ? Math.max(...trades.map((trade) => Number(trade.lots) || 0)) : 0,
-    recoveryFactor: modelSafeDivide(netProfit, Number(stats.maxDrawdown) || 0),
+    recoveryFactor: modelSafeDivide(netProfit, numberOrNull(stats.maxDrawdown) ?? 0),
   };
+}
+
+/**
+ * "Not available" has to survive as absence. Coercing it to zero is how the
+ * screens came to print "$0.00 maximum drawdown" for sessions whose drawdown
+ * was simply never recorded.
+ */
+function numberOrNull(value: string): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function modelSafeDivide(value: number, divisor: number): number {
   return divisor ? value / divisor : 0;
 }
 
+/**
+ * The sample, computed from the sample's own trades.
+ *
+ * This used to calculate a model and then overwrite nine of its fields with
+ * hand-written tables. They tied to the headline — each summed to $4,820 — but
+ * not to the nineteen trades sitting one tab away: the exit table claimed nine
+ * manual closes at a 67% win rate where the ledger holds four, all winners,
+ * and the exit-quality card immediately beneath it said "the 4 trades you
+ * closed by hand". A sample that contradicts itself teaches a reader to
+ * distrust the real report too.
+ */
 function createDemoModel(): AnalyticsModel {
-  // The calendar is left as calculated: the sample's own trades decide which
-  // days are lit, so it agrees with the sample ledger one tab away.
-  const calculated = createLiveModel(DEMO_ANALYTICS_TRADES, DEMO_ANALYTICS_EQUITY_CURVE, "100000", "EUR/USD");
-  return {
-    ...calculated,
-    equity: EQUITY,
-    monthlyReturns: MONTHLY_RETURNS, drawdown: DRAWDOWN,
-    weekdays: WEEKDAY_RESULTS, sessions: SESSION_RESULTS.map((row) => ({ ...row, trades: 0 })), rDistribution: R_DISTRIBUTION,
-    exits: EXIT_RESULTS.map((row) => ({ ...row, rate: row.winRate })), sizes: SIZE_RESULTS, holding: HOLDING_RESULTS,
-    directions: { long: { label: "Long", value: 3420, trades: 11, rate: 73 }, short: { label: "Short", value: 1400, trades: 8, rate: 63 } }, concentration: 44,
-  };
+  return createLiveModel(
+    DEMO_ANALYTICS_TRADES,
+    DEMO_ANALYTICS_EQUITY_CURVE,
+    "100000",
+    "EUR/USD",
+  );
 }
 
 function linePath(values: number[]) {
@@ -357,7 +324,11 @@ export function AnalyticsDesignPrototype({
   const pairLabel = symbols.map(formatSymbol).join(" · ");
   const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, pairLabel), [demo, trades, equityCurve, startingBalance, pairLabel]);
   const path = linePath(model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance]);
-  const periodLabel = startTime && endTime ? `${formatNewYorkDate(startTime)} – ${formatNewYorkDate(endTime)}` : "Session period";
+  // The sample used to carry a hand-written period that its own trades,
+  // calendar and equity axis all contradicted. Both modes now derive it.
+  const periodStart = demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime;
+  const periodEnd = demo ? DEMO_ANALYTICS_PERIOD.endTime : endTime;
+  const periodLabel = periodStart && periodEnd ? `${formatNewYorkDate(periodStart)} – ${formatNewYorkDate(periodEnd)}` : "Session period";
   const resumeHref = sessionId ? `/app/backtest?session=${encodeURIComponent(sessionId)}` : "/app/backtest";
 
   // A trade number cited in an AI answer opens the ledger on that trade.
@@ -387,7 +358,7 @@ export function AnalyticsDesignPrototype({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-xs app-muted">
             <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
-            <span>{demo ? "EUR/USD" : pairLabel}</span><span>·</span><span>{demo ? "Jan 9, 2019 – Jan 19, 2024" : periodLabel}</span>{demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
+            <span>{demo ? "EUR/USD" : pairLabel}</span><span>·</span><span>{periodLabel}</span>{demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
           </div>
           <h1 className="mt-2 truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{demo ? "London-session breakout — sample" : sessionName}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm app-muted">
@@ -431,7 +402,7 @@ export function AnalyticsDesignPrototype({
                     <path d={`${path} L904,264 L16,264 Z`} fill="url(#prototype-equity)" />
                     <path d={path} fill="none" stroke={model.netProfit >= 0 ? "#22c3a0" : "#fb7185"} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
                   </svg>
-                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{demo ? "Jan 2019" : startTime ? formatNewYorkDate(startTime, { month: "short", year: "numeric" }) : "Start"}</span><span>{demo ? "Jan 2020" : "Replay history"}</span><span>{demo ? "Jan 2022" : `${model.closedTrades} trades`}</span><span>{demo ? "Jan 2024" : endTime ? formatNewYorkDate(endTime, { month: "short", year: "numeric" }) : "Now"}</span></div>
+                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span>Equity path</span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
                 </div>
               </div>
 
@@ -441,12 +412,9 @@ export function AnalyticsDesignPrototype({
                   <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-400/10 text-brand-300"><Sigma size={20} aria-hidden /></span>
                 </div>
                 <dl className="mt-6 divide-y app-border border-y app-border">
-                  {[["Win rate", model.winRate === "Not available" ? "—" : `${model.winRate}%`], ["Profit factor", model.profitFactor === "Not available" ? "—" : model.profitFactor], ["Expectancy", model.closedTrades ? money(model.expectancy, true) : "—"], ["Max drawdown", money(-model.maxDrawdown)], ["Closed trades", String(model.closedTrades)]].map(([label,value]) => <div key={label} className="flex items-center justify-between py-3"><dt className="flex items-center gap-1.5 text-xs app-muted">{label}<MetricInfo term={label!} /></dt><dd className="font-mono text-sm font-semibold">{value}</dd></div>)}
+                  {[["Win rate", model.winRate === "Not available" ? "—" : `${model.winRate}%`], ["Profit factor", model.profitFactor === "Not available" ? "—" : model.profitFactor], ["Expectancy", model.closedTrades ? money(model.expectancy, true) : "—"], ["Max drawdown", drawdownMoney(model.maxDrawdown)], ["Closed trades", String(model.closedTrades)]].map(([label,value]) => <div key={label} className="flex items-center justify-between py-3"><dt className="flex items-center gap-1.5 text-xs app-muted">{label}<MetricInfo term={label!} /></dt><dd className="font-mono text-sm font-semibold">{value}</dd></div>)}
                 </dl>
-                <div className="mt-5 rounded-xl bg-brand-400/[0.07] p-4">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-brand-300"><TrendingUp size={14} aria-hidden /> Edge forming</div>
-                  <p className="mt-2 text-xs leading-5 app-muted">{model.closedTrades >= 30 ? "The sample is large enough to start judging consistency across market conditions." : `${model.netProfit >= 0 ? "Profitable" : "Developing"} sample with ${model.maxDrawdownPercent.toFixed(1)}% maximum drawdown. Add ${Math.max(0, 30 - model.closedTrades)} trades before treating the result as dependable.`}</p>
-                </div>
+                <SampleVerdict model={model} />
               </aside>
             </div>
           </section>
@@ -475,7 +443,7 @@ export function AnalyticsDesignPrototype({
             {[
               { icon: Target, label: "Best exit profile", value: model.exits.slice().sort((a,b)=>b.value-a.value)[0]?.label ?? "No trade data", detail: model.exits.length ? `${money(model.exits.slice().sort((a,b)=>b.value-a.value)[0]!.value, true)} across ${model.exits.slice().sort((a,b)=>b.value-a.value)[0]!.trades} trades` : "Close trades to reveal the pattern" },
               { icon: LineChart, label: "Best market window", value: model.sessions.slice().sort((a,b)=>b.value-a.value)[0]?.label ?? "No trade data", detail: model.sessions.length ? `${model.sessions.slice().sort((a,b)=>b.value-a.value)[0]!.rate}% win rate · ${money(model.sessions.slice().sort((a,b)=>b.value-a.value)[0]!.value, true)}` : "Close trades to reveal the pattern" },
-              { icon: CheckCircle2, label: "Sample quality", value: model.closedTrades >= 30 ? "Decision-ready" : "Still developing", detail: `${model.closedTrades} of 30 trades collected for a first reliable read` },
+              { icon: CheckCircle2, label: "Sample quality", value: sampleIsReliable(model.closedTrades) ? "Decision-ready" : "Still developing", detail: `${model.closedTrades} of ${RELIABLE_SAMPLE_TRADES} trades collected for a first reliable read` },
             ].map(({icon:Icon,label,value,detail})=><article key={label} className="rounded-xl bg-[var(--app-panel)] p-4"><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.04] app-muted"><Icon size={15}/></span><div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">{label}</p><h3 className="mt-1.5 text-sm font-semibold">{value}</h3><p className="mt-1 text-xs app-muted">{detail}</p></div></div></article>)}
           </section>
         </main>
@@ -483,7 +451,7 @@ export function AnalyticsDesignPrototype({
 
       {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">19 sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_TRADES : trades} focusedTrade={demo ? null : focusedTrade} /></section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
-      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_TRADES : trades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</>}
+      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_TRADES : trades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</>}
       {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
     </TradeFocusProvider>
@@ -532,6 +500,52 @@ function TradingActivityCalendar({ months }: { months: CalendarMonth[] }) {
   );
 }
 
+/**
+ * The one-line read on the sample so far.
+ *
+ * The heading here was the fixed string "Edge forming", in brand green under
+ * an upward arrow, shown whatever the numbers said — so a session that had
+ * lost money was congratulated on an edge while the sentence underneath
+ * explained the losses. A verdict that cannot come out badly is not a verdict.
+ */
+function SampleVerdict({ model }: { model: AnalyticsModel }) {
+  const reliable = sampleIsReliable(model.closedTrades);
+  const verdict =
+    model.closedTrades === 0
+      ? { label: "Nothing to judge yet", positive: null as boolean | null }
+      : model.netProfit > 0
+        ? { label: reliable ? "Edge established" : "Edge forming", positive: true }
+        : model.netProfit < 0
+          ? { label: reliable ? "No edge in this sample" : "Losing so far", positive: false }
+          : { label: "Break-even", positive: null };
+
+  const drawdown =
+    model.maxDrawdownPercent === null
+      ? "an unmeasured drawdown"
+      : `${model.maxDrawdownPercent.toFixed(1)}% maximum drawdown`;
+  const remaining = tradesUntilReliable(model.closedTrades);
+
+  return (
+    <div
+      className={`mt-5 rounded-xl p-4 ${verdict.positive === false ? "bg-bear/[0.07]" : verdict.positive ? "bg-brand-400/[0.07]" : "bg-white/[0.03]"}`}
+    >
+      <div
+        className={`flex items-center gap-2 text-xs font-semibold ${verdict.positive === false ? "text-bear" : verdict.positive ? "text-brand-300" : "app-muted"}`}
+      >
+        {verdict.positive === false ? <TrendingDown size={14} aria-hidden /> : <TrendingUp size={14} aria-hidden />}{" "}
+        {verdict.label}
+      </div>
+      <p className="mt-2 text-xs leading-5 app-muted">
+        {model.closedTrades === 0
+          ? "Close a trade to start building a sample."
+          : reliable
+            ? `The sample is large enough to start judging consistency across market conditions, at ${drawdown}.`
+            : `${model.closedTrades} trade${model.closedTrades === 1 ? "" : "s"} with ${drawdown}. Add ${remaining} more before treating the result as dependable.`}
+      </p>
+    </div>
+  );
+}
+
 function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
   const groups = [
     {
@@ -576,7 +590,7 @@ function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
       title: "Robustness",
       tone: "text-bear",
       rows: [
-        ["Maximum drawdown", money(-model.maxDrawdown)],
+        ["Maximum drawdown", drawdownMoney(model.maxDrawdown)],
         ["Recovery factor", ratio(model.recoveryFactor)],
         ["Maximum lot used", model.maxLot.toFixed(2)],
         ["Average trade", money(model.averageTrade, true)],
@@ -668,9 +682,9 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
       <section className="grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Return / drawdown", model.maxDrawdown ? ratio(model.recoveryFactor) : "—", model.netProfit >= 0 ? "Positive" : "Needs attention"],
-          ["Maximum drawdown", money(-model.maxDrawdown), `${model.maxDrawdownPercent.toFixed(1)}% from peak`],
+          ["Maximum drawdown", drawdownMoney(model.maxDrawdown), model.maxDrawdownPercent === null ? "No equity history recorded" : `${model.maxDrawdownPercent.toFixed(1)}% from peak`],
           ["Positive months", monthsTested ? `${positiveMonths} of ${monthsTested}` : "—", monthsTested ? `${Math.round(positiveMonths / monthsTested * 100)}% consistency` : "No month completed yet"],
-          ["Statistical confidence", model.closedTrades >= 30 ? "Established" : "Developing", model.closedTrades >= 30 ? "30+ trade sample" : `${30 - model.closedTrades} more trades needed`],
+          ["Statistical confidence", sampleIsReliable(model.closedTrades) ? "Established" : "Developing", sampleIsReliable(model.closedTrades) ? `${RELIABLE_SAMPLE_TRADES}+ trade sample` : `${tradesUntilReliable(model.closedTrades)} more trades needed`],
         ].map(([label, value, detail]) => (
           <div key={label} className="bg-[var(--app-panel)] px-4 py-4">
             <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] app-muted">{label}<MetricInfo term={label!} /></p>
@@ -694,14 +708,14 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
               <line x1="16" y1="16" x2="904" y2="16" stroke="currentColor" strokeOpacity=".13" />
             </svg>
           </div>
-          <div className="mt-3 flex justify-between text-[10px] app-muted"><span>Start</span><span>Deepest: {money(-model.maxDrawdown)}</span><span>Equity path</span><span>Trade {model.closedTrades}</span></div>
+          <div className="mt-3 flex justify-between text-[10px] app-muted"><span>Start</span><span>Deepest: {drawdownMoney(model.maxDrawdown)}</span><span>Equity path</span><span>Trade {model.closedTrades}</span></div>
         </ReportCard>
 
         <ReportCard eyebrow="Risk diagnosis" title="What the drawdown says" icon={Gauge} info="The worst decline set against what the strategy earned, so the reward can be judged against the risk it took rather than on its own.">
           <div className="mt-5 rounded-xl border app-border p-4">
-            <div className="flex items-end justify-between"><div><p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] app-muted">Maximum depth<MetricInfo term="Maximum depth" /></p><p className="mt-1 font-mono text-2xl font-semibold text-bear">−{model.maxDrawdownPercent.toFixed(2)}%</p></div><p className="font-mono text-xs app-muted">{money(-model.maxDrawdown)}</p></div>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-bear" style={{ width: `${Math.min(100, model.maxDrawdownPercent / 4 * 100)}%` }} /></div>
-            <p className="mt-2 text-[10px] app-muted">{model.maxDrawdownPercent.toFixed(1)}% maximum equity decline</p>
+            <div className="flex items-end justify-between"><div><p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] app-muted">Maximum depth<MetricInfo term="Maximum depth" /></p><p className={`mt-1 font-mono text-2xl font-semibold ${model.maxDrawdownPercent === null ? "app-muted" : "text-bear"}`}>{model.maxDrawdownPercent === null ? "—" : `−${model.maxDrawdownPercent.toFixed(2)}%`}</p></div><p className="font-mono text-xs app-muted">{drawdownMoney(model.maxDrawdown)}</p></div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-bear" style={{ width: `${Math.min(100, (model.maxDrawdownPercent ?? 0) / 4 * 100)}%` }} /></div>
+            <p className="mt-2 text-[10px] app-muted">{model.maxDrawdownPercent === null ? "No equity history was recorded for this session, so its drawdown cannot be measured." : `${drawdownPercent(model.maxDrawdownPercent)} maximum equity decline`}</p>
           </div>
           <dl className="mt-4 divide-y app-border">
             {[["Net realised P/L", money(model.netProfit, true)], ["Closed trades", String(model.closedTrades)], ["Return", percentage(model.returnPercent)], ["Ending equity", money(model.endingBalance)]].map(([label, value]) => <div key={label} className="flex justify-between py-3 text-xs"><dt className="flex items-center gap-1.5 app-muted">{label}<MetricInfo term={label!} /></dt><dd className="font-mono font-semibold">{value}</dd></div>)}

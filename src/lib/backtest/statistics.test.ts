@@ -33,6 +33,21 @@ function makeEquityPoint(index: number, equity: string): EquityPoint {
 }
 
 describe("computeStatistics", () => {
+  it("refuses to report a drawdown it never measured", () => {
+    // With trades but no equity history there is nothing to measure, and the
+    // old zero read as "this session never fell" — the most flattering
+    // possible lie about risk.
+    const stats = computeStatistics({
+      startingBalance: "10000",
+      endingBalance: "7000",
+      trades: [makeTrade({ pnl: "-3000" })],
+      equityCurve: [],
+    });
+    expect(stats.maxDrawdown).toBe("Not available");
+    expect(stats.maxDrawdownPercent).toBe("Not available");
+  });
+
+
   it("returns a well-formed, NaN/Infinity-free object with no trades", () => {
     const stats = computeStatistics({
       startingBalance: "10000",

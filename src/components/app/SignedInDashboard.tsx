@@ -358,6 +358,7 @@ export function SignedInDashboard({
     })
     .filter((session): session is DashboardSessionRow => session !== null);
 
+  const drawdownMeasured = Boolean(stats) && stats!.maxDrawdown !== "Not available";
   const netPositive = !totalNet.isNegative();
   const summaryCards: {
     label: string;
@@ -402,16 +403,23 @@ export function SignedInDashboard({
     },
     {
       label: "Maximum drawdown",
-      value: stats ? `$${stats.maxDrawdown}` : "$0.00",
-      detail: stats ? `${stats.maxDrawdownPercent}% from peak equity` : "No drawdown",
+      // "Not available" is a real answer from computeStatistics when a session
+      // has trades but no recorded equity history. Interpolating it blindly
+      // would have printed "$Not available".
+      value: drawdownMeasured ? `$${stats!.maxDrawdown}` : "—",
+      detail: drawdownMeasured
+        ? `${stats!.maxDrawdownPercent}% from peak equity`
+        : stats
+          ? "No equity history recorded"
+          : "No drawdown",
       icon: TrendingDown,
       tone: "text-bear",
       accent: "bg-bear/60",
-      visual: stats ? (
+      visual: drawdownMeasured ? (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
           <div
             className="h-full rounded-full bg-bear/80"
-            style={{ width: `${Math.min(100, Number(stats.maxDrawdownPercent) || 0)}%` }}
+            style={{ width: `${Math.min(100, Number(stats!.maxDrawdownPercent) || 0)}%` }}
           />
         </div>
       ) : undefined,

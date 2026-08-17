@@ -28,8 +28,8 @@ export interface PerformanceStats {
   largestLoss: string; // positive magnitude, "Not available" when no losses
   profitFactor: string; // 2dp, "Not available" when grossLoss == 0
   expectancy: string; // per-trade expected P&L, "Not available" when 0 trades
-  maxDrawdown: string; // account currency, positive magnitude
-  maxDrawdownPercent: string; // percent 1dp
+  maxDrawdown: string; // positive magnitude, "Not available" with no equity history
+  maxDrawdownPercent: string; // percent 1dp, "Not available" with no equity history
   maxConsecutiveWins: number;
   maxConsecutiveLosses: number;
   averageRiskReward: string; // avg (achieved reward / achieved risk); "Not available" when not computable
@@ -134,7 +134,7 @@ export function computeStatistics(params: {
       ? NOT_AVAILABLE
       : money(netProfitFromTrades.dividedBy(totalTrades));
 
-  const drawdown = computeDrawdown(equityCurve);
+  const drawdown = computeDrawdown(equityCurve, totalTrades > 0);
 
   const averageRiskReward =
     riskRewardCount === 0
@@ -165,12 +165,24 @@ export function computeStatistics(params: {
   };
 }
 
-function computeDrawdown(equityCurve: EquityPoint[]): {
+function computeDrawdown(
+  equityCurve: EquityPoint[],
+  hasTrades: boolean,
+): {
   maxDrawdown: string;
   maxDrawdownPercent: string;
 } {
   if (equityCurve.length === 0) {
-    return { maxDrawdown: money(0), maxDrawdownPercent: d(0).toFixed(1) };
+    /**
+     * A zero here used to mean two different things. With no trades it is
+     * true: nothing happened, so nothing was lost. With trades but no recorded
+     * equity history it was a guess dressed as a measurement — the screens
+     * printed "$0.00 maximum drawdown" for a session that may well have had a
+     * deep one, which is the most flattering possible lie about risk.
+     */
+    return hasTrades
+      ? { maxDrawdown: NOT_AVAILABLE, maxDrawdownPercent: NOT_AVAILABLE }
+      : { maxDrawdown: money(0), maxDrawdownPercent: d(0).toFixed(1) };
   }
 
   let peak: Decimal | null = null;

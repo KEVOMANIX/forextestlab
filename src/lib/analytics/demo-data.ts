@@ -85,6 +85,18 @@ export const DEMO_ANALYTICS_TRADES: ClosedTrade[] = DEMO_ANALYTICS_PNLS.map((pnl
   };
 });
 
+/**
+ * The sample's real period, taken from its own trades.
+ *
+ * The report used to print "Jan 9, 2019 – Jan 19, 2024" over a sample whose
+ * every trade is in February 2025, so the header disagreed with the ledger,
+ * the calendar and the equity axis all at once.
+ */
+export const DEMO_ANALYTICS_PERIOD = {
+  startTime: Math.min(...DEMO_ANALYTICS_TRADES.map((trade) => trade.entryTime)),
+  endTime: Math.max(...DEMO_ANALYTICS_TRADES.map((trade) => trade.exitTime)),
+};
+
 export const DEMO_ANALYTICS_EQUITY_CURVE: EquityPoint[] = DEMO_ANALYTICS_TRADES.reduce<EquityPoint[]>((points, trade, index) => {
   const previous = Number(points[points.length - 1]?.balance ?? 100000);
   const balance = previous + Number(trade.pnl);

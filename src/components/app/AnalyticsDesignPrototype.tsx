@@ -9,6 +9,8 @@ import {
   BarChart3,
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Download,
   FlaskConical,
@@ -33,6 +35,7 @@ import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY }
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
+import { createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
@@ -44,14 +47,6 @@ const EQUITY = [
   100000, 100180, 100040, 100390, 100720, 100610, 100960, 101340,
   101120, 101680, 101940, 101760, 102150, 102720, 102490, 102960,
   103310, 103080, 103520, 103910, 103640, 104110, 103940, 104820,
-];
-
-const CALENDAR = [
-  null, null, null, null, null, null, null,
-  null, 541, 260, 0, -444, -930, null,
-  null, -584, 304, 557, -1492, 362, null,
-  null, -71, 522, 620, -125, 0, null,
-  null, null, null, null, null, null, null,
 ];
 
 const MONTHLY_RETURNS = [2.4, -0.8, 3.1, 1.7, -1.2, 4.3, 0.6, 2.8, -0.5, 3.6, 1.1, 2.2];
@@ -96,7 +91,6 @@ const HOLDING_RESULTS = [
 ];
 
 type ResultRow = { label: string; value: number; trades: number; rate?: number; winRate?: number; share?: number };
-type CalendarCell = { day: number | null; value: number | null };
 
 interface AnalyticsModel {
   equity: number[];
@@ -115,8 +109,7 @@ interface AnalyticsModel {
   bestTrade: number;
   worstTrade: number;
   streak: string;
-  calendar: CalendarCell[];
-  calendarLabel: string;
+  calendarMonths: CalendarMonth[];
   recentTrades: Array<{ pair: string; side: string; setup: string; result: string; r: string; time: string; positive: boolean }>;
   monthlyReturns: number[];
   drawdown: number[];
@@ -195,23 +188,6 @@ function aggregateRows(trades: ClosedTrade[], label: (trade: ClosedTrade) => str
   return [...groups.entries()].map(([key, row]) => ({ label: key, value: row.value, trades: row.trades, rate: row.trades ? Math.round(row.wins / row.trades * 100) : 0, winRate: row.trades ? Math.round(row.wins / row.trades * 100) : 0 }));
 }
 
-function createCalendar(trades: ClosedTrade[]): { cells: CalendarCell[]; label: string } {
-  const latest = trades.reduce((value, trade) => Math.max(value, trade.exitTime), Date.now());
-  const parts = getNewYorkDateParts(latest);
-  const totals = new Map<number, number>();
-  for (const trade of trades) {
-    const point = getNewYorkDateParts(trade.exitTime);
-    if (point.year === parts.year && point.month === parts.month) totals.set(point.day, (totals.get(point.day) ?? 0) + Number(trade.pnl));
-  }
-  const firstWeekday = new Date(Date.UTC(parts.year, parts.month - 1, 1)).getUTCDay();
-  const days = new Date(Date.UTC(parts.year, parts.month, 0)).getUTCDate();
-  const cells: CalendarCell[] = Array.from({ length: 42 }, (_, index) => {
-    const day = index - firstWeekday + 1;
-    return day < 1 || day > days ? { day: null, value: null } : { day, value: totals.get(day) ?? 0 };
-  });
-  return { cells, label: formatNewYorkDate(latest, { month: "long", year: "numeric" }) };
-}
-
 function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], startingBalanceValue: string, pair: string): AnalyticsModel {
   const startingBalance = Number(startingBalanceValue) || 0;
   const pnls = trades.map((trade) => Number(trade.pnl));
@@ -279,7 +255,7 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
     closedTrades: trades.length, averageR, payoffRatio: averageLoss ? (averageWin / averageLoss).toFixed(2) : "—", averageHold,
     bestTrade: wins.length ? Math.max(...wins) : 0, worstTrade: losses.length ? Math.min(...losses) : 0,
     streak: streakTrade ? `${streakCount} ${Number(streakTrade.pnl) > 0 ? "wins" : "losses"}` : "—",
-    calendar: calendar.cells, calendarLabel: calendar.label,
+    calendarMonths: calendar,
     recentTrades: [...trades].slice(-5).reverse().map((trade, index) => ({ pair, side: trade.direction === "long" ? "Buy" : "Sell", setup: exits.find((row) => row.label.toLowerCase().startsWith(trade.exitReason.split("-")[0]!))?.label ?? trade.exitReason.replaceAll("-", " "), result: money(Number(trade.pnl), true), r: riskMultiples[trades.length - 1 - index] == null ? "—" : `${riskMultiples[trades.length - 1 - index]! >= 0 ? "+" : ""}${riskMultiples[trades.length - 1 - index]!.toFixed(1)}R`, time: formatNewYorkDateTime(trade.exitTime, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }), positive: Number(trade.pnl) >= 0 })),
     monthlyReturns, drawdown, weekdays, sessions, rDistribution, exits, sizes, holding,
     directions: { long, short }, concentration: wins.length ? Math.min(100, topThree / wins.reduce((sum, value) => sum + value, 0) * 100) : 0,
@@ -308,12 +284,13 @@ function modelSafeDivide(value: number, divisor: number): number {
 }
 
 function createDemoModel(): AnalyticsModel {
+  // The calendar is left as calculated: the sample's own trades decide which
+  // days are lit, so it agrees with the sample ledger one tab away.
   const calculated = createLiveModel(DEMO_ANALYTICS_TRADES, DEMO_ANALYTICS_EQUITY_CURVE, "100000", "EUR/USD");
-  const calendar: CalendarCell[] = CALENDAR.map((value, index) => ({ day: value == null ? null : index + 1, value }));
   return {
     ...calculated,
     equity: EQUITY,
-    calendar, calendarLabel: "February 2025", monthlyReturns: MONTHLY_RETURNS, drawdown: DRAWDOWN,
+    monthlyReturns: MONTHLY_RETURNS, drawdown: DRAWDOWN,
     weekdays: WEEKDAY_RESULTS, sessions: SESSION_RESULTS.map((row) => ({ ...row, trades: 0 })), rDistribution: R_DISTRIBUTION,
     exits: EXIT_RESULTS.map((row) => ({ ...row, rate: row.winRate })), sizes: SIZE_RESULTS, holding: HOLDING_RESULTS,
     directions: { long: { label: "Long", value: 3420, trades: 11, rate: 73 }, short: { label: "Short", value: 1400, trades: 8, rate: 63 } }, concentration: 44,
@@ -473,13 +450,7 @@ export function AnalyticsDesignPrototype({
           <ProjectAnalyticsOverview model={model} />
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.75fr)]">
-            <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Consistency</p><h2 className="mt-1 text-lg font-semibold">Trading activity</h2></div><span className="inline-flex items-center gap-1.5 text-xs font-semibold app-muted"><CalendarDays size={14}/> {model.calendarLabel}</span></div>
-              <div className="mt-4 grid grid-cols-7 gap-1.5 text-center text-[9px] app-muted">{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((day)=><span key={day} className="py-1">{day}</span>)}</div>
-              <div className="mt-1 grid grid-cols-7 gap-1.5">
-                {model.calendar.map((cell,index)=><div key={index} className={`relative min-h-16 rounded-lg p-2 ${cell.day == null ? "bg-white/[0.015]" : cell.value! > 0 ? "bg-brand-400/[0.12]" : cell.value! < 0 ? "bg-bear/[0.12]" : "bg-white/[0.035]"}`}><span className="text-[9px] app-muted">{cell.day}</span>{cell.value != null && cell.value !== 0 && <p className={`mt-2 truncate font-mono text-[10px] font-semibold ${cell.value > 0 ? "text-brand-300" : "text-bear"}`}>{money(cell.value, true)}</p>}</div>)}
-              </div>
-            </section>
+            <TradingActivityCalendar months={model.calendarMonths} />
 
             <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
               <div className="flex items-center justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Execution</p><h2 className="mt-1 text-lg font-semibold">Recent trades</h2></div><button type="button" onClick={() => setTab("trades")} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-300">View all <ArrowUpRight size={13}/></button></div>
@@ -505,6 +476,45 @@ export function AnalyticsDesignPrototype({
       {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
     </TradeFocusProvider>
+  );
+}
+
+/**
+ * The month grid, with a step through every month that holds a trade.
+ *
+ * Months with no trades are not in the list at all, so the arrows never walk a
+ * reader through an empty year to reach the next result.
+ */
+function TradingActivityCalendar({ months }: { months: CalendarMonth[] }) {
+  const [index, setIndex] = useState(months.length - 1);
+  // The list is rebuilt when the reader flips between their data and the
+  // sample, and an index held over from the longer list would be out of range.
+  const position = Math.min(index, months.length - 1);
+  const month = months[position]!;
+  const total = month.cells.reduce((sum, cell) => sum + (cell.value ?? 0), 0);
+
+  return (
+    <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Consistency</p>
+          <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold">Trading activity<MetricInfo term="Trading activity" detail="Each cell is one day's realised profit or loss, placed on the day the trade closed, in New York time. Only months containing a trade are shown." /></h2>
+        </div>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => setIndex(position - 1)} disabled={position === 0} aria-label="Previous month" className="grid h-7 w-7 place-items-center rounded-md app-muted transition-colors hover:bg-white/[0.06] hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"><ChevronLeft size={15} aria-hidden /></button>
+          <span className="inline-flex min-w-[9.5rem] items-center justify-center gap-1.5 text-xs font-semibold app-muted"><CalendarDays size={14} aria-hidden /> {month.label}</span>
+          <button type="button" onClick={() => setIndex(position + 1)} disabled={position === months.length - 1} aria-label="Next month" className="grid h-7 w-7 place-items-center rounded-md app-muted transition-colors hover:bg-white/[0.06] hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"><ChevronRight size={15} aria-hidden /></button>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-7 gap-1.5 text-center text-[9px] app-muted">{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((day)=><span key={day} className="py-1">{day}</span>)}</div>
+      <div className="mt-1 grid grid-cols-7 gap-1.5">
+        {month.cells.map((cell,cellIndex)=><div key={cellIndex} className={`relative min-h-16 rounded-lg p-2 ${cell.day == null ? "bg-white/[0.015]" : cell.value! > 0 ? "bg-brand-400/[0.12]" : cell.value! < 0 ? "bg-bear/[0.12]" : "bg-white/[0.035]"}`}><span className="text-[9px] app-muted">{cell.day}</span>{cell.value != null && cell.value !== 0 && <p className={`mt-2 truncate font-mono text-[10px] font-semibold ${cell.value > 0 ? "text-brand-300" : "text-bear"}`}>{money(cell.value, true)}</p>}</div>)}
+      </div>
+      <p className="mt-3 text-[11px] app-muted">
+        {months.length === 1 ? "One month of trading" : `Month ${position + 1} of ${months.length}`} ·{" "}
+        <span className={total > 0 ? "font-semibold text-brand-300" : total < 0 ? "font-semibold text-bear" : "font-semibold"}>{money(total, true)}</span> this month
+      </p>
+    </section>
   );
 }
 

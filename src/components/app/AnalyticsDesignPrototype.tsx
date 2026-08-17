@@ -25,6 +25,7 @@ import {
 
 import { JournalReview, type ReviewRecord } from "@/components/app/journal/JournalReview";
 import { ExitQualityCard } from "@/components/app/ExitQualityCard";
+import { MetricInfo } from "@/components/app/MetricInfo";
 import { TradeFocusProvider } from "@/components/app/TradeFocusContext";
 import { TradesTable } from "@/components/app/TradesTable";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
@@ -452,7 +453,7 @@ export function AnalyticsDesignPrototype({
                   <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-400/10 text-brand-300"><Sigma size={20} aria-hidden /></span>
                 </div>
                 <dl className="mt-6 divide-y app-border border-y app-border">
-                  {[["Win rate", model.winRate === "Not available" ? "—" : `${model.winRate}%`], ["Profit factor", model.profitFactor === "Not available" ? "—" : model.profitFactor], ["Expectancy", model.closedTrades ? money(model.expectancy, true) : "—"], ["Max drawdown", money(-model.maxDrawdown)], ["Closed trades", String(model.closedTrades)]].map(([label,value]) => <div key={label} className="flex items-center justify-between py-3"><dt className="text-xs app-muted">{label}</dt><dd className="font-mono text-sm font-semibold">{value}</dd></div>)}
+                  {[["Win rate", model.winRate === "Not available" ? "—" : `${model.winRate}%`], ["Profit factor", model.profitFactor === "Not available" ? "—" : model.profitFactor], ["Expectancy", model.closedTrades ? money(model.expectancy, true) : "—"], ["Max drawdown", money(-model.maxDrawdown)], ["Closed trades", String(model.closedTrades)]].map(([label,value]) => <div key={label} className="flex items-center justify-between py-3"><dt className="flex items-center gap-1.5 text-xs app-muted">{label}<MetricInfo term={label!} /></dt><dd className="font-mono text-sm font-semibold">{value}</dd></div>)}
                 </dl>
                 <div className="mt-5 rounded-xl bg-brand-400/[0.07] p-4">
                   <div className="flex items-center gap-2 text-xs font-semibold text-brand-300"><TrendingUp size={14} aria-hidden /> Edge forming</div>
@@ -466,7 +467,7 @@ export function AnalyticsDesignPrototype({
             {[
               ["Average R", model.averageR], ["Payoff ratio", model.payoffRatio], ["Avg hold", model.averageHold],
               ["Best trade", money(model.bestTrade, true)], ["Worst trade", money(model.worstTrade, true)], ["Current streak", model.streak],
-            ].map(([label, value]) => <div key={label} className="bg-[var(--app-panel)] px-4 py-3.5"><p className="text-[10px] font-semibold uppercase tracking-[0.11em] app-muted">{label}</p><p className="mt-1.5 font-mono text-base font-semibold">{value}</p></div>)}
+            ].map(([label, value]) => <div key={label} className="bg-[var(--app-panel)] px-4 py-3.5"><p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] app-muted">{label}<MetricInfo term={label!} /></p><p className="mt-1.5 font-mono text-base font-semibold">{value}</p></div>)}
           </section>
 
           <ProjectAnalyticsOverview model={model} />
@@ -562,7 +563,7 @@ function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
   return (
     <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Project analytics</p><h2 className="mt-1 text-lg font-semibold">The test at a glance</h2><p className="mt-1 text-xs app-muted">Coverage, execution frequency, outcome quality, and risk in one compact read.</p></div>
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Project analytics</p><h2 className="mt-1 flex items-center gap-2 text-lg font-semibold">The test at a glance<MetricInfo term="The test at a glance" detail="Coverage, execution frequency, outcome quality, and risk in one compact read. Every figure below has its own (i) with the definition and how to read it." /></h2></div>
         <span className="rounded-full border app-border bg-[var(--app-panel-2)] px-3 py-1.5 font-mono text-[10px] app-muted">{model.closedTrades} closed trades</span>
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -571,7 +572,7 @@ function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
             <span aria-hidden className={`absolute inset-x-0 top-0 h-px bg-current opacity-40 ${tone}`} />
             <div className="flex items-center gap-3"><span className={`grid h-8 w-8 place-items-center rounded-lg bg-white/[0.04] ${tone}`}><Icon size={15} aria-hidden /></span><div><p className="text-[9px] font-semibold uppercase tracking-[0.14em] app-muted">{eyebrow}</p><h3 className="mt-0.5 text-sm font-semibold">{title}</h3></div></div>
             <dl className="mt-4 divide-y app-border">
-              {rows.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 py-2.5"><dt className="text-[11px] app-muted">{label}</dt><dd className="text-right font-mono text-xs font-semibold">{value}</dd></div>)}
+              {rows.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 py-2.5"><dt className="flex items-center gap-1.5 text-[11px] app-muted">{label}<MetricInfo term={label!} /></dt><dd className="text-right font-mono text-xs font-semibold">{value}</dd></div>)}
             </dl>
           </article>
         ))}
@@ -646,7 +647,7 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
           ["Statistical confidence", model.closedTrades >= 30 ? "Established" : "Developing", model.closedTrades >= 30 ? "30+ trade sample" : `${30 - model.closedTrades} more trades needed`],
         ].map(([label, value, detail]) => (
           <div key={label} className="bg-[var(--app-panel)] px-4 py-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.11em] app-muted">{label}</p>
+            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] app-muted">{label}<MetricInfo term={label!} /></p>
             <p className="mt-2 font-mono text-lg font-semibold">{value}</p>
             <p className="mt-1 text-[10px] app-muted">{detail}</p>
           </div>
@@ -654,7 +655,7 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.7fr)]">
-        <ReportCard eyebrow="Risk profile" title="Drawdown and recovery" icon={TrendingDown}>
+        <ReportCard eyebrow="Risk profile" title="Drawdown and recovery" icon={TrendingDown} info="Every point below the line is money the account was down from its previous high. The depth is what you had to tolerate; the width — how long it stayed below the line — is how long you had to tolerate it.">
           <div className="mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
             <svg viewBox="0 0 920 220" preserveAspectRatio="none" className="h-60 w-full" role="img" aria-label="Drawdown curve">
               <defs>
@@ -670,20 +671,20 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
           <div className="mt-3 flex justify-between text-[10px] app-muted"><span>Start</span><span>Deepest: {money(-model.maxDrawdown)}</span><span>Equity path</span><span>Trade {model.closedTrades}</span></div>
         </ReportCard>
 
-        <ReportCard eyebrow="Risk diagnosis" title="What the drawdown says" icon={Gauge}>
+        <ReportCard eyebrow="Risk diagnosis" title="What the drawdown says" icon={Gauge} info="The worst decline set against what the strategy earned, so the reward can be judged against the risk it took rather than on its own.">
           <div className="mt-5 rounded-xl border app-border p-4">
-            <div className="flex items-end justify-between"><div><p className="text-[10px] uppercase tracking-[0.12em] app-muted">Maximum depth</p><p className="mt-1 font-mono text-2xl font-semibold text-bear">−{model.maxDrawdownPercent.toFixed(2)}%</p></div><p className="font-mono text-xs app-muted">{money(-model.maxDrawdown)}</p></div>
+            <div className="flex items-end justify-between"><div><p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] app-muted">Maximum depth<MetricInfo term="Maximum depth" /></p><p className="mt-1 font-mono text-2xl font-semibold text-bear">−{model.maxDrawdownPercent.toFixed(2)}%</p></div><p className="font-mono text-xs app-muted">{money(-model.maxDrawdown)}</p></div>
             <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-bear" style={{ width: `${Math.min(100, model.maxDrawdownPercent / 4 * 100)}%` }} /></div>
             <p className="mt-2 text-[10px] app-muted">{model.maxDrawdownPercent.toFixed(1)}% maximum equity decline</p>
           </div>
           <dl className="mt-4 divide-y app-border">
-            {[["Net realised P/L", money(model.netProfit, true)], ["Closed trades", String(model.closedTrades)], ["Return", percentage(model.returnPercent)], ["Ending equity", money(model.endingBalance)]].map(([label, value]) => <div key={label} className="flex justify-between py-3 text-xs"><dt className="app-muted">{label}</dt><dd className="font-mono font-semibold">{value}</dd></div>)}
+            {[["Net realised P/L", money(model.netProfit, true)], ["Closed trades", String(model.closedTrades)], ["Return", percentage(model.returnPercent)], ["Ending equity", money(model.endingBalance)]].map(([label, value]) => <div key={label} className="flex justify-between py-3 text-xs"><dt className="flex items-center gap-1.5 app-muted">{label}<MetricInfo term={label!} /></dt><dd className="font-mono font-semibold">{value}</dd></div>)}
           </dl>
         </ReportCard>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)]">
-        <ReportCard eyebrow="Consistency" title="Monthly returns" icon={BarChart3}>
+        <ReportCard eyebrow="Consistency" title="Monthly returns" icon={BarChart3} info="Each month's profit as a percentage of the starting balance. Look for how evenly the profit arrives — a year made in one month is far harder to trade live than the same year spread across twelve.">
           <div className="mt-6 grid h-56 grid-cols-12 items-center gap-2 border-b app-border px-1">
             {model.monthlyReturns.map((value, index) => {
               const height = Math.max(value === 0 ? 0 : 12, Math.abs(value) / Math.max(Math.abs(bestMonth), Math.abs(worstMonth), 0.01) * 86);
@@ -705,7 +706,7 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="app-muted">Best month <b className="ml-1 font-mono text-brand-300">{percentage(bestMonth)}</b></span><span className="app-muted">Worst month <b className="ml-1 font-mono text-bear">{percentage(worstMonth)}</b></span><span className="app-muted">Average <b className="ml-1 font-mono text-[var(--app-text)]">{percentage(averageMonth)}</b></span></div>
         </ReportCard>
 
-        <ReportCard eyebrow="Market timing" title="Performance by session" icon={Clock3}>
+        <ReportCard eyebrow="Market timing" title="Performance by session" icon={Clock3} info="Results grouped by the market window a trade was opened in, using New York time. Bar length is profit; the figure on the right is that window's win rate.">
           <div className="mt-5 space-y-5">
             {model.sessions.map((session) => (
               <div key={session.label}>
@@ -719,7 +720,7 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ReportCard eyebrow="Timing" title="Performance by weekday" icon={CalendarDays}>
+        <ReportCard eyebrow="Timing" title="Performance by weekday" icon={CalendarDays} info="Results grouped by the day a trade was opened. With fewer than about a hundred trades there are only a handful in each day, so treat a standout day as a question rather than a finding.">
           <div className="mt-5 space-y-4">
             {model.weekdays.map((day) => (
               <div key={day.label} className="grid grid-cols-[34px_minmax(0,1fr)_72px] items-center gap-3 text-xs">
@@ -731,21 +732,19 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
           </div>
         </ReportCard>
 
-        <ReportCard eyebrow="Trade outcomes" title="R-multiple distribution" icon={Target}>
+        <ReportCard eyebrow="Trade outcomes" title="R-multiple distribution" icon={Target} info="Each bar counts the trades that finished in that band. Trades with no recorded initial risk cannot be converted to R and are left out of this chart.">
           <div className="mt-6 grid h-44 grid-cols-6 items-end gap-3 border-b app-border px-2">
             {model.rDistribution.map((bucket) => <div key={bucket.label} className="flex h-full flex-col justify-end text-center"><span className="mb-2 font-mono text-[10px] app-muted">{bucket.count}</span><div className={`mx-auto w-[72%] rounded-t ${bucket.label.startsWith("+") || bucket.label.startsWith(">") ? "bg-brand-400/75" : bucket.label === "0R" ? "bg-white/20" : "bg-bear/75"}`} style={{ height: `${bucket.count / rMax * 80}%` }} /><span className="mt-2 pb-2 text-[9px] app-muted">{bucket.label}</span></div>)}
           </div>
-          <p className="mt-4 text-xs leading-5 app-muted">R-multiples use each trade&apos;s recorded initial risk. Trades without recorded risk are excluded from this chart.</p>
         </ReportCard>
       </div>
       <section className="pt-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Edge breakdowns</p>
-        <h2 className="mt-1 text-xl font-semibold">Understand what is driving the result</h2>
-        <p className="mt-1 text-xs app-muted">Compare repeatable sources of profit and identify weak conditions to remove from the plan.</p>
+        <h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">Understand what is driving the result<MetricInfo term="Edge breakdowns" detail="The same profit, split every way that might explain it: exit reason, position size, direction, holding time. You are looking for a condition that is reliably weak and can be removed from the plan — not for the single best bucket, which on a small sample is usually chance." /></h2>
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.75fr)]">
-        <ReportCard eyebrow="Trade exits" title="Performance by exit reason" icon={Target}>
+        <ReportCard eyebrow="Trade exits" title="Performance by exit reason" icon={Target} info="How each trade ended: hit its target, hit its stop, closed by hand, or was still open when the session ended. A manual-close row that trails take-profit is the clearest sign that discretion is costing money.">
           <div className="mt-5 overflow-x-auto">
             <div className="min-w-[580px] divide-y app-border">
               <div className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] gap-4 pb-2 text-[9px] font-semibold uppercase tracking-[0.1em] app-muted"><span>Exit reason</span><span>Trades</span><span>Win rate</span><span className="text-right">Net P/L</span></div>
@@ -761,7 +760,7 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
           </div>
         </ReportCard>
 
-        <ReportCard eyebrow="Risk allocation" title="Performance by position size" icon={BarChart3}>
+        <ReportCard eyebrow="Risk allocation" title="Performance by position size" icon={BarChart3} info="Which position sizes actually produced the profit. Compare a size bucket's contribution with the drawdown it caused before deciding to increase risk — a bucket can lead on profit and still be the one that hurt most.">
           <div className="mt-5 space-y-5">
             {model.sizes.map((bucket) => (
               <div key={bucket.label}>
@@ -770,20 +769,18 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
               </div>
             ))}
           </div>
-          <p className="mt-6 rounded-xl bg-amber-300/[0.06] p-3 text-xs leading-5 app-muted"><b className="text-amber-200">Sizing note:</b> Compare position-size contribution with drawdown before increasing risk.</p>
         </ReportCard>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <ReportCard eyebrow="Direction" title="Long versus short" icon={TrendingUp}>
+        <ReportCard eyebrow="Direction" title="Long versus short" icon={TrendingUp} info="Whether the edge works in both directions. Compare these before filtering the next test plan — but a lopsided result on a small sample is usually a few outlier trades rather than a real bias.">
           <div className="mt-5 grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-brand-400/[0.07] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">Long</p><p className={`mt-2 font-mono text-xl font-semibold ${model.directions.long.value >= 0 ? "text-brand-300" : "text-bear"}`}>{money(model.directions.long.value, true)}</p><p className="mt-1 text-[10px] app-muted">{model.directions.long.trades} trades · {model.directions.long.rate}% won</p></div>
             <div className="rounded-xl bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">Short</p><p className={`mt-2 font-mono text-xl font-semibold ${model.directions.short.value >= 0 ? "text-brand-300" : "text-bear"}`}>{money(model.directions.short.value, true)}</p><p className="mt-1 text-[10px] app-muted">{model.directions.short.trades} trades · {model.directions.short.rate}% won</p></div>
           </div>
-          <p className="mt-4 text-xs leading-5 app-muted">Compare direction-level performance before filtering the next test plan. A larger sample reduces the influence of a few outlier trades.</p>
         </ReportCard>
 
-        <ReportCard eyebrow="Trade management" title="Performance by holding time" icon={Clock3}>
+        <ReportCard eyebrow="Trade management" title="Performance by holding time" icon={Clock3} info="How long a trade was open, against what it made. Use it to tell whether you are exiting too early or overstaying — a negative short-hold bucket usually means trades are being cut before the setup has had time to work.">
           <div className="mt-5 space-y-3">
             {model.holding.map((bucket) => (
               <div key={bucket.label} className="grid grid-cols-[76px_minmax(0,1fr)_72px] items-center gap-2 text-[10px]">
@@ -793,26 +790,30 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
               </div>
             ))}
           </div>
-          <p className="mt-4 text-xs leading-5 app-muted">Use holding-time performance to identify whether early exits or overstaying are weakening the strategy.</p>
         </ReportCard>
 
         <ReportCard eyebrow="Robustness" title="Profit concentration" icon={ShieldCheck}>
           <div className="mt-5 flex items-center gap-5">
             <div className="relative grid h-24 w-24 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#22c3a0 0 ${model.concentration}%, rgba(255,255,255,.08) ${model.concentration}% 100%)` }}><div className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--app-panel)]"><div className="text-center"><p className="font-mono text-lg font-semibold">{model.concentration.toFixed(0)}%</p><p className="text-[8px] app-muted">top 3</p></div></div></div>
-            <div><p className="text-xs font-semibold">{model.concentration <= 50 ? "Profit is reasonably distributed" : "Profit is concentrated"}</p><p className="mt-2 text-xs leading-5 app-muted">The three largest winners produce {model.concentration.toFixed(0)}% of net profit. Lower concentration generally means a more repeatable result.</p></div>
+            <div><p className="text-xs font-semibold">{model.concentration <= 50 ? "Profit is reasonably distributed" : "Profit is concentrated"}</p><p className="mt-2 text-xs leading-5 app-muted">The three largest winners produce {model.concentration.toFixed(0)}% of net profit.</p></div>
           </div>
-          <dl className="mt-4 divide-y app-border"><div className="flex justify-between py-2.5 text-xs"><dt className="app-muted">Best trade</dt><dd className="font-mono font-semibold text-brand-300">{money(model.bestTrade, true)}</dd></div><div className="flex justify-between py-2.5 text-xs"><dt className="app-muted">Top-three contribution</dt><dd className="font-mono font-semibold">{model.concentration.toFixed(1)}%</dd></div></dl>
+          <dl className="mt-4 divide-y app-border"><div className="flex justify-between py-2.5 text-xs"><dt className="flex items-center gap-1.5 app-muted">Best trade<MetricInfo term="Best trade" /></dt><dd className="font-mono font-semibold text-brand-300">{money(model.bestTrade, true)}</dd></div><div className="flex justify-between py-2.5 text-xs"><dt className="flex items-center gap-1.5 app-muted">Top-three contribution<MetricInfo term="Top-three contribution" /></dt><dd className="font-mono font-semibold">{model.concentration.toFixed(1)}%</dd></div></dl>
         </ReportCard>
       </div>
     </main>
   );
 }
 
-function ReportCard({ eyebrow, title, icon: Icon, children }: { eyebrow: string; title: string; icon: typeof LineChart; children: React.ReactNode }) {
+/**
+ * `info` is where a card's explanatory paragraph goes. These used to sit under
+ * the chart as body copy, which meant a reader who already knew what a
+ * drawdown was still had to scroll past the explanation on every visit.
+ */
+function ReportCard({ eyebrow, title, icon: Icon, info, children }: { eyebrow: string; title: string; icon: typeof LineChart; info?: string; children: React.ReactNode }) {
   return (
     <section className="min-w-0 rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
-        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">{eyebrow}</p><h3 className="mt-1 text-lg font-semibold">{title}</h3></div>
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">{eyebrow}</p><h3 className="mt-1 flex items-center gap-2 text-lg font-semibold">{title}<MetricInfo term={title} detail={info} /></h3></div>
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/[0.04] app-muted"><Icon size={16} /></span>
       </div>
       {children}

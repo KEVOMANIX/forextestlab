@@ -1,5 +1,6 @@
 "use client";
 
+import { MetricInfo } from "@/components/app/MetricInfo";
 import { summariseExcursions, type PlanSummary } from "@/lib/backtest/exit-quality";
 import type { ClosedTrade } from "@/lib/backtest/types";
 
@@ -51,8 +52,12 @@ export function ExitQualityCard({
         <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-300">
           Exit quality
         </p>
-        <h2 className="mt-1 text-xl font-semibold">
+        <h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">
           What your exits cost — or saved
+          <MetricInfo
+            term="Exit quality"
+            detail="Every trade is measured twice: what it reached while it was open, and what you kept. Where a trade was closed by hand, the original stop and target are then replayed against the real candles to see what leaving it alone would have done. Nothing here uses data the replay had not already shown you."
+          />
         </h2>
       </div>
 
@@ -98,18 +103,18 @@ export function ExitQualityCard({
                   ? "—"
                   : `${excursion.averageGiveBackR.toFixed(2)}R`
               }
-              detail="per trade, between its peak and its close"
+              detail="Measured per trade, between its best unrealised point and where it was actually closed."
             />
             <Figure
               label="Gave back over 1R"
               value={`${excursion.gaveBackOverOneR} of ${excursion.tested}`}
-              detail="handed back a whole unit of risk"
+              detail="These handed back a whole unit of risk — the trades where a different exit rule would have changed the result most."
             />
             {excursion.averageWinnerTroughR !== null && (
               <Figure
                 label="Winners dipped to"
                 value={`${excursion.averageWinnerTroughR.toFixed(2)}R`}
-                detail={`before they worked — your stop sat at −1.00R`}
+                detail="How far the eventual winners went against you before they worked. Your stop sat at −1.00R, so the closer this is to −1.00R, the nearer those winners came to being stopped out."
               />
             )}
           </dl>
@@ -136,17 +141,23 @@ export function ExitQualityCard({
           <div className="mt-3 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
             <Total
               label="What you took"
+              info="The real result of these trades, added up in units of risk and in money."
               r={plan.capturedR}
               value={plan.capturedMoney}
             />
             <Total
               label="What the original plan would have taken"
+              info="The same trades with the stop and target they were opened with, left to resolve against the real candles. A trade still unresolved at the end of the session is counted at its closing price, not at its target."
               r={plan.planR}
               value={plan.planMoney}
             />
             <div className="bg-[var(--app-panel)] p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">
                 Difference
+                <MetricInfo
+                  term="Difference"
+                  detail="The gap between the two totals beside it. It is not a profit or a loss — it is what your discretion was worth over these trades, positive or negative."
+                />
               </p>
               <p
                 className={`mt-2 text-sm font-semibold leading-5 ${planAhead > 0 ? "text-bear" : planAhead < 0 ? "text-brand-300" : ""}`}
@@ -185,8 +196,16 @@ export function ExitQualityCard({
             .
           </p>
 
-          <h3 className="mt-6 text-sm font-semibold">
+          <h3 className="mt-6 flex items-center gap-2 text-sm font-semibold">
             What a fixed target would have done instead
+            <MetricInfo
+              term="Fixed target test"
+              detail={`Each row replays every hand-closed trade with one fixed target and its own original stop, and compares the total with what you actually took. These targets were chosen after seeing the result, so the table is fitted to this sample. ${
+                plan.tested < 30
+                  ? `With ${plan.tested} trade${plan.tested === 1 ? "" : "s"} behind it, treat it as a question to test rather than an answer.`
+                  : "Test it forward on a fresh period before trusting it."
+              }`}
+            />
           </h3>
           <div className="mt-2 overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -243,19 +262,16 @@ export function ExitQualityCard({
             </table>
           </div>
 
-          <p className="mt-3 text-[11px] leading-5 app-muted">
-            These targets were chosen after seeing the result, so the table is
-            fitted to this sample.
-            {plan.tested < 30
-              ? ` With ${plan.tested} trade${plan.tested === 1 ? "" : "s"} behind it, treat it as a question to test rather than an answer.`
-              : " Test it forward on a fresh period before trusting it."}
-          </p>
         </div>
       )}
     </section>
   );
 }
 
+/**
+ * The caption used to print under every figure. Three of those stacked under
+ * three numbers is more explanation than data, so it moved behind the (i).
+ */
 function Figure({
   label,
   value,
@@ -267,26 +283,31 @@ function Figure({
 }) {
   return (
     <div>
-      <dt className="app-muted">{label}</dt>
+      <dt className="flex items-center gap-1.5 app-muted">
+        {label}
+        <MetricInfo term={label} detail={detail} />
+      </dt>
       <dd className="mt-0.5 font-mono text-base font-semibold">{value}</dd>
-      <dd className="mt-0.5 text-[11px] app-muted">{detail}</dd>
     </div>
   );
 }
 
 function Total({
   label,
+  info,
   r,
   value,
 }: {
   label: string;
+  info: string;
   r: number;
   value: number;
 }) {
   return (
     <div className="bg-[var(--app-panel)] p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">
         {label}
+        <MetricInfo term={label} detail={info} />
       </p>
       <p className="mt-2 font-mono text-xl font-semibold">{rr(r)}</p>
       <p className="mt-1 font-mono text-[11px] app-muted">{money(value)}</p>

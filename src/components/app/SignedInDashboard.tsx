@@ -14,6 +14,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
+import { MetricInfo } from "@/components/app/MetricInfo";
 import { DashboardReviewWorkspace, type DashboardInsight } from "@/components/app/DashboardReviewWorkspace";
 import {
   DashboardSessionsTable,
@@ -584,7 +585,7 @@ export function SignedInDashboard({
               <div className="mt-4 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
                 <div className="bg-[var(--app-panel)]/90 p-3.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold app-muted">Replay progress</span>
+                    <span className="flex items-center gap-1.5 font-semibold app-muted">Replay progress<MetricInfo term="Replay progress" /></span>
                     <span className="font-mono font-semibold">{progress.toFixed(0)}%</span>
                   </div>
                   <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
@@ -602,7 +603,7 @@ export function SignedInDashboard({
                   </p>
                 </div>
                 <div className="bg-[var(--app-panel)]/90 p-3.5">
-                  <p className="text-xs font-semibold app-muted">Current balance</p>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold app-muted">Current balance<MetricInfo term="Current balance" /></p>
                   <p className="mt-1.5 font-mono text-base font-semibold">
                     {formatBalance(new Decimal(selectedSession.balance))}
                   </p>
@@ -641,7 +642,7 @@ export function SignedInDashboard({
                 <div className="relative">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="text-xs font-medium app-muted">{label}</p>
+                      <p className="flex items-center gap-1.5 text-xs font-medium app-muted">{label}<MetricInfo term={label} /></p>
                       <p className={`mt-1.5 font-mono text-xl font-semibold tracking-tight ${tone}`}>{value}</p>
                     </div>
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border app-border bg-[var(--app-panel-2)] transition-colors group-hover:border-brand-400/25">

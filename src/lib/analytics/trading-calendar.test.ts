@@ -72,32 +72,72 @@ describe("choosing which months to draw", () => {
 });
 
 describe("laying out a month", () => {
-  it("puts day one under its real weekday", () => {
-    // 1 February 2025 was a Saturday: six blanks, then the 1st.
+  it("leaves out the days the market is shut", () => {
+    // Forex closes Friday evening and reopens Sunday evening, so Saturday can
+    // never hold a trade and Sunday almost never does.
+    const [may] = createCalendar([trade(at(2023, 5, 9), "10")]);
+    expect(may!.weekdays).toEqual([1, 2, 3, 4, 5]);
+    // May 2023 began on a Monday and ran 31 days: five rows of five.
+    expect(may!.cells).toHaveLength(25);
+  });
+
+  it("brings the weekend back when a trade really closed in it", () => {
+    // 21:00 UTC Sunday is 17:00 in New York: the week reopens, and a trade
+    // closed that evening is real. Hiding it would lose money from the grid.
+    const sundayEvening = Date.UTC(2023, 4, 7, 22);
+    const [may] = createCalendar([trade(sundayEvening, "75"), trade(at(2023, 5, 9), "10")]);
+    expect(may!.weekdays).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(may!.cells.find((cell) => cell.day === 7)?.value).toBeCloseTo(75, 5);
+  });
+
+  it("keeps one column set for the whole session, not one per month", () => {
+    // Otherwise the grid would change width as the reader steps months.
+    const months = createCalendar([
+      trade(Date.UTC(2023, 4, 7, 22), "75"),
+      trade(at(2023, 6, 14), "10"),
+    ]);
+    expect(months.map((month) => month.weekdays)).toEqual([
+      [0, 1, 2, 3, 4, 5],
+      [0, 1, 2, 3, 4, 5],
+    ]);
+  });
+
+  it("puts each date under its real weekday", () => {
+    // 1 May 2023 was a Monday, so it leads the first row.
+    const [may] = createCalendar([trade(at(2023, 5, 9), "10")]);
+    expect(may!.cells.slice(0, 5).map((cell) => cell.day)).toEqual([1, 2, 3, 4, 5]);
+    // 1 June 2023 was a Thursday: three blanks, then the 1st.
+    const [june] = createCalendar([trade(at(2023, 6, 14), "10")]);
+    expect(june!.cells.slice(0, 5).map((cell) => cell.day)).toEqual([null, null, null, 1, 2]);
+  });
+
+  it("drops a week that was entirely weekend", () => {
+    // February 2025 begins on a Saturday. With the weekend hidden that first
+    // week holds no dates at all, and would otherwise open the grid with a
+    // blank strip.
     const [february] = createCalendar([trade(at(2025, 2, 3), "10")]);
-    expect(february!.cells.slice(0, 6).map((cell) => cell.day)).toEqual([null, null, null, null, null, null]);
-    expect(february!.cells[6]!.day).toBe(1);
+    expect(february!.cells[0]!.day).toBe(3);
   });
 
   it("uses only the rows the month needs", () => {
-    // August 2025 began on a Friday and has 31 days, so it genuinely needs six
-    // rows. February 2021 began on a Monday and fits in five. The old fixed 42
-    // cells left a dead strip under every month like the latter.
-    expect(createCalendar([trade(at(2025, 8, 3), "10")])[0]!.cells).toHaveLength(42);
-    expect(createCalendar([trade(at(2021, 2, 3), "10")])[0]!.cells).toHaveLength(35);
+    // August 2025 ran Friday the 1st to Sunday the 31st. That last Sunday is
+    // the only date in its week, so once the weekend goes the month needs five
+    // rows rather than six.
+    expect(createCalendar([trade(at(2025, 8, 4), "10")])[0]!.cells).toHaveLength(25);
+    expect(createCalendar([trade(at(2021, 2, 3), "10")])[0]!.cells).toHaveLength(20);
   });
 
   it("never runs a day past the end of the month", () => {
     const [april] = createCalendar([trade(at(2024, 4, 3), "10")]);
     const days = april!.cells.filter((cell) => cell.day !== null).map((cell) => cell.day);
-    expect(days).toHaveLength(30);
+    expect(days).toHaveLength(22); // 30 days less eight weekend days
     expect(days.at(-1)).toBe(30);
   });
 
   it("labels the month it drew, not a neighbour", () => {
     // Labelling from the 1st risks the New York offset pulling the date back
     // into the previous month, which would name March's grid "February".
-    expect(createCalendar([trade(at(2025, 3, 1), "10")])[0]!.label).toBe("March 2025");
+    expect(createCalendar([trade(at(2025, 3, 3), "10")])[0]!.label).toBe("March 2025");
     expect(createCalendar([trade(at(2025, 1, 31), "10")])[0]!.label).toBe("January 2025");
   });
 });

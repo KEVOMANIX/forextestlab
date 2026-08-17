@@ -35,7 +35,7 @@ import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY }
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
-import { createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
+import { WEEKDAY_LABELS, createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
@@ -492,13 +492,16 @@ function TradingActivityCalendar({ months }: { months: CalendarMonth[] }) {
   const position = Math.min(index, months.length - 1);
   const month = months[position]!;
   const total = month.cells.reduce((sum, cell) => sum + (cell.value ?? 0), 0);
+  // The column count varies with whether the weekend is in play, and Tailwind
+  // cannot emit an interpolated `grid-cols-${n}`.
+  const columns = { gridTemplateColumns: `repeat(${month.weekdays.length}, minmax(0, 1fr))` };
 
   return (
     <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Consistency</p>
-          <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold">Trading activity<MetricInfo term="Trading activity" detail="Each cell is one day's realised profit or loss, placed on the day the trade closed, in New York time. Only months containing a trade are shown." /></h2>
+          <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold">Trading activity<MetricInfo term="Trading activity" detail="Each cell is one day's realised profit or loss, placed on the day the trade closed, in New York time. Only months containing a trade are shown, and the weekend is left out unless a trade closed in it — forex is shut from Friday evening until the Sunday 5pm New York reopen." /></h2>
         </div>
         <div className="flex items-center gap-1">
           <button type="button" onClick={() => setIndex(position - 1)} disabled={position === 0} aria-label="Previous month" className="grid h-7 w-7 place-items-center rounded-md app-muted transition-colors hover:bg-white/[0.06] hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"><ChevronLeft size={15} aria-hidden /></button>
@@ -506,8 +509,8 @@ function TradingActivityCalendar({ months }: { months: CalendarMonth[] }) {
           <button type="button" onClick={() => setIndex(position + 1)} disabled={position === months.length - 1} aria-label="Next month" className="grid h-7 w-7 place-items-center rounded-md app-muted transition-colors hover:bg-white/[0.06] hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"><ChevronRight size={15} aria-hidden /></button>
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-7 gap-1.5 text-center text-[9px] app-muted">{["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((day)=><span key={day} className="py-1">{day}</span>)}</div>
-      <div className="mt-1 grid grid-cols-7 gap-1.5">
+      <div className="mt-4 grid gap-1.5 text-center text-[9px] app-muted" style={columns}>{month.weekdays.map((weekday)=><span key={weekday} className="py-1">{WEEKDAY_LABELS[weekday]}</span>)}</div>
+      <div className="mt-1 grid gap-1.5" style={columns}>
         {month.cells.map((cell,cellIndex)=><div key={cellIndex} className={`relative min-h-16 rounded-lg p-2 ${cell.day == null ? "bg-white/[0.015]" : cell.value! > 0 ? "bg-brand-400/[0.12]" : cell.value! < 0 ? "bg-bear/[0.12]" : "bg-white/[0.035]"}`}><span className="text-[9px] app-muted">{cell.day}</span>{cell.value != null && cell.value !== 0 && <p className={`mt-2 truncate font-mono text-[10px] font-semibold ${cell.value > 0 ? "text-brand-300" : "text-bear"}`}>{money(cell.value, true)}</p>}</div>)}
       </div>
       <p className="mt-3 text-[11px] app-muted">

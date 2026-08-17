@@ -11,9 +11,28 @@ export const DEMO_ANALYTICS_PNLS = [541, 260, -444, -930, -584, 304, 557, -1492,
 const setupTags = ["London breakout", "Opening range", "Liquidity sweep", "NY reversal"];
 const emotions = ["Focused", "Patient", "Confident", "Neutral"];
 
+/**
+ * The nth trading day from Monday 3 February 2025, skipping the closure.
+ *
+ * The sample used to walk consecutive calendar days, so it booked trades on
+ * Saturday the 8th and Sunday the 9th — days a forex market is shut. Nobody
+ * noticed until the activity calendar started hiding the weekend and had to
+ * keep both columns open to avoid losing those trades.
+ */
+function demoTradingDay(offset: number): number {
+  const day = new Date(DEMO_ANALYTICS_START);
+  day.setUTCHours(0, 0, 0, 0);
+  let remaining = offset;
+  while (remaining > 0) {
+    day.setUTCDate(day.getUTCDate() + 1);
+    if (day.getUTCDay() !== 0 && day.getUTCDay() !== 6) remaining -= 1;
+  }
+  return day.getTime();
+}
+
 export const DEMO_ANALYTICS_TRADES: ClosedTrade[] = DEMO_ANALYTICS_PNLS.map((pnl, index) => {
   const entryHoursUtc = [7, 10, 14, 22] as const;
-  const entryTime = Date.UTC(2025, 1, 3 + index, entryHoursUtc[index % entryHoursUtc.length]);
+  const entryTime = demoTradingDay(index) + entryHoursUtc[index % entryHoursUtc.length]! * 3_600_000;
   const won = pnl > 0;
   const setup = setupTags[index % setupTags.length]!;
   const risk = 500;

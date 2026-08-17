@@ -284,48 +284,79 @@ export async function sendContactReceipt(
   });
 }
 
-export async function sendSupportReplyNotification({
+/**
+ * Tell a customer there is something new in their conversation.
+ *
+ * The wording forks because support can now speak first. Every notification
+ * used to say "we replied", which is a lie when nobody wrote in — a customer
+ * contacted out of the blue was told they had a response to a message they had
+ * never sent.
+ */
+export async function sendSupportMessageNotification({
   email,
   name,
   subject,
   preview,
+  firstContact = false,
 }: {
   email: string;
   name: string;
   subject: string;
   preview: string;
+  /** True when support opened the conversation, so there is no reply to speak of. */
+  firstContact?: boolean;
 }): Promise<void> {
   const config = getSmtpConfig();
   const safeSubject = escapeHtml(subject);
   const safePreview = escapeHtml(preview).replace(/\r?\n/g, "<br>");
 
+  const copy = firstContact
+    ? {
+        subject: `Message from support: ${subject}`,
+        lead: `ForexTestLab Support has sent you a message about “${subject}”:`,
+        preheader: `ForexTestLab Support has sent you a message about ${subject}.`,
+        eyebrow: "New support message",
+        title: `Hi ${name}, a message from support`,
+        intro: `Our support team has started a conversation with you about “${subject}”. You can answer right here.`,
+        action: "Open the conversation",
+      }
+    : {
+        subject: `Support replied: ${subject}`,
+        lead: `ForexTestLab Support replied to “${subject}”:`,
+        preheader: `ForexTestLab Support replied to ${subject}.`,
+        eyebrow: "New support reply",
+        title: `Hi ${name}, we replied`,
+        intro: `There is a new response in your conversation about “${subject}”.`,
+        action: "Read full reply",
+      };
+
   await deliver(config, {
     from: `ForexTestLab Support <${config.from}>`,
     to: email,
     replyTo: config.to,
-    subject: `Support replied: ${subject}`,
+    subject: copy.subject,
     text: [
       `Hi ${name},`,
       "",
-      `ForexTestLab Support replied to “${subject}”:`,
+      copy.lead,
       preview,
       "",
       `Open your support inbox: ${siteUrl()}/app/support`,
     ].join("\n"),
     html: renderBrandEmail({
-      preheader: `ForexTestLab Support replied to ${subject}.`,
-      eyebrow: "New support reply",
-      title: `Hi ${name}, we replied`,
-      intro: `There is a new response in your conversation about “${subject}”.`,
+      preheader: copy.preheader,
+      eyebrow: copy.eyebrow,
+      title: copy.title,
+      intro: copy.intro,
       contentHtml: `
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f7fafc;border:1px solid #e1e9ef;border-radius:12px">
           <tr><td class="block" style="padding:20px 22px">
-            <p style="margin:0 0 8px;font-family:Arial,sans-serif;font-size:12px;line-height:18px;text-transform:uppercase;letter-spacing:1px;color:#7a8b98">${safeSubject}</p>
+            <p style="margin:0 0 10px;font-family:Arial,sans-serif;font-size:15px;line-height:23px;font-weight:700;color:#142433">${safeSubject}</p>
             <p style="margin:0;font-family:Arial,sans-serif;font-size:15px;line-height:25px;color:#344a5a">${safePreview}</p>
           </td></tr>
         </table>`,
       action: {
-        label: "Read full reply",
+        label: copy.action,
         href: `${siteUrl()}/app/support`,
       },
     }),

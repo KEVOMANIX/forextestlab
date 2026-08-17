@@ -15,7 +15,7 @@ vi.mock("nodemailer", () => ({
 import {
   sendContactEmail,
   sendContactReceipt,
-  sendSupportReplyNotification,
+  sendSupportMessageNotification,
 } from "./contact-email";
 
 const smtpEnvironment = {
@@ -98,7 +98,7 @@ describe("sendContactEmail", () => {
   });
 
   it("escapes support reply previews inside the branded notification", async () => {
-    await sendSupportReplyNotification({
+    await sendSupportMessageNotification({
       email: "kelvin@example.com",
       name: "Kelvin",
       subject: "Account access",
@@ -138,7 +138,7 @@ describe("the email shell", () => {
   });
 
   it("carries responsive rules so a phone is not left with a narrow ribbon", async () => {
-    await sendSupportReplyNotification({
+    await sendSupportMessageNotification({
       email: "trader@example.com",
       name: "Kelvin",
       subject: "Replay stalls",
@@ -154,7 +154,7 @@ describe("the email shell", () => {
   });
 
   it("styles the logo so a blocked image still reads as the brand", async () => {
-    await sendSupportReplyNotification({
+    await sendSupportMessageNotification({
       email: "trader@example.com",
       name: "Kelvin",
       subject: "Replay stalls",
@@ -174,7 +174,7 @@ describe("the email shell", () => {
     // A preview or local NEXT_PUBLIC_SITE_URL would make the logo unreachable
     // from a mail client, which is the whole point of not attaching it.
     process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
-    await sendSupportReplyNotification({
+    await sendSupportMessageNotification({
       email: "trader@example.com",
       name: "Kelvin",
       subject: "Replay stalls",
@@ -182,5 +182,60 @@ describe("the email shell", () => {
     });
     const html = String(sendMail.mock.calls[0]?.[0]?.html);
     expect(html).toContain('src="https://forextestlab.com/logo-full.png"');
+  });
+});
+
+describe("what the notification says", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.assign(process.env, smtpEnvironment);
+    sendMail.mockResolvedValue({ messageId: "message-1" });
+  });
+
+  afterEach(() => {
+    for (const name of Object.keys(smtpEnvironment)) delete process.env[name];
+  });
+
+  it("does not call it a reply when support started the conversation", async () => {
+    // Support can now write first, and telling someone "we replied" to a
+    // message they never sent is simply wrong.
+    await sendSupportMessageNotification({
+      email: "trader@example.com",
+      name: "Kelvin",
+      subject: "Your session has been restored",
+      preview: "We rebuilt the candles that were missing.",
+      firstContact: true,
+    });
+    const message = sendMail.mock.calls[0]?.[0];
+    expect(message?.subject).toBe("Message from support: Your session has been restored");
+    expect(String(message?.html)).toContain("New support message");
+    expect(String(message?.html)).toContain("a message from support");
+    expect(String(message?.html)).not.toContain("we replied");
+    expect(String(message?.text)).not.toContain("replied");
+  });
+
+  it("still calls it a reply when the customer wrote first", async () => {
+    await sendSupportMessageNotification({
+      email: "trader@example.com",
+      name: "Kelvin",
+      subject: "Replay stalls",
+      preview: "Reproduced and fixed.",
+    });
+    const message = sendMail.mock.calls[0]?.[0];
+    expect(message?.subject).toBe("Support replied: Replay stalls");
+    expect(String(message?.html)).toContain("New support reply");
+    expect(String(message?.html)).toContain("we replied");
+  });
+
+  it("sets the subject in bold, like the receipt already did", async () => {
+    await sendSupportMessageNotification({
+      email: "trader@example.com",
+      name: "Kelvin",
+      subject: "Replay stalls",
+      preview: "Reproduced and fixed.",
+    });
+    const html = String(sendMail.mock.calls[0]?.[0]?.html);
+    const subjectLine = html.match(/<p[^>]*>Replay stalls<\/p>/)?.[0] ?? "";
+    expect(subjectLine).toContain("font-weight:700");
   });
 });

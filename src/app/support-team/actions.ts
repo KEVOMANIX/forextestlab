@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
-import { sendSupportReplyNotification } from "@/lib/contact-email";
+import { sendSupportMessageNotification } from "@/lib/contact-email";
 import { publishSupportConversationChanged } from "@/lib/support-realtime";
 import {
   requireSupportAgent,
@@ -129,7 +129,7 @@ export async function replyToConversation(formData: FormData): Promise<WriteResu
   publishSupportConversationChanged(conversationId);
   if (recipient?.customerEmail && recipient.shouldNotify) {
     try {
-      await sendSupportReplyNotification({
+      await sendSupportMessageNotification({
         email: recipient.customerEmail,
         name: recipient.customerName ?? "Customer",
         subject: recipient.subject,
@@ -440,11 +440,13 @@ export async function startOutboundConversation(
   publishSupportConversationChanged(conversation.id);
 
   try {
-    await sendSupportReplyNotification({
+    await sendSupportMessageNotification({
       email: profile.email,
       name: profile.displayName ?? "Customer",
       subject,
       preview: body.slice(0, 300),
+      // Nobody wrote in, so this cannot announce itself as a reply.
+      firstContact: true,
     });
   } catch (error) {
     // The thread is already delivered in the widget; a failed email must not

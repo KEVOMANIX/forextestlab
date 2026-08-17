@@ -15,6 +15,7 @@ import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 
 import { CoordinateMapper, type Candle } from "./coords";
 import { DrawingObject, SELECTION_HANDLE, type RenderCtx } from "./object";
+import { canStraighten, releaseEndsDrawing, straighten } from "./constrain";
 import { createObject, newDrawing } from "./objects";
 import {
   HANDLE_FILL,
@@ -78,6 +79,10 @@ interface CreateState {
   obj: DrawingObject;
   mode: CreateMode;
   placed: number;
+  /** Where the press began, so release can tell a click from a drag. */
+  startPx: { x: number; y: number };
+  /** Furthest the pointer has travelled from that press, in pixels. */
+  travelled: number;
 }
 
 export interface ContextMenuRequest {
@@ -135,6 +140,9 @@ export class DrawingEngine {
   private frozen = false;
   /** Ctrl/Cmd held → temporarily invert magnet (off↔strong), like TradingView. */
   private ctrlHeld = false;
+  private shiftHeld = false;
+  /** Last pointer position, so a Shift press re-straightens without a move. */
+  private lastMovePx: { x: number; y: number } | null = null;
 
   constructor(
     private chart: IChartApi,
@@ -670,6 +678,34 @@ export class DrawingEngine {
     });
   }
 
+  /**
+   * Shift changes the shape of a drawing already in progress, so the line has
+   * to redraw the moment the key moves — waiting for the next mouse movement
+   * would leave the trader holding a key that appears to do nothing.
+   */
+  private setShift(held: boolean): void {
+    if (this.shiftHeld === held) return;
+    this.shiftHeld = held;
+    if (this.create && this.lastMovePx) this.updateCreate(this.lastMovePx);
+  }
+
+  /**
+   * The floating end held to a clean angle while Shift is down, or null when
+   * it is not — the caller uses null to mean "leave the point alone".
+   */
+  private straightenPx(
+    kind: ToolKind,
+    px: { x: number; y: number },
+  ): { x: number; y: number } | null {
+    if (!this.shiftHeld || !this.create || !canStraighten(kind)) return null;
+    const anchor = this.create.obj.points[0];
+    if (!anchor) return null;
+    const ax = anchor.time ? this.mapper.timeToX(anchor.time) : null;
+    const ay = this.mapper.priceToY(anchor.price);
+    if (ax == null || ay == null) return null;
+    return straighten({ x: ax, y: ay }, px);
+  }
+
   private snap(p: Point): Point {
     let mode = this.env.magnet;
     if (this.ctrlHeld) mode = mode === "off" ? "strong" : "off";
@@ -681,6 +717,8 @@ export class DrawingEngine {
   private onPointerDown = (e: PointerEvent): void => {
     if (e.button === 2) return; // context menu handled separately
     const px = this.localPx(e);
+    this.shiftHeld = e.shiftKey;
+    this.ctrlHeld = e.ctrlKey || e.metaKey;
     if (px.x < 0 || px.y < 0 || px.x > this.mapper.width || px.y > this.mapper.height) return;
 
     if (this.env.tool) {
@@ -762,7 +800,7 @@ export class DrawingEngine {
       if (TOOLS_NEEDING_TEXT.has(kind)) this.onRequestTextEdit?.({ id: obj.id, x: px.x, y: px.y });
       return;
     }
-    this.create = { obj, mode, placed: 1 };
+    this.create = { obj, mode, placed: 1, startPx: px, travelled: 0 };
     this.sceneDirty = true;
     this.overlayDirty = true;
   }
@@ -786,8 +824,18 @@ export class DrawingEngine {
   private updateCreate(px: { x: number; y: number }): void {
     if (!this.create) return;
     const kind = this.create.obj.kind;
-    const point = this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? this.create.obj.points[0]!);
-    this.snapDot = this.env.magnet !== "off" ? px : null;
+    this.create.travelled = Math.max(
+      this.create.travelled,
+      Math.hypot(px.x - this.create.startPx.x, px.y - this.create.startPx.y),
+    );
+    const held = this.straightenPx(kind, px);
+    // Shift overrides the magnet. Letting a price snap run afterwards would
+    // pull the far end off the angle the trader is holding it to, which is the
+    // one thing they asked for.
+    const point = held
+      ? this.mapper.pixelToPoint(held.x, held.y) ?? this.create.obj.points[0]!
+      : this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? this.create.obj.points[0]!);
+    this.snapDot = !held && this.env.magnet !== "off" ? px : null;
     const obj = this.create.obj;
 
     if (kind === "long" || kind === "short") {
@@ -863,6 +911,8 @@ export class DrawingEngine {
 
   private onWindowMove = (e: PointerEvent): void => {
     const px = this.localPx(e);
+    this.shiftHeld = e.shiftKey;
+    this.lastMovePx = px;
     if (this.create) {
       this.updateCreate(px);
       return;
@@ -983,7 +1033,19 @@ export class DrawingEngine {
 
   private onWindowUp = (): void => {
     if (this.create) {
-      if (this.create.mode === "drag" || this.create.mode === "stream") this.finalizeCreate();
+      // A freehand stroke is always press-drag-release; there is no second
+      // click that would mean anything.
+      if (this.create.mode === "stream") {
+        this.finalizeCreate();
+        return;
+      }
+      if (this.create.mode === "drag") {
+        if (releaseEndsDrawing(this.create.travelled)) this.finalizeCreate();
+        // A press that never moved is a click: leave the drawing live and
+        // tracking the cursor until the second click places its far end.
+        else this.create.mode = "click";
+        return;
+      }
       // click mode advances on pointerdown, not up
       return;
     }
@@ -1037,10 +1099,12 @@ export class DrawingEngine {
 
   private onKeyUp = (e: KeyboardEvent): void => {
     this.ctrlHeld = e.ctrlKey || e.metaKey;
+    this.setShift(e.shiftKey);
   };
 
   private onKeyDown = (e: KeyboardEvent): void => {
     this.ctrlHeld = e.ctrlKey || e.metaKey;
+    this.setShift(e.shiftKey);
     const el = document.activeElement;
     if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
     const ctrl = e.ctrlKey || e.metaKey;

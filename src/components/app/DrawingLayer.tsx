@@ -43,6 +43,8 @@ interface Props {
   precision: number;
   pipSize: number;
   timeframe: string;
+  /** Chart display zone, so a vertical line stamps the same clock as the axis. */
+  timeZone: string;
   timeframes: string[];
   candles: Candle[];
   /** Bar times the chart's time axis continues through past the last candle. */
@@ -70,6 +72,7 @@ export function DrawingLayer({
   precision,
   pipSize,
   timeframe,
+  timeZone,
   timeframes,
   candles,
   futureTimes,
@@ -194,11 +197,12 @@ export function DrawingLayer({
       precision,
       pipSize,
       timeframe,
+      timeZone,
       candles: candlesRef.current,
       futureTimes: futureTimesRef.current,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, candles, futureTimes]);
+  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, candles, futureTimes]);
 
   // Re-render objects when the chart view moves.
   useEffect(() => {

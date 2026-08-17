@@ -3488,6 +3488,7 @@ export default function PriceChart({
         <DrawingLayer
           chart={chartApi}
           series={priceSeries}
+          timeZone={settings.timeZone}
           tool={drawTool}
           // Drawings are selectable and draggable in both cursor modes. Gating
           // selection on the pointer mode made every drawing inert under the

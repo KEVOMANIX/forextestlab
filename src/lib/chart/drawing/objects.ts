@@ -4,7 +4,7 @@
  * shared from ./object to keep the tools compact.
  */
 
-import { DISPLAY_TIME_ZONE } from "@/lib/date-time";
+import { formatInZone } from "@/lib/chart/timezones";
 import type { CoordinateMapper } from "./coords";
 import {
   DrawingObject,
@@ -28,15 +28,25 @@ import {
   type ToolKind,
 } from "./types";
 
-/** Time-axis label for vertical lines (weekday, date, time in the chart's zone). */
-const VLINE_TIME_FMT = new Intl.DateTimeFormat("en", {
-  timeZone: DISPLAY_TIME_ZONE,
+/**
+ * Time-axis label for a vertical line.
+ *
+ * The zone comes from the chart, which is the whole point: this formatter was
+ * pinned to New York while claiming in its own comment to use "the chart's
+ * zone". A trader who moved their charts to UTC+3 got a vertical line stamped
+ * eight hours off every other time on screen — the line said 07:00 while the
+ * bar it sat on said 15:00 — and nothing suggested which to believe.
+ */
+const VLINE_TIME_FMT: Intl.DateTimeFormatOptions = {
   weekday: "short",
   day: "2-digit",
   month: "short",
   hour: "2-digit",
   minute: "2-digit",
-});
+  // Without this the "en" locale picks 12-hour, so the line read "07:00 AM"
+  // beside an axis and legend that are both 24-hour.
+  hour12: false,
+};
 
 // ---- local helpers ----
 
@@ -232,7 +242,7 @@ class HorizontalLine extends DrawingObject {
 }
 
 class VerticalLine extends DrawingObject {
-  render({ ctx, mapper }: RenderCtx): void {
+  render({ ctx, mapper, timeZone }: RenderCtx): void {
     const x = mapper.timeToX(this.points[0]!.time);
     if (x == null) return;
     this.applyStroke(ctx);
@@ -242,7 +252,7 @@ class VerticalLine extends DrawingObject {
     ctx.stroke();
     // Highlight the day/date/time on the bottom time scale, like TradingView.
     if (this.style.showLabels && this.points[0]!.time) {
-      const label = VLINE_TIME_FMT.format(new Date(this.points[0]!.time * 1000));
+      const label = formatInZone(this.points[0]!.time * 1000, timeZone, VLINE_TIME_FMT);
       centerChip(ctx, x, mapper.height - 11, [label], withAlpha(this.style.color, 1), "#0b0f1a", 10);
     }
   }

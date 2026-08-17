@@ -33,6 +33,8 @@ export interface RenderCtx {
   precision: number;
   pipSize: number;
   candles: Candle[];
+  /** The chart's display zone, so a drawing's label agrees with the axis. */
+  timeZone: string;
 }
 
 export const HIT_TOLERANCE = 6;

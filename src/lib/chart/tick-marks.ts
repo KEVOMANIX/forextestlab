@@ -1,4 +1,4 @@
-import { formatInZone } from "./timezones";
+import { UTC_ZONE, formatInZone } from "./timezones";
 import { isCalendarTimeframe, TIMEFRAME_MS, type Timeframe } from "../market-data/types";
 
 /**
@@ -38,6 +38,24 @@ const CROSSHAIR_TIME: Intl.DateTimeFormatOptions = {
 };
 
 /**
+ * Which zone a bar of this timeframe should be labelled in.
+ *
+ * Candles are bucketed on UTC boundaries — a daily bar opens at 00:00 UTC —
+ * but the labels were rendered in whatever zone the trader had chosen. West of
+ * UTC that pushed the daily bar's own timestamp back into the previous
+ * evening, so New York, the default, named Tuesday's daily candle "Mon Nov 04"
+ * while the 4h and 1h candles inside it correctly said Tuesday. Weekly was
+ * worse: a Monday bucket displayed as Sunday.
+ *
+ * From a day up, the bar has no meaningful time of day, so it is named by the
+ * UTC date that defines it and reads the same in every zone. Intraday bars keep
+ * the trader's zone, where the clock is the whole point.
+ */
+export function barLabelZone(timeframeMs: number, zone: string): string {
+  return timeframeMs >= TIMEFRAME_MS["1d"] ? UTC_ZONE : zone;
+}
+
+/**
  * Label for the bar under the crosshair, at the precision its timeframe carries.
  *
  * A daily or weekly bar has no meaningful time of day, so printing "00:00" next
@@ -49,8 +67,9 @@ export function formatCrosshairLabel(
   zone: string,
   timeframeMs: number,
 ): string {
-  const date = formatInZone(at, zone, CROSSHAIR_DATE);
-  if (timeframeMs >= 24 * 60 * 60 * 1000) return date;
+  const labelZone = barLabelZone(timeframeMs, zone);
+  const date = formatInZone(at, labelZone, CROSSHAIR_DATE);
+  if (timeframeMs >= TIMEFRAME_MS["1d"]) return date;
   return `${date} ${formatInZone(at, zone, CROSSHAIR_TIME)}`;
 }
 
@@ -72,14 +91,15 @@ export function formatTickMark(
   zone: string,
   timeframe: Timeframe,
 ): string {
-  if (timeframe === "1yr") return formatInZone(at, zone, YEAR);
+  const labelZone = barLabelZone(TIMEFRAME_MS[timeframe], zone);
+  if (timeframe === "1yr") return formatInZone(at, labelZone, YEAR);
   if (isCalendarTimeframe(timeframe)) {
-    return formatInZone(at, zone, tickMarkType === TICK_YEAR ? YEAR : MONTH);
+    return formatInZone(at, labelZone, tickMarkType === TICK_YEAR ? YEAR : MONTH);
   }
   if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) {
-    if (tickMarkType === TICK_YEAR) return formatInZone(at, zone, YEAR);
-    if (tickMarkType === TICK_MONTH) return formatInZone(at, zone, MONTH);
-    return formatInZone(at, zone, DAY_AND_MONTH);
+    if (tickMarkType === TICK_YEAR) return formatInZone(at, labelZone, YEAR);
+    if (tickMarkType === TICK_MONTH) return formatInZone(at, labelZone, MONTH);
+    return formatInZone(at, labelZone, DAY_AND_MONTH);
   }
   switch (tickMarkType) {
     case TICK_YEAR:

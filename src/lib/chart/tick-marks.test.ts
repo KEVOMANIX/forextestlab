@@ -10,6 +10,7 @@ import {
   formatTickMark,
   timeframeTickMarkMaxCharacters,
 } from "./tick-marks";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
 const at = Date.UTC(2024, 2, 29, 18, 30, 15); // 29 Mar 2024, 18:30:15 UTC
 
@@ -87,5 +88,47 @@ describe("formatCrosshairLabel", () => {
 
   it("reads in the chart's zone", () => {
     expect(formatCrosshairLabel(at, "Asia/Tokyo", HOUR)).toBe("Sat, Mar 30, 24 03:30");
+  });
+});
+
+describe("which day a daily bar claims to be", () => {
+  // The bug a trader reported: on the 4h chart they were on Tuesday's 07:00
+  // candle, and zooming out to daily the chart was still showing Monday.
+  const nov5 = Date.UTC(2019, 10, 5); // a Tuesday, and the bucket's own start
+  const day = TIMEFRAME_MS["1d"];
+
+  it("names the daily bar by its UTC date, west of UTC too", () => {
+    // New York is the default zone, and 00:00 UTC there is 19:00 the evening
+    // before — which is how Tuesday's candle came to be labelled Monday.
+    expect(formatCrosshairLabel(nov5, "exchange", day)).toContain("Nov 05");
+    expect(formatCrosshairLabel(nov5, "exchange", day)).toContain("Tue");
+    expect(formatTickMark(nov5, TICK_DAY_OF_MONTH, "exchange", "1d")).toBe("Nov 05");
+  });
+
+  it("gives every zone the same daily label", () => {
+    const zones = ["exchange", "UTC", "Europe/London", "Africa/Nairobi", "Asia/Tokyo"];
+    const labels = new Set(zones.map((zone) => formatTickMark(nov5, TICK_DAY_OF_MONTH, zone, "1d")));
+    expect(labels.size).toBe(1);
+    expect([...labels][0]).toBe("Nov 05");
+  });
+
+  it("keeps the weekly bar on the Monday it opens", () => {
+    const monday = Date.UTC(2019, 10, 4);
+    // Rendered in New York this used to read Sunday the 3rd.
+    expect(formatCrosshairLabel(monday, "exchange", TIMEFRAME_MS["1w"])).toContain("Mon");
+    expect(formatCrosshairLabel(monday, "exchange", TIMEFRAME_MS["1w"])).toContain("Nov 04");
+  });
+
+  it("still shows intraday bars in the trader's own zone", () => {
+    // The clock is the whole point on an intraday bar, so this must not change.
+    const noon = Date.UTC(2019, 10, 5, 12);
+    expect(formatCrosshairLabel(noon, "exchange", TIMEFRAME_MS["4h"])).toContain("07:00");
+    expect(formatCrosshairLabel(noon, "Africa/Nairobi", TIMEFRAME_MS["4h"])).toContain("15:00");
+    expect(formatTickMark(noon, TICK_TIME, "exchange", "4h")).toBe("07:00");
+  });
+
+  it("survives the summer offset as well as the winter one", () => {
+    const jul5 = Date.UTC(2019, 6, 5); // New York on UTC-4 here, not UTC-5
+    expect(formatTickMark(jul5, TICK_DAY_OF_MONTH, "exchange", "1d")).toBe("Jul 05");
   });
 });

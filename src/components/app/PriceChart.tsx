@@ -58,7 +58,7 @@ import {
 } from "lightweight-charts";
 
 import { formatInZone } from "@/lib/chart/timezones";
-import { formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
+import { barLabelZone, formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
   TIMEFRAMES,
@@ -181,6 +181,18 @@ const LEGEND_DATE_FORMAT: Intl.DateTimeFormatOptions = {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
+};
+
+/**
+ * Daily bars and above carry no time of day, so the legend names the date
+ * alone — printing "00:00" beside a daily candle invents precision it does not
+ * have, and after the UTC-date fix it would have printed a time in a zone the
+ * rest of the label no longer uses.
+ */
+const LEGEND_DATE_ONLY: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
 };
 
 /** Volume in the legend, where the column is a few characters wide. */
@@ -3739,7 +3751,13 @@ export default function PriceChart({
                 {legend ? (
                   <>
                     <span className="text-[var(--chart-muted)]">
-                      {formatInZone(legend.at, settings.timeZone, LEGEND_DATE_FORMAT)}
+                      {formatInZone(
+                        legend.at,
+                        barLabelZone(TIMEFRAME_MS[displayTimeframe], settings.timeZone),
+                        TIMEFRAME_MS[displayTimeframe] >= TIMEFRAME_MS["1d"]
+                          ? LEGEND_DATE_ONLY
+                          : LEGEND_DATE_FORMAT,
+                      )}
                     </span>
                     <span className="h-3 w-px bg-[var(--app-border)]" aria-hidden />
                     {legend.kind === "ohlc" ? (

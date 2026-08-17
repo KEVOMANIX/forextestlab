@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
 import { MetricInfo } from "@/components/app/MetricInfo";
+import { ReportTimeZone } from "@/components/app/ReportTimeZone";
 import { DashboardReviewWorkspace, type DashboardInsight } from "@/components/app/DashboardReviewWorkspace";
 import {
   DashboardSessionsTable,
@@ -434,9 +435,10 @@ export function SignedInDashboard({
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
             Welcome back, {displayName}
           </h1>
-          <p className="mt-2 text-sm app-muted">
-            Your strategy command center for replay, review, and improvement.
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm app-muted">
+            <span>Your strategy command center for replay, review, and improvement.</span>
+            <ReportTimeZone sessionId={showDemoData ? undefined : selectedSession?.id} />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Both states visible at once, so the control says which one is

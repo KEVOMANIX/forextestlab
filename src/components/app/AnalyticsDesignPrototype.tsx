@@ -28,6 +28,7 @@ import {
 import { JournalReview, type ReviewRecord } from "@/components/app/journal/JournalReview";
 import { ExitQualityCard } from "@/components/app/ExitQualityCard";
 import { MetricInfo } from "@/components/app/MetricInfo";
+import { ReportTimeZone } from "@/components/app/ReportTimeZone";
 import { TradeFocusProvider } from "@/components/app/TradeFocusContext";
 import { TradesTable } from "@/components/app/TradesTable";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
@@ -382,7 +383,10 @@ export function AnalyticsDesignPrototype({
             <span>{demo ? "EUR/USD" : pairLabel}</span><span>·</span><span>{demo ? "Jan 9, 2019 – Jan 19, 2024" : periodLabel}</span>{demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
           </div>
           <h1 className="mt-2 truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{demo ? "London-session breakout — sample" : sessionName}</h1>
-          <p className="mt-1 text-sm app-muted">Strategy performance report · New York time</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm app-muted">
+            <span>Strategy performance report</span>
+            <ReportTimeZone sessionId={demo ? undefined : sessionId} startTime={startTime} endTime={endTime} />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><Download size={14} /> Sample preview</span> : fullAccess ? <ExportTradesButton trades={trades} symbol={symbols[0] ?? "EURUSD"} sessionId={sessionId ?? "session"} compact /> : <Link href="/account/billing" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"><Download size={14} /> Export with Pro</Link>}
@@ -472,7 +476,7 @@ export function AnalyticsDesignPrototype({
 
       {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">19 sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_TRADES : trades} focusedTrade={demo ? null : focusedTrade} /></section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
-      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_TRADES : trades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</>}
+      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={demo ? "Jan 2019 – Jan 2024" : periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_TRADES : trades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</>}
       {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
     </TradeFocusProvider>
@@ -624,7 +628,7 @@ function DemoJournalWorkspace() {
 }
 
 
-function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; periodLabel: string }) {
+function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsModel; periodLabel: string; sessionId?: string }) {
   const drawdownValues = model.drawdown.length > 1 ? model.drawdown : [0, 0];
   const drawdownPath = normalizedPath(drawdownValues);
   const bestMonth = Math.max(...model.monthlyReturns, 0);
@@ -644,7 +648,7 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Strategy reports</p>
           <h2 className="mt-1 text-xl font-semibold">Find where the edge comes from</h2>
-          <p className="mt-1 text-xs app-muted">All {model.closedTrades} closed trades · {periodLabel} · New York time</p>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs app-muted">All {model.closedTrades} closed trades · {periodLabel} <ReportTimeZone sessionId={sessionId} /></p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted"><CalendarDays size={14} /> Entire test</button>
@@ -733,7 +737,7 @@ function ReportsWorkspace({ model, periodLabel }: { model: AnalyticsModel; perio
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ReportCard eyebrow="Timing" title="Performance by weekday" icon={CalendarDays} info="Results grouped by the day a trade was opened. With fewer than about a hundred trades there are only a handful in each day, so treat a standout day as a question rather than a finding.">
+        <ReportCard eyebrow="Timing" title="Performance by weekday" icon={CalendarDays} info="Results grouped by the New York weekday a trade was opened on. With fewer than about a hundred trades there are only a handful in each day, so treat a standout day as a question rather than a finding.">
           <div className="mt-5 space-y-4">
             {model.weekdays.map((day) => (
               <div key={day.label} className="grid grid-cols-[34px_minmax(0,1fr)_72px] items-center gap-3 text-xs">

@@ -229,6 +229,13 @@ const GLOSSARY: Record<string, MetricExplainer> = {
     what: "How far through the historical period this session has been replayed.",
   },
 
+  // ── Time ────────────────────────────────────────────────────────────
+  "new york time": {
+    what: "Every date, weekday and calendar cell in this report is New York time.",
+    how: "New York runs at UTC−5 in winter and UTC−4 during daylight saving. The report follows the clock a New York trader reads, so the changeover is handled for you rather than shifting your results twice a year.",
+    read: "The forex day is cut at the New York 5pm rollover, which is why the reports are anchored there. It also means a result never moves because you travelled or changed a chart's zone.",
+  },
+
   // ── Exit quality ────────────────────────────────────────────────────
   "typical give-back": {
     what: "How much profit the average trade showed on screen and then handed back before you closed it.",

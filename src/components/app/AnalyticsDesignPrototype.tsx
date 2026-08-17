@@ -36,6 +36,7 @@ import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY }
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
+import { monthlyReturnSeries, type MonthlyReturn } from "@/lib/analytics/monthly-returns";
 import { WEEKDAY_LABELS, createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
@@ -50,7 +51,16 @@ const EQUITY = [
   103310, 103080, 103520, 103910, 103640, 104110, 103940, 104820,
 ];
 
-const MONTHLY_RETURNS = [2.4, -0.8, 3.1, 1.7, -1.2, 4.3, 0.6, 2.8, -0.5, 3.6, 1.1, 2.2];
+const MONTHLY_RETURNS: MonthlyReturn[] = [2.4, -0.8, 3.1, 1.7, -1.2, 4.3, 0.6, 2.8, -0.5, 3.6, 1.1, 2.2].map(
+  (percent, index) => ({
+    key: `2024-${String(index + 1).padStart(2, "0")}`,
+    label: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][index]!,
+    year: 2024,
+    month: index + 1,
+    profit: percent * 1000,
+    percent,
+  }),
+);
 const DRAWDOWN = [0, -120, -80, -340, -260, -610, -430, -920, -710, -1492, -980, -620, -830, -410, -180, -390, -140, 0];
 const WEEKDAY_RESULTS = [
   { label: "Mon", value: 980, trades: 4 },
@@ -112,7 +122,7 @@ interface AnalyticsModel {
   streak: string;
   calendarMonths: CalendarMonth[];
   recentTrades: Array<{ pair: string; side: string; setup: string; result: string; r: string; time: string; positive: boolean }>;
-  monthlyReturns: number[];
+  monthlyReturns: MonthlyReturn[];
   drawdown: number[];
   weekdays: ResultRow[];
   sessions: ResultRow[];
@@ -175,6 +185,8 @@ export interface AnalyticsDesignPrototypeProps {
 
 const money = (value: number, signed = false) => `${signed && value > 0 ? "+" : value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const percentage = (value: number) => `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}%`;
+/** toFixed emits an ASCII hyphen; every other figure on these screens uses −. */
+const ratio = (value: number) => `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}`;
 
 function aggregateRows(trades: ClosedTrade[], label: (trade: ClosedTrade) => string): ResultRow[] {
   const groups = new Map<string, { value: number; trades: number; wins: number }>();
@@ -218,12 +230,7 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
   const averageLoss = losses.length ? Math.abs(losses.reduce((sum, value) => sum + value, 0) / losses.length) : 0;
   let peak = equity[0] ?? startingBalance;
   const drawdown = equity.map((value) => { peak = Math.max(peak, value); return value - peak; });
-  const monthTotals = Array.from({ length: 12 }, () => 0);
-  trades.forEach((trade) => {
-    const monthIndex = getNewYorkDateParts(trade.exitTime).month - 1;
-    monthTotals[monthIndex] = (monthTotals[monthIndex] ?? 0) + Number(trade.pnl);
-  });
-  const monthlyReturns = monthTotals.map((value) => startingBalance ? value / startingBalance * 100 : 0);
+  const monthlyReturns = monthlyReturnSeries(trades, startingBalance);
   const calendar = createCalendar(trades);
   const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const weekdays = aggregateRows(trades, (trade) => weekdayNames[getNewYorkDateParts(trade.entryTime).weekday]!).sort((a, b) => weekdayNames.indexOf(a.label) - weekdayNames.indexOf(b.label));
@@ -570,7 +577,7 @@ function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
       tone: "text-bear",
       rows: [
         ["Maximum drawdown", money(-model.maxDrawdown)],
-        ["Recovery factor", model.recoveryFactor.toFixed(2)],
+        ["Recovery factor", ratio(model.recoveryFactor)],
         ["Maximum lot used", model.maxLot.toFixed(2)],
         ["Average trade", money(model.averageTrade, true)],
       ],
@@ -631,10 +638,12 @@ function DemoJournalWorkspace() {
 function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsModel; periodLabel: string; sessionId?: string }) {
   const drawdownValues = model.drawdown.length > 1 ? model.drawdown : [0, 0];
   const drawdownPath = normalizedPath(drawdownValues);
-  const bestMonth = Math.max(...model.monthlyReturns, 0);
-  const worstMonth = Math.min(...model.monthlyReturns, 0);
-  const averageMonth = model.monthlyReturns.reduce((sum, value) => sum + value, 0) / Math.max(1, model.monthlyReturns.length);
-  const positiveMonths = model.monthlyReturns.filter((value) => value > 0).length;
+  const monthPercents = model.monthlyReturns.map((month) => month.percent);
+  const bestMonth = Math.max(...monthPercents, 0);
+  const worstMonth = Math.min(...monthPercents, 0);
+  const averageMonth = monthPercents.reduce((sum, value) => sum + value, 0) / Math.max(1, monthPercents.length);
+  const positiveMonths = monthPercents.filter((value) => value > 0).length;
+  const monthsTested = model.monthlyReturns.length;
   const bestSession = model.sessions.slice().sort((a, b) => b.value - a.value)[0];
   const rMax = Math.max(...model.rDistribution.map((bucket) => bucket.count), 1);
   const sessionMax = Math.max(...model.sessions.map((row) => Math.abs(row.value)), 1);
@@ -658,9 +667,9 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
 
       <section className="grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ["Return / drawdown", model.maxDrawdown ? (Math.abs(model.netProfit) / model.maxDrawdown).toFixed(2) : "—", model.netProfit >= 0 ? "Positive" : "Needs attention"],
+          ["Return / drawdown", model.maxDrawdown ? ratio(model.recoveryFactor) : "—", model.netProfit >= 0 ? "Positive" : "Needs attention"],
           ["Maximum drawdown", money(-model.maxDrawdown), `${model.maxDrawdownPercent.toFixed(1)}% from peak`],
-          ["Positive months", `${positiveMonths} of 12`, `${Math.round(positiveMonths / 12 * 100)}% consistency`],
+          ["Positive months", monthsTested ? `${positiveMonths} of ${monthsTested}` : "—", monthsTested ? `${Math.round(positiveMonths / monthsTested * 100)}% consistency` : "No month completed yet"],
           ["Statistical confidence", model.closedTrades >= 30 ? "Established" : "Developing", model.closedTrades >= 30 ? "30+ trade sample" : `${30 - model.closedTrades} more trades needed`],
         ].map(([label, value, detail]) => (
           <div key={label} className="bg-[var(--app-panel)] px-4 py-4">
@@ -701,25 +710,33 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)]">
-        <ReportCard eyebrow="Consistency" title="Monthly returns" icon={BarChart3} info="Each month's profit as a percentage of the starting balance. Look for how evenly the profit arrives — a year made in one month is far harder to trade live than the same year spread across twelve.">
-          <div className="mt-6 grid h-56 grid-cols-12 items-center gap-2 border-b app-border px-1">
-            {model.monthlyReturns.map((value, index) => {
-              const height = Math.max(value === 0 ? 0 : 12, Math.abs(value) / Math.max(Math.abs(bestMonth), Math.abs(worstMonth), 0.01) * 86);
+        <ReportCard eyebrow="Consistency" title="Monthly returns" icon={BarChart3} info="One bar per calendar month the test covered, as a percentage of the starting balance. A month inside the span with no trades is kept at zero, because it is a real month of the test that returned nothing. Look for how evenly the profit arrives — a year made in one month is far harder to trade live than the same year spread across twelve.">
+          {monthsTested === 0 ? (
+            <p className="mt-6 py-12 text-center text-xs app-muted">Close a trade to record a month.</p>
+          ) : (
+          <div className="mt-6 grid h-56 items-center gap-2 border-b app-border px-1" style={{ gridTemplateColumns: `repeat(${monthsTested}, minmax(0, 1fr))` }}>
+            {model.monthlyReturns.map((month) => {
+              const height = Math.max(month.percent === 0 ? 0 : 12, Math.abs(month.percent) / Math.max(Math.abs(bestMonth), Math.abs(worstMonth), 0.01) * 86);
+              // Beyond a year or so there is no room for twelve labels a year,
+              // so only each January is named, and it carries its year.
+              const dense = monthsTested > 14;
+              const caption = dense ? (month.month === 1 ? String(month.year) : "") : month.label;
               return (
-                <div key={index} className="flex h-full flex-col items-center justify-center">
+                <div key={month.key} className="flex h-full flex-col items-center justify-center">
                   <div className="flex h-[172px] w-full flex-col justify-center">
                     <div className="relative h-1/2 border-b border-white/10">
-                      {value > 0 && <div className="absolute bottom-0 left-1/2 w-[72%] -translate-x-1/2 rounded-t bg-brand-400/80" style={{ height: `${height}%` }} />}
+                      {month.percent > 0 && <div className="absolute bottom-0 left-1/2 w-[72%] -translate-x-1/2 rounded-t bg-brand-400/80" style={{ height: `${height}%` }} />}
                     </div>
                     <div className="relative h-1/2">
-                      {value < 0 && <div className="absolute left-1/2 top-0 w-[72%] -translate-x-1/2 rounded-b bg-bear/80" style={{ height: `${height}%` }} />}
+                      {month.percent < 0 && <div className="absolute left-1/2 top-0 w-[72%] -translate-x-1/2 rounded-b bg-bear/80" style={{ height: `${height}%` }} />}
                     </div>
                   </div>
-                  <span className="mt-2 text-[9px] app-muted">{["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][index]}</span>
+                  <span className="mt-2 truncate text-[9px] app-muted" title={`${month.label} ${month.year}`}>{caption}</span>
                 </div>
               );
             })}
           </div>
+          )}
           <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="app-muted">Best month <b className="ml-1 font-mono text-brand-300">{percentage(bestMonth)}</b></span><span className="app-muted">Worst month <b className="ml-1 font-mono text-bear">{percentage(worstMonth)}</b></span><span className="app-muted">Average <b className="ml-1 font-mono text-[var(--app-text)]">{percentage(averageMonth)}</b></span></div>
         </ReportCard>
 

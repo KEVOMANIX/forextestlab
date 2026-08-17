@@ -335,3 +335,123 @@ export async function addSupportAgent(formData: FormData) {
   });
   refresh();
 }
+
+/**
+ * A recipient the team can start a conversation with.
+ *
+ * Deliberately limited to accounts that exist. A conversation is delivered by
+ * writing it against a userId — that is how the customer widget finds it, since
+ * it lists conversations by user — so an address with no account would produce
+ * a thread nobody could open.
+ */
+export async function searchOutboundRecipients(
+  query: string,
+): Promise<Array<{ id: string; email: string; displayName: string | null }>> {
+  await requireSupportAgent();
+  const term = query.trim().slice(0, 120);
+  if (term.length < 2) return [];
+  return prisma.userProfile.findMany({
+    where: {
+      OR: [
+        { email: { contains: term, mode: "insensitive" } },
+        { displayName: { contains: term, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, email: true, displayName: true },
+    orderBy: { email: "asc" },
+    take: 8,
+  });
+}
+
+/**
+ * Open a conversation the customer did not start.
+ *
+ * Everything downstream of this already existed: the widget lists a user's
+ * conversations by userId, so the thread appears for them without any new
+ * delivery mechanism, and the reply notification is the same mail the customer
+ * gets for an inbound answer. What was missing was any way for the team to
+ * speak first — until now a conversation could only begin with a complaint.
+ *
+ * The conversation is created assigned to its author and already answered:
+ * status is waiting_customer and firstResponseAt is set, because the first
+ * message is the response. Leaving it in the inbox would put the team's own
+ * outbound message into the queue of things needing a reply.
+ */
+export async function startOutboundConversation(
+  formData: FormData,
+): Promise<WriteResult & { conversationId?: string }> {
+  const actor = await supportWriter();
+  const userId = clean(formData.get("userId"), 60);
+  const subject = clean(formData.get("subject"), 160) || "Message from support";
+  const body = clean(formData.get("body"), 8000);
+  const category = clean(formData.get("category"), 40) || "other";
+  const priority = clean(formData.get("priority"), 20) || "normal";
+
+  if (!userId) return { ok: false, message: "Choose who to contact." };
+  if (!body) return { ok: false, message: "Write a message before sending." };
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, displayName: true },
+  });
+  if (!profile) {
+    return { ok: false, message: "That account no longer exists." };
+  }
+
+  const now = new Date();
+  const conversation = await prisma.$transaction(async (tx) => {
+    const created = await tx.supportConversation.create({
+      data: {
+        userId: profile.id,
+        customerEmail: profile.email,
+        customerName: profile.displayName,
+        subject,
+        category: SUPPORT_CATEGORIES.includes(category as never) ? category : "other",
+        priority: SUPPORT_PRIORITIES.includes(priority as never) ? priority : "normal",
+        channel: "outbound",
+        status: "waiting_customer",
+        assignedAgentId: actor.agent.id,
+        assignedAgentName: actor.agent.displayName,
+        firstResponseAt: now,
+        lastMessageAt: now,
+        customerUnreadCount: 1,
+        agentUnreadCount: 0,
+        agentLastReadAt: now,
+        lastCustomerNotificationAt: now,
+      },
+    });
+    await tx.supportMessage.create({
+      data: {
+        conversationId: created.id,
+        senderType: "agent",
+        senderId: actor.agent.id,
+        senderName: actor.agent.displayName,
+        body,
+        deliveredAt: now,
+      },
+    });
+    return created;
+  });
+
+  await audit(actor, "support.outbound_started", conversation.id, {
+    recipient: profile.email,
+    subject,
+  });
+  publishSupportConversationChanged(conversation.id);
+
+  try {
+    await sendSupportReplyNotification({
+      email: profile.email,
+      name: profile.displayName ?? "Customer",
+      subject,
+      preview: body.slice(0, 300),
+    });
+  } catch (error) {
+    // The thread is already delivered in the widget; a failed email must not
+    // undo it or leave the agent thinking nothing was sent.
+    console.error("Outbound support notification failed:", error);
+  }
+
+  refresh(conversation.id);
+  return { ok: true, conversationId: conversation.id };
+}

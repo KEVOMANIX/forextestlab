@@ -94,3 +94,12 @@ export const LAUNCHER_HIDDEN_ROUTES = [
 export function isLauncherHidden(pathname: string | null | undefined) {
   return LAUNCHER_HIDDEN_ROUTES.some((route) => pathname?.startsWith(route));
 }
+
+/**
+ * Priority values, kept on the client-safe side of the boundary.
+ *
+ * `support.ts` is `server-only`, so the compose dialog cannot read the list
+ * from there — and hardcoding a second copy in the component is how the two
+ * would quietly drift apart. `support.ts` re-exports this one.
+ */
+export const SUPPORT_PRIORITIES = ["low", "normal", "high", "urgent"] as const;

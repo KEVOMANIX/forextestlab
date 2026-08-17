@@ -1,6 +1,7 @@
 import { Inbox, Search, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 
+import { NewConversation } from "./NewConversation";
 import { PopoverMenu } from "./controls";
 import {
   initials,
@@ -72,27 +73,30 @@ export function ConversationList({
                   : `${queueCount} conversation${queueCount === 1 ? "" : "s"} in this queue`}
             </p>
           </div>
-          <PopoverMenu
-            label={`Sort: ${sortLabel}`}
-            align="right"
-            width="w-52"
-            icon={<SlidersHorizontal size={14} aria-hidden />}
-          >
-            <p className="px-2.5 py-1.5 text-[11px] app-muted">Sort conversations</p>
-            {SORT_OPTIONS.map((option) => (
-              <Link
-                key={option.id}
-                href={`/support-team?queue=${queue}&sort=${option.id}${
-                  query ? `&q=${encodeURIComponent(query)}` : ""
-                }`}
-                className={`block rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-white/[0.05] ${
-                  sort === option.id ? "text-brand-200" : ""
-                }`}
-              >
-                {option.label}
-              </Link>
-            ))}
-          </PopoverMenu>
+          <div className="flex shrink-0 items-center gap-2">
+            <NewConversation />
+            <PopoverMenu
+              label={`Sort: ${sortLabel}`}
+              align="right"
+              width="w-52"
+              icon={<SlidersHorizontal size={14} aria-hidden />}
+            >
+              <p className="px-2.5 py-1.5 text-[11px] app-muted">Sort conversations</p>
+              {SORT_OPTIONS.map((option) => (
+                <Link
+                  key={option.id}
+                  href={`/support-team?queue=${queue}&sort=${option.id}${
+                    query ? `&q=${encodeURIComponent(query)}` : ""
+                  }`}
+                  className={`block rounded-lg px-2.5 py-2 text-xs transition-colors hover:bg-white/[0.05] ${
+                    sort === option.id ? "text-brand-200" : ""
+                  }`}
+                >
+                  {option.label}
+                </Link>
+              ))}
+            </PopoverMenu>
+          </div>
         </div>
         <form className="relative mt-3">
           <input type="hidden" name="queue" value={queue} />

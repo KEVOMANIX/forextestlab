@@ -23,10 +23,17 @@ export function AuthForm({
   mode,
   nextPath,
   initialError,
+  staffCopy,
 }: {
   mode: Mode;
   nextPath?: string;
   initialError?: string;
+  /**
+   * Staff sign-in. The words change, and the route to creating an account
+   * disappears: support and admin access is granted, never self-served, so
+   * offering "Create account" here would only send staff down a dead end.
+   */
+  staffCopy?: { eyebrow: string; title: string; description: string };
 }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -148,17 +155,17 @@ export function AuthForm({
         className="panel overflow-hidden p-7 shadow-[0_30px_90px_-45px_rgba(0,0,0,0.95)] sm:p-9 lg:p-10"
       >
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
-          {mode === "sign-up"
+          {staffCopy ? staffCopy.eyebrow : mode === "sign-up"
             ? "Create your workspace"
             : mode === "sign-in"
               ? "Welcome back"
               : "Account recovery"}
         </p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-          {COPY[mode].title}
+          {staffCopy ? staffCopy.title : COPY[mode].title}
         </h1>
         <p className="mt-3 max-w-md text-sm leading-6 app-muted">
-          {mode === "sign-up"
+          {staffCopy ? staffCopy.description : mode === "sign-up"
             ? "Start with three one-month trial sessions on this device."
             : mode === "sign-in"
               ? "Access your private backtesting workspace."
@@ -287,9 +294,15 @@ export function AuthForm({
               <Link href="/forgot-password" className="text-brand-300 hover:underline">
                 Forgot password?
               </Link>
-              <Link href={`/sign-up?next=${encodeURIComponent(safeNextPath())}`} className="text-brand-300 hover:underline">
-                Create account
-              </Link>
+              {staffCopy ? (
+                <Link href="/app" className="text-brand-300 hover:underline">
+                  Not staff? Go to the app
+                </Link>
+              ) : (
+                <Link href={`/sign-up?next=${encodeURIComponent(safeNextPath())}`} className="text-brand-300 hover:underline">
+                  Create account
+                </Link>
+              )}
             </>
           )}
           {mode === "sign-up" && (

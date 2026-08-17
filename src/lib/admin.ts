@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { User } from "@supabase/supabase-js";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -27,8 +27,10 @@ export function isAdminUser(user: User | null): boolean {
 export async function requireAdmin(nextPath = "/admin"): Promise<User> {
   const user = await getCurrentUser();
   if (!user) {
-    redirect(`/sign-in?next=${encodeURIComponent(nextPath)}`);
+    redirect(`/admin/sign-in?next=${encodeURIComponent(nextPath)}`);
   }
-  if (!isAdminUser(user)) notFound();
+  // Signed in without access gets an explanation rather than a 404, for the
+  // same reason as the support workspace.
+  if (!isAdminUser(user)) redirect("/admin/sign-in?denied=1");
   return user;
 }

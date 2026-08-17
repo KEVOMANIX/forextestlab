@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { isAdminUser } from "@/lib/admin";
 import { prisma } from "@/lib/db";
@@ -17,7 +17,8 @@ export const SUPPORT_STATUSES = [
   "resolved",
   "closed",
 ] as const;
-export const SUPPORT_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
+// Defined in support-client so the compose dialog can read it too.
+export { SUPPORT_PRIORITIES } from "@/lib/support-client";
 
 /**
  * Resolving ends the conversation for the customer: the thread stays readable
@@ -103,9 +104,14 @@ export async function currentSupportAgent() {
 
 export async function requireSupportAgent(nextPath = "/support-team") {
   const user = await getCurrentUser();
-  if (!user) redirect(`/sign-in?next=${encodeURIComponent(nextPath)}`);
+  if (!user) {
+    redirect(`/support-team/sign-in?next=${encodeURIComponent(nextPath)}`);
+  }
   const identity = await currentSupportAgent();
-  if (!identity) notFound();
+  // Signed in, but not an agent. This used to be a bare 404, which reads as a
+  // broken link: an agent whose account had not been activated could not tell
+  // that from being signed in as the wrong person.
+  if (!identity) redirect("/support-team/sign-in?denied=1");
   return identity;
 }
 

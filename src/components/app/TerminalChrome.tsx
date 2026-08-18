@@ -49,13 +49,13 @@ function RailButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`${showLabel ? "flex h-9 w-full items-center gap-3 px-2.5 text-left" : "grid h-9 w-9 place-items-center"} rounded-md transition-colors ${
+      className={`${showLabel ? "flex h-8 w-full items-center gap-2 px-1.5 text-left" : "grid h-9 w-9 place-items-center"} rounded-md transition-colors ${
         active
           ? "bg-brand-500 text-surface-950"
           : "app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       }`}
     >
-      <span className="shrink-0">{children}</span>{showLabel && <span className="truncate text-[10px] font-medium">{label}</span>}
+      <span className="shrink-0">{children}</span>{showLabel && <span className="truncate text-[9px] font-medium">{label}</span>}
     </button>
   );
 }
@@ -335,7 +335,7 @@ export function TerminalRightRail({
     <aside
       data-tour="workspace-rail"
       aria-label="Workspace shortcuts"
-      className="hidden w-36 shrink-0 flex-col gap-1 border-l app-border bg-[var(--app-panel)] px-2 py-2 md:flex"
+      className="hidden w-28 shrink-0 flex-col gap-1 border-l app-border bg-[var(--app-panel)] px-1.5 py-2 md:flex"
     >
       <Link
         href="/app"
@@ -345,9 +345,9 @@ export function TerminalRightRail({
         }}
         aria-label="Dashboard"
         title="Dashboard"
-        className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+        className="flex h-8 w-full items-center gap-2 rounded-md px-1.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       >
-        <LayoutDashboard size={17} aria-hidden /><span className="truncate text-[10px] font-medium">Dashboard</span>
+        <LayoutDashboard size={16} aria-hidden /><span className="truncate text-[9px] font-medium">Home</span>
       </Link>
       <Link
         href="/app/history"
@@ -357,9 +357,9 @@ export function TerminalRightRail({
         }}
         aria-label="Session history"
         title="Session history"
-        className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+        className="flex h-8 w-full items-center gap-2 rounded-md px-1.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       >
-        <BookOpenText size={17} aria-hidden /><span className="truncate text-[10px] font-medium">Sessions</span>
+        <BookOpenText size={16} aria-hidden /><span className="truncate text-[9px] font-medium">Sessions</span>
       </Link>
       {!state.anonymous && (
         <Link
@@ -370,13 +370,13 @@ export function TerminalRightRail({
           }}
           aria-label="Session analytics"
           title="Session analytics"
-          className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+          className="flex h-8 w-full items-center gap-2 rounded-md px-1.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
         >
-          <BarChart3 size={17} aria-hidden /><span className="truncate text-[10px] font-medium">Analytics</span>
+          <BarChart3 size={16} aria-hidden /><span className="truncate text-[9px] font-medium">Stats</span>
         </Link>
       )}
       <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
-      <RailButton label="Economic calendar" showLabel active={calendarOpen} onClick={onToggleCalendar}>
+      <RailButton label="Calendar" showLabel active={calendarOpen} onClick={onToggleCalendar}>
         <CalendarClock size={17} aria-hidden />
       </RailButton>
       <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
@@ -390,11 +390,11 @@ export function TerminalRightRail({
       <RailButton label="Settings" showLabel onClick={onOpenSettings}>
         <Settings size={17} aria-hidden />
       </RailButton>
-      <RailButton label="Help & tour" showLabel onClick={onStartTour}>
+      <RailButton label="Help" showLabel onClick={onStartTour}>
         <CircleHelp size={17} aria-hidden />
       </RailButton>
       <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
-      <RailButton label="Exit to setup" showLabel onClick={onNewSession}>
+      <RailButton label="Exit" showLabel onClick={onNewSession}>
         <LogOut size={17} aria-hidden />
       </RailButton>
     </aside>

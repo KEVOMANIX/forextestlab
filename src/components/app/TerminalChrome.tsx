@@ -34,11 +34,13 @@ function RailButton({
   label,
   onClick,
   active = false,
+  showLabel = false,
   children,
 }: {
   label: string;
   onClick?: () => void;
   active?: boolean;
+  showLabel?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -47,13 +49,13 @@ function RailButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${
+      className={`${showLabel ? "flex h-9 w-full items-center gap-3 px-2.5 text-left" : "grid h-9 w-9 place-items-center"} rounded-md transition-colors ${
         active
           ? "bg-brand-500 text-surface-950"
           : "app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       }`}
     >
-      {children}
+      <span className="shrink-0">{children}</span>{showLabel && <span className="truncate text-[10px] font-medium">{label}</span>}
     </button>
   );
 }
@@ -295,7 +297,7 @@ export function TerminalLeftRail({
       <RailButton label="Pointer tool" active>
         <MousePointer2 size={17} aria-hidden />
       </RailButton>
-      <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
+      <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
       <RailButton label="Toggle stop-loss from tool rail" active={hasStop} onClick={onToggleStop}>
         <Minus size={17} aria-hidden />
       </RailButton>
@@ -333,7 +335,7 @@ export function TerminalRightRail({
     <aside
       data-tour="workspace-rail"
       aria-label="Workspace shortcuts"
-      className="hidden w-11 shrink-0 flex-col items-center gap-1 border-l app-border bg-[var(--app-panel)] py-2 md:flex"
+      className="hidden w-36 shrink-0 flex-col gap-1 border-l app-border bg-[var(--app-panel)] px-2 py-2 md:flex"
     >
       <Link
         href="/app"
@@ -343,9 +345,9 @@ export function TerminalRightRail({
         }}
         aria-label="Dashboard"
         title="Dashboard"
-        className="grid h-9 w-9 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+        className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       >
-        <LayoutDashboard size={17} aria-hidden />
+        <LayoutDashboard size={17} aria-hidden /><span className="truncate text-[10px] font-medium">Dashboard</span>
       </Link>
       <Link
         href="/app/history"
@@ -355,9 +357,9 @@ export function TerminalRightRail({
         }}
         aria-label="Session history"
         title="Session history"
-        className="grid h-9 w-9 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+        className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       >
-        <BookOpenText size={17} aria-hidden />
+        <BookOpenText size={17} aria-hidden /><span className="truncate text-[10px] font-medium">Sessions</span>
       </Link>
       {!state.anonymous && (
         <Link
@@ -368,16 +370,16 @@ export function TerminalRightRail({
           }}
           aria-label="Session analytics"
           title="Session analytics"
-          className="grid h-9 w-9 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+          className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-left app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
         >
-          <BarChart3 size={17} aria-hidden />
+          <BarChart3 size={17} aria-hidden /><span className="truncate text-[10px] font-medium">Analytics</span>
         </Link>
       )}
-      <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
-      <RailButton label="Economic calendar" active={calendarOpen} onClick={onToggleCalendar}>
+      <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
+      <RailButton label="Economic calendar" showLabel active={calendarOpen} onClick={onToggleCalendar}>
         <CalendarClock size={17} aria-hidden />
       </RailButton>
-      <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
+      <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
       {/*
         Settings live on the rail rather than in the header. The header is read
         while trading and every pixel of it competes with the chart controls;
@@ -385,14 +387,14 @@ export function TerminalRightRail({
         already holds the other "leave what you are doing" actions — is where it
         belongs.
       */}
-      <RailButton label="Settings" onClick={onOpenSettings}>
+      <RailButton label="Settings" showLabel onClick={onOpenSettings}>
         <Settings size={17} aria-hidden />
       </RailButton>
-      <RailButton label="Backtester tour" onClick={onStartTour}>
+      <RailButton label="Help & tour" showLabel onClick={onStartTour}>
         <CircleHelp size={17} aria-hidden />
       </RailButton>
       <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
-      <RailButton label="Exit to session setup" onClick={onNewSession}>
+      <RailButton label="Exit to setup" showLabel onClick={onNewSession}>
         <LogOut size={17} aria-hidden />
       </RailButton>
     </aside>

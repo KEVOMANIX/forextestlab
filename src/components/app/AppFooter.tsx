@@ -60,7 +60,7 @@ export function AppFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="dashboard-workspace relative overflow-hidden border-t app-border bg-[var(--app-bg)] px-0 py-7 sm:py-8">
+    <footer className="dashboard-workspace relative mt-auto overflow-hidden border-t app-border bg-[var(--app-bg)] px-0 py-7 sm:py-8">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-400/55 to-transparent"
         aria-hidden

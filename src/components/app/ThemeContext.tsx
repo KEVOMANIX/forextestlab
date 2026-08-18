@@ -74,7 +74,7 @@ export function AppThemeProvider({
 
   return (
     <ThemeContext.Provider value={{ theme, toggle }}>
-      <div className={`app-shell min-h-[100dvh] ${theme === "light" ? "light" : ""}`}>
+      <div className={`app-shell flex min-h-[100dvh] flex-col ${theme === "light" ? "light" : ""}`}>
         {children}
       </div>
     </ThemeContext.Provider>

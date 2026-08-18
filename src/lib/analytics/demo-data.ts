@@ -97,12 +97,32 @@ export const DEMO_ANALYTICS_PERIOD = {
   endTime: Math.max(...DEMO_ANALYTICS_TRADES.map((trade) => trade.exitTime)),
 };
 
-export const DEMO_ANALYTICS_EQUITY_CURVE: EquityPoint[] = DEMO_ANALYTICS_TRADES.reduce<EquityPoint[]>((points, trade, index) => {
-  const previous = Number(points[points.length - 1]?.balance ?? 100000);
-  const balance = previous + Number(trade.pnl);
-  points.push({ index: index + 1, time: trade.exitTime, balance: String(balance), equity: String(balance) });
+export const DEMO_ANALYTICS_EQUITY_CURVE: EquityPoint[] = DEMO_ANALYTICS_TRADES.reduce<EquityPoint[]>((points, trade, tradeIndex) => {
+  const openingBalance = Number(points[points.length - 1]?.balance ?? 100000);
+  const duration = Math.max(1, trade.exitTime - trade.entryTime);
+  const adverseEquity = openingBalance + Number(trade.maxAdversePnl ?? 0);
+  const favorableEquity = openingBalance + Number(trade.maxFavorablePnl ?? 0);
+  const excursions = tradeIndex % 2 === 0
+    ? [adverseEquity, favorableEquity]
+    : [favorableEquity, adverseEquity];
+  const push = (time: number, balance: number, equity: number) => {
+    points.push({ index: points.length, time, balance: String(balance), equity: String(equity) });
+  };
+
+  // Balance stays fixed while a trade is open; equity records its floating
+  // adverse and favorable excursions, just like a real replay session.
+  push(trade.entryTime, openingBalance, openingBalance);
+  push(trade.entryTime + Math.round(duration * 0.35), openingBalance, excursions[0]!);
+  push(trade.entryTime + Math.round(duration * 0.7), openingBalance, excursions[1]!);
+  const closingBalance = openingBalance + Number(trade.pnl);
+  push(trade.exitTime, closingBalance, closingBalance);
   return points;
-}, [{ index: 0, time: DEMO_ANALYTICS_START, balance: "100000", equity: "100000" }]);
+}, [{
+  index: 0,
+  time: Math.min(...DEMO_ANALYTICS_TRADES.map((trade) => trade.entryTime)) - 60_000,
+  balance: "100000",
+  equity: "100000",
+}]);
 
 /**
  * The sample report's exit-quality counterfactual.

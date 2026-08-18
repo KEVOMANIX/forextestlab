@@ -284,6 +284,19 @@ function linePath(values: number[]) {
   return values.map((value, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
 }
 
+/** Draw drawdown on a secondary visual scale so it does not flatten equity. */
+function drawdownLinePath(values: number[], width = 920, height = 280) {
+  const pad = 16;
+  const maxDrawdown = Math.max(...values.map((value) => Math.max(0, -value)), 0);
+  if (maxDrawdown <= 0 || values.length < 2) return "";
+  const x = (index: number) => pad + index * ((width - pad * 2) / (values.length - 1));
+  // Zero drawdown sits near the top; deeper drawdown descends toward the base.
+  const y = (value: number) => pad + (Math.max(0, -value) / maxDrawdown) * (height - pad * 2);
+  return values
+    .map((value, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(value).toFixed(1)}`)
+    .join(" ");
+}
+
 function normalizedPath(values: number[], width = 920, height = 220) {
   const pad = 16;
   const min = Math.min(...values);
@@ -324,6 +337,7 @@ export function AnalyticsDesignPrototype({
   const pairLabel = symbols.map(formatSymbol).join(" · ");
   const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, pairLabel), [demo, trades, equityCurve, startingBalance, pairLabel]);
   const path = linePath(model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance]);
+  const drawdownPath = drawdownLinePath(model.drawdown);
   // The sample used to carry a hand-written period that its own trades,
   // calendar and equity axis all contradicted. Both modes now derive it.
   const periodStart = demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime;
@@ -401,8 +415,9 @@ export function AnalyticsDesignPrototype({
                     <rect width="920" height="280" fill="url(#prototype-grid)" className="app-muted" />
                     <path d={`${path} L904,264 L16,264 Z`} fill="url(#prototype-equity)" />
                     <path d={path} fill="none" stroke={model.netProfit >= 0 ? "#22c3a0" : "#fb7185"} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+                    {drawdownPath && <path d={drawdownPath} fill="none" stroke="#f4646c" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
                   </svg>
-                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span>Equity path</span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
+                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="flex items-center gap-3"><span className="text-brand-300">━ Equity</span>{drawdownPath && <span className="text-bear">━ Drawdown</span>}</span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
                 </div>
               </div>
 

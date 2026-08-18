@@ -368,10 +368,7 @@ export function AnalyticsDesignPrototype({
   const pairLabel = symbols.map(formatSymbol).join(" · ");
   const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, pairLabel), [demo, trades, equityCurve, startingBalance, pairLabel]);
   const equityValues = model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance];
-  const balanceValues = model.balance.length > 1 ? model.balance : [model.endingBalance, model.endingBalance];
-  const sharedAccountDomain = [...equityValues, ...balanceValues];
-  const equityPath = linePath(equityValues, sharedAccountDomain);
-  const balancePath = linePath(balanceValues, sharedAccountDomain);
+  const equityPath = linePath(equityValues);
   // The sample used to carry a hand-written period that its own trades,
   // calendar and equity axis all contradicted. Both modes now derive it.
   const periodStart = demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime;
@@ -444,14 +441,13 @@ export function AnalyticsDesignPrototype({
                   </div>
                 </div>
                 <div className="relative mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
-                  <svg viewBox="0 0 920 280" preserveAspectRatio="none" className="h-72 w-full" role="img" aria-label="Account balance and equity history">
+                  <svg viewBox="0 0 920 280" preserveAspectRatio="none" className="h-72 w-full" role="img" aria-label="Account equity history">
                     <defs><linearGradient id="prototype-equity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#22c3a0" stopOpacity=".22"/><stop offset="1" stopColor="#22c3a0" stopOpacity="0"/></linearGradient><pattern id="prototype-grid" width="115" height="56" patternUnits="userSpaceOnUse"><path d="M115 0H0V56" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern></defs>
                     <rect width="920" height="280" fill="url(#prototype-grid)" className="app-muted" />
                     <path d={`${equityPath} L904,264 L16,264 Z`} fill="url(#prototype-equity)" />
-                    <path d={balancePath} fill="none" stroke="#f4646c" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
-                      <path d={equityPath} fill="none" stroke="#22c3a0" strokeWidth="2.5" strokeDasharray="1 6" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                    <path d={equityPath} fill="none" stroke="#22c3a0" strokeWidth="2.75" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
                   </svg>
-                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="flex items-center gap-3"><span className="text-brand-300">┄ Equity</span><span className="text-bear">━ Balance</span></span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
+                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-brand-300">━ Equity</span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
                 </div>
               </div>
 

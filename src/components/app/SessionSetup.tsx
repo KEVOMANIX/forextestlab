@@ -411,11 +411,11 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   }
 
   return (
-    <form onSubmit={handleStart} className="panel mx-auto w-full max-w-5xl overflow-visible">
-      <div className="flex flex-col gap-3 border-b app-border px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+    <form onSubmit={handleStart} className="panel mx-auto w-full max-w-6xl overflow-visible">
+      <div className="flex flex-col gap-2 border-b app-border px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">New backtest</p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight">Set up your session</h2>
+          <h2 className="mt-0.5 text-xl font-bold tracking-tight">Set up your session</h2>
         </div>
         <span className="w-fit rounded-full border border-brand-400/20 bg-brand-400/[0.07] px-3 py-1.5 text-xs font-semibold text-brand-300">
           {entitlements.plan === "free"
@@ -424,8 +424,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </span>
       </div>
 
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.08fr)_minmax(20rem,0.92fr)]">
-        <div className="space-y-7 px-5 py-6 sm:px-7 lg:border-r lg:border-[var(--app-border)]">
+      <div className="grid gap-0 lg:grid-cols-3">
+        <div className="space-y-5 px-5 py-4 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">1</span>
@@ -443,7 +443,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               required
               autoFocus
             />
-            <div className="relative mt-3">
+            <div className="relative mt-2">
               <Tags size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
               <label htmlFor="setup-tags" className="sr-only">Strategy tags</label>
               <input
@@ -466,19 +466,19 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
             </legend>
 
             {loadingSymbols ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Loading markets">
+              <div className="grid max-h-52 grid-cols-2 gap-2 overflow-hidden sm:grid-cols-3 lg:grid-cols-2" aria-label="Loading markets">
                 {Array.from({ length: 6 }, (_, index) => (
                   <span key={index} className="h-11 animate-pulse rounded-xl bg-white/[0.05]" />
                 ))}
               </div>
             ) : enabledSymbols.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid max-h-52 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-2">
                 {enabledSymbols.map((item) => {
                   const selected = selectedSymbols.includes(item.symbol);
                   return (
                     <label
                       key={item.symbol}
-                      className={`group flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 py-3 text-sm transition-all ${
+                      className={`group flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
                         selected
                           ? "border-brand-400/50 bg-brand-400/10 text-brand-200 shadow-sm"
                           : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30 hover:bg-brand-400/[0.04]"
@@ -509,7 +509,9 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               </p>
             )}
           </fieldset>
+        </div>
 
+        <div className="border-t app-border px-5 py-4 sm:px-6 lg:border-r lg:border-t-0 lg:border-[var(--app-border)]">
           <fieldset>
             <legend className="mb-3 flex w-full items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
@@ -551,10 +553,10 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                   inputMode="decimal"
                   value={accountSize}
                   onChange={(event) => setAccountSize(event.target.value)}
-                  className="app-input w-40 py-1.5 text-sm font-mono"
+                  className="app-input min-w-0 flex-1 py-1.5 text-sm font-mono"
                 />
-                <span className="text-xs app-muted">Used to calculate risk and P/L.</span>
               </div>
+              <p className="mt-1.5 text-[11px] app-muted">Used to calculate risk and P/L.</p>
             </div>
 
             {challengePreset && (
@@ -592,7 +594,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                   />
                   <RuleLine label="Daily reset" value="00:00 Prague" />
                 </dl>
-                <p className="mt-3 text-[11px] app-muted">
+                <p className="mt-2 text-[11px] app-muted">
                   Limits are measured on equity, including open trades, and are
                   enforced candle by candle. A challenge cannot be rewound.
                 </p>
@@ -601,13 +603,13 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           </fieldset>
         </div>
 
-        <div className="border-t app-border px-5 py-6 sm:px-7 lg:border-t-0">
+        <div className="border-t app-border px-5 py-4 sm:px-6 lg:border-t-0">
           <section>
-            <div className="mb-4 flex items-center gap-2">
+            <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">4</span>
               <h3 className="text-sm font-semibold">Choose your replay period</h3>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
               <SessionDatePicker
                 id="setup-start"
                 label="Start date"
@@ -650,9 +652,9 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
             </div>
           </section>
 
-          <section className="mt-6 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-4">
+          <section className="mt-4 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Session preview</p>
-            <p className={`mt-2 font-semibold ${name.trim() ? "" : "app-muted"}`}>
+            <p className={`mt-1.5 truncate font-semibold ${name.trim() ? "" : "app-muted"}`}>
               {name.trim() || "Your session name"}
             </p>
             <p className="mt-1 text-sm app-muted">
@@ -669,7 +671,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                 : "Enter a positive balance"}
             </p>
             {tags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
+              <div className="mt-2 flex max-h-12 flex-wrap gap-1.5 overflow-hidden">
                 {tags.map((tag) => (
                   <span key={tag} className="rounded-full bg-brand-400/10 px-2 py-1 text-[10px] font-medium text-brand-300">
                     {tag}
@@ -681,7 +683,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </div>
       </div>
 
-      <div className="border-t app-border px-5 py-4 sm:px-7">
+      <div className="border-t app-border px-5 py-3 sm:px-6">
         {error && (
           <p role="alert" className="mb-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
             {error}

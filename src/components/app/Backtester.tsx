@@ -746,8 +746,8 @@ export function Backtester({
   if (bt.phase === "setup" || !state) {
     if (bt.busy) return <PageLoader message="Preparing your backtest…" />;
     return (
-      <div className="mx-auto max-w-[1600px] px-4 py-8">
-        <div className="mx-auto mb-4 max-w-5xl">
+      <div className="mx-auto max-w-[1600px] px-4 py-4 sm:py-6">
+        <div className="mx-auto mb-3 max-w-6xl">
           <BackLink />
         </div>
         {effectiveEntitlements.plan === "free" ? (

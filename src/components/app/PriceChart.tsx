@@ -1685,24 +1685,9 @@ export default function PriceChart({
         if (Array.isArray(saved.indicators)) {
           setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
         }
-        if (
-          !alignToReplayClockOnLoad &&
-          saved.timeRange &&
-          Number.isFinite(saved.timeRange.from) &&
-          Number.isFinite(saved.timeRange.to) &&
-          saved.timeRange.from < saved.timeRange.to
-        ) {
-          savedTimeRangeRef.current = {
-            timeframe:
-              saved.timeframe && availableTimeframes.includes(saved.timeframe)
-                ? saved.timeframe
-                : displayTimeframeRef.current,
-            range: {
-              from: saved.timeRange.from as UTCTimestamp,
-              to: saved.timeRange.to as UTCTimestamp,
-            },
-          };
-        }
+        // A chart mount is intentionally a fresh view.  Timeframe, chart type
+        // and indicators are preferences; the old pan/zoom is not restored on
+        // reload or when a new layout cell is opened.
       } catch {
         // Ignore malformed local chart preferences.
       }
@@ -2123,9 +2108,7 @@ export default function PriceChart({
       savedTimeRangeRef.current = null;
       setFollowLatest(true);
       resetLatestViewport();
-    } else if (!restoreSavedTimeRange()) {
-      // The series has only just arrived, so this is where a cell cloned into a
-      // new layout finally gets the view it was stored with.
+    } else {
       resetLatestViewport();
     }
     if (initialHistoryPending && !historyLoadingRef.current) {

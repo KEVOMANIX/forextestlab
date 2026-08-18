@@ -253,7 +253,9 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   /** Null = free practice. Otherwise the challenge phase being attempted. */
   const [challengePreset, setChallengePreset] =
     useState<"ftmo-phase-1" | "ftmo-phase-2" | null>(null);
-  const [accountSize, setAccountSize] = useState<string>("100000");
+  // Free practice may use any positive starting balance. Challenge presets
+  // reuse this value and constrain it to the supported account-size buttons.
+  const [accountSize, setAccountSize] = useState<string>("10000");
 
   useEffect(() => {
     let active = true;
@@ -358,7 +360,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       end &&
       end >= start &&
       !loadingRange &&
-      !busy,
+      !busy && Number(accountSize) > 0,
   );
 
   function toggleSymbol(symbol: string) {
@@ -383,8 +385,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       symbols: selectedSymbols,
       startTime: Math.max(range.startTime, newYorkDateStart(start)),
       endTime: Math.min(range.endTime, newYorkDateEnd(end)),
-      // The challenge fixes the account size; free practice keeps the default.
-      startingBalance: rules ? accountSize : undefined,
+      // Both free practice and challenges start from the balance shown here.
+      startingBalance: accountSize,
       propFirm: rules,
     });
   }
@@ -535,6 +537,26 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               />
             </div>
 
+            <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
+              <label htmlFor="setup-account-balance" className="mb-1.5 block text-xs font-medium app-muted">
+                Starting account balance (USD)
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="app-muted">$</span>
+                <input
+                  id="setup-account-balance"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={accountSize}
+                  onChange={(event) => setAccountSize(event.target.value)}
+                  className="app-input w-40 py-1.5 text-sm font-mono"
+                />
+                <span className="text-xs app-muted">Used to calculate risk and P/L.</span>
+              </div>
+            </div>
+
             {challengePreset && (
               <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
                 <p className="mb-2 text-xs font-medium app-muted">Account size</p>
@@ -640,6 +662,11 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
             </p>
             <p className="mt-1 text-sm app-muted">
               {start && end ? `${friendlyDate(start)} – ${friendlyDate(end)}` : "Select your replay dates"}
+            </p>
+            <p className="mt-1 text-sm app-muted">
+              Starting balance: {accountSize && Number(accountSize) > 0
+                ? `$${Number(accountSize).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : "Enter a positive balance"}
             </p>
             {tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1.5">

@@ -57,7 +57,7 @@ import { GoToModal } from "./GoToModal";
 import { EconomicCalendarPanel } from "./EconomicCalendarPanel";
 import { TimeZonePicker } from "./TimeZonePicker";
 import type { GoToTarget } from "@/lib/backtest/goto";
-import { ChartSettingsDialog, type SettingsTab } from "./ChartSettingsMenu";
+import { AUTO_BACKGROUND, ChartSettingsDialog, type SettingsTab } from "./ChartSettingsMenu";
 import { symbolQuoteAt } from "@/lib/backtest/symbol-quote";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { currenciesForSymbol } from "@/lib/economic-calendar/types";
@@ -155,6 +155,13 @@ export function Backtester({
   );
   // Chart preferences are shared by every chart in the session's workspace.
   const workspace = useChartWorkspace(String(bt.sessionId ?? "new"), Boolean(state && !state.anonymous), workspaceSymbols);
+  const toggleTheme = useCallback(() => {
+    // A theme switch must carry the chart with it.  A previously chosen custom
+    // chart colour should not leave a dark canvas inside the light workspace
+    // (or the reverse); the explicit auto background is the theme contract.
+    workspace.updateSettings({ background: AUTO_BACKGROUND });
+    toggle();
+  }, [toggle, workspace]);
   const chartLoadIdentity = state
     ? `${state.sessionId}:${bt.resetNonce}:${workspace.revision}`
     : null;
@@ -1015,7 +1022,7 @@ export function Backtester({
       {!workspace.settings.distractionFree && <TerminalTopBar
         state={state}
         theme={theme}
-        onToggleTheme={toggle}
+        onToggleTheme={toggleTheme}
         onNewSession={newSession}
         saveStatus={bt.saveStatus}
         onNavigate={navigateFromChart}

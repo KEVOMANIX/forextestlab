@@ -102,7 +102,16 @@ function cloneCellView(
     const source = window.localStorage.getItem(
       `forextestlab:chart:${storageKey}:${fromCellId}:${symbol}`,
     );
-    if (source) window.localStorage.setItem(target, source);
+    if (source) {
+      // A new pane inherits the instrument/timeframe presentation, not the
+      // source pane's pan/zoom. Every newly opened layout starts at the latest
+      // candles so it is immediately useful instead of opening on a stale
+      // historical window.
+      const view = JSON.parse(source) as Record<string, unknown>;
+      delete view.range;
+      delete view.timeRange;
+      window.localStorage.setItem(target, JSON.stringify(view));
+    }
   } catch {
     // A cell without seeded state just opens on the defaults.
   }

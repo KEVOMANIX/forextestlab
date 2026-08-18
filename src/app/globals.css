@@ -333,6 +333,33 @@
   }
 
   /*
+   * Native select menus are painted by the browser rather than Tailwind.
+   * Without an explicit scheme/option palette, Chromium on Windows falls back
+   * to a white popup while the terminal text remains light, making the
+   * unselected rows look disabled (and custom option classes are ignored by
+   * some native renderers). Keep every terminal dropdown readable in both
+   * themes, including disabled choices.
+   */
+  :is(.app-shell, .app-theme-surface) select {
+    color-scheme: dark;
+  }
+
+  :is(.app-shell, .app-theme-surface) select option,
+  :is(.app-shell, .app-theme-surface) select optgroup {
+    background-color: var(--app-panel-solid);
+    color: var(--app-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) select option:disabled {
+    color: var(--app-muted);
+    opacity: 1;
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light) select {
+    color-scheme: light;
+  }
+
+  /*
    * Horizontal overflow for the dense toolbars in the trading header. A visible
    * scrollbar would eat most of a 32px-tall control row, so it is hidden while
    * the row stays scrollable by wheel, drag and keyboard.

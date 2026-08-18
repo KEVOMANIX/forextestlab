@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -298,6 +298,46 @@ function normalizedPath(values: number[], width = 920, height = 220) {
     const y = pad + (1 - (value - min) / spread) * (height - pad * 2);
     return `${index ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(" ");
+}
+
+function InteractiveDrawdownChart({ values, maxDrawdown, closedTrades }: { values: number[]; maxDrawdown: number | null; closedTrades: number }) {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const drawdownValues = values.length > 1 ? values : [0, 0];
+  const width = 920;
+  const height = 220;
+  const pad = 16;
+  const min = Math.min(...drawdownValues);
+  const max = Math.max(...drawdownValues);
+  const spread = max - min || 1;
+  const point = (index: number) => ({
+    x: pad + index * ((width - pad * 2) / (drawdownValues.length - 1)),
+    y: pad + (1 - (drawdownValues[index]! - min) / spread) * (height - pad * 2),
+  });
+  const active = hoverIndex === null ? null : point(hoverIndex);
+  const updateHover = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    setHoverIndex(Math.round(ratio * (drawdownValues.length - 1)));
+  };
+
+  return (
+    <div className="relative mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="h-60 w-full touch-none" role="img" aria-label="Interactive drawdown curve" onPointerMove={updateHover} onPointerLeave={() => setHoverIndex(null)}>
+        <defs>
+          <linearGradient id="drawdown-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fb7185" stopOpacity=".04"/><stop offset="1" stopColor="#fb7185" stopOpacity=".25"/></linearGradient>
+          <pattern id="report-grid" width="115" height="55" patternUnits="userSpaceOnUse"><path d="M115 0H0V55" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern>
+        </defs>
+        <rect width={width} height={height} fill="url(#report-grid)" className="app-muted" />
+        <path d={`${normalizedPath(drawdownValues)} L904,16 L16,16 Z`} fill="url(#drawdown-fill)" />
+        <path d={normalizedPath(drawdownValues)} fill="none" stroke="#fb7185" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <line x1="16" y1="16" x2="904" y2="16" stroke="currentColor" strokeOpacity=".13" />
+        {active && <><line x1={active.x} y1={pad} x2={active.x} y2={height - pad} stroke="#fb7185" strokeOpacity=".4" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" /><circle cx={active.x} cy={active.y} r="4.5" fill="#fb7185" stroke="var(--app-panel)" strokeWidth="2" vectorEffect="non-scaling-stroke" /></>}
+        <rect x="0" y="0" width={width} height={height} fill="transparent" />
+      </svg>
+      {active && hoverIndex !== null && <div className="pointer-events-none absolute top-3 z-10 min-w-[130px] -translate-x-1/2 rounded-lg border border-rose-300/30 bg-[var(--app-panel)]/95 px-3 py-2 shadow-xl" style={{ left: `${(active.x / width) * 100}%` }}><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-300">Drawdown</p><p className="mt-1 font-mono text-sm font-semibold text-[var(--app-text)]">{drawdownMoney(drawdownValues[hoverIndex] ?? 0)}</p><p className="mt-0.5 text-[10px] app-muted">Point {hoverIndex + 1} of {drawdownValues.length}</p></div>}
+      <div className="mt-3 flex justify-between px-1 text-[10px] app-muted"><span>Start</span><span>Deepest: {drawdownMoney(maxDrawdown)}</span><span>Equity path</span><span>Trade {closedTrades}</span></div>
+    </div>
+  );
 }
 
 export function AnalyticsDesignPrototype({
@@ -659,8 +699,6 @@ function DemoJournalWorkspace() {
 
 
 function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsModel; periodLabel: string; sessionId?: string }) {
-  const drawdownValues = model.drawdown.length > 1 ? model.drawdown : [0, 0];
-  const drawdownPath = normalizedPath(drawdownValues);
   const monthPercents = model.monthlyReturns.map((month) => month.percent);
   const bestMonth = Math.max(...monthPercents, 0);
   const worstMonth = Math.min(...monthPercents, 0);
@@ -705,19 +743,7 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.7fr)]">
         <ReportCard eyebrow="Risk profile" title="Drawdown and recovery" icon={TrendingDown} info="Every point below the line is money the account was down from its previous high. The depth is what you had to tolerate; the width — how long it stayed below the line — is how long you had to tolerate it.">
-          <div className="mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
-            <svg viewBox="0 0 920 220" preserveAspectRatio="none" className="h-60 w-full" role="img" aria-label="Drawdown curve">
-              <defs>
-                <linearGradient id="drawdown-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fb7185" stopOpacity=".04"/><stop offset="1" stopColor="#fb7185" stopOpacity=".25"/></linearGradient>
-                <pattern id="report-grid" width="115" height="55" patternUnits="userSpaceOnUse"><path d="M115 0H0V55" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern>
-              </defs>
-              <rect width="920" height="220" fill="url(#report-grid)" className="app-muted" />
-              <path d={`${drawdownPath} L904,16 L16,16 Z`} fill="url(#drawdown-fill)" />
-              <path d={drawdownPath} fill="none" stroke="#fb7185" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-              <line x1="16" y1="16" x2="904" y2="16" stroke="currentColor" strokeOpacity=".13" />
-            </svg>
-          </div>
-          <div className="mt-3 flex justify-between text-[10px] app-muted"><span>Start</span><span>Deepest: {drawdownMoney(model.maxDrawdown)}</span><span>Equity path</span><span>Trade {model.closedTrades}</span></div>
+          <InteractiveDrawdownChart values={model.drawdown} maxDrawdown={model.maxDrawdown} closedTrades={model.closedTrades} />
         </ReportCard>
 
         <ReportCard eyebrow="Risk diagnosis" title="What the drawdown says" icon={Gauge} info="The worst decline set against what the strategy earned, so the reward can be judged against the risk it took rather than on its own.">

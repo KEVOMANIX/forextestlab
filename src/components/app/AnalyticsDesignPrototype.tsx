@@ -419,7 +419,15 @@ export function AnalyticsDesignPrototype({
                     <path d={path} fill="none" stroke={model.netProfit >= 0 ? "#22c3a0" : "#fb7185"} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
                     {drawdownPath && <><line x1="16" x2="904" y1="208" y2="208" stroke="#f4646c" strokeOpacity=".35" strokeWidth="1" vectorEffect="non-scaling-stroke"/><path d={`${drawdownPath} L904,208 L16,208 Z`} fill="url(#prototype-drawdown)"/><path d={drawdownPath} fill="none" stroke="#f4646c" strokeWidth="2" vectorEffect="non-scaling-stroke"/></>}
                   </svg>
-                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="flex items-center gap-3"><span className="text-brand-300">━ Equity</span>{drawdownPath && <span className="text-bear">━ Drawdown</span>}</span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
+                  {drawdownPath && (
+                    <div className="pointer-events-none absolute left-4 top-[69%] flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-bear">
+                      <span>Drawdown</span>
+                      <span className="font-mono font-normal normal-case tracking-normal app-muted">
+                        max {model.maxDrawdownPercent === null ? "—" : `−${model.maxDrawdownPercent.toFixed(2)}%`}
+                      </span>
+                    </div>
+                  )}
+                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-brand-300">━ Equity</span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
                 </div>
               </div>
 

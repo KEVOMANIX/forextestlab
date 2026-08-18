@@ -11,6 +11,7 @@ import {
   Loader2,
   LockKeyhole,
   Play,
+  Search,
   Tags,
 } from "lucide-react";
 
@@ -246,6 +247,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
   const [loadingSymbols, setLoadingSymbols] = useState(true);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
+  const [marketSearchOpen, setMarketSearchOpen] = useState(false);
+  const [marketQuery, setMarketQuery] = useState("");
   const [range, setRange] = useState<{ startTime: number; endTime: number } | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -340,6 +343,13 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
     () => symbols.filter((item) => item.enabled),
     [symbols],
   );
+  const visibleSymbols = useMemo(() => {
+    const query = marketQuery.trim().toLowerCase();
+    if (!query) return enabledSymbols;
+    return enabledSymbols.filter((item) =>
+      `${item.symbol} ${item.displayName}`.toLowerCase().includes(query),
+    );
+  }, [enabledSymbols, marketQuery]);
   const tags = tagsText
     .split(",")
     .map((tag) => tag.trim())
@@ -461,9 +471,37 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">2</span>
               <span className="text-sm font-semibold">Choose market{entitlements.maxPairsPerSession === 1 ? "" : "s"}</span>
               {selectedSymbols.length > 0 && (
-                <span className="ml-auto text-xs font-medium text-brand-300">{selectedSymbols.length} selected</span>
+                <span className="ml-1 text-xs font-medium text-brand-300">{selectedSymbols.length} selected</span>
               )}
+              <button
+                type="button"
+                className="ml-auto inline-flex items-center gap-1 rounded-md border app-border px-2 py-1 text-[11px] font-medium app-muted transition-colors hover:border-brand-400/40 hover:text-brand-300"
+                aria-expanded={marketSearchOpen}
+                aria-controls="setup-market-search"
+                onClick={() => {
+                  setMarketSearchOpen((open) => !open);
+                  if (marketSearchOpen) setMarketQuery("");
+                }}
+              >
+                <Search size={13} aria-hidden />
+                Search
+              </button>
             </legend>
+
+            {marketSearchOpen && (
+              <div className="relative mb-2">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
+                <label htmlFor="setup-market-search" className="sr-only">Search markets</label>
+                <input
+                  id="setup-market-search"
+                  className="app-input w-full py-2 pl-9 text-sm"
+                  value={marketQuery}
+                  onChange={(event) => setMarketQuery(event.target.value)}
+                  placeholder="Search pairs…"
+                  autoFocus
+                />
+              </div>
+            )}
 
             {loadingSymbols ? (
               <div className="grid max-h-52 grid-cols-2 gap-2 overflow-hidden sm:grid-cols-3 lg:grid-cols-2" aria-label="Loading markets">
@@ -471,9 +509,9 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                   <span key={index} className="h-11 animate-pulse rounded-xl bg-white/[0.05]" />
                 ))}
               </div>
-            ) : enabledSymbols.length > 0 ? (
+            ) : visibleSymbols.length > 0 ? (
               <div className="grid max-h-52 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-2">
-                {enabledSymbols.map((item) => {
+                {visibleSymbols.map((item) => {
                   const selected = selectedSymbols.includes(item.symbol);
                   return (
                     <label
@@ -503,6 +541,10 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                   );
                 })}
               </div>
+            ) : enabledSymbols.length > 0 ? (
+              <p className="rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 text-sm app-muted">
+                No markets match “{marketQuery}”.
+              </p>
             ) : (
               <p className="rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 text-sm app-muted">
                 Markets are temporarily unavailable. Please refresh and try again.

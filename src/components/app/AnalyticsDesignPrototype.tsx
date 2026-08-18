@@ -409,7 +409,7 @@ export function AnalyticsDesignPrototype({
                     <rect width="920" height="280" fill="url(#prototype-grid)" className="app-muted" />
                     <path d={`${equityPath} L904,264 L16,264 Z`} fill="url(#prototype-equity)" />
                     <path d={balancePath} fill="none" stroke="#f4646c" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
-                    <path d={equityPath} fill="none" stroke="#22c3a0" strokeWidth="2" strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+                      <path d={equityPath} fill="none" stroke="#22c3a0" strokeWidth="2.5" strokeDasharray="1 6" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
                   </svg>
                   <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="flex items-center gap-3"><span className="text-brand-300">┄ Equity</span><span className="text-bear">━ Balance</span></span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
                 </div>

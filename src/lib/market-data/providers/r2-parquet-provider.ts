@@ -154,15 +154,40 @@ export function parseStoredMonth(key: string, prefix: string): StoredMonth | und
   };
 }
 
+/**
+ * Convert the timestamp representations emitted by Parquet readers to the
+ * application's canonical UTC epoch milliseconds.  Depending on the logical
+ * Parquet type and reader, an instant can arrive as Date, seconds, millis,
+ * microseconds, or nanoseconds.  Treating every numeric value as milliseconds
+ * silently moves second-based data to 1970; treating microseconds as
+ * nanoseconds shifts it by a factor of 1,000.  Magnitude-based conversion is
+ * unambiguous for the market-data date range and keeps the conversion
+ * independent of the host timezone.
+ */
 function timestampMs(value: unknown): number {
   if (value instanceof Date) return value.getTime();
-  if (typeof value === "number") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return Number.NaN;
+    const magnitude = Math.abs(value);
+    if (magnitude < 100_000_000_000) return value * 1000; // epoch seconds
+    if (magnitude < 100_000_000_000_000) return value; // epoch milliseconds
+    if (magnitude < 100_000_000_000_000_000) return value / 1000; // microseconds
+    return value / 1_000_000; // nanoseconds
+  }
   if (typeof value === "bigint") {
-    const numeric = Number(value);
-    return numeric > 10_000_000_000_000 ? numeric / 1_000_000 : numeric;
+    const magnitude = value < 0n ? -value : value;
+    if (magnitude < 100_000_000_000n) return Number(value) * 1000;
+    if (magnitude < 100_000_000_000_000n) return Number(value);
+    if (magnitude < 100_000_000_000_000_000n) return Number(value) / 1000;
+    return Number(value) / 1_000_000;
   }
   if (typeof value === "string") {
-    const parsed = Date.parse(value);
+    const trimmed = value.trim();
+    if (/^[+-]?\d+(?:\.\d+)?$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      return Number.isFinite(numeric) ? timestampMs(numeric) : Number.NaN;
+    }
+    const parsed = Date.parse(trimmed);
     if (Number.isFinite(parsed)) return parsed;
   }
   return Number.NaN;

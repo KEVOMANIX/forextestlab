@@ -1756,11 +1756,21 @@ export default function PriceChart({
     const onCrosshair = (param: MouseEventParams<Time>) => {
       scheduleLineCoordinates();
       const series = seriesRef.current;
-      if (!series || !param.time) {
+      if (!series || param.time == null) {
         setLegend(null);
         return;
       }
-      const point = param.seriesData.get(series) as CandlestickData<Time> | LineData<Time> | undefined;
+      // The chart deliberately uses two price series: the replay candles on
+      // the right and the historical context candles on the left.  Reading
+      // only the replay series made the legend disappear whenever the
+      // crosshair was over context history, even though that series had a
+      // perfectly valid candle under the pointer.
+      const replayPoint = param.seriesData.get(series) as CandlestickData<Time> | LineData<Time> | undefined;
+      const contextSeries = contextSeriesRef.current;
+      const contextPoint = contextSeries && contextSeries !== series
+        ? param.seriesData.get(contextSeries) as CandlestickData<Time> | LineData<Time> | undefined
+        : undefined;
+      const point = replayPoint ?? contextPoint;
       if (!point) {
         setLegend(null);
         return;
@@ -1768,10 +1778,11 @@ export default function PriceChart({
       const at = chartTimeMs(param.time);
       if ("close" in point) {
         // Volume is not carried on the series' own data, so it comes from the
-        // aggregated bars. Only a crosshair move reaches here, never a replay
-        // tick, so the lookup costs nothing during playback.
+        // aggregated bars. Context candles live in a separate series, so use
+        // that series' source array when the replay series has no point.
         const seconds = Number(param.time);
-        const bar = displayRef.current.find((candle) => Number(candle.time) === seconds);
+        const source = replayPoint ? displayRef.current : historyCandlesRef.current.map(toOHLCV);
+        const bar = source.find((candle) => Number(candle.time) === seconds);
         setLegend({
           kind: "ohlc",
           at,

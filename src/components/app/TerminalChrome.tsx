@@ -49,13 +49,13 @@ function RailButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`${showLabel ? "flex h-11 w-full flex-col items-center justify-center gap-0.5 px-0.5 text-center" : "grid h-9 w-9 place-items-center"} rounded-md transition-colors ${
+      className={`${showLabel ? "flex h-12 w-full flex-col items-center justify-center gap-1 px-0.5 text-center" : "grid h-9 w-9 place-items-center"} rounded-md transition-colors ${
         active
           ? "bg-brand-500 text-surface-950"
           : "app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       }`}
     >
-      <span className="shrink-0">{children}</span>{showLabel && <span className="w-full truncate text-[8px] font-semibold leading-none">{label}</span>}
+      <span className="shrink-0">{children}</span>{showLabel && <span className="w-full truncate text-[9px] font-semibold leading-none">{label}</span>}
     </button>
   );
 }
@@ -335,7 +335,7 @@ export function TerminalRightRail({
     <aside
       data-tour="workspace-rail"
       aria-label="Workspace shortcuts"
-      className="hidden w-14 shrink-0 flex-col items-center gap-0.5 border-l app-border bg-[var(--app-panel)] px-1 py-2 md:flex"
+      className="hidden w-16 shrink-0 flex-col items-center gap-0.5 border-l app-border bg-[var(--app-panel)] px-1 py-2 md:flex"
     >
       <Link
         href="/app"
@@ -345,9 +345,9 @@ export function TerminalRightRail({
         }}
         aria-label="Dashboard"
         title="Dashboard"
-        className="flex h-11 w-full flex-col items-center justify-center gap-0.5 rounded-md px-0.5 text-center app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+        className="flex h-12 w-full flex-col items-center justify-center gap-1 rounded-md px-0.5 text-center app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       >
-        <LayoutDashboard size={16} aria-hidden /><span className="w-full truncate text-[8px] font-semibold leading-none">Home</span>
+        <LayoutDashboard size={18} aria-hidden /><span className="w-full truncate text-[9px] font-semibold leading-none">Home</span>
       </Link>
       <Link
         href="/app/history"
@@ -357,9 +357,9 @@ export function TerminalRightRail({
         }}
         aria-label="Session history"
         title="Session history"
-        className="flex h-11 w-full flex-col items-center justify-center gap-0.5 rounded-md px-0.5 text-center app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+        className="flex h-12 w-full flex-col items-center justify-center gap-1 rounded-md px-0.5 text-center app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
       >
-        <BookOpenText size={16} aria-hidden /><span className="w-full truncate text-[8px] font-semibold leading-none">Saved</span>
+        <BookOpenText size={18} aria-hidden /><span className="w-full truncate text-[9px] font-semibold leading-none">Saved</span>
       </Link>
       {!state.anonymous && (
         <Link
@@ -370,14 +370,14 @@ export function TerminalRightRail({
           }}
           aria-label="Session analytics"
           title="Session analytics"
-          className="flex h-11 w-full flex-col items-center justify-center gap-0.5 rounded-md px-0.5 text-center app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+          className="flex h-12 w-full flex-col items-center justify-center gap-1 rounded-md px-0.5 text-center app-muted hover:bg-[var(--app-panel-2)] hover:text-brand-300"
         >
-          <BarChart3 size={16} aria-hidden /><span className="w-full truncate text-[8px] font-semibold leading-none">Stats</span>
+          <BarChart3 size={18} aria-hidden /><span className="w-full truncate text-[9px] font-semibold leading-none">Stats</span>
         </Link>
       )}
       <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
-      <RailButton label="Events" showLabel active={calendarOpen} onClick={onToggleCalendar}>
-        <CalendarClock size={17} aria-hidden />
+      <RailButton label="News" showLabel active={calendarOpen} onClick={onToggleCalendar}>
+        <CalendarClock size={18} aria-hidden />
       </RailButton>
       <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
       {/*
@@ -388,14 +388,14 @@ export function TerminalRightRail({
         belongs.
       */}
       <RailButton label="Settings" showLabel onClick={onOpenSettings}>
-        <Settings size={17} aria-hidden />
+        <Settings size={18} aria-hidden />
       </RailButton>
       <RailButton label="Help" showLabel onClick={onStartTour}>
-        <CircleHelp size={17} aria-hidden />
+        <CircleHelp size={18} aria-hidden />
       </RailButton>
       <span className="my-1 h-px w-6 bg-[var(--app-border)]" aria-hidden />
       <RailButton label="Exit" showLabel onClick={onNewSession}>
-        <LogOut size={17} aria-hidden />
+        <LogOut size={18} aria-hidden />
       </RailButton>
     </aside>
   );

@@ -247,6 +247,7 @@ export default function ChartGrid({
   onOpenSettings,
 }: ChartGridProps) {
   const sessionSymbol = state.config.symbol;
+  const sessionSymbolsKey = (state.config.symbols ?? [sessionSymbol]).join(",");
   const compact = useCompactViewport();
   const [layout, setLayout] = useState<GridLayout>("1");
   const [cells, setCells] = useState<ChartCell[]>([
@@ -260,12 +261,27 @@ export default function ChartGrid({
   useEffect(() => {
     const saved = readStoredLayout(storageKey);
     if (saved) {
+      const allowedSymbols = new Set(
+        sessionSymbolsKey ? sessionSymbolsKey.split(",") : [sessionSymbol],
+      );
+      // Layout preferences can outlive a session in localStorage (and older
+      // versions used broader keys). Never let a stale cell symbol leak into a
+      // new session: the session's primary pair is a safe fallback.
+      const cellsForSession = saved.cells.map((cell) =>
+        allowedSymbols.has(cell.symbol)
+          ? cell
+          : { ...cell, symbol: sessionSymbol },
+      );
       setLayout(saved.layout);
-      setCells(saved.cells);
-      setFocusedId(saved.focusedId);
+      setCells(cellsForSession);
+      setFocusedId(
+        cellsForSession.some((cell) => cell.id === saved.focusedId)
+          ? saved.focusedId
+          : cellsForSession[0]!.id,
+      );
     }
     setRestored(true);
-  }, [storageKey]);
+  }, [sessionSymbol, sessionSymbolsKey, storageKey]);
 
   useEffect(() => {
     if (!restored) return;

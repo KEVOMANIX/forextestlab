@@ -50,6 +50,7 @@ type ResultRow = { label: string; value: number; trades: number; rate?: number; 
 
 interface AnalyticsModel {
   equity: number[];
+  balance: number[];
   endingBalance: number;
   netProfit: number;
   returnPercent: number;
@@ -155,7 +156,9 @@ function aggregateRows(trades: ClosedTrade[], label: (trade: ClosedTrade) => str
 function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], startingBalanceValue: string, pair: string): AnalyticsModel {
   const startingBalance = Number(startingBalanceValue) || 0;
   const pnls = trades.map((trade) => Number(trade.pnl));
-  const equity = equityCurve.length > 1 ? equityCurve.map((point) => Number(point.equity)) : [startingBalance, ...trades.reduce<number[]>((values, trade) => [...values, values[values.length - 1]! + Number(trade.pnl)], [startingBalance])];
+  const realisedPath = [startingBalance, ...trades.reduce<number[]>((values, trade) => [...values, values[values.length - 1]! + Number(trade.pnl)], [startingBalance])];
+  const equity = equityCurve.length > 1 ? equityCurve.map((point) => Number(point.equity)) : realisedPath;
+  const balance = equityCurve.length > 1 ? equityCurve.map((point) => Number(point.balance)) : realisedPath;
   const endingBalance = startingBalance + pnls.reduce((sum, value) => sum + value, 0);
   const stats = computeStatistics({ startingBalance: startingBalanceValue, endingBalance: String(endingBalance), trades, equityCurve });
   const durations = trades.map((trade) => Math.max(0, trade.exitTime - trade.entryTime));
@@ -216,7 +219,7 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
     streak: streakTrade ? `${streakCount} ${Number(streakTrade.pnl) > 0 ? "wins" : "losses"}` : "—",
     calendarMonths: calendar,
     recentTrades: [...trades].slice(-5).reverse().map((trade, index) => ({ pair, side: trade.direction === "long" ? "Buy" : "Sell", setup: exits.find((row) => row.label.toLowerCase().startsWith(trade.exitReason.split("-")[0]!))?.label ?? trade.exitReason.replaceAll("-", " "), result: money(Number(trade.pnl), true), r: riskMultiples[trades.length - 1 - index] == null ? "—" : `${riskMultiples[trades.length - 1 - index]! >= 0 ? "+" : ""}${riskMultiples[trades.length - 1 - index]!.toFixed(1)}R`, time: formatNewYorkDateTime(trade.exitTime, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }), positive: Number(trade.pnl) >= 0 })),
-    monthlyReturns, drawdown, weekdays, sessions, rDistribution, exits, sizes, holding,
+    balance, monthlyReturns, drawdown, weekdays, sessions, rDistribution, exits, sizes, holding,
     directions: { long, short }, concentration: wins.length ? Math.min(100, topThree / wins.reduce((sum, value) => sum + value, 0) * 100) : 0,
     daysProcessed,
     monthsProcessed,
@@ -272,31 +275,17 @@ function createDemoModel(): AnalyticsModel {
   );
 }
 
-function linePath(values: number[]) {
+function linePath(values: number[], domain = values) {
   const width = 920;
   const pad = 16;
   const top = 16;
   const bottom = 190;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const min = Math.min(...domain);
+  const max = Math.max(...domain);
   const spread = max - min || 1;
   const x = (index: number) => pad + index * ((width - pad * 2) / (values.length - 1));
   const y = (value: number) => top + (1 - (value - min) / spread) * (bottom - top);
   return values.map((value, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
-}
-
-/** Draw drawdown below equity: zero at the top, deeper losses descending. */
-function drawdownLinePath(values: number[], width = 920) {
-  const pad = 16;
-  const top = 208;
-  const bottom = 244;
-  const maxDrawdown = Math.max(...values.map((value) => Math.max(0, -value)), 0);
-  if (maxDrawdown <= 0 || values.length < 2) return "";
-  const x = (index: number) => pad + index * ((width - pad * 2) / (values.length - 1));
-  const y = (value: number) => top + (Math.max(0, -value) / maxDrawdown) * (bottom - top);
-  return values
-    .map((value, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(value).toFixed(1)}`)
-    .join(" ");
 }
 
 function normalizedPath(values: number[], width = 920, height = 220) {
@@ -338,8 +327,11 @@ export function AnalyticsDesignPrototype({
   const demo = mode === "demo" || showDemoData;
   const pairLabel = symbols.map(formatSymbol).join(" · ");
   const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, pairLabel), [demo, trades, equityCurve, startingBalance, pairLabel]);
-  const path = linePath(model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance]);
-  const drawdownPath = drawdownLinePath(model.drawdown);
+  const equityValues = model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance];
+  const balanceValues = model.balance.length > 1 ? model.balance : [model.endingBalance, model.endingBalance];
+  const sharedAccountDomain = [...equityValues, ...balanceValues];
+  const equityPath = linePath(equityValues, sharedAccountDomain);
+  const balancePath = linePath(balanceValues, sharedAccountDomain);
   // The sample used to carry a hand-written period that its own trades,
   // calendar and equity axis all contradicted. Both modes now derive it.
   const periodStart = demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime;
@@ -412,22 +404,14 @@ export function AnalyticsDesignPrototype({
                   </div>
                 </div>
                 <div className="relative mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
-                  <svg viewBox="0 0 920 280" preserveAspectRatio="none" className="h-72 w-full" role="img" aria-label="Account equity with drawdown history">
-                    <defs><linearGradient id="prototype-equity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#22c3a0" stopOpacity=".22"/><stop offset="1" stopColor="#22c3a0" stopOpacity="0"/></linearGradient><linearGradient id="prototype-drawdown" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#f4646c" stopOpacity=".03"/><stop offset="1" stopColor="#f4646c" stopOpacity=".22"/></linearGradient><pattern id="prototype-grid" width="115" height="56" patternUnits="userSpaceOnUse"><path d="M115 0H0V56" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern></defs>
+                  <svg viewBox="0 0 920 280" preserveAspectRatio="none" className="h-72 w-full" role="img" aria-label="Account balance and equity history">
+                    <defs><linearGradient id="prototype-equity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#22c3a0" stopOpacity=".22"/><stop offset="1" stopColor="#22c3a0" stopOpacity="0"/></linearGradient><pattern id="prototype-grid" width="115" height="56" patternUnits="userSpaceOnUse"><path d="M115 0H0V56" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern></defs>
                     <rect width="920" height="280" fill="url(#prototype-grid)" className="app-muted" />
-                    <path d={`${path} L904,190 L16,190 Z`} fill="url(#prototype-equity)" />
-                    <path d={path} fill="none" stroke={model.netProfit >= 0 ? "#22c3a0" : "#fb7185"} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
-                    {drawdownPath && <><line x1="16" x2="904" y1="208" y2="208" stroke="#f4646c" strokeOpacity=".35" strokeWidth="1" vectorEffect="non-scaling-stroke"/><path d={`${drawdownPath} L904,208 L16,208 Z`} fill="url(#prototype-drawdown)"/><path d={drawdownPath} fill="none" stroke="#f4646c" strokeWidth="2" vectorEffect="non-scaling-stroke"/></>}
+                    <path d={`${equityPath} L904,264 L16,264 Z`} fill="url(#prototype-equity)" />
+                    <path d={balancePath} fill="none" stroke="#f4646c" strokeWidth="2" strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+                    <path d={equityPath} fill="none" stroke="#22c3a0" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
                   </svg>
-                  {drawdownPath && (
-                    <div className="pointer-events-none absolute left-4 top-[69%] flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-bear">
-                      <span>Drawdown</span>
-                      <span className="font-mono font-normal normal-case tracking-normal app-muted">
-                        max {model.maxDrawdownPercent === null ? "—" : `−${model.maxDrawdownPercent.toFixed(2)}%`}
-                      </span>
-                    </div>
-                  )}
-                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-brand-300">━ Equity</span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
+                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="flex items-center gap-3"><span className="text-brand-300">━ Equity</span><span className="text-bear">┄ Balance</span></span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
                 </div>
               </div>
 

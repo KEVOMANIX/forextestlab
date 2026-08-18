@@ -766,6 +766,12 @@ export default function PriceChart({
       to: UTCTimestamp;
     };
   } | null>(null);
+  /**
+   * Each mounted pane gets a fresh viewport. Keep this identity per pane so a
+   * symbol replacement in an existing layout cell resets too, while ordinary
+   * replay candle updates still preserve an intentional user pan.
+   */
+  const resetViewIdentityRef = useRef<string | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
   const historyTimeframeRef = useRef<Timeframe>(initialTimeframe ?? baseTimeframe);
   const historyLoadingRef = useRef(false);
@@ -2090,13 +2096,23 @@ export default function PriceChart({
     rawCandlesRef.current = [...initialCandles];
     dataGenerationRef.current += 1;
     const scale = chartRef.current?.timeScale();
+    const viewIdentity = `${viewStorageKey ?? "chart"}:${symbolLabel}`;
+    const isNewChartView = resetViewIdentityRef.current !== viewIdentity;
     // Preserve the user's view across a data swap — but only if there was a view
     // to preserve. A grid cell whose series arrives after mount would otherwise
     // inherit the empty chart's logical range and open zoomed onto a few bars.
     const hadData = displayRef.current.length > 0;
     const visibleRange = hadData ? scale?.getVisibleLogicalRange() ?? null : null;
     renderMain(true);
-    if (replayRunningRef.current) {
+    if (isNewChartView) {
+      // Treat every pane's first data load like pressing “Reset chart view”.
+      // This covers cells opened in any layout, including the fifth pane, and
+      // symbol changes that reuse an existing cell component.
+      resetViewIdentityRef.current = viewIdentity;
+      savedTimeRangeRef.current = null;
+      setFollowLatest(true);
+      resetLatestViewport();
+    } else if (replayRunningRef.current) {
       // Extending the replay buffer replaces the source array. Never interpret
       // that mid-play data swap as a user pan, in any chart cell.
       setFollowLatest(true);
@@ -2121,7 +2137,7 @@ export default function PriceChart({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCandles, alignToReplayClockOnLoad]);
+  }, [initialCandles, alignToReplayClockOnLoad, symbolLabel, viewStorageKey]);
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;

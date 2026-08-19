@@ -380,21 +380,21 @@ crosses. Currency pairs automatically use the two code-drawn currency flags in
 the symbol picker. A pair becomes selectable as soon as at least one monthly R2
 object exists for it.
 
-`npm run data:sync-r2` downloads authorised one-minute Dukascopy bid candles,
-validates their timestamps and OHLC relationships, merges a two-day overlap,
-deduplicates by timestamp, writes a monthly Snappy Parquet object, reads that
-object back for verification, and only then uploads it to R2. Existing history
-is never fetched during replay.
+`npm run data:sync-r2` is reserved for the small scheduled incremental refresh.
+It downloads authorised one-minute Dukascopy bid candles, validates timestamps
+and OHLC relationships, merges the short overlap, deduplicates by timestamp,
+writes a monthly Snappy Parquet object, verifies it, and uploads it to R2.
+Existing history is never fetched during replay.
 
 ```bash
-# Normal incremental update for all 28 FX pairs. New pairs begin in 2015;
-# interrupted pairs resume from their newest stored month.
-npm run data:sync-r2 -- --bootstrap-from=2015-01-01 --overlap-days=2
-
-# Explicit backfill or a no-write verification run.
-npm run data:sync-r2 -- --symbols=AUDCAD,GBPJPY --from=2015-01-01
-npm run data:sync-r2 -- --symbols=AUDCAD --from=2026-08-01 --dry-run
+# Normal incremental update only.
+npm run data:sync-r2 -- --bootstrap-days=45 --overlap-days=1
 ```
+
+Bulk, historical, earliest-available, and new-symbol downloads must use
+`E:\desktop\dukascopy-market-data`. The Node CLI rejects `--from`,
+`--bootstrap-from`, and `--earliest`. Start the dedicated resumable pipeline
+with `scripts/windows/run-market-data-backfill.ps1` on the Windows host.
 
 The checked-in `forextestlab-market-data.timer` runs at 00:20 UTC Monday
 through Saturday. Install it on Lightsail only after

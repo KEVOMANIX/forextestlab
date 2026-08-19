@@ -420,8 +420,11 @@ Egress rules:
 The configured catalogue includes traditional FX pairs and selected non-FX
 instruments. Inspect the source rather than relying on a stale count.
 
-For large historical downloads use the local Jetta/Dukascopy pipeline because
-the AWS origin has previously received HTTP 429 responses:
+All bulk, historical, earliest-available, and new-symbol downloads must use the
+local Jetta/Dukascopy pipeline. The Node R2 synchronizer is reserved for the
+small scheduled incremental refresh; its CLI rejects bulk start-date flags.
+This also avoids the HTTP 429 responses previously received from the AWS
+origin during large downloads:
 
 | Item | Path |
 |---|---|
@@ -444,7 +447,18 @@ cd E:\desktop\dukascopy-market-data
 .\.validation-venv-py310\Scripts\python.exe main.py --symbol EURAUD --workers 1 --upload
 ```
 
-Check for an existing `main.py` process before starting a bulk run. Existing
+Preferred resumable launcher:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File `
+  E:\desktop\forextestlab\scripts\windows\run-market-data-backfill.ps1
+```
+
+The preferred launcher loads credentials from the main project environment
+without printing them, checks for an existing `main.py` process, starts at the
+earliest configured month for each instrument, uses one worker to reduce
+provider throttling, validates completed Parquet files, and uploads them using
+the established `market_data/<SYMBOL>/<YYYY>/<MM>.parquet` layout. Existing
 valid local files and R2 objects are skipped.
 
 ## Economic-calendar automation

@@ -12,6 +12,11 @@ function date(value: string | undefined, name: string): Date | undefined {
 
 async function main() {
   const input = parseCliFlags(process.argv.slice(2));
+  if (input.earliest === "true" || input.from || input["bootstrap-from"]) {
+    throw new Error(
+      "Bulk/history downloads must use E:\\desktop\\dukascopy-market-data. This Node command is reserved for small incremental R2 refreshes.",
+    );
+  }
   const report = await syncMarketDataToR2({
     symbols: input.symbols?.split(","),
     from: date(input.from, "from"),

@@ -23,7 +23,8 @@ export default async function AdminOperationsPage() {
     collectOperationsSnapshot(),
     prisma.operationalCheck.findMany({ orderBy: { checkedAt: "desc" }, take: 40 }),
   ]);
-  const completePairs = snapshot.marketData.filter((item) => item.firstMonth === "2015-01" && item.status === "healthy").length;
+  const currentPairs = snapshot.marketData.filter((item) => item.status === "healthy").length;
+  const earliestMonth = snapshot.marketData.flatMap((item) => item.firstMonth ? [item.firstMonth] : []).sort()[0] ?? "Unavailable";
 
   return (
     <>
@@ -34,7 +35,7 @@ export default async function AdminOperationsPage() {
         <AdminStat label="Supabase database" value={bytes(snapshot.usage.databaseBytes)} detail="Current database size" icon={Database} />
         <AdminStat label="R2 storage" value={bytes(snapshot.usage.r2Bytes)} detail={`${snapshot.usage.r2Objects ?? 0} private objects`} icon={HardDrive} />
         <AdminStat label="Database backups" value={String(snapshot.usage.backupCount ?? 0)} detail={snapshot.usage.latestBackupAt ? `Latest ${formatNewYorkDateTime(new Date(snapshot.usage.latestBackupAt))}` : "No backup yet"} icon={Archive} />
-        <AdminStat label="Historical FX" value={`${completePairs}/${snapshot.marketData.length}`} detail="Pairs complete from Jan 2015" icon={Server} />
+        <AdminStat label="Historical FX" value={earliestMonth} detail={`${currentPairs}/${snapshot.marketData.length} pairs current`} icon={Server} />
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.4fr]">

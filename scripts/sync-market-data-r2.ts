@@ -15,10 +15,12 @@ async function main() {
   const report = await syncMarketDataToR2({
     symbols: input.symbols?.split(","),
     from: date(input.from, "from"),
+    earliest: input.earliest === "true",
     bootstrapFrom: date(input["bootstrap-from"], "bootstrap-from"),
     to: date(input.to, "to"),
     bootstrapDays: input["bootstrap-days"] ? Number(input["bootstrap-days"]) : undefined,
     overlapDays: input["overlap-days"] ? Number(input["overlap-days"]) : undefined,
+    skipExistingMonths: input["skip-existing"] === "true",
     dryRun: input["dry-run"] === "true",
     log: console.log,
   });
@@ -28,6 +30,7 @@ async function main() {
   console.log(`Candles downloaded: ${report.candlesDownloaded}`);
   console.log(`Bytes prepared:     ${report.bytesPrepared}`);
   console.log(`Empty months:       ${report.skippedMonths}`);
+  console.log(`Existing skipped:   ${report.existingMonthsSkipped}`);
 }
 
 main().catch((error) => {

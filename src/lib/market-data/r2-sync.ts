@@ -28,10 +28,14 @@ export const AUTOMATED_FX_SYMBOLS = SYMBOL_DEFINITIONS.filter(
 export interface R2MarketSyncOptions {
   symbols?: string[];
   from?: Date;
+  /** Start each symbol at the first minute published by Dukascopy. */
+  earliest?: boolean;
   bootstrapFrom?: Date;
   to?: Date;
   bootstrapDays?: number;
   overlapDays?: number;
+  /** Leave an already stored month untouched, making long backfills resumable. */
+  skipExistingMonths?: boolean;
   dryRun?: boolean;
   log?: (message: string) => void;
 }
@@ -42,6 +46,7 @@ export interface R2MarketSyncReport {
   candlesDownloaded: number;
   bytesPrepared: number;
   skippedMonths: number;
+  existingMonthsSkipped: number;
 }
 
 interface R2Context {
@@ -217,6 +222,15 @@ function assertSymbols(symbols: string[]): string[] {
   return unique;
 }
 
+function earliestMinuteForSymbol(symbol: string): number {
+  const metadata = instrumentMetaData[symbol.toLowerCase() as keyof typeof instrumentMetaData] as {
+    startDayForMinuteCandles?: string;
+  };
+  const start = Date.parse(metadata.startDayForMinuteCandles || "");
+  if (!Number.isFinite(start)) throw new Error(`Dukascopy has no minute-history start date for ${symbol}.`);
+  return start;
+}
+
 function completedMinute(now: number): number {
   return Math.floor((now - 10 * MINUTE_MS) / MINUTE_MS) * MINUTE_MS;
 }
@@ -267,11 +281,12 @@ export async function syncMarketDataToR2(
     candlesDownloaded: 0,
     bytesPrepared: 0,
     skippedMonths: 0,
+    existingMonthsSkipped: 0,
   };
 
   for (const symbol of symbols) {
     const latestKey = await latestStoredKey(context, symbol);
-    let start = options.from?.getTime();
+    let start = options.earliest ? earliestMinuteForSymbol(symbol) : options.from?.getTime();
     if (start === undefined && latestKey) {
       const latest = await readObject(context, latestKey);
       const last = latest.at(-1)?.timestamp;
@@ -290,10 +305,13 @@ export async function syncMarketDataToR2(
       const rangeFrom = Math.max(start, cursor);
       const rangeTo = Math.min(end, nextMonth(cursor));
       const key = monthKey(context.prefix, symbol, cursor);
-      const [existing, incoming] = await Promise.all([
-        readObject(context, key),
-        downloadCandles(symbol, rangeFrom, rangeTo),
-      ]);
+      const existing = await readObject(context, key);
+      if (options.skipExistingMonths && existing.length > 0) {
+        report.existingMonthsSkipped += 1;
+        log(`  ${key}: already stored; skipped.`);
+        continue;
+      }
+      const incoming = await downloadCandles(symbol, rangeFrom, rangeTo);
       report.candlesDownloaded += incoming.length;
       if (incoming.length === 0) {
         report.skippedMonths += 1;

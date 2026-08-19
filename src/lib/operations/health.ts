@@ -94,8 +94,6 @@ function expectedRecentMonth(): string {
   return `${previous.getUTCFullYear()}-${String(previous.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-const FOREX_CURRENCIES = new Set(["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"]);
-
 async function availableMemoryBytes(): Promise<number> {
   if (process.platform !== "linux") return os.freemem();
   const contents = await readFile("/proc/meminfo", "utf8").catch(() => "");
@@ -176,7 +174,7 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
       latestBackupAt = latestBackup?.modified?.toISOString() ?? null;
 
       const recentFloor = expectedRecentMonth();
-      marketData = SYMBOL_DEFINITIONS.filter((item) => FOREX_CURRENCIES.has(item.baseCurrency) && FOREX_CURRENCIES.has(item.quoteCurrency))
+      marketData = SYMBOL_DEFINITIONS.filter((item) => item.symbol !== "DXY")
         .map(({ symbol }) => {
           const expression = new RegExp(`^${marketPrefix}/${symbol}/(\\d{4})/(\\d{2})\\.parquet$`);
           const months = objects.flatMap((object) => {
@@ -198,7 +196,7 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
         component: "r2-market-data",
         status: unavailable ? "degraded" : "healthy",
         latencyMs: Date.now() - started,
-        message: unavailable ? `${unavailable} FX symbols have no recent monthly object.` : "All FX symbols have recent R2 data.",
+        message: unavailable ? `${unavailable} provider symbols have no recent monthly object.` : "All provider symbols have recent R2 data.",
         metadata: { bytes: r2Bytes, objects: r2Objects, symbols: marketData.length, unavailable },
       });
       const backupAgeHours = latestBackup?.modified ? (Date.now() - latestBackup.modified.getTime()) / 3_600_000 : Infinity;

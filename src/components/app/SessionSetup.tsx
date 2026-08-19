@@ -452,7 +452,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       </div>
 
       <div className="grid gap-0 lg:grid-cols-3">
-        <div className="space-y-5 px-5 py-4 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
+        <div className="min-w-0 space-y-5 overflow-hidden px-5 py-4 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">1</span>
@@ -594,14 +594,14 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           </fieldset>
         </div>
 
-        <div className="border-t app-border px-5 py-4 sm:px-6 lg:border-r lg:border-t-0 lg:border-[var(--app-border)]">
+        <div className="min-w-0 overflow-hidden border-t app-border px-5 py-4 sm:px-6 lg:border-r lg:border-t-0 lg:border-[var(--app-border)]">
           <fieldset>
             <legend className="mb-3 flex w-full items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
               <span className="text-sm font-semibold">Session type</span>
             </legend>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid min-w-0 gap-3 sm:grid-cols-2">
               <ModeCard
                 icon={Plus}
                 title="Backtesting session"
@@ -621,7 +621,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
             </div>
 
             {challengePreset && (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2">
                 <ModeCard
                   title="Phase 1"
                   detail="10% profit target"
@@ -662,7 +662,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
             {challengePreset && (
               <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <div><p className="text-xs font-semibold">Choose account size</p><p className="mt-0.5 text-[11px] app-muted">Select an included prop-firm balance.</p></div>
+                  <div className="min-w-0"><p className="text-xs font-semibold">Choose account size</p><p className="mt-0.5 text-[11px] app-muted">Select an included prop-firm balance.</p></div>
                   <span className="rounded-full bg-brand-400/10 px-2 py-1 text-[10px] font-semibold text-brand-300">Required</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -706,7 +706,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           </fieldset>
         </div>
 
-        <div className="border-t app-border px-5 py-4 sm:px-6 lg:border-t-0">
+        <div className="min-w-0 overflow-hidden border-t app-border px-5 py-4 sm:px-6 lg:border-t-0">
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">4</span>
@@ -850,7 +850,7 @@ function ModeCard({
       onClick={onSelect}
       disabled={disabled}
       aria-pressed={selected}
-      className={`flex min-h-[76px] items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`min-w-0 flex min-h-[76px] items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
         selected
           ? "border-brand-400/50 bg-brand-400/10 shadow-sm"
           : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30"

@@ -39,6 +39,17 @@ interface SessionSetupProps {
   entitlements: PlanEntitlements;
 }
 
+const MARKET_CATEGORIES = ["All", "Stocks", "Futures", "Forex", "Crypto", "Indices", "Metals", "Energies"] as const;
+type MarketCategory = (typeof MARKET_CATEGORIES)[number];
+
+function categoryForMarket(item: MarketSymbol): Exclude<MarketCategory, "All"> {
+  if (["BTC", "ETH", "LTC", "ADA"].includes(item.baseCurrency)) return "Crypto";
+  if (["XAU", "XAG"].includes(item.baseCurrency)) return "Metals";
+  if (item.symbol.includes("IDX") || item.symbol === "DXY") return "Indices";
+  if (["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"].includes(item.baseCurrency) && ["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"].includes(item.quoteCurrency)) return "Forex";
+  return "Stocks";
+}
+
 function toDateInput(ms: number): string {
   return toNewYorkDateInput(ms);
 }
@@ -252,6 +263,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [marketSearchOpen, setMarketSearchOpen] = useState(false);
   const [marketQuery, setMarketQuery] = useState("");
+  const [marketCategoryFilter, setMarketCategoryFilter] = useState<MarketCategory>("All");
   const [range, setRange] = useState<{ startTime: number; endTime: number } | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -348,11 +360,13 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   );
   const visibleSymbols = useMemo(() => {
     const query = marketQuery.trim().toLowerCase();
-    if (!query) return enabledSymbols;
-    return enabledSymbols.filter((item) =>
-      `${item.symbol} ${item.displayName}`.toLowerCase().includes(query),
-    );
-  }, [enabledSymbols, marketQuery]);
+    return enabledSymbols.filter((item) => {
+      const inCategory = marketCategoryFilter === "All" || categoryForMarket(item) === marketCategoryFilter;
+      if (!inCategory) return false;
+      if (!query) return true;
+      return `${item.symbol} ${item.displayName}`.toLowerCase().includes(query);
+    });
+  }, [enabledSymbols, marketCategoryFilter, marketQuery]);
   const tags = tagsText
     .split(",")
     .map((tag) => tag.trim())
@@ -491,6 +505,30 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               </button>
             </legend>
 
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-0.5" role="tablist" aria-label="Market categories">
+              {MARKET_CATEGORIES.map((category) => {
+                const count = category === "All" ? enabledSymbols.length : enabledSymbols.filter((item) => categoryForMarket(item) === category).length;
+                const selected = marketCategoryFilter === category;
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    aria-label={`${category} markets${count ? `, ${count} available` : ", none available"}`}
+                    onClick={() => setMarketCategoryFilter(category)}
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors ${
+                      selected
+                        ? "border-brand-400/45 bg-brand-400/12 text-brand-200"
+                        : "app-border bg-[var(--app-panel-2)]/55 app-muted hover:border-brand-400/35 hover:text-brand-200"
+                    }`}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+
             {marketSearchOpen && (
               <div className="relative mb-2">
                 <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
@@ -546,7 +584,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               </div>
             ) : enabledSymbols.length > 0 ? (
               <p className="rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 text-sm app-muted">
-                No markets match “{marketQuery}”.
+                {marketQuery ? `No markets match “${marketQuery}”.` : `No ${marketCategoryFilter.toLowerCase()} markets are available yet.`}
               </p>
             ) : (
               <p className="rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 text-sm app-muted">

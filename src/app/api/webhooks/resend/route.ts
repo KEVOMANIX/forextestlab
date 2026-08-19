@@ -51,6 +51,33 @@ function plainText(html: string | null | undefined) {
     .trim();
 }
 
+/** Remove the previous message that mail clients append to replies. */
+function stripQuotedReply(value: string) {
+  const text = value.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  if (!text) return text;
+
+  // Gmail, Apple Mail and many mobile clients introduce the quoted section
+  // with one of these delimiter lines.
+  const delimiter = text.search(
+    /^\s*(?:On .{1,240}wrote:\s*|.{1,180}\s+wrote:\s*|[-_]{5,}\s*Original Message\s*[-_]{0,})\s*$/im,
+  );
+  const withoutDelimiter = delimiter >= 0 ? text.slice(0, delimiter) : text;
+  const lines = withoutDelimiter.split("\n");
+  const cleaned: string[] = [];
+  let quotedRun = 0;
+  for (const line of lines) {
+    if (/^\s*>/.test(line)) {
+      quotedRun += 1;
+      continue;
+    }
+    // Some clients omit the delimiter and only prefix every quoted line.
+    if (quotedRun > 0 && !line.trim()) continue;
+    quotedRun = 0;
+    cleaned.push(line);
+  }
+  return cleaned.join("\n").trim();
+}
+
 export async function POST(request: Request) {
   const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
   const apiKey = process.env.RESEND_API_KEY?.trim();
@@ -97,10 +124,8 @@ export async function POST(request: Request) {
     );
     const localPart = (recipients[0]?.split("@")[0] ?? "support").toLowerCase();
     const category = ADDRESS_CATEGORIES[localPart] ?? "other";
-    const body = (
-      email.text ||
-      plainText(email.html) ||
-      "(Email contained no readable text.)"
+    const body = stripQuotedReply(
+      email.text || plainText(email.html) || "(Email contained no readable text.)",
     ).slice(0, 20_000);
     const profile = await prisma.userProfile.findUnique({
       where: { email: customerEmail },

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
   sendDirectSupportEmail,
+  sendSupportEmailReply,
   sendSupportMessageNotification,
 } from "@/lib/contact-email";
 import { publishSupportConversationChanged } from "@/lib/support-realtime";
@@ -96,6 +97,7 @@ export async function replyToConversation(
         customerEmail: true,
         customerName: true,
         subject: true,
+        channel: true,
         customerLastReadAt: true,
         lastCustomerNotificationAt: true,
       },
@@ -112,11 +114,12 @@ export async function replyToConversation(
       },
     });
     const shouldNotify =
-      (!conversation.customerLastReadAt ||
+      conversation.channel === "email" ||
+      ((!conversation.customerLastReadAt ||
         now.getTime() - conversation.customerLastReadAt.getTime() > 120_000) &&
-      (!conversation.lastCustomerNotificationAt ||
-        now.getTime() - conversation.lastCustomerNotificationAt.getTime() >
-          600_000);
+        (!conversation.lastCustomerNotificationAt ||
+          now.getTime() - conversation.lastCustomerNotificationAt.getTime() >
+            600_000));
     await tx.supportConversation.update({
       where: { id: conversationId },
       data: {
@@ -137,12 +140,21 @@ export async function replyToConversation(
   publishSupportConversationChanged(conversationId);
   if (recipient?.customerEmail && recipient.shouldNotify) {
     try {
-      await sendSupportMessageNotification({
-        email: recipient.customerEmail,
-        name: recipient.customerName ?? "Customer",
-        subject: recipient.subject,
-        preview: body.slice(0, 300),
-      });
+      if (recipient.channel === "email") {
+        await sendSupportEmailReply({
+          email: recipient.customerEmail,
+          name: recipient.customerName ?? "Customer",
+          subject: recipient.subject,
+          body,
+        });
+      } else {
+        await sendSupportMessageNotification({
+          email: recipient.customerEmail,
+          name: recipient.customerName ?? "Customer",
+          subject: recipient.subject,
+          preview: body.slice(0, 300),
+        });
+      }
     } catch (error) {
       console.error("Support reply email notification failed:", error);
     }

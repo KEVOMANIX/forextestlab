@@ -401,6 +401,50 @@ export async function sendSupportMessageNotification({
   });
 }
 
+/**
+ * Reply to a conversation that arrived through email.
+ *
+ * Email customers should receive the answer itself, not the widget
+ * notification that asks an app user to open a second inbox.
+ */
+export async function sendSupportEmailReply({
+  email,
+  name,
+  subject,
+  body,
+}: {
+  email: string;
+  name: string;
+  subject: string;
+  body: string;
+}): Promise<void> {
+  const config = getSmtpConfig();
+  const emailSubject = /^re\s*:/i.test(subject) ? subject : `Re: ${subject}`;
+  const safeBody = escapeHtml(body).replace(/\r?\n/g, "<br>");
+
+  await deliver(config, {
+    from: sender("ForexTestLab Support", config.from),
+    to: email,
+    replyTo: config.to,
+    subject: emailSubject,
+    text: [
+      `Hi ${name},`,
+      "",
+      body,
+      "",
+      "Kind regards,",
+      "ForexTestLab Support",
+    ].join("\n"),
+    html: renderBrandEmail({
+      preheader: `ForexTestLab Support replied to ${subject}.`,
+      eyebrow: "Support reply",
+      title: emailSubject,
+      intro: `Hi ${name},`,
+      contentHtml: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:25px;color:#344a5a">${safeBody}</div>`,
+    }),
+  });
+}
+
 /** Send a support email without creating a customer-facing chat thread. */
 export async function sendDirectSupportEmail({
   email,

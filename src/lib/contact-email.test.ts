@@ -16,6 +16,7 @@ import {
   sendContactEmail,
   sendContactReceipt,
   sendDirectSupportEmail,
+  sendSupportEmailReply,
   sendSupportMessageNotification,
 } from "./contact-email";
 
@@ -133,6 +134,29 @@ describe("sendContactEmail", () => {
     expect(message?.html).toContain("&lt;script&gt;");
     expect(message?.html).not.toContain("Open the conversation");
     expect(message?.text).toContain("Please share feedback.");
+  });
+
+  it("uses a dedicated full email reply instead of the widget notification", async () => {
+    await sendSupportEmailReply({
+      email: "customer@example.com",
+      name: "Kelvin",
+      subject: "Billing question",
+      body: "Your invoice has been corrected.\nPlease check it again.",
+    });
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "customer@example.com",
+        subject: "Re: Billing question",
+        replyTo: "support@forextestlab.com",
+      }),
+    );
+    const message = sendMail.mock.calls[0]?.[0];
+    expect(message?.html).toContain("Support reply");
+    expect(message?.html).toContain("Your invoice has been corrected.");
+    expect(message?.html).not.toContain("Open support inbox");
+    expect(message?.html).not.toContain("Read full reply");
+    expect(message?.text).toContain("Please check it again.");
   });
 
   it("fails clearly when SMTP is not configured", async () => {

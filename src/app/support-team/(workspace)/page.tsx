@@ -295,6 +295,7 @@ export default async function SupportTeamPage(props: {
               <Composer
                 conversationId={selected.id}
                 customerName={selected.customerName || "the customer"}
+                channel={selected.channel}
                 savedReplies={savedReplies}
                 closed={selected.status === "closed"}
               />

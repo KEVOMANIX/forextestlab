@@ -25,11 +25,13 @@ type Result = { error: string; sent: number };
 export function Composer({
   conversationId,
   customerName,
+  channel,
   savedReplies,
   closed,
 }: {
   conversationId: string;
   customerName: string;
+  channel: string;
   savedReplies: SavedReply[];
   closed: boolean;
 }) {
@@ -38,6 +40,7 @@ export function Composer({
   const [saveOpen, setSaveOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const note = mode === "note";
+  const emailReply = channel === "email";
   const { participants, pulse, stop } = useSupportRealtime({
     conversationId,
     enabled: !closed,
@@ -134,7 +137,7 @@ export function Composer({
               active={!note}
               onClick={() => setMode("reply")}
               icon={<MessageSquare size={13} aria-hidden />}
-              label="Reply"
+              label={emailReply ? "Email reply" : "Reply"}
               tone="brand"
             />
             <ModeButton
@@ -212,7 +215,11 @@ export function Composer({
                 if (value.trim()) event.currentTarget.form?.requestSubmit();
               }
             }}
-            placeholder={note ? "Add an internal note…" : `Reply to ${firstName}…`}
+            placeholder={
+              note
+                ? "Add an internal note…"
+                : `${emailReply ? "Email" : "Reply"} to ${firstName}…`
+            }
             className="w-full resize-none bg-transparent px-4 py-3 text-sm leading-6 text-[var(--app-text)] placeholder:app-muted focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
 
@@ -228,6 +235,8 @@ export function Composer({
                 </span>
               ) : note ? (
                 "Only the support team sees internal notes"
+              ) : emailReply ? (
+                "Sends the full reply by email"
               ) : (
                 "Ctrl / ⌘ + Enter to send"
               )}
@@ -242,7 +251,13 @@ export function Composer({
               }`}
             >
               {note ? <StickyNote size={14} aria-hidden /> : <Send size={14} aria-hidden />}
-              {pending ? "Sending…" : note ? "Save note" : "Send reply"}
+              {pending
+                ? "Sending…"
+                : note
+                  ? "Save note"
+                  : emailReply
+                    ? "Send email"
+                    : "Send reply"}
             </button>
           </div>
         </form>

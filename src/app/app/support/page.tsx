@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { SupportCustomerInbox } from "@/components/support/SupportCustomerInbox";
 import { prisma } from "@/lib/db";
+import { CUSTOMER_SUPPORT_CHANNELS } from "@/lib/support";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -15,7 +16,10 @@ export default async function SupportInboxPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in?next=%2Fapp%2Fsupport");
   const conversations = await prisma.supportConversation.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      channel: { in: [...CUSTOMER_SUPPORT_CHANNELS] },
+    },
     orderBy: { lastMessageAt: "desc" },
     take: 30,
     select: {

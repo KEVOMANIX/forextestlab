@@ -138,6 +138,7 @@ export async function POST(request: Request) {
       userId: true,
       visitorId: true,
       accessTokenHash: true,
+      channel: true,
       customerName: true,
       customerEmail: true,
     },

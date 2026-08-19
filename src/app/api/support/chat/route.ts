@@ -6,6 +6,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { publishSupportConversationChanged } from "@/lib/support-realtime";
 import {
   canAccessSupportConversation,
+  CUSTOMER_SUPPORT_CHANNELS,
   CUSTOMER_CLOSED_MESSAGE,
   hashSupportToken,
   isCustomerClosed,
@@ -40,8 +41,11 @@ const publicInclude = {
 } as const;
 
 async function conversationFor(id: string) {
-  return prisma.supportConversation.findUnique({
-    where: { id },
+  return prisma.supportConversation.findFirst({
+    where: {
+      id,
+      channel: { in: [...CUSTOMER_SUPPORT_CHANNELS] },
+    },
     include: publicInclude,
   });
 }
@@ -81,7 +85,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, conversations: [] });
     }
     const conversations = await prisma.supportConversation.findMany({
-      where: user ? { userId: user.id } : { visitorId },
+      where: user
+        ? { userId: user.id, channel: { in: [...CUSTOMER_SUPPORT_CHANNELS] } }
+        : { visitorId, channel: { in: [...CUSTOMER_SUPPORT_CHANNELS] } },
       orderBy: { lastMessageAt: "desc" },
       take: 50,
       select: {

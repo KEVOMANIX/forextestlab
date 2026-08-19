@@ -33,6 +33,14 @@ export function isCustomerClosed(status: string) {
 
 export const CUSTOMER_CLOSED_MESSAGE =
   "This conversation has been resolved and closed. Start a new conversation and we will pick it up from there.";
+
+/** Channels that belong in the customer's app inbox and floating widget. */
+export const CUSTOMER_SUPPORT_CHANNELS = ["widget", "app", "outbound"] as const;
+
+export function isCustomerSupportChannel(channel: string) {
+  return (CUSTOMER_SUPPORT_CHANNELS as readonly string[]).includes(channel);
+}
+
 export const SUPPORT_CATEGORIES = [
   "account",
   "billing",
@@ -125,9 +133,13 @@ export async function canAccessSupportConversation(
     userId: string | null;
     visitorId: string | null;
     accessTokenHash: string | null;
+    channel: string;
   },
   legacyVisitorId = "",
 ) {
+  // Email is a staff-only delivery channel. Matching a registered sender to a
+  // user account must not turn their email thread into an in-app chat.
+  if (!isCustomerSupportChannel(conversation.channel)) return false;
   const user = await getCurrentUser();
   if (user && conversation.userId === user.id) return true;
   if (

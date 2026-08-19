@@ -8,11 +8,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Info,
   Loader2,
   LockKeyhole,
+  Plus,
   Play,
   Search,
   Tags,
+  Trophy,
 } from "lucide-react";
 
 import {
@@ -557,29 +560,44 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           <fieldset>
             <legend className="mb-3 flex w-full items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
-              <span className="text-sm font-semibold">Account rules</span>
+              <span className="text-sm font-semibold">Session type</span>
             </legend>
 
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <ModeCard
-                title="Free practice"
-                detail="No limits. Trade the data however you like."
+                icon={Plus}
+                title="Backtesting session"
+                detail="Start a session"
+                info="Replay historical markets and test a strategy without challenge rules."
                 selected={challengePreset === null}
                 onSelect={() => setChallengePreset(null)}
               />
               <ModeCard
-                title="Prop firm challenge"
-                detail="Phase 1 - 10% target"
-                selected={challengePreset === "ftmo-phase-1"}
-                onSelect={() => setChallengePreset("ftmo-phase-1")}
-              />
-              <ModeCard
-                title="Prop firm verification"
-                detail="Phase 2 - 5% target"
-                selected={challengePreset === "ftmo-phase-2"}
-                onSelect={() => setChallengePreset("ftmo-phase-2")}
+                icon={Trophy}
+                title="Prop firm session"
+                detail="Start a challenge"
+                info="Trade under prop-firm profit target and drawdown rules."
+                selected={challengePreset !== null}
+                onSelect={() => setChallengePreset((current) => current ?? "ftmo-phase-1")}
               />
             </div>
+
+            {challengePreset && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <ModeCard
+                  title="Phase 1"
+                  detail="10% profit target"
+                  selected={challengePreset === "ftmo-phase-1"}
+                  onSelect={() => setChallengePreset("ftmo-phase-1")}
+                />
+                <ModeCard
+                  title="Phase 2"
+                  detail="5% profit target"
+                  selected={challengePreset === "ftmo-phase-2"}
+                  onSelect={() => setChallengePreset("ftmo-phase-2")}
+                />
+              </div>
+            )}
 
             <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
               <label htmlFor="setup-account-balance" className="mb-1.5 block text-xs font-medium app-muted">
@@ -767,14 +785,18 @@ function RuleLine({ label, value }: { label: string; value: string }) {
 }
 
 function ModeCard({
+  icon: Icon,
   title,
   detail,
+  info,
   selected,
   disabled = false,
   onSelect,
 }: {
+  icon?: typeof Plus;
   title: string;
   detail: string;
+  info?: string;
   selected: boolean;
   disabled?: boolean;
   onSelect: () => void;
@@ -785,16 +807,14 @@ function ModeCard({
       onClick={onSelect}
       disabled={disabled}
       aria-pressed={selected}
-      className={`rounded-xl border px-3 py-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`flex min-h-[76px] items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
         selected
           ? "border-brand-400/50 bg-brand-400/10 shadow-sm"
           : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30"
       }`}
     >
-      <span className={`block text-sm font-semibold ${selected ? "text-brand-200" : ""}`}>
-        {title}
-      </span>
-      <span className="mt-0.5 block text-xs app-muted">{detail}</span>
+      {Icon && <Icon size={21} strokeWidth={1.8} className={selected ? "text-brand-300" : "app-muted"} aria-hidden />}
+      <span className="min-w-0 flex-1"><span className={`flex items-center gap-1.5 text-sm font-semibold ${selected ? "text-brand-200" : ""}`}>{title}{info && <span title={info} aria-label={info}><Info size={12} className="app-muted" aria-hidden /></span>}</span><span className="mt-0.5 block text-xs app-muted">{detail}</span></span>
     </button>
   );
 }

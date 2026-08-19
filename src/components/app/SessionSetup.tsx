@@ -637,37 +637,42 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               </div>
             )}
 
-            <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
-              <label htmlFor="setup-account-balance" className="mb-1.5 block text-xs font-medium app-muted">
-                Starting account balance (USD)
-              </label>
-              <div className="flex items-center gap-2">
-                <span className="app-muted">$</span>
-                <input
-                  id="setup-account-balance"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  inputMode="decimal"
-                  value={accountSize}
-                  onChange={(event) => setAccountSize(event.target.value)}
-                  className="app-input min-w-0 flex-1 py-1.5 text-sm font-mono"
-                />
+            {!challengePreset && (
+              <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
+                <label htmlFor="setup-account-balance" className="mb-1.5 block text-xs font-medium app-muted">
+                  Starting account balance (USD)
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="app-muted">$</span>
+                  <input
+                    id="setup-account-balance"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={accountSize}
+                    onChange={(event) => setAccountSize(event.target.value)}
+                    className="app-input min-w-0 flex-1 py-1.5 text-sm font-mono"
+                  />
+                </div>
+                <p className="mt-1.5 text-[11px] app-muted">Use any positive balance for an unrestricted replay.</p>
               </div>
-              <p className="mt-1.5 text-[11px] app-muted">Used to calculate risk and P/L.</p>
-            </div>
+            )}
 
             {challengePreset && (
               <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
-                <p className="mb-2 text-xs font-medium app-muted">Account size</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div><p className="text-xs font-semibold">Choose account size</p><p className="mt-0.5 text-[11px] app-muted">Select an included prop-firm balance.</p></div>
+                  <span className="rounded-full bg-brand-400/10 px-2 py-1 text-[10px] font-semibold text-brand-300">Required</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
                   {PROP_FIRM_ACCOUNT_SIZES.map((size) => (
                     <button
                       key={size}
                       type="button"
                       onClick={() => setAccountSize(size)}
                       aria-pressed={accountSize === size}
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
                         accountSize === size
                           ? "border-brand-400/50 bg-brand-400/10 text-brand-200"
                           : "app-border hover:border-brand-400/30"

@@ -25,6 +25,11 @@ export const AUTOMATED_FX_SYMBOLS = SYMBOL_DEFINITIONS.filter(
     FOREX_CURRENCIES.has(quoteCurrency),
 ).map(({ symbol }) => symbol);
 
+/** Every catalogue market this provider can serve; defaults remain FX-only. */
+export const DUKASCOPY_MARKET_SYMBOLS = SYMBOL_DEFINITIONS
+  .filter(({ symbol }) => symbol.toLowerCase() in instrumentMetaData)
+  .map(({ symbol }) => symbol);
+
 export interface R2MarketSyncOptions {
   symbols?: string[];
   from?: Date;
@@ -212,8 +217,8 @@ async function latestStoredKey(context: R2Context, symbol: string): Promise<stri
 function assertSymbols(symbols: string[]): string[] {
   const unique = [...new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean))];
   for (const symbol of unique) {
-    if (!AUTOMATED_FX_SYMBOLS.includes(symbol)) {
-      throw new Error(`${symbol} is not an automated forex symbol.`);
+    if (!DUKASCOPY_MARKET_SYMBOLS.includes(symbol)) {
+      throw new Error(`${symbol} is not published by the automated market-data provider.`);
     }
     if (!(symbol.toLowerCase() in instrumentMetaData)) {
       throw new Error(`Dukascopy does not publish ${symbol}.`);
@@ -225,9 +230,17 @@ function assertSymbols(symbols: string[]): string[] {
 function earliestMinuteForSymbol(symbol: string): number {
   const metadata = instrumentMetaData[symbol.toLowerCase() as keyof typeof instrumentMetaData] as {
     startDayForMinuteCandles?: string;
+    startHourForTicks?: string;
   };
-  const start = Date.parse(metadata.startDayForMinuteCandles || "");
-  if (!Number.isFinite(start)) throw new Error(`Dukascopy has no minute-history start date for ${symbol}.`);
+  // Some metadata (notably BTC/USD) advertises a placeholder minute date that
+  // predates the instrument. Tick availability is the reliable lower bound.
+  const minuteStart = Date.parse(metadata.startDayForMinuteCandles || "");
+  const tickStart = Date.parse(metadata.startHourForTicks || "");
+  const start = Math.max(
+    Number.isFinite(minuteStart) ? minuteStart : 0,
+    Number.isFinite(tickStart) ? tickStart : 0,
+  );
+  if (!Number.isFinite(start) || start <= 0) throw new Error(`Dukascopy has no minute-history start date for ${symbol}.`);
   return start;
 }
 

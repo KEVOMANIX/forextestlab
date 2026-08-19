@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AUTOMATED_FX_SYMBOLS, mergeCandles, rowsToCandles } from "./r2-sync";
+import { AUTOMATED_FX_SYMBOLS, DUKASCOPY_MARKET_SYMBOLS, mergeCandles, rowsToCandles } from "./r2-sync";
 import type { Candle } from "./types";
 
 function candle(timestamp: number, close: string): Candle {
@@ -21,6 +21,13 @@ describe("R2 market-data synchronization", () => {
     expect(AUTOMATED_FX_SYMBOLS).toContain("GBPJPY");
     expect(AUTOMATED_FX_SYMBOLS).not.toContain("XAUUSD");
     expect(AUTOMATED_FX_SYMBOLS).not.toContain("BTCUSD");
+  });
+
+  it("allows explicit provider backfills for metals and Bitcoin, but not DXY", () => {
+    expect(DUKASCOPY_MARKET_SYMBOLS).toContain("XAUUSD");
+    expect(DUKASCOPY_MARKET_SYMBOLS).toContain("XAGUSD");
+    expect(DUKASCOPY_MARKET_SYMBOLS).toContain("BTCUSD");
+    expect(DUKASCOPY_MARKET_SYMBOLS).not.toContain("DXY");
   });
 
   it("deduplicates overlap candles and lets the newer download win", () => {

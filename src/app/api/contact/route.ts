@@ -31,15 +31,46 @@ export async function POST(request: Request): Promise<NextResponse<ApiResult>> {
     );
   }
 
-  const enquiry = await prisma.contactMessage.create({
-    data: {
-      name: result.data.name,
-      email: result.data.email,
-      subject: result.data.subject,
-      message: result.data.message,
-      consent: result.data.consent,
-    },
-    select: { id: true },
+  // Keep contact-form email in the same support inbox as widget messages.
+  // Anonymous visitors remain email-only; registered users are linked so the
+  // team can see their account context without creating a customer chat.
+  const profile = await prisma.userProfile.findUnique({
+    where: { email: result.data.email },
+    select: { id: true, displayName: true },
+  });
+  const enquiry = await prisma.$transaction(async (tx) => {
+    const contact = await tx.contactMessage.create({
+      data: {
+        name: result.data.name,
+        email: result.data.email,
+        subject: result.data.subject,
+        message: result.data.message,
+        consent: result.data.consent,
+      },
+      select: { id: true },
+    });
+    const now = new Date();
+    await tx.supportConversation.create({
+      data: {
+        userId: profile?.id,
+        customerName: result.data.name || profile?.displayName,
+        customerEmail: result.data.email,
+        subject: result.data.subject,
+        channel: "email",
+        status: "open",
+        agentUnreadCount: 1,
+        lastMessageAt: now,
+        messages: {
+          create: {
+            senderType: "customer",
+            senderName: result.data.name || result.data.email,
+            body: result.data.message,
+            deliveredAt: now,
+          },
+        },
+      },
+    });
+    return contact;
   });
 
   try {

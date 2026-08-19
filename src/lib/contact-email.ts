@@ -1,6 +1,5 @@
 import "server-only";
 
-
 import nodemailer from "nodemailer";
 import type { SendMailOptions, Transporter } from "nodemailer";
 
@@ -41,7 +40,8 @@ const EMAIL_ASSET_ORIGIN = "https://forextestlab.com";
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`Missing required contact email setting: ${name}`);
+  if (!value)
+    throw new Error(`Missing required contact email setting: ${name}`);
   return value;
 }
 
@@ -96,7 +96,6 @@ function siteUrl(): string {
     "https://forextestlab.com"
   );
 }
-
 
 function renderBrandEmail({
   preheader,
@@ -363,6 +362,36 @@ export async function sendSupportMessageNotification({
   });
 }
 
+/** Send a support email without creating a customer-facing chat thread. */
+export async function sendDirectSupportEmail({
+  email,
+  name,
+  subject,
+  body,
+}: {
+  email: string;
+  name: string;
+  subject: string;
+  body: string;
+}): Promise<void> {
+  const config = getSmtpConfig();
+  const safeBody = escapeHtml(body).replace(/\r?\n/g, "<br>");
+  await deliver(config, {
+    from: `ForexTestLab Support <${config.from}>`,
+    to: email,
+    replyTo: config.to,
+    subject,
+    text: [`Hi ${name},`, "", body, "", "ForexTestLab Support"].join("\n"),
+    html: renderBrandEmail({
+      preheader: subject,
+      eyebrow: "Message from support",
+      title: subject,
+      intro: `Hi ${name},`,
+      contentHtml: `<p style="margin:0;font-family:Arial,sans-serif;font-size:15px;line-height:25px;color:#344a5a">${safeBody}</p>`,
+    }),
+  });
+}
+
 export async function sendOperationalAlert({
   status,
   summary,
@@ -373,20 +402,31 @@ export async function sendOperationalAlert({
   details: string[];
 }): Promise<void> {
   const config = getSmtpConfig();
-  const safeDetails = details.map((detail) => `<li style="margin:0 0 8px">${escapeHtml(detail)}</li>`).join("");
+  const safeDetails = details
+    .map((detail) => `<li style="margin:0 0 8px">${escapeHtml(detail)}</li>`)
+    .join("");
   await deliver(config, {
     from: `ForexTestLab Monitor <${config.from}>`,
     to: process.env.OPERATIONS_ALERT_EMAIL?.trim() || config.to,
     replyTo: config.to,
     subject: `[ForexTestLab ${status.toUpperCase()}] ${summary}`,
-    text: [summary, "", ...details, "", `${siteUrl()}/admin/operations`].join("\n"),
+    text: [summary, "", ...details, "", `${siteUrl()}/admin/operations`].join(
+      "\n",
+    ),
     html: renderBrandEmail({
       preheader: summary,
-      eyebrow: status === "recovered" ? "Service recovered" : "Operations alert",
+      eyebrow:
+        status === "recovered" ? "Service recovered" : "Operations alert",
       title: summary,
-      intro: status === "recovered" ? "All monitored services are healthy again." : "ForexTestLab needs operational attention.",
+      intro:
+        status === "recovered"
+          ? "All monitored services are healthy again."
+          : "ForexTestLab needs operational attention.",
       contentHtml: `<ul class="list" style="margin:0;padding:18px 22px 10px 40px;background:#f7fafc;border:1px solid #e1e9ef;border-radius:12px;font-family:Arial,sans-serif;font-size:14px;line-height:22px;color:#344a5a">${safeDetails}</ul>`,
-      action: { label: "Open operations dashboard", href: `${siteUrl()}/admin/operations` },
+      action: {
+        label: "Open operations dashboard",
+        href: `${siteUrl()}/admin/operations`,
+      },
       closing: "ForexTestLab Monitor",
     }),
   });

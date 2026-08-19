@@ -7,11 +7,13 @@ import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/support/team/controls";
 import {
   searchOutboundRecipients,
+  sendSupportEmail,
   startOutboundConversation,
 } from "@/app/support-team/actions";
 import { SUPPORT_PRIORITIES } from "@/lib/support-client";
 
 type Recipient = { id: string; email: string; displayName: string | null };
+type SendResult = { ok: boolean; message?: string; conversationId?: string };
 
 /**
  * Starting a conversation the customer did not.
@@ -32,6 +34,7 @@ export function NewConversation() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [priority, setPriority] = useState("normal");
+  const [delivery, setDelivery] = useState<"email" | "chat">("email");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -74,6 +77,7 @@ export function NewConversation() {
     setSubject("");
     setBody("");
     setPriority("normal");
+    setDelivery("email");
     setError(null);
   }
 
@@ -92,7 +96,10 @@ export function NewConversation() {
     form.set("body", body);
     form.set("priority", priority);
     try {
-      const result = await startOutboundConversation(form);
+      const result: SendResult =
+        delivery === "email"
+          ? await sendSupportEmail(form)
+          : await startOutboundConversation(form);
       if (!result.ok) {
         setError(result.message ?? "The message could not be sent.");
         setBusy(false);
@@ -100,7 +107,7 @@ export function NewConversation() {
       }
       close();
       setBusy(false);
-      if (result.conversationId) {
+      if (delivery === "chat" && result.conversationId) {
         router.push(`/support-team?conversation=${result.conversationId}`);
       }
       router.refresh();
@@ -145,7 +152,9 @@ export function NewConversation() {
             </div>
 
             <label className="block">
-              <span className="text-[11px] font-semibold app-muted">Subject</span>
+              <span className="text-[11px] font-semibold app-muted">
+                Subject
+              </span>
               <input
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
@@ -155,20 +164,45 @@ export function NewConversation() {
               />
             </label>
 
+            <div className="grid grid-cols-2 gap-2 rounded-lg border app-border bg-[var(--app-panel-2)] p-1">
+              <button
+                type="button"
+                onClick={() => setDelivery("email")}
+                className={`rounded-md px-2 py-2 text-xs font-semibold ${delivery === "email" ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
+              >
+                Email only
+              </button>
+              <button
+                type="button"
+                onClick={() => setDelivery("chat")}
+                className={`rounded-md px-2 py-2 text-xs font-semibold ${delivery === "chat" ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
+              >
+                Support chat
+              </button>
+            </div>
+
             <label className="block">
-              <span className="text-[11px] font-semibold app-muted">Message</span>
+              <span className="text-[11px] font-semibold app-muted">
+                Message
+              </span>
               <textarea
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
                 rows={6}
                 maxLength={8000}
-                placeholder="Write the message the customer will see in their support panel."
+                placeholder={
+                  delivery === "email"
+                    ? "Write the email the customer will receive."
+                    : "Write the message the customer will see in their support panel."
+                }
                 className="mt-1 w-full resize-y rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-2 text-xs leading-5 outline-none focus-visible:border-brand-400"
               />
             </label>
 
             <label className="block">
-              <span className="text-[11px] font-semibold app-muted">Priority</span>
+              <span className="text-[11px] font-semibold app-muted">
+                Priority
+              </span>
               <select
                 value={priority}
                 onChange={(event) => setPriority(event.target.value)}
@@ -182,12 +216,14 @@ export function NewConversation() {
               </select>
             </label>
 
-            {error && <p className="text-[11px] font-semibold text-bear">{error}</p>}
+            {error && (
+              <p className="text-[11px] font-semibold text-bear">{error}</p>
+            )}
 
             <p className="text-[11px] leading-5 app-muted">
-              This opens a conversation in the customer&apos;s support panel and
-              emails them a notification. It will not appear in the inbox as
-              waiting for a reply.
+              {delivery === "email"
+                ? "Email only sends directly to the customer and does not create a chat conversation."
+                : "Support chat opens a conversation in the customer&apos;s support panel and emails them a notification."}
             </p>
 
             <div className="flex justify-end gap-2 pt-1">
@@ -204,8 +240,10 @@ export function NewConversation() {
                 disabled={busy || !body.trim()}
                 className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {busy && <Loader2 size={13} className="animate-spin" aria-hidden />}
-                Send message
+                {busy && (
+                  <Loader2 size={13} className="animate-spin" aria-hidden />
+                )}
+                {delivery === "email" ? "Send email" : "Send message"}
               </button>
             </div>
           </div>
@@ -238,12 +276,13 @@ export function NewConversation() {
                 </p>
               ) : searching ? (
                 <p className="flex items-center justify-center gap-2 py-10 text-[11px] app-muted">
-                  <Loader2 size={13} className="animate-spin" aria-hidden /> Searching
+                  <Loader2 size={13} className="animate-spin" aria-hidden />{" "}
+                  Searching
                 </p>
               ) : results.length === 0 ? (
                 <p className="py-10 text-center text-[11px] app-muted">
-                  No account matches “{query.trim()}”. Only registered accounts can
-                  be messaged here.
+                  No account matches “{query.trim()}”. Only registered accounts
+                  can be messaged here.
                 </p>
               ) : (
                 <ul className="divide-y app-border">

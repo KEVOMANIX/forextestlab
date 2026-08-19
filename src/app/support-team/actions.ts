@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
-import { sendSupportMessageNotification } from "@/lib/contact-email";
+import {
+  sendDirectSupportEmail,
+  sendSupportMessageNotification,
+} from "@/lib/contact-email";
 import { publishSupportConversationChanged } from "@/lib/support-realtime";
 import {
   requireSupportAgent,
@@ -13,7 +16,9 @@ import {
 } from "@/lib/support";
 
 const clean = (value: FormDataEntryValue | null, max: number) =>
-  String(value ?? "").trim().slice(0, max);
+  String(value ?? "")
+    .trim()
+    .slice(0, max);
 
 async function supportWriter() {
   const actor = await requireSupportAgent();
@@ -36,13 +41,14 @@ async function audit(
   action: string,
   targetId: string,
   metadata?: Record<string, unknown>,
+  targetType = "support_conversation",
 ) {
   await prisma.adminAuditEvent.create({
     data: {
       actorUserId: actor.user.id,
       actorEmail: actor.user.email ?? "unknown",
       action,
-      targetType: "support_conversation",
+      targetType,
       targetId,
       metadataJson: metadata ? JSON.stringify(metadata) : null,
     },
@@ -56,7 +62,9 @@ function refresh(conversationId?: string) {
   }
 }
 
-export async function replyToConversation(formData: FormData): Promise<WriteResult> {
+export async function replyToConversation(
+  formData: FormData,
+): Promise<WriteResult> {
   const actor = await requireSupportAgent();
   if (actor.agent.role === "viewer") {
     return { ok: false, message: "Your support role is read-only." };
@@ -70,7 +78,8 @@ export async function replyToConversation(formData: FormData): Promise<WriteResu
     where: { id: conversationId },
     select: { assignedAgentId: true, assignedAgentName: true },
   });
-  if (!owner) return { ok: false, message: "This conversation no longer exists." };
+  if (!owner)
+    return { ok: false, message: "This conversation no longer exists." };
   if (owner.assignedAgentId && owner.assignedAgentId !== actor.agent.id) {
     return {
       ok: false,
@@ -106,8 +115,7 @@ export async function replyToConversation(formData: FormData): Promise<WriteResu
       (!conversation.customerLastReadAt ||
         now.getTime() - conversation.customerLastReadAt.getTime() > 120_000) &&
       (!conversation.lastCustomerNotificationAt ||
-        now.getTime() -
-          conversation.lastCustomerNotificationAt.getTime() >
+        now.getTime() - conversation.lastCustomerNotificationAt.getTime() >
           600_000);
     await tx.supportConversation.update({
       where: { id: conversationId },
@@ -144,7 +152,9 @@ export async function replyToConversation(formData: FormData): Promise<WriteResu
   return { ok: true };
 }
 
-export async function addInternalNote(formData: FormData): Promise<WriteResult> {
+export async function addInternalNote(
+  formData: FormData,
+): Promise<WriteResult> {
   const actor = await requireSupportAgent();
   if (actor.agent.role === "viewer") {
     return { ok: false, message: "Your support role is read-only." };
@@ -318,7 +328,8 @@ export async function addSupportAgent(formData: FormData) {
     create: {
       userId: profile.id,
       email: profile.email,
-      displayName: profile.displayName || profile.email.split("@")[0] || "Agent",
+      displayName:
+        profile.displayName || profile.email.split("@")[0] || "Agent",
       role,
     },
     update: { email: profile.email, role, active: true },
@@ -406,8 +417,12 @@ export async function startOutboundConversation(
         customerEmail: profile.email,
         customerName: profile.displayName,
         subject,
-        category: SUPPORT_CATEGORIES.includes(category as never) ? category : "other",
-        priority: SUPPORT_PRIORITIES.includes(priority as never) ? priority : "normal",
+        category: SUPPORT_CATEGORIES.includes(category as never)
+          ? category
+          : "other",
+        priority: SUPPORT_PRIORITIES.includes(priority as never)
+          ? priority
+          : "normal",
         channel: "outbound",
         status: "waiting_customer",
         assignedAgentId: actor.agent.id,
@@ -456,4 +471,47 @@ export async function startOutboundConversation(
 
   refresh(conversation.id);
   return { ok: true, conversationId: conversation.id };
+}
+
+export async function sendSupportEmail(
+  formData: FormData,
+): Promise<WriteResult> {
+  const actor = await supportWriter();
+  const userId = clean(formData.get("userId"), 60);
+  const subject =
+    clean(formData.get("subject"), 160) || "Message from ForexTestLab Support";
+  const body = clean(formData.get("body"), 8_000);
+  if (!userId) return { ok: false, message: "Choose who to email." };
+  if (!body) return { ok: false, message: "Write an email before sending." };
+  const profile = await prisma.userProfile.findUnique({
+    where: { id: userId },
+    select: { email: true, displayName: true },
+  });
+  if (!profile) return { ok: false, message: "That account no longer exists." };
+  const recipientEmail = profile.email ?? "";
+  try {
+    await sendDirectSupportEmail({
+      email: recipientEmail,
+      name: profile.displayName ?? recipientEmail.split("@")[0] ?? "Customer",
+      subject,
+      body,
+    });
+  } catch (error) {
+    console.error("Direct support email failed:", error);
+    return {
+      ok: false,
+      message: "The email could not be sent. Check SMTP settings.",
+    };
+  }
+  await audit(
+    actor,
+    "support.email_sent",
+    recipientEmail,
+    {
+      recipient: recipientEmail,
+      subject,
+    },
+    "support_email",
+  );
+  return { ok: true };
 }

@@ -15,6 +15,7 @@ vi.mock("nodemailer", () => ({
 import {
   sendContactEmail,
   sendContactReceipt,
+  sendDirectSupportEmail,
   sendSupportMessageNotification,
 } from "./contact-email";
 
@@ -111,6 +112,29 @@ describe("sendContactEmail", () => {
     expect(message?.html).toContain("&lt;script&gt;");
   });
 
+  it("sends a direct support email without linking to the chat inbox", async () => {
+    await sendDirectSupportEmail({
+      email: "isaiah@example.com",
+      name: "Isaiah",
+      subject: "Your complimentary Pro access",
+      body: "Welcome <script>alert('x')</script>\nPlease share feedback.",
+    });
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "isaiah@example.com",
+        subject: "Your complimentary Pro access",
+        replyTo: "support@forextestlab.com",
+        html: expect.not.stringContaining("<script>"),
+        attachments: [],
+      }),
+    );
+    const message = sendMail.mock.calls[0]?.[0];
+    expect(message?.html).toContain("&lt;script&gt;");
+    expect(message?.html).not.toContain("Open the conversation");
+    expect(message?.text).toContain("Please share feedback.");
+  });
+
   it("fails clearly when SMTP is not configured", async () => {
     delete process.env.SMTP_HOST;
 
@@ -148,7 +172,13 @@ describe("the email shell", () => {
     expect(html).toContain("@media only screen and (max-width: 600px)");
     // Every gutter that stacked on a phone needs a hook, or the column stays
     // narrow no matter what the media query says.
-    for (const hook of ['class="shell"', 'class="head"', 'class="body"', 'class="foot"', 'class="block"']) {
+    for (const hook of [
+      'class="shell"',
+      'class="head"',
+      'class="body"',
+      'class="foot"',
+      'class="block"',
+    ]) {
       expect(html, `${hook} is missing`).toContain(hook);
     }
   });
@@ -207,7 +237,9 @@ describe("what the notification says", () => {
       firstContact: true,
     });
     const message = sendMail.mock.calls[0]?.[0];
-    expect(message?.subject).toBe("Message from support: Your session has been restored");
+    expect(message?.subject).toBe(
+      "Message from support: Your session has been restored",
+    );
     expect(String(message?.html)).toContain("New support message");
     expect(String(message?.html)).toContain("a message from support");
     expect(String(message?.html)).not.toContain("we replied");

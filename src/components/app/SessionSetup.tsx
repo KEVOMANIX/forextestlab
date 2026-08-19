@@ -16,6 +16,7 @@ import {
   Search,
   Tags,
   Trophy,
+  X,
 } from "lucide-react";
 
 import {
@@ -29,7 +30,7 @@ import {
   PROP_FIRM_PRESETS,
 } from "@/lib/backtest/prop-firm";
 import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date-time";
-import { formatSymbol } from "@/lib/market-data/symbols";
+import { describeSymbol, formatSymbol } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
 
 interface SessionSetupProps {
@@ -39,15 +40,252 @@ interface SessionSetupProps {
   entitlements: PlanEntitlements;
 }
 
-const MARKET_CATEGORIES = ["All", "Stocks", "Futures", "Forex", "Crypto", "Indices", "Metals", "Energies"] as const;
+// Ordered by catalogue size so the busiest filters sit closest to "All". A
+// category with no enabled symbols is never rendered, so the row stays short
+// enough to wrap instead of scrolling off the edge of the column.
+const MARKET_CATEGORIES = ["All", "Forex", "Indices", "Crypto", "Metals", "Energies", "Futures", "Stocks"] as const;
 type MarketCategory = (typeof MARKET_CATEGORIES)[number];
+type MarketGroup = Exclude<MarketCategory, "All">;
 
-function categoryForMarket(item: MarketSymbol): Exclude<MarketCategory, "All"> {
+const FIAT_CURRENCIES = ["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"];
+
+function categoryForMarket(item: MarketSymbol): MarketGroup {
   if (["BTC", "ETH", "LTC", "ADA"].includes(item.baseCurrency)) return "Crypto";
   if (["XAU", "XAG"].includes(item.baseCurrency)) return "Metals";
   if (item.symbol.includes("IDX") || item.symbol === "DXY") return "Indices";
-  if (["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"].includes(item.baseCurrency) && ["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"].includes(item.quoteCurrency)) return "Forex";
+  if (FIAT_CURRENCIES.includes(item.baseCurrency) && FIAT_CURRENCIES.includes(item.quoteCurrency)) return "Forex";
   return "Stocks";
+}
+
+/**
+ * Market chooser for step 2.
+ *
+ * The catalogue is far longer than the column is tall, so discovery has to work
+ * three ways at once: filter by category, search by name or code, and keep the
+ * current selection visible even when it has been filtered out of the list.
+ */
+function MarketPicker({
+  symbols,
+  loading,
+  selected,
+  singleSelect,
+  onToggle,
+  onReset,
+}: {
+  symbols: MarketSymbol[];
+  loading: boolean;
+  selected: string[];
+  singleSelect: boolean;
+  onToggle: (symbol: string) => void;
+  onReset: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<MarketCategory>("All");
+
+  const enabled = useMemo(() => symbols.filter((item) => item.enabled), [symbols]);
+
+  const counts = useMemo(() => {
+    const totals = new Map<MarketCategory, number>([["All", enabled.length]]);
+    for (const item of enabled) {
+      const group = categoryForMarket(item);
+      totals.set(group, (totals.get(group) ?? 0) + 1);
+    }
+    return totals;
+  }, [enabled]);
+
+  const categories = useMemo(
+    () => MARKET_CATEGORIES.filter((item) => (counts.get(item) ?? 0) > 0),
+    [counts],
+  );
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return enabled.filter((item) => {
+      if (category !== "All" && categoryForMarket(item) !== category) return false;
+      if (!needle) return true;
+      return `${item.symbol} ${item.displayName} ${describeSymbol(item.symbol)}`
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [category, enabled, query]);
+
+  const selectedItems = useMemo(
+    () => selected.map((symbol) => enabled.find((item) => item.symbol === symbol)).filter(Boolean) as MarketSymbol[],
+    [enabled, selected],
+  );
+
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-3 flex w-full items-center gap-2">
+        <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">2</span>
+        <span className="text-sm font-semibold">Choose market{singleSelect ? "" : "s"}</span>
+        {selected.length > 0 && (
+          <span className="rounded-full bg-brand-400/12 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
+            {selected.length} selected
+          </span>
+        )}
+      </legend>
+
+      <div className="relative">
+        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
+        <label htmlFor="setup-market-search" className="sr-only">Search markets</label>
+        <input
+          id="setup-market-search"
+          type="search"
+          className="app-input w-full py-2 pl-9 pr-9 text-sm"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={loading ? "Loading markets…" : `Search ${enabled.length} markets`}
+          autoComplete="off"
+        />
+        {query && (
+          <button
+            type="button"
+            aria-label="Clear market search"
+            onClick={() => setQuery("")}
+            className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300"
+          >
+            <X size={14} aria-hidden />
+          </button>
+        )}
+      </div>
+
+      {categories.length > 1 && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5" role="group" aria-label="Filter markets by category">
+          {categories.map((item) => {
+            const active = category === item;
+            return (
+              <button
+                key={item}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setCategory(item)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  active
+                    ? "border-brand-400/45 bg-brand-400/12 text-brand-200"
+                    : "app-border bg-[var(--app-panel-2)]/55 app-muted hover:border-brand-400/35 hover:text-brand-200"
+                }`}
+              >
+                {item}
+                <span className={active ? "text-brand-300/80" : "opacity-60"}>{counts.get(item)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {!singleSelect && selectedItems.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          {selectedItems.map((item) => (
+            <span
+              key={item.symbol}
+              className="inline-flex items-center gap-1 rounded-md border border-brand-400/35 bg-brand-400/10 py-0.5 pl-2 pr-0.5 text-[11px] font-semibold text-brand-200"
+            >
+              <span className="font-mono">{item.displayName}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${item.displayName}`}
+                onClick={() => onToggle(item.symbol)}
+                className="grid h-4 w-4 place-items-center rounded transition-colors hover:bg-brand-400/25"
+              >
+                <X size={11} strokeWidth={2.5} aria-hidden />
+              </button>
+            </span>
+          ))}
+          {selectedItems.length > 1 && (
+            <button
+              type="button"
+              onClick={onReset}
+              className="rounded-md px-1.5 py-0.5 text-[11px] font-medium app-muted underline-offset-2 transition-colors hover:text-brand-300 hover:underline"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="relative mt-2.5">
+        {loading ? (
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1" aria-label="Loading markets">
+            {Array.from({ length: 5 }, (_, index) => (
+              <span key={index} className="h-[46px] animate-pulse rounded-lg bg-white/[0.05]" />
+            ))}
+          </div>
+        ) : visible.length > 0 ? (
+          <>
+            <div className="grid max-h-[17rem] grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain pb-3 pr-1 sm:grid-cols-2 lg:grid-cols-1">
+              {visible.map((item) => {
+                const active = selected.includes(item.symbol);
+                const description = describeSymbol(item.symbol);
+                return (
+                  <label
+                    key={item.symbol}
+                    title={description}
+                    className={`group flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-400/60 ${
+                      active
+                        ? "border-brand-400/50 bg-brand-400/10"
+                        : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30 hover:bg-brand-400/[0.04]"
+                    }`}
+                  >
+                    <input
+                      type={singleSelect ? "radio" : "checkbox"}
+                      name={singleSelect ? "session-pair" : undefined}
+                      className="sr-only"
+                      checked={active}
+                      onChange={() => onToggle(item.symbol)}
+                    />
+                    <span
+                      aria-hidden
+                      className={`grid h-[18px] w-[18px] shrink-0 place-items-center border transition-colors ${
+                        singleSelect ? "rounded-full" : "rounded-[5px]"
+                      } ${
+                        active
+                          ? "border-brand-400 bg-brand-500 text-surface-950"
+                          : "app-border group-hover:border-brand-400/40"
+                      }`}
+                    >
+                      {active && <Check size={11} strokeWidth={3.5} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={`block truncate font-mono text-[13px] font-semibold leading-tight ${active ? "text-brand-200" : ""}`}>
+                        {item.displayName}
+                      </span>
+                      {description !== item.displayName && (
+                        <span className="mt-0.5 block truncate text-[11px] leading-tight app-muted">
+                          {description}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[var(--app-panel)] to-transparent"
+            />
+          </>
+        ) : (
+          <p className="rounded-lg border app-border bg-[var(--app-panel-2)]/55 px-3 py-4 text-sm app-muted">
+            {enabled.length === 0
+              ? "Markets are temporarily unavailable. Please refresh and try again."
+              : query.trim()
+                ? `No markets match “${query.trim()}”.`
+                : `No ${category.toLowerCase()} markets are available yet.`}
+          </p>
+        )}
+      </div>
+
+      {!loading && enabled.length > 0 && (
+        <p className="mt-2 text-[11px] app-muted">
+          {visible.length === enabled.length
+            ? `${enabled.length} markets available`
+            : `Showing ${visible.length} of ${enabled.length} markets`}
+          {singleSelect && " · trial sessions replay one market at a time"}
+        </p>
+      )}
+    </fieldset>
+  );
 }
 
 function toDateInput(ms: number): string {
@@ -261,9 +499,6 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
   const [loadingSymbols, setLoadingSymbols] = useState(true);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
-  const [marketSearchOpen, setMarketSearchOpen] = useState(false);
-  const [marketQuery, setMarketQuery] = useState("");
-  const [marketCategoryFilter, setMarketCategoryFilter] = useState<MarketCategory>("All");
   const [range, setRange] = useState<{ startTime: number; endTime: number } | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -354,19 +589,6 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
     };
   }, [selectedSymbols]);
 
-  const enabledSymbols = useMemo(
-    () => symbols.filter((item) => item.enabled),
-    [symbols],
-  );
-  const visibleSymbols = useMemo(() => {
-    const query = marketQuery.trim().toLowerCase();
-    return enabledSymbols.filter((item) => {
-      const inCategory = marketCategoryFilter === "All" || categoryForMarket(item) === marketCategoryFilter;
-      if (!inCategory) return false;
-      if (!query) return true;
-      return `${item.symbol} ${item.displayName}`.toLowerCase().includes(query);
-    });
-  }, [enabledSymbols, marketCategoryFilter, marketQuery]);
   const tags = tagsText
     .split(",")
     .map((tag) => tag.trim())
@@ -483,115 +705,14 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
             </div>
           </section>
 
-          <fieldset>
-            <legend className="mb-3 flex w-full items-center gap-2">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">2</span>
-              <span className="text-sm font-semibold">Choose market{entitlements.maxPairsPerSession === 1 ? "" : "s"}</span>
-              {selectedSymbols.length > 0 && (
-                <span className="ml-1 text-xs font-medium text-brand-300">{selectedSymbols.length} selected</span>
-              )}
-              <button
-                type="button"
-                className="ml-auto inline-flex items-center gap-1 rounded-md border app-border px-2 py-1 text-[11px] font-medium app-muted transition-colors hover:border-brand-400/40 hover:text-brand-300"
-                aria-expanded={marketSearchOpen}
-                aria-controls="setup-market-search"
-                onClick={() => {
-                  setMarketSearchOpen((open) => !open);
-                  if (marketSearchOpen) setMarketQuery("");
-                }}
-              >
-                <Search size={13} aria-hidden />
-                Search
-              </button>
-            </legend>
-
-            <div className="mb-3 flex gap-2 overflow-x-auto pb-0.5" role="tablist" aria-label="Market categories">
-              {MARKET_CATEGORIES.map((category) => {
-                const count = category === "All" ? enabledSymbols.length : enabledSymbols.filter((item) => categoryForMarket(item) === category).length;
-                const selected = marketCategoryFilter === category;
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    aria-label={`${category} markets${count ? `, ${count} available` : ", none available"}`}
-                    onClick={() => setMarketCategoryFilter(category)}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors ${
-                      selected
-                        ? "border-brand-400/45 bg-brand-400/12 text-brand-200"
-                        : "app-border bg-[var(--app-panel-2)]/55 app-muted hover:border-brand-400/35 hover:text-brand-200"
-                    }`}
-                  >
-                    {category}
-                  </button>
-                );
-              })}
-            </div>
-
-            {marketSearchOpen && (
-              <div className="relative mb-2">
-                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
-                <label htmlFor="setup-market-search" className="sr-only">Search markets</label>
-                <input
-                  id="setup-market-search"
-                  className="app-input w-full py-2 pl-9 text-sm"
-                  value={marketQuery}
-                  onChange={(event) => setMarketQuery(event.target.value)}
-                  placeholder="Search pairs…"
-                  autoFocus
-                />
-              </div>
-            )}
-
-            {loadingSymbols ? (
-              <div className="grid max-h-52 grid-cols-2 gap-2 overflow-hidden sm:grid-cols-3 lg:grid-cols-2" aria-label="Loading markets">
-                {Array.from({ length: 6 }, (_, index) => (
-                  <span key={index} className="h-11 animate-pulse rounded-xl bg-white/[0.05]" />
-                ))}
-              </div>
-            ) : visibleSymbols.length > 0 ? (
-              <div className="grid max-h-52 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-2">
-                {visibleSymbols.map((item) => {
-                  const selected = selectedSymbols.includes(item.symbol);
-                  return (
-                    <label
-                      key={item.symbol}
-                      className={`group flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
-                        selected
-                          ? "border-brand-400/50 bg-brand-400/10 text-brand-200 shadow-sm"
-                          : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30 hover:bg-brand-400/[0.04]"
-                      }`}
-                    >
-                      <input
-                        type={entitlements.maxPairsPerSession === 1 ? "radio" : "checkbox"}
-                        name={entitlements.maxPairsPerSession === 1 ? "session-pair" : undefined}
-                        className="sr-only"
-                        checked={selected}
-                        onChange={() => toggleSymbol(item.symbol)}
-                      />
-                      <span className="font-mono font-semibold">{item.displayName}</span>
-                      <span className={`grid h-5 w-5 place-items-center rounded-full border transition-colors ${
-                        selected
-                          ? "border-brand-400 bg-brand-500 text-surface-950"
-                          : "app-border group-hover:border-brand-400/40"
-                      }`}>
-                        {selected && <Check size={12} strokeWidth={3} aria-hidden />}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            ) : enabledSymbols.length > 0 ? (
-              <p className="rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 text-sm app-muted">
-                {marketQuery ? `No markets match “${marketQuery}”.` : `No ${marketCategoryFilter.toLowerCase()} markets are available yet.`}
-              </p>
-            ) : (
-              <p className="rounded-xl border app-border bg-[var(--app-panel-2)]/55 p-4 text-sm app-muted">
-                Markets are temporarily unavailable. Please refresh and try again.
-              </p>
-            )}
-          </fieldset>
+          <MarketPicker
+            symbols={symbols}
+            loading={loadingSymbols}
+            selected={selectedSymbols}
+            singleSelect={entitlements.maxPairsPerSession === 1}
+            onToggle={toggleSymbol}
+            onReset={() => setSelectedSymbols([])}
+          />
         </div>
 
         <div className="min-w-0 overflow-hidden border-t app-border px-5 py-4 sm:px-6 lg:border-r lg:border-t-0 lg:border-[var(--app-border)]">

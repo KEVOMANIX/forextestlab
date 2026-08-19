@@ -411,13 +411,16 @@ export function formatSymbol(symbol: string): string {
 }
 
 const CURRENCY_NAMES: Record<string, string> = {
+  ADA: "Cardano",
   AUD: "Australian Dollar",
   BTC: "Bitcoin",
   CAD: "Canadian Dollar",
   CHF: "Swiss Franc",
+  ETH: "Ethereum",
   EUR: "Euro",
   GBP: "British Pound",
   JPY: "Japanese Yen",
+  LTC: "Litecoin",
   NZD: "New Zealand Dollar",
   USD: "US Dollar",
   XAG: "Silver",

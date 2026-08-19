@@ -2,6 +2,7 @@ import "server-only";
 
 import nodemailer from "nodemailer";
 import type { SendMailOptions, Transporter } from "nodemailer";
+import { Resend } from "resend";
 
 import type { ContactSubmission } from "@/lib/types";
 
@@ -53,15 +54,19 @@ function getSmtpConfig(): SmtpConfig {
     throw new Error("SMTP_PORT must be a valid TCP port.");
   }
 
+  const resendFrom = process.env.RESEND_FROM_EMAIL?.trim();
+  const resendMode = Boolean(process.env.RESEND_API_KEY?.trim() && resendFrom);
   return {
-    host: required("SMTP_HOST"),
+    host: resendMode ? "resend" : required("SMTP_HOST"),
     port,
     secure:
       process.env.SMTP_SECURE?.trim().toLowerCase() === "true" || port === 465,
-    username: required("SMTP_USERNAME"),
-    password: required("SMTP_PASSWORD"),
-    from: required("CONTACT_FROM_EMAIL"),
-    to: required("CONTACT_TO_EMAIL"),
+    username: resendMode ? "resend" : required("SMTP_USERNAME"),
+    password: resendMode ? "resend" : required("SMTP_PASSWORD"),
+    from: resendFrom || required("CONTACT_FROM_EMAIL"),
+    to:
+      (resendMode ? process.env.RESEND_SUPPORT_EMAIL?.trim() : undefined) ||
+      required("CONTACT_TO_EMAIL"),
   };
 }
 
@@ -95,6 +100,14 @@ function siteUrl(): string {
     process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "") ||
     "https://forextestlab.com"
   );
+}
+
+function sender(label: string, value: string): string {
+  return value.includes("<") ? value : `${label} <${value}>`;
+}
+
+function replyAddress(value: string | { address: string }): string {
+  return typeof value === "string" ? value : value.address;
 }
 
 function renderBrandEmail({
@@ -191,6 +204,32 @@ async function deliver(
   config: SmtpConfig,
   message: SendMailOptions,
 ): Promise<void> {
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (resendKey) {
+    const resend = new Resend(resendKey);
+    const content = message.html
+      ? { html: String(message.html) }
+      : { text: String(message.text ?? "") };
+    const outbound = {
+      from: String(message.from),
+      to: Array.isArray(message.to)
+        ? message.to.map(String)
+        : [String(message.to)],
+      ...(message.replyTo
+        ? {
+            replyTo: Array.isArray(message.replyTo)
+              ? message.replyTo.map(replyAddress)
+              : [replyAddress(message.replyTo)],
+          }
+        : {}),
+      subject: String(message.subject),
+      ...content,
+    };
+    const result = await resend.emails.send(outbound);
+    if (result.error)
+      throw new Error(`Resend delivery failed: ${result.error.message}`);
+    return;
+  }
   await smtpTransport(config).sendMail({
     ...message,
     attachments: message.attachments ?? [],
@@ -207,7 +246,7 @@ export async function sendContactEmail(
   const replyHref = `mailto:${encodeURIComponent(submission.email)}?subject=${encodeURIComponent(`Re: ${submission.subject}`)}`;
 
   await deliver(config, {
-    from: `ForexTestLab Contact <${config.from}>`,
+    from: sender("ForexTestLab Contact", config.from),
     to: config.to,
     replyTo: { name: submission.name, address: submission.email },
     subject: `[ForexTestLab] ${submission.subject}`,
@@ -247,7 +286,7 @@ export async function sendContactReceipt(
   const safeSubject = escapeHtml(submission.subject);
 
   await deliver(config, {
-    from: `ForexTestLab Support <${config.from}>`,
+    from: sender("ForexTestLab Support", config.from),
     to: submission.email,
     replyTo: config.to,
     subject: "We received your ForexTestLab support request",
@@ -330,7 +369,7 @@ export async function sendSupportMessageNotification({
       };
 
   await deliver(config, {
-    from: `ForexTestLab Support <${config.from}>`,
+    from: sender("ForexTestLab Support", config.from),
     to: email,
     replyTo: config.to,
     subject: copy.subject,
@@ -377,7 +416,7 @@ export async function sendDirectSupportEmail({
   const config = getSmtpConfig();
   const safeBody = escapeHtml(body).replace(/\r?\n/g, "<br>");
   await deliver(config, {
-    from: `ForexTestLab Support <${config.from}>`,
+    from: sender("ForexTestLab Support", config.from),
     to: email,
     replyTo: config.to,
     subject,
@@ -406,7 +445,7 @@ export async function sendOperationalAlert({
     .map((detail) => `<li style="margin:0 0 8px">${escapeHtml(detail)}</li>`)
     .join("");
   await deliver(config, {
-    from: `ForexTestLab Monitor <${config.from}>`,
+    from: sender("ForexTestLab Monitor", config.from),
     to: process.env.OPERATIONS_ALERT_EMAIL?.trim() || config.to,
     replyTo: config.to,
     subject: `[ForexTestLab ${status.toUpperCase()}] ${summary}`,

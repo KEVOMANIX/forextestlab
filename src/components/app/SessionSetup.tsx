@@ -715,12 +715,13 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           />
         </div>
 
-        <div className="min-w-0 overflow-hidden border-t app-border px-5 py-4 sm:px-6 lg:border-r lg:border-t-0 lg:border-[var(--app-border)]">
+        <div className="min-w-0 overflow-hidden border-t app-border bg-[linear-gradient(180deg,rgba(34,195,160,.035),transparent_45%)] px-5 py-4 sm:px-6 lg:border-r lg:border-t-0 lg:border-[var(--app-border)]">
           <fieldset>
             <legend className="mb-3 flex w-full items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
               <span className="text-sm font-semibold">Session type</span>
             </legend>
+            <p className="-mt-1 mb-3 pl-9 text-xs leading-relaxed app-muted">Choose a relaxed replay or test yourself against challenge rules.</p>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-2">
               <ModeCard
@@ -989,9 +990,9 @@ function ModeCard({
       onClick={onSelect}
       disabled={disabled}
       aria-pressed={selected}
-      className={`min-w-0 flex min-h-[92px] items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`min-w-0 flex min-h-[100px] items-center gap-3 rounded-xl border px-4 py-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
         selected
-          ? "border-brand-400/50 bg-brand-400/10 shadow-sm"
+          ? "border-brand-400/50 bg-brand-400/10 shadow-[0_12px_28px_-18px_rgba(45,212,191,.9)]"
           : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30"
       }`}
     >

@@ -2,6 +2,7 @@
 
 import { ArrowRight, Check, Loader2, ShieldCheck, Star, Tag } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 import { CopyWelcomeCode } from "@/components/WelcomeOffer";
 import type { BillingInterval, Tier } from "@/lib/billing/tier-types";
@@ -240,7 +241,29 @@ export function LocalizedPricing({
 
       {error && <div role="alert" className="mx-auto mt-5 max-w-xl rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-center text-sm text-red-200">{error}</div>}
 
-      <div className="mt-8 grid gap-5 lg:grid-cols-3">
+      <div className="mx-auto mt-8 grid max-w-5xl gap-5 lg:grid-cols-2">
+        <article className="relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-surface-800/70 p-6 shadow-card">
+          <p className="text-sm font-semibold text-slate-300">Free</p>
+          <div className="mt-5 flex min-h-12 items-end gap-2">
+            <strong className="text-4xl font-bold tracking-tight text-white">$0</strong>
+            <span className="pb-1 text-sm text-slate-500">/ forever</span>
+          </div>
+          <p className="mt-4 min-h-12 text-sm leading-relaxed text-slate-400">
+            Build your trading routine with the essential tools for getting started.
+          </p>
+          <ul className={`mt-6 space-y-3 ${compact ? "lg:min-h-40" : "lg:min-h-48"}`}>
+            {["Practice with free market data", "Create and replay trading sessions", "Track core trade results"].map((feature) => (
+              <li key={feature} className="flex gap-2.5 text-sm text-slate-300">
+                <Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/sign-up" className="btn-secondary mt-7 w-full text-center">
+            Start for free <ArrowRight size={15} aria-hidden />
+          </Link>
+        </article>
+
         {tiers.map((tier) => {
           const priceId = tier.priceId[interval];
           const price = prices[priceId];

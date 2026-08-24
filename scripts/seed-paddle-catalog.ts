@@ -4,7 +4,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 config();
 
-type TierId = "starter" | "pro" | "advanced";
+type TierId = "pro";
 type Interval = "month" | "year";
 
 const apiKey = process.env.PADDLE_SANDBOX_API_KEY?.trim();
@@ -25,16 +25,14 @@ function requiredAmount(tier: TierId, interval: Interval): string {
 }
 
 const tierDescriptions: Record<TierId, string> = {
-  starter: "A focused market replay workspace for building a consistent testing habit.",
   pro: "The complete backtesting and analytics workflow for active traders.",
-  advanced: "Extended reporting, capacity, and priority support for serious research.",
 };
 
 const paddle = new Paddle(apiKey, { environment: Environment.sandbox });
 
 async function main() {
   const result: Record<string, string> = {};
-  for (const tier of ["starter", "pro", "advanced"] as const) {
+  for (const tier of ["pro"] as const) {
     const name = `${tier.charAt(0).toUpperCase()}${tier.slice(1)}`;
     const product = await paddle.products.create({
       name: `ForexTestLab ${name}`,

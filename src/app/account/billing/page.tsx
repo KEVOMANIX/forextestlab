@@ -12,8 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Billing", robots: { index: false } };
 
 function planName(value: string): string {
-  const tier = value.split("_")[0];
-  return tier ? `${tier.charAt(0).toUpperCase()}${tier.slice(1)}` : "Free";
+  return value.startsWith("pro_") ? "Pro" : "Free";
 }
 
 export default async function BillingPage() {

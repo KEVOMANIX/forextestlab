@@ -8,8 +8,7 @@ config({ path: ".env.local" });
 config();
 
 const apiKey = process.env.PADDLE_LIVE_API_KEY?.trim();
-const starterMonthlyPriceId =
-  process.env.PADDLE_LIVE_STARTER_MONTH_PRICE_ID?.trim();
+const proMonthlyPriceId = process.env.PADDLE_LIVE_PRO_MONTH_PRICE_ID?.trim();
 
 if (process.env.PADDLE_MODE?.trim().toLowerCase() !== "live") {
   throw new Error("PADDLE_MODE must be live for the live E2E test.");
@@ -17,9 +16,9 @@ if (process.env.PADDLE_MODE?.trim().toLowerCase() !== "live") {
 if (!apiKey?.startsWith("pdl_live_")) {
   throw new Error("PADDLE_LIVE_API_KEY must contain a live API key.");
 }
-if (!starterMonthlyPriceId?.startsWith("pri_")) {
+if (!proMonthlyPriceId?.startsWith("pri_")) {
   throw new Error(
-    "PADDLE_LIVE_STARTER_MONTH_PRICE_ID must contain a live price ID.",
+    "PADDLE_LIVE_PRO_MONTH_PRICE_ID must contain a live price ID.",
   );
 }
 
@@ -50,7 +49,7 @@ async function main() {
     recur: false,
     maximumRecurringIntervals: null,
     usageLimit: 1,
-    restrictTo: [starterMonthlyPriceId!],
+    restrictTo: [proMonthlyPriceId!],
     expiresAt: expiresAt.toISOString(),
     customData: {
       application: "forextestlab",
@@ -59,7 +58,7 @@ async function main() {
   });
 
   const preview = await paddle.pricingPreview.preview({
-    items: [{ priceId: starterMonthlyPriceId!, quantity: 1 }],
+    items: [{ priceId: proMonthlyPriceId!, quantity: 1 }],
     discountId: discount.id,
     address: { countryCode: "US" },
   });
@@ -92,7 +91,7 @@ async function main() {
         expiresAt: expiresAt.toISOString(),
         code,
         discountId: discount.id,
-        starterMonthlyPriceId,
+        proMonthlyPriceId,
         status: "awaiting_checkout",
       },
       null,

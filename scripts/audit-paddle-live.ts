@@ -4,7 +4,7 @@ import { Environment, Paddle } from "@paddle/paddle-node-sdk";
 config({ path: ".env.local" });
 config();
 
-type Tier = "starter" | "pro" | "advanced";
+type Tier = "pro";
 type Interval = "month" | "year";
 
 const apiKey = process.env.PADDLE_LIVE_API_KEY?.trim();
@@ -21,7 +21,7 @@ function requiredPriceId(tier: Tier, interval: Interval): string {
   return value;
 }
 
-const expected = (["starter", "pro", "advanced"] as const).flatMap((tier) =>
+const expected = (["pro"] as const).flatMap((tier) =>
   (["month", "year"] as const).map((interval) => ({
     tier,
     interval,

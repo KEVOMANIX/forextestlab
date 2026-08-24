@@ -6,9 +6,7 @@ import { resolve } from "node:path";
 import { Environment, Paddle, type Discount, type Price, type Product } from "@paddle/paddle-node-sdk";
 
 const EXPECTED_PRODUCTS = new Set([
-  "ForexTestLab Starter",
   "ForexTestLab Pro",
-  "ForexTestLab Advanced",
 ]);
 const JUNK_PATTERN = /\b(test|junk|dummy|sample|demo|temporary|tmp)\b/i;
 

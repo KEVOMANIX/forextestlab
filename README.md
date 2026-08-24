@@ -122,8 +122,8 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `PADDLE_SANDBOX_API_KEY` / `PADDLE_LIVE_API_KEY` | - | Server-only Paddle API keys. |
 | `PADDLE_SANDBOX_CLIENT_TOKEN` / `PADDLE_LIVE_CLIENT_TOKEN` | - | Paddle.js client tokens selected by `PADDLE_MODE`. |
 | `PADDLE_SANDBOX_WEBHOOK_SECRET` / `PADDLE_LIVE_WEBHOOK_SECRET` | - | Secrets used to verify `/api/paddle/webhook`. |
-| `PADDLE_SANDBOX_<TIER>_<INTERVAL>_PRICE_ID` | - | Six sandbox recurring IDs for `STARTER`, `PRO`, and `ADVANCED`, each with `MONTH` and `YEAR`. Use the equivalent `PADDLE_LIVE_*` variables in live mode. |
-| `PADDLE_<TIER>_<INTERVAL>_PRICE_USD_CENTS` | - | Six USD catalog amounts consumed only by `npm run paddle:seed`. |
+| `PADDLE_SANDBOX_PRO_<INTERVAL>_PRICE_ID` | - | Pro sandbox recurring IDs for `MONTH` and `YEAR`. Use the equivalent `PADDLE_LIVE_*` variables in live mode. |
+| `PADDLE_PRO_<INTERVAL>_PRICE_USD_CENTS` | - | Pro USD catalog amounts consumed only by `npm run paddle:seed`. |
 
 Never commit real credentials. `.env*` is git-ignored.
 
@@ -152,10 +152,10 @@ Billing uses Paddle overlay checkout, verified webhooks, and Paddle's hosted
 customer portal. Start in sandbox and keep API keys and webhook secrets
 server-side.
 
-1. Set all six `PADDLE_<TIER>_<INTERVAL>_PRICE_USD_CENTS` values, add
+1. Set both `PADDLE_PRO_<INTERVAL>_PRICE_USD_CENTS` values, add
    `PADDLE_SANDBOX_API_KEY` locally, and run `npm run paddle:seed`. The command
-   creates Starter, Pro, and Advanced SaaS products with monthly and yearly
-   recurring prices, then prints all six `pri_...` IDs.
+   creates the Pro SaaS product with monthly and yearly recurring prices, then
+   prints both `pri_...` IDs.
 2. Create a sandbox client token beginning with `test_` and set
    `PADDLE_SANDBOX_CLIENT_TOKEN`.
 3. Store the printed IDs in the matching
@@ -167,7 +167,7 @@ server-side.
    `https://forextestlab.com/api/paddle/webhook`. Subscribe to customer,
    subscription, and `transaction.completed` events, then store its endpoint
    secret as `PADDLE_SANDBOX_WEBHOOK_SECRET`.
-6. Deploy and test each tier with Paddle's sandbox card. Successful checkout
+6. Deploy and test Pro with Paddle's sandbox card. Successful checkout
    redirects to `/welcome`; subscription provisioning still comes from the
    verified webhook.
 
@@ -175,7 +175,7 @@ For production, add the corresponding `PADDLE_LIVE_*` values, approve the live
 domain in Paddle, set `PADDLE_MODE=live`, and redeploy. Sandbox and live catalog
 IDs are separate.
 
-To recreate the approved Starter, Pro, and Advanced catalog in live, create a
+To recreate the approved Pro catalog in live, create a
 live API key with product, price, and discount read/write access, set
 `PADDLE_LIVE_API_KEY`, then run `npm run paddle:migrate-live`. The idempotent
 script skips junk/test entities and writes the old-to-new IDs to

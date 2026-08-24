@@ -22,15 +22,11 @@ function requiredPriceId(variable: string): string {
 }
 
 const monthlyPriceIds = [
-  requiredPriceId("PADDLE_LIVE_STARTER_MONTH_PRICE_ID"),
   requiredPriceId("PADDLE_LIVE_PRO_MONTH_PRICE_ID"),
-  requiredPriceId("PADDLE_LIVE_ADVANCED_MONTH_PRICE_ID"),
 ];
 
 const yearlyPriceIds = [
-  requiredPriceId("PADDLE_LIVE_STARTER_YEAR_PRICE_ID"),
   requiredPriceId("PADDLE_LIVE_PRO_YEAR_PRICE_ID"),
-  requiredPriceId("PADDLE_LIVE_ADVANCED_YEAR_PRICE_ID"),
 ];
 
 interface DiscountDefinition {

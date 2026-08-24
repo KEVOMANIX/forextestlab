@@ -1,9 +1,9 @@
 export type BillingInterval = "month" | "year";
-export type TierId = "starter" | "pro" | "advanced";
+export type TierId = "pro";
 
 export interface Tier {
   id: TierId;
-  name: "Starter" | "Pro" | "Advanced";
+  name: "Pro";
   description: string;
   features: string[];
   featured: boolean;

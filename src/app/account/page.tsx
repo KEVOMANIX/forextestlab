@@ -33,8 +33,7 @@ function initials(name: string): string {
 }
 
 function planName(value: string): string {
-  const tier = value.split("_")[0] || "free";
-  return `${tier.charAt(0).toUpperCase()}${tier.slice(1)}`;
+  return value.startsWith("pro_") ? "Pro" : "Free";
 }
 
 export default async function AccountPage() {

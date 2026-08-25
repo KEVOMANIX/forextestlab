@@ -78,6 +78,46 @@ function stripQuotedReply(value: string) {
   return cleaned.join("\n").trim();
 }
 
+async function forwardInboundEmail({
+  resend,
+  from,
+  subject,
+  text,
+  html,
+}: {
+  resend: Resend;
+  from: string;
+  subject: string;
+  text: string;
+  html?: string | null;
+}) {
+  const forwardTo = process.env.RESEND_INBOUND_FORWARD_TO?.trim();
+  if (!forwardTo) return;
+
+  const forwardFrom = process.env.RESEND_FROM_EMAIL?.trim();
+  if (!forwardFrom) {
+    throw new Error("RESEND_FROM_EMAIL is required when inbound forwarding is enabled.");
+  }
+
+  const result = await resend.emails.send({
+    from: forwardFrom,
+    to: [forwardTo],
+    replyTo: from,
+    subject: `[ForexTestLab] ${subject}`,
+    text: [
+      `Original sender: ${from}`,
+      `Received at: ${new Date().toISOString()}`,
+      "",
+      text,
+    ].join("\n"),
+    ...(html ? { html } : {}),
+  });
+
+  if (result.error) {
+    throw new Error(`Inbound email forwarding failed: ${result.error.message}`);
+  }
+}
+
 export async function POST(request: Request) {
   const secret = process.env.RESEND_WEBHOOK_SECRET?.trim();
   const apiKey = process.env.RESEND_API_KEY?.trim();
@@ -127,6 +167,15 @@ export async function POST(request: Request) {
     const body = stripQuotedReply(
       email.text || plainText(email.html) || "(Email contained no readable text.)",
     ).slice(0, 20_000);
+
+    await forwardInboundEmail({
+      resend,
+      from,
+      subject,
+      text: body,
+      html: email.html,
+    });
+
     const profile = await prisma.userProfile.findUnique({
       where: { email: customerEmail },
       select: { id: true, displayName: true },

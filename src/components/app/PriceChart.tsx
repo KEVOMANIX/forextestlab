@@ -933,9 +933,13 @@ export default function PriceChart({
       setHasOlderHistory(page.hasMore);
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
       requestAnimationFrame(updateViewportDiagnostics);
-      const restoredTimeRange = replace && restoreSavedTimeRange();
-      const waitingForTimeRange = savedTimeRangeRef.current?.timeframe === requestedTimeframe;
-      if (replace && !restoredTimeRange && !waitingForTimeRange && followLatestRef.current) resetLatestViewport();
+      if (replace) {
+        // A full history replacement is a new chart load. Do not carry a
+        // previous pan/zoom window into it: the freshly loaded chart should
+        // always open at the default, latest-candle view.
+        savedTimeRangeRef.current = null;
+        resetLatestViewport();
+      }
     } finally {
       if (requestId === historyRequestRef.current) {
         historyLoadingRef.current = false;
@@ -2117,7 +2121,7 @@ export default function PriceChart({
       // that mid-play data swap as a user pan, in any chart cell.
       setFollowLatest(true);
       keepLatestPriceVisible();
-    } else if (visibleRange) {
+    } else if (visibleRange && !loading && !historyLoadingRef.current) {
       setFollowLatest(false, "preserved-range");
       scale?.setVisibleLogicalRange(visibleRange);
     } else if (alignToReplayClockOnLoad) {
@@ -2137,7 +2141,7 @@ export default function PriceChart({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialCandles, alignToReplayClockOnLoad, symbolLabel, viewStorageKey]);
+  }, [initialCandles, alignToReplayClockOnLoad, loading, symbolLabel, viewStorageKey]);
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;
@@ -2167,17 +2171,13 @@ export default function PriceChart({
     if (displayTimeframe !== baseTimeframe || contextCandles.length === 0) {
       void loadHistoryPage(true);
     }
-    // A stored range that cannot be applied yet stays pending for the effect
-    // above, which runs as soon as this cell's candles land.
-    const restoredTimeRange = restoreSavedTimeRange();
-    const waitingForTimeRange = savedTimeRangeRef.current?.timeframe === displayTimeframe;
-    if (!restoredTimeRange && waitingForTimeRange) {
-      // The new context is still loading. Do not reset to a timeframe-sized
-      // candle window, because that is what makes drawings appear to jump.
-    } else if (replayRunningRef.current) {
+    // Switching a timeframe starts a fresh chart load. Its completed history
+    // request also calls resetLatestViewport, so no prior pan/zoom survives.
+    savedTimeRangeRef.current = null;
+    if (replayRunningRef.current) {
       setFollowLatest(true);
       keepLatestPriceVisible(true);
-    } else if (!restoredTimeRange && savedTimeRangeRef.current === null) {
+    } else {
       resetLatestViewport();
     }
     requestAnimationFrame(updateViewportDiagnostics);
@@ -2459,24 +2459,9 @@ export default function PriceChart({
 
   function selectTimeframe(timeframe: Timeframe) {
     if (timeframe === displayTimeframe) return;
-    const visible = drawingEngineRef.current?.getVisibleTimeRange() ?? chartRef.current?.timeScale().getVisibleRange();
-    if (
-      visible &&
-      typeof visible.from === "number" &&
-      typeof visible.to === "number" &&
-      visible.from < visible.to
-    ) {
-      // Preserve calendar time, not logical candle indexes. A fixed number of
-      // 4h bars spans sixteen times as much time as the same number of 15m bars,
-      // which visually compresses correctly anchored drawings into new places.
-      savedTimeRangeRef.current = {
-        timeframe,
-        range: {
-          from: visible.from as UTCTimestamp,
-          to: visible.to as UTCTimestamp,
-        },
-      };
-    }
+    // A timeframe switch is a fresh load, so it intentionally starts from the
+    // standard chart view instead of inheriting the previous timeframe's zoom.
+    savedTimeRangeRef.current = null;
     setHistoryLoading(true);
     setDisplayTimeframe(timeframe);
   }

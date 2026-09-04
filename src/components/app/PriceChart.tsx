@@ -3314,6 +3314,16 @@ export default function PriceChart({
   );
 
   const activeCursorMode = CURSOR_MODES.find((c) => c.mode === cursorMode) ?? CURSOR_MODES[0]!;
+  // This toolbar is portalled to document.body, so it sits above the workspace
+  // loader unless it is explicitly held back until this pane has a painted
+  // canvas and its initial history is ready.
+  const chartReadyForTools =
+    initialCanvasPainted &&
+    !initialHistoryPending &&
+    !loading &&
+    !historyLoading &&
+    chartApi != null &&
+    priceSeries != null;
 
   const drawingRail = (
     <div className={`flex w-14 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-1 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
@@ -3427,7 +3437,7 @@ export default function PriceChart({
           it can be dragged anywhere across the whole window — over the rail,
           the toolbar, the economic calendar panel — not just the chart grid
           a workspace-level overlay would have confined it to. */}
-      {showRail && favorites.size > 0 && typeof document !== "undefined"
+      {chartReadyForTools && showRail && favorites.size > 0 && typeof document !== "undefined"
         ? createPortal(favoritesBar, document.body)
         : null}
       {/* The screenshot action lives with the header's other actions. Without a

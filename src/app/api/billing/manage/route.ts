@@ -9,10 +9,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ ok: false, error: "Sign in required." }, { status: 401 });
-  const profile = await prisma.userProfile.findUnique({ where: { id: user.id }, select: { paddleCustomerId: true } });
   try {
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ ok: false, error: "Sign in required." }, { status: 401 });
+    const profile = await prisma.userProfile.findUnique({ where: { id: user.id }, select: { paddleCustomerId: true } });
     if (profile?.paddleCustomerId) {
       const subscriptions = await prisma.billingSubscription.findMany({
         where: { userId: user.id, provider: "paddle", status: { in: ["active", "trialing", "past_due"] } },

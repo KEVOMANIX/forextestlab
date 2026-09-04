@@ -10,7 +10,12 @@ export function ManageSubscriptionButton() {
     setBusy(true); setError(null);
     try {
       const response=await fetch("/api/billing/manage",{method:"POST"});
-      const payload=(await response.json()) as {url?:string;error?:string};
+      const payload = response.headers.get("content-type")?.includes("application/json")
+        ? await response.json().catch(() => null) as { url?: string; error?: string } | null
+        : null;
+      if (!payload) {
+        throw new Error("Subscription management is temporarily unavailable. Please try again.");
+      }
       if(!response.ok||!payload.url) throw new Error(payload.error||"Could not open subscription management.");
       window.location.assign(payload.url);
     } catch(cause) { setError(cause instanceof Error?cause.message:"Could not open subscription management."); setBusy(false); }

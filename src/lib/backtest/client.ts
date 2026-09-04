@@ -340,7 +340,14 @@ export async function getChartHistory(
 ): Promise<({ ok: true } & ChartHistoryPage) | ApiErr> {
   const query = new URLSearchParams({ symbol, timeframe, before: String(before) });
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
+  /*
+   * A restored multi-chart workspace can ask R2 for several independently
+   * aggregated history windows at once.  The data is valid, but a cold cache
+   * can take longer than the short request timeout that is appropriate for a
+   * normal replay action.  Aborting it used to make a pane accept an empty
+   * context page and render only its first revealed candle.
+   */
+  const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
     const res = await fetch(`/api/backtest/sessions/${sessionId}/context?${query}`, {
       cache: "no-store",

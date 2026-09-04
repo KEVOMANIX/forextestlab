@@ -14,7 +14,12 @@ export async function POST() {
     if (!user) return NextResponse.json({ ok: false, error: "Sign in required." }, { status: 401 });
     const profile = await prisma.userProfile.findUnique({ where: { id: user.id }, select: { paddleCustomerId: true } });
     const subscriptions = await prisma.billingSubscription.findMany({
-      where: { userId: user.id, provider: "paddle", status: { in: ["active", "trialing", "past_due"] } },
+      where: {
+        userId: user.id,
+        provider: "paddle",
+        productKey: { startsWith: "pro_" },
+        status: { in: ["active", "trialing", "past_due"] },
+      },
       select: { subscriptionCode: true },
     });
     if (profile?.paddleCustomerId && subscriptions.length > 0) {

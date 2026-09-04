@@ -28,6 +28,8 @@ export default async function BillingPage() {
     && ["active", "trialing"].includes(subscription.status)
     ? subscription
     : null;
+  const manageableSubscription = subscription
+    && (subscription.provider !== "paddle" || subscription.productKey.startsWith("pro_"));
   const nextPaymentLabel = subscription?.nextPaymentAt
     ? new Intl.DateTimeFormat("en-US", {
         month: "long",
@@ -48,7 +50,7 @@ export default async function BillingPage() {
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><CreditCard size={20} aria-hidden /></span>
               <div><p className="text-xs uppercase tracking-[0.14em] app-muted">Current plan</p><h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">{active ? planName(profile.billingPlan) : "Free"}{active && <BadgeCheck size={18} className="text-brand-300" aria-hidden />}</h2><p className="mt-1 text-sm app-muted">{active ? "Your paid workspace is active." : "Choose a plan when you are ready for more capacity."}</p></div>
             </div>
-            <div className="w-full sm:w-52">{subscription ? <ManageSubscriptionButton /> : <Link href="/pricing" className="btn-primary w-full">View plans <ArrowRight size={15} aria-hidden /></Link>}</div>
+            <div className="w-full sm:w-52">{manageableSubscription ? <ManageSubscriptionButton /> : <Link href="/pricing" className="btn-primary w-full">View plans <ArrowRight size={15} aria-hidden /></Link>}</div>
           </div>
           {paddleSubscription && (
             <div className="mt-6 border-t app-border pt-6">

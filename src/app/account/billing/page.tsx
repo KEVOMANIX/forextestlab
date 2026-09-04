@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Billing", robots: { index: false } };
 
 function planName(value: string): string {
-  return value.startsWith("pro_") ? "Pro" : "Free";
+  return value === "free" ? "Free" : "Pro";
 }
 
 export default async function BillingPage() {

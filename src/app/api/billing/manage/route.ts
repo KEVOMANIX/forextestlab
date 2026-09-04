@@ -13,11 +13,11 @@ export async function POST() {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ ok: false, error: "Sign in required." }, { status: 401 });
     const profile = await prisma.userProfile.findUnique({ where: { id: user.id }, select: { paddleCustomerId: true } });
-    if (profile?.paddleCustomerId) {
-      const subscriptions = await prisma.billingSubscription.findMany({
-        where: { userId: user.id, provider: "paddle", status: { in: ["active", "trialing", "past_due"] } },
-        select: { subscriptionCode: true },
-      });
+    const subscriptions = await prisma.billingSubscription.findMany({
+      where: { userId: user.id, provider: "paddle", status: { in: ["active", "trialing", "past_due"] } },
+      select: { subscriptionCode: true },
+    });
+    if (profile?.paddleCustomerId && subscriptions.length > 0) {
       const url = await createPaddlePortalSession(
         profile.paddleCustomerId,
         subscriptions.map((subscription) => subscription.subscriptionCode),

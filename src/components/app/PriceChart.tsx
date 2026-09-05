@@ -22,7 +22,6 @@ import {
   Magnet,
   Minus,
   Redo2,
-  RefreshCw,
   RotateCcw,
   Settings,
   Settings2,
@@ -1659,6 +1658,13 @@ export default function PriceChart({
     lineCoordRafRef.current = requestAnimationFrame(() => {
       lineCoordRafRef.current = null;
       updateLineCoordinates();
+      // A vertical price-scale drag does not change the logical time range, so
+      // Lightweight Charts has no range event for it. Session boxes use the
+      // series' price projection and must be committed in this same frame or
+      // they visibly lag behind the candles while that scale is moving.
+      if (viewportOverlaysRef.current) {
+        flushSync(() => setViewVersion((v) => v + 1));
+      }
     });
   }
 
@@ -2165,7 +2171,13 @@ export default function PriceChart({
     container.addEventListener("pointermove", markViewportMovement, true);
     window.addEventListener("pointerup", endViewportInteraction, true);
     window.addEventListener("pointercancel", endViewportInteraction, true);
-    container.addEventListener("wheel", beginWheelInteraction, { passive: true });
+    const onWheel = () => {
+      beginWheelInteraction();
+      // Scaling the price axis with the wheel also leaves the logical time
+      // range unchanged, so explicitly schedule the overlay projection.
+      scheduleLineCoordinates();
+    };
+    container.addEventListener("wheel", onWheel, { passive: true });
     container.addEventListener("pointermove", scheduleLineCoordinates, { passive: true });
     const observer = new ResizeObserver(coordinateUpdate);
     observer.observe(container);
@@ -2178,7 +2190,7 @@ export default function PriceChart({
       container.removeEventListener("pointermove", markViewportMovement, true);
       window.removeEventListener("pointerup", endViewportInteraction, true);
       window.removeEventListener("pointercancel", endViewportInteraction, true);
-      container.removeEventListener("wheel", beginWheelInteraction);
+      container.removeEventListener("wheel", onWheel);
       container.removeEventListener("pointermove", scheduleLineCoordinates);
       if (lineCoordRafRef.current != null) cancelAnimationFrame(lineCoordRafRef.current);
       if (rangeSaveTimerRef.current != null) window.clearTimeout(rangeSaveTimerRef.current);
@@ -3763,15 +3775,22 @@ export default function PriceChart({
       {canSyncLayout && onSyncToLayout && (
         <div className="mt-auto flex flex-col items-center border-t app-border pt-1">
           <ToolButton
-            label="Sync indicators and drawings to all layout charts"
+            label="Copy indicators and drawings to all layout charts"
             onClick={() => {
               onSyncToLayout({
-                indicators: indicators.map((indicator) => ({ ...indicator, inputs: { ...indicator.inputs } })),
+                // Read the current ref rather than the render closure. This
+                // prevents an indicator that has just hydrated or been edited
+                // from being replaced with an older (sometimes empty) list.
+                indicators: indicatorsRef.current.map((indicator) => ({
+                  ...indicator,
+                  inputs: { ...indicator.inputs },
+                  style: Object.fromEntries(Object.entries(indicator.style).map(([key, value]) => [key, { ...value }])),
+                })),
                 drawings: drawingEngineRef.current?.serialize() ?? [],
               });
             }}
           >
-            <RefreshCw size={18} aria-hidden />
+            <Copy size={18} aria-hidden />
           </ToolButton>
         </div>
       )}

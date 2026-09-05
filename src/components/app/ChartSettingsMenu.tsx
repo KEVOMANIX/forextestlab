@@ -155,7 +155,7 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   drawings: true,
   drawingsLocked: false,
   economicEvents: true,
-  economicEventImportance: "medium",
+  economicEventImportance: "high",
   priceLine: true,
   timeZone: EXCHANGE_ZONE,
   chartTextSize: "medium",

@@ -196,7 +196,10 @@ interface ChartGridProps {
   layoutSlot?: HTMLElement | null;
   /** Right-hand header target for chart actions, such as the screenshot. */
   actionsSlot?: HTMLElement | null;
+  /** Full quote strip for the focused chart. */
   orderTicket?: React.ReactNode;
+  /** Smaller quote strip repeated in the other visible layout panes. */
+  compactOrderTicket?: React.ReactNode;
   /** Clock and time-zone picker, seated in the workspace's outer axis corner. */
   axisCorner?: React.ReactNode;
   /** Focused cell's symbol, so the top bar's pair picker stays in step. */
@@ -246,6 +249,7 @@ export default function ChartGrid({
   layoutSlot = null,
   actionsSlot = null,
   orderTicket = null,
+  compactOrderTicket = null,
   axisCorner = null,
   focusedSymbol,
   onFocusedSymbolChange,
@@ -626,7 +630,7 @@ export default function ChartGrid({
                 canSyncLayout={multi}
                 onSyncToLayout={isFocused ? syncFocusedLayout : undefined}
                 layoutSync={layoutSync && layoutSync.sourceId !== cell.id ? layoutSync : null}
-                orderTicket={isFocused ? orderTicket : null}
+                orderTicket={isFocused ? orderTicket : compactOrderTicket}
                 // One clock for the workspace, always in its outer bottom-right
                 // corner regardless of which independently movable cell is focused.
                 axisCorner={

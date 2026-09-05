@@ -1166,6 +1166,23 @@ export function Backtester({
                 onOpenChange={handleOrderTicketOpenChange}
               />
             }
+            compactOrderTicket={
+              <OrderTicket
+                state={activeTradingState ?? state}
+                busy={bt.busy}
+                tradePlan={tradePlan}
+                onDirectionChange={choosePlanDirection}
+                onPlanChange={changeTradePlan}
+                onClearPlan={() => setTradePlan(null)}
+                onPlaceOrder={submitOrder}
+                onTemplateChange={setOrderTemplate}
+                lots={lots}
+                onLotsChange={setLots}
+                oneClickTrading={workspace.settings.oneClickTrading}
+                onOpenChange={handleOrderTicketOpenChange}
+                compactQuote
+              />
+            }
             axisCorner={
               <TimeZonePicker
                 zone={workspace.settings.timeZone}

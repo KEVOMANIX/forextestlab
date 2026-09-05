@@ -10,6 +10,7 @@ import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 const FAVOURITES_KEY = "forextestlab:fav-tools";
 const ORDER_DEFAULTS_KEY = "forextestlab:order-defaults";
 const REPLAY_POSITION_KEY = "forextestlab:replay-position";
+const HIGH_IMPACT_NEWS_MIGRATION = "high-impact-news-v1";
 
 /**
  * Chart and trading preferences for a session, persisted locally and — for a
@@ -45,6 +46,26 @@ function migrateFromCell(storageKey: string): Partial<ChartSettings> | null {
     null,
   );
   return parsed?.settings ?? null;
+}
+
+/**
+ * The former default showed medium-impact releases too. Move that legacy
+ * default to High once, without overwriting a deliberate All/Low selection.
+ * Signed-in workspaces make two passes (local then server), so the marker stays
+ * pending until the server payload has had the same migration applied.
+ */
+function migrateHighImpactNewsDefault(
+  storageKey: string,
+  settings: Partial<ChartSettings>,
+  phase: "local" | "server" | "local-only",
+): Partial<ChartSettings> {
+  const key = `forextestlab:settings-migration:${storageKey}:${HIGH_IMPACT_NEWS_MIGRATION}`;
+  const marker = window.localStorage.getItem(key);
+  if (marker === "done") return settings;
+  window.localStorage.setItem(key, phase === "local" ? "pending" : "done");
+  return settings.economicEventImportance === "medium"
+    ? { ...settings, economicEventImportance: "high" }
+    : settings;
 }
 
 function captureWorkspace(
@@ -132,7 +153,14 @@ export function useChartWorkspace(
       window.localStorage.getItem(settingsKey(storageKey)),
       null,
     ) ?? migrateFromCell(storageKey);
-    if (saved) setSettings((current) => ({ ...current, ...saved }));
+    if (saved) {
+      const migrated = migrateHighImpactNewsDefault(
+        storageKey,
+        saved,
+        signedIn ? "local" : "local-only",
+      );
+      setSettings((current) => ({ ...current, ...migrated }));
+    }
     setFavorites(new Set(parse<ToolKind[]>(window.localStorage.getItem(FAVOURITES_KEY), [])));
     setRestoredStorageKey(storageKey);
   }, [storageKey]);
@@ -157,7 +185,10 @@ export function useChartWorkspace(
       }
       if (data.workspace) {
         applyWorkspace(storageKey, data.workspace.payload);
-        setSettings({ ...DEFAULT_CHART_SETTINGS, ...data.workspace.payload.settings });
+        setSettings({
+          ...DEFAULT_CHART_SETTINGS,
+          ...migrateHighImpactNewsDefault(storageKey, data.workspace.payload.settings, "server"),
+        });
         setFavorites(new Set((data.workspace.payload.favorites ?? []) as ToolKind[]));
         setRevision((value) => value + 1);
         lastSavedRef.current = JSON.stringify(data.workspace.payload);

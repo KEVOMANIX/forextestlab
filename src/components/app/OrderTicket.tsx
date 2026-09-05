@@ -71,6 +71,8 @@ interface OrderTicketProps {
   } | null;
   onActivationHandled?: (id: number) => void;
   onOpenChange?: (open: boolean) => void;
+  /** A reduced quote strip for non-focused cells in a multi-chart layout. */
+  compactQuote?: boolean;
 }
 
 function number(value: string) {
@@ -96,6 +98,7 @@ export function OrderTicket({
   activationRequest = null,
   onActivationHandled,
   onOpenChange,
+  compactQuote = false,
 }: OrderTicketProps) {
   const compact = useCompactViewport();
   const [sizingMode, setSizingMode] = useState<
@@ -354,7 +357,7 @@ export function OrderTicket({
       // button is exactly when a trader wants to check the size it will send,
       // and hover alone would hide it from anyone using a keyboard.
       <div
-        className="group relative flex items-center gap-1"
+        className={`group relative flex items-center ${compactQuote ? "gap-0" : "gap-1"}`}
         aria-label="Quick order planner"
       >
         <div className="relative flex items-center">
@@ -364,13 +367,16 @@ export function OrderTicket({
             price={bid?.toFixed(precision) ?? "—"}
             lots={sizeSummary.lots}
             disabled={unavailable}
+            compact={compactQuote}
             onClick={() => activateQuote("short")}
           />
           <span
             data-testid="chart-trade-spread"
             aria-label={`${spreadLabel} pips`}
             title={`${spreadLabel} pips`}
-            className="pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-6 min-w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border border-white/20 bg-[#0b1220] px-1 font-mono text-[10px] font-bold leading-none text-white shadow-md"
+            className={`pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border border-white/20 bg-[#0b1220] font-mono font-bold leading-none text-white shadow-md ${
+              compactQuote ? "h-5 min-w-6 px-0.5 text-[8px]" : "h-6 min-w-7 px-1 text-[10px]"
+            }`}
           >
             {spreadLabel}
           </span>
@@ -380,16 +386,19 @@ export function OrderTicket({
             price={ask?.toFixed(precision) ?? "—"}
             lots={sizeSummary.lots}
             disabled={unavailable}
+            compact={compactQuote}
             onClick={() => activateQuote("long")}
           />
         </div>
-        <LotSizePopover
-          lots={lots}
-          onLots={setLots}
-          summary={sizeSummary}
-          accountCurrency={state.config.accountCurrency}
-          equity={state.equity}
-        />
+        {!compactQuote && (
+          <LotSizePopover
+            lots={lots}
+            onLots={setLots}
+            summary={sizeSummary}
+            accountCurrency={state.config.accountCurrency}
+            equity={state.equity}
+          />
+        )}
       </div>
     );
   }
@@ -694,6 +703,7 @@ function CompactQuoteButton({
   price,
   lots,
   disabled,
+  compact = false,
   onClick,
 }: {
   direction: TradeDirection;
@@ -701,6 +711,7 @@ function CompactQuoteButton({
   price: string;
   lots: string;
   disabled: boolean;
+  compact?: boolean;
   onClick: () => void;
 }) {
   const long = direction === "long";
@@ -711,16 +722,18 @@ function CompactQuoteButton({
       disabled={disabled}
       data-testid={long ? "chart-quick-buy" : "chart-quick-sell"}
       aria-label={`${long ? "Buy" : "Sell"} ${lots} lot at ${price}`}
-      className={`flex h-8 min-w-[88px] flex-col items-center justify-center gap-0.5 py-0 text-[10px] font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`flex flex-col items-center justify-center gap-0.5 py-0 font-bold leading-none transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        compact ? "h-6 min-w-[68px] text-[9px]" : "h-8 min-w-[88px] text-[10px]"
+      } ${
         position === "left"
-          ? "rounded-l-md rounded-r-sm pl-3 pr-5"
-          : "rounded-l-sm rounded-r-md pl-5 pr-3"
+          ? compact ? "rounded-l-md rounded-r-sm pl-2 pr-4" : "rounded-l-md rounded-r-sm pl-3 pr-5"
+          : compact ? "rounded-l-sm rounded-r-md pl-4 pr-2" : "rounded-l-sm rounded-r-md pl-5 pr-3"
       } ${
         long ? LONG_SOLID : SHORT_SOLID
       }`}
     >
       <span>{long ? "Buy" : "Sell"}</span>
-      <span className="font-mono text-[11px] font-semibold">{price}</span>
+      <span className={`font-mono font-semibold ${compact ? "text-[9px]" : "text-[11px]"}`}>{price}</span>
     </button>
   );
 }

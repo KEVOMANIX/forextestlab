@@ -93,6 +93,27 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
         />
       );
     }
+    if (inp.type === "color") {
+      return (
+        <input
+          type="color"
+          value={typeof v === "string" ? v : String(inp.default)}
+          onChange={(e) => setInput(inp.key, e.target.value)}
+          className="h-7 w-10 rounded border app-border bg-transparent p-0.5"
+          aria-label={inp.label}
+        />
+      );
+    }
+    if (inp.type === "text") {
+      return (
+        <input
+          type="text"
+          value={typeof v === "string" ? v : String(inp.default)}
+          onChange={(e) => setInput(inp.key, e.target.value)}
+          className="w-32 rounded border app-border bg-transparent px-1.5 py-1 text-right"
+        />
+      );
+    }
     if (inp.type === "source") {
       return (
         <select value={String(v)} onChange={(e) => setInput(inp.key, e.target.value)} className="rounded border app-border bg-transparent px-1.5 py-1">

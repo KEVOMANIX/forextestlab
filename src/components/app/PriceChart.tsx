@@ -539,18 +539,19 @@ function applyData(series: ISeriesApi<SeriesType>, type: ChartType, candles: OHL
 
 type MarketSession = {
   id: string;
-  label: string;
-  zone: string;
-  openMinutes: number;
-  closeMinutes: number;
+  enabled: boolean;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
   color: string;
+  transparency: number;
+  borderWidth: number;
+  lineEnabled: boolean;
+  lineMinutes: number;
+  lineColor: string;
+  lineStyle: "solid" | "dashed" | "dotted";
+  lineWidth: number;
 };
-
-const MARKET_SESSIONS: MarketSession[] = [
-  { id: "tokyo", label: "Tokyo", zone: "Asia/Tokyo", openMinutes: 9 * 60, closeMinutes: 18 * 60, color: "#ec4899" },
-  { id: "london", label: "London", zone: "Europe/London", openMinutes: 8 * 60, closeMinutes: 16 * 60 + 30, color: "#4f8cff" },
-  { id: "new-york", label: "New York", zone: "America/New_York", openMinutes: 8 * 60, closeMinutes: 17 * 60, color: "#f59e0b" },
-];
 
 type MarketSessionRange = MarketSession & {
   start: number;
@@ -559,31 +560,83 @@ type MarketSessionRange = MarketSession & {
   low: number;
 };
 
-function isWithinSession(minutes: number, session: MarketSession): boolean {
-  return session.openMinutes <= session.closeMinutes
-    ? minutes >= session.openMinutes && minutes < session.closeMinutes
-    : minutes >= session.openMinutes || minutes < session.closeMinutes;
+function inputString(inputs: IndicatorInstance["inputs"], key: string, fallback: string): string {
+  const value = inputs[key];
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-function marketSessionRanges(candles: OHLCV[]): MarketSessionRange[] {
+function inputNumber(inputs: IndicatorInstance["inputs"], key: string, fallback: number): number {
+  const value = inputs[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function sessionSettings(indicator: IndicatorInstance): { timezone: string; lookbackDays: number; sessions: MarketSession[] } {
+  const inputs = indicator.inputs;
+  const make = (id: string, fallback: Omit<MarketSession, "id" | "enabled">): MarketSession => {
+    const startMinutes = dividerMinutes(inputString(inputs, `${id}Start`, String(fallback.startMinutes))) ?? fallback.startMinutes;
+    const endMinutes = dividerMinutes(inputString(inputs, `${id}End`, String(fallback.endMinutes))) ?? fallback.endMinutes;
+    const lineMinutes = dividerMinutes(inputString(inputs, `${id}LineTime`, String(fallback.lineMinutes))) ?? fallback.lineMinutes;
+    const style = inputString(inputs, `${id}LineStyle`, fallback.lineStyle);
+    return {
+      id,
+      enabled: inputs[`${id}Enabled`] !== false,
+      name: inputString(inputs, `${id}Name`, fallback.name),
+      startMinutes,
+      endMinutes,
+      color: inputString(inputs, `${id}Color`, fallback.color),
+      transparency: Math.max(0, Math.min(100, inputNumber(inputs, `${id}Transparency`, fallback.transparency))),
+      borderWidth: Math.max(0, Math.min(4, inputNumber(inputs, `${id}BorderWidth`, fallback.borderWidth))),
+      lineEnabled: inputs[`${id}LineEnabled`] === true,
+      lineMinutes,
+      lineColor: inputString(inputs, `${id}LineColor`, fallback.lineColor),
+      lineStyle: style === "solid" || style === "dotted" ? style : "dashed",
+      lineWidth: Math.max(1, Math.min(4, inputNumber(inputs, `${id}LineWidth`, fallback.lineWidth))),
+    };
+  };
+  return {
+    timezone: inputString(inputs, "timezone", "America/New_York"),
+    lookbackDays: Math.max(1, Math.min(30, inputNumber(inputs, "lookbackDays", 3))),
+    sessions: [
+      make("asia", { name: "Asia", startMinutes: 20 * 60, endMinutes: 0, color: "#2962ff", transparency: 78, borderWidth: 1, lineEnabled: false, lineMinutes: 20 * 60, lineColor: "#2962ff", lineStyle: "dashed", lineWidth: 1 }),
+      make("london", { name: "London", startMinutes: 3 * 60, endMinutes: 8 * 60, color: "#f9ab00", transparency: 76, borderWidth: 1, lineEnabled: true, lineMinutes: 3 * 60, lineColor: "#ff00b8", lineStyle: "dashed", lineWidth: 1 }),
+      make("newYork", { name: "New York", startMinutes: 8 * 60, endMinutes: 12 * 60, color: "#089981", transparency: 76, borderWidth: 1, lineEnabled: false, lineMinutes: 8 * 60, lineColor: "#089981", lineStyle: "dashed", lineWidth: 1 }),
+    ],
+  };
+}
+
+function isWithinSession(minutes: number, session: MarketSession): boolean {
+  return session.startMinutes <= session.endMinutes
+    ? minutes >= session.startMinutes && minutes < session.endMinutes
+    : minutes >= session.startMinutes || minutes < session.endMinutes;
+}
+
+function marketSessionRanges(candles: OHLCV[], sessions: MarketSession[], timezone: string, lookbackDays: number): MarketSessionRange[] {
   const ranges = new Map<string, MarketSessionRange>();
+  const latest = Number(candles.at(-1)?.time ?? 0) * 1_000;
   for (const candle of candles) {
     const timestamp = Number(candle.time) * 1_000;
-    for (const session of MARKET_SESSIONS) {
-      const local = zoneParts(timestamp, session.zone);
+    if (timestamp < latest - lookbackDays * 24 * 60 * 60 * 1_000) continue;
+    for (const session of sessions) {
+      const local = zoneParts(timestamp, timezone);
       const minutes = local.hour * 60 + local.minute;
       if (!isWithinSession(minutes, session)) continue;
-      const key = `${session.id}:${local.year}-${local.month}-${local.day}`;
+      const sessionDate = new Date(Date.UTC(local.year, local.month - 1, local.day + (session.endMinutes <= session.startMinutes && minutes < session.endMinutes ? -1 : 0)));
+      const year = sessionDate.getUTCFullYear();
+      const month = sessionDate.getUTCMonth() + 1;
+      const day = sessionDate.getUTCDate();
+      const key = `${session.id}:${year}-${month}-${day}`;
       const existing = ranges.get(key);
       if (existing) {
-        existing.end = timestamp;
         existing.high = Math.max(existing.high, candle.high);
         existing.low = Math.min(existing.low, candle.low);
       } else {
+        const start = zoneWallClockToUtc(timezone, year, month, day, Math.floor(session.startMinutes / 60), session.startMinutes % 60);
+        let end = zoneWallClockToUtc(timezone, year, month, day, Math.floor(session.endMinutes / 60), session.endMinutes % 60);
+        if (end <= start) end = zoneWallClockToUtc(timezone, year, month, day + 1, Math.floor(session.endMinutes / 60), session.endMinutes % 60);
         ranges.set(key, {
           ...session,
-          start: timestamp,
-          end: timestamp,
+          start,
+          end: Math.min(end, latest),
           high: candle.high,
           low: candle.low,
         });
@@ -606,88 +659,71 @@ function MarketSessionLayer({
   series,
   candles,
   indicator,
-  settings,
+  timeframe,
 }: {
   chart: IChartApi;
   series: ISeriesApi<SeriesType>;
   candles: OHLCV[];
   indicator: IndicatorInstance;
-  settings: ChartSettings;
+  timeframe: Timeframe;
 }) {
-  if (!indicator.visible || candles.length === 0) return null;
-  const enabledSessions = new Set([
-    indicator.inputs.tokyo !== false ? "tokyo" : "",
-    indicator.inputs.london !== false ? "london" : "",
-    indicator.inputs.newYork !== false ? "new-york" : "",
-  ]);
-  const showDividers = indicator.inputs.dividers === true;
+  if (!indicator.visible || candles.length === 0 || TIMEFRAME_MS[timeframe] > TIMEFRAME_MS["1h"]) return null;
+  const configured = sessionSettings(indicator);
   const timeScale = chart.timeScale();
   const timeToX = (timestamp: number) => timeScale.timeToCoordinate((timestamp / 1_000) as UTCTimestamp);
-  const ranges = marketSessionRanges(candles).filter((range) => enabledSessions.has(range.id));
-  const rangeElements = ranges.map((range, index) => {
+  const ranges = marketSessionRanges(candles, configured.sessions.filter((session) => session.enabled), configured.timezone, configured.lookbackDays);
+  const rangeElements = ranges.map((range) => {
     const left = timeToX(range.start);
     const right = timeToX(range.end);
-    const top = series.priceToCoordinate(range.high);
-    const bottom = series.priceToCoordinate(range.low);
-    if (left == null || right == null || top == null || bottom == null) return null;
-    const next = ranges.slice(index + 1).find((candidate) => candidate.start > range.end);
-    const extensionEnd = timeToX(next?.start ?? candles.at(-1)!.time * 1_000);
+    if (left == null || right == null) return null;
+    const span = Math.max(Math.abs(range.high - range.low), Math.abs(range.high) * 0.00001, 0.00001);
+    const paddedTop = series.priceToCoordinate(range.high + span * 0.02);
+    const paddedBottom = series.priceToCoordinate(range.low - span * 0.02);
+    if (paddedTop == null || paddedBottom == null) return null;
     return (
       <div key={`${range.id}-${range.start}`} className="pointer-events-none absolute inset-0" aria-hidden>
         <div
-          className="absolute border border-dashed"
+          className="absolute"
           style={{
             left: Math.min(left, right),
-            top: Math.min(top, bottom),
+            top: Math.min(paddedTop, paddedBottom),
             width: Math.max(1, Math.abs(right - left)),
-            height: Math.max(1, Math.abs(bottom - top)),
-            borderColor: `${range.color}88`,
-            backgroundColor: `${range.color}14`,
+            height: Math.max(1, Math.abs(paddedBottom - paddedTop)),
+            border: range.borderWidth > 0 ? `${range.borderWidth}px solid ${range.color}` : "none",
+            backgroundColor: `${range.color}${Math.round((1 - range.transparency / 100) * 255).toString(16).padStart(2, "0")}`,
           }}
         >
           <span
             className="absolute left-1 top-1 whitespace-nowrap text-[10px] font-semibold tracking-wide"
             style={{ color: range.color }}
           >
-            {range.label}
+            {range.name}
           </span>
         </div>
-        {indicator.inputs.highLow !== false && extensionEnd != null && extensionEnd > right && (
-          <>
-            <i className="absolute border-t border-dashed" style={{ left: right, top, width: extensionEnd - right, borderColor: `${range.color}aa` }} />
-            <i className="absolute border-t border-dashed" style={{ left: right, top: bottom, width: extensionEnd - right, borderColor: `${range.color}aa` }} />
-          </>
-        )}
       </div>
     );
   });
-  const dividerElements: React.ReactNode[] = [];
-  if (showDividers) {
-    const times = [indicator.inputs.dividerOne, indicator.inputs.dividerTwo, indicator.inputs.dividerThree]
-      .filter((value): value is string => typeof value === "string")
-      .map(dividerMinutes)
-      .filter((value): value is number => value != null);
-    const days = new Set<string>();
-    const first = Number(candles[0]!.time) * 1_000;
-    const last = Number(candles.at(-1)!.time) * 1_000;
-    for (const candle of candles) {
-      const local = zoneParts(Number(candle.time) * 1_000, settings.timeZone);
-      days.add(`${local.year}-${local.month}-${local.day}`);
-    }
-    for (const day of days) {
-      const [year, month, date] = day.split("-").map(Number);
-      for (const minutes of times) {
-        const timestamp = zoneWallClockToUtc(settings.timeZone, year!, month!, date!, Math.floor(minutes / 60), minutes % 60);
-        if (timestamp < first || timestamp > last) continue;
-        const left = timeToX(timestamp);
-        if (left == null) continue;
-        dividerElements.push(
-          <i key={`${day}-${minutes}`} className="pointer-events-none absolute bottom-0 top-0 z-10 border-l border-dashed border-brand-300/45" style={{ left }} aria-hidden />,
-        );
-      }
+  const lineElements: React.ReactNode[] = [];
+  const days = new Set<string>();
+  const first = Number(candles[0]!.time) * 1_000;
+  const last = Number(candles.at(-1)!.time) * 1_000;
+  for (const candle of candles) {
+    const local = zoneParts(Number(candle.time) * 1_000, configured.timezone);
+    days.add(`${local.year}-${local.month}-${local.day}`);
+  }
+  for (const day of days) {
+    const [year, month, date] = day.split("-").map(Number);
+    for (const session of configured.sessions.filter((item) => item.lineEnabled)) {
+      const timestamp = zoneWallClockToUtc(configured.timezone, year!, month!, date!, Math.floor(session.lineMinutes / 60), session.lineMinutes % 60);
+      if (timestamp < first || timestamp > last) continue;
+      const left = timeToX(timestamp);
+      if (left == null) continue;
+      lineElements.push(
+        <i key={`${session.id}-${day}`} className="pointer-events-none absolute bottom-0 top-0 z-10 border-l" style={{ left, borderColor: session.lineColor, borderLeftWidth: session.lineWidth, borderLeftStyle: session.lineStyle }} aria-label={`${session.name} start`} />,
+      );
     }
   }
-  return <>{rangeElements}{dividerElements}</>;
+  return <>{rangeElements}{lineElements}</>;
 }
 
 function updateData(series: ISeriesApi<SeriesType>, type: ChartType, candle: OHLCV) {
@@ -3698,7 +3734,7 @@ export default function PriceChart({
             series={priceSeries}
             candles={sessionOverlayCandles}
             indicator={indicator}
-            settings={settings}
+            timeframe={displayTimeframe}
           />
         ))}
 

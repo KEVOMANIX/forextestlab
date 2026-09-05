@@ -1668,23 +1668,28 @@ export default function PriceChart({
     const latestIndex = latest
       ? scale.timeToIndex(latest.time as UTCTimestamp, true)
       : null;
-    const latestCoordinate = latest
-      ? scale.timeToCoordinate(latest.time as UTCTimestamp)
-      : null;
-    const plotWidth = scale.width();
     if (forceToBoundary) {
       liveCandlePositionRef.current = LIVE_CANDLE_POSITION;
     }
     const targetPosition = liveCandlePositionRef.current;
-    const targetCoordinate = plotWidth * targetPosition;
     const interaction = viewportInteractionRef.current;
+    // Use the logical range rather than `timeToCoordinate`. During the first
+    // few replay frames Lightweight Charts can report the previous canvas
+    // coordinate while its time scale has already moved (especially just after
+    // its invisible forward bars are added). That made the follow code correct
+    // left, then right, until both finally agreed. Logical indexes are the
+    // authoritative state and let us place the latest bar once, exactly.
+    const currentPosition =
+      range && latestIndex != null && range.to > range.from
+        ? (Number(latestIndex) - range.from) / (range.to - range.from)
+        : null;
     // Do not fight an in-progress gesture. Once it ends, its live-candle
     // position becomes the cell's persistent replay anchor.
     const mustCatchUp =
       !interaction.active &&
       (forceToBoundary ||
-        latestCoordinate == null ||
-        Math.abs(Number(latestCoordinate) - targetCoordinate) > 1);
+        currentPosition == null ||
+        Math.abs(currentPosition - targetPosition) > 0.001);
     if (mustCatchUp && range && latestIndex != null) {
       const visibleBars = Math.max(1, range.to - range.from);
       const from = Number(latestIndex) - visibleBars * targetPosition;

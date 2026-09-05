@@ -654,9 +654,16 @@ function dividerMinutes(value: string): number | null {
   return hour <= 23 && minute <= 59 ? hour * 60 + minute : null;
 }
 
-function clockLabel(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-}
+// Deliberately matches the drawing tool's vertical-line stamp: a session line
+// should read as part of the time axis, not as a floating chart annotation.
+const SESSION_LINE_AXIS_FORMAT: Intl.DateTimeFormatOptions = {
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+};
 
 /**
  * Chart timescales only expose a coordinate for an actual candle.  A session
@@ -716,12 +723,15 @@ function MarketSessionLayer({
   candles,
   indicator,
   timeframe,
+  chartTimeZone,
 }: {
   chart: IChartApi;
   series: ISeriesApi<SeriesType>;
   candles: OHLCV[];
   indicator: IndicatorInstance;
   timeframe: Timeframe;
+  /** The axis zone, which can differ from the session's calculation zone. */
+  chartTimeZone: string;
 }) {
   if (!indicator.visible || candles.length === 0 || TIMEFRAME_MS[timeframe] > TIMEFRAME_MS["1h"]) return null;
   const configured = sessionSettings(indicator);
@@ -787,10 +797,10 @@ function MarketSessionLayer({
             style={{ borderColor: session.lineColor, borderLeftWidth: session.lineWidth, borderLeftStyle: session.lineStyle }}
           />
           <span
-            className="absolute left-1 top-1 whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide shadow-sm"
-            style={{ color: session.lineColor, borderColor: `${session.lineColor}88`, backgroundColor: "var(--app-panel-solid)" }}
+            className="absolute bottom-[3px] left-0 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm"
+            style={{ color: "#0b0f1a", backgroundColor: session.lineColor }}
           >
-            {session.name} {clockLabel(session.lineMinutes)}
+            {formatInZone(timestamp, chartTimeZone, SESSION_LINE_AXIS_FORMAT)}
           </span>
         </div>,
       );
@@ -3814,6 +3824,7 @@ export default function PriceChart({
             candles={sessionOverlayCandles}
             indicator={indicator}
             timeframe={displayTimeframe}
+            chartTimeZone={settings.timeZone}
           />
         ))}
 

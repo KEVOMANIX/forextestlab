@@ -1229,11 +1229,18 @@ export default function PriceChart({
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
       requestAnimationFrame(updateViewportDiagnostics);
       if (replace) {
-        // A full history replacement is a new chart load. Do not carry a
-        // previous pan/zoom window into it: the freshly loaded chart should
-        // always open at the default, latest-candle view.
+        // A full history replacement normally opens a fresh latest-candle
+        // view. During active replay, though, it can arrive a few candles
+        // after Play: resetting bar spacing at that point fights the replay
+        // follower and makes the chart briefly step left then right. Keep the
+        // current scale and only re-anchor the newly expanded timeline.
         savedTimeRangeRef.current = null;
-        resetLatestViewport();
+        if (replayRunningRef.current) {
+          setFollowLatest(true);
+          requestAnimationFrame(() => keepLatestPriceVisible(true));
+        } else {
+          resetLatestViewport();
+        }
       }
     } finally {
       if (requestId === historyRequestRef.current) {

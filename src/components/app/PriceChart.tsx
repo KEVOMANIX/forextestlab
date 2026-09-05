@@ -654,6 +654,62 @@ function dividerMinutes(value: string): number | null {
   return hour <= 23 && minute <= 59 ? hour * 60 + minute : null;
 }
 
+function clockLabel(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+/**
+ * Chart timescales only expose a coordinate for an actual candle.  A session
+ * boundary can fall between candles (notably on 45m / 1h charts), so use the
+ * nearest visible bar instead of letting the marker disappear.  The label
+ * retains the exact configured wall-clock time.
+ */
+function nearestChartCoordinate(
+  timeToX: (timestamp: number) => number | null,
+  candles: OHLCV[],
+  timeframe: Timeframe,
+  timestamp: number,
+): number | null {
+  const exact = timeToX(timestamp);
+  if (exact != null) return exact;
+
+  let low = 0;
+  let high = candles.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const candidate = Number(candles[middle]!.time) * 1_000;
+    if (candidate < timestamp) low = middle + 1;
+    else high = middle - 1;
+  }
+  const before = candles[Math.max(0, high)];
+  const after = candles[Math.min(candles.length - 1, low)];
+  const closest = !before
+    ? after
+    : !after
+      ? before
+      : Math.abs(Number(before.time) * 1_000 - timestamp) <= Math.abs(Number(after.time) * 1_000 - timestamp)
+        ? before
+        : after;
+  if (!closest || Math.abs(Number(closest.time) * 1_000 - timestamp) > TIMEFRAME_MS[timeframe] * 1.5) return null;
+  return timeToX(Number(closest.time) * 1_000);
+}
+
+function sameSessionTimeline(previous: OHLCV[], next: OHLCV[]): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  if (previous.length === 0) return true;
+  const checks = previous.length === 1 ? [0] : [0, previous.length - 1];
+  return checks.every((index) => {
+    const oldCandle = previous[index]!;
+    const newCandle = next[index]!;
+    return oldCandle.time === newCandle.time &&
+      oldCandle.open === newCandle.open &&
+      oldCandle.high === newCandle.high &&
+      oldCandle.low === newCandle.low &&
+      oldCandle.close === newCandle.close;
+  });
+}
+
 function MarketSessionLayer({
   chart,
   series,
@@ -671,10 +727,11 @@ function MarketSessionLayer({
   const configured = sessionSettings(indicator);
   const timeScale = chart.timeScale();
   const timeToX = (timestamp: number) => timeScale.timeToCoordinate((timestamp / 1_000) as UTCTimestamp);
+  const coordinateFor = (timestamp: number) => nearestChartCoordinate(timeToX, candles, timeframe, timestamp);
   const ranges = marketSessionRanges(candles, configured.sessions.filter((session) => session.enabled), configured.timezone, configured.lookbackDays);
   const rangeElements = ranges.map((range) => {
-    const left = timeToX(range.start);
-    const right = timeToX(range.end);
+    const left = coordinateFor(range.start);
+    const right = coordinateFor(range.end);
     if (left == null || right == null) return null;
     const span = Math.max(Math.abs(range.high - range.low), Math.abs(range.high) * 0.00001, 0.00001);
     const paddedTop = series.priceToCoordinate(range.high + span * 0.02);
@@ -716,10 +773,26 @@ function MarketSessionLayer({
     for (const session of configured.sessions.filter((item) => item.lineEnabled)) {
       const timestamp = zoneWallClockToUtc(configured.timezone, year!, month!, date!, Math.floor(session.lineMinutes / 60), session.lineMinutes % 60);
       if (timestamp < first || timestamp > last) continue;
-      const left = timeToX(timestamp);
+      const left = coordinateFor(timestamp);
       if (left == null) continue;
       lineElements.push(
-        <i key={`${session.id}-${day}`} className="pointer-events-none absolute bottom-0 top-0 z-10 border-l" style={{ left, borderColor: session.lineColor, borderLeftWidth: session.lineWidth, borderLeftStyle: session.lineStyle }} aria-label={`${session.name} start`} />,
+        <div
+          key={`${session.id}-${day}`}
+          className="pointer-events-none absolute bottom-0 top-0 z-10"
+          style={{ left, transform: "translateX(-0.5px)" }}
+          aria-hidden
+        >
+          <i
+            className="absolute inset-y-0 left-0 border-l"
+            style={{ borderColor: session.lineColor, borderLeftWidth: session.lineWidth, borderLeftStyle: session.lineStyle }}
+          />
+          <span
+            className="absolute left-1 top-1 whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide shadow-sm"
+            style={{ color: session.lineColor, borderColor: `${session.lineColor}88`, backgroundColor: "var(--app-panel-solid)" }}
+          >
+            {session.name} {clockLabel(session.lineMinutes)}
+          </span>
+        </div>,
       );
     }
   }
@@ -1421,7 +1494,13 @@ export default function PriceChart({
     if (indicatorsRef.current.some((indicator) => indicator.kind === "sessions" && indicator.visible)) {
       // Sessions are projected by the chart itself, so this is the same
       // timeframe-resolved history and replay data the trader sees.
-      setSessionOverlayCandles(joinedTimelineCached(historyCandlesRef.current, display));
+      const sessionTimeline = joinedTimelineCached(historyCandlesRef.current, display);
+      // Replaying can invoke renderMain more than once for the same candle.
+      // Keeping the prior array prevents React from needlessly repainting the
+      // session DOM layer, while still updating it as soon as price advances.
+      setSessionOverlayCandles((previous) => (
+        sameSessionTimeline(previous, sessionTimeline) ? previous : sessionTimeline
+      ));
     }
     if (drawingsActiveRef.current) {
       drawingCandlesRef.current = timeline;

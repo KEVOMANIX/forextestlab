@@ -83,6 +83,16 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
     if (inp.type === "boolean") {
       return <input type="checkbox" checked={Boolean(v)} onChange={(e) => setInput(inp.key, e.target.checked)} className="accent-brand-400" />;
     }
+    if (inp.type === "time") {
+      return (
+        <input
+          type="time"
+          value={typeof v === "string" ? v : String(inp.default)}
+          onChange={(e) => setInput(inp.key, e.target.value)}
+          className="rounded border app-border bg-transparent px-1.5 py-1"
+        />
+      );
+    }
     if (inp.type === "source") {
       return (
         <select value={String(v)} onChange={(e) => setInput(inp.key, e.target.value)} className="rounded border app-border bg-transparent px-1.5 py-1">

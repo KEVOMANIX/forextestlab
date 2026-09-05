@@ -83,7 +83,7 @@ const MA_TYPE_OPTIONS = [
 
 // ── Schema types ───────────────────────────────────────────────────────────
 
-export type InputType = "number" | "source" | "select" | "boolean" | "anchor";
+export type InputType = "number" | "source" | "select" | "boolean" | "anchor" | "time";
 export type InputSection = "inputs" | "smoothing" | "calculation";
 
 export interface InputDef {
@@ -692,6 +692,28 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
   },
 
   // ── Trend — geometric / structural (price pane) ──
+  {
+    kind: "sessions",
+    name: "Market Sessions",
+    description: "Tokyo, London and New York session ranges, with optional high/low extensions and custom time dividers.",
+    category: "trend",
+    pane: "price",
+    render: "overlay",
+    inputs: [
+      { key: "tokyo", label: "Tokyo", type: "boolean", default: true, section: "inputs" },
+      { key: "london", label: "London", type: "boolean", default: true, section: "inputs" },
+      { key: "newYork", label: "New York", type: "boolean", default: true, section: "inputs" },
+      { key: "highLow", label: "Extend session high / low", type: "boolean", default: true, section: "inputs" },
+      { key: "dividers", label: "Custom time dividers", type: "boolean", default: false, section: "calculation" },
+      { key: "dividerOne", label: "Divider 1", type: "time", default: "00:00", section: "calculation" },
+      { key: "dividerTwo", label: "Divider 2", type: "time", default: "07:00", section: "calculation" },
+      { key: "dividerThree", label: "Divider 3", type: "time", default: "13:00", section: "calculation" },
+    ],
+    plots: [],
+    precision: null,
+    short: () => "Sessions",
+    compute: () => ({}),
+  },
   {
     kind: "avwap",
     name: "Anchored VWAP",

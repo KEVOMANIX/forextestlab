@@ -605,18 +605,25 @@ function MarketSessionLayer({
   chart,
   series,
   candles,
+  indicator,
   settings,
 }: {
   chart: IChartApi;
   series: ISeriesApi<SeriesType>;
   candles: OHLCV[];
+  indicator: IndicatorInstance;
   settings: ChartSettings;
 }) {
-  const enabled = settings.sessionOverlay || settings.sessionTimeDividers;
-  if (!enabled || candles.length === 0) return null;
+  if (!indicator.visible || candles.length === 0) return null;
+  const enabledSessions = new Set([
+    indicator.inputs.tokyo !== false ? "tokyo" : "",
+    indicator.inputs.london !== false ? "london" : "",
+    indicator.inputs.newYork !== false ? "new-york" : "",
+  ]);
+  const showDividers = indicator.inputs.dividers === true;
   const timeScale = chart.timeScale();
   const timeToX = (timestamp: number) => timeScale.timeToCoordinate((timestamp / 1_000) as UTCTimestamp);
-  const ranges = settings.sessionOverlay ? marketSessionRanges(candles) : [];
+  const ranges = marketSessionRanges(candles).filter((range) => enabledSessions.has(range.id));
   const rangeElements = ranges.map((range, index) => {
     const left = timeToX(range.start);
     const right = timeToX(range.end);
@@ -645,7 +652,7 @@ function MarketSessionLayer({
             {range.label}
           </span>
         </div>
-        {settings.sessionHighLowLines && extensionEnd != null && extensionEnd > right && (
+        {indicator.inputs.highLow !== false && extensionEnd != null && extensionEnd > right && (
           <>
             <i className="absolute border-t border-dashed" style={{ left: right, top, width: extensionEnd - right, borderColor: `${range.color}aa` }} />
             <i className="absolute border-t border-dashed" style={{ left: right, top: bottom, width: extensionEnd - right, borderColor: `${range.color}aa` }} />
@@ -655,8 +662,11 @@ function MarketSessionLayer({
     );
   });
   const dividerElements: React.ReactNode[] = [];
-  if (settings.sessionTimeDividers) {
-    const times = settings.sessionDividerTimes.map(dividerMinutes).filter((value): value is number => value != null);
+  if (showDividers) {
+    const times = [indicator.inputs.dividerOne, indicator.inputs.dividerTwo, indicator.inputs.dividerThree]
+      .filter((value): value is string => typeof value === "string")
+      .map(dividerMinutes)
+      .filter((value): value is number => value != null);
     const days = new Set<string>();
     const first = Number(candles[0]!.time) * 1_000;
     const last = Number(candles.at(-1)!.time) * 1_000;
@@ -1372,7 +1382,7 @@ export default function PriceChart({
     const timeline = needsHistory
       ? joinedTimelineCached(historyCandlesRef.current, display)
       : display;
-    if (settings.sessionOverlay || settings.sessionTimeDividers) {
+    if (indicatorsRef.current.some((indicator) => indicator.kind === "sessions" && indicator.visible)) {
       // Sessions are projected by the chart itself, so this is the same
       // timeframe-resolved history and replay data the trader sees.
       setSessionOverlayCandles(joinedTimelineCached(historyCandlesRef.current, display));
@@ -3016,6 +3026,10 @@ export default function PriceChart({
   });
   const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
+  const sessionOverlayIndicators = overlayIndicators.filter((indicator) => indicator.kind === "sessions");
+  const sessionOverlayKey = sessionOverlayIndicators
+    .map((indicator) => `${indicator.id}:${indicator.visible}:${JSON.stringify(indicator.inputs)}`)
+    .join("|");
   const activePosition =
     positions.find((position) => position.id === activePositionId) ?? null;
 
@@ -3051,18 +3065,16 @@ export default function PriceChart({
   viewportOverlaysRef.current =
     overlayIndicators.length > 0 ||
     tradePlan != null ||
-    pendingOrders.some((order) => order.status === "pending") ||
-    settings.sessionOverlay ||
-    settings.sessionTimeDividers;
+    pendingOrders.some((order) => order.status === "pending");
 
   useEffect(() => {
-    if (settings.sessionOverlay || settings.sessionTimeDividers) {
+    if (sessionOverlayIndicators.length > 0) {
       scheduleRender(true);
     } else {
       setSessionOverlayCandles([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings.sessionOverlay, settings.sessionHighLowLines, settings.sessionTimeDividers, settings.sessionDividerTimes, settings.timeZone]);
+  }, [sessionOverlayKey]);
 
   useEffect(() => {
     drawingEngineRef.current?.setHideAll(!settings.drawings);
@@ -3679,14 +3691,16 @@ export default function PriceChart({
           storageKey={storageKey}
         />
 
-        {chartApi && priceSeries && sessionOverlayCandles.length > 0 && (
+        {chartApi && priceSeries && sessionOverlayCandles.length > 0 && sessionOverlayIndicators.map((indicator) => (
           <MarketSessionLayer
+            key={indicator.id}
             chart={chartApi}
             series={priceSeries}
             candles={sessionOverlayCandles}
+            indicator={indicator}
             settings={settings}
           />
-        )}
+        ))}
 
         {/*
           Economic calendar badges, on top of the time axis. Placed through the

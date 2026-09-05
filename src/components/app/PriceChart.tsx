@@ -576,7 +576,7 @@ function inputNumber(inputs: IndicatorInstance["inputs"], key: string, fallback:
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function sessionSettings(indicator: IndicatorInstance): { timezone: string; lookbackDays: number; sessions: MarketSession[] } {
+function sessionSettings(indicator: IndicatorInstance): { timezone: string; lookbackDays: number; showBoxes: boolean; sessions: MarketSession[] } {
   const inputs = indicator.inputs;
   const make = (id: string, fallback: Omit<MarketSession, "id" | "enabled">): MarketSession => {
     const startMinutes = dividerMinutes(inputString(inputs, `${id}Start`, String(fallback.startMinutes))) ?? fallback.startMinutes;
@@ -602,6 +602,7 @@ function sessionSettings(indicator: IndicatorInstance): { timezone: string; look
   return {
     timezone: inputString(inputs, "timezone", "America/New_York"),
     lookbackDays: Math.max(1, Math.min(30, inputNumber(inputs, "lookbackDays", 3))),
+    showBoxes: inputs.showBoxes !== false,
     sessions: [
       make("asia", { name: "Asia", startMinutes: 20 * 60, endMinutes: 0, color: "#2962ff", transparency: 78, borderWidth: 1, lineEnabled: false, lineMinutes: 20 * 60, lineColor: "#2962ff", lineStyle: "dashed", lineWidth: 1 }),
       make("london", { name: "London", startMinutes: 3 * 60, endMinutes: 8 * 60, color: "#f9ab00", transparency: 76, borderWidth: 1, lineEnabled: true, lineMinutes: 3 * 60, lineColor: "#ff00b8", lineStyle: "dashed", lineWidth: 1 }),
@@ -744,7 +745,9 @@ function MarketSessionLayer({
   const timeScale = chart.timeScale();
   const timeToX = (timestamp: number) => timeScale.timeToCoordinate((timestamp / 1_000) as UTCTimestamp);
   const coordinateFor = (timestamp: number) => nearestChartCoordinate(timeToX, candles, timeframe, timestamp);
-  const ranges = marketSessionRanges(candles, configured.sessions.filter((session) => session.enabled), configured.timezone, configured.lookbackDays);
+  const ranges = configured.showBoxes
+    ? marketSessionRanges(candles, configured.sessions.filter((session) => session.enabled), configured.timezone, configured.lookbackDays)
+    : [];
   const rangeElements = ranges.map((range) => {
     const left = coordinateFor(range.start);
     const right = coordinateFor(range.end);

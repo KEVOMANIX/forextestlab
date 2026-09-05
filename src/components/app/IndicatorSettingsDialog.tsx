@@ -105,6 +105,21 @@ function SessionInputs({
             />
           </label>
         </div>
+        <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-md border app-border bg-[var(--app-panel-solid)] px-2.5 py-2 text-xs">
+          <span className="min-w-0">
+            <span className="block font-medium text-[var(--app-text)]">Session boxes</span>
+            <span className="block text-[11px] text-[var(--app-muted)]">Shade each session range on the chart</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2 text-[11px] text-[var(--app-muted)]">
+            {value("showBoxes", true) !== false ? "Shown" : "Lines only"}
+            <input
+              type="checkbox"
+              checked={value("showBoxes", true) !== false}
+              onChange={(event) => onSet("showBoxes", event.target.checked)}
+              className="h-4 w-4 accent-brand-400"
+            />
+          </span>
+        </label>
       </section>
 
       <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--app-panel-2)] p-1" role="tablist" aria-label="Trading session">

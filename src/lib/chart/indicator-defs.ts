@@ -702,6 +702,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     inputs: [
       { key: "timezone", label: "Time zone", type: "select", default: "America/New_York", options: [{ value: "America/New_York", label: "New York" }, { value: "Etc/UTC", label: "UTC" }, { value: "Europe/London", label: "London" }, { value: "Asia/Tokyo", label: "Tokyo" }], section: "inputs" },
       { key: "lookbackDays", label: "Lookback days", type: "number", default: 3, min: 1, max: 30, section: "inputs" },
+      { key: "showBoxes", label: "Show session boxes", type: "boolean", default: true, section: "inputs" },
       { key: "asiaEnabled", label: "Asia box", type: "boolean", default: true, section: "calculation" },
       { key: "asiaName", label: "Asia name", type: "text", default: "Asia", section: "calculation" },
       { key: "asiaStart", label: "Asia start", type: "time", default: "20:00", section: "calculation" },

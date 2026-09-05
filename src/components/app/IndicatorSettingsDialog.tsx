@@ -51,6 +51,166 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 const inputCls = "rounded border app-border bg-transparent px-1.5 py-1 text-right";
 
+type InputValue = number | string | boolean;
+
+/** A purpose-built editor for the session overlay. The normal key/value input
+ * list is ideal for a moving average, but turns three session windows and
+ * their start lines into an unreadable wall of controls. */
+function SessionInputs({
+  inputs,
+  onSet,
+}: {
+  inputs: IndicatorInstance["inputs"];
+  onSet: (key: string, value: InputValue) => void;
+}) {
+  const [active, setActive] = useState("london");
+  const sessions = [
+    { id: "asia", label: "Asia", hint: "Tokyo / Pacific", color: "#2962ff" },
+    { id: "london", label: "London", hint: "European open", color: "#f9ab00" },
+    { id: "newYork", label: "New York", hint: "US cash session", color: "#089981" },
+  ];
+  const current = sessions.find((session) => session.id === active) ?? sessions[1]!;
+  const value = (key: string, fallback: InputValue) => inputs[key] ?? fallback;
+  const enabled = value(`${current.id}Enabled`, true) !== false;
+  const lineEnabled = value(`${current.id}LineEnabled`, current.id === "london") === true;
+  const currentColor = String(value(`${current.id}Color`, current.color));
+
+  return (
+    <div className="space-y-4 py-1">
+      <section className="rounded-lg border app-border bg-[var(--app-panel-2)]/45 p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">Session clock</p>
+        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
+          <label className="min-w-0 text-[11px] app-muted">
+            Time zone
+            <select
+              value={String(value("timezone", "America/New_York"))}
+              onChange={(event) => onSet("timezone", event.target.value)}
+              className="mt-1 h-8 w-full rounded border app-border bg-[var(--app-panel-solid)] px-2 text-xs text-[var(--app-text)]"
+            >
+              <option value="America/New_York">New York</option>
+              <option value="UTC">UTC</option>
+              <option value="Europe/London">London</option>
+              <option value="Asia/Tokyo">Tokyo</option>
+            </select>
+          </label>
+          <label className="text-[11px] app-muted">
+            Days back
+            <input
+              type="number"
+              min={1}
+              max={30}
+              value={Number(value("lookbackDays", 3))}
+              onChange={(event) => onSet("lookbackDays", Math.max(1, Math.min(30, Number(event.target.value))))}
+              className="mt-1 h-8 w-full rounded border app-border bg-[var(--app-panel-solid)] px-2 text-right text-xs text-[var(--app-text)]"
+            />
+          </label>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--app-panel-2)] p-1" role="tablist" aria-label="Trading session">
+        {sessions.map((session) => {
+          const sessionEnabled = value(`${session.id}Enabled`, true) !== false;
+          return (
+            <button
+              key={session.id}
+              type="button"
+              role="tab"
+              aria-selected={active === session.id}
+              onClick={() => setActive(session.id)}
+              className={`min-w-0 rounded-md px-1.5 py-2 text-left transition-colors ${
+                active === session.id ? "bg-[var(--app-panel-solid)] shadow-sm" : "hover:bg-white/[0.04]"
+              }`}
+            >
+              <span className="flex items-center gap-1.5 text-[11px] font-semibold">
+                <i className="h-2 w-2 rounded-full" style={{ backgroundColor: String(value(`${session.id}Color`, session.color)) }} />
+                <span className="truncate">{session.label}</span>
+              </span>
+              <span className={`mt-0.5 block text-[9px] ${sessionEnabled ? "app-muted" : "text-bear"}`}>
+                {sessionEnabled ? "Enabled" : "Hidden"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="overflow-hidden rounded-lg border app-border">
+        <div className="flex items-center gap-3 border-b app-border bg-[var(--app-panel-2)]/45 px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(event) => onSet(`${current.id}Enabled`, event.target.checked)}
+            className="h-4 w-4 accent-brand-400"
+            aria-label={`Show ${current.label} session`}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold">{current.label} session</p>
+            <p className="text-[10px] app-muted">{current.hint}</p>
+          </div>
+          <input
+            type="color"
+            value={currentColor}
+            onChange={(event) => onSet(`${current.id}Color`, event.target.value)}
+            className="h-7 w-9 rounded border app-border bg-transparent p-0.5"
+            aria-label={`${current.label} session color`}
+          />
+        </div>
+
+        <div className={`space-y-4 p-3 ${enabled ? "" : "opacity-45"}`}>
+          <div className="grid grid-cols-[minmax(0,1fr)_5.25rem_5.25rem] gap-2">
+            <label className="min-w-0 text-[11px] app-muted">
+              Label
+              <input
+                type="text"
+                value={String(value(`${current.id}Name`, current.label))}
+                onChange={(event) => onSet(`${current.id}Name`, event.target.value)}
+                disabled={!enabled}
+                className="mt-1 h-8 w-full rounded border app-border bg-transparent px-2 text-xs text-[var(--app-text)] disabled:cursor-not-allowed"
+              />
+            </label>
+            <label className="text-[11px] app-muted">
+              Starts
+              <input type="time" value={String(value(`${current.id}Start`, "00:00"))} onChange={(event) => onSet(`${current.id}Start`, event.target.value)} disabled={!enabled} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-xs text-[var(--app-text)] disabled:cursor-not-allowed" />
+            </label>
+            <label className="text-[11px] app-muted">
+              Ends
+              <input type="time" value={String(value(`${current.id}End`, "00:00"))} onChange={(event) => onSet(`${current.id}End`, event.target.value)} disabled={!enabled} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-xs text-[var(--app-text)] disabled:cursor-not-allowed" />
+            </label>
+          </div>
+
+          <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-3">
+            <label className="text-[11px] app-muted">
+              Fill transparency <span className="float-right text-[var(--app-text)]">{Number(value(`${current.id}Transparency`, 76))}%</span>
+              <input type="range" min={0} max={100} value={Number(value(`${current.id}Transparency`, 76))} onChange={(event) => onSet(`${current.id}Transparency`, Number(event.target.value))} disabled={!enabled} className="mt-2 w-full accent-brand-400 disabled:cursor-not-allowed" />
+            </label>
+            <label className="text-[11px] app-muted">
+              Border
+              <select value={String(value(`${current.id}BorderWidth`, 1))} onChange={(event) => onSet(`${current.id}BorderWidth`, Number(event.target.value))} disabled={!enabled} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-2 text-xs text-[var(--app-text)] disabled:cursor-not-allowed">
+                {[0, 1, 2, 3, 4].map((width) => <option key={width} value={width}>{width === 0 ? "None" : `${width}px`}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <div className="border-t app-border pt-3">
+            <label className="flex items-center justify-between text-xs font-semibold">
+              <span>Session start line</span>
+              <span className="flex items-center gap-2 text-[10px] font-medium app-muted">
+                {lineEnabled ? "Shown" : "Hidden"}
+                <input type="checkbox" checked={lineEnabled} onChange={(event) => onSet(`${current.id}LineEnabled`, event.target.checked)} disabled={!enabled} className="h-4 w-4 accent-brand-400 disabled:cursor-not-allowed" />
+              </span>
+            </label>
+            <div className={`mt-3 grid grid-cols-4 gap-2 ${lineEnabled && enabled ? "" : "pointer-events-none opacity-40"}`}>
+              <label className="text-[10px] app-muted">Time<input type="time" value={String(value(`${current.id}LineTime`, "00:00"))} onChange={(event) => onSet(`${current.id}LineTime`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-xs text-[var(--app-text)]" /></label>
+              <label className="text-[10px] app-muted">Color<input type="color" value={String(value(`${current.id}LineColor`, current.color))} onChange={(event) => onSet(`${current.id}LineColor`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-transparent p-0.5" /></label>
+              <label className="text-[10px] app-muted">Style<select value={String(value(`${current.id}LineStyle`, "dashed"))} onChange={(event) => onSet(`${current.id}LineStyle`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-[11px] text-[var(--app-text)]"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
+              <label className="text-[10px] app-muted">Width<select value={String(value(`${current.id}LineWidth`, 1))} onChange={(event) => onSet(`${current.id}LineWidth`, Number(event.target.value))} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-[11px] text-[var(--app-text)]">{[1, 2, 3, 4].map((width) => <option key={width} value={width}>{width}px</option>)}</select></label>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor }: Props) {
   const [tab, setTab] = useState<Tab>("inputs");
   // Escape, a focus trap and focus restoration, like every other dialog here.
@@ -185,7 +345,9 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
           {tab === "inputs" && (
-            def.inputs.length === 0 ? (
+            def.kind === "sessions" ? (
+              <SessionInputs inputs={value.inputs} onSet={setInput} />
+            ) : def.inputs.length === 0 ? (
               <p className="py-4 text-center text-xs app-muted">This indicator has no inputs.</p>
             ) : (
               sectionsPresent.map((sec) => (

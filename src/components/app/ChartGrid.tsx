@@ -380,9 +380,22 @@ export default function ChartGrid({
 
   const syncFocusedLayout = useCallback((snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[] }) => {
     const syncSource = `layout-sync-${Date.now()}`;
-    const nextIndicators = snapshot.indicators.map((indicator) => ({
+    const sourceViewKey = `forextestlab:chart:${storageKey}:${focused.id}:${focused.symbol}`;
+    let savedSourceIndicators: IndicatorInstance[] = [];
+    try {
+      const savedSource = JSON.parse(window.localStorage.getItem(sourceViewKey) ?? "{}") as { indicators?: unknown };
+      if (Array.isArray(savedSource.indicators)) savedSourceIndicators = savedSource.indicators as IndicatorInstance[];
+    } catch {
+      // The live snapshot remains the source if its saved counterpart is malformed.
+    }
+    // A chart can receive this action on the same render in which its saved
+    // studies hydrate. Never let that short state-transition window broadcast
+    // an empty list and erase the other panes.
+    const sourceIndicators = snapshot.indicators.length > 0 ? snapshot.indicators : savedSourceIndicators;
+    const nextIndicators = sourceIndicators.map((indicator) => ({
       ...indicator,
       inputs: { ...indicator.inputs },
+      style: Object.fromEntries(Object.entries(indicator.style).map(([key, value]) => [key, { ...value }])),
     }));
     const nextDrawings = snapshot.drawings;
 
@@ -393,7 +406,17 @@ export default function ChartGrid({
       try {
         const viewKey = `forextestlab:chart:${storageKey}:${cell.id}:${cell.symbol}`;
         const existing = JSON.parse(window.localStorage.getItem(viewKey) ?? "{}") as Record<string, unknown>;
-        window.localStorage.setItem(viewKey, JSON.stringify({ ...existing, indicators: nextIndicators }));
+        const existingIndicators = Array.isArray(existing.indicators) ? existing.indicators as IndicatorInstance[] : [];
+        const sourceIncludesSessions = nextIndicators.some((indicator) => indicator.kind === "sessions");
+        // Sessions are a workspace-level overlay: copying another pane must
+        // never remove one already enabled on this pane. When the source has
+        // Sessions its exact configuration still replaces the local copy.
+        const targetIndicators = nextIndicators.length === 0
+          ? existingIndicators
+          : sourceIncludesSessions
+            ? nextIndicators
+            : [...nextIndicators, ...existingIndicators.filter((indicator) => indicator.kind === "sessions")];
+        window.localStorage.setItem(viewKey, JSON.stringify({ ...existing, indicators: targetIndicators }));
 
         const drawingKey = `forextestlab:drawings:${storageKey}:${cell.symbol}`;
         window.localStorage.setItem(drawingKey, JSON.stringify(nextDrawings));

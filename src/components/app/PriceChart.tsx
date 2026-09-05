@@ -1112,11 +1112,20 @@ export default function PriceChart({
   // every overlay reconcile exactly as if the trader had added them here.
   useEffect(() => {
     if (!layoutSync) return;
-    setIndicators(
-      layoutSync.indicators
-        .map((indicator) => hydrateInstance({ ...indicator, inputs: { ...indicator.inputs } }))
-        .filter((indicator): indicator is IndicatorInstance => indicator != null),
-    );
+    const incoming = layoutSync.indicators
+      .map((indicator) => hydrateInstance({ ...indicator, inputs: { ...indicator.inputs } }))
+      .filter((indicator): indicator is IndicatorInstance => indicator != null);
+    setIndicators((current) => {
+      // An incomplete source must be a no-op, never a destructive clear.
+      if (incoming.length === 0) return current;
+      // Market Sessions is intended to stay visible across the workspace. A
+      // copy from a pane that has no Sessions indicator must not erase one in
+      // its destination; a source that does have it still supplies its exact
+      // settings to every pane.
+      if (incoming.some((indicator) => indicator.kind === "sessions")) return incoming;
+      const currentSessions = current.filter((indicator) => indicator.kind === "sessions");
+      return currentSessions.length > 0 ? [...incoming, ...currentSessions] : incoming;
+    });
   }, [layoutSync]);
   const [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);

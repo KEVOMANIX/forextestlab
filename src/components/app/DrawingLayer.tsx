@@ -59,6 +59,8 @@ interface Props {
   viewVersion: number;
   onToolConsumed: () => void;
   onCountChange?: (count: number) => void;
+  /** Broadcasts a committed edit when the workspace has linked its layouts. */
+  onDrawingsChange?: (drawings: DrawingJSON[]) => void;
   engineRef?: React.MutableRefObject<DrawingEngine | null>;
   storageKey?: string;
 }
@@ -80,6 +82,7 @@ export function DrawingLayer({
   viewVersion,
   onToolConsumed,
   onCountChange,
+  onDrawingsChange,
   engineRef,
   storageKey,
 }: Props) {
@@ -87,6 +90,8 @@ export function DrawingLayer({
   const engineInstance = useRef<DrawingEngine | null>(null);
   const savedRef = useRef<DrawingJSON[]>([]);
   const sourceRef = useRef(`drawing-layer-${Math.random().toString(36).slice(2)}`);
+  const onDrawingsChangeRef = useRef(onDrawingsChange);
+  onDrawingsChangeRef.current = onDrawingsChange;
   const candlesRef = useRef(candles);
   candlesRef.current = candles;
   const futureTimesRef = useRef(futureTimes);
@@ -150,6 +155,7 @@ export function DrawingLayer({
       window.dispatchEvent(new CustomEvent<DrawingsChangedDetail>(DRAWINGS_CHANGED_EVENT, {
         detail: { key, source: sourceRef.current, drawings },
       }));
+      onDrawingsChangeRef.current?.(drawings);
     };
     const receiveSharedDrawings = (event: Event) => {
       const detail = (event as CustomEvent<DrawingsChangedDetail>).detail;

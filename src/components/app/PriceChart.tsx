@@ -330,7 +330,9 @@ interface PriceChartProps {
   showRail?: boolean;
   /** Lets the focused pane copy its studies and drawings to the other panes. */
   canSyncLayout?: boolean;
-  onSyncToLayout?: (snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[] }) => void;
+  onSyncToLayout?: (snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[]; allowEmpty?: boolean }) => void;
+  /** Once copied, subsequent study and drawing edits stay linked across panes. */
+  linkedLayout?: boolean;
   /** A snapshot delivered by the grid when another pane is synchronised. */
   layoutSync?: { revision: number; indicators: IndicatorInstance[] } | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
@@ -946,6 +948,7 @@ export default function PriceChart({
   showRail = true,
   canSyncLayout = false,
   onSyncToLayout,
+  linkedLayout = false,
   layoutSync = null,
   orderTicket = null,
   axisCorner = null,
@@ -1118,6 +1121,25 @@ export default function PriceChart({
   // list captured by the chart's first render.
   const indicatorsRef = useRef<IndicatorInstance[]>(indicators);
   indicatorsRef.current = indicators;
+
+  const cloneIndicatorsForLayout = (source: IndicatorInstance[]) => source.map((indicator) => ({
+    ...indicator,
+    inputs: { ...indicator.inputs },
+    style: Object.fromEntries(Object.entries(indicator.style).map(([key, value]) => [key, { ...value }])),
+  }));
+  const commitIndicators = (transform: (current: IndicatorInstance[]) => IndicatorInstance[]) => {
+    const next = transform(indicatorsRef.current);
+    if (next === indicatorsRef.current) return;
+    indicatorsRef.current = next;
+    setIndicators(next);
+    if (linkedLayout && onSyncToLayout) {
+      onSyncToLayout({
+        indicators: cloneIndicatorsForLayout(next),
+        drawings: drawingEngineRef.current?.serialize() ?? [],
+        allowEmpty: true,
+      });
+    }
+  };
 
   // The grid delivers a new revision only to panes other than the source.  Use
   // the ordinary state path so the indicator runtimes, local persistence and
@@ -3188,7 +3210,7 @@ export default function PriceChart({
   function addIndicator(kind: string) {
     const inst = makeInstance(kind);
     if (!inst) return;
-    setIndicators((prev) => [...prev, inst]);
+    commitIndicators((prev) => [...prev, inst]);
     setMenu(null);
     setIndicatorSearch("");
     const anchorInput = getDef(kind)?.inputs.find((i) => i.type === "anchor");
@@ -3208,7 +3230,7 @@ export default function PriceChart({
     const time = arr[idx]?.time;
     if (time == null) return;
     const { id, key } = anchorPick;
-    setIndicators((prev) => prev.map((i) => (i.id === id ? { ...i, inputs: { ...i.inputs, [key]: time } } : i)));
+    commitIndicators((prev) => prev.map((i) => (i.id === id ? { ...i, inputs: { ...i.inputs, [key]: time } } : i)));
     setAnchorPick(null);
   }
 
@@ -3222,11 +3244,11 @@ export default function PriceChart({
   }
 
   function updateIndicator(id: string, patch: Partial<IndicatorInstance>) {
-    setIndicators((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+    commitIndicators((prev) => prev.map((i) => (i.id === id ? { ...i, ...patch } : i)));
   }
 
   function removeIndicator(id: string) {
-    setIndicators((prev) => prev.filter((i) => i.id !== id));
+    commitIndicators((prev) => prev.filter((i) => i.id !== id));
     setIndicatorEditing((cur) => (cur === id ? null : cur));
   }
 
@@ -3813,11 +3835,7 @@ export default function PriceChart({
                 // Read the current ref rather than the render closure. This
                 // prevents an indicator that has just hydrated or been edited
                 // from being replaced with an older (sometimes empty) list.
-                indicators: indicatorsRef.current.map((indicator) => ({
-                  ...indicator,
-                  inputs: { ...indicator.inputs },
-                  style: Object.fromEntries(Object.entries(indicator.style).map(([key, value]) => [key, { ...value }])),
-                })),
+                indicators: cloneIndicatorsForLayout(indicatorsRef.current),
                 drawings: drawingEngineRef.current?.serialize() ?? [],
               });
             }}
@@ -3920,6 +3938,10 @@ export default function PriceChart({
           viewVersion={viewVersion}
           onToolConsumed={() => setDrawTool(null)}
           onCountChange={setDrawCount}
+          onDrawingsChange={(drawings) => {
+            if (!linkedLayout || !onSyncToLayout) return;
+            onSyncToLayout({ indicators: cloneIndicatorsForLayout(indicatorsRef.current), drawings });
+          }}
           engineRef={drawingEngineRef}
           storageKey={storageKey}
         />

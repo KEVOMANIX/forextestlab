@@ -270,6 +270,7 @@ export default function ChartGrid({
   const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
   const [readyCells, setReadyCells] = useState<Set<string>>(new Set());
   const [layoutSync, setLayoutSync] = useState<LayoutSyncSnapshot | null>(null);
+  const [linkedLayout, setLinkedLayout] = useState(false);
 
   useEffect(() => {
     const saved = readStoredLayout(storageKey);
@@ -378,9 +379,10 @@ export default function ChartGrid({
 
   const focusCell = useCallback((id: string) => setFocusedId(id), []);
 
-  const syncFocusedLayout = useCallback((snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[] }) => {
+  const syncLayoutFromCell = useCallback((sourceId: string, snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[]; allowEmpty?: boolean }) => {
     const syncSource = `layout-sync-${Date.now()}`;
-    const sourceViewKey = `forextestlab:chart:${storageKey}:${focused.id}:${focused.symbol}`;
+    const sourceCell = cells.find((cell) => cell.id === sourceId) ?? focused;
+    const sourceViewKey = `forextestlab:chart:${storageKey}:${sourceCell.id}:${sourceCell.symbol}`;
     let savedSourceIndicators: IndicatorInstance[] = [];
     try {
       const savedSource = JSON.parse(window.localStorage.getItem(sourceViewKey) ?? "{}") as { indicators?: unknown };
@@ -391,7 +393,9 @@ export default function ChartGrid({
     // A chart can receive this action on the same render in which its saved
     // studies hydrate. Never let that short state-transition window broadcast
     // an empty list and erase the other panes.
-    const sourceIndicators = snapshot.indicators.length > 0 ? snapshot.indicators : savedSourceIndicators;
+    const sourceIndicators = snapshot.indicators.length > 0 || snapshot.allowEmpty
+      ? snapshot.indicators
+      : savedSourceIndicators;
     const nextIndicators = sourceIndicators.map((indicator) => ({
       ...indicator,
       inputs: { ...indicator.inputs },
@@ -402,7 +406,7 @@ export default function ChartGrid({
     // Hidden panes are included too: opening a wider layout later should show
     // the same studies and markings without requiring a second sync.
     for (const cell of cells) {
-      if (cell.id === focused.id) continue;
+      if (cell.id === sourceCell.id) continue;
       try {
         const viewKey = `forextestlab:chart:${storageKey}:${cell.id}:${cell.symbol}`;
         const existing = JSON.parse(window.localStorage.getItem(viewKey) ?? "{}") as Record<string, unknown>;
@@ -429,12 +433,13 @@ export default function ChartGrid({
         // A full or unavailable browser store should not block the visible panes.
       }
     }
+    setLinkedLayout(true);
     setLayoutSync((current) => ({
       revision: (current?.revision ?? 0) + 1,
-      sourceId: focused.id,
+      sourceId: sourceCell.id,
       indicators: nextIndicators,
     }));
-  }, [cells, focused.id, storageKey]);
+  }, [cells, focused, storageKey]);
 
   const updateCellTimeframe = useCallback(
     (id: string, timeframe: Timeframe) => {
@@ -651,7 +656,8 @@ export default function ChartGrid({
                 railSlot={railHost}
                 showRail={isFocused}
                 canSyncLayout={multi}
-                onSyncToLayout={isFocused ? syncFocusedLayout : undefined}
+                onSyncToLayout={(snapshot) => syncLayoutFromCell(cell.id, snapshot)}
+                linkedLayout={linkedLayout}
                 layoutSync={layoutSync && layoutSync.sourceId !== cell.id ? layoutSync : null}
                 orderTicket={isFocused ? orderTicket : compactOrderTicket}
                 // One clock for the workspace, always in its outer bottom-right
@@ -727,7 +733,8 @@ interface ChartCellViewProps {
   railSlot: HTMLElement | null;
   showRail: boolean;
   canSyncLayout: boolean;
-  onSyncToLayout: ((snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[] }) => void) | undefined;
+  onSyncToLayout: ((snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[]; allowEmpty?: boolean }) => void) | undefined;
+  linkedLayout: boolean;
   layoutSync: LayoutSyncSnapshot | null;
   orderTicket: React.ReactNode;
   axisCorner: React.ReactNode;
@@ -776,6 +783,7 @@ function ChartCellView({
   showRail,
   canSyncLayout,
   onSyncToLayout,
+  linkedLayout,
   layoutSync,
   orderTicket,
   axisCorner,
@@ -859,6 +867,7 @@ function ChartCellView({
         showRail={showRail}
         canSyncLayout={canSyncLayout}
         onSyncToLayout={onSyncToLayout}
+        linkedLayout={linkedLayout}
         layoutSync={layoutSync}
         orderTicket={orderTicket}
         axisCorner={axisCorner}

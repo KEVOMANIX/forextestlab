@@ -1164,6 +1164,7 @@ export function Backtester({
                   )
                 }
                 onOpenChange={handleOrderTicketOpenChange}
+                compactQuote
               />
             }
             compactOrderTicket={

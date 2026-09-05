@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
   Activity,
   ArrowUpRight,
@@ -22,6 +22,7 @@ import {
   Magnet,
   Minus,
   Redo2,
+  RefreshCw,
   RotateCcw,
   Settings,
   Settings2,
@@ -73,7 +74,7 @@ import {
 import type { OpenPosition, OrderType, PendingOrder } from "@/lib/backtest/types";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
 import { heikinAshi, type OHLCV } from "@/lib/chart/indicators";
-import { TOOL_LABELS, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
+import { TOOL_LABELS, type DrawingJSON, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
 import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
@@ -328,6 +329,11 @@ interface PriceChartProps {
    */
   railSlot?: HTMLElement | null;
   showRail?: boolean;
+  /** Lets the focused pane copy its studies and drawings to the other panes. */
+  canSyncLayout?: boolean;
+  onSyncToLayout?: (snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[] }) => void;
+  /** A snapshot delivered by the grid when another pane is synchronised. */
+  layoutSync?: { revision: number; indicators: IndicatorInstance[] } | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
   orderTicket?: React.ReactNode;
   /**
@@ -748,7 +754,7 @@ function MarketSessionLayer({
     const paddedBottom = series.priceToCoordinate(range.low - span * 0.02);
     if (paddedTop == null || paddedBottom == null) return null;
     return (
-      <div key={`${range.id}-${range.start}`} className="pointer-events-none absolute inset-0" aria-hidden>
+      <div key={`${range.id}-${range.start}`} className="pointer-events-none absolute inset-0 z-[9]" aria-hidden>
         <div
           className="absolute"
           style={{
@@ -926,6 +932,9 @@ export default function PriceChart({
   showControls = true,
   railSlot = null,
   showRail = true,
+  canSyncLayout = false,
+  onSyncToLayout,
+  layoutSync = null,
   orderTicket = null,
   axisCorner = null,
 }: PriceChartProps) {
@@ -1095,6 +1104,18 @@ export default function PriceChart({
   // list captured by the chart's first render.
   const indicatorsRef = useRef<IndicatorInstance[]>(indicators);
   indicatorsRef.current = indicators;
+
+  // The grid delivers a new revision only to panes other than the source.  Use
+  // the ordinary state path so the indicator runtimes, local persistence and
+  // every overlay reconcile exactly as if the trader had added them here.
+  useEffect(() => {
+    if (!layoutSync) return;
+    setIndicators(
+      layoutSync.indicators
+        .map((indicator) => hydrateInstance({ ...indicator, inputs: { ...indicator.inputs } }))
+        .filter((indicator): indicator is IndicatorInstance => indicator != null),
+    );
+  }, [layoutSync]);
   const [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
   const [openCats, setOpenCats] = useState<Set<IndCategory>>(() => new Set(CATEGORY_ORDER));
@@ -2000,7 +2021,12 @@ export default function PriceChart({
         updateLineCoordinates();
         // Only overlays positioned in React care about the viewport. With none
         // on the chart this would be a full re-render per replay tick, per cell.
-        if (viewportOverlaysRef.current) setViewVersion((v) => v + 1);
+        if (viewportOverlaysRef.current) {
+          // The chart changes its own canvas in this animation frame.  Commit
+          // HTML overlays in the same frame so session lines do not visibly
+          // trail behind while the trader pinches, wheels or drags the scale.
+          flushSync(() => setViewVersion((v) => v + 1));
+        }
         drawingEngineRef.current?.onViewChanged();
         const visible = chart.timeScale().getVisibleLogicalRange();
         if (visible) {
@@ -3715,6 +3741,22 @@ export default function PriceChart({
         <div className="mt-0.5 flex flex-col items-center gap-0.5 border-t app-border pt-0.5">
           <ToolButton label={olderHistoryLoading ? "Loading older candles" : "Load older candles"} onClick={() => { if (!olderHistoryLoading) void loadHistoryPage(false); }}>
             {olderHistoryLoading ? <span className="h-4 w-4 animate-spin rounded-full border border-brand-400/30 border-t-brand-400" aria-hidden /> : <History size={19} aria-hidden />}
+          </ToolButton>
+        </div>
+      )}
+
+      {canSyncLayout && onSyncToLayout && (
+        <div className="mt-auto flex flex-col items-center border-t app-border pt-1">
+          <ToolButton
+            label="Sync indicators and drawings to all layout charts"
+            onClick={() => {
+              onSyncToLayout({
+                indicators: indicators.map((indicator) => ({ ...indicator, inputs: { ...indicator.inputs } })),
+                drawings: drawingEngineRef.current?.serialize() ?? [],
+              });
+            }}
+          >
+            <RefreshCw size={18} aria-hidden />
           </ToolButton>
         </div>
       )}

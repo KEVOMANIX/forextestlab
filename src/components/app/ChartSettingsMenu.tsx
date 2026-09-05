@@ -105,6 +105,14 @@ export interface ChartSettings {
    * different window makes every session destination a little wrong.
    */
   sessionHours: SessionHourOverrides;
+  /** Named Tokyo, London and New York session ranges on the chart. */
+  sessionOverlay: boolean;
+  /** Continue a completed session's high and low as reference levels. */
+  sessionHighLowLines: boolean;
+  /** Vertical chart dividers at the trader's own clock times. */
+  sessionTimeDividers: boolean;
+  /** Wall-clock times (HH:MM) used by the vertical session dividers. */
+  sessionDividerTimes: string[];
 }
 
 export type ChartTextSize = "small" | "medium" | "large";
@@ -164,6 +172,10 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
   favoriteTimeframes: DEFAULT_FAVORITE_TIMEFRAMES,
   hideBalances: false,
   sessionHours: {},
+  sessionOverlay: true,
+  sessionHighLowLines: true,
+  sessionTimeDividers: false,
+  sessionDividerTimes: ["00:00", "07:00", "13:00"],
 };
 
 /** Palettes people actually use for candles, plus the app default first. */
@@ -447,6 +459,47 @@ export function ChartSettingsDialog({
                   </select>
                 </label>
                 <div className="pt-3">
+                  <ToggleRow
+                    label="Market sessions"
+                    hint="Shows the Tokyo, London and New York price ranges."
+                    checked={settings.sessionOverlay}
+                    onToggle={() => onChange({ sessionOverlay: !settings.sessionOverlay })}
+                  />
+                  {settings.sessionOverlay && (
+                    <ToggleRow
+                      label="Session high / low"
+                      hint="Extends each completed session's range levels until the next session begins."
+                      checked={settings.sessionHighLowLines}
+                      onToggle={() => onChange({ sessionHighLowLines: !settings.sessionHighLowLines })}
+                    />
+                  )}
+                  <ToggleRow
+                    label="Custom time dividers"
+                    hint="Draw vertical lines at the times you choose, in the selected chart time zone."
+                    checked={settings.sessionTimeDividers}
+                    onToggle={() => onChange({ sessionTimeDividers: !settings.sessionTimeDividers })}
+                  />
+                  {settings.sessionTimeDividers && (
+                    <label className="block px-2 py-2">
+                      <span className="mb-1.5 block text-[13px]">Divider times</span>
+                      <span className="mb-1.5 block text-[11px] opacity-55">
+                        Use comma-separated 24-hour times, for example 00:00, 07:00, 13:00.
+                      </span>
+                      <input
+                        value={settings.sessionDividerTimes.join(", ")}
+                        onChange={(event) => onChange({
+                          sessionDividerTimes: event.target.value
+                            .split(",")
+                            .map((value) => value.trim())
+                            .filter((value) => /^([01]\\d|2[0-3]):[0-5]\\d$/.test(value))
+                            .slice(0, 8),
+                        })}
+                        placeholder="00:00, 07:00, 13:00"
+                        className="w-full rounded-md border px-2 py-1.5 text-[13px]"
+                        style={{ backgroundColor: inset, borderColor: line, color: "inherit" }}
+                      />
+                    </label>
+                  )}
                   <ToggleRow
                     label="Hide account figures"
                     hint="Masks balance, equity and P&L in the status bar — for recording and screen-sharing."

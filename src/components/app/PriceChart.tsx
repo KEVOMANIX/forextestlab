@@ -58,6 +58,7 @@ import {
 } from "lightweight-charts";
 
 import { formatInZone } from "@/lib/chart/timezones";
+import { zoneParts, zoneWallClockToUtc } from "@/lib/backtest/goto";
 import { barLabelZone, formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
@@ -536,6 +537,149 @@ function applyData(series: ISeriesApi<SeriesType>, type: ChartType, candles: OHL
   (series as ISeriesApi<"Candlestick">).setData(src.map(toOhlcBar));
 }
 
+type MarketSession = {
+  id: string;
+  label: string;
+  zone: string;
+  openMinutes: number;
+  closeMinutes: number;
+  color: string;
+};
+
+const MARKET_SESSIONS: MarketSession[] = [
+  { id: "tokyo", label: "Tokyo", zone: "Asia/Tokyo", openMinutes: 9 * 60, closeMinutes: 18 * 60, color: "#ec4899" },
+  { id: "london", label: "London", zone: "Europe/London", openMinutes: 8 * 60, closeMinutes: 16 * 60 + 30, color: "#4f8cff" },
+  { id: "new-york", label: "New York", zone: "America/New_York", openMinutes: 8 * 60, closeMinutes: 17 * 60, color: "#f59e0b" },
+];
+
+type MarketSessionRange = MarketSession & {
+  start: number;
+  end: number;
+  high: number;
+  low: number;
+};
+
+function isWithinSession(minutes: number, session: MarketSession): boolean {
+  return session.openMinutes <= session.closeMinutes
+    ? minutes >= session.openMinutes && minutes < session.closeMinutes
+    : minutes >= session.openMinutes || minutes < session.closeMinutes;
+}
+
+function marketSessionRanges(candles: OHLCV[]): MarketSessionRange[] {
+  const ranges = new Map<string, MarketSessionRange>();
+  for (const candle of candles) {
+    const timestamp = Number(candle.time) * 1_000;
+    for (const session of MARKET_SESSIONS) {
+      const local = zoneParts(timestamp, session.zone);
+      const minutes = local.hour * 60 + local.minute;
+      if (!isWithinSession(minutes, session)) continue;
+      const key = `${session.id}:${local.year}-${local.month}-${local.day}`;
+      const existing = ranges.get(key);
+      if (existing) {
+        existing.end = timestamp;
+        existing.high = Math.max(existing.high, candle.high);
+        existing.low = Math.min(existing.low, candle.low);
+      } else {
+        ranges.set(key, {
+          ...session,
+          start: timestamp,
+          end: timestamp,
+          high: candle.high,
+          low: candle.low,
+        });
+      }
+    }
+  }
+  return [...ranges.values()].sort((a, b) => a.start - b.start);
+}
+
+function dividerMinutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  return hour <= 23 && minute <= 59 ? hour * 60 + minute : null;
+}
+
+function MarketSessionLayer({
+  chart,
+  series,
+  candles,
+  settings,
+}: {
+  chart: IChartApi;
+  series: ISeriesApi<SeriesType>;
+  candles: OHLCV[];
+  settings: ChartSettings;
+}) {
+  const enabled = settings.sessionOverlay || settings.sessionTimeDividers;
+  if (!enabled || candles.length === 0) return null;
+  const timeScale = chart.timeScale();
+  const timeToX = (timestamp: number) => timeScale.timeToCoordinate((timestamp / 1_000) as UTCTimestamp);
+  const ranges = settings.sessionOverlay ? marketSessionRanges(candles) : [];
+  const rangeElements = ranges.map((range, index) => {
+    const left = timeToX(range.start);
+    const right = timeToX(range.end);
+    const top = series.priceToCoordinate(range.high);
+    const bottom = series.priceToCoordinate(range.low);
+    if (left == null || right == null || top == null || bottom == null) return null;
+    const next = ranges.slice(index + 1).find((candidate) => candidate.start > range.end);
+    const extensionEnd = timeToX(next?.start ?? candles.at(-1)!.time * 1_000);
+    return (
+      <div key={`${range.id}-${range.start}`} className="pointer-events-none absolute inset-0" aria-hidden>
+        <div
+          className="absolute border border-dashed"
+          style={{
+            left: Math.min(left, right),
+            top: Math.min(top, bottom),
+            width: Math.max(1, Math.abs(right - left)),
+            height: Math.max(1, Math.abs(bottom - top)),
+            borderColor: `${range.color}88`,
+            backgroundColor: `${range.color}14`,
+          }}
+        >
+          <span
+            className="absolute left-1 top-1 whitespace-nowrap text-[10px] font-semibold tracking-wide"
+            style={{ color: range.color }}
+          >
+            {range.label}
+          </span>
+        </div>
+        {settings.sessionHighLowLines && extensionEnd != null && extensionEnd > right && (
+          <>
+            <i className="absolute border-t border-dashed" style={{ left: right, top, width: extensionEnd - right, borderColor: `${range.color}aa` }} />
+            <i className="absolute border-t border-dashed" style={{ left: right, top: bottom, width: extensionEnd - right, borderColor: `${range.color}aa` }} />
+          </>
+        )}
+      </div>
+    );
+  });
+  const dividerElements: React.ReactNode[] = [];
+  if (settings.sessionTimeDividers) {
+    const times = settings.sessionDividerTimes.map(dividerMinutes).filter((value): value is number => value != null);
+    const days = new Set<string>();
+    const first = Number(candles[0]!.time) * 1_000;
+    const last = Number(candles.at(-1)!.time) * 1_000;
+    for (const candle of candles) {
+      const local = zoneParts(Number(candle.time) * 1_000, settings.timeZone);
+      days.add(`${local.year}-${local.month}-${local.day}`);
+    }
+    for (const day of days) {
+      const [year, month, date] = day.split("-").map(Number);
+      for (const minutes of times) {
+        const timestamp = zoneWallClockToUtc(settings.timeZone, year!, month!, date!, Math.floor(minutes / 60), minutes % 60);
+        if (timestamp < first || timestamp > last) continue;
+        const left = timeToX(timestamp);
+        if (left == null) continue;
+        dividerElements.push(
+          <i key={`${day}-${minutes}`} className="pointer-events-none absolute bottom-0 top-0 z-10 border-l border-dashed border-brand-300/45" style={{ left }} aria-hidden />,
+        );
+      }
+    }
+  }
+  return <>{rangeElements}{dividerElements}</>;
+}
+
 function updateData(series: ISeriesApi<SeriesType>, type: ChartType, candle: OHLCV) {
   if (type === "line" || type === "area") {
     (series as ISeriesApi<"Line">).update({
@@ -870,6 +1014,7 @@ export default function PriceChart({
   const [seriesEpoch, setSeriesEpoch] = useState(0);
   const [viewVersion, setViewVersion] = useState(0);
   const [displayCandles, setDisplayCandles] = useState<OHLCV[]>([]);
+  const [sessionOverlayCandles, setSessionOverlayCandles] = useState<OHLCV[]>([]);
   const [legend, setLegend] = useState<
     | { kind: "ohlc"; at: number; o: number; h: number; l: number; c: number; volume?: number }
     | { kind: "value"; at: number; value: number }
@@ -1227,6 +1372,11 @@ export default function PriceChart({
     const timeline = needsHistory
       ? joinedTimelineCached(historyCandlesRef.current, display)
       : display;
+    if (settings.sessionOverlay || settings.sessionTimeDividers) {
+      // Sessions are projected by the chart itself, so this is the same
+      // timeframe-resolved history and replay data the trader sees.
+      setSessionOverlayCandles(joinedTimelineCached(historyCandlesRef.current, display));
+    }
     if (drawingsActiveRef.current) {
       drawingCandlesRef.current = timeline;
       drawingEngineRef.current?.setEnv({
@@ -2901,7 +3051,18 @@ export default function PriceChart({
   viewportOverlaysRef.current =
     overlayIndicators.length > 0 ||
     tradePlan != null ||
-    pendingOrders.some((order) => order.status === "pending");
+    pendingOrders.some((order) => order.status === "pending") ||
+    settings.sessionOverlay ||
+    settings.sessionTimeDividers;
+
+  useEffect(() => {
+    if (settings.sessionOverlay || settings.sessionTimeDividers) {
+      scheduleRender(true);
+    } else {
+      setSessionOverlayCandles([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.sessionOverlay, settings.sessionHighLowLines, settings.sessionTimeDividers, settings.sessionDividerTimes, settings.timeZone]);
 
   useEffect(() => {
     drawingEngineRef.current?.setHideAll(!settings.drawings);
@@ -3517,6 +3678,15 @@ export default function PriceChart({
           engineRef={drawingEngineRef}
           storageKey={storageKey}
         />
+
+        {chartApi && priceSeries && sessionOverlayCandles.length > 0 && (
+          <MarketSessionLayer
+            chart={chartApi}
+            series={priceSeries}
+            candles={sessionOverlayCandles}
+            settings={settings}
+          />
+        )}
 
         {/*
           Economic calendar badges, on top of the time axis. Placed through the

@@ -4245,7 +4245,7 @@ export default function PriceChart({
         )}
 
         {(loading || historyLoading) && (
-          <div className="absolute inset-0 z-30 grid place-items-center bg-[var(--app-bg)]/95 backdrop-blur-sm">
+          <div className="absolute inset-0 z-30 grid place-items-center bg-[var(--app-bg)]">
             <div className="flex flex-col items-center gap-3">
               <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
               <span className="app-muted text-sm">{loading ? "Loading market…" : `Loading ${displayTimeframe} chart history…`}</span>

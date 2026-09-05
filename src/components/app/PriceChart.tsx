@@ -739,14 +739,31 @@ function MarketSessionLayer({
   /** The axis zone, which can differ from the session's calculation zone. */
   chartTimeZone: string;
 }) {
+  // Range discovery is data work, not viewport work. Keeping it memoized means
+  // panning, zooming and vertical scaling only project a small fixed set of
+  // already-known sessions instead of re-reading the entire candle history.
+  const sessionData = useMemo(() => {
+    const configured = sessionSettings(indicator);
+    const first = Number(candles[0]?.time ?? 0) * 1_000;
+    const last = Number(candles.at(-1)?.time ?? 0) * 1_000;
+    const cutoff = last - configured.lookbackDays * 24 * 60 * 60 * 1_000;
+    const enabledSessions = configured.sessions.filter((session) => session.enabled);
+    const ranges = configured.showBoxes
+      ? marketSessionRanges(candles, enabledSessions, configured.timezone, configured.lookbackDays)
+      : [];
+    const days = new Set<string>();
+    for (const candle of candles) {
+      if (Number(candle.time) * 1_000 < cutoff) continue;
+      const local = zoneParts(Number(candle.time) * 1_000, configured.timezone);
+      days.add(`${local.year}-${local.month}-${local.day}`);
+    }
+    return { configured, first, last, ranges, days };
+  }, [candles, indicator.inputs]);
   if (!indicator.visible || candles.length === 0 || TIMEFRAME_MS[timeframe] > TIMEFRAME_MS["1h"]) return null;
-  const configured = sessionSettings(indicator);
+  const { configured, first, last, ranges, days } = sessionData;
   const timeScale = chart.timeScale();
   const timeToX = (timestamp: number) => timeScale.timeToCoordinate((timestamp / 1_000) as UTCTimestamp);
   const coordinateFor = (timestamp: number) => nearestChartCoordinate(timeToX, candles, timeframe, timestamp);
-  const ranges = configured.showBoxes
-    ? marketSessionRanges(candles, configured.sessions.filter((session) => session.enabled), configured.timezone, configured.lookbackDays)
-    : [];
   const rangeElements = ranges.map((range) => {
     const left = coordinateFor(range.start);
     const right = coordinateFor(range.end);
@@ -779,13 +796,6 @@ function MarketSessionLayer({
     );
   });
   const lineElements: React.ReactNode[] = [];
-  const days = new Set<string>();
-  const first = Number(candles[0]!.time) * 1_000;
-  const last = Number(candles.at(-1)!.time) * 1_000;
-  for (const candle of candles) {
-    const local = zoneParts(Number(candle.time) * 1_000, configured.timezone);
-    days.add(`${local.year}-${local.month}-${local.day}`);
-  }
   for (const day of days) {
     const [year, month, date] = day.split("-").map(Number);
     for (const session of configured.sessions.filter((item) => item.lineEnabled)) {
@@ -963,6 +973,8 @@ export default function PriceChart({
   const renderRafRef = useRef<number | null>(null);
   const forceRenderRef = useRef(false);
   const lineCoordRafRef = useRef<number | null>(null);
+  const overlayProjectionRafRef = useRef<number | null>(null);
+  const priceScaleDragRef = useRef(false);
   const rangeSaveTimerRef = useRef<number | null>(null);
   const pendingRangeRef = useRef<{ from: number; to: number } | null>(null);
   const priceIndicatorsRef = useRef<Map<string, Indicator>>(new Map());
@@ -1667,10 +1679,16 @@ export default function PriceChart({
     lineCoordRafRef.current = requestAnimationFrame(() => {
       lineCoordRafRef.current = null;
       updateLineCoordinates();
-      // A vertical price-scale drag does not change the logical time range, so
-      // Lightweight Charts has no range event for it. Session boxes use the
-      // series' price projection and must be committed in this same frame or
-      // they visibly lag behind the candles while that scale is moving.
+    });
+  }
+
+  function scheduleOverlayProjection() {
+    if (overlayProjectionRafRef.current != null) return;
+    overlayProjectionRafRef.current = requestAnimationFrame(() => {
+      overlayProjectionRafRef.current = null;
+      // Vertical price-scale changes do not emit a logical-time-range event.
+      // Reproject overlays only for that gesture, rather than on every cursor
+      // movement across a chart that has a Sessions indicator.
       if (viewportOverlaysRef.current) {
         flushSync(() => setViewVersion((v) => v + 1));
       }
@@ -2133,6 +2151,8 @@ export default function PriceChart({
     chart.subscribeCrosshairMove(onCrosshair);
 
     const beginViewportInteraction = (event: PointerEvent) => {
+      const rect = container.getBoundingClientRect();
+      priceScaleDragRef.current = event.clientX - rect.left >= chart.timeScale().width();
       viewportInteractionRef.current = {
         active: true,
         startX: event.clientX,
@@ -2142,6 +2162,7 @@ export default function PriceChart({
     };
     const markViewportMovement = (event: PointerEvent) => {
       const interaction = viewportInteractionRef.current;
+      if (priceScaleDragRef.current) scheduleOverlayProjection();
       if (!interaction.active || interaction.moved) return;
       if (
         Math.abs(event.clientX - interaction.startX) >= 4 ||
@@ -2166,6 +2187,8 @@ export default function PriceChart({
         startY: 0,
         moved: false,
       };
+      if (priceScaleDragRef.current) scheduleOverlayProjection();
+      priceScaleDragRef.current = false;
     };
     const beginWheelInteraction = () => {
       if (!replayRunningRef.current) {
@@ -2180,11 +2203,10 @@ export default function PriceChart({
     container.addEventListener("pointermove", markViewportMovement, true);
     window.addEventListener("pointerup", endViewportInteraction, true);
     window.addEventListener("pointercancel", endViewportInteraction, true);
-    const onWheel = () => {
+    const onWheel = (event: WheelEvent) => {
       beginWheelInteraction();
-      // Scaling the price axis with the wheel also leaves the logical time
-      // range unchanged, so explicitly schedule the overlay projection.
-      scheduleLineCoordinates();
+      const rect = container.getBoundingClientRect();
+      if (event.clientX - rect.left >= chart.timeScale().width()) scheduleOverlayProjection();
     };
     container.addEventListener("wheel", onWheel, { passive: true });
     container.addEventListener("pointermove", scheduleLineCoordinates, { passive: true });
@@ -2202,6 +2224,7 @@ export default function PriceChart({
       container.removeEventListener("wheel", onWheel);
       container.removeEventListener("pointermove", scheduleLineCoordinates);
       if (lineCoordRafRef.current != null) cancelAnimationFrame(lineCoordRafRef.current);
+      if (overlayProjectionRafRef.current != null) cancelAnimationFrame(overlayProjectionRafRef.current);
       if (rangeSaveTimerRef.current != null) window.clearTimeout(rangeSaveTimerRef.current);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(coordinateUpdate);
       chart.unsubscribeCrosshairMove(onCrosshair);

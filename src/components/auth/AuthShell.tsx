@@ -1,98 +1,61 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, BarChart3, Check, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
 
-const VALUE_POINTS = [
-  "Replay historical price action with your own pace and rules.",
-  "Keep every testing decision, chart mark-up, and trade journal in one place.",
-  "Turn practice into evidence with review-ready performance analytics.",
-];
-
+/**
+ * Authentication should feel like crossing the threshold into the replay desk,
+ * not a separate marketing page. The terminal remains intentionally subdued so
+ * the form is always the only actionable focus.
+ */
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <main id="main" className="app-shell relative min-h-[100dvh] overflow-hidden bg-[var(--app-bg)]">
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-grid-faint [background-size:48px_48px] opacity-40 [mask-image:linear-gradient(90deg,black,transparent_75%)]" />
-      <div aria-hidden className="pointer-events-none absolute -left-56 top-1/4 h-[34rem] w-[34rem] rounded-full bg-brand-400/[0.12] blur-[140px]" />
-      <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-sky-400/[0.06] blur-[120px]" />
+    <main id="main" className="app-shell relative min-h-[100dvh] overflow-hidden bg-[#060a11]">
+      <div aria-hidden className="auth-reveal-stage absolute inset-0">
+        <Image
+          src="/product/market-replay-20260814-v2.webp"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center opacity-70 saturate-[.82]"
+        />
+      </div>
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#050912]/55 backdrop-blur-[3px]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_46%,rgba(9,24,32,.18),rgba(5,9,18,.86)_67%)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-grid-faint [background-size:52px_52px] opacity-30" />
+      <div aria-hidden className="auth-reveal-scan pointer-events-none absolute inset-x-0 top-[47%] h-px bg-brand-300/60 shadow-[0_0_24px_3px_rgba(45,212,191,.25)]" />
 
-      <div className="relative z-10 mx-auto grid min-h-[100dvh] max-w-[1800px] lg:grid-cols-[minmax(0,1.22fr)_minmax(29rem,.78fr)]">
-        <section className="relative hidden min-h-[100dvh] overflow-hidden border-r app-border px-10 py-9 lg:flex lg:flex-col xl:px-16">
-          <header className="flex items-center justify-between">
-            <Logo className="h-9" priority />
-            <span className="rounded-full border border-brand-400/20 bg-brand-400/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">
-              Historical market replay
-            </span>
-          </header>
+      <header className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8 sm:py-7 lg:px-12">
+        <Logo className="h-8 sm:h-9" priority />
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#0c1420]/70 px-3.5 py-2 text-xs font-semibold text-slate-300 shadow-lg backdrop-blur-md transition-all hover:-translate-y-px hover:border-brand-400/40 hover:text-brand-300"
+        >
+          <ArrowLeft size={14} aria-hidden />
+          Back to home
+        </Link>
+      </header>
 
-          <div className="relative z-10 mt-16 max-w-[43rem] xl:mt-20">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-300">Your trading lab, made private</p>
-            {/* The form owns the page's h1. */}
-            <p className="mt-5 max-w-2xl text-balance text-4xl font-bold leading-[1.03] tracking-[-0.045em] text-white xl:text-[3.55rem]">
-              Build confidence from the charts, not guesswork.
-            </p>
-            <p className="mt-5 max-w-xl text-[15px] leading-7 app-muted">
-              A focused workspace for replaying markets, documenting your execution, and reviewing the evidence behind every decision.
-            </p>
-
-            <ul className="mt-8 grid max-w-2xl gap-3 sm:grid-cols-3">
-              {VALUE_POINTS.map((point, index) => (
-                <li key={point} className="min-w-0 border-l border-brand-400/35 pl-3.5">
-                  <span className="mb-2 flex h-5 w-5 items-center justify-center rounded-full bg-brand-400/10 text-[10px] font-bold text-brand-300">
-                    0{index + 1}
-                  </span>
-                  <span className="block text-xs leading-5 app-muted">{point}</span>
-                </li>
-              ))}
-            </ul>
+      <section className="relative z-10 mx-auto flex min-h-[calc(100dvh-5.5rem)] w-full max-w-[34rem] items-center px-5 pb-16 pt-4 sm:px-0 sm:pb-20">
+        <div className="auth-reveal-card w-full">
+          <div className="mb-5 flex items-center justify-center gap-2 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-300">
+            <span className="h-px w-7 bg-brand-400/50" />
+            Your private replay desk
+            <span className="h-px w-7 bg-brand-400/50" />
           </div>
-
-          <div className="relative mt-auto pt-12">
-            <div aria-hidden className="absolute inset-x-8 bottom-0 h-2/3 rounded-[2.5rem] bg-brand-400/[0.08] blur-3xl" />
-            <div className="relative overflow-hidden rounded-2xl border border-white/[0.13] bg-[#090f19] p-1.5 shadow-[0_35px_100px_-42px_rgba(0,0,0,0.95)]">
-              <div className="absolute inset-x-0 top-0 z-10 flex h-8 items-center gap-1.5 bg-[#111a28]/95 px-3">
-                <i className="h-1.5 w-1.5 rounded-full bg-[#f26c7b]" />
-                <i className="h-1.5 w-1.5 rounded-full bg-[#f4b84e]" />
-                <i className="h-1.5 w-1.5 rounded-full bg-[#31c48d]" />
-                <span className="ml-2 text-[9px] font-medium tracking-wide text-white/40">FOREXTESTLAB / REPLAY</span>
-              </div>
-              <Image
-                src="/product/market-replay-20260814-v2.webp"
-                alt="ForexTestLab historical market replay terminal"
-                width={1786}
-                height={880}
-                priority
-                sizes="(min-width: 1024px) 63vw, 0px"
-                className="mt-7 h-auto w-full rounded-xl opacity-95"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="relative flex min-h-[100dvh] flex-col px-5 py-6 sm:px-8 lg:px-12 xl:px-16">
-          <header className="flex min-h-10 items-center justify-between">
-            <div className="lg:hidden"><Logo className="h-8" priority /></div>
-            <Link href="/" className="ml-auto inline-flex items-center gap-2 rounded-full border app-border bg-[var(--app-panel)]/55 px-3.5 py-2 text-xs font-semibold app-muted transition-colors hover:border-brand-400/35 hover:text-brand-300">
-              <ArrowLeft size={14} aria-hidden />
-              Back to home
-            </Link>
-          </header>
-
-          <div className="my-auto mx-auto w-full max-w-[29rem] py-12 lg:py-16">
-            {children}
-            <div className="mt-6 flex items-center justify-center gap-2 text-center text-xs app-muted">
-              <ShieldCheck size={14} className="shrink-0 text-brand-300" aria-hidden />
-              Private workspace. Secure sign-in.
-            </div>
-          </div>
-
-          <p className="hidden items-center justify-center gap-2 text-center text-[11px] app-muted lg:flex">
-            <Check size={13} className="text-brand-300" aria-hidden />
-            Your progress stays connected to your account.
-            <BarChart3 size={13} className="ml-1 text-brand-300" aria-hidden />
+          {children}
+          <p className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-slate-400">
+            <ShieldCheck size={14} className="shrink-0 text-brand-300" aria-hidden />
+            Secure access to your saved workspaces and journal.
           </p>
-        </section>
+        </div>
+      </section>
+
+      <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 hidden w-max -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-[#0b131e]/75 px-4 py-2 text-[11px] text-slate-400 backdrop-blur-md lg:flex">
+        <Sparkles size={13} className="text-brand-300" aria-hidden />
+        Replay markets. Refine your process. Review the evidence.
       </div>
     </main>
   );

@@ -152,8 +152,10 @@ export function AuthForm({
     <div className="w-full">
       <form
         onSubmit={submit}
-        className="panel overflow-hidden p-7 shadow-[0_30px_90px_-45px_rgba(0,0,0,0.95)] sm:p-9 lg:p-10"
+        className="relative overflow-hidden rounded-[1.5rem] border app-border bg-[linear-gradient(145deg,rgba(20,30,45,.96),rgba(12,18,29,.96))] p-6 shadow-[0_30px_90px_-45px_rgba(0,0,0,0.95)] sm:p-8"
       >
+        <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-52 w-52 rounded-full bg-brand-400/[0.07] blur-3xl" />
+        <div className="relative">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
           {staffCopy ? staffCopy.eyebrow : mode === "sign-up"
             ? "Create your workspace"
@@ -161,7 +163,7 @@ export function AuthForm({
               ? "Welcome back"
               : "Account recovery"}
         </p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+        <h1 className="mt-3 text-[2rem] font-bold leading-tight tracking-[-0.035em] sm:text-[2.35rem]">
           {staffCopy ? staffCopy.title : COPY[mode].title}
         </h1>
         <p className="mt-3 max-w-md text-sm leading-6 app-muted">
@@ -179,7 +181,7 @@ export function AuthForm({
             <button
               type="button"
               onClick={continueWithGoogle}
-              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-3 rounded-xl border app-border bg-white px-4 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/70 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:-translate-y-px hover:bg-slate-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
               disabled={busy}
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
@@ -282,7 +284,7 @@ export function AuthForm({
 
         <button
           type="submit"
-          className="btn-primary mt-7 min-h-12 w-full rounded-xl"
+          className="btn-primary mt-7 min-h-12 w-full rounded-xl shadow-[0_12px_28px_-14px_rgba(20,184,166,.8)] transition-transform hover:-translate-y-px"
           disabled={busy}
         >
           {busy ? "Please wait…" : COPY[mode].submit}
@@ -323,6 +325,7 @@ export function AuthForm({
             Your credentials are encrypted in transit.
           </p>
         )}
+        </div>
       </form>
     </div>
   );

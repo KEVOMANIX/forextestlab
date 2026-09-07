@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { CreditCard, Globe2, ReceiptText } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 
 import { LocalizedPricing } from "@/components/billing/LocalizedPricing";
+import { PreLaunchAccessCard } from "@/components/billing/PreLaunchAccessCard";
 import { PageShell } from "@/components/PageShell";
+import { billingEnabled } from "@/lib/billing/availability";
 import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billing/paddle";
 import { getPricingTiers } from "@/lib/billing/tiers";
 import { TrialOffer } from "@/components/TrialOffer";
@@ -15,9 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default function PricingPage() {
-  const tiers = getPricingTiers();
-  const clientToken = requiredPaddleClientToken();
-  const environment = paddleBrowserEnvironment();
+  const checkoutEnabled = billingEnabled();
 
   return (
     <PageShell>
@@ -26,38 +26,27 @@ export default function PricingPage() {
         <div className="container-page relative py-14 sm:py-20 lg:py-24">
           <div className="grid items-center gap-10 lg:grid-cols-[1.12fr_.88fr] lg:gap-16">
             <div>
-              <p className="eyebrow w-fit">Simple plans. Serious testing.</p>
+              <p className="eyebrow w-fit">{checkoutEnabled ? "Simple plans. Serious testing." : "Early access is open"}</p>
               <h1 className="mt-6 max-w-3xl text-balance text-5xl font-bold leading-[.98] tracking-[-0.045em] text-white sm:text-6xl lg:text-[4.5rem]">
-                Build confidence.{" "}
-                <br />
-                <span className="bg-gradient-to-r from-brand-200 via-cyan-300 to-accent-400 bg-clip-text text-transparent">
-                  Trade with evidence.
-                </span>
+                {checkoutEnabled ? <>Build confidence.<br /><span className="bg-gradient-to-r from-brand-200 via-cyan-300 to-accent-400 bg-clip-text text-transparent">Trade with evidence.</span></> : <>Build confidence.<br /><span className="bg-gradient-to-r from-brand-200 via-cyan-300 to-accent-400 bg-clip-text text-transparent">No payment required.</span></>}
               </h1>
               <p className="mt-6 max-w-xl text-pretty text-base leading-7 text-slate-400 sm:text-lg">
-                Replay real market history, test your process, and choose the workspace that fits the depth of your research.
+                {checkoutEnabled ? "Replay real market history, test your process, and choose the workspace that fits the depth of your research." : "Use ForexTestLab freely while we refine the experience for launch."}
               </p>
-              <p className="mt-7 flex items-center gap-2 text-sm text-slate-500">
+              {checkoutEnabled && <p className="mt-7 flex items-center gap-2 text-sm text-slate-500">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-300" aria-hidden />
                 Localized pricing appears below
-              </p>
+              </p>}
             </div>
-            <TrialOffer
-              variant="hero"
-              href={TRIAL_SIGN_UP_PATH}
-            />
+            {checkoutEnabled && <TrialOffer variant="hero" href={TRIAL_SIGN_UP_PATH} />}
           </div>
         </div>
       </section>
 
       <section className="py-12 sm:py-16">
         <div className="container-page">
-          <LocalizedPricing tiers={tiers} clientToken={clientToken} environment={environment} />
-          <div className="mt-12 grid gap-4 sm:grid-cols-3">
-            <div className="card p-5"><Globe2 size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Localized totals</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Paddle detects your market and returns the formatted total shown above.</p></div>
-            <div className="card p-5"><CreditCard size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Secure overlay checkout</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Payment details stay inside Paddle&apos;s one-page checkout.</p></div>
-            <div className="card p-5"><ReceiptText size={20} className="text-brand-300" aria-hidden /><h2 className="mt-3 font-semibold text-white">Taxes and receipts</h2><p className="mt-2 text-sm leading-relaxed text-slate-400">Paddle acts as merchant of record and handles applicable taxes and receipts.</p></div>
-          </div>
+          {checkoutEnabled ? <LocalizedPricing tiers={getPricingTiers()} clientToken={requiredPaddleClientToken()} environment={paddleBrowserEnvironment()} /> : <PreLaunchAccessCard />}
+          {!checkoutEnabled && <div className="mx-auto mt-8 flex max-w-2xl items-center justify-center gap-2 text-sm text-slate-300"><CheckCircle2 size={17} className="text-brand-300" aria-hidden /> Your access will remain free until billing is formally launched.</div>}
         </div>
       </section>
     </PageShell>

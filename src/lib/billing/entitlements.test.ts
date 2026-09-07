@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { assertSessionAllowed, planEntitlements } from "./entitlements";
 
@@ -6,6 +6,17 @@ const FREE_PROFILE = {
   billingStatus: "inactive",
   proAccessUntil: null,
 };
+
+const originalBillingEnabled = process.env.BILLING_ENABLED;
+
+beforeAll(() => {
+  process.env.BILLING_ENABLED = "true";
+});
+
+afterAll(() => {
+  if (originalBillingEnabled === undefined) delete process.env.BILLING_ENABLED;
+  else process.env.BILLING_ENABLED = originalBillingEnabled;
+});
 
 describe("device trial entitlements", () => {
   it("reports the remaining allowance from device usage", () => {
@@ -65,5 +76,13 @@ describe("device trial entitlements", () => {
         endTime: 365 * 24 * 60 * 60 * 1000,
       }),
     ).not.toThrow();
+  });
+
+  it("grants full access while pre-launch billing is paused", () => {
+    process.env.BILLING_ENABLED = "false";
+    const earlyAccess = planEntitlements(FREE_PROFILE, 3);
+    expect(earlyAccess.plan).toBe("pro");
+    expect(earlyAccess.trialSessionsRemaining).toBeNull();
+    process.env.BILLING_ENABLED = "true";
   });
 });

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight, BadgeCheck, CreditCard } from "lucide-react";
+import { BadgeCheck, CreditCard } from "lucide-react";
 
 import { BackLink } from "@/components/app/BackLink";
 import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton";
 import { SubscriptionRenewalControls } from "@/components/billing/SubscriptionRenewalControls";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
+import { billingEnabled } from "@/lib/billing/availability";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ function planName(value: string): string {
 }
 
 export default async function BillingPage() {
+  const checkoutEnabled = billingEnabled();
   const user = await requireUser("/account/billing");
   await ensureUserProfile(user);
   const profile = await prisma.userProfile.findUniqueOrThrow({ where: { id: user.id } });
@@ -23,7 +24,8 @@ export default async function BillingPage() {
     where: { userId: user.id, status: { in: ["active", "trialing", "past_due", "attention", "non-renewing"] } },
     orderBy: { updatedAt: "desc" },
   });
-  const active = ["active", "attention", "non-renewing"].includes(profile.billingStatus) || Boolean(profile.proAccessUntil && profile.proAccessUntil > new Date());
+  const paidAccess = ["active", "attention", "non-renewing"].includes(profile.billingStatus) || Boolean(profile.proAccessUntil && profile.proAccessUntil > new Date());
+  const active = checkoutEnabled ? paidAccess : true;
   const paddleSubscription = subscription?.provider === "paddle"
     && ["active", "trialing"].includes(subscription.status)
     ? subscription
@@ -48,10 +50,11 @@ export default async function BillingPage() {
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><CreditCard size={20} aria-hidden /></span>
-              <div><p className="text-xs uppercase tracking-[0.14em] app-muted">Current plan</p><h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">{active ? planName(profile.billingPlan) : "Free"}{active && <BadgeCheck size={18} className="text-brand-300" aria-hidden />}</h2><p className="mt-1 text-sm app-muted">{active ? "Your paid workspace is active." : "Choose a plan when you are ready for more capacity."}</p></div>
+              <div><p className="text-xs uppercase tracking-[0.14em] app-muted">Current plan</p><h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">{checkoutEnabled ? (active ? planName(profile.billingPlan) : "Free") : "Early access"}{active && <BadgeCheck size={18} className="text-brand-300" aria-hidden />}</h2><p className="mt-1 text-sm app-muted">{checkoutEnabled ? (active ? "Your paid workspace is active." : "Choose a plan when you are ready for more capacity.") : "Full workspace access is free while billing is paused."}</p></div>
             </div>
-            <div className="w-full sm:w-52">{manageableSubscription ? <ManageSubscriptionButton /> : <Link href="/pricing" className="btn-primary w-full">View plans <ArrowRight size={15} aria-hidden /></Link>}</div>
+            {checkoutEnabled ? <div className="w-full sm:w-52">{manageableSubscription ? <ManageSubscriptionButton /> : <a href="/pricing" className="btn-primary w-full">View plans</a>}</div> : manageableSubscription ? <div className="w-full sm:w-52"><ManageSubscriptionButton /></div> : <span className="rounded-lg border border-brand-400/20 bg-brand-400/[.07] px-3 py-2 text-center text-xs font-semibold text-brand-200">Billing paused</span>}
           </div>
+          {!checkoutEnabled && <p className="mt-5 border-t app-border pt-5 text-xs app-muted">New purchases are disabled. Existing subscribers can still manage or turn off renewal below.</p>}
           {paddleSubscription && (
             <div className="mt-6 border-t app-border pt-6">
               <SubscriptionRenewalControls

@@ -119,6 +119,7 @@ is exposed to the browser — keep all keys/tokens without that prefix.
 | `ADMIN_IMPORT_TOKEN` | — | Bearer token for any admin import endpoint. |
 | `DEFAULT_ACCOUNT_BALANCE` / `DEFAULT_SPREAD_PIPS` / `DEFAULT_COMMISSION_PER_LOT` / `DEFAULT_SLIPPAGE_PIPS` | `10000` / `1.0` / `0` / `0` | Simulation defaults. |
 | `PADDLE_MODE` | `sandbox` | Paddle environment: `sandbox` or `live`. |
+| `BILLING_ENABLED` | `false` | Enables paid checkout and paid-plan limits only when explicitly set to `true`. |
 | `PADDLE_SANDBOX_API_KEY` / `PADDLE_LIVE_API_KEY` | - | Server-only Paddle API keys. |
 | `PADDLE_SANDBOX_CLIENT_TOKEN` / `PADDLE_LIVE_CLIENT_TOKEN` | - | Paddle.js client tokens selected by `PADDLE_MODE`. |
 | `PADDLE_SANDBOX_WEBHOOK_SECRET` / `PADDLE_LIVE_WEBHOOK_SECRET` | - | Secrets used to verify `/api/paddle/webhook`. |

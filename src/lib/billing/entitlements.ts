@@ -4,6 +4,7 @@ import type { UserProfile } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
 import { TRIAL_SESSION_LIMIT } from "@/lib/trial-device";
+import { billingEnabled } from "./availability";
 import type { PlanEntitlements } from "./entitlement-types";
 
 export const FREE_SESSION_MAX_MS = 31 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000;
@@ -24,7 +25,9 @@ export function planEntitlements(
   profile: BillingProfile,
   trialSessionsUsed = 0,
 ): PlanEntitlements {
-  const pro = hasProAccess(profile);
+  // During pre-launch, full access is available without a subscription. This
+  // lives at the entitlement boundary so API calls cannot retain trial limits.
+  const pro = !billingEnabled() || hasProAccess(profile);
   const trialSessionsRemaining = pro
     ? null
     : Math.max(0, TRIAL_SESSION_LIMIT - trialSessionsUsed);

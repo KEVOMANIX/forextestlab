@@ -1,44 +1,31 @@
 import Link from "next/link";
-import { ArrowRight, CreditCard, Globe2, SlidersHorizontal } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { LocalizedPricing } from "@/components/billing/LocalizedPricing";
+import { PreLaunchAccessCard } from "@/components/billing/PreLaunchAccessCard";
 import { Section } from "@/components/Section";
+import { billingEnabled } from "@/lib/billing/availability";
 import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billing/paddle";
 import { getPricingTiers } from "@/lib/billing/tiers";
 import { TrialOffer } from "@/components/TrialOffer";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export function PricingSection() {
+  const checkoutEnabled = billingEnabled();
   return (
     <Section
       id="pricing"
-      eyebrow="Simple pricing"
-      title="Choose a plan that grows with your testing."
-      description="Country-localized monthly and yearly totals with secure Paddle checkout."
+      eyebrow={checkoutEnabled ? "Simple pricing" : "Early access"}
+      title={checkoutEnabled ? "Choose a plan that grows with your testing." : "Explore the full workspace, free for now."}
+      description={checkoutEnabled ? "Country-localized monthly and yearly totals with secure Paddle checkout." : "We are refining ForexTestLab before launch, so payment is not required."}
       className="bg-surface-900/45"
       centered
     >
-      <div className="mb-8 text-left">
-        <TrialOffer
-          compact
-          href={TRIAL_SIGN_UP_PATH}
-        />
-      </div>
-      <LocalizedPricing
-        compact
-        showOffer={false}
-        tiers={getPricingTiers()}
-        clientToken={requiredPaddleClientToken()}
-        environment={paddleBrowserEnvironment()}
-      />
-      <div className="mt-8 grid gap-3 rounded-2xl border border-white/10 bg-surface-900/70 p-4 text-sm text-slate-400 sm:grid-cols-3 sm:p-5">
-        <span className="flex items-center gap-2"><Globe2 size={16} className="text-brand-300" aria-hidden /> Country-localized totals</span>
-        <span className="flex items-center gap-2"><CreditCard size={16} className="text-brand-300" aria-hidden /> Secure checkout via Paddle</span>
-        <span className="flex items-center gap-2"><SlidersHorizontal size={16} className="text-brand-300" aria-hidden /> Account-based billing controls</span>
-      </div>
-      <div className="mt-6 text-center">
-        <Link href="/pricing" className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">Compare all plan details <ArrowRight size={15} aria-hidden /></Link>
-      </div>
+      {checkoutEnabled ? <>
+        <div className="mb-8 text-left"><TrialOffer compact href={TRIAL_SIGN_UP_PATH} /></div>
+        <LocalizedPricing compact showOffer={false} tiers={getPricingTiers()} clientToken={requiredPaddleClientToken()} environment={paddleBrowserEnvironment()} />
+        <div className="mt-6 text-center"><Link href="/pricing" className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">Compare all plan details <ArrowRight size={15} aria-hidden /></Link></div>
+      </> : <PreLaunchAccessCard compact />}
     </Section>
   );
 }

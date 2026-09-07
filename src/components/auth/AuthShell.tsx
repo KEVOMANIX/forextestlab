@@ -19,13 +19,12 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           fill
           priority
           sizes="100vw"
-          className="object-cover object-center opacity-95 saturate-[.9]"
+          className="object-cover object-[25%_25%] opacity-90 saturate-[.92] lg:origin-[24%_24%] lg:scale-[2.05]"
         />
       </div>
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#050912]/30" />
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_46%,rgba(9,24,32,.08),rgba(5,9,18,.64)_72%)]" />
-      <div aria-hidden className="pointer-events-none absolute inset-0 bg-grid-faint [background-size:52px_52px] opacity-15" />
-      <div aria-hidden className="auth-reveal-scan pointer-events-none absolute inset-x-0 top-[47%] h-px bg-brand-300/60 shadow-[0_0_24px_3px_rgba(45,212,191,.25)]" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#050912]/20" />
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_46%,transparent_10%,rgba(5,9,18,.42)_78%,rgba(5,9,18,.64))]" />
+      <div aria-hidden className="auth-reveal-scan pointer-events-none absolute left-1/2 top-[47%] h-px w-[min(42rem,72vw)] -translate-x-1/2 bg-brand-300/35 shadow-[0_0_20px_2px_rgba(45,212,191,.16)]" />
 
       <header className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8 sm:py-7 lg:px-12">
         <Logo className="h-8 sm:h-9" priority />

@@ -83,12 +83,20 @@ export type SupportChatSummary = {
  * matters: the trading dock's account read-out, and the performance figures in
  * the session report's right-hand panel. Those pages link to /app/support
  * instead. Kept here, apart from the widget, so it can be tested directly.
+ *
+ * The authentication routes are on the list for a different reason: signing in
+ * should present exactly one thing to act on. A chat bubble floating over the
+ * form is a second call to action at the moment a visitor has least patience
+ * for one, and nobody signs in by asking support to do it.
  */
 export const LAUNCHER_HIDDEN_ROUTES = [
   "/app/backtest",
   "/app/results",
   "/app/support",
   "/support-team",
+  "/sign-in",
+  "/sign-up",
+  "/forgot-password",
 ] as const;
 
 export function isLauncherHidden(pathname: string | null | undefined) {

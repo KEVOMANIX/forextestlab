@@ -10,6 +10,12 @@ describe("support launcher visibility", () => {
     expect(isLauncherHidden("/support-team")).toBe(true);
   });
 
+  it("stands down while signing in, where the form is the only action", () => {
+    expect(isLauncherHidden("/sign-in")).toBe(true);
+    expect(isLauncherHidden("/sign-up")).toBe(true);
+    expect(isLauncherHidden("/forgot-password")).toBe(true);
+  });
+
   it("stays available everywhere else", () => {
     for (const path of ["/", "/pricing", "/app", "/app/history", "/support"]) {
       expect(isLauncherHidden(path)).toBe(false);

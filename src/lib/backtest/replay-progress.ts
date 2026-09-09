@@ -44,6 +44,23 @@ export function replayDayProgress(input: {
   };
 }
 
+/**
+ * Percentage of the session's days replayed.
+ *
+ * Deliberately derived from the same day arithmetic as the label, so a progress
+ * bar and the "Day 3 of 21" beneath it cannot tell a reader two different
+ * stories. Candle counts must never be used for this: what a session has
+ * *loaded* is not what it *covers*.
+ */
+export function replayDayPercent(input: {
+  startTime: number;
+  endTime: number;
+  currentTime: number | null;
+}): number {
+  const { day, totalDays } = replayDayProgress(input);
+  return Math.min(100, Math.max(0, (day / totalDays) * 100));
+}
+
 /** "Day 3 of 21", the label used wherever replay progress is reported. */
 export function replayDayLabel(input: {
   startTime: number;

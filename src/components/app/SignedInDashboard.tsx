@@ -24,7 +24,7 @@ import {
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
-import { replayDayLabel } from "@/lib/backtest/replay-progress";
+import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import {
@@ -57,6 +57,9 @@ export interface DashboardSession {
   endTime: bigint;
   status: string;
   visibleIndex: number;
+  /** Replay clock. Null on sessions last saved before it was recorded. */
+  visibleTime: bigint | null;
+  /** Candles LOADED so far — not the session's range. Never a progress divisor. */
   totalCandles: number;
   startingBalance: string;
   /** Demo funds added after the account was blown. */
@@ -104,12 +107,41 @@ function sessionFunded(session: DashboardSession): Decimal {
   return new Decimal(session.startingBalance).plus(session.depositedFunds ?? 0);
 }
 
-function sessionProgress(session: DashboardSession | null): number {
-  if (!session?.totalCandles) return session?.status === "finished" ? 100 : 0;
+/**
+ * Where the replay clock is, as exactly as the row can say.
+ *
+ * `visibleTime` is the real timestamp of the revealed candle. Older rows have
+ * none, so they fall back to an estimate that assumes contiguous candles and
+ * therefore runs behind by roughly every weekend crossed.
+ */
+function sessionReplayTime(session: DashboardSession): number {
+  if (session.visibleTime != null) return Number(session.visibleTime);
   return Math.min(
-    100,
-    Math.max(0, ((session.visibleIndex + 1) / session.totalCandles) * 100),
+    Number(session.endTime),
+    Number(session.startTime) +
+      Math.max(0, session.visibleIndex) *
+        (TIMEFRAME_MS[session.timeframe as keyof typeof TIMEFRAME_MS] ?? 0),
   );
+}
+
+/**
+ * Progress through the session, in days.
+ *
+ * This used to divide by `totalCandles`, which counts the candles *loaded* so
+ * far — 1,500 on a fresh session, however many years the range covers. A
+ * six-year session therefore showed 91% while its own label read "Day 17 of
+ * 2,408", and the bar fell backwards every time more data was loaded. Both now
+ * come from the same day arithmetic, so they cannot disagree.
+ */
+function sessionProgress(session: DashboardSession | null): number {
+  if (!session) return 0;
+  if (session.status === "finished") return 100;
+  if (!session.totalCandles) return 0;
+  return replayDayPercent({
+    startTime: Number(session.startTime),
+    endTime: Number(session.endTime),
+    currentTime: sessionReplayTime(session),
+  });
 }
 
 function aggregateTradePnl<T extends string | number>(
@@ -158,6 +190,7 @@ export function SignedInDashboard({
     endTime: BigInt(Date.UTC(2025, 1, 28, 23, 59)),
     status: "finished",
     visibleIndex: 999,
+    visibleTime: BigInt(Date.UTC(2025, 1, 28, 23, 0)),
     totalCandles: 1000,
     startingBalance: "100000",
     depositedFunds: "0",
@@ -245,15 +278,7 @@ export function SignedInDashboard({
     pnl: Number(trade.pnl),
   }));
 
-  const lastReplayTime =
-    selectedSession
-      ? Math.min(
-          Number(selectedSession.endTime),
-          Number(selectedSession.startTime) +
-            Math.max(0, selectedSession.visibleIndex) *
-              (TIMEFRAME_MS[selectedSession.timeframe as keyof typeof TIMEFRAME_MS] ?? 0),
-        )
-      : null;
+  const lastReplayTime = selectedSession ? sessionReplayTime(selectedSession) : null;
 
   const dayLeaders = aggregateTradePnl(
     trades,

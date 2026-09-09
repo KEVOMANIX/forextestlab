@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { replayDayLabel, replayDayProgress } from "./replay-progress";
+import {
+  replayDayLabel,
+  replayDayPercent,
+  replayDayProgress,
+} from "./replay-progress";
 
 /** New York, so the day boundary is the one the rest of the app reports in. */
 const MARCH_3 = Date.parse("2024-03-03T12:00:00Z");
@@ -73,5 +77,35 @@ describe("replay day progress", () => {
         currentTime: Date.parse("2015-01-02T12:00:00Z"),
       }),
     ).toBe("Day 2 of 4,019");
+  });
+});
+
+describe("replay day percentage", () => {
+  it("agrees with the label instead of measuring loaded candles", () => {
+    /**
+     * The reported case: a session running 31 Dec 2019 to 3 Aug 2026, seventeen
+     * days in. The bar read 91% because it divided by the 1,500 candles loaded
+     * so far while the label beneath it read "Day 17 of 2,408".
+     */
+    const session = {
+      startTime: Date.parse("2019-12-31T12:00:00Z"),
+      endTime: Date.parse("2026-08-03T12:00:00Z"),
+      currentTime: Date.parse("2020-01-16T12:00:00Z"),
+    };
+    expect(replayDayLabel(session)).toBe("Day 17 of 2,408");
+    expect(replayDayPercent(session)).toBeCloseTo(0.71, 1);
+  });
+
+  it("reads 100% only at the last day of the range", () => {
+    const range = {
+      startTime: Date.parse("2024-03-03T12:00:00Z"),
+      endTime: Date.parse("2024-03-06T12:00:00Z"),
+    };
+    expect(
+      replayDayPercent({ ...range, currentTime: Date.parse("2024-03-06T12:00:00Z") }),
+    ).toBe(100);
+    expect(
+      replayDayPercent({ ...range, currentTime: Date.parse("2024-03-05T12:00:00Z") }),
+    ).toBe(75);
   });
 });

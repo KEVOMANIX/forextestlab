@@ -173,6 +173,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const checkpointPendingRef = useRef<Promise<void> | null>(null);
   const checkpointLatestRef = useRef<{
     targetIndex: number;
+    /** Replay clock at `targetIndex`, so saved progress can be read in days. */
+    targetTime?: number;
     statusOverride?: "running" | "paused";
     requiresReplay: boolean;
   } | null>(null);
@@ -861,6 +863,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     if (!id || !engine) return;
     checkpointLatestRef.current = {
       targetIndex: engine.state.visibleIndex,
+      targetTime: engine.candles[engine.state.visibleIndex]?.timestamp,
       statusOverride,
       requiresReplay:
         engine.state.openPositions.length > 0 ||
@@ -885,6 +888,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
               requested.targetIndex,
               requested.statusOverride,
               requested.requiresReplay,
+              requested.targetTime,
             ),
           );
           actionQueueRef.current = task.then(

@@ -110,6 +110,12 @@ export const actionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("sync"),
     targetIndex: z.number().int().nonnegative(),
+    /**
+     * Market timestamp of `targetIndex`. Sent because the checkpoint fast path
+     * deliberately does not load candles, so the server cannot look it up
+     * without undoing that saving.
+     */
+    targetTime: z.number().int().positive().optional(),
     status: z.enum(["running", "paused"]).optional(),
     requiresReplay: z.boolean().optional(),
   }),

@@ -137,6 +137,7 @@ export default async function AppHome(
         endTime: true,
         status: true,
         visibleIndex: true,
+        visibleTime: true,
         totalCandles: true,
         startingBalance: true,
         depositedFunds: true,

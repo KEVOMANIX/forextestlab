@@ -159,6 +159,8 @@ export async function sendCheckpoint(
   targetIndex: number,
   status?: "running" | "paused",
   requiresReplay = false,
+  /** Market timestamp of `targetIndex`, so saved progress can be read in days. */
+  targetTime?: number,
 ): Promise<CheckpointOk | ApiErr> {
   const res = await fetch(`/api/backtest/sessions/${sessionId}/action`, {
     method: "POST",
@@ -166,7 +168,13 @@ export async function sendCheckpoint(
       "Content-Type": "application/json",
       ...(token ? { "x-session-token": token } : {}),
     },
-    body: JSON.stringify({ type: "sync", targetIndex, status, requiresReplay }),
+    body: JSON.stringify({
+      type: "sync",
+      targetIndex,
+      targetTime,
+      status,
+      requiresReplay,
+    }),
   });
   return parse<CheckpointOk>(res) as Promise<CheckpointOk | ApiErr>;
 }

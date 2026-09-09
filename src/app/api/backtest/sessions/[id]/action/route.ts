@@ -95,6 +95,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         where: { id: params.id },
         data: {
           visibleIndex,
+          ...(action.targetTime ? { visibleTime: BigInt(action.targetTime) } : {}),
           ...(action.status ? { status: action.status } : {}),
         },
         select: { id: true },

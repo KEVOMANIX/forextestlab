@@ -421,6 +421,11 @@ model BacktestSession {
   status             String            @default("idle")
   speed              Float             @default(1)
   visibleIndex       Int               @default(-1)
+  /// Market timestamp of the candle currently revealed. Null on sessions saved
+  /// before the column existed. Note that totalCandles counts the candles
+  /// LOADED so far, not the session's whole range, so it cannot express
+  /// progress through the session.
+  visibleTime        BigInt?
   totalCandles       Int               @default(0)
   lockedBeforeIndex  Int               @default(0)
   startingBalance    String

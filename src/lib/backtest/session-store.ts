@@ -637,6 +637,9 @@ export async function createSession(
       status: state.status,
       speed: state.speed,
       visibleIndex: state.visibleIndex,
+      visibleTime: series[state.visibleIndex]
+        ? BigInt(series[state.visibleIndex]!.timestamp)
+        : null,
       totalCandles: state.totalCandles,
       lockedBeforeIndex: state.lockedBeforeIndex,
       startingBalance: config.startingBalance,
@@ -799,6 +802,7 @@ export async function persistSession(
   options: { resetProjections?: boolean } = {},
 ): Promise<void> {
   const { state } = session.ctx;
+  const currentCandle = currentCandleOf(session.ctx);
   const snapshot = await prepareSessionSnapshot(
     session.id,
     state,
@@ -811,6 +815,12 @@ export async function persistSession(
       status: state.status,
       speed: state.speed,
       visibleIndex: state.visibleIndex,
+      // The replay clock, so saved progress can be reported in trading days.
+      // `totalCandles` cannot express that: it counts candles loaded, not the
+      // range the session covers.
+      visibleTime: currentCandle
+        ? BigInt(currentCandle.timestamp)
+        : null,
       totalCandles: state.totalCandles,
       lockedBeforeIndex: state.lockedBeforeIndex,
       balance: state.balance,

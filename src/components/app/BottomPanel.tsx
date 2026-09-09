@@ -202,7 +202,8 @@ export function BottomPanel({
           {tab === "bookmarks" && (
             <BookmarksPanel
               bookmarks={state.bookmarks}
-              currentIndex={state.visibleIndex}
+              currentTime={currentTime}
+              timeZone={timeZone}
               anonymous={state.anonymous}
               busy={busy}
               onAdd={onAddBookmark}

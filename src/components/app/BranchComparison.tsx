@@ -2,6 +2,7 @@ import Link from "next/link";
 import { GitBranch } from "lucide-react";
 
 import type { SessionResults } from "@/lib/backtest/results";
+import { formatNewYorkDateTime } from "@/lib/date-time";
 
 export function BranchComparison({
   currentId,
@@ -24,7 +25,11 @@ export function BranchComparison({
             {branches.map((branch, index) => (
               <tr key={branch.sessionId} className={`border-b app-border/60 ${branch.sessionId === currentId ? "bg-brand-400/[0.06]" : ""}`}>
                 <td className="px-4 py-3 font-semibold">{index === 0 ? "Original · " : "Branch · "}{branch.name}</td>
-                <td>{branch.branchPointIndex == null ? "Start" : `Candle ${branch.branchPointIndex + 1}`}</td>
+                <td>{branch.branchPointTime != null
+                  ? formatNewYorkDateTime(branch.branchPointTime, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                  : branch.branchPointIndex == null
+                    ? "Start"
+                    : `Candle ${branch.branchPointIndex + 1}`}</td>
                 <td>{branch.trades}</td><td className={Number(branch.netPnl) >= 0 ? "text-brand-300" : "text-bear"}>{branch.netPnl}</td>
                 <td>{branch.winRate === "Not available" ? "—" : `${branch.winRate}%`}</td><td>{branch.balance}</td>
                 <td className="pr-4 text-right"><Link className="text-brand-300 hover:underline" href={`/app/results/${branch.sessionId}`}>Open</Link></td>

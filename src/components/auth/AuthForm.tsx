@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Eye, EyeOff, LockKeyhole } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -35,7 +34,6 @@ export function AuthForm({
    */
   staffCopy?: { eyebrow: string; title: string; description: string };
 }) {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -138,8 +136,20 @@ export function AuthForm({
     } else if (mode === "sign-in") {
       result = await supabase.auth.signInWithPassword({ email, password });
       if (!result.error) {
-        router.replace(safeNextPath());
-        router.refresh();
+        /*
+          A full navigation, not a client transition.
+
+          `router.replace` followed immediately by `router.refresh` raced: the
+          refresh refetched /sign-in while the replace was still in flight, and
+          the router settled on /account/continue holding an empty payload
+          instead of following that page's redirect — a blank screen under the
+          account chrome. The session cookie has just changed anyway, so every
+          server component above this one has to re-render with it, which is
+          exactly what a document load does. Returning here leaves the button
+          reading "Please wait…" until the page unloads.
+        */
+        window.location.assign(safeNextPath());
+        return;
       }
     } else {
       result = await supabase.auth.resetPasswordForEmail(email, {

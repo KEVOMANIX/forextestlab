@@ -24,7 +24,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
     <main id="main" className="app-shell relative min-h-[100dvh] overflow-hidden bg-[#060a11]">
       <div aria-hidden className="auth-reveal-stage absolute inset-0">
         <Image
-          src="/product/market-replay-20260814-v2.webp"
+          src="/product/replay-desk-20260909.webp"
           alt=""
           fill
           priority

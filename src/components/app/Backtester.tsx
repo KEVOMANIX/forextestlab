@@ -46,6 +46,9 @@ import { PageLoader } from "@/components/PageLoader";
 import { PositionEditorModal } from "./PositionEditorModal";
 import { TradeNotifications, type TradeNotification } from "./TradeNotifications";
 import { EndOfDataModal } from "./EndOfDataModal";
+import { AccountBlownModal } from "./AccountBlownModal";
+import { depositedFunds } from "@/lib/backtest/replay-engine";
+import { replayDayLabel } from "@/lib/backtest/replay-progress";
 import { TrialSessionLauncher } from "./TrialSessionLauncher";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { propFirmGuardMessage, tradingGuardMessage } from "@/lib/backtest/trade-guards";
@@ -83,11 +86,21 @@ type PendingConfirmation = {
   resumeAfterConfirm?: boolean;
 };
 
+/**
+ * Everything that takes the chart, or the trader's attention, away from the
+ * replay. Each one holds playback while it is up: price moving behind a screen
+ * nobody is watching is price the trader did not get to trade.
+ */
 type ReplayInteraction =
   | "order-ticket"
   | "position-editor"
   | "confirmation"
-  | "go-to";
+  | "go-to"
+  | "analytics"
+  | "prop-firm-verdict"
+  | "symbol-picker"
+  | "settings"
+  | "account-blown";
 
 /**
  * The one way into settings, and it looks like it: a gear, not the slider icon
@@ -326,10 +339,46 @@ export function Backtester({
    * menus open the same dialog instead of one each.
    */
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
+  /**
+   * One open/close pair per full-screen or modal surface, each holding playback
+   * for its own reason. Written out rather than generated so the reason a
+   * screen pauses the replay is readable at the call site.
+   */
   const openSettings = useCallback(
-    (tab: SettingsTab = "appearance") => setSettingsTab(tab),
-    [],
+    (tab: SettingsTab = "appearance") => {
+      holdReplayFor("settings");
+      setSettingsTab(tab);
+    },
+    [holdReplayFor],
   );
+  const closeSettings = useCallback(() => {
+    setSettingsTab(null);
+    releaseReplayFor("settings");
+  }, [releaseReplayFor]);
+  const openAnalytics = useCallback(() => {
+    holdReplayFor("analytics");
+    setAnalyticsOpen(true);
+  }, [holdReplayFor]);
+  const closeAnalytics = useCallback(() => {
+    setAnalyticsOpen(false);
+    releaseReplayFor("analytics");
+  }, [releaseReplayFor]);
+  const openVerdict = useCallback(() => {
+    holdReplayFor("prop-firm-verdict");
+    setVerdictOpen(true);
+  }, [holdReplayFor]);
+  const closeVerdict = useCallback(() => {
+    setVerdictOpen(false);
+    releaseReplayFor("prop-firm-verdict");
+  }, [releaseReplayFor]);
+  const openSymbolPicker = useCallback(() => {
+    holdReplayFor("symbol-picker");
+    setSymbolPickerOpen(true);
+  }, [holdReplayFor]);
+  const closeSymbolPicker = useCallback(() => {
+    setSymbolPickerOpen(false);
+    releaseReplayFor("symbol-picker");
+  }, [releaseReplayFor]);
   useLayoutEffect(() => {
     recordReplayMetric("react-commit", performance.now() - renderStartedAt);
   });
@@ -364,8 +413,20 @@ export function Backtester({
     const key = `${state?.sessionId ?? ""}:${propFirmStatus}`;
     if (announcedVerdictRef.current === key) return;
     announcedVerdictRef.current = key;
-    setVerdictOpen(true);
-  }, [propFirmStatus, state?.sessionId]);
+    openVerdict();
+  }, [openVerdict, propFirmStatus, state?.sessionId]);
+
+  /**
+   * The blown account holds playback for as long as it is unfunded. The engine
+   * has already paused itself; this keeps the replay from being resumed behind
+   * the prompt by a keyboard shortcut or a released hold from another modal.
+   */
+  const accountBlown = state?.accountBlown ?? null;
+  useEffect(() => {
+    if (!accountBlown) return;
+    holdReplayFor("account-blown");
+    return () => releaseReplayFor("account-blown", false);
+  }, [accountBlown, holdReplayFor, releaseReplayFor]);
 
   const hasMeaningfulActivity = Boolean(
     state?.openPositions.length || state?.closedTrades.length || state?.pendingOrders.length,
@@ -1013,7 +1074,11 @@ export function Backtester({
   return (
     <div className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[var(--app-bg)]">
       <p className="sr-only" aria-live="polite">
-        {`Candle ${state.visibleIndex + 1} of ${state.totalCandles}. Balance ${state.balance}. ${
+        {`${replayDayLabel({
+          startTime: state.config.startTime,
+          endTime: state.config.endTime,
+          currentTime: state.currentTime ?? bt.lastCandle?.timestamp ?? null,
+        })}. Balance ${state.balance}. ${
           state.openPositions.length ? `${state.openPositions.length} open positions.` : "No open position."
         }`}
       </p>
@@ -1136,7 +1201,7 @@ export function Backtester({
             focusedSymbol={activeSymbol}
             onFocusedSymbolChange={actions.switchPair}
             workspace={workspace}
-            onOpenSymbolPicker={() => setSymbolPickerOpen(true)}
+            onOpenSymbolPicker={openSymbolPicker}
             onFocusedTimeframeChange={setFocusedChartTimeframe}
             // A cell's right-click "Settings…" opens the chart sections, which
             // is what that menu was already about.
@@ -1267,7 +1332,7 @@ export function Backtester({
         <SessionAnalyticsScreen
           state={state}
           fullAccess={entitlements.fullAnalytics}
-          onClose={() => setAnalyticsOpen(false)}
+          onClose={closeAnalytics}
         />
       )}
 
@@ -1279,7 +1344,7 @@ export function Backtester({
           equity={state.equity}
           peakEquity={state.maxEquity}
           accountCurrency={state.config.accountCurrency}
-          onClose={() => setVerdictOpen(false)}
+          onClose={closeVerdict}
         />
       )}
 
@@ -1294,8 +1359,8 @@ export function Backtester({
         onCloseAllPositions={requestCloseAllPositions}
         onSaveTradeJournal={actions.saveTradeJournal}
         revealTab={revealPanelTab}
-        onOpenAnalytics={() => setAnalyticsOpen(true)}
-        onShowPropFirmVerdict={() => setVerdictOpen(true)}
+        onOpenAnalytics={openAnalytics}
+        onShowPropFirmVerdict={openVerdict}
         balancesHidden={workspace.settings.hideBalances}
         onToggleBalances={() =>
           workspace.updateSettings({ hideBalances: !workspace.settings.hideBalances })
@@ -1333,7 +1398,7 @@ export function Backtester({
           initialTab={settingsTab}
           onChange={workspace.updateSettings}
           onReset={workspace.resetSettings}
-          onClose={() => setSettingsTab(null)}
+          onClose={closeSettings}
         />
       )}
       <GoToModal
@@ -1362,7 +1427,7 @@ export function Backtester({
       />
       <SymbolPickerModal
         open={symbolPickerOpen}
-        onClose={() => setSymbolPickerOpen(false)}
+        onClose={closeSymbolPicker}
         sessionSymbols={workspaceSymbols}
         tradedSymbol={state.config.symbol}
         activeSymbol={activeSymbol}
@@ -1377,7 +1442,7 @@ export function Backtester({
         onSelect={actions.switchPair}
         onAdd={(symbol) => {
           void actions.addPair(symbol).then((added) => {
-            if (added) setSymbolPickerOpen(false);
+            if (added) closeSymbolPicker();
           });
         }}
       />
@@ -1404,6 +1469,22 @@ export function Backtester({
               );
             }
           })();
+        }}
+      />
+      <AccountBlownModal
+        open={Boolean(accountBlown)}
+        blowout={accountBlown}
+        startingBalance={state.config.startingBalance}
+        balance={state.balance}
+        deposited={depositedFunds(state)}
+        accountCurrency={state.config.accountCurrency}
+        busy={bt.busy}
+        error={bt.error}
+        onAddFunds={(amount) => void actions.addFunds(amount)}
+        onFinish={() => {
+          void actions.endSession().then(() => {
+            router.push(`/app/results/${state.sessionId}`);
+          });
         }}
       />
       <EndOfDataModal

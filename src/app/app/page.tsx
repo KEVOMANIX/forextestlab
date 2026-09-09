@@ -139,6 +139,7 @@ export default async function AppHome(
         visibleIndex: true,
         totalCandles: true,
         startingBalance: true,
+        depositedFunds: true,
         balance: true,
         maxDrawdown: true,
         maxDrawdownPercent: true,

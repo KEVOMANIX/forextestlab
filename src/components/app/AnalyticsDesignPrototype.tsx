@@ -153,7 +153,11 @@ function aggregateRows(trades: ClosedTrade[], label: (trade: ClosedTrade) => str
   return [...groups.entries()].map(([key, row]) => ({ label: key, value: row.value, trades: row.trades, rate: row.trades ? Math.round(row.wins / row.trades * 100) : 0, winRate: row.trades ? Math.round(row.wins / row.trades * 100) : 0 }));
 }
 
-function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], startingBalanceValue: string, pair: string): AnalyticsModel {
+/**
+ * @param fallbackPair Label for trades saved before multi-pair execution, which
+ * carry no symbol of their own. Those all belong to the session's traded pair.
+ */
+function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], startingBalanceValue: string, fallbackPair: string): AnalyticsModel {
   const startingBalance = Number(startingBalanceValue) || 0;
   const pnls = trades.map((trade) => Number(trade.pnl));
   const realisedPath = [startingBalance, ...trades.reduce<number[]>((values, trade) => [...values, values[values.length - 1]! + Number(trade.pnl)], [startingBalance])];
@@ -218,7 +222,7 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
     bestTrade: wins.length ? Math.max(...wins) : 0, worstTrade: losses.length ? Math.min(...losses) : 0,
     streak: streakTrade ? `${streakCount} ${Number(streakTrade.pnl) > 0 ? "wins" : "losses"}` : "—",
     calendarMonths: calendar,
-    recentTrades: [...trades].slice(-5).reverse().map((trade, index) => ({ pair, side: trade.direction === "long" ? "Buy" : "Sell", setup: exits.find((row) => row.label.toLowerCase().startsWith(trade.exitReason.split("-")[0]!))?.label ?? trade.exitReason.replaceAll("-", " "), result: money(Number(trade.pnl), true), r: riskMultiples[trades.length - 1 - index] == null ? "—" : `${riskMultiples[trades.length - 1 - index]! >= 0 ? "+" : ""}${riskMultiples[trades.length - 1 - index]!.toFixed(1)}R`, time: formatNewYorkDateTime(trade.exitTime, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }), positive: Number(trade.pnl) >= 0 })),
+    recentTrades: [...trades].slice(-5).reverse().map((trade, index) => ({ pair: trade.symbol ? formatSymbol(trade.symbol) : fallbackPair, side: trade.direction === "long" ? "Buy" : "Sell", setup: exits.find((row) => row.label.toLowerCase().startsWith(trade.exitReason.split("-")[0]!))?.label ?? trade.exitReason.replaceAll("-", " "), result: money(Number(trade.pnl), true), r: riskMultiples[trades.length - 1 - index] == null ? "—" : `${riskMultiples[trades.length - 1 - index]! >= 0 ? "+" : ""}${riskMultiples[trades.length - 1 - index]!.toFixed(1)}R`, time: formatNewYorkDateTime(trade.exitTime, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }), positive: Number(trade.pnl) >= 0 })),
     balance, monthlyReturns, drawdown, weekdays, sessions, rDistribution, exits, sizes, holding,
     directions: { long, short }, concentration: wins.length ? Math.min(100, topThree / wins.reduce((sum, value) => sum + value, 0) * 100) : 0,
     daysProcessed,
@@ -366,7 +370,11 @@ export function AnalyticsDesignPrototype({
   const [showDemoData, setShowDemoData] = useState(initialDemo);
   const demo = mode === "demo" || showDemoData;
   const pairLabel = symbols.map(formatSymbol).join(" · ");
-  const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, pairLabel), [demo, trades, equityCurve, startingBalance, pairLabel]);
+  // Legacy trades carry no symbol; they were all executed on the session's
+  // traded pair, so that is the fallback — never the joined list of every pair
+  // in the session, which claimed each trade had been taken on all of them.
+  const tradedPairLabel = formatSymbol(symbols[0] ?? "EURUSD");
+  const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, tradedPairLabel), [demo, trades, equityCurve, startingBalance, tradedPairLabel]);
   const equityValues = model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance];
   const equityPath = linePath(equityValues);
   // The sample used to carry a hand-written period that its own trades,

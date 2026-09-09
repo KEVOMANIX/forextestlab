@@ -135,6 +135,11 @@ export const actionSchema = z.discriminatedUnion("type", [
     targetIndex: z.number().int().nonnegative().optional(),
   }),
   z.object({
+    type: z.literal("add-funds"),
+    amount: positiveNumericString,
+    targetIndex: z.number().int().nonnegative().optional(),
+  }),
+  z.object({
     type: z.literal("set-speed"),
     speed: z.union([
       z.literal(15),

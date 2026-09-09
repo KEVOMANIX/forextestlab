@@ -232,7 +232,17 @@ function MarketPicker({
                       name={singleSelect ? "session-pair" : undefined}
                       className="sr-only"
                       checked={active}
-                      onChange={() => onToggle(item.symbol)}
+                      onChange={() => {
+                        onToggle(item.symbol);
+                        // Finding a market means filtering the list down to it
+                        // — often to a single row, and DXY is the only index in
+                        // the catalogue. Leaving the term in place after the
+                        // pick made every other market look like it had
+                        // disappeared, with the selection chips as the only
+                        // sign anything had happened. Clearing it hands the
+                        // full list back so the next pair can be found.
+                        if (!active) setQuery("");
+                      }}
                     />
                     <span
                       aria-hidden
@@ -277,11 +287,28 @@ function MarketPicker({
       </div>
 
       {!loading && enabled.length > 0 && (
-        <p className="mt-2 text-[11px] app-muted">
-          {visible.length === enabled.length
-            ? `${enabled.length} markets available`
-            : `Showing ${visible.length} of ${enabled.length} markets`}
-          {singleSelect && " · trial sessions replay one market at a time"}
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11px] app-muted">
+          {visible.length === enabled.length ? (
+            <span>{enabled.length} markets available</span>
+          ) : (
+            <>
+              <span>
+                Showing {visible.length} of {enabled.length} markets
+              </span>
+              {/* The way back out of a filter that has hidden everything else. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setCategory("All");
+                }}
+                className="rounded px-1 font-medium text-brand-300 underline-offset-2 hover:underline"
+              >
+                Show all
+              </button>
+            </>
+          )}
+          {singleSelect && <span>· trial sessions replay one market at a time</span>}
         </p>
       )}
     </fieldset>

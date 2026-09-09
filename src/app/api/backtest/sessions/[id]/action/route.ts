@@ -9,6 +9,7 @@ import {
   toPublicState,
 } from "@/lib/backtest/session-store";
 import {
+  addFunds,
   closeAllPositions,
   closePosition,
   cancelPendingOrder,
@@ -184,6 +185,11 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
     case "close-all": {
       const r = closeAllPositions(ctx);
+      if (!r.ok) opError = r.error;
+      break;
+    }
+    case "add-funds": {
+      const r = addFunds(ctx, action.amount);
       if (!r.ok) opError = r.error;
       break;
     }

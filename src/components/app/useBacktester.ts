@@ -27,6 +27,7 @@ import type {
   TradeJournalUpdate,
 } from "@/lib/backtest/types";
 import {
+  addFunds as addLocalFunds,
   closeAllPositions as closeAllLocalPositions,
   closePosition as closeLocalPosition,
   engineStateFromPublic,
@@ -645,6 +646,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const advancedCandles: Candle[] = [];
     let finished = false;
     let superseded = false;
+    let blown = false;
 
     for (let index = 0; index < stepCount; index += 1) {
       // A jump or similar action may have taken the cursor over mid-loop —
@@ -725,6 +727,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
       const candle = engine.candles[engine.state.visibleIndex];
       if (candle) advancedCandles.push(candle);
+      // The engine has already flattened the account and paused itself. Stop
+      // the batch on that candle so the blown-account prompt appears where it
+      // happened instead of a few hundred candles later.
+      if (engine.state.accountBlown) {
+        blown = true;
+        wantsReplayRunningRef.current = false;
+        break;
+      }
     }
 
     // Whatever superseded this step already owns the cursor, has already
@@ -756,6 +766,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const now = performance.now();
     const shouldPublishUi =
       finished ||
+      blown ||
       now - lastUiPublishRef.current >= 100;
     if (shouldPublishUi) {
       lastUiPublishRef.current = now;
@@ -774,15 +785,18 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lastCandles: advancedCandles,
       }));
     }
-    if (finished) {
+    if (finished || blown) {
       if (replayFrameRef.current != null) cancelAnimationFrame(replayFrameRef.current);
       replayFrameRef.current = null;
-      setS((prev) => ({ ...prev, endOfData: true }));
+      // A blown account has not run out of data; it stops on a candle the
+      // trader can carry on from once the account is funded again.
+      if (finished) setS((prev) => ({ ...prev, endOfData: true }));
       void runAction(
         {
           type: "sync",
           targetIndex: engine.state.visibleIndex,
           status: "paused",
+          requiresReplay: blown,
         },
         { background: true, showBusy: false, preserveLocalState: true },
       );
@@ -919,6 +933,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
   const play = useCallback(() => {
     if (s.endOfData) return Promise.resolve();
+    // Nothing to play on: every position was flattened and the account has no
+    // equity left to risk until it is funded again.
+    if (localEngineRef.current?.state.accountBlown ?? s.state?.accountBlown) {
+      return Promise.resolve();
+    }
     wantsReplayRunningRef.current = true;
     setS((prev) =>
       prev.state
@@ -928,7 +947,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     if (localEngineRef.current) localEngineRef.current.state.status = "running";
     startLocalScheduler();
     return checkpoint("running");
-  }, [checkpoint, s.endOfData, startLocalScheduler]);
+  }, [checkpoint, s.endOfData, s.state?.accountBlown, startLocalScheduler]);
   const pause = useCallback(() => {
     wantsReplayRunningRef.current = false;
     // Stop the local timer immediately. The server pause command is serialized
@@ -1419,6 +1438,34 @@ export function useBacktester(resumeSessionId: string | null = null) {
       targetIndex: localEngineRef.current?.state.visibleIndex,
     }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
   }, [runAction, s.state]);
+  /**
+   * Rescue a blown account with demo funds.
+   *
+   * Applied to the local engine first, like every other trading action, so the
+   * blown-account prompt closes on the same frame the trader confirms rather
+   * than after a server round trip.
+   */
+  const addFunds = useCallback(
+    (amount: string) => {
+      const rollbackState = s.state;
+      const engine = localEngineRef.current;
+      if (engine) {
+        const result = addLocalFunds(engine, amount);
+        if (!result.ok) {
+          patch({ error: result.error });
+          return Promise.resolve(false);
+        }
+        const state = publicSessionState(engine, rollbackState?.anonymous ?? false);
+        setS((prev) => ({ ...prev, state, error: null }));
+      }
+      return runAction({
+        type: "add-funds",
+        amount,
+        targetIndex: localEngineRef.current?.state.visibleIndex,
+      }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
+    },
+    [patch, runAction, s.state],
+  );
   const modifyStop = useCallback(
     (price: string | null, positionId?: string) => {
       const rollbackState = s.state;
@@ -1739,6 +1786,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       cancelPending,
       closePosition,
       closeAllPositions,
+      addFunds,
       modifyStop,
       modifyTarget,
       modifyTrailing,

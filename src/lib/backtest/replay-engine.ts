@@ -533,14 +533,14 @@ function closeAt(
 }
 
 /**
- * End the session here: flatten everything at the current candle, expire what
- * is resting, and stop.
+ * Flatten every open position at the current candle and expire what is resting.
  *
- * Shared by running out of data and by breaching a prop-firm limit, because the
- * two have to leave the account in exactly the same shape. Keeping them as one
- * implementation is the only way that stays true as either path changes.
+ * Shared by the three ways a run can be taken out of the trader's hands:
+ * running out of data, breaching a prop-firm limit, and blowing the account.
+ * Keeping them as one implementation is the only way that stays true as any of
+ * them changes.
  */
-function finishSession(ctx: EngineContext): void {
+function flattenAll(ctx: EngineContext): void {
   const { state } = ctx;
   for (const position of [...state.openPositions]) {
     const symbol = recordSymbol(position, state.config);
@@ -563,8 +563,122 @@ function finishSession(ctx: EngineContext): void {
     order.expiredTime = finalTime;
     order.updatedTime = finalTime;
   }
-  state.status = "finished";
+}
+
+/** End the session here: flatten everything, expire what is resting, and stop. */
+function finishSession(ctx: EngineContext): void {
+  flattenAll(ctx);
+  ctx.state.status = "finished";
   recomputeEquity(ctx, false);
+}
+
+/** Total demo funds deposited into a session after it started. */
+export function depositedFunds(
+  state: Pick<SessionState, "topUps">,
+): string {
+  return (state.topUps ?? [])
+    .reduce((total, item) => total.plus(item.amount), d(0))
+    .toFixed(2);
+}
+
+/**
+ * What the trader has actually put into this account: the opening balance plus
+ * every demo top-up. Profit and return have to be measured against this, not
+ * against the opening balance alone, or a rescued account reports the rescue as
+ * a gain.
+ */
+export function fundedBalance(
+  state: Pick<SessionState, "config" | "topUps">,
+): string {
+  return d(state.config.startingBalance)
+    .plus(depositedFunds(state))
+    .toFixed(2);
+}
+
+/** Largest single demo top-up allowed, so a typo cannot mint a fortune. */
+export const MAX_TOP_UP = 1_000_000;
+
+export type AddFundsResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Deposit demo funds into a blown account and let the replay continue.
+ *
+ * Only offered once equity has reached zero: this is the rescue from a blown
+ * account, not a balance dial. A challenge account is deliberately excluded —
+ * a prop firm does not refund a failed evaluation, and the run has already
+ * ended as breached by the time this could be reached.
+ */
+export function addFunds(ctx: EngineContext, amount: string): AddFundsResult {
+  const { state } = ctx;
+  if (state.status === "finished") {
+    return { ok: false, error: "Session has finished." };
+  }
+  if (state.config.propFirm) {
+    return {
+      ok: false,
+      error: "A challenge account cannot be topped up.",
+    };
+  }
+  if (!state.accountBlown) {
+    return {
+      ok: false,
+      error: "Funds can only be added to a blown account.",
+    };
+  }
+  // Decimal throws on anything that is not a number, and this is reachable
+  // from a free-text field in the browser, not only from the validated API.
+  const parsed = Number(amount);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return { ok: false, error: "Enter an amount above zero." };
+  }
+  const value = d(parsed);
+  if (value.greaterThan(MAX_TOP_UP)) {
+    return {
+      ok: false,
+      error: `The largest top-up is ${MAX_TOP_UP.toLocaleString("en-US")}.`,
+    };
+  }
+
+  const candle = currentCandle(ctx);
+  state.topUps = [
+    ...(state.topUps ?? []),
+    {
+      index: state.visibleIndex,
+      time: candle?.timestamp ?? state.config.startTime,
+      amount: value.toFixed(2),
+    },
+  ];
+  state.balance = d(state.balance).plus(value).toFixed(2);
+  state.accountBlown = null;
+  // Recorded on the curve so the rescue is visible in the equity chart rather
+  // than appearing as an unexplained vertical jump between two candles.
+  recomputeEquity(ctx, true);
+  return { ok: true };
+}
+
+/**
+ * Blow the account when equity reaches zero.
+ *
+ * A live account cannot hold a position it can no longer fund, so everything is
+ * flattened at the candle that did it and the replay stops. The session is left
+ * `paused` rather than `finished`: the trader is prompted for demo funds and
+ * carries on from the same candle, which is the whole point of practising the
+ * blowout instead of losing the session to it.
+ */
+function enforceBlowout(ctx: EngineContext): void {
+  const { state } = ctx;
+  if (state.status === "finished" || state.accountBlown) return;
+  if (d(state.equity).greaterThan(0)) return;
+
+  flattenAll(ctx);
+  recomputeEquity(ctx, false);
+  const candle = currentCandle(ctx);
+  state.accountBlown = {
+    index: state.visibleIndex,
+    time: candle?.timestamp ?? state.config.endTime,
+    equity: state.equity,
+  };
+  state.status = "paused";
 }
 
 /**
@@ -722,6 +836,9 @@ export function revealNext(ctx: EngineContext): boolean {
 
   recomputeEquity(ctx, true);
   if (candle) enforcePropFirm(ctx, candle);
+  // After the challenge grader: a breach ends the run outright, and an account
+  // that is already finished has nothing left to blow.
+  enforceBlowout(ctx);
   return true;
 }
 
@@ -762,6 +879,20 @@ export function stepBackTo(ctx: EngineContext, targetIndex: number): boolean {
   state.pendingOrders = state.pendingOrders.filter(
     (order) => order.createdIndex < target,
   );
+  // Rewinding past a rescue takes the money back with it, otherwise reviewing a
+  // blowout and stepping back over it would leave the deposit behind as free
+  // capital. The blowout itself is un-blown for the same reason.
+  const keptTopUps = (state.topUps ?? []).filter((item) => item.index <= target);
+  if (keptTopUps.length !== (state.topUps ?? []).length) {
+    const removed = (state.topUps ?? [])
+      .filter((item) => item.index > target)
+      .reduce((total, item) => total.plus(item.amount), d(0));
+    state.balance = d(state.balance).minus(removed).toFixed(2);
+    state.topUps = keptTopUps;
+  }
+  if (state.accountBlown && state.accountBlown.index > target) {
+    state.accountBlown = null;
+  }
   state.lockedBeforeIndex = Math.max(
     0,
     ...state.openPositions.map((position) => position.entryIndex),
@@ -849,6 +980,9 @@ export function setStatus(
   status: SessionState["status"],
 ): void {
   if (ctx.state.status === "finished") return;
+  // A blown account cannot be played on. Anything else — pausing, an idle
+  // checkpoint — is still allowed so the session can be saved and resumed.
+  if (ctx.state.accountBlown && status === "running") return;
   ctx.state.status = status;
 }
 
@@ -1117,6 +1251,12 @@ export function placeOrder(
   const { state } = ctx;
   if (state.status === "finished") {
     return { ok: false, error: "Session has finished." };
+  }
+  if (state.accountBlown) {
+    return {
+      ok: false,
+      error: "This account is blown. Add demo funds to keep trading.",
+    };
   }
   const symbol = req.symbol ?? state.config.symbol;
   if (!(state.config.symbols ?? [state.config.symbol]).includes(symbol)) {

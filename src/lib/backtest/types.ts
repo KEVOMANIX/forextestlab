@@ -274,6 +274,28 @@ export interface SessionBookmark {
   createdAt: number;
 }
 
+/**
+ * A demo deposit made after the account was blown.
+ *
+ * Indexed like a trade so a rewind past the top-up takes the money back with
+ * it, and summed to give the baseline profit is measured against — a session
+ * that started at 10,000 and was rescued with another 10,000 is 20,000 in, and
+ * calling it a 10,000 profit when it ends at 20,000 would be a lie.
+ */
+export interface AccountTopUp {
+  index: number;
+  time: number;
+  amount: string;
+}
+
+/** Recorded when equity reached zero. Cleared by a top-up or a rewind. */
+export interface AccountBlowout {
+  index: number;
+  time: number;
+  /** Equity at the moment every position was flattened. */
+  equity: string;
+}
+
 /** Full engine state. Serialisable — safe to persist and to sanitise. */
 export interface SessionState {
   sessionId: string;
@@ -299,6 +321,10 @@ export interface SessionState {
   demoData: boolean;
   /** Challenge progress. Present only when `config.propFirm` is set. */
   propFirm?: PropFirmRuntime;
+  /** Set while the account is blown and waiting for demo funds. */
+  accountBlown?: AccountBlowout | null;
+  /** Demo deposits, oldest first. Absent on sessions that never needed one. */
+  topUps?: AccountTopUp[];
 }
 
 /** The subset of engine state that is safe to send to the browser. */
@@ -327,6 +353,8 @@ export interface PublicSessionState {
   /** Anonymous demonstrations are temporary and are not saved to user history. */
   anonymous: boolean;
   propFirm?: PropFirmRuntime;
+  accountBlown?: AccountBlowout | null;
+  topUps?: AccountTopUp[];
 }
 
 /** Engine + candle series bundled for server-side stepping. */

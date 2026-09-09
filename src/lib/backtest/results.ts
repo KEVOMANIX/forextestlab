@@ -8,9 +8,10 @@ import "server-only";
 import { Prisma, type SimulatedTrade } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
+import { Decimal } from "@/lib/decimal";
 import { computeStatistics, type PerformanceStats } from "./statistics";
 import type { ClosedTrade, EquityPoint, SessionState } from "./types";
-import { normalizeSessionState } from "./replay-engine";
+import { fundedBalance, normalizeSessionState } from "./replay-engine";
 import { readSessionSnapshot } from "./state-snapshot-store";
 
 export interface SessionResults {
@@ -84,6 +85,11 @@ function toEquityPoint(point: {
   };
 }
 
+/** Row-level equivalent of `fundedBalance`, for the projected columns. */
+function fundedTotal(row: { startingBalance: string; depositedFunds: string }): string {
+  return new Decimal(row.startingBalance).plus(row.depositedFunds).toFixed(2);
+}
+
 export async function getSessionResults(
   id: string,
   userId: string,
@@ -96,7 +102,9 @@ export async function getSessionResults(
   const stateJson = await readSessionSnapshot(row.stateJson, row.stateObjectKey);
   const state = normalizeSessionState(JSON.parse(stateJson) as SessionState);
   const stats = computeStatistics({
-    startingBalance: state.config.startingBalance,
+    // Everything the trader put in, so a demo top-up after a blown account is
+    // not reported as profit.
+    startingBalance: fundedBalance(state),
     endingBalance: state.balance,
     trades: state.closedTrades,
     equityCurve: state.equityCurve,
@@ -122,6 +130,7 @@ export async function getSessionResults(
         branchPointIndex: true,
         branchPointTime: true,
         startingBalance: true,
+        depositedFunds: true,
         balance: true,
         trades: { orderBy: { exitTime: "asc" } },
         equitySnapshots: { orderBy: { index: "asc" } },
@@ -139,6 +148,7 @@ export async function getSessionResults(
         parentSessionId: true,
         branchRootId: true,
         startingBalance: true,
+        depositedFunds: true,
         balance: true,
         trades: { orderBy: { exitTime: "asc" } },
       },
@@ -165,7 +175,7 @@ export async function getSessionResults(
       createdAt: session.createdAt.toISOString(),
       parentSessionId: session.parentSessionId,
       branchRootId: session.branchRootId,
-      startingBalance: session.startingBalance,
+      startingBalance: fundedTotal(session),
       endingBalance: session.balance,
       trades: session.trades.map(toClosedTrade),
     };
@@ -173,7 +183,7 @@ export async function getSessionResults(
   const branchComparison = familyRows.map((family) => {
     const trades = family.trades.map(toClosedTrade);
     const familyStats = computeStatistics({
-      startingBalance: family.startingBalance,
+      startingBalance: fundedTotal(family),
       endingBalance: family.balance,
       trades,
       equityCurve: family.equitySnapshots.map(toEquityPoint),

@@ -24,6 +24,7 @@ import {
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
+import { replayDayLabel } from "@/lib/backtest/replay-progress";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import {
@@ -58,6 +59,8 @@ export interface DashboardSession {
   visibleIndex: number;
   totalCandles: number;
   startingBalance: string;
+  /** Demo funds added after the account was blown. */
+  depositedFunds: string;
   balance: string;
   maxDrawdown: string;
   maxDrawdownPercent: string;
@@ -94,6 +97,11 @@ function savedAgo(value: Date | string | number): string {
   const days = Math.round(hours / 24);
   if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
   return formatNewYorkDate(then);
+}
+
+/** Opening balance plus any demo funds added after the account was blown. */
+function sessionFunded(session: DashboardSession): Decimal {
+  return new Decimal(session.startingBalance).plus(session.depositedFunds ?? 0);
 }
 
 function sessionProgress(session: DashboardSession | null): number {
@@ -152,6 +160,7 @@ export function SignedInDashboard({
     visibleIndex: 999,
     totalCandles: 1000,
     startingBalance: "100000",
+    depositedFunds: "0",
     balance: "104820",
     maxDrawdown: "1492",
     maxDrawdownPercent: "1.49",
@@ -162,14 +171,24 @@ export function SignedInDashboard({
   const scopeLabel = selectedSession?.name ?? "No session selected";
   const selectedSymbols = selectedSession?.symbols ?? [];
   const progress = sessionProgress(selectedSession);
+  /**
+   * Everything the trader put into this account: the opening balance plus any
+   * demo funds added after blowing it. Measuring profit against the opening
+   * balance alone would report a rescue as a gain.
+   */
+  const fundedBalance = selectedSession
+    ? new Decimal(selectedSession.startingBalance).plus(
+        selectedSession.depositedFunds ?? 0,
+      )
+    : new Decimal(0);
   // The card used to show a balance and a starting balance and leave the
   // subtraction to the reader; these give it the number it was missing.
   const sessionNet = selectedSession
-    ? new Decimal(selectedSession.balance).minus(selectedSession.startingBalance)
+    ? new Decimal(selectedSession.balance).minus(fundedBalance)
     : new Decimal(0);
   const sessionReturnPercent =
-    selectedSession && !new Decimal(selectedSession.startingBalance).isZero()
-      ? sessionNet.dividedBy(selectedSession.startingBalance).times(100).toNumber()
+    selectedSession && !fundedBalance.isZero()
+      ? sessionNet.dividedBy(fundedBalance).times(100).toNumber()
       : null;
   const trades = showDemoData ? DEMO_ANALYTICS_TRADES : selectedTrades;
   const selectedEquityCurve = showDemoData ? DEMO_ANALYTICS_EQUITY_CURVE : realEquityCurve;
@@ -177,16 +196,15 @@ export function SignedInDashboard({
   const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
   const winRate = trades.length ? (wins / trades.length) * 100 : 0;
   const totalNet = selectedSession
-    ? new Decimal(selectedSession.balance).minus(selectedSession.startingBalance)
+    ? new Decimal(selectedSession.balance).minus(fundedBalance)
     : new Decimal(0);
-  const startingBalance = new Decimal(selectedSession?.startingBalance ?? 0);
-  const netPercent = startingBalance.isZero()
+  const netPercent = fundedBalance.isZero()
     ? new Decimal(0)
-    : totalNet.dividedBy(startingBalance).times(100);
+    : totalNet.dividedBy(fundedBalance).times(100);
   const stats =
     selectedSession
       ? computeStatistics({
-          startingBalance: selectedSession.startingBalance,
+          startingBalance: fundedBalance.toFixed(2),
           endingBalance: selectedSession.balance,
           trades,
           equityCurve: selectedEquityCurve,
@@ -310,7 +328,7 @@ export function SignedInDashboard({
     .slice(0, 4);
 
   const sessionOptions = sessions.map((session) => {
-    const net = new Decimal(session.balance).minus(session.startingBalance);
+    const net = new Decimal(session.balance).minus(sessionFunded(session));
     return {
       id: session.id,
       name: session.name,
@@ -328,7 +346,7 @@ export function SignedInDashboard({
   const sessionRows: DashboardSessionRow[] = sessions
     .map((session) => {
       if (session.archived) return null;
-      const net = new Decimal(session.balance).minus(session.startingBalance);
+      const net = new Decimal(session.balance).minus(sessionFunded(session));
       return {
         id: session.id,
         name: session.name,
@@ -606,7 +624,11 @@ export function SignedInDashboard({
                   </div>
                   <p className="mt-2 text-[11px] app-muted">
                     {selectedSession.totalCandles
-                      ? `Candle ${(selectedSession.visibleIndex + 1).toLocaleString()} of ${selectedSession.totalCandles.toLocaleString()}`
+                      ? replayDayLabel({
+                          startTime: Number(selectedSession.startTime),
+                          endTime: Number(selectedSession.endTime),
+                          currentTime: lastReplayTime,
+                        })
                       : selectedSession.status === "finished"
                         ? "Session complete"
                         : "Not started"}

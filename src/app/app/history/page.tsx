@@ -30,6 +30,7 @@ export default async function HistoryPage() {
       startTime: true,
       endTime: true,
       startingBalance: true,
+      depositedFunds: true,
       balance: true,
       _count: { select: { trades: true } },
     },
@@ -62,7 +63,11 @@ export default async function HistoryPage() {
             </thead>
             <tbody>
               {sessions.map((s) => {
-                const net = new Decimal(s.balance).minus(s.startingBalance);
+                // Against everything paid in: opening balance plus any demo
+                // funds added after the account was blown.
+                const net = new Decimal(s.balance)
+                  .minus(s.startingBalance)
+                  .minus(s.depositedFunds);
                 const positive = net.greaterThanOrEqualTo(0);
                 const details = {
                   name: `${s.symbol} backtest`,

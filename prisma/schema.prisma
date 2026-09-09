@@ -424,6 +424,9 @@ model BacktestSession {
   totalCandles       Int               @default(0)
   lockedBeforeIndex  Int               @default(0)
   startingBalance    String
+  /// Demo funds added after the account was blown. Profit is measured against
+  /// startingBalance + depositedFunds, never startingBalance alone.
+  depositedFunds     String            @default("0")
   balance            String
   equity             String
   maxEquity          String

@@ -22,7 +22,12 @@ import {
 import { getMarketDataProvider } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { nextTimeframeTimestamp, TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
-import { createSessionState, normalizeSessionState, publicSessionState } from "./replay-engine";
+import {
+  createSessionState,
+  depositedFunds,
+  normalizeSessionState,
+  publicSessionState,
+} from "./replay-engine";
 import type { PropFirmRules } from "./prop-firm";
 import { buildSessionConfig } from "./session-config";
 import type {
@@ -809,6 +814,7 @@ export async function persistSession(
       totalCandles: state.totalCandles,
       lockedBeforeIndex: state.lockedBeforeIndex,
       balance: state.balance,
+      depositedFunds: depositedFunds(state),
       equity: state.equity,
       maxEquity: state.maxEquity,
       maxDrawdown: state.maxDrawdown,

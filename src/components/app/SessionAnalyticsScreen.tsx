@@ -1,6 +1,7 @@
 "use client";
 
 import type { PublicSessionState } from "@/lib/backtest/types";
+import { fundedBalance } from "@/lib/backtest/replay-engine";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { AnalyticsDesignPrototype } from "./AnalyticsDesignPrototype";
 
@@ -35,7 +36,9 @@ export function SessionAnalyticsScreen({
         status={state.status}
         trades={state.closedTrades}
         equityCurve={state.equityCurve}
-        startingBalance={state.config.startingBalance}
+        // Opening balance plus any demo funds added after a blown account, so
+        // a rescue is not reported as profit.
+        startingBalance={fundedBalance(state)}
         fullAccess={fullAccess}
         onClose={onClose}
       />

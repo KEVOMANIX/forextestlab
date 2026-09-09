@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import type { Candle } from "@/lib/market-data/types";
 import type { EngineContext, SessionConfig } from "./types";
 import {
+  addFunds,
   closeAllPositions,
   closePosition,
   cancelPendingOrder,
@@ -14,9 +15,15 @@ import {
   placeOrder,
   restart,
   revealNext,
+  setStatus,
   stepBack,
+  stepBackTo,
   moveReplayToIndex,
+  depositedFunds,
+  fundedBalance,
+  MAX_TOP_UP,
 } from "./replay-engine";
+import { PROP_FIRM_PRESETS } from "./prop-firm";
 import { updateTradeJournal } from "./trade-journal";
 
 function cfg(overrides: Partial<SessionConfig> = {}): SessionConfig {
@@ -543,6 +550,105 @@ describe("restart", () => {
     expect(e.state.visibleIndex).toBe(0);
     expect(e.state.closedTrades).toHaveLength(0);
     expect(e.state.openPositions).toHaveLength(0);
+    expect(e.state.balance).toBe("10000.00");
+  });
+});
+
+describe("blowing the account", () => {
+  /**
+   * One lot of EUR/USD is 100,000 units, so a 1,000-pip fall against a long is
+   * a 10,000 loss — the whole account.
+   */
+  const CRASH = [
+    c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+    c(1, "1.10000", "1.10010", "0.99000", "0.99000"),
+    c(2, "0.99000", "0.99010", "0.98990", "0.99000"),
+  ];
+
+  it("flattens everything and stops the replay when equity reaches zero", () => {
+    const e = ctx(CRASH);
+    expect(
+      placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" }).ok,
+    ).toBe(true);
+
+    revealNext(e);
+
+    expect(e.state.accountBlown).toMatchObject({ index: 1, time: 1 });
+    expect(e.state.openPositions).toHaveLength(0);
+    expect(e.state.closedTrades).toHaveLength(1);
+    expect(e.state.status).toBe("paused");
+    expect(Number(e.state.equity)).toBeLessThanOrEqual(0);
+  });
+
+  it("refuses new orders and refuses to play until it is funded", () => {
+    const e = ctx(CRASH);
+    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    revealNext(e);
+
+    const rejected = placeOrder(e, {
+      direction: "long",
+      sizingMode: "fixed-lots",
+      lots: "0.1",
+    });
+    expect(rejected.ok).toBe(false);
+    setStatus(e, "running");
+    expect(e.state.status).toBe("paused");
+  });
+
+  it("credits a top-up, records it, and lets the replay continue", () => {
+    const e = ctx(CRASH);
+    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    revealNext(e);
+    const blownBalance = Number(e.state.balance);
+
+    expect(addFunds(e, "5000").ok).toBe(true);
+    expect(e.state.accountBlown).toBeNull();
+    expect(Number(e.state.balance)).toBeCloseTo(blownBalance + 5000, 2);
+    expect(e.state.topUps).toHaveLength(1);
+    expect(depositedFunds(e.state)).toBe("5000.00");
+    expect(fundedBalance(e.state)).toBe("15000.00");
+
+    setStatus(e, "running");
+    expect(e.state.status).toBe("running");
+    expect(
+      placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "0.1" }).ok,
+    ).toBe(true);
+  });
+
+  it("rejects a top-up that is not a positive amount, or is absurd", () => {
+    const e = ctx(CRASH);
+    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    revealNext(e);
+
+    expect(addFunds(e, "0").ok).toBe(false);
+    expect(addFunds(e, "-100").ok).toBe(false);
+    expect(addFunds(e, "not-a-number").ok).toBe(false);
+    expect(addFunds(e, String(MAX_TOP_UP + 1)).ok).toBe(false);
+    expect(e.state.accountBlown).not.toBeNull();
+  });
+
+  it("only tops up a blown account, and never a challenge account", () => {
+    const healthy = ctx(FLAT);
+    expect(addFunds(healthy, "1000").ok).toBe(false);
+
+    const challenge = ctx(CRASH, cfg({
+      propFirm: PROP_FIRM_PRESETS["ftmo-phase-1"],
+    }));
+    placeOrder(challenge, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    revealNext(challenge);
+    expect(addFunds(challenge, "1000").ok).toBe(false);
+  });
+
+  it("takes the money back when the replay is rewound past the rescue", () => {
+    const e = ctx(CRASH);
+    placeOrder(e, { direction: "long", sizingMode: "fixed-lots", lots: "1.0" });
+    revealNext(e);
+    addFunds(e, "5000");
+    revealNext(e);
+
+    expect(stepBackTo(e, 0)).toBe(true);
+    expect(e.state.topUps).toHaveLength(0);
+    expect(e.state.accountBlown).toBeNull();
     expect(e.state.balance).toBe("10000.00");
   });
 });

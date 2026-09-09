@@ -39,7 +39,13 @@ export function AuthForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [busy, setBusy] = useState(false);
+  /**
+   * Which action is in flight, not merely whether one is. A single flag put the
+   * Google button into "Connecting…" during an email sign-in, so a password
+   * submit looked like a hung OAuth redirect.
+   */
+  const [busy, setBusy] = useState<"google" | "form" | null>(null);
+  const pending = busy !== null;
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -81,7 +87,7 @@ export function AuthForm({
       return;
     }
 
-    setBusy(true);
+    setBusy("google");
     setError(null);
     setMessage(null);
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -97,7 +103,7 @@ export function AuthForm({
 
     if (oauthError) {
       setError(oauthError.message);
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -111,7 +117,7 @@ export function AuthForm({
       return;
     }
 
-    setBusy(true);
+    setBusy("form");
     setError(null);
     setMessage(null);
 
@@ -145,7 +151,7 @@ export function AuthForm({
     }
 
     if (result.error) setError(result.error.message);
-    setBusy(false);
+    setBusy(null);
   }
 
   return (
@@ -182,7 +188,7 @@ export function AuthForm({
               type="button"
               onClick={continueWithGoogle}
               className="mt-7 inline-flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/70 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:-translate-y-px hover:bg-slate-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={busy}
+              disabled={pending}
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
                 <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z" />
@@ -190,7 +196,7 @@ export function AuthForm({
                 <path fill="#FBBC05" d="M6.39 13.87A6 6 0 0 1 6.08 12c0-.65.11-1.28.31-1.87V7.51H3.05A10 10 0 0 0 2 12c0 1.61.39 3.14 1.05 4.49l3.34-2.62Z" />
                 <path fill="#EA4335" d="M12 6c1.47 0 2.8.51 3.84 1.5l2.87-2.88A9.64 9.64 0 0 0 12 2a10 10 0 0 0-8.95 5.51l3.34 2.62C7.18 7.76 9.39 6 12 6Z" />
               </svg>
-              {busy ? "Connecting…" : "Continue with Google"}
+              {busy === "google" ? "Connecting…" : "Continue with Google"}
             </button>
             <div className="my-6 flex items-center gap-3" aria-hidden>
               <span className="h-px flex-1 bg-[var(--app-border)]" />
@@ -285,9 +291,9 @@ export function AuthForm({
         <button
           type="submit"
           className="btn-primary mt-7 min-h-12 w-full rounded-xl shadow-[0_12px_28px_-14px_rgba(20,184,166,.8)] transition-transform hover:-translate-y-px"
-          disabled={busy}
+          disabled={pending}
         >
-          {busy ? "Please wait…" : COPY[mode].submit}
+          {busy === "form" ? "Please wait…" : COPY[mode].submit}
         </button>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">

@@ -127,12 +127,15 @@ export const HANDLE_FILL = "#0b0f1a";
 
 export function defaultStyle(kind: ToolKind): DrawingStyle {
   const base: DrawingStyle = {
-    color: "#5b8bff",
+    // White reads cleanly against the terminal's dark canvas and does not
+    // compete with the bull/bear candle colours the way the old blue did.
+    // Only new drawings are affected: each tool remembers its last-used style.
+    color: "#ffffff",
     opacity: 1,
     lineWidth: 1, // low-end default; the user's last-used style is remembered per tool
     lineStyle: kind === "horizontal" || kind === "vertical" || kind === "crossline" ? "dashed" : "solid",
     fill: kind === "rectangle" || kind === "session" || kind === "circle" || kind === "ellipse" || kind === "triangle" || kind === "fib" || kind === "fibExtension" || kind === "regression" || kind === "flatChannel" || kind === "disjointChannel" || kind === "priceRange" || kind === "dateRange" || kind === "datePriceRange" || kind === "callout" || kind === "anchoredText",
-    fillColor: "#5b8bff",
+    fillColor: "#ffffff",
     fillOpacity: 0.12,
     showCenterLine: false,
     showLabels: true,
@@ -261,7 +264,11 @@ export const TOOLS_NEEDING_TEXT: ReadonlySet<ToolKind> = new Set<ToolKind>(["tex
 /** TradingView's default visible Fibonacci retracement ratios (incl. extensions). */
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618, 4.236] as const;
 
-export const DRAW_PALETTE = ["#5b8bff", "#22c3a0", "#f4646c", "#fbbf24", "#c084fc", "#e5e7eb", "#f97316", "#38bdf8"] as const;
+// White leads because it is the default, so the picker opens with the current
+// colour selected. It replaces the near-white #e5e7eb rather than joining it:
+// two swatches a shade apart are a guess, not a choice. Styles already saved
+// with the old value keep working — the palette is a shortcut, not a whitelist.
+export const DRAW_PALETTE = ["#ffffff", "#5b8bff", "#22c3a0", "#f4646c", "#fbbf24", "#c084fc", "#f97316", "#38bdf8"] as const;
 
 export function dashPattern(style: LineStyleName, width: number): number[] {
   if (style === "dashed") return [Math.max(4, width * 3), Math.max(3, width * 2)];

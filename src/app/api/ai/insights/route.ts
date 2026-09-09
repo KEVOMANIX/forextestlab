@@ -91,6 +91,7 @@ export async function POST(request: Request) {
         startTime: true,
         endTime: true,
         startingBalance: true,
+        depositedFunds: true,
         balance: true,
         trades: { orderBy: { exitTime: "asc" } },
         equitySnapshots: { orderBy: { index: "asc" } },

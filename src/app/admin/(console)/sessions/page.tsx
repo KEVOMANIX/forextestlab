@@ -12,6 +12,11 @@ import {
 import { prisma } from "@/lib/db";
 import { formatNewYorkDateTime } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
+import {
+  replayDayPercent,
+  replayDayProgress,
+} from "@/lib/backtest/replay-progress";
 import { requireAdmin } from "@/lib/admin";
 
 interface SessionMetadataRow {
@@ -33,7 +38,10 @@ export default async function AdminSessionsPage(props: { searchParams: Promise<{
         symbol: true,
         timeframe: true,
         status: true,
+        startTime: true,
+        endTime: true,
         visibleIndex: true,
+        visibleTime: true,
         totalCandles: true,
         dataSource: true,
         demoData: true,
@@ -70,13 +78,34 @@ export default async function AdminSessionsPage(props: { searchParams: Promise<{
           <thead><tr><th className={adminTh}>Session</th><th className={adminTh}>Owner</th><th className={adminTh}>Status</th><th className={adminTh}>Progress</th><th className={adminTh}>Activity</th><th className={adminTh}>Source</th><th className={adminTh}>Updated</th></tr></thead>
           <tbody>
             {sessions.map((session) => {
-              const progress = session.totalCandles > 0 ? Math.min(100, Math.max(0, ((session.visibleIndex + 1) / session.totalCandles) * 100)) : 0;
+              const replayTime = session.visibleTime != null
+                ? Number(session.visibleTime)
+                : Math.min(
+                    Number(session.endTime),
+                    Number(session.startTime) +
+                      Math.max(0, session.visibleIndex) *
+                        (TIMEFRAME_MS[session.timeframe as keyof typeof TIMEFRAME_MS] ?? 0),
+                  );
+              const day = replayDayProgress({
+                startTime: Number(session.startTime),
+                endTime: Number(session.endTime),
+                currentTime: replayTime,
+              });
+              const progress = session.status === "finished"
+                ? 100
+                : session.totalCandles > 0
+                  ? replayDayPercent({
+                      startTime: Number(session.startTime),
+                      endTime: Number(session.endTime),
+                      currentTime: replayTime,
+                    })
+                  : 0;
               return (
                 <tr key={session.id}>
                   <td className={adminTd}><p className="font-semibold">{metadata.get(session.id)?.trim() || `${formatSymbol(session.symbol)} backtest`}</p><p className="mt-1 text-xs app-muted">{formatSymbol(session.symbol)} · {session.timeframe}</p></td>
                   <td className={adminTd}><p className="text-xs">{session.user?.email ?? "Anonymous trial"}</p></td>
                   <td className={adminTd}><AdminStatus value={session.status} /></td>
-                  <td className={adminTd}><div className="h-1.5 w-28 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-brand-400" style={{ width: `${progress}%` }} /></div><p className="mt-1.5 text-[11px] app-muted">{progress.toFixed(0)}%</p></td>
+                  <td className={adminTd}><div className="h-1.5 w-28 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-brand-400" style={{ width: `${progress}%` }} /></div><p className="mt-1.5 text-[11px] app-muted">{progress.toFixed(0)}% · day {day.day.toLocaleString("en-US")} of {day.totalDays.toLocaleString("en-US")}</p></td>
                   <td className={adminTd}><p>{session._count.trades} trades</p><p className="mt-1 text-xs app-muted">{session._count.orders} orders</p></td>
                   <td className={adminTd}><p className="text-xs capitalize">{session.dataSource.replaceAll("-", " ")}</p>{session.demoData && <p className="mt-1 text-[11px] text-amber-300">Sample data</p>}</td>
                   <td className={`${adminTd} text-xs app-muted`}>{formatNewYorkDateTime(session.updatedAt)}</td>

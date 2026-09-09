@@ -5,6 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 
 import { d } from "@/lib/decimal";
 import { BREACH_LABELS, propFirmProgress } from "@/lib/backtest/prop-firm";
+import { fundedBalance } from "@/lib/backtest/replay-engine";
 import { DEFAULT_LEVERAGE, marginRequired } from "@/lib/backtest/position-sizing";
 import type { PublicSessionState } from "@/lib/backtest/types";
 
@@ -89,7 +90,9 @@ export function AccountSummary({
     return {
       balance,
       equity,
-      realized: balance - Number(state.config.startingBalance),
+      // Against the funded balance, not the opening one: demo funds added
+      // after a blowout are capital, not profit.
+      realized: balance - Number(fundedBalance(state)),
       unrealized: equity - balance,
       margin: accountMargin(state),
     };

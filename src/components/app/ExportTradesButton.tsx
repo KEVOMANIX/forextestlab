@@ -21,6 +21,9 @@ export function ExportTradesButton({
 }) {
   function download() {
     const header = [
+      // First column, because a multi-pair export without it is unusable: the
+      // rows arrive interleaved with nothing to group them by.
+      "symbol",
       "direction",
       "entryTime",
       "entryPrice",
@@ -40,6 +43,9 @@ export function ExportTradesButton({
     ];
     const rows = trades.map((t) =>
       [
+        // Trades saved before multi-pair execution carry no symbol of their
+        // own; those were all taken on the session's traded pair.
+        t.symbol ?? symbol,
         t.direction,
         new Date(t.entryTime).toISOString(),
         t.entryPrice,
@@ -63,7 +69,11 @@ export function ExportTradesButton({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `forextestlab-${symbol}-${sessionId.slice(0, 8)}-trades.csv`;
+    // Named for the session, not for one of its pairs: a file called
+    // "EURUSD" holding GBP/USD and XAU/USD trades misfiles itself.
+    const pairs = new Set(trades.map((t) => t.symbol ?? symbol));
+    const label = pairs.size === 1 ? [...pairs][0] : `${pairs.size}-pairs`;
+    a.download = `forextestlab-${label}-${sessionId.slice(0, 8)}-trades.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();

@@ -12,6 +12,7 @@ import type { SimulatedTrade } from "@/generated/prisma/client";
 
 import { summariseExcursions, tradeExcursion } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
+import { fundedBalance } from "@/lib/backtest/replay-engine";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { Decimal } from "@/lib/decimal";
 import { formatNewYorkDate, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
@@ -46,7 +47,9 @@ function aggregate<T extends string | number>(
 export function buildSessionContext(results: SessionResults): string {
   const { state, stats } = results;
   const trades = state.closedTrades;
-  const start = Number(state.config.startingBalance);
+  // Opening balance plus any demo top-up, for the same reason as the portfolio
+  // sheet below: a rescue is capital, not performance.
+  const start = Number(fundedBalance(state));
   const net = Number(state.balance) - start;
   const returnPct = start ? (net / start) * 100 : 0;
 
@@ -198,6 +201,8 @@ export interface PortfolioContextSession {
   startTime: bigint;
   endTime: bigint;
   startingBalance: string;
+  /** Demo funds added after the account was blown. */
+  depositedFunds: string;
   balance: string;
   trades: SimulatedTrade[];
   equitySnapshots: Array<{
@@ -239,9 +244,15 @@ export function buildPortfolioContext(sessions: PortfolioContextSession[]): stri
     .map((session) => {
       if (session.archived) return null;
       const trades = session.trades.map(toClosedTrade);
-      const net = new Decimal(session.balance).minus(session.startingBalance);
+      // Everything the trader put in. Measured against the opening balance
+      // alone, a blown account rescued with demo funds reads to the model as a
+      // winning session, and every conclusion drawn from it inherits that.
+      const funded = new Decimal(session.startingBalance).plus(
+        session.depositedFunds ?? 0,
+      );
+      const net = new Decimal(session.balance).minus(funded);
       const stats = computeStatistics({
-        startingBalance: session.startingBalance,
+        startingBalance: funded.toFixed(2),
         endingBalance: session.balance,
         trades,
         equityCurve: session.equitySnapshots.map(toEquityPoint),

@@ -26,6 +26,20 @@ export interface CalendarQuery {
   /** Lowest importance to return. Defaults to "low", which hides the filler. */
   minImportance?: EventImportance;
   limit?: number;
+  /**
+   * Ordering, which decides what a full page *means*.
+   *
+   * "importance" (the default) is for the chart axis: a window wider than the
+   * ceiling has to lose its filler, not its rate decision, so ranked rows win
+   * and the remainder is reported as truncated.
+   *
+   * "time" is for the panel, which is a browsable list rather than a fixed set
+   * of badges. Pages run forward from `after`, so nothing is dropped — later
+   * releases are simply not fetched yet.
+   */
+  order?: "importance" | "time";
+  /** Exclusive timestamp cursor for `order: "time"`. */
+  after?: number;
 }
 
 /**
@@ -97,12 +111,16 @@ export async function findCalendarEvents(query: CalendarQuery): Promise<Calendar
   const limit = Math.max(1, Math.min(query.limit ?? MAX_CALENDAR_EVENTS, MAX_CALENDAR_EVENTS));
   const from = Math.floor(query.from);
   const to = Math.ceil(query.to);
+  const byTime = query.order === "time";
+  const after = query.after == null ? null : Math.floor(query.after);
   const cacheKey = JSON.stringify([
     from,
     to,
     [...currencies].sort(),
     query.minImportance ?? "low",
     limit,
+    byTime ? "time" : "importance",
+    after,
   ]);
   const cached = readCachedEvents(cacheKey);
   if (cached) return cached;
@@ -123,13 +141,18 @@ export async function findCalendarEvents(query: CalendarQuery): Promise<Calendar
           ? Prisma.sql`AND "currency" IN (${Prisma.join(currencies)})`
           : Prisma.empty
       }
-    ORDER BY CASE "importance"
+      ${after == null ? Prisma.empty : Prisma.sql`AND "timestamp" > ${BigInt(after)}`}
+    ORDER BY ${
+      byTime
+        ? Prisma.sql`"timestamp" ASC`
+        : Prisma.sql`CASE "importance"
                WHEN 'high' THEN 3
                WHEN 'medium' THEN 2
                WHEN 'low' THEN 1
                ELSE 0
              END DESC,
-             "timestamp" ASC
+             "timestamp" ASC`
+    }
     LIMIT ${limit}
   `);
 

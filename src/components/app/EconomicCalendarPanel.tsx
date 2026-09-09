@@ -14,7 +14,7 @@
  * the reason in its tooltip.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 
 import type { GoToTarget } from "@/lib/backtest/goto";
@@ -60,7 +60,10 @@ interface FetchState {
   events: CalendarEvent[];
   loading: boolean;
   failed: boolean;
-  truncated: boolean;
+  /** Cursor for the next page, or null once the range is exhausted. */
+  nextCursor: number | null;
+  /** True only while an additional page is in flight. */
+  loadingMore: boolean;
 }
 
 export function EconomicCalendarPanel({
@@ -76,51 +79,128 @@ export function EconomicCalendarPanel({
 }: Props) {
   const [query, setQuery] = useState("");
   const [minImportance, setMinImportance] = useState<EventImportance>("medium");
-  const [{ events, loading, failed, truncated }, setFetchState] = useState<FetchState>({
-    events: [],
-    loading: false,
-    failed: false,
-    truncated: false,
-  });
+  const [{ events, loading, failed, nextCursor, loadingMore }, setFetchState] =
+    useState<FetchState>({
+      events: [],
+      loading: false,
+      failed: false,
+      nextCursor: null,
+      loadingMore: false,
+    });
+  const listRef = useRef<HTMLDivElement | null>(null);
 
-  // Fetched once per (range, importance) — the panel is a lookup over a fixed
-  // window, not a live feed, so there is nothing here that needs polling the
-  // way the chart's own badges do.
   const currencyKey = currencies.join(",");
+  /**
+   * One page of releases, ordered by time.
+   *
+   * The panel used to ask for the whole session range at once, which on a long
+   * session exceeded the query ceiling - so it showed the highest-impact 1,500
+   * and warned that the rest were missing. Nothing is hidden now: pages run
+   * forward from a cursor and the next is fetched as the list is scrolled.
+   */
+  const loadPage = useCallback(
+    async (
+      after: number | null,
+    ): Promise<{ events: CalendarEvent[]; nextCursor: number | null } | null> => {
+      const params = new URLSearchParams({
+        from: String(Math.floor(rangeStart)),
+        to: String(Math.ceil(rangeEnd)),
+        importance: minImportance,
+        currencies: currencyKey,
+        order: "time",
+      });
+      if (after != null) params.set("after", String(after));
+      const response = await fetch(`/api/calendar/events?${params}`, {
+        cache: "no-store",
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        events?: CalendarEvent[];
+        nextCursor?: number | null;
+      };
+      if (!data.ok || !Array.isArray(data.events)) return null;
+      return { events: data.events, nextCursor: data.nextCursor ?? null };
+    },
+    [currencyKey, minImportance, rangeEnd, rangeStart],
+  );
+
+  // Back to the first page whenever the range or a filter changes.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    const failedState: FetchState = {
+      events: [],
+      loading: false,
+      failed: true,
+      nextCursor: null,
+      loadingMore: false,
+    };
     setFetchState((prev) => ({ ...prev, loading: true, failed: false }));
-    const params = new URLSearchParams({
-      from: String(Math.floor(rangeStart)),
-      to: String(Math.ceil(rangeEnd)),
-      importance: minImportance,
-      currencies: currencyKey,
-    });
-    fetch(`/api/calendar/events?${params}`, { cache: "no-store" })
-      .then((response) => response.json())
-      .then((data: { ok?: boolean; events?: CalendarEvent[]; truncated?: boolean }) => {
+    void loadPage(null)
+      .then((page) => {
         if (cancelled) return;
-        if (!data.ok || !Array.isArray(data.events)) {
-          setFetchState({ events: [], loading: false, failed: true, truncated: false });
+        if (!page) {
+          setFetchState(failedState);
           return;
         }
+        listRef.current?.scrollTo({ top: 0 });
         setFetchState({
-          events: data.events,
+          events: page.events,
           loading: false,
           failed: false,
-          truncated: data.truncated === true,
+          nextCursor: page.nextCursor,
+          loadingMore: false,
         });
       })
       .catch(() => {
-        if (!cancelled) {
-          setFetchState({ events: [], loading: false, failed: true, truncated: false });
-        }
+        if (!cancelled) setFetchState(failedState);
       });
     return () => {
       cancelled = true;
     };
-  }, [open, rangeStart, rangeEnd, minImportance, currencyKey]);
+  }, [loadPage, open]);
+
+  const loadMore = useCallback(() => {
+    setFetchState((prev) => {
+      if (prev.loadingMore || prev.nextCursor == null) return prev;
+      const cursor = prev.nextCursor;
+      void loadPage(cursor)
+        .then((page) => {
+          setFetchState((current) => {
+            // A filter change between request and response replaced the list;
+            // appending this page would interleave two different queries.
+            if (current.nextCursor !== cursor) {
+              return { ...current, loadingMore: false };
+            }
+            if (!page) return { ...current, loadingMore: false };
+            const seen = new Set(current.events.map((event) => event.id));
+            return {
+              ...current,
+              events: [
+                ...current.events,
+                ...page.events.filter((event) => !seen.has(event.id)),
+              ],
+              nextCursor: page.nextCursor,
+              loadingMore: false,
+            };
+          });
+        })
+        .catch(() => {
+          setFetchState((current) => ({ ...current, loadingMore: false }));
+        });
+      return { ...prev, loadingMore: true };
+    });
+  }, [loadPage]);
+
+  /** Fetch the next page before the trader reaches the end of this one. */
+  const onListScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const list = event.currentTarget;
+      const remaining = list.scrollHeight - list.scrollTop - list.clientHeight;
+      if (remaining < 240) loadMore();
+    },
+    [loadMore],
+  );
 
   // Filtered client-side rather than re-fetched per keystroke: a session's
   // window is at most a few hundred releases, well within what one page holds.
@@ -188,19 +268,22 @@ export function EconomicCalendarPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto" data-testid="economic-calendar-panel-list">
+      <div
+        ref={listRef}
+        onScroll={onListScroll}
+        className="flex-1 overflow-y-auto"
+        data-testid="economic-calendar-panel-list"
+      >
         {loading && <p className="p-3 text-[12.5px] app-muted">Loading…</p>}
-        {!loading && !failed && truncated && (
-          <p className="border-b app-border bg-amber-400/10 px-3 py-2 text-[11.5px] text-amber-200">
-            This range contains more than 1,500 releases. Showing the highest-impact results;
-            shorten the session range for a complete list.
-          </p>
-        )}
         {!loading && failed && (
           <p className="p-3 text-[12.5px] app-muted">Could not load the calendar.</p>
         )}
         {!loading && !failed && filtered.length === 0 && (
-          <p className="p-3 text-[12.5px] app-muted">No releases match.</p>
+          <p className="p-3 text-[12.5px] app-muted">
+            {nextCursor == null
+              ? "No releases match."
+              : "No releases match yet — scroll to load more of the range."}
+          </p>
         )}
         {!loading &&
           !failed &&
@@ -246,6 +329,11 @@ export function EconomicCalendarPanel({
               </div>
             );
           })}
+        {!loading && !failed && nextCursor != null && (
+          <p className="border-t app-border px-3 py-2.5 text-center text-[11.5px] app-muted">
+            {loadingMore ? "Loading more releases…" : "Scroll for more releases"}
+          </p>
+        )}
       </div>
     </aside>
   );

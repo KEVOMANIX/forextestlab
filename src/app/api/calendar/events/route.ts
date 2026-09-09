@@ -7,6 +7,8 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** One page of the browsable panel list. Small enough to render instantly. */
+const PANEL_PAGE_SIZE = 200;
 /** A window wider than this is a mis-typed parameter, not a chart. */
 const MAX_WINDOW_MS = 40 * 365 * 24 * 60 * 60 * 1000;
 /** Align nearby chart windows so they share the AWS process cache. */
@@ -66,7 +68,51 @@ export async function GET(request: Request) {
     .map((currency) => currency.trim())
     .filter((currency) => currency !== "");
 
+  // The panel pages forward through time; the chart axis takes one ranked
+  // window. Only the former sends a cursor.
+  const byTime = searchParams.get("order") === "time";
+  const afterParam = searchParams.get("after");
+  const after = afterParam === null ? undefined : Number(afterParam);
+  if (after !== undefined && !Number.isFinite(after)) {
+    return NextResponse.json(
+      { ok: false, error: "after must be UTC epoch milliseconds." },
+      { status: 400 },
+    );
+  }
+
   try {
+    if (byTime) {
+      const page = await findCalendarEvents({
+        from,
+        to,
+        currencies,
+        minImportance,
+        limit: PANEL_PAGE_SIZE,
+        order: "time",
+        after,
+      });
+      return NextResponse.json(
+        {
+          ok: true,
+          events: page,
+          // A full page means there may be more, not that anything was
+          // dropped. The panel asks for the next one from this cursor.
+          nextCursor:
+            page.length >= PANEL_PAGE_SIZE
+              ? page[page.length - 1]!.timestamp
+              : null,
+          truncated: false,
+        },
+        {
+          headers: {
+            "Cache-Control":
+              "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+            "CDN-Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+          },
+        },
+      );
+    }
+
     const cacheFrom = Math.floor(from / CACHE_WINDOW_MS) * CACHE_WINDOW_MS;
     const cacheTo = Math.ceil(to / CACHE_WINDOW_MS) * CACHE_WINDOW_MS;
     const cachedWindow = await findCalendarEvents({
@@ -103,7 +149,7 @@ export async function GET(request: Request) {
     const code = (error as { code?: string } | null)?.code;
     const message = error instanceof Error ? error.message : "Failed to load events.";
     if (code === "P2021" || code === "42P01" || /relation .*EconomicEvent.* does not exist/i.test(message)) {
-      return NextResponse.json({ ok: true, events: [], truncated: false });
+      return NextResponse.json({ ok: true, events: [], truncated: false, nextCursor: null });
     }
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

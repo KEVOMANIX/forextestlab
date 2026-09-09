@@ -158,21 +158,21 @@ export function AuthForm({
     <div className="w-full">
       <form
         onSubmit={submit}
-        className="relative overflow-hidden rounded-[1.5rem] border app-border bg-[linear-gradient(145deg,rgba(20,30,45,.96),rgba(12,18,29,.96))] p-6 shadow-[0_30px_90px_-45px_rgba(0,0,0,0.95)] sm:p-8"
+        className="relative overflow-hidden rounded-2xl border border-white/[0.09] bg-[linear-gradient(160deg,rgba(21,31,46,.9),rgba(11,17,27,.94))] p-5 shadow-[0_24px_70px_-30px_rgba(0,0,0,.9)] ring-1 ring-inset ring-white/[0.04] backdrop-blur-xl sm:p-6"
       >
-        <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-52 w-52 rounded-full bg-brand-400/[0.07] blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-40 w-40 rounded-full bg-brand-400/[0.09] blur-3xl" />
         <div className="relative">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-300">
           {staffCopy ? staffCopy.eyebrow : mode === "sign-up"
             ? "Create your workspace"
             : mode === "sign-in"
               ? "Welcome back"
               : "Account recovery"}
         </p>
-        <h1 className="mt-3 text-[2rem] font-bold leading-tight tracking-[-0.035em] sm:text-[2.35rem]">
+        <h1 className="mt-2 text-[1.4rem] font-bold leading-tight tracking-[-0.02em] sm:text-[1.55rem]">
           {staffCopy ? staffCopy.title : COPY[mode].title}
         </h1>
-        <p className="mt-3 max-w-md text-sm leading-6 app-muted">
+        <p className="mt-1.5 text-[13px] leading-5 app-muted">
           {staffCopy ? staffCopy.description : mode === "sign-up"
             ? "Start with three one-month trial sessions on this device."
             : mode === "sign-in"
@@ -187,10 +187,10 @@ export function AuthForm({
             <button
               type="button"
               onClick={continueWithGoogle}
-              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-white/70 bg-white px-4 text-sm font-semibold text-slate-900 shadow-sm transition-all hover:-translate-y-px hover:bg-slate-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-xl bg-white px-4 text-[13px] font-semibold text-slate-900 shadow-sm transition-all hover:-translate-y-px hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
               disabled={pending}
             >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden>
                 <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z" />
                 <path fill="#34A853" d="M12 22c2.7 0 4.98-.9 6.64-2.42l-3.24-2.54c-.9.6-2.05.96-3.4.96-2.61 0-4.82-1.76-5.61-4.13H3.05v2.62A10 10 0 0 0 12 22Z" />
                 <path fill="#FBBC05" d="M6.39 13.87A6 6 0 0 1 6.08 12c0-.65.11-1.28.31-1.87V7.51H3.05A10 10 0 0 0 2 12c0 1.61.39 3.14 1.05 4.49l3.34-2.62Z" />
@@ -198,20 +198,20 @@ export function AuthForm({
               </svg>
               {busy === "google" ? "Connecting…" : "Continue with Google"}
             </button>
-            <div className="my-6 flex items-center gap-3" aria-hidden>
+            <div className="my-5 flex items-center gap-3" aria-hidden>
               <span className="h-px flex-1 bg-[var(--app-border)]" />
-              <span className="text-xs font-medium uppercase tracking-wider app-muted">or use email</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">or use email</span>
               <span className="h-px flex-1 bg-[var(--app-border)]" />
             </div>
           </>
         )}
 
-        <div className={supportsGoogle ? "space-y-5" : "mt-7 space-y-5"}>
+        <div className={supportsGoogle ? "space-y-3.5" : "mt-5 space-y-3.5"}>
           {mode === "sign-up" && (
             <label className="block">
-              <span className="mb-2 block text-sm font-medium">Display name</span>
+              <span className="mb-1.5 block text-[12px] font-medium app-muted">Display name</span>
               <input
-                className="app-input h-12 w-full px-4"
+                className="app-input h-11 w-full px-3.5 text-[13px]"
                 autoComplete="name"
                 maxLength={120}
                 value={displayName}
@@ -221,9 +221,9 @@ export function AuthForm({
           )}
 
           <label className="block">
-            <span className="mb-2 block text-sm font-medium">Email address</span>
+            <span className="mb-1.5 block text-[12px] font-medium app-muted">Email address</span>
             <input
-              className="app-input h-12 w-full px-4"
+              className="app-input h-11 w-full px-3.5 text-[13px]"
               type="email"
               autoComplete="email"
               required
@@ -238,14 +238,14 @@ export function AuthForm({
             <div className="block">
               <label
                 htmlFor="auth-password"
-                className="mb-2 block text-sm font-medium"
+                className="mb-1.5 block text-[12px] font-medium app-muted"
               >
                 Password
               </label>
               <span className="relative block">
                 <input
                   id="auth-password"
-                  className="app-input h-12 w-full px-4 pr-12"
+                  className="app-input h-11 w-full px-3.5 pr-11 text-[13px]"
                   type={showPassword ? "text" : "password"}
                   minLength={8}
                   autoComplete={
@@ -262,7 +262,7 @@ export function AuthForm({
                 <button
                   type="button"
                   onClick={() => setShowPassword((visible) => !visible)}
-                  className="absolute inset-y-0 right-0 inline-flex w-12 items-center justify-center app-muted transition-colors hover:text-[var(--app-text)]"
+                  className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center app-muted transition-colors hover:text-[var(--app-text)]"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   title={showPassword ? "Hide password" : "Show password"}
                 >
@@ -278,25 +278,25 @@ export function AuthForm({
         </div>
 
         {error && (
-          <p id="auth-form-error" role="alert" className="mt-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
+          <p id="auth-form-error" role="alert" className="mt-3.5 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-[13px] text-bear">
             {error}
           </p>
         )}
         {message && (
-          <p role="status" className="mt-4 rounded-lg border border-brand-400/30 bg-brand-400/10 px-3 py-2 text-sm text-brand-300">
+          <p role="status" className="mt-3.5 rounded-lg border border-brand-400/30 bg-brand-400/10 px-3 py-2 text-[13px] text-brand-300">
             {message}
           </p>
         )}
 
         <button
           type="submit"
-          className="btn-primary mt-7 min-h-12 w-full rounded-xl shadow-[0_12px_28px_-14px_rgba(20,184,166,.8)] transition-transform hover:-translate-y-px"
+          className="btn-primary mt-5 min-h-11 w-full rounded-xl text-[13px] shadow-[0_10px_24px_-14px_rgba(20,184,166,.85)] transition-transform hover:-translate-y-px"
           disabled={pending}
         >
           {busy === "form" ? "Please wait…" : COPY[mode].submit}
         </button>
 
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[13px]">
           {mode === "sign-in" && (
             <>
               <Link href="/forgot-password" className="text-brand-300 hover:underline">
@@ -326,7 +326,7 @@ export function AuthForm({
         </div>
 
         {needsPassword && (
-          <p className="mt-7 flex items-center justify-center gap-2 border-t app-border pt-5 text-xs app-muted">
+          <p className="mt-5 flex items-center justify-center gap-2 border-t border-white/[0.07] pt-4 text-[11px] app-muted">
             <LockKeyhole className="h-3.5 w-3.5 text-brand-300" aria-hidden />
             Your credentials are encrypted in transit.
           </p>

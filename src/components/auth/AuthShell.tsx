@@ -18,6 +18,9 @@ import { Logo } from "@/components/Logo";
  * `scale-110` is not decorative. A blur samples past the element's edges, so an
  * unscaled plate feathers to transparent at all four sides and the vignette
  * turns into a visible frame.
+ *
+ * Nothing here animates on a loop. A scan line used to sweep the plate on load,
+ * which drew the eye away from the one field the page exists to have filled in.
  */
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
@@ -35,7 +38,6 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#050912]/42" />
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_46%,rgba(9,24,32,.12),rgba(5,9,18,.8)_76%)]" />
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-grid-faint [background-size:52px_52px] opacity-10" />
-      <div aria-hidden className="auth-reveal-scan pointer-events-none absolute inset-x-0 top-[47%] h-px bg-brand-300/35 shadow-[0_0_24px_3px_rgba(45,212,191,.14)]" />
 
       <header className="relative z-10 flex items-center justify-between px-5 py-5 sm:px-8 sm:py-7 lg:px-12">
         <Logo className="h-8 sm:h-9" priority />
@@ -48,7 +50,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </Link>
       </header>
 
-      <section className="relative z-10 mx-auto flex min-h-[calc(100dvh-5.5rem)] w-full max-w-[34rem] items-center px-5 pb-16 pt-4 sm:px-0 sm:pb-20">
+      <section className="relative z-10 mx-auto flex min-h-[calc(100dvh-5.5rem)] w-full max-w-[25rem] items-center px-5 pb-16 pt-2 sm:px-0 sm:pb-20">
         <div className="auth-reveal-card w-full">
           {children}
         </div>

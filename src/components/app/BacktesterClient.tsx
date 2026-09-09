@@ -2,18 +2,22 @@
 
 import dynamic from "next/dynamic";
 
+import { PageLoader } from "@/components/PageLoader";
 import { SupportTerminalAlert } from "@/components/support/SupportTerminalAlert";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 
+/**
+ * The terminal is a large client bundle, so it arrives after the page that
+ * renders it. Its fallback is the same loader the route boundary and the
+ * terminal itself use: it used to be a bare sentence centred inside the app
+ * chrome, which put an unrelated-looking screen — nav, footer, one line of grey
+ * text — between two full-screen loaders on the way into a session.
+ */
 const Backtester = dynamic(
   () => import("@/components/app/Backtester").then((module) => module.Backtester),
   {
     ssr: false,
-    loading: () => (
-      <div className="grid min-h-[calc(100dvh-3.5rem)] place-items-center bg-[var(--app-bg)]">
-        <p className="text-sm app-muted">Loading replay terminal…</p>
-      </div>
-    ),
+    loading: () => <PageLoader message="Loading replay terminal…" />,
   },
 );
 

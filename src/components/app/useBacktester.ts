@@ -160,6 +160,15 @@ const initial: BacktesterState = {
   jumping: false,
 };
 
+/**
+ * What the server needs to have replayed: how many trades have closed, and how
+ * many positions and orders are live. Any change is a fill or an exit.
+ */
+function bookSignature(engine: EngineContext): string {
+  const { closedTrades, openPositions, pendingOrders } = engine.state;
+  return `${closedTrades.length}:${openPositions.length}:${pendingOrders.length}`;
+}
+
 export function useBacktester(resumeSessionId: string | null = null) {
   const [s, setS] = useState<BacktesterState>(() => ({
     ...initial,
@@ -177,7 +186,21 @@ export function useBacktester(resumeSessionId: string | null = null) {
     targetTime?: number;
     statusOverride?: "running" | "paused";
     requiresReplay: boolean;
+    /** Book state this request carries, recorded once the server accepts it. */
+    book: string;
   } | null>(null);
+  /**
+   * The book the last accepted checkpoint described.
+   *
+   * Without it, a checkpoint reports `requiresReplay` from the book as it
+   * stands — so the one checkpoint that most needs a replay claims it needs
+   * none. A stop-loss firing during local playback closes the position before
+   * the next checkpoint runs, leaving zero positions and zero orders, so the
+   * fast path wrote a new cursor and never replayed the candle that closed it.
+   * The server's snapshot kept the position open, and reloading restored a
+   * trade that had already been stopped out.
+   */
+  const checkpointedBookRef = useRef<string | null>(null);
   const autoStepPendingRef = useRef(false);
   const replayExtendPromiseRef = useRef<ReturnType<typeof extendReplay> | null>(
     null,
@@ -224,6 +247,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
         candles,
       };
       localEngineRef.current = engine;
+      // The server just handed this book over, so it already agrees with it.
+      // Seeding avoids forcing a replay on the first checkpoint of every load.
+      checkpointedBookRef.current = bookSignature(engine);
       return publicSessionState(engine, state.anonymous);
     },
     [],
@@ -861,13 +887,19 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const id = sessionIdRef.current;
     const engine = localEngineRef.current;
     if (!id || !engine) return;
+    const book = bookSignature(engine);
     checkpointLatestRef.current = {
       targetIndex: engine.state.visibleIndex,
       targetTime: engine.candles[engine.state.visibleIndex]?.timestamp,
       statusOverride,
+      // Anything live still needs replaying, and so does a book that has
+      // changed since the server last agreed with it — that difference is
+      // exactly a fill or an exit the server has not seen.
       requiresReplay:
         engine.state.openPositions.length > 0 ||
-        engine.state.pendingOrders.length > 0,
+        engine.state.pendingOrders.length > 0 ||
+        book !== checkpointedBookRef.current,
+      book,
     };
     patch({ saveStatus: "saving" });
 
@@ -903,6 +935,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
               performance.now() - saveStartedAt,
             );
             if (res.ok) {
+              checkpointedBookRef.current = requested.book;
               patch({ saveStatus: "saved", savedAt: Date.now() });
             }
           } catch {

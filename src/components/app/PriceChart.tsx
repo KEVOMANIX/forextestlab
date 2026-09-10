@@ -4297,28 +4297,6 @@ export default function PriceChart({
           );
         })}
 
-        {(tradePlan || positions.length > 0 || pendingOrders.some((order) => order.status === "pending")) && (
-          <div
-            data-testid="trade-line-key"
-            style={{ fontSize: overlayFont }}
-            className="pointer-events-none absolute bottom-7 left-3 z-10 flex items-center gap-3 rounded border app-border bg-[var(--app-panel-solid)]/90 px-2 py-1 text-[0.82em] font-bold uppercase tracking-wide text-[var(--chart-muted)] shadow"
-            aria-label="Trade line styles"
-          >
-            <span className="flex items-center gap-1">
-              <i className="w-5 border-t border-dashed border-sky-400" />
-              Planned
-            </span>
-            <span className="flex items-center gap-1">
-              <i className="w-5 border-t border-dotted border-amber-400" />
-              Pending
-            </span>
-            <span className="flex items-center gap-1 text-[var(--chart-text)]">
-              <i className="w-5 border-t border-[#2962ff]" />
-              Active
-            </span>
-          </div>
-        )}
-
         {pendingOrders.filter((order) => order.status === "pending").map((order) => (
           <div
             key={order.id}
@@ -4336,15 +4314,15 @@ export default function PriceChart({
             onPointerMove={movePendingDrag}
             onPointerUp={endPendingDrag}
             onPointerCancel={endPendingDrag}
-            className="absolute left-0 right-16 z-30 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dotted border-amber-400"
+            className="absolute left-0 right-16 z-30 h-4 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dotted border-amber-400"
             style={{ top: 0, visibility: "hidden" }}
             aria-label={`Drag ${order.direction === "long" ? "buy" : "sell"} ${order.orderType} order at ${order.entryPrice}`}
           >
-            <span className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[10px] font-bold shadow-lg">
-              <span className="h-full border-r border-amber-400/50 bg-amber-400/10 px-2 leading-7 text-amber-300">
+            <span className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[9px] font-bold shadow-lg">
+              <span className="h-full border-r border-amber-400/50 bg-amber-400/10 px-1.5 leading-5 text-amber-300">
                 PENDING · {order.direction === "long" ? "BUY" : "SELL"} {order.orderType.toUpperCase()}
               </span>
-              <span className="h-full border-r border-amber-400/50 px-2 leading-7 text-amber-300">
+              <span className="h-full border-r border-amber-400/50 px-1.5 leading-5 text-amber-300">
                 {order.lots} · {order.entryPrice}
               </span>
               <button
@@ -4353,7 +4331,7 @@ export default function PriceChart({
                   event.stopPropagation();
                   onCancelPendingOrder(order.id);
                 }}
-                className="grid h-full w-7 place-items-center hover:bg-bear/15 hover:text-bear"
+                className="grid h-full w-5 place-items-center hover:bg-bear/15 hover:text-bear"
                 aria-label="Cancel pending order"
               >
                 <X size={12} aria-hidden />
@@ -4404,8 +4382,8 @@ export default function PriceChart({
               style={{ top: 0, visibility: "hidden" }}
             >
               <span className={`pointer-events-none absolute left-0 right-0 top-1/2 border-t ${isLong ? "border-[#2962ff]" : "border-bear"}`} />
-              <div className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-[#2962ff] bg-[var(--app-panel-solid)] text-[10px] shadow-lg">
-                <span className="grid h-full min-w-7 place-items-center border-r border-[#2962ff]/60 bg-[#2962ff]/15 font-bold text-[#5b8bff]">
+              <div className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-[#2962ff] bg-[var(--app-panel-solid)] text-[9px] shadow-lg">
+                <span className="grid h-full min-w-5 place-items-center border-r border-[#2962ff]/60 bg-[#2962ff]/15 font-bold text-[#5b8bff]">
                   {isLong ? "B" : "S"}
                 </span>
                 {isActive && !position.takeProfit && (
@@ -4456,16 +4434,16 @@ export default function PriceChart({
                   <button
                     type="button"
                     onClick={() => onStopLossChange(position.entryPrice)}
-                    className="h-full border-r app-border px-2 font-bold text-sky-300 hover:bg-sky-400/10"
+                    className="h-full border-r app-border px-1.5 font-bold text-sky-300 hover:bg-sky-400/10"
                     aria-label={`Move ${isLong ? "buy" : "sell"} position to break-even`}
                   >
                     BE
                   </button>
                 )}
-                <span className="h-full border-r app-border bg-[#2962ff] px-2 font-mono font-bold leading-7 text-white">
+                <span className="h-full border-r app-border bg-[#2962ff] px-1.5 font-mono font-bold leading-5 text-white">
                   ACTIVE · {position.lots}
                 </span>
-                <span className={`h-full min-w-[164px] border-r app-border px-2 font-mono font-bold leading-7 ${positive ? "text-brand-300" : "text-bear"}`}>
+                <span className={`h-full min-w-[132px] border-r app-border px-1.5 font-mono font-bold leading-5 ${positive ? "text-brand-300" : "text-bear"}`}>
                   {Number(position.unrealizedPnl) >= 0 ? "+" : "−"}
                   {Math.abs(Number(position.unrealizedPnl)).toFixed(2)} {accountCurrency}
                   {livePips == null
@@ -4475,7 +4453,7 @@ export default function PriceChart({
                     ? ""
                     : ` · ${liveR >= 0 ? "+" : ""}${liveR.toFixed(2)}R`}
                 </span>
-                <button type="button" onClick={() => onEditPosition(position.id)} className="grid h-full w-7 place-items-center hover:bg-bear/15 hover:text-bear" aria-label={`Manage ${isLong ? "buy" : "sell"} position`}>
+                <button type="button" onClick={() => onEditPosition(position.id)} className="grid h-full w-5 place-items-center hover:bg-bear/15 hover:text-bear" aria-label={`Manage ${isLong ? "buy" : "sell"} position`}>
                   <X size={12} aria-hidden />
                 </button>
               </div>
@@ -4587,14 +4565,14 @@ export default function PriceChart({
             onPointerMove={(event) => moveLine("stop", event)}
             onPointerUp={(event) => endLineDrag("stop", event)}
             onPointerCancel={(event) => endLineDrag("stop", event)}
-            className="absolute left-0 right-16 z-30 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-amber-400 text-left"
+            className="absolute left-0 right-16 z-30 h-4 -translate-y-1/2 touch-none cursor-ns-resize border-t border-amber-400 text-left"
             style={{ top: 0, visibility: "hidden" }}
           >
-            <span className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[10px] font-bold shadow-lg">
-              <span className="h-full border-r border-amber-400/50 bg-amber-400/10 px-2 leading-7 text-amber-400">
+            <span className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[9px] font-bold shadow-lg">
+              <span className="h-full border-r border-amber-400/50 bg-amber-400/10 px-1.5 leading-5 text-amber-400">
                 {activePosition?.trailingStopPips ? "TRAIL" : "ACTIVE SL"} · {activePosition?.lots ?? "—"}
               </span>
-              <span className="h-full min-w-[88px] border-r border-amber-400/50 px-2 leading-7 text-amber-400">
+              <span className="h-full min-w-[88px] border-r border-amber-400/50 px-1.5 leading-5 text-amber-400">
                 {signedAccountValue(
                   projectedPositionPnl(activePosition, stopDraft),
                 )}
@@ -4634,14 +4612,14 @@ export default function PriceChart({
             onPointerMove={(event) => moveLine("target", event)}
             onPointerUp={(event) => endLineDrag("target", event)}
             onPointerCancel={(event) => endLineDrag("target", event)}
-            className="absolute left-0 right-16 z-30 h-5 -translate-y-1/2 touch-none cursor-ns-resize border-t border-brand-400 text-left"
+            className="absolute left-0 right-16 z-30 h-4 -translate-y-1/2 touch-none cursor-ns-resize border-t border-brand-400 text-left"
             style={{ top: 0, visibility: "hidden" }}
           >
-            <span className="absolute right-1 -top-3.5 flex h-7 items-center overflow-hidden rounded border border-brand-400 bg-[var(--app-panel-solid)] font-mono text-[10px] font-bold shadow-lg">
-              <span className="h-full border-r border-brand-400/50 bg-brand-400/10 px-2 leading-7 text-brand-300">
+            <span className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-brand-400 bg-[var(--app-panel-solid)] font-mono text-[9px] font-bold shadow-lg">
+              <span className="h-full border-r border-brand-400/50 bg-brand-400/10 px-1.5 leading-5 text-brand-300">
                 ACTIVE TP · {activePosition?.lots ?? "—"}
               </span>
-              <span className="h-full min-w-[88px] border-r border-brand-400/50 px-2 leading-7 text-brand-300">
+              <span className="h-full min-w-[72px] border-r border-brand-400/50 px-1.5 leading-5 text-brand-300">
                 {signedAccountValue(
                   projectedPositionPnl(activePosition, targetDraft),
                 )}

@@ -283,9 +283,6 @@ test("builds and places a chart-connected trade plan", async ({ page }, testInfo
   ]);
   await page.getByRole("button", { name: "Close position editor" }).click();
   await expect(page.getByTestId("stop-loss-line")).toContainText("TRAIL");
-  await expect(page.getByTestId("trade-line-key")).toContainText("Planned");
-  await expect(page.getByTestId("trade-line-key")).toContainText("Pending");
-  await expect(page.getByTestId("trade-line-key")).toContainText("Active");
 });
 
 test("places, modifies and cancels a pending order from the chart", async ({

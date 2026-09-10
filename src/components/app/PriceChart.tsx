@@ -4003,6 +4003,7 @@ export default function PriceChart({
             viewVersion={viewVersion}
             onEdit={() => setIndicatorEditing(inst.id)}
             onRemove={() => removeIndicator(inst.id)}
+            onToggleVisible={() => updateIndicator(inst.id, { visible: !inst.visible })}
           />
         ))}
 

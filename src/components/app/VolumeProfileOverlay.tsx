@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
-import { Settings2, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Settings2, Trash2 } from "lucide-react";
 
 import { getDef, type IndicatorInstance } from "@/lib/chart/indicator-defs";
 import type { OHLCV } from "@/lib/chart/indicators";
@@ -17,6 +17,8 @@ interface Props {
   viewVersion: number;
   onEdit: () => void;
   onRemove: () => void;
+  /** Hide the overlay without removing it, as the pane legends already allow. */
+  onToggleVisible: () => void;
 }
 
 function withOpacity(color: string, opacity: number): string {
@@ -29,7 +31,7 @@ function withOpacity(color: string, opacity: number): string {
 
 const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 
-export function VolumeProfileOverlay({ instance, chart, series, candles, theme, viewVersion, onEdit, onRemove }: Props) {
+export function VolumeProfileOverlay({ instance, chart, series, candles, theme, viewVersion, onEdit, onRemove, onToggleVisible }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -169,6 +171,12 @@ export function VolumeProfileOverlay({ instance, chart, series, candles, theme, 
       <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-[5]" aria-hidden />
       <div className="group absolute right-20 top-2 z-10 flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[10px] shadow backdrop-blur">
         <span className={instance.visible ? "font-medium" : "app-muted line-through"}>{def?.short(instance.inputs) ?? "Volume Profile"}</span>
+        {/* Every overlay indicator wears this chip — Sessions included — and it
+            was the only legend in the chart without a visibility toggle, so an
+            overlay could be removed but never simply put away. */}
+        <button type="button" aria-label={instance.visible ? "Hide" : "Show"} onClick={onToggleVisible} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
+          {instance.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+        </button>
         <button type="button" aria-label="Settings" onClick={onEdit} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
           <Settings2 size={12} />
         </button>

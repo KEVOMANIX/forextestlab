@@ -129,6 +129,15 @@ export function rectFromPoints(pts: { x: number; y: number }[]): Rect | null {
 }
 
 export abstract class DrawingObject {
+  /**
+   * Vertical room this drawing paints above its own bounding box, so chrome
+   * that floats over the selection can keep clear of it. Zero for everything
+   * that labels itself inside its box.
+   */
+  topLabelHeight(): number {
+    return 0;
+  }
+
   id: string;
   kind: ToolKind;
   points: Point[];

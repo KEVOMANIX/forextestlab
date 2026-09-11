@@ -48,16 +48,15 @@ function position(): DrawingJSON {
 }
 
 describe("position tool anchors", () => {
-  it("grips both ends of every level, plus the entry's middle", () => {
+  it("grips both ends of every level, and nothing in the middle", () => {
     const object = createObject(position());
     const anchors = object.anchors(mapper());
 
     // Ends rather than centres: a centred handle sits under the level's own
-    // chip, which then takes the pointer instead of the handle.
+    // chip, and a grip inside the box has nothing to drag that an edge cannot.
     expect(anchors).toEqual([
       { x: 100, y: 1000 - 1100, index: 0 },
       { x: 300, y: 1000 - 1100, index: 3 },
-      { x: 200, y: 1000 - 1100, index: 6 },
       { x: 100, y: 1000 - 1090, index: 4 },
       { x: 300, y: 1000 - 1090, index: 1 },
       { x: 100, y: 1000 - 1120, index: 5 },
@@ -66,18 +65,44 @@ describe("position tool anchors", () => {
   });
 });
 
+/**
+ * Each handle owns one level's price; the side it sits on owns a box edge. So
+ * a level can be moved from either end, and either end also resizes the box —
+ * which is what a trader reaches for a corner to do.
+ */
 describe("position tool level dragging", () => {
-  it("moves only the stop when the stop handle is dragged", () => {
-    const object = createObject(position());
-    object.setAnchor(1, { time: 250, price: 1.085 });
-
-    expect(object.points[1]).toEqual({ time: 100, price: 1.085 });
-    // The entry and target are untouched — the whole point of the fix.
-    expect(object.points[0]).toEqual({ time: 100, price: 1.1 });
-    expect(object.points[2]).toEqual({ time: 300, price: 1.12 });
+  it("moves the stop's price from either end, never the stop's own time", () => {
+    for (const handle of [1, 4]) {
+      const object = createObject(position());
+      object.setAnchor(handle, { time: 250, price: 1.085 });
+      expect(object.points[1]).toEqual({ time: 100, price: 1.085 });
+    }
   });
 
-  it("moves only the target, and the box edge it owns, when the target is dragged", () => {
+  it("drags the right edge from any right-hand grip", () => {
+    for (const handle of [1, 2, 3]) {
+      const object = createObject(position());
+      object.setAnchor(handle, { time: 420, price: 1.115 });
+      // The target owns the right edge, so that is where the new time lands.
+      expect(object.points.map((point) => point.time)).toEqual([100, 100, 420]);
+    }
+  });
+
+  it("drags the left edge from any left-hand grip", () => {
+    for (const handle of [0, 4, 5]) {
+      const object = createObject(position());
+      object.setAnchor(handle, { time: 60, price: 1.115 });
+      expect(object.points.map((point) => point.time)).toEqual([60, 100, 300]);
+    }
+  });
+
+  it("moves only the dragged level's price", () => {
+    const object = createObject(position());
+    object.setAnchor(3, { time: 300, price: 1.105 });
+    expect(object.points.map((point) => point.price)).toEqual([1.105, 1.09, 1.12]);
+  });
+
+  it("moves only the target when the target is dragged", () => {
     const object = createObject(position());
     object.setAnchor(2, { time: 400, price: 1.13 });
 
@@ -93,33 +118,6 @@ describe("position tool level dragging", () => {
     expect(object.points[0]).toEqual({ time: 150, price: 1.105 });
     expect(object.points[1]).toEqual({ time: 100, price: 1.09 });
     expect(object.points[2]).toEqual({ time: 300, price: 1.12 });
-  });
-
-  it("moves the stop from either end, and never its time", () => {
-    for (const handle of [1, 4]) {
-      const object = createObject(position());
-      object.setAnchor(handle, { time: 250, price: 1.085 });
-      expect(object.points[1]).toEqual({ time: 100, price: 1.085 });
-      expect(object.points[0]).toEqual({ time: 100, price: 1.1 });
-      expect(object.points[2]).toEqual({ time: 300, price: 1.12 });
-    }
-  });
-
-  /**
-   * Only the entry and the target own a box edge — the left and the right. An
-   * extra grip that also wrote a time would set one edge to the other's
-   * position and turn the box inside out, so the grips move price alone.
-   */
-  it("keeps the box intact when an extra grip is dragged sideways", () => {
-    const object = createObject(position());
-    object.setAnchor(3, { time: 999, price: 1.101 });
-    expect(object.points[0]).toEqual({ time: 100, price: 1.101 });
-
-    object.setAnchor(5, { time: 999, price: 1.125 });
-    expect(object.points[2]).toEqual({ time: 300, price: 1.125 });
-
-    object.setAnchor(6, { time: 999, price: 1.102 });
-    expect(object.points[0]).toEqual({ time: 100, price: 1.102 });
   });
 
   it("still translates every level together when the body is moved", () => {

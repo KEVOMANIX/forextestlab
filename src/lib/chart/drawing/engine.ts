@@ -384,9 +384,12 @@ export class DrawingEngine {
     const b = o?.bbox(this.mapper);
     if (!b) return null;
     const halfToolbar = Math.min(170, this.mapper.width / 2);
+    // Clear whatever the drawing paints above its own box. The position tool's
+    // target chip sits there, and the toolbar landed straight on top of it.
+    const labelRoom = o?.topLabelHeight() ?? 0;
     return {
       x: Math.max(halfToolbar, Math.min(this.mapper.width - halfToolbar, b.x + b.w / 2)),
-      y: Math.max(48, Math.min(this.mapper.height - 8, b.y - 10)),
+      y: Math.max(48, Math.min(this.mapper.height - 8, b.y - 10 - labelRoom)),
     };
   }
 

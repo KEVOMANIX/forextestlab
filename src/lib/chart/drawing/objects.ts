@@ -835,6 +835,14 @@ class PositionTool extends DrawingObject {
     ctx.restore();
   }
   /**
+   * The chip that sits outside the box's top edge, so the selection toolbar
+   * does not land on it. One line at 10px plus the 3px gap the chip is placed
+   * with; `chipSize` computes the same height from the same numbers.
+   */
+  topLabelHeight(): number {
+    return this.style.showLabels === false ? 0 : 10 + 4 + 6 + 3;
+  }
+  /**
    * One handle per level: the entry on the box's left edge, the stop and the
    * target centred on their own lines.
    *
@@ -868,7 +876,6 @@ class PositionTool extends DrawingObject {
     return [
       { x: left, y: yE, index: 0 },
       { x: right, y: yE, index: 3 },
-      { x: cx, y: yE, index: 6 },
       { x: left, y: yS, index: 4 },
       { x: right, y: yS, index: 1 },
       { x: left, y: yT, index: 5 },
@@ -885,21 +892,24 @@ class PositionTool extends DrawingObject {
    */
   setAnchor(index: number, p: Point): void {
     /*
-      Handles 3-6 are the extra grips added for reach; each belongs to one of
-      the three real points and moves its price only.
+      Each handle owns one level's price, and the side it sits on owns a box
+      edge: the entry carries the left edge, the target the right.
 
-      Only the two original handles carry a time, because only they own a box
-      edge: the entry holds the left edge and the target the right. Letting a
-      grip at the right end of the entry line write the entry's time would set
-      the left edge to the right edge and turn the box inside out.
+      So a right-hand grip drags the box's right edge while moving its own
+      level, and a left-hand grip drags the left edge. Writing the edge onto
+      the point that owns it — rather than onto the handle's own point — is
+      what keeps the box from turning inside out when the right end of the
+      entry line is dragged.
     */
-    const owner = index <= 2 ? index : index === 3 || index === 6 ? 0 : index === 4 ? 1 : 2;
-    const carriesTime = index === 0 || index === 2;
+    const owner = index <= 2 ? index : index === 3 ? 0 : index === 4 ? 1 : 2;
     const current = this.points[owner];
     if (!current) return;
-    this.points[owner] = carriesTime
-      ? { time: p.time, price: p.price }
-      : { time: current.time, price: p.price };
+    this.points[owner] = { time: current.time, price: p.price };
+
+    const onRight = index === 1 || index === 2 || index === 3;
+    const edgeOwner = onRight ? 2 : 0;
+    const edge = this.points[edgeOwner];
+    if (edge) this.points[edgeOwner] = { time: p.time, price: edge.price };
   }
   bbox(mapper: CoordinateMapper): Rect | null {
     return rectFromPoints(this.anchors(mapper).map((a) => ({ x: a.x, y: a.y })));

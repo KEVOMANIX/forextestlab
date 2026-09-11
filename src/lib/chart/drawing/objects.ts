@@ -155,6 +155,15 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 }
 
 /** A pill of one or more centred text lines, centred on (cx,cy). */
+/** The box `centerChip` would paint, so a caller can place it clear of things. */
+function chipSize(ctx: CanvasRenderingContext2D, lines: string[], font: number): { w: number; h: number } {
+  ctx.save();
+  ctx.font = `${font}px ui-sans-serif, system-ui, sans-serif`;
+  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
+  ctx.restore();
+  return { w, h: lines.length * (font + 4) + 6 };
+}
+
 function centerChip(ctx: CanvasRenderingContext2D, cx: number, cy: number, lines: string[], bg: string, fg: string, font: number): void {
   ctx.save();
   ctx.font = `${font}px ui-sans-serif, system-ui, sans-serif`;
@@ -690,7 +699,7 @@ class Channel extends DrawingObject {
 // ---- long / short position ----
 
 class PositionTool extends DrawingObject {
-  render({ ctx, mapper, precision, pipSize, selected, account }: RenderCtx): void {
+  render({ ctx, mapper, precision, pipSize, selected, account, candles }: RenderCtx): void {
     const entry = this.points[0]!;
     const stop = this.points[1]!;
     const target = this.points[2]!;
@@ -750,74 +759,77 @@ class PositionTool extends DrawingObject {
       /*
         Sized against the account being traded, not a number held per drawing.
 
-        `accountSize` stays as an override for planning a position on an account
-        other than this session's, but it no longer *defaults* to 10,000: every
-        untouched drawing described a fictional account, so the quantity and the
-        cash figures were unrelated to anything the trader could place.
+        `accountSize` remains an override for planning against a different
+        account, but it no longer *defaults* to 10,000 — an untouched drawing
+        described an account nobody was trading.
       */
       const accountSize = this.style.accountSize ?? account.balance;
       const riskMode = this.style.riskMode ?? "percent";
       const riskInput = this.style.risk ?? 1;
       const leverage = this.style.leverage ?? 1;
-      const riskCash = riskMode === "percent" ? (accountSize * riskInput) / 100 : riskInput;
-
-      /*
-        Lots when the instrument's pip value is known, units otherwise.
-
-        A stop is a distance in pips, and what a trader sends is lots, so the
-        size that matters is riskCash / (stopPips x pipValuePerLot) — the same
-        arithmetic the order ticket does. The old units figure (9218.65 against
-        a 10,000 account) could not be typed into any ticket.
-      */
-      const sPips = riskPU / pipSize;
-      const tPips = rewardPU / pipSize;
-      const inLots = account.pipValuePerLot != null && account.pipValuePerLot > 0;
-      const lots = inLots && sPips > 0 ? riskCash / (sPips * account.pipValuePerLot!) : 0;
       const lotSize = this.style.lotSize ?? 1;
-      const units = riskPU ? Math.min(
-        riskCash / riskPU / lotSize,
-        entry.price ? ((accountSize * leverage) / entry.price) / lotSize : Infinity,
-      ) : 0;
-      const lossAmount = inLots ? riskCash : riskPU * units * lotSize;
-      const profitAmount = inLots
-        ? riskCash * rr
-        : rewardPU * units * lotSize;
+      const riskCash = riskMode === "percent" ? (accountSize * riskInput) / 100 : riskInput;
+      // Size from risk, capped by leverage.
+      const qty = riskPU
+        ? Math.min(
+            riskCash / riskPU / lotSize,
+            entry.price ? ((accountSize * leverage) / entry.price) / lotSize : Infinity,
+          )
+        : 0;
+      const profitAmount = rewardPU * qty * lotSize;
+      const lossAmount = riskPU * qty * lotSize;
       const pctT = entry.price ? (rewardPU / entry.price) * 100 : 0;
       const pctS = entry.price ? (riskPU / entry.price) * 100 : 0;
-      const money = (value: number) =>
-        `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${account.currency}`;
+      const tPips = rewardPU / pipSize;
+      const sPips = riskPU / pipSize;
+      /*
+        Unrealised P/L in price, from the last revealed candle. A position drawn
+        ahead of price has none yet, which reads as 0 rather than as a gap.
+      */
+      const last = candles[candles.length - 1]?.close;
+      const openPnl =
+        last == null
+          ? 0
+          : this.kind === "short"
+            ? entry.price - last
+            : last - entry.price;
+      const amount = (value: number) =>
+        value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-      // The profit and the loss, not the balance each would leave behind. The
-      // old chips said "Amount: 9992.59" for a 7.41 loss.
-      centerChip(
-        ctx,
-        cx,
-        yT,
-        [`Target ${target.price.toFixed(precision)} · ${tPips.toFixed(1)} pips (${pctT.toFixed(2)}%) · +${money(profitAmount)}`],
-        green,
-        "#04231b",
-        9,
-      );
-      centerChip(
-        ctx,
-        cx,
-        yS,
-        [`Stop ${stop.price.toFixed(precision)} · ${sPips.toFixed(1)} pips (${pctS.toFixed(2)}%) · −${money(lossAmount)}`],
-        red,
-        "#ffffff",
-        9,
-      );
+      /*
+        Chips clear of the zones, and clamped into the pane.
+
+        The target and stop sit outside the box on their own side — away from
+        the entry, so a short reads like a long — which is where the eye looks
+        for a level. Clamping matters more than the gap: an unclamped chip on a
+        level near the top or bottom of the pane leaves the chart entirely, and
+        a label off-screen is a label that does not exist.
+      */
+      const gap = 3;
+      const place = (y: number, lines: string[]) => {
+        const { h } = chipSize(ctx, lines, 10);
+        const outward = y + (y <= yE ? -(h / 2 + gap) : h / 2 + gap);
+        return Math.min(Math.max(outward, h / 2), mapper.height - h / 2);
+      };
+      const targetLines = [
+        `Target: ${target.price.toFixed(precision)} (${pctT.toFixed(3)}%) ${tPips.toFixed(1)}, Amount: ${amount(profitAmount)}`,
+      ];
+      const stopLines = [
+        `Stop: ${stop.price.toFixed(precision)} (${pctS.toFixed(3)}%) ${sPips.toFixed(1)}, Amount: ${amount(lossAmount)}`,
+      ];
+      centerChip(ctx, cx, place(yT, targetLines), targetLines, green, "#04231b", 10);
+      centerChip(ctx, cx, place(yS, stopLines), stopLines, red, "#ffffff", 10);
       centerChip(
         ctx,
         cx,
         yE,
         [
-          inLots ? `${lots.toFixed(2)} lots · R:R ${rr.toFixed(2)}` : `${units.toFixed(2)} units · R:R ${rr.toFixed(2)}`,
-          `Risking ${money(lossAmount)} to make ${money(profitAmount)}`,
+          `Open PnL: ${openPnl < 0 ? "−" : ""}${Math.abs(openPnl).toFixed(precision)}, Qty: ${Math.round(qty)}`,
+          `Risk/reward ratio: ${rr.toFixed(2)}`,
         ],
         withAlpha(red, 0.92),
         "#ffffff",
-        9,
+        10,
       );
     }
     ctx.restore();

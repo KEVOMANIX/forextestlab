@@ -871,8 +871,8 @@ function ToolButton({
   active?: boolean;
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   children: React.ReactNode;
-  /** "sm" shrinks the button for the floating favourites bar, kept out of the
-   *  way of the taller drawing rail so its own hit targets stay unchanged. */
+  /** "sm" is the floating favourites bar's own size — a compact 28px square,
+   *  well clear of the taller drawing rail, whose hit targets are unchanged. */
   size?: "default" | "sm";
 }) {
   return (
@@ -883,7 +883,7 @@ function ToolButton({
       aria-pressed={active}
       onClick={onClick}
       className={`relative inline-flex shrink-0 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
-        size === "sm" ? "h-8 min-w-8 px-1.5" : "h-10 min-w-10 px-2"
+        size === "sm" ? "h-7 min-w-7 px-0.5" : "h-10 min-w-10 px-2"
       } ${
         active
           ? "bg-brand-400/20 text-[var(--chart-text)]"
@@ -3704,18 +3704,18 @@ export default function PriceChart({
       // candles showed straight through the toolbox that was meant to be
       // sitting on top of them, and the muted handle and button hovers went
       // with it. The class carries the palette across the portal.
-      className={`app-theme-surface pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-1 rounded-lg border border-white/20 bg-[var(--app-panel-solid)] px-1.5 py-1 shadow-2xl shadow-black/50 ${theme === "light" ? "light" : ""}`}
+      className={`app-theme-surface pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-0.5 rounded-md border border-white/15 bg-[var(--app-panel-solid)] px-1 py-0.5 shadow-lg shadow-black/50 ${theme === "light" ? "light" : ""}`}
       style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
       role="toolbar"
       aria-label="Favorite tools (drag to move)"
       onPointerDown={startFavDrag}
     >
-      <span className="mr-0.5 select-none text-[13px] leading-none app-muted" aria-hidden>⋮⋮</span>
+      <span className="select-none px-0.5 text-[11px] leading-none app-muted" aria-hidden>⋮⋮</span>
       {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
         const Icon = DRAWING_TOOL_ICONS[t];
         return (
           <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} size="sm" onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
-            <Icon size={20} aria-hidden />
+            <Icon size={17} aria-hidden />
           </ToolButton>
         );
       })}

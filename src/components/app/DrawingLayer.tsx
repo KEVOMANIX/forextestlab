@@ -342,7 +342,7 @@ export function DrawingLayer({
         <div
           role="toolbar"
           aria-label={`${selection.kind} drawing settings`}
-          className="absolute z-40 flex h-10 items-center gap-1 rounded-lg border app-border bg-[var(--app-panel-solid)] px-1.5 shadow-2xl"
+          className="absolute z-40 flex h-8 items-center gap-0.5 rounded-md border app-border bg-[var(--app-panel-solid)] px-1 shadow-lg"
           style={{
             left: toolbarPosition.x,
             top: toolbarPosition.y,
@@ -351,11 +351,11 @@ export function DrawingLayer({
           }}
           onPointerDown={(event) => event.stopPropagation()}
         >
-          <span className="grid h-7 w-6 cursor-move place-items-center app-muted" title="Move drawing toolbar" aria-hidden>
-            <GripVertical size={16} />
+          <span className="grid h-6 w-5 cursor-move place-items-center app-muted" title="Move drawing toolbar" aria-hidden>
+            <GripVertical size={14} />
           </span>
-          <label className="relative grid h-7 w-8 cursor-pointer place-items-center rounded hover:bg-[var(--app-panel-2)]" title="Stroke color">
-            <PencilLine size={17} />
+          <label className="relative grid h-6 w-7 cursor-pointer place-items-center rounded hover:bg-[var(--app-panel-2)]" title="Stroke color">
+            <PencilLine size={15} />
             <span className="absolute bottom-0.5 h-0.5 w-5 rounded-full" style={{ backgroundColor: selection.style.color }} />
             <input
               type="color"
@@ -365,8 +365,8 @@ export function DrawingLayer({
               className="absolute inset-0 cursor-pointer opacity-0"
             />
           </label>
-          <label className={`relative grid h-7 w-8 cursor-pointer place-items-center rounded hover:bg-[var(--app-panel-2)] ${selection.style.fill ? "text-brand-300" : "app-muted"}`} title="Background color">
-            <PaintBucket size={17} />
+          <label className={`relative grid h-6 w-7 cursor-pointer place-items-center rounded hover:bg-[var(--app-panel-2)] ${selection.style.fill ? "text-brand-300" : "app-muted"}`} title="Background color">
+            <PaintBucket size={15} />
             <span
               className="absolute bottom-0.5 h-0.5 w-5 rounded-full border border-white/20"
               style={{ backgroundColor: selection.style.fill ? selection.style.fillColor : "transparent" }}
@@ -404,14 +404,14 @@ export function DrawingLayer({
             <span className="sr-only">{selection.style.lineStyle}</span>
           </button>
           <span className="mx-0.5 h-5 w-px bg-[var(--app-border)]" aria-hidden />
-          <button type="button" aria-label={selection.locked ? "Unlock drawing" : "Lock drawing"} onClick={() => eng()?.toggleLock()} className="grid h-7 w-7 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
+          <button type="button" aria-label={selection.locked ? "Unlock drawing" : "Lock drawing"} onClick={() => eng()?.toggleLock()} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
             {selection.locked ? <LockOpen size={15} /> : <Lock size={15} />}
           </button>
-          <button type="button" aria-label="Delete drawing" onClick={() => eng()?.deleteSelected()} className="grid h-7 w-7 place-items-center rounded app-muted hover:bg-bear/10 hover:text-bear">
+          <button type="button" aria-label="Delete drawing" onClick={() => eng()?.deleteSelected()} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-bear/10 hover:text-bear">
             <Trash2 size={15} />
           </button>
-          <button type="button" aria-label="More drawing settings" onClick={() => setSettings(selection)} className="grid h-7 w-7 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
-            <Ellipsis size={17} />
+          <button type="button" aria-label="More drawing settings" onClick={() => setSettings(selection)} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
+            <Ellipsis size={15} />
           </button>
         </div>
       )}

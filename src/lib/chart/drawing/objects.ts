@@ -155,6 +155,15 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
 }
 
 /** A pill of one or more centred text lines, centred on (cx,cy). */
+/** The box `centerChip` would paint, so a caller can place it clear of things. */
+function chipSize(ctx: CanvasRenderingContext2D, lines: string[], font: number): { w: number; h: number } {
+  ctx.save();
+  ctx.font = `${font}px ui-sans-serif, system-ui, sans-serif`;
+  const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 16;
+  ctx.restore();
+  return { w, h: lines.length * (font + 4) + 6 };
+}
+
 function centerChip(ctx: CanvasRenderingContext2D, cx: number, cy: number, lines: string[], bg: string, fg: string, font: number): void {
   ctx.save();
   ctx.font = `${font}px ui-sans-serif, system-ui, sans-serif`;
@@ -787,38 +796,41 @@ class PositionTool extends DrawingObject {
       const money = (value: number) =>
         `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${account.currency}`;
 
-      // The profit and the loss, not the balance each would leave behind. The
-      // old chips said "Amount: 9992.59" for a 7.41 loss.
-      centerChip(
-        ctx,
-        cx,
-        yT,
-        [`Target ${target.price.toFixed(precision)} · ${tPips.toFixed(1)} pips (${pctT.toFixed(2)}%) · +${money(profitAmount)}`],
-        green,
-        "#04231b",
-        9,
-      );
-      centerChip(
-        ctx,
-        cx,
-        yS,
-        [`Stop ${stop.price.toFixed(precision)} · ${sPips.toFixed(1)} pips (${pctS.toFixed(2)}%) · −${money(lossAmount)}`],
-        red,
-        "#ffffff",
-        9,
-      );
-      centerChip(
-        ctx,
-        cx,
-        yE,
-        [
-          inLots ? `${lots.toFixed(2)} lots · R:R ${rr.toFixed(2)}` : `${units.toFixed(2)} units · R:R ${rr.toFixed(2)}`,
-          `Risking ${money(lossAmount)} to make ${money(profitAmount)}`,
-        ],
-        withAlpha(red, 0.92),
-        "#ffffff",
-        9,
-      );
+      /*
+        Chips sit clear of the drawing, not on top of it.
+
+        Centred on their own lines they covered the zones, the level they
+        describe, and the handles that drag it. The target and stop chips are
+        pushed outward — away from the entry, so the direction is right for a
+        short as well as a long — and the read-out moves beside the box rather
+        than across the entry line and its grip. A gap of 4px leaves the line
+        visible under its own label.
+      */
+      const targetLines = [`Target ${target.price.toFixed(precision)} · ${tPips.toFixed(1)} pips (${pctT.toFixed(2)}%) · +${money(profitAmount)}`];
+      const stopLines = [`Stop ${stop.price.toFixed(precision)} · ${sPips.toFixed(1)} pips (${pctS.toFixed(2)}%) · −${money(lossAmount)}`];
+      const readoutLines = [
+        inLots ? `${lots.toFixed(2)} lots · R:R ${rr.toFixed(2)}` : `${units.toFixed(2)} units · R:R ${rr.toFixed(2)}`,
+        `Risking ${money(lossAmount)} to make ${money(profitAmount)}`,
+      ];
+      const gap = 4;
+      const outward = (y: number, lines: string[]) => {
+        const { h } = chipSize(ctx, lines, 9);
+        return y + (y <= yE ? -(h / 2 + gap) : h / 2 + gap);
+      };
+      centerChip(ctx, cx, outward(yT, targetLines), targetLines, green, "#04231b", 9);
+      centerChip(ctx, cx, outward(yS, stopLines), stopLines, red, "#ffffff", 9);
+
+      // Beside the box on the right, and on the left when the right would run
+      // past the pane — a read-out off the edge of the chart reads as missing.
+      const readout = chipSize(ctx, readoutLines, 9);
+      const rightOf = right + gap + readout.w / 2;
+      // mapper.width, not ctx.canvas.width: the canvas is scaled by the device
+      // pixel ratio while these coordinates are CSS pixels, so on a 2x screen
+      // the raw width is twice the pane and the chip never flips.
+      const readoutX = rightOf + readout.w / 2 <= mapper.width
+        ? rightOf
+        : left - gap - readout.w / 2;
+      centerChip(ctx, readoutX, yE, readoutLines, withAlpha(red, 0.92), "#ffffff", 9);
     }
     ctx.restore();
   }

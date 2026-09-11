@@ -89,6 +89,9 @@ import { Indicator } from "@/lib/chart/indicator-runtime";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { currenciesForSymbol } from "@/lib/economic-calendar/types";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
+import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
+import { opensIntervalInput } from "@/lib/chart/interval-input";
+import { IntervalPrompt } from "./IntervalPrompt";
 import type { DrawingAccount } from "@/lib/chart/drawing/object";
 import { renderedLivePrice } from "@/lib/chart/live-price";
 import { subscribeReplayVisual } from "@/lib/backtest/replay-visual-bus";
@@ -1089,6 +1092,8 @@ export default function PriceChart({
   const loadOlderRef = useRef<() => void>(() => {});
 
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(initialTimeframe ?? baseTimeframe);
+  /** Digit that opened the interval field, or null when it is closed. */
+  const [intervalSeed, setIntervalSeed] = useState<string | null>(null);
   const onDisplayTimeframeChangeRef = useRef(onDisplayTimeframeChange);
   onDisplayTimeframeChangeRef.current = onDisplayTimeframeChange;
 
@@ -2853,6 +2858,30 @@ export default function PriceChart({
     return items;
   }
 
+  /*
+    A digit opens the interval field, the way every terminal does it.
+
+    Bound on the focused pane only — `showControls` is what marks it — so a
+    four-pane layout opens one field rather than four. The guards match the
+    trading shortcuts': never while typing, never under a dialog, never with a
+    modifier, since those are the browser's own shortcuts.
+  */
+  useEffect(() => {
+    if (!showControls) return;
+    const handler = (event: KeyboardEvent) => {
+      if (intervalSeed !== null) return;
+      const target = event.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+      if (target?.isContentEditable) return;
+      if (modalIsOpen()) return;
+      if (!opensIntervalInput(event)) return;
+      event.preventDefault();
+      setIntervalSeed(event.key);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [intervalSeed, showControls]);
+
   function selectTimeframe(timeframe: Timeframe) {
     if (timeframe === displayTimeframe) return;
     // A timeframe switch is a fresh load, so it intentionally starts from the
@@ -4011,6 +4040,14 @@ export default function PriceChart({
             onToggleVisible={() => updateIndicator(inst.id, { visible: !inst.visible })}
           />
         ))}
+
+        <IntervalPrompt
+          open={intervalSeed !== null}
+          initialValue={intervalSeed ?? ""}
+          available={availableTimeframes}
+          onApply={selectTimeframe}
+          onClose={() => setIntervalSeed(null)}
+        />
 
         {/* Anchor-pick mode — click a candle to set an anchored indicator's origin. */}
         {anchorPick && (

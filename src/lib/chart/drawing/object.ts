@@ -35,6 +35,25 @@ export interface RenderCtx {
   candles: Candle[];
   /** The chart's display zone, so a drawing's label agrees with the axis. */
   timeZone: string;
+  /**
+   * The account the position tool sizes against.
+   *
+   * Without it the tool fell back to a hard-coded 10,000 held per drawing, so
+   * its quantity and cash figures described an account nobody was trading.
+   */
+  account: DrawingAccount;
+}
+
+export interface DrawingAccount {
+  /** Balance the tool risks a percentage of. */
+  balance: number;
+  currency: string;
+  /**
+   * Account-currency value of one pip per lot, which turns a stop distance
+   * into a lot size the order ticket would accept. Null when the instrument's
+   * conversion is unknown; the tool then reports units instead of lots.
+   */
+  pipValuePerLot: number | null;
 }
 
 export const HIT_TOLERANCE = 6;

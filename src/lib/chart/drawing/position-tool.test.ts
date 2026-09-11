@@ -48,15 +48,19 @@ function position(): DrawingJSON {
 }
 
 describe("position tool anchors", () => {
-  it("gives each level one handle, with the stop centred and reachable", () => {
+  it("grips both ends of every level, plus the entry's middle", () => {
     const object = createObject(position());
     const anchors = object.anchors(mapper());
 
-    // The entry and the stop share a time, so a per-point handle would stack
-    // the stop's under the entry's at x=100 and leave it unclickable.
+    // Ends rather than centres: a centred handle sits under the level's own
+    // chip, which then takes the pointer instead of the handle.
     expect(anchors).toEqual([
       { x: 100, y: 1000 - 1100, index: 0 },
-      { x: 200, y: 1000 - 1090, index: 1 },
+      { x: 300, y: 1000 - 1100, index: 3 },
+      { x: 200, y: 1000 - 1100, index: 6 },
+      { x: 100, y: 1000 - 1090, index: 4 },
+      { x: 300, y: 1000 - 1090, index: 1 },
+      { x: 100, y: 1000 - 1120, index: 5 },
       { x: 300, y: 1000 - 1120, index: 2 },
     ]);
   });
@@ -89,6 +93,33 @@ describe("position tool level dragging", () => {
     expect(object.points[0]).toEqual({ time: 150, price: 1.105 });
     expect(object.points[1]).toEqual({ time: 100, price: 1.09 });
     expect(object.points[2]).toEqual({ time: 300, price: 1.12 });
+  });
+
+  it("moves the stop from either end, and never its time", () => {
+    for (const handle of [1, 4]) {
+      const object = createObject(position());
+      object.setAnchor(handle, { time: 250, price: 1.085 });
+      expect(object.points[1]).toEqual({ time: 100, price: 1.085 });
+      expect(object.points[0]).toEqual({ time: 100, price: 1.1 });
+      expect(object.points[2]).toEqual({ time: 300, price: 1.12 });
+    }
+  });
+
+  /**
+   * Only the entry and the target own a box edge — the left and the right. An
+   * extra grip that also wrote a time would set one edge to the other's
+   * position and turn the box inside out, so the grips move price alone.
+   */
+  it("keeps the box intact when an extra grip is dragged sideways", () => {
+    const object = createObject(position());
+    object.setAnchor(3, { time: 999, price: 1.101 });
+    expect(object.points[0]).toEqual({ time: 100, price: 1.101 });
+
+    object.setAnchor(5, { time: 999, price: 1.125 });
+    expect(object.points[2]).toEqual({ time: 300, price: 1.125 });
+
+    object.setAnchor(6, { time: 999, price: 1.102 });
+    expect(object.points[0]).toEqual({ time: 100, price: 1.102 });
   });
 
   it("still translates every level together when the body is moved", () => {

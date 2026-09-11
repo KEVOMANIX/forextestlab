@@ -89,6 +89,7 @@ import { Indicator } from "@/lib/chart/indicator-runtime";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { currenciesForSymbol } from "@/lib/economic-calendar/types";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
+import type { DrawingAccount } from "@/lib/chart/drawing/object";
 import { renderedLivePrice } from "@/lib/chart/live-price";
 import { subscribeReplayVisual } from "@/lib/backtest/replay-visual-bus";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
@@ -246,6 +247,8 @@ interface PriceChartProps {
   pipSize: number;
   precision: number;
   accountCurrency: string;
+  /** Live account for the position tool, sized where the session state lives. */
+  drawingAccount: DrawingAccount;
   theme: "dark" | "light";
   onStopLossChange: (price: string | null) => void;
   onTakeProfitChange: (price: string | null) => void;
@@ -918,6 +921,7 @@ export default function PriceChart({
   pipSize,
   precision,
   accountCurrency,
+  drawingAccount,
   theme,
   onStopLossChange,
   onTakeProfitChange,
@@ -3927,6 +3931,7 @@ export default function PriceChart({
           magnet={drawMagnet}
           precision={precision}
           pipSize={pipSize}
+          account={drawingAccount}
           timeframe={displayTimeframe}
           timeframes={availableTimeframes}
           candles={drawingCandlesRef.current}

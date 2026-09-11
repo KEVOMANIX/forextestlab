@@ -690,7 +690,7 @@ class Channel extends DrawingObject {
 // ---- long / short position ----
 
 class PositionTool extends DrawingObject {
-  render({ ctx, mapper, precision, pipSize, selected }: RenderCtx): void {
+  render({ ctx, mapper, precision, pipSize, selected, account }: RenderCtx): void {
     const entry = this.points[0]!;
     const stop = this.points[1]!;
     const target = this.points[2]!;
@@ -747,43 +747,78 @@ class PositionTool extends DrawingObject {
       const rewardPU = Math.abs(target.price - entry.price);
       const riskPU = Math.abs(entry.price - stop.price);
       const rr = riskPU ? rewardPU / riskPU : 0;
-      // Account / risk model (mirrors TradingView): size from risk, capped by leverage.
-      const accountSize = this.style.accountSize ?? 10000;
+      /*
+        Sized against the account being traded, not a number held per drawing.
+
+        `accountSize` stays as an override for planning a position on an account
+        other than this session's, but it no longer *defaults* to 10,000: every
+        untouched drawing described a fictional account, so the quantity and the
+        cash figures were unrelated to anything the trader could place.
+      */
+      const accountSize = this.style.accountSize ?? account.balance;
       const riskMode = this.style.riskMode ?? "percent";
       const riskInput = this.style.risk ?? 1;
       const leverage = this.style.leverage ?? 1;
-      const lotSize = this.style.lotSize ?? 1;
       const riskCash = riskMode === "percent" ? (accountSize * riskInput) / 100 : riskInput;
-      const qtyRisk = riskPU ? riskCash / riskPU / lotSize : 0;
-      const qtyLvg = entry.price ? ((accountSize * leverage) / entry.price) / lotSize : Infinity;
-      const qty = Math.min(qtyRisk, qtyLvg);
-      const profitAmount = rewardPU * qty * lotSize;
-      const lossAmount = riskPU * qty * lotSize;
-      const balTarget = accountSize + profitAmount;
-      const balStop = accountSize - lossAmount;
+
+      /*
+        Lots when the instrument's pip value is known, units otherwise.
+
+        A stop is a distance in pips, and what a trader sends is lots, so the
+        size that matters is riskCash / (stopPips x pipValuePerLot) — the same
+        arithmetic the order ticket does. The old units figure (9218.65 against
+        a 10,000 account) could not be typed into any ticket.
+      */
+      const sPips = riskPU / pipSize;
+      const tPips = rewardPU / pipSize;
+      const inLots = account.pipValuePerLot != null && account.pipValuePerLot > 0;
+      const lots = inLots && sPips > 0 ? riskCash / (sPips * account.pipValuePerLot!) : 0;
+      const lotSize = this.style.lotSize ?? 1;
+      const units = riskPU ? Math.min(
+        riskCash / riskPU / lotSize,
+        entry.price ? ((accountSize * leverage) / entry.price) / lotSize : Infinity,
+      ) : 0;
+      const lossAmount = inLots ? riskCash : riskPU * units * lotSize;
+      const profitAmount = inLots
+        ? riskCash * rr
+        : rewardPU * units * lotSize;
       const pctT = entry.price ? (rewardPU / entry.price) * 100 : 0;
       const pctS = entry.price ? (riskPU / entry.price) * 100 : 0;
-      const tPips = rewardPU / pipSize;
-      const sPips = riskPU / pipSize;
+      const money = (value: number) =>
+        `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${account.currency}`;
+
+      // The profit and the loss, not the balance each would leave behind. The
+      // old chips said "Amount: 9992.59" for a 7.41 loss.
       centerChip(
         ctx,
         cx,
         yT,
-        [`Target: ${target.price.toFixed(precision)} (${pctT.toFixed(2)}%) ${tPips.toFixed(1)}  Amount: ${balTarget.toFixed(2)}`],
+        [`Target ${target.price.toFixed(precision)} · ${tPips.toFixed(1)} pips (${pctT.toFixed(2)}%) · +${money(profitAmount)}`],
         green,
         "#04231b",
-        10,
+        9,
       );
       centerChip(
         ctx,
         cx,
         yS,
-        [`Stop: ${stop.price.toFixed(precision)} (${pctS.toFixed(2)}%) ${sPips.toFixed(1)}  Amount: ${balStop.toFixed(2)}`],
+        [`Stop ${stop.price.toFixed(precision)} · ${sPips.toFixed(1)} pips (${pctS.toFixed(2)}%) · −${money(lossAmount)}`],
         red,
         "#ffffff",
-        10,
+        9,
       );
-      centerChip(ctx, cx, yE, [`Qty: ${qty.toFixed(2)}`, `Risk/reward ratio: ${rr.toFixed(2)}`], withAlpha(red, 0.92), "#ffffff", 10);
+      centerChip(
+        ctx,
+        cx,
+        yE,
+        [
+          inLots ? `${lots.toFixed(2)} lots · R:R ${rr.toFixed(2)}` : `${units.toFixed(2)} units · R:R ${rr.toFixed(2)}`,
+          `Risking ${money(lossAmount)} to make ${money(profitAmount)}`,
+        ],
+        withAlpha(red, 0.92),
+        "#ffffff",
+        9,
+      );
     }
     ctx.restore();
   }
@@ -809,9 +844,22 @@ class PositionTool extends DrawingObject {
     const left = Math.min(xE, xT);
     const right = Math.max(xE, xT);
     const cx = left + (right - left) / 2;
+    /*
+      Both ends of every level, and the entry in the middle too.
+
+      Three handles meant each level could only be grabbed in one place — and
+      the stop's sat dead centre, underneath its own chip, so the chip took the
+      pointer instead of the handle. Ends are always clear of the centred chips,
+      and reaching for whichever end of a line is nearer is how a trader drags
+      it. Each index still addresses one level; `setAnchor` maps them back.
+    */
     return [
       { x: left, y: yE, index: 0 },
-      { x: cx, y: yS, index: 1 },
+      { x: right, y: yE, index: 3 },
+      { x: cx, y: yE, index: 6 },
+      { x: left, y: yS, index: 4 },
+      { x: right, y: yS, index: 1 },
+      { x: left, y: yT, index: 5 },
       { x: right, y: yT, index: 2 },
     ];
   }
@@ -824,10 +872,22 @@ class PositionTool extends DrawingObject {
    * how those two handles double as the position's width.
    */
   setAnchor(index: number, p: Point): void {
-    const current = this.points[index];
+    /*
+      Handles 3-6 are the extra grips added for reach; each belongs to one of
+      the three real points and moves its price only.
+
+      Only the two original handles carry a time, because only they own a box
+      edge: the entry holds the left edge and the target the right. Letting a
+      grip at the right end of the entry line write the entry's time would set
+      the left edge to the right edge and turn the box inside out.
+    */
+    const owner = index <= 2 ? index : index === 3 || index === 6 ? 0 : index === 4 ? 1 : 2;
+    const carriesTime = index === 0 || index === 2;
+    const current = this.points[owner];
     if (!current) return;
-    this.points[index] =
-      index === 1 ? { time: current.time, price: p.price } : { ...p };
+    this.points[owner] = carriesTime
+      ? { time: p.time, price: p.price }
+      : { time: current.time, price: p.price };
   }
   bbox(mapper: CoordinateMapper): Rect | null {
     return rectFromPoints(this.anchors(mapper).map((a) => ({ x: a.x, y: a.y })));

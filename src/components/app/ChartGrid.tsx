@@ -22,6 +22,8 @@ import {
   paneArea,
   type ChartLayout,
 } from "@/lib/chart/layouts";
+import { configForSymbol } from "@/lib/backtest/instrument-config";
+import { pipValuePerLot } from "@/lib/backtest/position-sizing";
 import PriceChart, { type ChartMarker } from "./PriceChart";
 import type { ChartWorkspace } from "./useChartWorkspace";
 
@@ -793,6 +795,31 @@ function ChartCellView({
 }: ChartCellViewProps) {
   const reveal = useRevealedSeries(isSession ? sessionSeries : pair?.candles ?? null, state.currentTime);
   const noop = useCallback(() => {}, []);
+  /**
+   * What the position tool sizes against: this session's balance and this
+   * cell's own instrument, so a planned trade is one the order ticket would
+   * accept. The tool used to assume a 10,000 account held per drawing.
+   */
+  const drawingAccount = useMemo(() => {
+    const config = configForSymbol(state.config, cell.symbol);
+    const price = state.currentPrice ?? "1";
+    const perLot = pipValuePerLot({
+      pipSize: config.pipSize,
+      quoteCurrency: config.quoteCurrency,
+      accountCurrency: config.accountCurrency,
+      baseCurrency: config.baseCurrency,
+      price,
+      symbol: config.symbol,
+    });
+    const value = Number(perLot.value);
+    return {
+      balance: Number(state.balance) || 0,
+      currency: config.accountCurrency,
+      // Not every instrument's conversion is known; the tool reports units
+      // rather than inventing a lot size when it is not.
+      pipValuePerLot: Number.isFinite(value) && value > 0 ? value : null,
+    };
+  }, [cell.symbol, state.balance, state.config, state.currentPrice]);
   const loadHistory = useCallback(
     (timeframe: Timeframe, before: number) => onLoadHistory(cell.symbol, timeframe, before),
     [onLoadHistory, cell.symbol],
@@ -848,6 +875,7 @@ function ChartCellView({
         pipSize={Number(isSession ? state.config.pipSize : pair?.pipSize ?? state.config.pipSize)}
         precision={isSession ? state.config.pricePrecision : pair?.pricePrecision ?? state.config.pricePrecision}
         accountCurrency={state.config.accountCurrency}
+        drawingAccount={drawingAccount}
         theme={theme}
         onStopLossChange={tradable && showControls ? onStopLossChange : noop}
         onTakeProfitChange={tradable && showControls ? onTakeProfitChange : noop}

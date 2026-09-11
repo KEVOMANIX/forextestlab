@@ -14,7 +14,12 @@
 import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 
 import { CoordinateMapper, type Candle } from "./coords";
-import { DrawingObject, SELECTION_HANDLE, type RenderCtx } from "./object";
+import {
+  DrawingObject,
+  SELECTION_HANDLE,
+  type DrawingAccount,
+  type RenderCtx,
+} from "./object";
 import { EXCHANGE_ZONE } from "@/lib/chart/timezones";
 import { canStraighten, releaseEndsDrawing, straighten } from "./constrain";
 import { createObject, newDrawing } from "./objects";
@@ -64,6 +69,8 @@ interface EngineEnv {
   timeframe: string;
   /** Chart display zone, forwarded to any drawing that stamps a time. */
   timeZone: string;
+  /** The live account, so the position tool sizes against a real balance. */
+  account: DrawingAccount;
 }
 
 interface DragState {
@@ -110,7 +117,7 @@ export class DrawingEngine {
   private create: CreateState | null = null;
   private snapDot: { x: number; y: number } | null = null;
 
-  private env: EngineEnv = { tool: null, selectionEnabled: true, magnet: "off", candles: [], futureTimes: [], precision: 5, pipSize: 0.0001, timeframe: "", timeZone: EXCHANGE_ZONE };
+  private env: EngineEnv = { tool: null, selectionEnabled: true, magnet: "off", candles: [], futureTimes: [], precision: 5, pipSize: 0.0001, timeframe: "", timeZone: EXCHANGE_ZONE, account: { balance: 10000, currency: "USD", pipValuePerLot: null } };
 
   private history: DrawingJSON[][] = [];
   private future: DrawingJSON[][] = [];
@@ -1206,6 +1213,7 @@ export class DrawingEngine {
         pipSize: this.env.pipSize,
         candles: this.env.candles,
         timeZone: this.env.timeZone,
+        account: this.env.account,
       };
       ctx.save();
       o.render(r);

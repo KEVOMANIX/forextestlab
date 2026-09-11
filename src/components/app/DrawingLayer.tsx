@@ -23,6 +23,7 @@ import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 
 import { DrawingEngine, type ContextMenuRequest } from "@/lib/chart/drawing/engine";
 import type { Candle } from "@/lib/chart/drawing/coords";
+import type { DrawingAccount } from "@/lib/chart/drawing/object";
 import type { DrawingJSON, MagnetMode, ToolKind } from "@/lib/chart/drawing/types";
 import { DrawingSettingsDialog } from "./DrawingSettingsDialog";
 
@@ -42,6 +43,8 @@ interface Props {
   magnet: MagnetMode;
   precision: number;
   pipSize: number;
+  /** The live account the position tool sizes against. */
+  account: DrawingAccount;
   timeframe: string;
   /** Chart display zone, so a vertical line stamps the same clock as the axis. */
   timeZone: string;
@@ -73,6 +76,7 @@ export function DrawingLayer({
   magnet,
   precision,
   pipSize,
+  account,
   timeframe,
   timeZone,
   timeframes,
@@ -204,11 +208,12 @@ export function DrawingLayer({
       pipSize,
       timeframe,
       timeZone,
+      account,
       candles: candlesRef.current,
       futureTimes: futureTimesRef.current,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, candles, futureTimes]);
+  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, account, candles, futureTimes]);
 
   // Re-render objects when the chart view moves.
   useEffect(() => {

@@ -700,6 +700,7 @@ export class DrawingEngine {
     if (this.shiftHeld === held) return;
     this.shiftHeld = held;
     if (this.create && this.lastMovePx) this.updateCreate(this.lastMovePx);
+    else if (this.drag && this.lastMovePx) this.updateDrag(this.lastMovePx);
   }
 
   /**
@@ -709,9 +710,9 @@ export class DrawingEngine {
   private straightenPx(
     kind: ToolKind,
     px: { x: number; y: number },
+    anchor = this.create?.obj.points[0],
   ): { x: number; y: number } | null {
-    if (!this.shiftHeld || !this.create || !canStraighten(kind)) return null;
-    const anchor = this.create.obj.points[0];
+    if (!this.shiftHeld || !canStraighten(kind)) return null;
     if (!anchor) return null;
     const ax = anchor.time ? this.mapper.timeToX(anchor.time) : null;
     const ay = this.mapper.priceToY(anchor.price);
@@ -730,6 +731,7 @@ export class DrawingEngine {
   private onPointerDown = (e: PointerEvent): void => {
     if (e.button === 2) return; // context menu handled separately
     const px = this.localPx(e);
+    this.lastMovePx = px;
     this.shiftHeld = e.shiftKey;
     this.ctrlHeld = e.ctrlKey || e.metaKey;
     if (px.x < 0 || px.y < 0 || px.x > this.mapper.width || px.y > this.mapper.height) return;
@@ -783,6 +785,7 @@ export class DrawingEngine {
 
     if (this.create) {
       // click-mode: commit floating anchor and advance
+      this.updateCreate(px);
       this.create.placed += 1;
       const needed = TOOL_POINTS[kind];
       if (this.create.placed >= needed) this.finalizeCreate();
@@ -994,8 +997,14 @@ export class DrawingEngine {
       const dy = px.y - this.drag.startPx.y;
       o.points = this.drag.origin.map((p) => this.movePoint(p, dx, dy));
     } else if (this.drag.kind === "anchor") {
-      const point = this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? this.drag.origin[this.drag.index]!);
-      this.snapDot = this.env.magnet !== "off" ? px : null;
+      // Editing either endpoint uses the opposite endpoint as the fixed pivot.
+      // Keep the raw pointer position so releasing Shift restores free movement.
+      const held = this.straightenPx(o.kind, px, this.drag.origin[1 - this.drag.index]);
+      const fallback = this.drag.origin[this.drag.index]!;
+      const point = held
+        ? this.mapper.pixelToPoint(held.x, held.y) ?? fallback
+        : this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? fallback);
+      this.snapDot = !held && this.env.magnet !== "off" ? px : null;
       o.setAnchor(this.drag.index, point);
     } else {
       this.resizeObject(o, px);

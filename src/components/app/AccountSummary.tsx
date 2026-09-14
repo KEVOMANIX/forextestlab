@@ -6,6 +6,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { d } from "@/lib/decimal";
 import { BREACH_LABELS, propFirmProgress } from "@/lib/backtest/prop-firm";
 import { fundedBalance } from "@/lib/backtest/replay-engine";
+import { configForSymbol, recordSymbol } from "@/lib/backtest/instrument-config";
 import { DEFAULT_LEVERAGE, marginRequired } from "@/lib/backtest/position-sizing";
 import type { PublicSessionState } from "@/lib/backtest/types";
 
@@ -55,13 +56,14 @@ function toneClass(value: number): string {
 export function accountMargin(state: PublicSessionState): number {
   let total = d(0);
   for (const position of state.openPositions) {
+    const config = configForSymbol(state.config, recordSymbol(position, state.config));
     const { value } = marginRequired({
       lots: position.lots,
       price: position.entryPrice,
       leverage: state.config.leverage ?? DEFAULT_LEVERAGE,
       accountCurrency: state.config.accountCurrency,
-      baseCurrency: state.config.baseCurrency,
-      quoteCurrency: state.config.quoteCurrency,
+      baseCurrency: config.baseCurrency,
+      quoteCurrency: config.quoteCurrency,
     });
     if (Number.isFinite(Number(value))) total = total.plus(value);
   }

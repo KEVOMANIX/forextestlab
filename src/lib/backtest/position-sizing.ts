@@ -2,13 +2,11 @@
  * Position sizing for the backtest engine.
  *
  * All arithmetic uses decimal.js (never native float). Inputs and outputs are
- * decimal STRINGS. A "standard lot" is 100,000 units of the base currency.
+ * decimal STRINGS. Lot sizes follow each instrument's contract specification.
  */
 
 import { Decimal, d, isFiniteNumeric, money } from "@/lib/decimal";
-
-/** Units of base currency in one standard lot. */
-const STANDARD_LOT = 100000;
+import { contractUnitsPerLot } from "./contract-size";
 
 /** Minimum lot size used as a safe fallback when risk sizing is impossible. */
 const MIN_LOTS = "0.01";
@@ -30,7 +28,7 @@ export interface PositionSizingInput {
 }
 
 export interface PositionSizingResult {
-  lots: string; // standard lots (1.0 lot = 100,000 base units), 2 dp
+  lots: string; // instrument lots, 2 dp
   riskAmount: string; // account currency, 2 dp ("0.00" if not risk-based)
   stopDistancePips: string; // pips, 1 dp ("Not available" if no stopLoss)
   pipValuePerLot: string; // account currency per pip per 1.0 lot, 2 dp
@@ -44,7 +42,7 @@ const NOT_AVAILABLE = "Not available";
 /**
  * Pip value in the ACCOUNT currency for one standard (1.0) lot.
  *
- * The pip value in the QUOTE currency is always `pipSize * 100000`. Converting
+ * The pip value in the QUOTE currency is `pipSize * contractUnitsPerLot`. Converting
  * to the account currency depends on how the pair relates to the account:
  *  - quote === account  -> exact, no conversion needed.
  *  - base === account   -> divide by the current price (exact, price given).
@@ -66,7 +64,7 @@ export function pipValuePerLot(params: {
   }
 
   // Pip value expressed in the quote currency for one standard lot.
-  const pipValueQuote = d(pipSize).times(STANDARD_LOT);
+  const pipValueQuote = d(pipSize).times(contractUnitsPerLot(baseCurrency));
 
   if (quoteCurrency === accountCurrency) {
     return { value: money(pipValueQuote), approx: false };
@@ -89,7 +87,7 @@ export const DEFAULT_LEVERAGE = "100";
 /**
  * Margin the broker holds against an open position, in the ACCOUNT currency.
  *
- * Notional value is `lots * 100000` units of the BASE currency; margin is that
+ * Notional value is `lots * contractUnitsPerLot` BASE units; margin is that
  * notional divided by the leverage. Converting the notional to the account
  * currency follows the same rules as [pipValuePerLot]:
  *  - base === account  -> exact, the notional is already in account currency.
@@ -109,7 +107,7 @@ export function marginRequired(params: {
   if (!isFiniteNumeric(lots) || !isFiniteNumeric(leverage) || d(leverage).lte(0)) {
     return { value: NOT_AVAILABLE, approx: false };
   }
-  const notionalBase = d(lots).times(STANDARD_LOT);
+  const notionalBase = d(lots).times(contractUnitsPerLot(baseCurrency));
   if (baseCurrency === accountCurrency) {
     return { value: money(notionalBase.div(leverage)), approx: false };
   }

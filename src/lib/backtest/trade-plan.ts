@@ -1,4 +1,5 @@
 import { d, isFiniteNumeric } from "@/lib/decimal";
+import { contractUnitsPerLot } from "./contract-size";
 
 import { commissionForLots, computePnl } from "./execution";
 import {
@@ -225,7 +226,7 @@ export function tradePlanMetrics({
   const availableMargin = remainingMargin
     ? (remainingMargin.gt(0) ? remainingMargin : d(0)).toFixed(2)
     : "—";
-  const notionalBase = d(sizing.lots).times(100000);
+  const notionalBase = d(sizing.lots).times(contractUnitsPerLot(state.config.baseCurrency));
   const tradeValue =
     state.config.baseCurrency === state.config.accountCurrency
       ? notionalBase

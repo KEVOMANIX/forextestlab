@@ -221,12 +221,14 @@ function MarketPicker({
                   <label
                     key={item.symbol}
                     title={description}
-                    className={`group flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-400/60 ${
+                    className={`group relative flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-400/60 ${
                       active
                         ? "border-brand-400/50 bg-brand-400/10"
                         : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30 hover:bg-brand-400/[0.04]"
                     }`}
                   >
+                    {/* Anchor the sr-only input to its row so native focus cannot
+                        scroll an outer clipped column to an off-screen position. */}
                     <input
                       type={singleSelect ? "radio" : "checkbox"}
                       name={singleSelect ? "session-pair" : undefined}
@@ -701,7 +703,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       </div>
 
       <div className="grid gap-0 lg:grid-cols-3">
-        <div className="min-w-0 space-y-5 overflow-hidden px-5 py-4 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
+        <div className="min-w-0 space-y-5 overflow-clip px-5 py-4 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">1</span>

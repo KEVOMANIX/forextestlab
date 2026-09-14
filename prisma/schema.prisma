@@ -61,6 +61,36 @@ model UserProfile {
 }
 
 /// Contact-form enquiries retained for support follow-up in the admin console.
+model FeedbackCampaign {
+  id           String @id
+  subject      String
+  body         String
+  actorId      String
+  status       String @default("draft")
+  leaseUntil   DateTime?
+  createdAt    DateTime @default(now())
+  recipients   FeedbackRecipient[]
+}
+
+model FeedbackRecipient {
+  id           String @id @default(cuid())
+  campaignId   String
+  campaign     FeedbackCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  email        String
+  name         String
+  token        String @unique
+  status       String @default("pending")
+  attemptedAt  DateTime?
+  sentAt       DateTime?
+  @@unique([campaignId, email])
+  @@index([campaignId, status])
+}
+
+model FeedbackEmailOptOut {
+  email       String @id
+  createdAt   DateTime @default(now())
+}
+
 model ContactMessage {
   id             String   @id @default(cuid())
   name           String

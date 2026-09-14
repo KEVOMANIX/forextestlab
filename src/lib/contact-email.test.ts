@@ -14,6 +14,7 @@ vi.mock("nodemailer", () => ({
 
 import {
   sendContactEmail,
+  sendFeedbackEmail,
   sendContactReceipt,
   sendDirectSupportEmail,
   sendSupportEmailReply,
@@ -40,6 +41,17 @@ describe("sendContactEmail", () => {
 
   afterEach(() => {
     for (const name of Object.keys(smtpEnvironment)) delete process.env[name];
+  });
+
+  it("sends private branded feedback with reply routing and unsubscribe headers", async () => {
+    await sendFeedbackEmail({ email: "user@example.com", name: "<User>", subject: "Feedback", body: "<script>alert(1)</script>", token: "a".repeat(48) });
+    const message = sendMail.mock.calls[0]?.[0];
+    expect(message.to).toBe("user@example.com");
+    expect(message.replyTo).toBe("support@forextestlab.com");
+    expect(message.html).toContain("&lt;script&gt;");
+    expect(message.html).not.toContain("<script>");
+    expect(message.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    expect(message.text).toContain("/email/unsubscribe/");
   });
 
   it("delivers the enquiry and makes the customer the reply-to recipient", async () => {

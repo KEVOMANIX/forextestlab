@@ -223,6 +223,7 @@ async function deliver(
           }
         : {}),
       subject: String(message.subject),
+      ...(message.headers ? { headers: message.headers as Record<string, string> } : {}),
       ...content,
     };
     const result = await resend.emails.send(outbound);
@@ -472,6 +473,34 @@ export async function sendDirectSupportEmail({
       intro: `Hi ${name},`,
       contentHtml: `<p style="margin:0;font-family:Arial,sans-serif;font-size:15px;line-height:25px;color:#344a5a">${safeBody}</p>`,
     }),
+  });
+}
+
+export function feedbackEmailContent(name: string, subject: string, body: string, unsubscribeUrl: string) {
+  const footer = `Stop receiving feedback requests: ${unsubscribeUrl}`;
+  return {
+    text: [`Hi ${name},`, "", body, "", "ForexTestLab", "", footer].join("\n"),
+    html: renderBrandEmail({
+      preheader: subject,
+      eyebrow: "Help improve ForexTestLab",
+      title: subject,
+      intro: `Hi ${name},`,
+      contentHtml: `<p style="font-size:15px;line-height:25px">${escapeHtml(body).replace(/\r?\n/g, "<br>")}</p><p style="margin-top:28px;font-size:12px"><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from feedback requests</a></p>`,
+      closing: "ForexTestLab",
+    }),
+  };
+}
+
+export async function sendFeedbackEmail(input: {
+  email: string; name: string; subject: string; body: string; token: string;
+}) {
+  const config = getSmtpConfig();
+  const url = `${siteUrl()}/email/unsubscribe/${encodeURIComponent(input.token)}`;
+  await deliver(config, {
+    from: sender("ForexTestLab", config.from), to: input.email,
+    replyTo: config.to, subject: input.subject,
+    ...feedbackEmailContent(input.name, input.subject, input.body, url),
+    headers: { "List-Unsubscribe": `<${url}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
   });
 }
 

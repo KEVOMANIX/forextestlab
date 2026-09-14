@@ -27,6 +27,7 @@ const links = [
   { label: "Market data", href: "/admin/market-data", icon: Database },
   { label: "Operations", href: "/admin/operations", icon: HeartPulse },
   { label: "Enquiries", href: "/admin/enquiries", icon: Mail },
+  { label: "Feedback emails", href: "/admin/emails", icon: Mail },
   { label: "Support inbox", href: "/support-team", icon: MessagesSquare },
   { label: "Audit log", href: "/admin/audit", icon: FileClock },
 ] as const;

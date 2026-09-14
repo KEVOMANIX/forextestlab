@@ -24,3 +24,9 @@ CREATE TABLE "FeedbackEmailOptOut" (
   "email" TEXT NOT NULL PRIMARY KEY,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Prisma's trusted server connection owns these tables. No public client may
+-- read campaign addresses/tokens or change sending and opt-out state.
+ALTER TABLE "FeedbackCampaign" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "FeedbackRecipient" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "FeedbackEmailOptOut" ENABLE ROW LEVEL SECURITY;

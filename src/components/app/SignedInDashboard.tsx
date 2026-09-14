@@ -221,7 +221,7 @@ export function SignedInDashboard({
     : new Decimal(0);
   const sessionReturnPercent =
     selectedSession && !fundedBalance.isZero()
-      ? sessionNet.dividedBy(fundedBalance).times(100).toNumber()
+      ? sessionNet.dividedBy(fundedBalance).times(100).abs().toFixed(2)
       : null;
   const trades = showDemoData ? DEMO_ANALYTICS_TRADES : selectedTrades;
   const selectedEquityCurve = showDemoData ? DEMO_ANALYTICS_EQUITY_CURVE : realEquityCurve;
@@ -415,7 +415,7 @@ export function SignedInDashboard({
     {
       label: "Net P/L",
       value: formatMoney(totalNet),
-      detail: `${netPercent.gte(0) ? "+" : "−"}${netPercent.abs().toFixed(2)}% from starting balance`,
+      detail: `${netPercent.gte(0) ? "+" : "−"}${netPercent.abs().toFixed(2)}% from funded balance`,
       icon: totalNet.isNegative() ? TrendingDown : TrendingUp,
       tone: totalNet.isNegative() ? "text-bear" : "text-brand-300",
       accent: totalNet.isNegative() ? "bg-bear/60" : "bg-brand-400/60",
@@ -667,7 +667,7 @@ export function SignedInDashboard({
                   <p className="mt-1 text-[11px] app-muted">
                     <span className={sessionNet.isNegative() ? "font-semibold text-bear" : sessionNet.isZero() ? "" : "font-semibold text-brand-300"}>
                       {formatMoney(sessionNet)}
-                      {sessionReturnPercent === null ? "" : ` (${sessionNet.isNegative() ? "−" : sessionNet.isZero() ? "" : "+"}${Math.abs(sessionReturnPercent).toFixed(2)}%)`}
+                      {sessionReturnPercent === null ? "" : ` (${sessionNet.isNegative() ? "−" : sessionNet.isZero() ? "" : "+"}${sessionReturnPercent}%)`}
                     </span>{" "}
                     from {formatBalance(new Decimal(selectedSession.startingBalance))}
                   </p>

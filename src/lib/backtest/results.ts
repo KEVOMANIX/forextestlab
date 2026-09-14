@@ -11,8 +11,8 @@ import { prisma } from "@/lib/db";
 import { Decimal } from "@/lib/decimal";
 import { computeStatistics, type PerformanceStats } from "./statistics";
 import type { ClosedTrade, EquityPoint, SessionState } from "./types";
-import { fundedBalance, normalizeSessionState } from "./replay-engine";
-import { readSessionSnapshot } from "./state-snapshot-store";
+import { fundedBalance } from "./replay-engine";
+import { readSavedSessionState } from "./saved-session-state";
 
 export interface SessionResults {
   sessionId: string;
@@ -99,8 +99,7 @@ export async function getSessionResults(
   });
   if (!row) return null;
 
-  const stateJson = await readSessionSnapshot(row.stateJson, row.stateObjectKey);
-  const state = normalizeSessionState(JSON.parse(stateJson) as SessionState);
+  const state = await readSavedSessionState(row);
   const stats = computeStatistics({
     // Everything the trader put in, so a demo top-up after a blown account is
     // not reported as profit.

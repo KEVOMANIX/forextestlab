@@ -39,6 +39,7 @@ export function SessionAnalyticsScreen({
         // Opening balance plus any demo funds added after a blown account, so
         // a rescue is not reported as profit.
         startingBalance={fundedBalance(state)}
+        endingBalance={state.balance}
         fullAccess={fullAccess}
         onClose={onClose}
       />

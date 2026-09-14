@@ -12,6 +12,7 @@ import { SESSION_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { requireUser } from "@/lib/auth";
 import { buildExitQualityReport } from "@/lib/backtest/exit-quality-server";
 import { getSessionResults } from "@/lib/backtest/results";
+import { fundedBalance } from "@/lib/backtest/replay-engine";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 
 export const dynamic = "force-dynamic";
@@ -90,7 +91,8 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
       status={state.status}
       trades={state.closedTrades}
       equityCurve={state.equityCurve}
-      startingBalance={state.config.startingBalance}
+      startingBalance={fundedBalance(state)}
+      endingBalance={state.balance}
       fullAccess={entitlements.fullAnalytics}
       journalContent={journal}
       exitQuality={exitQuality?.summary ?? null}

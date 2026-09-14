@@ -36,6 +36,8 @@ import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_PERIOD, DEMO_ANALYTICS_TRAD
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
+import { Decimal } from "@/lib/decimal";
+import { recordedChartPeriod, returnPercent } from "@/lib/analytics/performance-display";
 import { monthlyReturnSeries, type MonthlyReturn } from "@/lib/analytics/monthly-returns";
 import { RELIABLE_SAMPLE_TRADES, sampleIsReliable, tradesUntilReliable } from "@/lib/analytics/sample-size";
 import { WEEKDAY_LABELS, createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
@@ -110,6 +112,7 @@ export interface AnalyticsDesignPrototypeProps {
   trades?: ClosedTrade[];
   equityCurve?: EquityPoint[];
   startingBalance?: string;
+  endingBalance?: string;
   fullAccess?: boolean;
   onClose?: () => void;
   journalContent?: ReactNode;
@@ -157,13 +160,13 @@ function aggregateRows(trades: ClosedTrade[], label: (trade: ClosedTrade) => str
  * @param fallbackPair Label for trades saved before multi-pair execution, which
  * carry no symbol of their own. Those all belong to the session's traded pair.
  */
-function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], startingBalanceValue: string, fallbackPair: string): AnalyticsModel {
+function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], startingBalanceValue: string, fallbackPair: string, endingBalanceValue?: string): AnalyticsModel {
   const startingBalance = Number(startingBalanceValue) || 0;
   const pnls = trades.map((trade) => Number(trade.pnl));
   const realisedPath = [startingBalance, ...trades.reduce<number[]>((values, trade) => [...values, values[values.length - 1]! + Number(trade.pnl)], [startingBalance])];
   const equity = equityCurve.length > 1 ? equityCurve.map((point) => Number(point.equity)) : realisedPath;
   const balance = equityCurve.length > 1 ? equityCurve.map((point) => Number(point.balance)) : realisedPath;
-  const endingBalance = startingBalance + pnls.reduce((sum, value) => sum + value, 0);
+  const endingBalance = Number(endingBalanceValue ?? trades.reduce((sum, trade) => sum.plus(trade.pnl), new Decimal(startingBalanceValue)).toFixed(2));
   const stats = computeStatistics({ startingBalance: startingBalanceValue, endingBalance: String(endingBalance), trades, equityCurve });
   const durations = trades.map((trade) => Math.max(0, trade.exitTime - trade.entryTime));
   const averageHoldMs = durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : 0;
@@ -202,7 +205,7 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
   const long = directionRows.find((row) => row.label === "Long") ?? { label: "Long", value: 0, trades: 0, rate: 0 };
   const short = directionRows.find((row) => row.label === "Short") ?? { label: "Short", value: 0, trades: 0, rate: 0 };
   const topThree = [...wins].sort((a, b) => b - a).slice(0, 3).reduce((sum, value) => sum + value, 0);
-  const netProfit = endingBalance - startingBalance;
+  const netProfit = new Decimal(endingBalance).minus(startingBalanceValue).toNumber();
   const rDistribution = [
     { label: "<−1R", count: validR.filter((value) => value < -1).length },
     { label: "−1R", count: validR.filter((value) => value >= -1 && value < -0.25).length },
@@ -215,7 +218,7 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
   let streakCount = 0;
   if (streakTrade) { const positive = Number(streakTrade.pnl) > 0; for (let index = trades.length - 1; index >= 0 && (Number(trades[index]!.pnl) > 0) === positive; index -= 1) streakCount += 1; }
   return {
-    equity, endingBalance, netProfit, returnPercent: startingBalance ? netProfit / startingBalance * 100 : 0,
+    equity, endingBalance, netProfit, returnPercent: returnPercent(startingBalanceValue, String(endingBalance)),
     winRate: stats.winRate, profitFactor: stats.profitFactor, expectancy: Number(stats.expectancy) || 0,
     maxDrawdown: numberOrNull(stats.maxDrawdown), maxDrawdownPercent: numberOrNull(stats.maxDrawdownPercent),
     closedTrades: trades.length, averageR, payoffRatio: averageLoss ? (averageWin / averageLoss).toFixed(2) : "—", averageHold,
@@ -356,6 +359,7 @@ export function AnalyticsDesignPrototype({
   trades = [],
   equityCurve = [],
   startingBalance = "100000",
+  endingBalance,
   fullAccess = true,
   onClose,
   journalContent,
@@ -374,7 +378,8 @@ export function AnalyticsDesignPrototype({
   // traded pair, so that is the fallback — never the joined list of every pair
   // in the session, which claimed each trade had been taken on all of them.
   const tradedPairLabel = formatSymbol(symbols[0] ?? "EURUSD");
-  const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, tradedPairLabel), [demo, trades, equityCurve, startingBalance, tradedPairLabel]);
+  const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, tradedPairLabel, endingBalance), [demo, trades, equityCurve, startingBalance, tradedPairLabel, endingBalance]);
+  const chartPeriod = demo ? DEMO_ANALYTICS_PERIOD : recordedChartPeriod(equityCurve, trades, startTime);
   const equityValues = model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance];
   const equityPath = linePath(equityValues);
   // The sample used to carry a hand-written period that its own trades,
@@ -455,7 +460,7 @@ export function AnalyticsDesignPrototype({
                     <path d={`${equityPath} L904,264 L16,264 Z`} fill="url(#prototype-equity)" />
                     <path d={equityPath} fill="none" stroke="#22c3a0" strokeWidth="2.75" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
                   </svg>
-                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{periodStart ? formatNewYorkDate(periodStart, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-brand-300">━ Equity</span><span>{model.closedTrades} trades</span><span>{periodEnd ? formatNewYorkDate(periodEnd, { month: "short", year: "numeric" }) : "Now"}</span></div>
+                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{chartPeriod.startTime ? formatNewYorkDate(chartPeriod.startTime, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-brand-300">━ Equity</span><span>{model.closedTrades} trades</span><span>{chartPeriod.endTime ? formatNewYorkDate(chartPeriod.endTime, { month: "short", year: "numeric" }) : "Now"}</span></div>
                 </div>
               </div>
 

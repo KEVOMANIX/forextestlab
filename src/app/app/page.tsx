@@ -18,7 +18,8 @@ import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
-import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
+import { readSavedSessionState } from "@/lib/backtest/saved-session-state";
+import { depositedFunds } from "@/lib/backtest/replay-engine";
 
 export const dynamic = "force-dynamic";
 
@@ -194,27 +195,21 @@ export default async function AppHome(
     ? await prisma.backtestSession.findFirst({
         where: { id: selectedSession.id, userId: user.id, anonymous: false },
         select: {
-          trades: { orderBy: { exitTime: "asc" } },
-          equitySnapshots: { orderBy: { index: "asc" } },
+          stateJson: true,
+          stateObjectKey: true,
         },
       })
     : null;
-  const trades: ClosedTrade[] = (selectedDetails?.trades ?? []).map((trade) => ({
-    ...trade,
-    direction: trade.direction as ClosedTrade["direction"],
-    exitReason: trade.exitReason as ClosedTrade["exitReason"],
-    entryTime: Number(trade.entryTime),
-    exitTime: Number(trade.exitTime),
-    notes: trade.notes ?? undefined,
-  }));
-  const equityCurve: EquityPoint[] = (selectedDetails?.equitySnapshots ?? []).map(
-    (point) => ({
-      index: point.index,
-      time: Number(point.time),
-      balance: point.balance,
-      equity: point.equity,
-    }),
-  );
+  // Load only the selected snapshot, never all 100 session snapshots. The
+  // append-only trade projection can be stale after replay edits/rewinds.
+  const state = selectedDetails ? await readSavedSessionState(selectedDetails) : null;
+  if (selectedSession && state) {
+    selectedSession.balance = state.balance;
+    selectedSession.startingBalance = state.config.startingBalance;
+    selectedSession.depositedFunds = depositedFunds(state);
+  }
+  const trades = state?.closedTrades ?? [];
+  const equityCurve = state?.equityCurve ?? [];
 
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&

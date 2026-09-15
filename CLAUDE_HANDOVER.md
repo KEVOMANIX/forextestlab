@@ -1,10 +1,33 @@
 # ForexTestLab operational handover
 
-Last updated: 2026-09-09 (Africa/Nairobi)
+Last updated: 2026-09-15 (Africa/Nairobi)
 
 This document lets another coding agent continue local development, deploy to
 AWS Lightsail, operate the data jobs, and diagnose production without asking the
 owner to repeat the setup.
+
+## Agent usage discipline
+
+Use the project's agent allowance carefully without weakening verification:
+
+- Read this handover completely once at the start of a chat. After that, search
+  for the relevant heading, command, or file path instead of rereading it.
+- Treat findings and completed work already present in the current chat as
+  reusable evidence. Do not repeat successful diagnostics, tests, builds, or
+  deployments unless code changed or new evidence makes the result stale.
+- Begin investigation with `git status --short --branch` and focused `rg`
+  searches. Read only the relevant files and line ranges; avoid broad repository
+  dumps and unrelated documentation.
+- Run targeted tests for the changed behavior first. Expand to type checking,
+  the full test suite, or a production build according to risk and the standard
+  deployment workflow below, rather than running every check after every edit.
+- Batch independent read-only checks when practical and limit command output to
+  the evidence needed to make the next decision.
+- Keep requests and progress updates concise. For a new unrelated objective,
+  start a fresh chat and carry forward only the current revision, material
+  decisions, completed work, and remaining task.
+- Do not save tokens by skipping security checks, migration requirements,
+  deployment health checks, or verification directly related to a change.
 
 ## Security rules
 
@@ -171,7 +194,8 @@ Installed systemd units:
 
 Current schedules:
 
-- Market refresh: Monday–Saturday at 00:20 UTC plus up to 10 minutes random delay
+- Market refresh: daily at 04:00 Africa/Nairobi through the Windows task
+  `ForexTestLab Market Data`; missed runs start when the computer is next available
 - Production monitor: every 15 minutes
 - Calendar incoming-file check/import: every 30 minutes
 - Critical database backup: Sunday at 02:30 UTC plus up to 10 minutes random delay
@@ -370,6 +394,31 @@ and uploads directly to the existing R2 object layout. Prefer this local pipelin
 for large backfills because the AWS origin IP previously received Dukascopy HTTP
 429 responses.
 
+The same local pipeline is now authoritative for daily incremental updates:
+
+- Windows task: `ForexTestLab Market Data`
+- Schedule: daily at 04:00 local time, with `StartWhenAvailable`
+- Repository runner: `scripts/windows/sync-market-data.ps1`
+- Task installer: `scripts/windows/install-market-data-task.ps1`
+- Pipeline command: `main.py --refresh-current --workers 1 --upload`
+- Run log: `E:\desktop\dukascopy-market-data\logs\daily-refresh.log`
+- The refresh rebuilds only the current UTC month and atomically replaces the
+  corresponding R2 object. Existing historical months remain untouched.
+- The Lightsail `forextestlab-market-data.timer` is disabled. The server's
+  Dukascopy requests were consistently rejected with HTTP 429 and its fail-fast
+  ordering starved every symbol after EUR/USD.
+
+The Windows computer must be powered on, connected to the internet, and signed
+in to the `KEVO_MANIX` account. If it is off at 04:00, Task Scheduler starts the
+missed run when Windows is next available after sign-in.
+Run a single-market check without printing credentials:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File `
+  E:\desktop\forextestlab\scripts\windows\sync-market-data.ps1 `
+  -Symbols EURUSD
+```
+
 The completed 21-cross backfill processed 2,940 months with 0 failures; 2,939
 were downloaded locally, one was already present, and 2,883 were newly uploaded
 while the remaining objects already existed in R2.
@@ -457,8 +506,9 @@ redirect settings, then test in an incognito browser to avoid stale auth cookies
 
 ### Market download rate limiting
 
-Do not repeatedly restart the AWS backfill service. Use the local Jetta pipeline
-for bulk history and leave the AWS timer for small daily overlaps.
+Do not restart or re-enable the AWS market-data timer while Dukascopy rejects the
+Lightsail IP. Use the local Jetta pipeline for both daily current-month refreshes
+and bulk history.
 
 ## Current product state
 

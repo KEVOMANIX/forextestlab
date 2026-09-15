@@ -72,6 +72,7 @@ import {
 } from "@/lib/market-data/types";
 import type { OpenPosition, OrderType, PendingOrder } from "@/lib/backtest/types";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
+import { plannedRiskReward } from "@/lib/backtest/trade-journal";
 import { heikinAshi, type OHLCV } from "@/lib/chart/indicators";
 import { TOOL_LABELS, type DrawingJSON, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
 import {
@@ -2655,11 +2656,27 @@ export default function PriceChart({
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    const wanted = new Map<string, number>();
+    const wanted = new Map<string, { price: number; title: string }>();
     for (const position of settings.positionLines ? positionsRef.current : []) {
       if (position.id === activePositionId) continue;
-      if (position.stopLoss) wanted.set(`${position.id}:sl`, Number(position.stopLoss));
-      if (position.takeProfit) wanted.set(`${position.id}:tp`, Number(position.takeProfit));
+      const rr = plannedRiskReward(
+        position.entryPrice,
+        position.stopLoss,
+        position.takeProfit,
+      );
+      const suffix = rr ? ` · R:R 1:${rr}` : "";
+      if (position.stopLoss) {
+        wanted.set(`${position.id}:sl`, {
+          price: Number(position.stopLoss),
+          title: `SL${suffix}`,
+        });
+      }
+      if (position.takeProfit) {
+        wanted.set(`${position.id}:tp`, {
+          price: Number(position.takeProfit),
+          title: `TP${suffix}`,
+        });
+      }
     }
     const lines = positionLinesRef.current;
     for (const [key, line] of lines) {
@@ -2667,16 +2684,23 @@ export default function PriceChart({
       series.removePriceLine(line);
       lines.delete(key);
     }
-    for (const [key, price] of wanted) {
+    for (const [key, level] of wanted) {
       const existing = lines.get(key);
       if (existing) {
-        existing.applyOptions({ price });
+        existing.applyOptions({ price: level.price, title: level.title });
         continue;
       }
       const isStop = key.endsWith(":sl");
       lines.set(
         key,
-        series.createPriceLine({ price, color: isStop ? BEAR : BULL, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: isStop ? "SL" : "TP" }),
+        series.createPriceLine({
+          price: level.price,
+          color: isStop ? "rgba(244, 100, 108, 0.48)" : "rgba(34, 195, 160, 0.48)",
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: level.title,
+        }),
       );
     }
     scheduleLineCoordinates();
@@ -3297,6 +3321,13 @@ export default function PriceChart({
     .join("|");
   const activePosition =
     positions.find((position) => position.id === activePositionId) ?? null;
+  const activeProtectionRR = activePosition && stopDraft != null && targetDraft != null
+    ? plannedRiskReward(
+        activePosition.entryPrice,
+        String(stopDraft),
+        String(targetDraft),
+      )
+    : null;
 
   function projectedPositionPnl(
     position: OpenPosition | null,
@@ -4607,7 +4638,7 @@ export default function PriceChart({
             onPointerMove={(event) => moveLine("stop", event)}
             onPointerUp={(event) => endLineDrag("stop", event)}
             onPointerCancel={(event) => endLineDrag("stop", event)}
-            className="absolute left-0 right-16 z-30 h-4 -translate-y-1/2 touch-none cursor-ns-resize border-t border-amber-400 text-left"
+            className="absolute left-0 right-16 z-30 h-4 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dotted border-amber-400/45 text-left"
             style={{ top: 0, visibility: "hidden" }}
           >
             <span className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[9px] font-bold shadow-lg">
@@ -4619,6 +4650,11 @@ export default function PriceChart({
                   projectedPositionPnl(activePosition, stopDraft),
                 )}
               </span>
+              {activeProtectionRR && (
+                <span className="h-full whitespace-nowrap border-r border-amber-400/50 px-1.5 leading-5 text-amber-300">
+                  R:R 1:{activeProtectionRR}
+                </span>
+              )}
               <button
                 type="button"
                 aria-label="Remove stop loss"
@@ -4654,7 +4690,7 @@ export default function PriceChart({
             onPointerMove={(event) => moveLine("target", event)}
             onPointerUp={(event) => endLineDrag("target", event)}
             onPointerCancel={(event) => endLineDrag("target", event)}
-            className="absolute left-0 right-16 z-30 h-4 -translate-y-1/2 touch-none cursor-ns-resize border-t border-brand-400 text-left"
+            className="absolute left-0 right-16 z-30 h-4 -translate-y-1/2 touch-none cursor-ns-resize border-t border-dotted border-brand-400/45 text-left"
             style={{ top: 0, visibility: "hidden" }}
           >
             <span className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-brand-400 bg-[var(--app-panel-solid)] font-mono text-[9px] font-bold shadow-lg">
@@ -4666,6 +4702,11 @@ export default function PriceChart({
                   projectedPositionPnl(activePosition, targetDraft),
                 )}
               </span>
+              {activeProtectionRR && (
+                <span className="h-full whitespace-nowrap border-r border-brand-400/50 px-1.5 leading-5 text-brand-300">
+                  R:R 1:{activeProtectionRR}
+                </span>
+              )}
               <button
                 type="button"
                 aria-label="Remove take profit"

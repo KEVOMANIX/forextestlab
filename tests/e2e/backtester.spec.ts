@@ -234,6 +234,18 @@ test("builds and places a chart-connected trade plan", async ({ page }, testInfo
       -24,
       "modify-target",
     );
+    await dragProtectionHandle(
+      page,
+      "add-stop-loss-handle",
+      55,
+      "modify-stop",
+    );
+    const stopLine = page.getByTestId("stop-loss-line");
+    const targetLine = page.getByTestId("take-profit-line");
+    await expect(stopLine).toContainText(/R:R 1:\d+\.\d{2}/);
+    await expect(targetLine).toContainText(/R:R 1:\d+\.\d{2}/);
+    await expect(stopLine).toHaveCSS("border-top-style", "dotted");
+    await expect(targetLine).toHaveCSS("border-top-style", "dotted");
   }
 
   await page.getByRole("button", { name: "Manage buy position" }).click();

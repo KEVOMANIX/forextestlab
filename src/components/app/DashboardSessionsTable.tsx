@@ -107,8 +107,8 @@ export function DashboardSessionsTable({
         <>
           <div className="hidden gap-3 p-3 lg:grid lg:grid-cols-2 xl:grid-cols-3">
             {displayed.map((session) => (
-              <article key={session.id} className="group relative overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/45 p-3.5 transition-all hover:-translate-y-0.5 hover:border-brand-400/25 hover:shadow-card">
-                <span aria-hidden className={`absolute inset-y-0 left-0 w-0.5 ${session.pnl >= 0 ? "bg-brand-400/70" : "bg-bear/70"}`} />
+              <article key={session.id} className="group relative flex h-full flex-col overflow-visible rounded-xl border app-border bg-[var(--app-panel-2)]/45 p-3.5 transition-all hover:-translate-y-0.5 hover:border-brand-400/25 hover:shadow-card focus-within:z-20">
+                <span aria-hidden className={`absolute inset-y-2 left-0 w-0.5 rounded-full ${session.pnl >= 0 ? "bg-brand-400/70" : "bg-bear/70"}`} />
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ export function DashboardSessionsTable({
                   <div className="mb-2 flex items-center justify-between text-[10px] app-muted"><span>{session.status}</span><span className="font-mono">{session.progress.toFixed(0)}%</span></div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${session.progress}%` }} /></div>
                 </div>
-                <div className="mt-3 border-t app-border pt-3">
+                <div className="mt-auto border-t app-border pt-3">
                   <SessionCardActions sessionId={session.id} sessionName={session.name} status={session.status === "Completed" ? "finished" : "paused"} archived={session.archived} compact />
                 </div>
               </article>

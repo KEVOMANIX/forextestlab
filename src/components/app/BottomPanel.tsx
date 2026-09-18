@@ -216,6 +216,7 @@ export function BottomPanel({
           {tab === "notes" ? (
             <div>
               <TradeJournalEditor
+                sessionId={state.sessionId}
                 openPositions={state.openPositions}
                 closedTrades={state.closedTrades}
                 anonymous={state.anonymous}

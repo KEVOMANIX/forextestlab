@@ -112,11 +112,13 @@ function Snapshot({ snapshot, label }: { snapshot: TradeChartSnapshot | null; la
 }
 
 export function TradeJournalEditor({
+  sessionId,
   openPositions = [],
   closedTrades = [],
   anonymous = false,
   onSave,
 }: {
+  sessionId?: string;
   openPositions?: OpenPosition[];
   closedTrades?: ClosedTrade[];
   anonymous?: boolean;
@@ -352,6 +354,7 @@ export function TradeJournalEditor({
 
       {mode === "review" ? (
         <JournalReview
+          sessionId={sessionId}
           records={reviewRecords}
           onEdit={(journalId) => {
             setSelectedId(journalId);
@@ -409,7 +412,7 @@ export function TradeJournalEditor({
                 ))}
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setChartOpen(true)} disabled={!selectedReview || (!selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.07] px-3 text-[11px] font-semibold text-brand-300 hover:bg-brand-400/[0.13] disabled:cursor-not-allowed disabled:opacity-40" title={!selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot ? "Chart snapshots are unavailable for this older trade" : "Open marked trade chart"}><CandlestickChart size={13} /> View chart</button>
+                <button type="button" onClick={() => setChartOpen(true)} disabled={!selectedReview || (!sessionId && !selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.07] px-3 text-[11px] font-semibold text-brand-300 hover:bg-brand-400/[0.13] disabled:cursor-not-allowed disabled:opacity-40" title={!sessionId && !selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot ? "Chart data is unavailable for this trade" : "Open interactive marked trade chart"}><CandlestickChart size={13} /> View chart</button>
                 <div className="flex items-center gap-1 text-[11px] app-muted">
                   <button type="button" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous trade" className="rounded border app-border p-1 disabled:opacity-30"><ChevronLeft size={12} /></button>
                   <span className="font-mono">{position === -1 ? "—" : position + 1} / {visible.length}</span>
@@ -503,7 +506,7 @@ export function TradeJournalEditor({
           </div>
         </div>
       )}
-      {chartOpen && selectedReview && <TradeReviewChartModal record={selectedReview} onClose={() => setChartOpen(false)} />}
+      {chartOpen && selectedReview && <TradeReviewChartModal sessionId={sessionId} record={selectedReview} onClose={() => setChartOpen(false)} />}
     </div>
   );
 }

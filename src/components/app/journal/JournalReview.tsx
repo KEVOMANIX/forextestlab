@@ -52,9 +52,11 @@ function breakdown(records: ReviewRecord[], labels: (record: ReviewRecord) => st
  * session was shown a form instead of the review they had been promised.
  */
 export function JournalReview({
+  sessionId,
   records,
   onEdit,
 }: {
+  sessionId?: string;
   records: ReviewRecord[];
   onEdit: (journalId: string) => void;
 }) {
@@ -119,11 +121,11 @@ export function JournalReview({
             .slice()
             .reverse()
             .map((record) => (
-              <ReviewCard key={record.journalId} record={record} onEdit={onEdit} onViewChart={() => setChartRecord(record)} />
+              <ReviewCard key={record.journalId} record={record} onEdit={onEdit} onViewChart={() => setChartRecord(record)} chartAvailable={Boolean(sessionId || record.journal.beforeEntrySnapshot || record.journal.afterExitSnapshot)} />
             ))}
         </div>
       )}
-      {chartRecord && <TradeReviewChartModal record={chartRecord} onClose={() => setChartRecord(null)} />}
+      {chartRecord && <TradeReviewChartModal sessionId={sessionId} record={chartRecord} onClose={() => setChartRecord(null)} />}
     </div>
   );
 }
@@ -156,10 +158,12 @@ function ReviewCard({
   record,
   onEdit,
   onViewChart,
+  chartAvailable,
 }: {
   record: ReviewRecord;
   onEdit: (journalId: string) => void;
   onViewChart: () => void;
+  chartAvailable: boolean;
 }) {
   const { journal } = record;
   const pnl = record.pnl === null ? null : Number(record.pnl);
@@ -201,7 +205,7 @@ function ReviewCard({
               {positive ? "+" : "−"}${Math.abs(pnl).toFixed(2)}
             </p>
           )}
-          <button type="button" onClick={onViewChart} disabled={!journal.beforeEntrySnapshot && !journal.afterExitSnapshot} className="inline-flex items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.07] px-2.5 py-1 text-[11px] font-semibold text-brand-300 transition-colors hover:bg-brand-400/[0.13] disabled:cursor-not-allowed disabled:opacity-40" title={!journal.beforeEntrySnapshot && !journal.afterExitSnapshot ? "Chart snapshots are unavailable for this older trade" : "Open marked trade chart"}><CandlestickChart size={12} /> View chart</button>
+          <button type="button" onClick={onViewChart} disabled={!chartAvailable} className="inline-flex items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.07] px-2.5 py-1 text-[11px] font-semibold text-brand-300 transition-colors hover:bg-brand-400/[0.13] disabled:cursor-not-allowed disabled:opacity-40" title={chartAvailable ? "Open interactive marked trade chart" : "Chart data is unavailable for this trade"}><CandlestickChart size={12} /> View chart</button>
           <button
             type="button"
             onClick={() => onEdit(record.journalId)}

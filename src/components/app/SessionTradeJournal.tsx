@@ -33,7 +33,7 @@ export function SessionTradeJournal({
           <span><span className="block font-semibold">Trade journal</span><span className="mt-1 block text-xs font-normal app-muted">Review decisions and edit notes for {trades.length} closed trade{trades.length === 1 ? "" : "s"}.</span></span>
           <span className="rounded-lg border app-border px-3 py-1.5 text-xs font-semibold app-muted transition-colors group-open:text-brand-300">Open journal</span>
         </summary>
-        <div className="border-t app-border"><TradeJournalEditor closedTrades={trades} onSave={save} /></div>
+        <div className="border-t app-border"><TradeJournalEditor sessionId={sessionId} closedTrades={trades} onSave={save} /></div>
       </details>
     );
   }
@@ -44,7 +44,7 @@ export function SessionTradeJournal({
         <h2 className="font-semibold">Trade journal</h2>
         <p className="mt-1 text-xs app-muted">Review every decision. Changes autosave and remain available inside the backtester.</p>
       </div>
-      <TradeJournalEditor closedTrades={trades} onSave={save} />
+      <TradeJournalEditor sessionId={sessionId} closedTrades={trades} onSave={save} />
     </section>
   );
 }

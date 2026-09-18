@@ -69,6 +69,7 @@ import { configForSymbol } from "@/lib/backtest/instrument-config";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
+const JOURNAL_DISCOVERY_KEY = "forextestlab:journal-discovery-v1";
 /**
  * Journal prompts are paged, not stacked, so the cap only guards against a
  * runaway queue — a long unattended run should not hold every trade in memory
@@ -458,6 +459,33 @@ export function Backtester({
     );
     expireNotification(notification.id, timeout);
   }, [expireNotification]);
+
+  useEffect(() => {
+    if (bt.phase !== "active" || !state?.sessionId || state.anonymous) return;
+    try {
+      if (window.localStorage.getItem(JOURNAL_DISCOVERY_KEY)) return;
+      window.localStorage.setItem(JOURNAL_DISCOVERY_KEY, "shown");
+    } catch {
+      // Storage can be unavailable in privacy mode; the reminder may reappear
+      // in a later session, but it should never interrupt the trading screen.
+    }
+    const id = "journal-discovery";
+    const timer = window.setTimeout(() => {
+      notify({
+        id,
+        title: "Journal every trade while you trade",
+        detail: "Each position gets its own journal automatically, including before-entry and after-exit chart snapshots. Add your reason, emotion, execution grade, and lesson without leaving the replay.",
+        tone: "closed",
+        actionLabel: "Open trade journal",
+        onAction: () => {
+          revealNonceRef.current += 1;
+          setRevealPanelTab({ tab: "notes", nonce: revealNonceRef.current });
+          setNotifications((current) => current.filter((item) => item.id !== id));
+        },
+      }, 14_000);
+    }, 1_500);
+    return () => window.clearTimeout(timer);
+  }, [bt.phase, notify, state?.anonymous, state?.sessionId]);
 
   /**
    * One-click trading is one click: a quote button or a buy/sell shortcut sends

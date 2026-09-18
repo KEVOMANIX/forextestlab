@@ -242,6 +242,7 @@ function sleep(ms: number): Promise<void> {
  * than hide behind a long retry loop.
  */
 const RESUME_RETRY_DELAYS_MS = [400, 1200];
+const RESUME_REQUEST_TIMEOUT_MS = 15_000;
 
 export async function getStateWithToken(
   sessionId: string,
@@ -251,6 +252,7 @@ export async function getStateWithToken(
     fetch(`/api/backtest/sessions/${sessionId}`, {
       cache: "no-store",
       headers: token ? { "x-session-token": token } : undefined,
+      signal: AbortSignal.timeout(RESUME_REQUEST_TIMEOUT_MS),
     });
 
   let res: Response | null = null;

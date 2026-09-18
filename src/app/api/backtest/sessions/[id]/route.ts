@@ -89,7 +89,7 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
     select: { id: true },
   });
   dropActiveSession(params.id);
-  void deleteSessionSnapshot(access.stateObjectKey).catch((error) => {
+  void deleteSessionSnapshot(access.stateObjectKey, params.id).catch((error) => {
     console.error("Could not remove deleted session snapshot:", error);
   });
   return NextResponse.json({ ok: true });

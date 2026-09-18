@@ -11,6 +11,7 @@ import { promisify } from "node:util";
 import { gzip, gunzip } from "node:zlib";
 
 import type { SessionState } from "./types";
+import type { Candle } from "@/lib/market-data/types";
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -58,6 +59,13 @@ function objectKey(sessionId: string, prefix: string): string {
     throw new Error("Invalid session id for snapshot storage.");
   }
   return `${prefix}/${sessionId}.json.gz`;
+}
+
+function candleObjectKey(sessionId: string, prefix: string): string {
+  if (!/^[A-Za-z0-9_-]+$/.test(sessionId)) {
+    throw new Error("Invalid session id for candle snapshot storage.");
+  }
+  return `${prefix}/candles/${sessionId}.json.gz`;
 }
 
 /** Metadata list pages need without downloading the full object. */
@@ -136,12 +144,81 @@ export async function readSessionSnapshot(
   }
 }
 
+/**
+ * Read the immutable candle prefix already assembled for a long-running
+ * session. One compressed object is substantially faster than reopening and
+ * decoding every monthly Parquet object whenever the app process restarts.
+ */
+export async function readSessionCandleSnapshot(
+  sessionId: string,
+  minimumCandles: number,
+): Promise<Candle[] | null> {
+  const config = snapshotConfig();
+  if (!config) return null;
+  try {
+    const object = await config.client.send(
+      new GetObjectCommand({
+        Bucket: config.bucket,
+        Key: candleObjectKey(sessionId, config.prefix),
+      }),
+    );
+    if (!object.Body) return null;
+    const compressed = Buffer.from(await object.Body.transformToByteArray());
+    const parsed = JSON.parse((await gunzipAsync(compressed)).toString("utf8")) as {
+      version?: number;
+      candles?: Candle[];
+    };
+    if (parsed.version !== 1 || !Array.isArray(parsed.candles)) return null;
+    return parsed.candles.length >= minimumCandles ? parsed.candles : null;
+  } catch (error) {
+    if (
+      error instanceof NoSuchKey ||
+      (error as { name?: string } | null)?.name === "NoSuchKey"
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function writeSessionCandleSnapshot(
+  sessionId: string,
+  candles: Candle[],
+): Promise<void> {
+  const config = snapshotConfig();
+  if (!config || candles.length === 0) return;
+  const json = JSON.stringify({ version: 1, candles });
+  const compressed = await gzipAsync(Buffer.from(json), { level: 4 });
+  await config.client.send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: candleObjectKey(sessionId, config.prefix),
+      Body: compressed,
+      ContentType: "application/json",
+      ContentEncoding: "gzip",
+      CacheControl: "private, no-store",
+      Metadata: {
+        session: sessionId,
+        candles: String(candles.length),
+      },
+    }),
+  );
+}
+
 /** Database deletion is authoritative; failure here leaves only an orphan. */
-export async function deleteSessionSnapshot(stateObjectKey: string | null): Promise<void> {
-  if (!stateObjectKey) return;
+export async function deleteSessionSnapshot(
+  stateObjectKey: string | null,
+  sessionId?: string,
+): Promise<void> {
   const config = snapshotConfig();
   if (!config) return;
-  await config.client.send(
-    new DeleteObjectCommand({ Bucket: config.bucket, Key: stateObjectKey }),
+  const keys = [
+    stateObjectKey,
+    sessionId ? candleObjectKey(sessionId, config.prefix) : null,
+  ].filter((key): key is string => Boolean(key));
+  await Promise.all(
+    keys.map((Key) =>
+      config.client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key })),
+    ),
   );
 }

@@ -70,8 +70,8 @@ describe("getStateWithToken", () => {
 
     const result = await getStateWithToken("session-1", "token");
     expect(result.ok).toBe(false);
-    // One first try plus the two backoff delays.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // One first try plus the single bounded resume retry.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("does not retry a client error — the token or session, not the server, is the problem", async () => {

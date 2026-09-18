@@ -39,7 +39,9 @@ import { normalizeReplaySpeed } from "./types";
 import { TRIAL_SESSION_LIMIT } from "@/lib/trial-device";
 import {
   prepareSessionSnapshot,
+  readSessionCandleSnapshot,
   readSessionSnapshot,
+  writeSessionCandleSnapshot,
 } from "./state-snapshot-store";
 
 /** Bounded replay chunk size; longer sessions are extended progressively. */
@@ -437,13 +439,23 @@ export async function loadResumeSessionSnapshot(
 
   let series = candleCache.get(id);
   if (!series) {
-    series = await fetchSeries(
-      row.symbol,
-      row.timeframe as Timeframe,
-      Number(row.startTime),
-      Number(row.endTime),
-      Math.max(MAX_SESSION_CANDLES, row.totalCandles),
+    const needed = Math.min(
+      row.totalCandles,
+      row.visibleIndex + 1 + MAX_BUFFER_CANDLES,
     );
+    const snapshot = await readSessionCandleSnapshot(id, needed);
+    if (snapshot) {
+      series = snapshot;
+    } else {
+      series = await fetchSeries(
+        row.symbol,
+        row.timeframe as Timeframe,
+        Number(row.startTime),
+        Number(row.endTime),
+        Math.max(MAX_SESSION_CANDLES, row.totalCandles),
+      );
+      await writeSessionCandleSnapshot(id, series);
+    }
     cacheCandles(id, series);
   }
 
@@ -509,6 +521,7 @@ export async function extendReplaySeries(
   await ensureSessionPairCandles(session);
   cacheCandles(session.id, ctx.candles);
   await persistSession(session);
+  await writeSessionCandleSnapshot(session.id, ctx.candles);
 
   const newest = candles[candles.length - 1];
   return {
@@ -773,13 +786,19 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
   state.speed = normalizeReplaySpeed(Number(state.speed));
   let series = candleCache.get(id);
   if (!series) {
-    series = await fetchSeries(
-      row.symbol,
-      row.timeframe as Timeframe,
-      Number(row.startTime),
-      Number(row.endTime),
-      Math.max(MAX_SESSION_CANDLES, state.totalCandles),
-    );
+    const snapshot = await readSessionCandleSnapshot(id, state.totalCandles);
+    if (snapshot) {
+      series = snapshot;
+    } else {
+      series = await fetchSeries(
+        row.symbol,
+        row.timeframe as Timeframe,
+        Number(row.startTime),
+        Number(row.endTime),
+        Math.max(MAX_SESSION_CANDLES, state.totalCandles),
+      );
+      await writeSessionCandleSnapshot(id, series);
+    }
     cacheCandles(id, series);
   }
 

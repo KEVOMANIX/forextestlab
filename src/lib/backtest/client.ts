@@ -253,7 +253,7 @@ export async function getStateWithToken(
   // a valid (and potentially large) candle payload while the browser parses it.
   const attempt = async () => {
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), RESUME_REQUEST_TIMEOUT_MS);
+    const timer = globalThis.setTimeout(() => controller.abort(), RESUME_REQUEST_TIMEOUT_MS);
     try {
       return await fetch(`/api/backtest/sessions/${sessionId}`, {
         cache: "no-store",
@@ -261,7 +261,7 @@ export async function getStateWithToken(
         signal: controller.signal,
       });
     } finally {
-      window.clearTimeout(timer);
+      globalThis.clearTimeout(timer);
     }
   };
 

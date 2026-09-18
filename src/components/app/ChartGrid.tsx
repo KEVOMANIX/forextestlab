@@ -919,6 +919,10 @@ function ChartCellView({
  */
 export function revealedUpTo(series: Candle[], clock: number | null): Candle[] {
   if (clock == null) return [];
+  return series.slice(0, revealedIndex(series, clock));
+}
+
+function revealedIndex(series: Candle[], clock: number): number {
   let low = 0;
   let high = series.length;
   while (low < high) {
@@ -926,8 +930,12 @@ export function revealedUpTo(series: Candle[], clock: number | null): Candle[] {
     if ((series[mid]?.timestamp ?? 0) <= clock) low = mid + 1;
     else high = mid;
   }
-  return series.slice(0, low);
+  return low;
 }
+
+// Enough history for indicators and a generous initial pan, without asking the
+// chart library to synchronously ingest years of one-minute bars on resume.
+const MAX_INITIAL_CHART_CANDLES = 10_000;
 
 interface RevealedSeries {
   /** Candles already revealed when this cell mounted. */
@@ -982,8 +990,9 @@ function useRevealedSeries(series: Candle[] | null, currentTime: number | null):
             previousSource[previousSource.length - 1]?.timestamp));
     sourceRef.current = series;
     if (isAppendOnlyExtension) return;
-    const revealed = revealedUpTo(series, currentTime);
-    cursorRef.current = revealed.length;
+    const cursor = currentTime == null ? 0 : revealedIndex(series, currentTime);
+    const revealed = series.slice(Math.max(0, cursor - MAX_INITIAL_CHART_CANDLES), cursor);
+    cursorRef.current = cursor;
     lastRef.current = revealed[revealed.length - 1] ?? null;
     setInitialCandles(revealed);
     setNewCandles([]);

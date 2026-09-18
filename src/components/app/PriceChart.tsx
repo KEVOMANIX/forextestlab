@@ -136,6 +136,17 @@ export interface ChartMarker {
 
 type ChartType = "candles" | "hollow" | "heikin" | "bars" | "line" | "area";
 type DrawTool = ToolKind | null;
+
+function firstIndexAfter(candles: Candle[], timestamp: number): number {
+  let low = 0;
+  let high = candles.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if ((candles[mid]?.timestamp ?? 0) <= timestamp) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
 /**
  * Cursor modes, named the way every charting platform names them.
  *
@@ -2426,7 +2437,8 @@ export default function PriceChart({
     const currentTime = replayCurrentTimeRef.current;
     if (!replaySeries || currentTime == null) return;
     const raw = rawCandlesRef.current;
-    let cursor = raw.length;
+    const lastRawTime = raw.at(-1)?.timestamp;
+    let cursor = lastRawTime == null ? 0 : firstIndexAfter(replaySeries, lastRawTime);
     let appended = false;
     while (cursor < replaySeries.length) {
       const candle = replaySeries[cursor]!;
@@ -2470,9 +2482,8 @@ export default function PriceChart({
       const raw = rawCandlesRef.current;
       const lastTime = raw[raw.length - 1]?.timestamp ?? -Infinity;
       if (currentTime < lastTime) {
-        rawCandlesRef.current = source.filter(
-          (candle) => candle.timestamp <= currentTime,
-        );
+        const cursor = firstIndexAfter(source, currentTime);
+        rawCandlesRef.current = source.slice(Math.max(0, cursor - 10_000), cursor);
         currentPriceRef.current = Number(
           rawCandlesRef.current.at(-1)?.close ?? 0,
         );
@@ -2480,7 +2491,7 @@ export default function PriceChart({
         scheduleRender(true);
         return;
       }
-      let cursor = raw.length;
+      let cursor = lastTime === -Infinity ? 0 : firstIndexAfter(source, lastTime);
       let appended = false;
       while (cursor < source.length) {
         const candle = source[cursor]!;

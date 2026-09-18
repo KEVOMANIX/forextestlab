@@ -4,6 +4,7 @@ import Image from "next/image";
 
 import {
   Camera,
+  CandlestickChart,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -29,6 +30,7 @@ import {
   type ReviewRecord,
 } from "@/components/app/journal/JournalReview";
 import { TagField } from "@/components/app/journal/TagField";
+import { TradeReviewChartModal } from "@/components/app/journal/TradeReviewChartModal";
 import type {
   ClosedTrade,
   OpenPosition,
@@ -168,6 +170,7 @@ export function TradeJournalEditor({
   const [unwrittenOnly, setUnwrittenOnly] = useState(false);
   const [gradeFilter, setGradeFilter] = useState<"all" | "A" | "B" | "C" | "D">("all");
   const [selectedId, setSelectedId] = useState<string | null>(records[0]?.journalId ?? null);
+  const [chartOpen, setChartOpen] = useState(false);
   const selected = records.find((record) => record.journalId === selectedId) ?? records[0] ?? null;
   const [draft, setDraft] = useState<TradeJournalUpdate | null>(selected ? editable(selected.journal) : null);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
@@ -312,6 +315,7 @@ export function TradeJournalEditor({
     maxAdversePnl: record.maxAdversePnl,
     journal: record.journal,
   }));
+  const selectedReview = reviewRecords.find((record) => record.journalId === selected.journalId) ?? null;
 
   return (
     <div>
@@ -405,6 +409,7 @@ export function TradeJournalEditor({
                 ))}
               </div>
               <div className="flex items-center gap-3">
+                <button type="button" onClick={() => setChartOpen(true)} disabled={!selectedReview || (!selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.07] px-3 text-[11px] font-semibold text-brand-300 hover:bg-brand-400/[0.13] disabled:cursor-not-allowed disabled:opacity-40" title={!selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot ? "Chart snapshots are unavailable for this older trade" : "Open marked trade chart"}><CandlestickChart size={13} /> View chart</button>
                 <div className="flex items-center gap-1 text-[11px] app-muted">
                   <button type="button" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous trade" className="rounded border app-border p-1 disabled:opacity-30"><ChevronLeft size={12} /></button>
                   <span className="font-mono">{position === -1 ? "—" : position + 1} / {visible.length}</span>
@@ -498,6 +503,7 @@ export function TradeJournalEditor({
           </div>
         </div>
       )}
+      {chartOpen && selectedReview && <TradeReviewChartModal record={selectedReview} onClose={() => setChartOpen(false)} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { CandlestickSeries, ColorType, CrosshairMode, LineStyle, createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
+import { CandlestickSeries, ColorType, CrosshairMode, LineStyle, createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, type Time, type UTCTimestamp } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ReviewRecord } from "./JournalReview";
@@ -12,9 +12,9 @@ const REVIEW_TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 export function TradeReviewChartModal({ sessionId, record, onClose }: { sessionId?: string; record: ReviewRecord; onClose: () => void }) {
   const dialogRef = useModalBehavior<HTMLDivElement>({ open: true, onClose });
-  const [timeframe, setTimeframe] = useState<Timeframe>(record.journal.beforeEntrySnapshot?.timeframe ?? "1m");
+  const [timeframe, setTimeframe] = useState<Timeframe>("15m");
   const [marketCandles, setMarketCandles] = useState<Candle[] | null>(null);
-  const [showTradeLevels, setShowTradeLevels] = useState(true);
+  const [showTradeLevels, setShowTradeLevels] = useState(false);
   const [loading, setLoading] = useState(Boolean(sessionId));
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -93,7 +93,8 @@ function InteractiveReviewChart({ candles, record, loading, error, showTradeLeve
     const storageKey = container.closest<HTMLElement>("[data-review-session]")?.dataset.reviewSession ?? "";
     try { saved = JSON.parse(window.localStorage.getItem(`forextestlab:chart-settings:${storageKey}`) ?? "{}"); } catch { /* use defaults */ }
     const up = saved.upColor ?? "#22c3a0"; const down = saved.downColor ?? "#f4646c"; const background = saved.background && saved.background !== "auto" ? saved.background : "#0b1220"; const grid = saved.grid !== false ? "rgba(148,163,184,.08)" : "transparent";
-    const chart = createChart(container, { autoSize: true, layout: { background: { type: ColorType.Solid, color: background }, textColor: "#94a3b8", fontFamily: "inherit", fontSize: saved.chartTextSize === "large" ? 18 : saved.chartTextSize === "small" ? 14 : 16 }, grid: { vertLines: { color: grid }, horzLines: { color: grid } }, rightPriceScale: { borderColor: "rgba(148,163,184,.18)", scaleMargins: { top: .12, bottom: .08 } }, timeScale: { borderColor: "rgba(148,163,184,.18)", borderVisible: true, ticksVisible: true, timeVisible: true, secondsVisible: false, barSpacing: 10, rightOffset: 4, minBarSpacing: 2 }, crosshair: { mode: CrosshairMode.Normal }, handleScroll: true, handleScale: true });
+    const crosshairTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+    const chart = createChart(container, { autoSize: true, layout: { background: { type: ColorType.Solid, color: background }, textColor: "#94a3b8", fontFamily: "inherit", fontSize: saved.chartTextSize === "large" ? 18 : saved.chartTextSize === "small" ? 14 : 16 }, grid: { vertLines: { color: grid }, horzLines: { color: grid } }, rightPriceScale: { borderColor: "rgba(148,163,184,.18)", scaleMargins: { top: .12, bottom: .08 } }, timeScale: { borderColor: "rgba(148,163,184,.18)", borderVisible: true, ticksVisible: true, timeVisible: true, secondsVisible: false, barSpacing: 10, rightOffset: 4, minBarSpacing: 2 }, localization: { timeFormatter: (time: Time) => crosshairTime.format(new Date(typeof time === "number" ? time * 1000 : typeof time === "string" ? `${time}T00:00:00Z` : Date.UTC(time.year, time.month - 1, time.day))) }, crosshair: { mode: CrosshairMode.Normal }, handleScroll: true, handleScale: true });
     const series = chart.addSeries(CandlestickSeries, { upColor: up, downColor: down, wickUpColor: up, wickDownColor: down, borderVisible: false });
     chartRef.current = chart; seriesRef.current = series;
     return () => { chart.remove(); chartRef.current = null; seriesRef.current = null; };

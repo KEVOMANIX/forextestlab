@@ -114,14 +114,18 @@ function InteractiveReviewChart({ candles, record, loading, error, showTradeLeve
     const priceLines = showTradeLevels ? lines.map((line) => series.createPriceLine({ ...line, lineWidth: 1, axisLabelVisible: true })) : [];
     const entryTime = (candles.find((candle) => candle.timestamp >= record.entryTime)?.timestamp ?? record.entryTime);
     const exitTime = (candles.find((candle) => candle.timestamp >= record.exitTime)?.timestamp ?? record.exitTime);
+    const entryIndex = Math.max(0, candles.findIndex((candle) => candle.timestamp >= record.entryTime));
+    // A position drawing describes the setup at entry. Its horizontal size is
+    // intentionally compact and must not grow with the trade's holding time.
+    // The exit remains independently marked at the real exit candle.
+    const positionEndTime = candles[Math.min(candles.length - 1, entryIndex + 18)]?.timestamp ?? entryTime;
     const markers = createSeriesMarkers(series, [{ time: Math.floor(entryTime / 1000) as UTCTimestamp, position: record.direction === "long" ? "belowBar" : "aboveBar", color: record.direction === "long" ? "#22c3a0" : "#f4646c", shape: record.direction === "long" ? "arrowUp" : "arrowDown", text: `${record.direction === "long" ? "BUY" : "SELL"} entry` }, { time: Math.floor(exitTime / 1000) as UTCTimestamp, position: record.direction === "long" ? "aboveBar" : "belowBar", color: "#fbbf24", shape: record.direction === "long" ? "arrowDown" : "arrowUp", text: "Exit" }]);
     const updatePositionBox = () => {
-      const x1 = chart.timeScale().timeToCoordinate(Math.floor(entryTime / 1000) as UTCTimestamp); const x2 = chart.timeScale().timeToCoordinate(Math.floor(exitTime / 1000) as UTCTimestamp); const entryY = series.priceToCoordinate(Number(record.entryPrice));
+      const x1 = chart.timeScale().timeToCoordinate(Math.floor(entryTime / 1000) as UTCTimestamp); const x2 = chart.timeScale().timeToCoordinate(Math.floor(positionEndTime / 1000) as UTCTimestamp); const entryY = series.priceToCoordinate(Number(record.entryPrice));
       if (x1 == null || x2 == null || entryY == null) return;
       const place = (element: HTMLDivElement | null, price: string | null, color: string) => { if (!element || !price) { if (element) element.style.display = "none"; return; } const otherY = series.priceToCoordinate(Number(price)); if (otherY == null) return; element.style.display = "block"; element.style.left = `${Math.min(x1, x2)}px`; element.style.width = `${Math.max(3, Math.abs(x2 - x1))}px`; element.style.top = `${Math.min(entryY, otherY)}px`; element.style.height = `${Math.max(2, Math.abs(otherY - entryY))}px`; element.style.background = color; };
       place(riskRef.current, record.stopLoss, "rgba(244,100,108,.16)"); place(rewardRef.current, record.takeProfit, "rgba(34,195,160,.16)");
     };
-    const entryIndex = Math.max(0, candles.findIndex((candle) => candle.timestamp >= record.entryTime));
     const foundExitIndex = candles.findIndex((candle) => candle.timestamp >= record.exitTime);
     const exitIndex = foundExitIndex < 0 ? candles.length - 1 : Math.max(entryIndex, foundExitIndex);
     const tradeBars = Math.max(1, exitIndex - entryIndex + 1);

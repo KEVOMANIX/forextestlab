@@ -57,7 +57,11 @@ export function isJournaled(journal: TradeJournal | TradeJournalUpdate): boolean
       journal.exitReview.trim() ||
       journal.setupTags.length ||
       journal.mistakeTags.length ||
-      journal.emotion.trim(),
+      journal.emotion.trim() ||
+      journal.strategy.trim() ||
+      journal.grade ||
+      journal.lesson.trim() ||
+      journal.attachments.length,
   );
 }
 

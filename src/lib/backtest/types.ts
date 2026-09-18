@@ -61,6 +61,14 @@ export type OrderType = "market" | "limit" | "stop";
 export type PendingOrderType = Exclude<OrderType, "market">;
 export type PendingOrderStatus = "pending" | "activated" | "cancelled" | "expired";
 export type TradeValidity = "valid" | "invalid" | "experimental";
+export type TradeGrade = "A" | "B" | "C" | "D" | null;
+
+export interface JournalAttachment {
+  id: string;
+  name: string;
+  type: string;
+  dataUrl: string;
+}
 
 export interface JournalRule {
   id: string;
@@ -90,7 +98,12 @@ export interface TradeJournal {
   setupTags: string[];
   mistakeTags: string[];
   emotion: string;
+  emotionIntensity: number | null;
   confidence: number | null;
+  strategy: string;
+  grade: TradeGrade;
+  lesson: string;
+  attachments: JournalAttachment[];
   ruleChecklist: JournalRule[];
   plannedRR: string | null;
   realizedR: string | null;
@@ -106,7 +119,12 @@ export interface TradeJournalUpdate {
   setupTags: string[];
   mistakeTags: string[];
   emotion: string;
+  emotionIntensity: number | null;
   confidence: number | null;
+  strategy: string;
+  grade: TradeGrade;
+  lesson: string;
+  attachments: JournalAttachment[];
   ruleChecklist: JournalRule[];
   validity: TradeValidity;
 }

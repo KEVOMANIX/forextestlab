@@ -55,7 +55,12 @@ function editable(journal: TradeJournal): TradeJournalUpdate {
     setupTags: [...journal.setupTags],
     mistakeTags: [...journal.mistakeTags],
     emotion: journal.emotion,
+    emotionIntensity: journal.emotionIntensity,
     confidence: journal.confidence,
+    strategy: journal.strategy,
+    grade: journal.grade,
+    lesson: journal.lesson,
+    attachments: [...journal.attachments],
     ruleChecklist: journal.ruleChecklist.map((rule) => ({ ...rule })),
     validity: journal.validity,
   };

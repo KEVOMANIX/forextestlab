@@ -23,6 +23,7 @@ import {
 } from "@/components/app/DashboardSessionsTable";
 import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
+import { isJournaled } from "@/components/app/journal-utils";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
 import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
 import { computeStatistics } from "@/lib/backtest/statistics";
@@ -288,7 +289,7 @@ export function SignedInDashboard({
     getTradingSession(trade.entryTime),
   );
 
-  const insightCards: DashboardInsight[] = trades.length >= 5
+  const baseInsightCards: DashboardInsight[] = trades.length >= 5
     ? [
         {
           icon: "trophy",
@@ -347,6 +348,11 @@ export function SignedInDashboard({
           detail: "A consistent record makes the analytics more useful later.",
         },
         ];
+  const unwrittenTrades = trades.filter((trade) => trade.journal && !isJournaled(trade.journal)).length;
+  const journalReminder: DashboardInsight = { icon: "target", title: `${unwrittenTrades} trade${unwrittenTrades === 1 ? "" : "s"} waiting for review`, detail: "Open the session journal and use Next unwritten to finish the review while the decisions are fresh." };
+  const insightCards: DashboardInsight[] = unwrittenTrades > 0
+    ? [journalReminder, ...baseInsightCards].slice(0, 3)
+    : baseInsightCards;
 
   const recentTradeActivity = [...trades]
     .sort((left, right) => right.exitTime - left.exitTime)

@@ -101,7 +101,17 @@ const tradeJournalUpdateSchema = z.object({
   setupTags: z.array(z.string().trim().min(1).max(32)).max(12),
   mistakeTags: z.array(z.string().trim().min(1).max(32)).max(12),
   emotion: z.string().trim().max(40),
+  emotionIntensity: z.number().int().min(1).max(5).nullable(),
   confidence: z.number().int().min(1).max(5).nullable(),
+  strategy: z.string().trim().max(80),
+  grade: z.enum(["A", "B", "C", "D"]).nullable(),
+  lesson: z.string().max(2000),
+  attachments: z.array(z.object({
+    id: z.string().min(1).max(80),
+    name: z.string().min(1).max(120),
+    type: z.string().min(1).max(80),
+    dataUrl: z.string().max(1_500_000),
+  })).max(3),
   ruleChecklist: z.array(journalRuleSchema).max(12),
   validity: z.enum(["valid", "invalid", "experimental"]),
 });

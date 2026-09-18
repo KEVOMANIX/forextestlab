@@ -689,6 +689,8 @@ function DemoJournalWorkspace() {
     direction: trade.direction,
     entryTime: trade.entryTime,
     pnl: trade.pnl,
+    maxFavorablePnl: trade.maxFavorablePnl ?? null,
+    maxAdversePnl: trade.maxAdversePnl ?? null,
     journal: trade.journal!,
   }));
   return (

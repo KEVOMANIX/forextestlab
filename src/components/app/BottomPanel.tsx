@@ -222,7 +222,7 @@ export function BottomPanel({
                 onSave={onSaveTradeJournal}
               />
               <div className="space-y-2 border-t app-border p-4">
-              <label htmlFor="session-notes" className="text-xs app-muted">Session notes</label>
+              <div className="flex flex-wrap items-center justify-between gap-2"><label htmlFor="session-notes" className="text-xs app-muted">Session notes and reviews</label><div className="flex gap-1.5"><button type="button" className="rounded-md border app-border px-2 py-1 text-[10px] app-muted hover:text-brand-300" onClick={() => setNotes("Session review\n\nWhat worked:\n\nWhat did not work:\n\nBest execution:\n\nWorst execution:\n\nNext-session focus:\n")}>Session template</button><button type="button" className="rounded-md border app-border px-2 py-1 text-[10px] app-muted hover:text-brand-300" onClick={() => setNotes("Weekly review\n\nStrongest setup:\n\nMost expensive mistake:\n\nRule adherence:\n\nProgress on last goal:\n\nOne goal for next week:\n")}>Weekly template</button></div></div>
               <textarea
                 id="session-notes"
                 rows={3}

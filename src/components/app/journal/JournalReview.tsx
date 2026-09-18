@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import { NotebookPen, TrendingDown, TrendingUp } from "lucide-react";
 
 import {
@@ -16,7 +18,24 @@ export interface ReviewRecord {
   direction: "long" | "short";
   entryTime: number;
   pnl: string | null;
+  maxFavorablePnl: string | null;
+  maxAdversePnl: string | null;
   journal: TradeJournal;
+}
+
+type Breakdown = { label: string; trades: number; wins: number; pnl: number; grossWin: number; grossLoss: number; r: number; rCount: number };
+
+function breakdown(records: ReviewRecord[], labels: (record: ReviewRecord) => string[]): Breakdown[] {
+  const rows = new Map<string, Breakdown>();
+  for (const record of records) for (const label of labels(record).filter(Boolean)) {
+    const row = rows.get(label) ?? { label, trades: 0, wins: 0, pnl: 0, grossWin: 0, grossLoss: 0, r: 0, rCount: 0 };
+    const pnl = Number(record.pnl ?? 0);
+    const r = Number(record.journal.realizedR);
+    row.trades += 1; row.wins += pnl > 0 ? 1 : 0; row.pnl += pnl; row.grossWin += Math.max(0, pnl); row.grossLoss += Math.abs(Math.min(0, pnl));
+    if (Number.isFinite(r)) { row.r += r; row.rCount += 1; }
+    rows.set(label, row);
+  }
+  return [...rows.values()].sort((a, b) => (b.rCount ? b.r / b.rCount : b.pnl) - (a.rCount ? a.r / a.rCount : a.pnl));
 }
 
 /**
@@ -36,6 +55,10 @@ export function JournalReview({
   const adherence = ruleAdherence(journals);
   const confidence = averageConfidence(journals);
   const written = records.filter((record) => isJournaled(record.journal));
+  const strategies = breakdown(records, (record) => record.journal.strategy ? [record.journal.strategy] : record.journal.setupTags);
+  const mistakes = breakdown(records, (record) => record.journal.mistakeTags);
+  const goodLosses = records.filter((record) => Number(record.pnl ?? 0) < 0 && ["A", "B"].includes(record.journal.grade ?? "")).length;
+  const badWins = records.filter((record) => Number(record.pnl ?? 0) > 0 && ["C", "D"].includes(record.journal.grade ?? "")).length;
 
   return (
     <div className="space-y-4 p-4">
@@ -61,6 +84,17 @@ export function JournalReview({
         />
       </dl>
 
+      <div className="grid gap-3 lg:grid-cols-2">
+        <BreakdownTable title="Strategy performance" empty="Assign a strategy or setup tag to compare your playbooks." rows={strategies} />
+        <BreakdownTable title="Mistake cost" empty="Add mistake tags to see which behaviors cost the most." rows={mistakes} />
+      </div>
+
+      <div className="grid gap-3 rounded-xl border app-border p-4 sm:grid-cols-3">
+        <div><p className="text-[11px] uppercase tracking-wide app-muted">Good losses</p><p className="mt-1 font-mono text-xl font-semibold text-brand-300">{goodLosses}</p></div>
+        <div><p className="text-[11px] uppercase tracking-wide app-muted">Bad wins</p><p className="mt-1 font-mono text-xl font-semibold text-amber-300">{badWins}</p></div>
+        <div><p className="text-[11px] uppercase tracking-wide app-muted">Process signal</p><p className="mt-1 text-sm font-semibold">{badWins > goodLosses ? "Winning is masking weak execution" : "Execution quality supports the results"}</p></div>
+      </div>
+
       {written.length === 0 ? (
         <div className="rounded-xl bg-[var(--app-panel-2)]/55 px-4 py-10 text-center">
           <NotebookPen size={20} className="mx-auto text-brand-300" aria-hidden />
@@ -82,6 +116,10 @@ export function JournalReview({
       )}
     </div>
   );
+}
+
+function BreakdownTable({ title, empty, rows }: { title: string; empty: string; rows: Breakdown[] }) {
+  return <section className="overflow-hidden rounded-xl border app-border"><h3 className="border-b app-border px-4 py-3 text-xs font-semibold">{title}</h3>{rows.length ? <div className="overflow-x-auto"><table className="w-full text-left text-[11px]"><thead className="app-muted"><tr><th className="px-4 py-2">Name</th><th>Trades</th><th>Win rate</th><th>PF</th><th className="pr-4">Avg R</th></tr></thead><tbody>{rows.slice(0, 8).map((row) => <tr key={row.label} className="border-t app-border"><td className="max-w-44 truncate px-4 py-2 font-semibold">{row.label}</td><td>{row.trades}</td><td>{Math.round(row.wins / row.trades * 100)}%</td><td className="font-mono">{row.grossLoss ? (row.grossWin / row.grossLoss).toFixed(2) : row.grossWin ? "∞" : "—"}</td><td className={`pr-4 font-mono ${row.r >= 0 ? "text-brand-300" : "text-bear"}`}>{row.rCount ? `${row.r / row.rCount >= 0 ? "+" : ""}${(row.r / row.rCount).toFixed(2)}R` : "—"}</td></tr>)}</tbody></table></div> : <p className="px-4 py-8 text-center text-xs app-muted">{empty}</p>}</section>;
 }
 
 function Stat({
@@ -140,6 +178,7 @@ function ReviewCard({
                 minute: "2-digit",
               })}
             </p>
+            {(journal.strategy || journal.grade) && <p className="mt-1 text-[11px] text-brand-300">{journal.strategy || "Unassigned strategy"}{journal.grade ? ` · Grade ${journal.grade}` : ""}</p>}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
@@ -188,6 +227,9 @@ function ReviewCard({
         </div>
       )}
 
+      {journal.lesson.trim() && <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-amber-300">Next-trade action</p><p className="mt-1 text-xs leading-5">{journal.lesson}</p></div>}
+      {journal.attachments.length > 0 && <div className="mt-3 grid grid-cols-3 gap-2">{journal.attachments.map((attachment) => <Image unoptimized width={320} height={96} key={attachment.id} src={attachment.dataUrl} alt={attachment.name} className="h-24 w-full rounded-lg border app-border object-cover" />)}</div>}
+
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t app-border pt-3 text-[11px] app-muted">
         <span>
           {followed}/{journal.ruleChecklist.length} rules followed
@@ -196,6 +238,7 @@ function ReviewCard({
           {journal.emotion || "No emotion recorded"}
           {journal.confidence ? ` · confidence ${journal.confidence}/5` : ""}
         </span>
+        <span className="font-mono">MFE {record.maxFavorablePnl === null ? "—" : Number(record.maxFavorablePnl).toFixed(2)} · MAE {record.maxAdversePnl === null ? "—" : Number(record.maxAdversePnl).toFixed(2)}</span>
         <span className="font-mono">
           {journal.realizedR
             ? `${Number(journal.realizedR) >= 0 ? "+" : ""}${journal.realizedR}R`

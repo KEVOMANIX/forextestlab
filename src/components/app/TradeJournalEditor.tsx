@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import {
   Camera,
   Check,
@@ -8,9 +10,12 @@ import {
   FlaskConical,
   NotebookPen,
   PenLine,
+  Paperclip,
+  Plus,
   RotateCcw,
   Save,
   Search,
+  Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -40,6 +45,8 @@ type JournalRecord = {
   entryTime: number;
   lots: string;
   pnl: string | null;
+  maxFavorablePnl: string | null;
+  maxAdversePnl: string | null;
   open: boolean;
   journal: TradeJournal;
 };
@@ -51,7 +58,12 @@ function editable(journal: TradeJournal): TradeJournalUpdate {
     setupTags: [...journal.setupTags],
     mistakeTags: [...journal.mistakeTags],
     emotion: journal.emotion,
+    emotionIntensity: journal.emotionIntensity,
     confidence: journal.confidence,
+    strategy: journal.strategy,
+    grade: journal.grade,
+    lesson: journal.lesson,
+    attachments: [...journal.attachments],
     ruleChecklist: journal.ruleChecklist.map((rule) => ({ ...rule })),
     validity: journal.validity,
   };
@@ -119,6 +131,8 @@ export function TradeJournalEditor({
         entryTime: position.entryTime,
         lots: position.lots,
         pnl: null,
+        maxFavorablePnl: position.maxFavorablePnl ?? null,
+        maxAdversePnl: position.maxAdversePnl ?? null,
         open: true,
         journal: position.journal ?? emptyTradeJournal(position.entryPrice, position.stopLoss, position.takeProfit),
       });
@@ -133,6 +147,8 @@ export function TradeJournalEditor({
         entryTime: trade.entryTime,
         lots: previous ? String(Number(previous.lots) + Number(trade.lots)) : trade.lots,
         pnl: String(Number(previous?.pnl ?? 0) + Number(trade.pnl)),
+        maxFavorablePnl: trade.maxFavorablePnl ?? previous?.maxFavorablePnl ?? null,
+        maxAdversePnl: trade.maxAdversePnl ?? previous?.maxAdversePnl ?? null,
         open: previous?.open ?? false,
         journal: trade.journal ?? previous?.journal ?? emptyTradeJournal(trade.entryPrice, trade.stopLoss, trade.takeProfit),
       });
@@ -150,6 +166,7 @@ export function TradeJournalEditor({
   const [mode, setMode] = useState<"review" | "edit">("edit");
   const [query, setQuery] = useState("");
   const [unwrittenOnly, setUnwrittenOnly] = useState(false);
+  const [gradeFilter, setGradeFilter] = useState<"all" | "A" | "B" | "C" | "D">("all");
   const [selectedId, setSelectedId] = useState<string | null>(records[0]?.journalId ?? null);
   const selected = records.find((record) => record.journalId === selectedId) ?? records[0] ?? null;
   const [draft, setDraft] = useState<TradeJournalUpdate | null>(selected ? editable(selected.journal) : null);
@@ -170,11 +187,15 @@ export function TradeJournalEditor({
     const needle = query.trim().toLowerCase();
     return records.filter((record) => {
       if (unwrittenOnly && isJournaled(record.journal)) return false;
+      if (gradeFilter !== "all" && record.journal.grade !== gradeFilter) return false;
       if (!needle) return true;
       return [
         record.journal.entryReason,
         record.journal.exitReview,
         record.journal.emotion,
+        record.journal.strategy,
+        record.journal.grade ?? "",
+        record.journal.lesson,
         ...record.journal.setupTags,
         ...record.journal.mistakeTags,
         `#${numberOf(record.journalId)}`,
@@ -184,7 +205,7 @@ export function TradeJournalEditor({
         .toLowerCase()
         .includes(needle);
     });
-  }, [numberOf, query, records, unwrittenOnly]);
+  }, [gradeFilter, numberOf, query, records, unwrittenOnly]);
 
   useEffect(() => {
     if (!selected) return;
@@ -244,6 +265,18 @@ export function TradeJournalEditor({
     setMode("edit");
   }, [records]);
 
+  useEffect(() => {
+    const navigate = (event: KeyboardEvent) => {
+      if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.matches("input, textarea, select, [contenteditable=true]")) return;
+      event.preventDefault();
+      step(event.key === "ArrowLeft" ? -1 : 1);
+    };
+    window.addEventListener("keydown", navigate);
+    return () => window.removeEventListener("keydown", navigate);
+  }, [step]);
+
   if (!records.length) {
     return <p className="p-4 text-sm app-muted">A journal will be created automatically when you place a trade.</p>;
   }
@@ -251,6 +284,17 @@ export function TradeJournalEditor({
 
   const patch = (value: Partial<TradeJournalUpdate>) =>
     setDraft((current) => (current ? { ...current, ...value } : current));
+  const addRule = () => {
+    const label = window.prompt("Rule to add to this playbook");
+    if (!label?.trim() || draft.ruleChecklist.length >= 12) return;
+    patch({ ruleChecklist: [...draft.ruleChecklist, { id: crypto.randomUUID(), label: label.trim().slice(0, 100), followed: false }] });
+  };
+  const addAttachment = (file: File | undefined) => {
+    if (!file || !file.type.startsWith("image/") || file.size > 750_000 || draft.attachments.length >= 3) return;
+    const reader = new FileReader();
+    reader.onload = () => patch({ attachments: [...draft.attachments, { id: crypto.randomUUID(), name: file.name.slice(0, 120), type: file.type, dataUrl: String(reader.result) }] });
+    reader.readAsDataURL(file);
+  };
   const position = visible.findIndex((record) => record.journalId === selected.journalId);
   const reviewRecords: ReviewRecord[] = records.map((record) => ({
     journalId: record.journalId,
@@ -258,6 +302,8 @@ export function TradeJournalEditor({
     direction: record.direction,
     entryTime: record.entryTime,
     pnl: record.pnl,
+    maxFavorablePnl: record.maxFavorablePnl,
+    maxAdversePnl: record.maxAdversePnl,
     journal: record.journal,
   }));
 
@@ -324,6 +370,7 @@ export function TradeJournalEditor({
               />
               Unwritten only
             </label>
+            <select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value as typeof gradeFilter)} aria-label="Filter journal by grade" className="mb-2 w-full rounded-lg border app-border bg-[var(--app-panel-2)] px-2 py-1.5 text-[11px] outline-none"><option value="all">All execution grades</option>{["A", "B", "C", "D"].map((grade) => <option key={grade} value={grade}>Grade {grade}</option>)}</select>
             <div className="flex gap-1 overflow-x-auto md:block md:max-h-[430px] md:space-y-1 md:overflow-y-auto">
               {visible.map((record) => (
                 <button key={record.journalId} type="button" onClick={() => setSelectedId(record.journalId)} className={`min-w-40 rounded-lg border p-2 text-left text-xs md:block md:w-full ${record.journalId === selected.journalId ? "border-brand-400/40 bg-brand-400/10" : "app-border hover:bg-white/[0.03]"}`}>
@@ -375,6 +422,8 @@ export function TradeJournalEditor({
             </div>
 
             <div className="grid gap-3 lg:grid-cols-2">
+              <label className="text-xs"><span className="mb-1 block app-muted">Strategy / playbook</span><input className="app-input w-full" value={draft.strategy} maxLength={80} onChange={(event) => patch({ strategy: event.target.value })} placeholder="e.g. London breakout" /></label>
+              <div className="text-xs"><span className="mb-1 block app-muted">Execution grade</span><div className="flex gap-1.5">{(["A", "B", "C", "D"] as const).map((grade) => <button key={grade} type="button" aria-pressed={draft.grade === grade} onClick={() => patch({ grade: draft.grade === grade ? null : grade })} className={`grid h-9 w-9 place-items-center rounded-lg border font-mono font-bold ${draft.grade === grade ? "border-brand-400/50 bg-brand-400/10 text-brand-300" : "app-border app-muted"}`}>{grade}</button>)}</div></div>
               <label className="text-xs"><span className="mb-1 block app-muted">Entry reason</span><textarea rows={4} className="app-input w-full resize-y" value={draft.entryReason} onChange={(event) => patch({ entryReason: event.target.value })} placeholder="Why was this entry valid?" /></label>
               <label className="text-xs"><span className="mb-1 block app-muted">Exit review</span><textarea rows={4} className="app-input w-full resize-y" value={draft.exitReview} onChange={(event) => patch({ exitReview: event.target.value })} placeholder="What happened, and what would you repeat or change?" /></label>
               <TagField label="Setup tags" hint="(what you saw)" tone="brand" value={draft.setupTags} suggestions={setupSuggestions} onChange={(setupTags) => patch({ setupTags })} />
@@ -396,17 +445,18 @@ export function TradeJournalEditor({
                 </div>
                 <input className="app-input mt-2 w-full" value={draft.emotion} onChange={(event) => patch({ emotion: event.target.value })} placeholder="Or describe it yourself" maxLength={40} aria-label="Emotion" />
               </div>
-              <label className="text-xs"><span className="mb-1 block app-muted">Confidence: {draft.confidence ? `${draft.confidence}/5` : "Not set"}</span><input type="range" min="1" max="5" step="1" value={draft.confidence ?? 3} onChange={(event) => patch({ confidence: Number(event.target.value) })} className="w-full accent-brand-400" /></label>
+              <div className="grid gap-3 sm:grid-cols-2"><label className="text-xs"><span className="mb-1 block app-muted">Confidence: {draft.confidence ? `${draft.confidence}/5` : "Not set"}</span><input type="range" min="1" max="5" step="1" value={draft.confidence ?? 3} onChange={(event) => patch({ confidence: Number(event.target.value) })} className="w-full accent-brand-400" /></label><label className="text-xs"><span className="mb-1 block app-muted">Emotion intensity: {draft.emotionIntensity ? `${draft.emotionIntensity}/5` : "Not set"}</span><input type="range" min="1" max="5" step="1" value={draft.emotionIntensity ?? 3} onChange={(event) => patch({ emotionIntensity: Number(event.target.value) })} className="w-full accent-brand-400" /></label></div>
+              <label className="text-xs lg:col-span-2"><span className="mb-1 block app-muted">Lesson for the next trade</span><textarea rows={2} className="app-input w-full resize-y" value={draft.lesson} maxLength={2000} onChange={(event) => patch({ lesson: event.target.value })} placeholder="One specific action to repeat or change" /></label>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
               <fieldset>
-                <legend className="mb-2 text-xs font-semibold">Rule-followed checklist</legend>
+                <legend className="mb-2 flex w-full items-center justify-between gap-3 text-xs font-semibold"><span>Playbook checklist</span><button type="button" onClick={addRule} disabled={draft.ruleChecklist.length >= 12} className="inline-flex items-center gap-1 rounded-md border app-border px-2 py-1 text-[10px] app-muted hover:text-brand-300"><Plus size={11} /> Add rule</button></legend>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {draft.ruleChecklist.map((rule, index) => (
                     <label key={rule.id} className="flex items-center gap-2 rounded-lg border app-border p-2 text-xs">
                       <input type="checkbox" checked={rule.followed} onChange={(event) => patch({ ruleChecklist: draft.ruleChecklist.map((item, itemIndex) => itemIndex === index ? { ...item, followed: event.target.checked } : item) })} className="accent-brand-400" />
-                      <span>{rule.label}</span>
+                      <span className="min-w-0 flex-1">{rule.label}</span><button type="button" aria-label={`Remove ${rule.label}`} onClick={(event) => { event.preventDefault(); patch({ ruleChecklist: draft.ruleChecklist.filter((_, itemIndex) => itemIndex !== index) }); }} className="app-muted hover:text-bear"><Trash2 size={12} /></button>
                     </label>
                   ))}
                 </div>
@@ -434,6 +484,11 @@ export function TradeJournalEditor({
                 <Snapshot snapshot={selected.journal.afterExitSnapshot} label="After exit" />
               </div>
             </details>
+
+            <section className="rounded-xl border app-border p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xs font-semibold">Attachments</h3><p className="mt-1 text-[11px] app-muted">Up to 3 images, 750 KB each.</p></div><label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border app-border px-3 py-2 text-[11px] font-semibold hover:text-brand-300"><Paperclip size={12} /> Add image<input type="file" accept="image/*" className="sr-only" disabled={draft.attachments.length >= 3} onChange={(event) => { addAttachment(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label></div>
+              {draft.attachments.length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-3">{draft.attachments.map((attachment) => <figure key={attachment.id} className="relative overflow-hidden rounded-lg border app-border"><Image unoptimized width={320} height={112} src={attachment.dataUrl} alt={attachment.name} className="h-28 w-full object-cover" /><figcaption className="truncate px-2 py-1 text-[10px] app-muted">{attachment.name}</figcaption><button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => patch({ attachments: draft.attachments.filter((item) => item.id !== attachment.id) })} className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-md bg-black/70 text-white"><Trash2 size={11} /></button></figure>)}</div>}
+            </section>
           </div>
         </div>
       )}

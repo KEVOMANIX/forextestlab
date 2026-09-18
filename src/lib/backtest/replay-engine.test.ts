@@ -444,7 +444,12 @@ describe("manual close and drawdown", () => {
       setupTags: ["breakout", "breakout"],
       mistakeTags: [],
       emotion: "Calm",
+      emotionIntensity: 2,
       confidence: 4,
+      strategy: "London breakout",
+      grade: "A",
+      lesson: "Repeat the patient entry.",
+      attachments: [],
       ruleChecklist: [{ id: "risk", label: "Risk defined", followed: true }],
       validity: "valid",
     })).toBe(true);

@@ -241,19 +241,29 @@ function sleep(ms: number): Promise<void> {
  * page load, not a background poll, and a real outage should surface rather
  * than hide behind a long retry loop.
  */
-const RESUME_RETRY_DELAYS_MS = [400, 1200];
-const RESUME_REQUEST_TIMEOUT_MS = 15_000;
+const RESUME_RETRY_DELAYS_MS = [750];
+const RESUME_REQUEST_TIMEOUT_MS = 45_000;
 
 export async function getStateWithToken(
   sessionId: string,
   token: string | null,
 ): Promise<StateOk | ApiErr> {
-  const attempt = () =>
-    fetch(`/api/backtest/sessions/${sessionId}`, {
-      cache: "no-store",
-      headers: token ? { "x-session-token": token } : undefined,
-      signal: AbortSignal.timeout(RESUME_REQUEST_TIMEOUT_MS),
-    });
+  // Bound the wait for response headers, where an unavailable data provider
+  // can otherwise strand the page forever. Once headers arrive, do not abort
+  // a valid (and potentially large) candle payload while the browser parses it.
+  const attempt = async () => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), RESUME_REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(`/api/backtest/sessions/${sessionId}`, {
+        cache: "no-store",
+        headers: token ? { "x-session-token": token } : undefined,
+        signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timer);
+    }
+  };
 
   let res: Response | null = null;
   try {

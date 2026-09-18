@@ -26,6 +26,11 @@ const CANDLE_CACHE_TTL_MS = 15 * 60_000;
 // Keep only the hottest month to leave memory for concurrent app requests;
 // R2 remains durable and another month is decoded on demand.
 const MAX_CACHED_MONTHS = 1;
+// Long-running one-minute sessions can span many years. Reading every monthly
+// object serially adds one full R2 round trip per month, making a cold resume
+// take tens of seconds. A small batch overlaps network/decode work while
+// keeping peak memory bounded on the Lightsail instance.
+const MONTH_READ_CONCURRENCY = 4;
 const COLUMNS = ["timestamp", "open", "high", "low", "close", "volume"];
 // Our importer writes only ZSTD Parquet, so loading the other codecs would add
 // startup work and dependencies that production never uses.
@@ -354,17 +359,20 @@ export class R2ParquetProvider implements MarketDataProvider {
     const baseCandlesNeeded = request.limit === undefined
       ? Number.POSITIVE_INFINITY
       : request.limit * (TIMEFRAME_MS[request.timeframe] / TIMEFRAME_MS["1m"]);
-    // Read chronologically and stop as soon as the requested output limit can
-    // be satisfied. This avoids downloading years of monthly files for a
-    // replay session that only needs its first 1,500 candles.
-    for (const month of months) {
-      const candles = await readMonth(config, month);
-      raw.push(
-        ...candles.filter(
-          (candle) =>
-            candle.timestamp >= request.startTime && candle.timestamp <= request.endTime,
-        ),
-      );
+    // Read chronological batches and stop as soon as the requested output
+    // limit can be satisfied. Promise.all preserves the input month order.
+    for (let index = 0; index < months.length; index += MONTH_READ_CONCURRENCY) {
+      const batch = months.slice(index, index + MONTH_READ_CONCURRENCY);
+      const decoded = await Promise.all(batch.map((month) => readMonth(config, month)));
+      for (const candles of decoded) {
+        raw.push(
+          ...candles.filter(
+            (candle) =>
+              candle.timestamp >= request.startTime && candle.timestamp <= request.endTime,
+          ),
+        );
+        if (raw.length >= baseCandlesNeeded) break;
+      }
       if (raw.length >= baseCandlesNeeded) break;
     }
     const candles = request.timeframe === "1m"

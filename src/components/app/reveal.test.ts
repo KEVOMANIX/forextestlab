@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { revealedUpTo } from "./ChartGrid";
+import { adjacentContextCandles, revealedUpTo } from "./ChartGrid";
 import type { Candle } from "@/lib/market-data/types";
 
 /**
@@ -57,5 +57,29 @@ describe("revealedUpTo", () => {
         );
       }
     }
+  });
+});
+
+describe("adjacentContextCandles", () => {
+  const candleAt = (timestamp: number): Candle => ({
+    timestamp,
+    open: "1.1000",
+    high: "1.1010",
+    low: "1.0990",
+    close: "1.1005",
+    source: "demo",
+  });
+
+  it("keeps history immediately before the visible replay window", () => {
+    const visibleStart = 1_700_000_000_000;
+    const context = [candleAt(visibleStart - 2 * MINUTE), candleAt(visibleStart - MINUTE)];
+    expect(adjacentContextCandles(context, visibleStart, "1m")).toEqual(context);
+  });
+
+  it("drops session-opening context when a resumed window is years later", () => {
+    const context = [candleAt(Date.UTC(2019, 11, 30))];
+    expect(
+      adjacentContextCandles(context, Date.UTC(2026, 7, 6), "1m"),
+    ).toEqual([]);
   });
 });

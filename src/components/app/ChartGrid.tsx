@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import type { PairChartData } from "@/lib/backtest/client";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
 import type { OpenPosition, OrderType, PendingOrder, PublicSessionState } from "@/lib/backtest/types";
-import type { Candle, Timeframe } from "@/lib/market-data/types";
+import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import type { DrawingJSON } from "@/lib/chart/drawing/types";
 import type { IndicatorInstance } from "@/lib/chart/indicator-defs";
 
@@ -793,7 +793,26 @@ function ChartCellView({
   onSelectInstrument,
   onOpenSettings,
 }: ChartCellViewProps) {
-  const reveal = useRevealedSeries(isSession ? sessionSeries : pair?.candles ?? null, state.currentTime);
+  const replaySource = isSession ? sessionSeries : pair?.candles ?? null;
+  const reveal = useRevealedSeries(replaySource, state.currentTime);
+  const initialWindowStart = reveal.initialCandles[0]?.timestamp ?? (
+    replaySource && state.currentTime != null
+      ? replaySource[
+          Math.max(
+            0,
+            revealedIndex(replaySource, state.currentTime) - MAX_INITIAL_CHART_CANDLES,
+          )
+        ]?.timestamp ?? null
+      : null
+  );
+  const chartContextCandles = useMemo(
+    () => adjacentContextCandles(
+      isSession ? sessionContextCandles : pair?.contextCandles ?? [],
+      initialWindowStart,
+      state.config.timeframe,
+    ),
+    [isSession, sessionContextCandles, pair?.contextCandles, initialWindowStart, state.config.timeframe],
+  );
   const noop = useCallback(() => {}, []);
   /**
    * What the position tool sizes against: this session's balance and this
@@ -851,7 +870,7 @@ function ChartCellView({
         key={`${cell.id}-${cell.symbol}`}
         onFocus={onFocus}
         initialCandles={reveal.initialCandles}
-        contextCandles={isSession ? sessionContextCandles : pair?.contextCandles ?? []}
+        contextCandles={chartContextCandles}
         lastCandle={null}
         lastCandles={reveal.newCandles}
         replaySeries={isSession ? sessionSeries : pair?.candles}
@@ -936,6 +955,24 @@ function revealedIndex(series: Candle[], clock: number): number {
 // Enough history for indicators and a generous initial pan, without asking the
 // chart library to synchronously ingest years of one-minute bars on resume.
 const MAX_INITIAL_CHART_CANDLES = 10_000;
+
+/**
+ * Context fetched for the session opening must not be joined to a resume
+ * window years later. Lightweight Charts treats both clusters as one
+ * timeline, which compresses the empty years and distorts price autoscaling.
+ */
+export function adjacentContextCandles(
+  context: Candle[],
+  visibleStartTime: number | null,
+  timeframe: Timeframe,
+): Candle[] {
+  if (visibleStartTime == null || context.length === 0) return [];
+  const prior = context.filter((candle) => candle.timestamp < visibleStartTime);
+  const lastContextTime = prior.at(-1)?.timestamp;
+  if (lastContextTime == null) return [];
+  const maximumGap = Math.max(7 * TIMEFRAME_MS["1d"], 3 * TIMEFRAME_MS[timeframe]);
+  return visibleStartTime - lastContextTime <= maximumGap ? prior : [];
+}
 
 interface RevealedSeries {
   /** Candles already revealed when this cell mounted. */

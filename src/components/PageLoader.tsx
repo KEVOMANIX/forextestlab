@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { ArrowLeft, RefreshCw, ShieldCheck } from "lucide-react";
 
 import logoMark from "../../public/logo-mark.png";
 
@@ -28,7 +27,6 @@ const MARKET_QUOTES = [
 
 export function PageLoader({ message = "Loading…" }: { message?: string }) {
   const [quoteIndex, setQuoteIndex] = useState(0);
-  const [showRecovery, setShowRecovery] = useState(false);
 
   useEffect(() => {
     setQuoteIndex(Math.floor(Math.random() * MARKET_QUOTES.length));
@@ -38,10 +36,8 @@ export function PageLoader({ message = "Loading…" }: { message?: string }) {
         return (current + offset) % MARKET_QUOTES.length;
       });
     }, 4200);
-    const recoveryTimer = window.setTimeout(() => setShowRecovery(true), 20_000);
     return () => {
       window.clearInterval(interval);
-      window.clearTimeout(recoveryTimer);
     };
   }, []);
 
@@ -87,53 +83,17 @@ export function PageLoader({ message = "Loading…" }: { message?: string }) {
         </div>
         <p className="mt-3 text-xs font-medium text-slate-400">{message}</p>
 
-        {showRecovery && (
-          <div className="mt-6 w-full border-t border-white/10 pt-6">
-            <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-brand-400/20 bg-brand-400/[0.07] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-200">
-              <ShieldCheck size={13} aria-hidden="true" />
-              Your session is safe
-            </div>
-            <h2 className="mt-4 text-base font-semibold text-white">Still loading your market data</h2>
-            <p className="mx-auto mt-2 max-w-[17rem] text-xs leading-5 text-slate-400">
-              You can keep waiting, reload the session, or return to your dashboard without losing progress.
-            </p>
-            <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-brand-500 px-3 text-xs font-bold text-surface-950 shadow-[0_8px_24px_-12px_rgba(34,195,160,0.8)] transition hover:bg-brand-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
-              >
-                <RefreshCw size={14} aria-hidden="true" />
-                Reload session
-              </button>
-              <button
-                type="button"
-                onClick={() => window.location.assign("/app")}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.03] px-3 text-xs font-semibold text-slate-200 transition hover:border-white/25 hover:bg-white/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-300"
-              >
-                <ArrowLeft size={14} aria-hidden="true" />
-                Dashboard
-              </button>
-            </div>
-            <p className="mt-4 text-[10px] leading-4 text-slate-500">
-              Loading continues while this message is shown.
-            </p>
-          </div>
-        )}
-
-        {!showRecovery && (
-          <div className="mt-6 w-full border-t border-white/10 pt-5" aria-hidden="true">
-            <blockquote
-              key={quoteIndex}
-              className="page-loader-quote min-h-10 text-sm font-medium leading-5 text-slate-300"
-            >
-              “{MARKET_QUOTES[quoteIndex]}”
-            </blockquote>
-            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-300/70">
-              Market mindset
-            </p>
-          </div>
-        )}
+        <div className="mt-6 w-full border-t border-white/10 pt-5" aria-hidden="true">
+          <blockquote
+            key={quoteIndex}
+            className="page-loader-quote min-h-10 text-sm font-medium leading-5 text-slate-300"
+          >
+            “{MARKET_QUOTES[quoteIndex]}”
+          </blockquote>
+          <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-300/70">
+            Market mindset
+          </p>
+        </div>
       </div>
     </main>
   );

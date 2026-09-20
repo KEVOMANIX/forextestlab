@@ -332,7 +332,11 @@ async function fetchChartContext(
   before = replayStartTime,
 ): Promise<Candle[]> {
   const lowerBound = Math.max(0, replayStartTime - CONTEXT_LOOKBACK_MS);
-  const endTime = Math.min(before - 1, replayStartTime - 1);
+  // `before` may be inside a long-running session when a resumed chart asks
+  // for history adjacent to its current window. Capping every request at the
+  // original replay start returned 2019 context beside a 2026 resume window,
+  // producing a multi-year gap and extreme autoscaling.
+  const endTime = before - 1;
   if (endTime < lowerBound) return [];
   // Fetch a bounded window immediately before `before`. The extra calendar
   // width covers weekends/holidays; slicing from the end keeps it adjacent to
@@ -378,11 +382,16 @@ export async function getChartContextPage(
   if (!allowed.includes(symbol)) throw new Error("This pair is not part of the session.");
   const replayStartTime =
     session.ctx.candles[0]?.timestamp ?? session.ctx.state.config.startTime;
+  const replayClock = currentCandleOf(session.ctx)?.timestamp ?? replayStartTime;
+  // The context endpoint is read-only but still must not reveal future replay
+  // candles. Requests inside the revealed range can page normally; later
+  // requests are clamped to the current replay clock.
+  const safeBefore = Math.min(before, replayClock + 1);
   const candles = await fetchChartContext(
     symbol,
     replayStartTime,
     timeframe,
-    before,
+    safeBefore,
   );
   const lowerBound = Math.max(
     0,

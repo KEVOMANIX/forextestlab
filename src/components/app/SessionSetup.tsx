@@ -14,6 +14,7 @@ import {
   Plus,
   Play,
   Search,
+  Shuffle,
   Tags,
   Trophy,
   X,
@@ -213,7 +214,7 @@ function MarketPicker({
           </div>
         ) : visible.length > 0 ? (
           <>
-            <div className="grid max-h-[17rem] grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain pb-3 pr-1 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="grid max-h-[30rem] grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain pb-3 pr-1 sm:grid-cols-2">
               {visible.map((item) => {
                 const active = selected.includes(item.symbol);
                 const description = describeSymbol(item.symbol);
@@ -325,6 +326,29 @@ function addCalendarDays(value: string, days: number): string {
   const date = new Date(`${value}T12:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return toDateInput(date.getTime());
+}
+
+const REPLAY_PERIODS = [
+  { days: 31, label: "1 month" },
+  { days: 90, label: "3 months" },
+  { days: 180, label: "6 months" },
+  { days: 365, label: "1 year" },
+  { days: 730, label: "2 years" },
+] as const;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function periodEnd(start: string, days: number, availableEnd: string): string {
+  if (!start) return "";
+  const desired = addCalendarDays(start, Math.max(0, days - 1));
+  return availableEnd && desired > availableEnd ? availableEnd : desired;
+}
+
+function inclusiveDays(start: string, end: string): number {
+  if (!start || !end) return 0;
+  const first = new Date(`${start}T12:00:00Z`).getTime();
+  const last = new Date(`${end}T12:00:00Z`).getTime();
+  return Math.max(1, Math.round((last - first) / DAY_MS) + 1);
 }
 
 function monthStart(value: string, fallback: string): Date {
@@ -531,6 +555,12 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   const [range, setRange] = useState<{ startTime: number; endTime: number } | null>(null);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [periodDays, setPeriodDays] = useState(() =>
+    entitlements.maxSessionDays !== null && entitlements.maxSessionDays < 365
+      ? Math.min(31, entitlements.maxSessionDays)
+      : 365,
+  );
+  const [customPeriod, setCustomPeriod] = useState(false);
   const [loadingRange, setLoadingRange] = useState(false);
   /** Null = free practice. Otherwise the challenge phase being attempted. */
   const [challengePreset, setChallengePreset] =
@@ -595,15 +625,9 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           return;
         }
         setRange(commonRange);
-        const threeDays = 3 * 24 * 60 * 60 * 1000;
         setStart((current) => {
           if (!current) return toDateInput(commonRange.startTime);
           const selected = newYorkDateStart(current);
-          return toDateInput(Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)));
-        });
-        setEnd((current) => {
-          if (!current) return toDateInput(Math.min(commonRange.endTime, commonRange.startTime + threeDays));
-          const selected = newYorkDateEnd(current);
           return toDateInput(Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)));
         });
       })
@@ -618,12 +642,34 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
     };
   }, [selectedSymbols]);
 
+  const availableEnd = range ? toDateInput(range.endTime) : "";
+  const allowedPeriodDays = Math.min(
+    periodDays,
+    entitlements.maxSessionDays ?? periodDays,
+  );
+
+  useEffect(() => {
+    if (!range || !start) return;
+    const minimum = toDateInput(range.startTime);
+    const maximum = toDateInput(range.endTime);
+    if (!customPeriod) {
+      setEnd(periodEnd(start, allowedPeriodDays, maximum));
+      return;
+    }
+    setEnd((current) => {
+      if (!current || current < start) return start;
+      const planMaximum = entitlements.maxSessionDays === null
+        ? maximum
+        : periodEnd(start, entitlements.maxSessionDays, maximum);
+      return current > planMaximum ? planMaximum : current < minimum ? minimum : current;
+    });
+  }, [allowedPeriodDays, customPeriod, entitlements.maxSessionDays, range, start]);
+
   const tags = tagsText
     .split(",")
     .map((tag) => tag.trim())
     .filter(Boolean)
     .slice(0, 8);
-  const availableEnd = range ? toDateInput(range.endTime) : "";
   const sessionEndMax =
     entitlements.maxSessionDays !== null && start
       ? [availableEnd, addCalendarDays(start, entitlements.maxSessionDays - 1)]
@@ -631,8 +677,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           .sort()[0] ?? availableEnd
       : availableEnd;
   const canStart = Boolean(
-    name.trim().length >= 2 &&
-      selectedSymbols.length > 0 &&
+    selectedSymbols.length > 0 &&
       range &&
       start &&
       end &&
@@ -640,6 +685,10 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       !loadingRange &&
       !busy && Number(accountSize) > 0,
   );
+
+  const generatedName = selectedSymbols.length > 0
+    ? `${selectedSymbols.map(formatSymbol).join(", ")} · ${start ? new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${start}T12:00:00Z`)) : "Backtest"}`
+    : "New backtest";
 
   function toggleSymbol(symbol: string) {
     if (entitlements.maxPairsPerSession === 1) {
@@ -658,7 +707,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
     if (!range || !canStart) return;
     const rules = challengePreset ? PROP_FIRM_PRESETS[challengePreset] : undefined;
     onStart({
-      name: name.trim(),
+      name: name.trim() || generatedName,
       tags,
       symbols: selectedSymbols,
       startTime: Math.max(range.startTime, newYorkDateStart(start)),
@@ -667,6 +716,22 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       startingBalance: accountSize,
       propFirm: rules,
     });
+  }
+
+  function selectPeriod(days: number) {
+    setCustomPeriod(false);
+    setPeriodDays(Math.min(days, entitlements.maxSessionDays ?? days));
+  }
+
+  function chooseRandomStart() {
+    if (!range) return;
+    const first = new Date(`${toDateInput(range.startTime)}T12:00:00Z`).getTime();
+    const last = new Date(`${toDateInput(range.endTime)}T12:00:00Z`).getTime();
+    const days = customPeriod ? Math.max(1, inclusiveDays(start, end)) : allowedPeriodDays;
+    const latestStart = Math.max(first, last - Math.max(0, days - 1) * DAY_MS);
+    const slots = Math.max(0, Math.floor((latestStart - first) / DAY_MS));
+    const offset = slots > 0 ? Math.floor(Math.random() * (slots + 1)) : 0;
+    setStart(toDateInput(first + offset * DAY_MS));
   }
 
   if (entitlements.plan === "free" && entitlements.freeSessionUsed) {
@@ -693,7 +758,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       <div className="flex flex-col gap-2 border-b app-border px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">New backtest</p>
-          <h2 className="mt-0.5 text-xl font-bold tracking-tight">Set up your session</h2>
+          <h2 className="mt-0.5 text-xl font-bold tracking-tight">Build your replay session</h2>
+          <p className="mt-1 text-xs app-muted">Choose a market and starting date. We will prepare the rest.</p>
         </div>
         <span className="w-fit rounded-full border border-brand-400/20 bg-brand-400/[0.07] px-3 py-1.5 text-xs font-semibold text-brand-300">
           {entitlements.plan === "free"
@@ -702,12 +768,12 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </span>
       </div>
 
-      <div className="grid gap-0 lg:grid-cols-3">
-        <div className="min-w-0 space-y-5 overflow-clip px-5 py-4 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.12fr)_minmax(25rem,.88fr)]">
+        <div className="min-w-0 space-y-5 overflow-clip px-5 py-4 sm:px-6 lg:row-span-2 lg:border-r lg:border-[var(--app-border)]">
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">1</span>
-              <h3 className="text-sm font-semibold">Name your session</h3>
+              <div><h3 className="text-sm font-semibold">Session details</h3><p className="text-[11px] app-muted">Optional — we create a useful name if left blank.</p></div>
             </div>
             <label htmlFor="setup-name" className="sr-only">Session name</label>
             <input
@@ -715,10 +781,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               className="app-input w-full text-base"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. London breakout"
-              minLength={2}
+              placeholder={generatedName}
               maxLength={80}
-              required
               autoFocus
             />
             <div className="relative mt-2">
@@ -744,7 +808,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           />
         </div>
 
-        <div className="min-w-0 overflow-hidden border-t app-border bg-[linear-gradient(180deg,rgba(34,195,160,.035),transparent_45%)] px-5 py-4 sm:px-6 lg:border-r lg:border-t-0 lg:border-[var(--app-border)]">
+        <div className="min-w-0 overflow-hidden border-t app-border bg-[linear-gradient(180deg,rgba(34,195,160,.035),transparent_45%)] px-5 py-4 sm:px-6 lg:border-t-0">
           <fieldset>
             <legend className="mb-3 flex w-full items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
@@ -858,94 +922,121 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           </fieldset>
         </div>
 
-        <div className="min-w-0 overflow-hidden border-t app-border px-5 py-4 sm:px-6 lg:border-t-0">
+        <div className="min-w-0 overflow-visible border-t app-border px-5 py-4 sm:px-6">
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">4</span>
-              <h3 className="text-sm font-semibold">Choose your replay period</h3>
+              <div>
+                <h3 className="text-sm font-semibold">Replay period</h3>
+                <p className="text-[11px] app-muted">
+                  {entitlements.maxSessionDays !== null && entitlements.maxSessionDays < 365
+                    ? `${periodDays}-day replay selected. Pick only the start date.`
+                    : "One year is selected automatically. Pick only the start date."}
+                </p>
+              </div>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
+
+            <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Replay duration">
+              {REPLAY_PERIODS.map((item) => {
+                const disabled = entitlements.maxSessionDays !== null && item.days > entitlements.maxSessionDays;
+                const active = !customPeriod && periodDays === item.days;
+                return (
+                  <button
+                    key={item.days}
+                    type="button"
+                    disabled={disabled}
+                    aria-pressed={active}
+                    title={disabled ? `Your plan supports up to ${entitlements.maxSessionDays} days` : item.label}
+                    onClick={() => selectPeriod(item.days)}
+                    className={`rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${active ? "border-brand-400/50 bg-brand-400/12 text-brand-200" : "app-border bg-[var(--app-panel-2)]/45 app-muted hover:border-brand-400/30 hover:text-brand-200"}`}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                aria-pressed={customPeriod}
+                onClick={() => setCustomPeriod(true)}
+                className={`rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors ${customPeriod ? "border-brand-400/50 bg-brand-400/12 text-brand-200" : "app-border bg-[var(--app-panel-2)]/45 app-muted hover:border-brand-400/30 hover:text-brand-200"}`}
+              >
+                Custom
+              </button>
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <SessionDatePicker
                 id="setup-start"
                 label="Start date"
                 value={start}
                 min={range ? toDateInput(range.startTime) : ""}
                 max={range ? toDateInput(range.endTime) : ""}
-                onChange={(value) => {
-                  setStart(value);
-                  const nextMax =
-                    entitlements.maxSessionDays === null
-                      ? availableEnd
-                      : [availableEnd, addCalendarDays(value, entitlements.maxSessionDays - 1)]
-                          .filter(Boolean)
-                          .sort()[0] ?? availableEnd;
-                  if (end && (end < value || end > nextMax)) setEnd(end < value ? value : nextMax);
-                }}
+                onChange={setStart}
               />
-              <SessionDatePicker
-                id="setup-end"
-                label="End date"
-                value={end}
-                min={start || (range ? toDateInput(range.startTime) : "")}
-                max={sessionEndMax}
-                onChange={setEnd}
-              />
-            </div>
-            <div className="mt-3 flex items-start gap-2 rounded-lg bg-[var(--app-panel-2)]/55 px-3 py-2.5 text-xs app-muted" aria-live="polite">
-              {loadingRange ? (
-                <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-brand-300" aria-hidden />
+              {customPeriod ? (
+                <SessionDatePicker
+                  id="setup-end"
+                  label="End date"
+                  value={end}
+                  min={start || (range ? toDateInput(range.startTime) : "")}
+                  max={sessionEndMax}
+                  onChange={setEnd}
+                />
               ) : (
-                <Clock3 size={14} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium">End date</span>
+                  <div className="app-input flex min-h-10 items-center justify-between bg-[var(--app-panel-2)]/45">
+                    <span className={end ? "font-medium" : "app-muted"}>{friendlyDate(end)}</span>
+                    <span className="rounded bg-brand-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-300">Automatic</span>
+                  </div>
+                </div>
               )}
-              <span>
-                {loadingRange
-                  ? "Checking available market history…"
-                  : range
-                    ? `${friendlyDate(toDateInput(range.startTime))} – ${friendlyDate(toDateInput(range.endTime))} · New York time`
-                    : "Choose a market to see available dates."}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--app-panel-2)]/55 px-3 py-2.5 text-xs app-muted" aria-live="polite">
+              <span className="flex min-w-0 items-start gap-2">
+                {loadingRange ? (
+                  <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-brand-300" aria-hidden />
+                ) : (
+                  <Clock3 size={14} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
+                )}
+                <span>
+                  {loadingRange
+                    ? "Checking available market history…"
+                    : range
+                      ? `Available ${friendlyDate(toDateInput(range.startTime))} – ${friendlyDate(toDateInput(range.endTime))}`
+                      : "Choose a market to see available dates."}
+                </span>
               </span>
+              <button
+                type="button"
+                disabled={!range || loadingRange}
+                onClick={chooseRandomStart}
+                className="inline-flex items-center gap-1.5 rounded-md border app-border px-2 py-1 text-[10px] font-semibold text-brand-300 hover:bg-brand-400/10 disabled:opacity-35"
+              >
+                <Shuffle size={11} aria-hidden /> Random start
+              </button>
             </div>
           </section>
 
-          <section className="mt-4 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Session preview</p>
-            <p className={`mt-1.5 truncate font-semibold ${name.trim() ? "" : "app-muted"}`}>
-              {name.trim() || "Your session name"}
-            </p>
-            <p className="mt-1 text-sm app-muted">
-              {selectedSymbols.length > 0
-                ? selectedSymbols.map(formatSymbol).join(", ")
-                : "Choose at least one market"}
-            </p>
-            <p className="mt-1 text-sm app-muted">
-              {start && end ? `${friendlyDate(start)} – ${friendlyDate(end)}` : "Select your replay dates"}
-            </p>
-            <p className="mt-1 text-sm app-muted">
-              Starting balance: {accountSize && Number(accountSize) > 0
-                ? `$${Number(accountSize).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : "Enter a positive balance"}
-            </p>
-            {tags.length > 0 && (
-              <div className="mt-2 flex max-h-12 flex-wrap gap-1.5 overflow-hidden">
-                {tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-brand-400/10 px-2 py-1 text-[10px] font-medium text-brand-300">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-          </section>
+
         </div>
       </div>
 
-      <div className="border-t app-border px-5 py-3 sm:px-6">
+      <div className="border-t app-border bg-[var(--app-panel-2)]/30 px-5 py-3 sm:px-6">
         {error && (
           <p role="alert" className="mb-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-sm text-bear">
             {error}
           </p>
         )}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs app-muted">Your session is saved automatically after it starts.</p>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium">
+              {selectedSymbols.length > 0 ? selectedSymbols.map(formatSymbol).join(", ") : "Choose a market"}
+              {start && end ? ` · ${friendlyDate(start)} – ${friendlyDate(end)}` : ""}
+            </p>
+            <p className="mt-0.5 text-[11px] app-muted">Saved automatically after it starts.</p>
+          </div>
           <button type="submit" className="btn-primary min-w-44" disabled={!canStart}>
             {busy ? (
               <>

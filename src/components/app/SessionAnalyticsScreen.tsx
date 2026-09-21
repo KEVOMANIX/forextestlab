@@ -1,18 +1,24 @@
 "use client";
 
-import type { PublicSessionState } from "@/lib/backtest/types";
+import type { PublicSessionState, TradeJournalUpdate } from "@/lib/backtest/types";
 import { fundedBalance } from "@/lib/backtest/replay-engine";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { AnalyticsDesignPrototype } from "./AnalyticsDesignPrototype";
+import { TradeJournalEditor } from "./TradeJournalEditor";
 
 /** The same analytics experience used by the saved-session results route, shown over the live replay. */
 export function SessionAnalyticsScreen({
   state,
   fullAccess,
+  onSaveTradeJournal,
   onClose,
 }: {
   state: PublicSessionState;
   fullAccess: boolean;
+  onSaveTradeJournal: (
+    journalId: string,
+    journal: TradeJournalUpdate,
+  ) => Promise<void> | void;
   onClose: () => void;
 }) {
   const containerRef = useModalBehavior<HTMLDivElement>({ open: true, onClose });
@@ -41,6 +47,23 @@ export function SessionAnalyticsScreen({
         startingBalance={fundedBalance(state)}
         endingBalance={state.balance}
         fullAccess={fullAccess}
+        journalContent={(
+          <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]">
+            <div className="border-b app-border p-5">
+              <h2 className="font-semibold">Trade journal</h2>
+              <p className="mt-1 text-xs app-muted">
+                Review and update every trade without leaving analytics. Changes remain synchronized with the replay.
+              </p>
+            </div>
+            <TradeJournalEditor
+              sessionId={state.sessionId}
+              openPositions={state.openPositions}
+              closedTrades={state.closedTrades}
+              anonymous={state.anonymous}
+              onSave={onSaveTradeJournal}
+            />
+          </section>
+        )}
         onClose={onClose}
       />
     </div>

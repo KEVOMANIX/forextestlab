@@ -1360,6 +1360,7 @@ export function Backtester({
         <SessionAnalyticsScreen
           state={state}
           fullAccess={entitlements.fullAnalytics}
+          onSaveTradeJournal={actions.saveTradeJournal}
           onClose={closeAnalytics}
         />
       )}

@@ -171,7 +171,7 @@ function QuoteCells({
             ? "app-muted"
             : change >= 0
               ? "text-[var(--app-accent-text)]"
-              : "text-bear"
+              : "text-loss"
         }`}
       >
         {change == null
@@ -495,7 +495,7 @@ export function SymbolPickerModal({
         {error && (
           <p
             role="alert"
-            className="shrink-0 border-t border-bear/25 bg-bear/10 px-5 py-2.5 text-xs text-bear sm:px-6"
+            className="shrink-0 border-t border-loss/25 bg-loss/10 px-5 py-2.5 text-xs text-loss sm:px-6"
           >
             {error}
           </p>

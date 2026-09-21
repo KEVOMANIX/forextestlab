@@ -167,7 +167,7 @@ export function SessionCardActions({
               type="button"
               onClick={() => setDeleteOpen(true)}
               disabled={busy}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-bear hover:bg-bear/10"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-loss hover:bg-loss/10"
             >
               <Trash2 size={13} aria-hidden /> Delete
             </button>
@@ -190,7 +190,7 @@ export function SessionCardActions({
             disabled={busy}
             aria-label="Delete session"
             title="Delete session"
-            className="grid h-8 w-8 place-items-center rounded-md text-bear/80 hover:bg-bear/10 hover:text-bear disabled:opacity-40"
+            className="grid h-8 w-8 place-items-center rounded-md text-loss/80 hover:bg-loss/10 hover:text-loss disabled:opacity-40"
           >
             <Trash2 size={14} aria-hidden />
           </button>
@@ -246,7 +246,7 @@ export function SessionCardActions({
               onChange={(event) => setName(event.target.value)}
             />
           </label>
-          {renameError && <p className="mt-2 text-xs text-bear">{renameError}</p>}
+          {renameError && <p className="mt-2 text-xs text-loss">{renameError}</p>}
           <div className="mt-5 flex justify-end gap-2">
             <button
               type="button"

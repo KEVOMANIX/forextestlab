@@ -268,7 +268,7 @@ export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 
 // colour selected. It replaces the near-white #e5e7eb rather than joining it:
 // two swatches a shade apart are a guess, not a choice. Styles already saved
 // with the old value keep working — the palette is a shortcut, not a whitelist.
-export const DRAW_PALETTE = ["#ffffff", "#5b8bff", "#22c3a0", "#f4646c", "#fbbf24", "#c084fc", "#f97316", "#38bdf8"] as const;
+export const DRAW_PALETTE = ["#ffffff", "#60a5fa", "#22c55e", "#f05b67", "#fbbf24", "#c084fc", "#f97316", "#38bdf8"] as const;
 
 export function dashPattern(style: LineStyleName, width: number): number[] {
   if (style === "dashed") return [Math.max(4, width * 3), Math.max(3, width * 2)];

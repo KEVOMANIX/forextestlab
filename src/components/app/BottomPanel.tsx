@@ -127,7 +127,7 @@ export function BottomPanel({
               <div>
                 <div className="flex items-center justify-between border-b app-border bg-[var(--app-panel-solid)] px-3 py-2">
                   <span className="text-xs font-semibold">{openCount} open {openCount === 1 ? "position" : "positions"}</span>
-                  <button type="button" onClick={onCloseAllPositions} disabled={busy} className="rounded-md border border-bear/40 bg-bear/10 px-3 py-1.5 text-xs font-semibold text-bear transition-colors hover:bg-bear/20 disabled:opacity-40">
+                  <button type="button" onClick={onCloseAllPositions} disabled={busy} className="rounded-md border border-loss/40 bg-loss/10 px-3 py-1.5 text-xs font-semibold text-loss transition-colors hover:bg-loss/20 disabled:opacity-40">
                     Close all positions
                   </button>
                 </div>
@@ -139,9 +139,9 @@ export function BottomPanel({
                     {state.openPositions.map((position) => (
                       <tr key={position.id} className="border-b app-border font-mono">
                         <td className="px-3 py-2 font-semibold">{position.symbol ?? state.config.symbol}</td>
-                        <td className={`font-semibold ${position.direction === "long" ? "text-brand-300" : "text-bear"}`}>{position.direction === "long" ? "BUY" : "SELL"}</td>
+                        <td className={`font-semibold ${position.direction === "long" ? "text-profit" : "text-loss"}`}>{position.direction === "long" ? "BUY" : "SELL"}</td>
                         <td>{position.lots}</td><td>{position.entryPrice}</td><td>{position.stopLoss ?? "—"}</td><td>{position.takeProfit ?? "—"}</td><td>{position.commission}</td>
-                        <td className={Number(position.unrealizedPnl) >= 0 ? "text-brand-300" : "text-bear"}>{position.unrealizedPnl}</td>
+                        <td className={Number(position.unrealizedPnl) >= 0 ? "text-profit" : "text-loss"}>{position.unrealizedPnl}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -179,7 +179,7 @@ export function BottomPanel({
                         </td>
                         <td>{order.symbol ?? state.config.symbol}</td>
                         <td className="uppercase">{order.orderType}</td>
-                        <td className={order.direction === "long" ? "text-brand-300" : "text-bear"}>
+                        <td className={order.direction === "long" ? "text-profit" : "text-loss"}>
                           {order.direction === "long" ? "BUY" : "SELL"}
                         </td>
                         <td>{order.lots}</td><td>{order.fillPrice ?? order.entryPrice}</td>
@@ -188,7 +188,7 @@ export function BottomPanel({
                         <td>{order.expiresAt ? new Date(order.expiresAt).toLocaleString() : "GTC"}</td>
                         <td className="pr-3 text-right">
                           {order.status === "pending" && (
-                            <button type="button" onClick={() => onCancelPending(order.id)} disabled={busy} className="rounded border border-bear/30 px-2 py-1 text-[10px] font-semibold text-bear hover:bg-bear/10 disabled:opacity-50">
+                            <button type="button" onClick={() => onCancelPending(order.id)} disabled={busy} className="rounded border border-loss/30 px-2 py-1 text-[10px] font-semibold text-loss hover:bg-loss/10 disabled:opacity-50">
                               Cancel
                             </button>
                           )}

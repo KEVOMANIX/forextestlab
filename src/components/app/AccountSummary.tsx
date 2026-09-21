@@ -27,7 +27,7 @@ import type { PublicSessionState } from "@/lib/backtest/types";
  * margin is tied up.
  */
 
-const BEAR_TONE = "text-bear";
+const BEAR_TONE = "text-loss";
 
 function money(value: number): string {
   return value.toLocaleString(undefined, {
@@ -44,7 +44,7 @@ function signedMoney(value: number): string {
 
 function toneClass(value: number): string {
   if (Math.abs(value) < 0.005) return "text-[var(--app-text)]";
-  return value > 0 ? "text-brand-300" : "text-bear";
+  return value > 0 ? "text-profit" : "text-loss";
 }
 
 /**

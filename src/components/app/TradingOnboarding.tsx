@@ -140,7 +140,7 @@ export function TradingOnboarding() {
     <>
       <div
         aria-hidden
-        className="pointer-events-none fixed z-[140] rounded-lg border-2 border-brand-300 shadow-[0_0_0_9999px_rgba(2,6,12,0.72),0_0_28px_rgba(34,195,160,0.42)] transition-all duration-200"
+        className="pointer-events-none fixed z-[140] rounded-lg border-2 border-brand-300 shadow-[0_0_0_9999px_rgba(2,6,12,0.72),0_0_28px_rgba(20,184,166,0.42)] transition-all duration-200"
         style={{
           left: Math.max(4, targetRect.left - 5),
           top: Math.max(4, targetRect.top - 5),

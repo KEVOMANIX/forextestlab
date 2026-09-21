@@ -334,7 +334,7 @@ export function SupportCustomerInbox({
                 className="app-input w-full resize-none text-sm"
               />
               {error && (
-                <p role="alert" className="text-xs text-bear">
+                <p role="alert" className="text-xs text-loss">
                   {error}
                 </p>
               )}
@@ -434,7 +434,7 @@ export function SupportCustomerInbox({
             ) : (
             <div className="shrink-0 border-t app-border p-4">
               {error && (
-                <p role="alert" className="mb-2 text-xs text-bear">
+                <p role="alert" className="mb-2 text-xs text-loss">
                   {error}
                 </p>
               )}

@@ -96,7 +96,7 @@ export function SubscriptionRenewalControls({
           )}
         </div>
         {message && <p role="status" className="mt-4 rounded-lg border border-brand-400/25 bg-brand-400/[0.07] px-3 py-2 text-xs text-brand-300">{message}</p>}
-        {error && <p role="alert" className="mt-4 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-xs text-bear">{error}</p>}
+        {error && <p role="alert" className="mt-4 rounded-lg border border-loss/30 bg-loss/10 px-3 py-2 text-xs text-loss">{error}</p>}
       </div>
 
       <ConfirmModal

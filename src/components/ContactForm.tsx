@@ -82,7 +82,7 @@ export function ContactForm() {
       {serverMessage && (
         <p
           role="alert"
-          className="rounded-lg border border-bear/30 bg-bear/10 px-4 py-3 text-sm text-bear"
+          className="rounded-lg border border-loss/30 bg-loss/10 px-4 py-3 text-sm text-loss"
         >
           {serverMessage}
         </p>

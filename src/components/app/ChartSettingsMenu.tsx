@@ -128,8 +128,8 @@ export const DEFAULT_FAVORITE_TIMEFRAMES: Timeframe[] = [
 ];
 
 export const DEFAULT_CHART_SETTINGS: ChartSettings = {
-  upColor: "#22c3a0",
-  downColor: "#f4646c",
+  upColor: "#22c55e",
+  downColor: "#f05b67",
   background: AUTO_BACKGROUND,
   grid: true,
   magnet: false,
@@ -167,8 +167,8 @@ export const DEFAULT_CHART_SETTINGS: ChartSettings = {
 };
 
 /** Palettes people actually use for candles, plus the app default first. */
-const UP_SWATCHES = ["#22c3a0", "#26a69a", "#3fb950", "#2962ff", "#d1d4dc"];
-const DOWN_SWATCHES = ["#f4646c", "#ef5350", "#f85149", "#ff9800", "#787b86"];
+const UP_SWATCHES = ["#22c55e", "#26a69a", "#3fb950", "#2962ff", "#d1d4dc"];
+const DOWN_SWATCHES = ["#f05b67", "#ef5350", "#f85149", "#ff9800", "#787b86"];
 /** "auto" first: most people want the chart to follow the app theme. */
 const BACKGROUND_SWATCHES = [AUTO_BACKGROUND, "#0b0f1a", "#131722", "#000000", "#ffffff"];
 

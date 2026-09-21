@@ -83,7 +83,7 @@ export function PropFirmVerdict({
       >
         <header className="flex items-center gap-3 border-b app-border px-5 py-4">
           {breach ? (
-            <ShieldX size={22} className="shrink-0 text-bear" aria-hidden />
+            <ShieldX size={22} className="shrink-0 text-loss" aria-hidden />
           ) : (
             <ShieldCheck
               size={22}
@@ -193,7 +193,7 @@ function Row({
     <div className="flex items-baseline justify-between gap-3">
       <dt className="app-muted">{label}</dt>
       <dd
-        className={`font-mono font-semibold ${tone === "bad" ? "text-bear" : ""}`}
+        className={`font-mono font-semibold ${tone === "bad" ? "text-loss" : ""}`}
         style={tone === "good" ? { color: "var(--app-accent-text)" } : undefined}
       >
         {value}

@@ -125,7 +125,7 @@ export function PositionEditorModal({
                 className={`rounded px-1.5 py-0.5 text-[10px] font-black tracking-wide ${
                   position.direction === "long"
                     ? "bg-brand-400/15 text-brand-300"
-                    : "bg-bear/15 text-bear"
+                    : "bg-loss/15 text-loss"
                 }`}
               >
                 ACTIVE
@@ -136,7 +136,7 @@ export function PositionEditorModal({
             </div>
             <p
               className={`mt-1 font-mono text-xs ${
-                position.direction === "long" ? "text-brand-300" : "text-bear"
+                position.direction === "long" ? "text-profit" : "text-loss"
               }`}
             >
               {position.direction === "long" ? "BUY" : "SELL"} {position.lots} lot
@@ -157,7 +157,7 @@ export function PositionEditorModal({
         <div className="flex items-center justify-between rounded-lg border app-border bg-black/10 px-3 py-3" aria-label="Live position performance">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide app-muted">Unrealized P&amp;L</p>
-            <p className={`mt-1 font-mono text-lg font-bold ${positive ? "text-brand-300" : "text-bear"}`}>
+            <p className={`mt-1 font-mono text-lg font-bold ${positive ? "text-profit" : "text-loss"}`}>
               {signed(metrics.pnl)} {state.config.accountCurrency}
             </p>
           </div>
@@ -167,7 +167,7 @@ export function PositionEditorModal({
           </p>
         </div>
 
-        <button type="button" onClick={() => closePercent(100)} className="mt-3 w-full rounded-lg bg-bear px-4 py-3 text-sm font-bold text-surface-950 transition-colors hover:bg-bear/90">
+        <button type="button" onClick={() => closePercent(100)} className="mt-3 w-full rounded-lg bg-loss px-4 py-3 text-sm font-bold text-surface-950 transition-colors hover:bg-loss/90">
           Close full position
         </button>
 
@@ -325,13 +325,13 @@ export function PositionEditorModal({
             <button
               type="button"
               onClick={closeCustom}
-              className="mt-4 rounded-md border border-bear/40 px-3 text-xs font-semibold text-bear hover:bg-bear/10"
+              className="mt-4 rounded-md border border-loss/40 px-3 text-xs font-semibold text-loss hover:bg-loss/10"
             >
               Close lots
             </button>
           </div>
           {closeError && (
-            <p className="mt-1 text-[11px] text-bear" role="alert">
+            <p className="mt-1 text-[11px] text-loss" role="alert">
               {closeError}
             </p>
           )}

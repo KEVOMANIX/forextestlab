@@ -197,7 +197,7 @@ export function TradeReviewCard({
             isExit
               ? won
                 ? "bg-brand-400/15 text-[var(--app-accent-text)]"
-                : "bg-bear/15 text-bear"
+                : "bg-loss/15 text-loss"
               : "bg-[var(--app-panel-2)] app-muted"
           }`}
         >
@@ -373,7 +373,7 @@ export function TradeReviewCard({
       <footer className="flex items-center gap-1.5 border-t app-border px-2 py-1 text-[9px]">
         <span
           className={`inline-flex items-center gap-1 ${
-            saveState === "error" ? "text-bear" : "app-muted"
+            saveState === "error" ? "text-loss" : "app-muted"
           }`}
         >
           {saveState === "saved" ? <Check size={10} /> : <Save size={10} />}
@@ -422,7 +422,7 @@ function Stat({
           tone === "good"
             ? "text-[var(--app-accent-text)]"
             : tone === "bad"
-              ? "text-bear"
+              ? "text-loss"
               : ""
         }`}
       >

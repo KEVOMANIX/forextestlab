@@ -158,12 +158,12 @@ export function ConversationList({
                     <span className="capitalize">{statusLabel(conversation.status)}</span>
                   </span>
                   {overdue && (
-                    <span className="rounded px-1.5 text-[11px] font-semibold text-bear">
+                    <span className="rounded px-1.5 text-[11px] font-semibold text-loss">
                       Overdue
                     </span>
                   )}
                   {conversation.priority === "urgent" && !overdue && (
-                    <span className="rounded px-1.5 text-[11px] font-semibold text-bear">
+                    <span className="rounded px-1.5 text-[11px] font-semibold text-loss">
                       Urgent
                     </span>
                   )}

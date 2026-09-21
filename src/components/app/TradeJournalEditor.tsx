@@ -86,15 +86,15 @@ function Snapshot({ snapshot, label, record, onOpen }: { snapshot: TradeChartSna
   const y = (value: string | number) => 9 + (1 - (Number(value) - min) / spread) * (height - 18);
   const hovered = hoverIndex == null ? null : snapshot.candles[hoverIndex];
   const markerPointsUp = label === "Before entry" ? record.direction === "long" : record.direction === "short";
-  const levels = [{ value: record.entryPrice, label: "Entry", color: "#60a5fa" }, ...(record.stopLoss ? [{ value: record.stopLoss, label: "Stop", color: "#f4646c" }] : []), ...(record.takeProfit ? [{ value: record.takeProfit, label: "Target", color: "#22c3a0" }] : []), ...(label === "After exit" ? [{ value: record.exitPrice, label: "Exit", color: "#fbbf24" }] : [])];
+  const levels = [{ value: record.entryPrice, label: "Entry", color: "#60a5fa" }, ...(record.stopLoss ? [{ value: record.stopLoss, label: "Stop", color: "#f05b67" }] : []), ...(record.takeProfit ? [{ value: record.takeProfit, label: "Target", color: "#22c55e" }] : []), ...(label === "After exit" ? [{ value: record.exitPrice, label: "Exit", color: "#fbbf24" }] : [])];
   return <figure className="overflow-hidden rounded-xl border app-border bg-[var(--app-bg)]">
     <figcaption className="flex flex-wrap items-center justify-between gap-2 border-b app-border px-3 py-2 text-[11px] app-muted"><span className="inline-flex items-center gap-1.5 font-semibold text-[var(--app-text)]"><Camera size={12} /> {label}</span><span className="flex items-center gap-3"><span>{snapshot.symbol} · {snapshot.timeframe} · {new Date(snapshot.capturedAt).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ET</span><button type="button" onClick={onOpen} className="inline-flex items-center gap-1 rounded-md border app-border px-2 py-1 font-semibold text-brand-300 hover:bg-brand-400/10"><Maximize2 size={11} /> Interactive</button></span></figcaption>
     <div className="relative">{hovered && <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border app-border bg-[var(--app-bg)]/95 px-2 py-1 font-mono text-[10px] shadow-lg"><span className="app-muted">{new Date(hovered.timestamp).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" })}</span><span className="ml-2">O {hovered.open} · H {hovered.high} · L {hovered.low} · C {hovered.close}</span></div>}
       <svg viewBox={`0 0 ${width} ${height}`} className="h-56 w-full cursor-crosshair" role="img" aria-label={`${label} candlestick snapshot`} onMouseLeave={() => setHoverIndex(null)} onMouseMove={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setHoverIndex(Math.max(0, Math.min(snapshot.candles.length - 1, Math.floor(((event.clientX - rect.left) / rect.width) * snapshot.candles.length)))); }}>
         {[.25, .5, .75].map((ratio) => <line key={ratio} x1="0" x2={width} y1={height * ratio} y2={height * ratio} stroke="rgba(148,163,184,.08)" />)}
         {levels.map((level) => <g key={`${label}-${level.label}`}><line x1="0" x2={width} y1={y(level.value)} y2={y(level.value)} stroke={level.color} strokeWidth=".8" strokeDasharray="2 3" opacity=".65" /><text x={width - 4} y={Math.max(10, y(level.value) - 3)} textAnchor="end" fill={level.color} fontSize="8">{level.label}</text></g>)}
-        {snapshot.candles.map((candle, index) => { const rising = Number(candle.close) >= Number(candle.open); const x = index * step + step / 2; const openY = y(candle.open); const closeY = y(candle.close); return <g key={`${candle.timestamp}-${index}`} stroke={rising ? "#22c3a0" : "#f4646c"} fill={rising ? "#22c3a0" : "#f4646c"}><line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} strokeWidth=".7" /><rect x={x - Math.max(1, step * .3)} y={Math.min(openY, closeY)} width={Math.max(2, step * .6)} height={Math.max(1, Math.abs(closeY - openY))} /></g>; })}
-        <path d={markerPointsUp ? `M ${width - step / 2} ${height - 5} l -5 -8 h 3 v -7 h 4 v 7 h 3 z` : `M ${width - step / 2} 5 l -5 8 h 3 v 7 h 4 v -7 h 3 z`} fill={label === "Before entry" ? (record.direction === "long" ? "#22c3a0" : "#f4646c") : "#fbbf24"} />
+        {snapshot.candles.map((candle, index) => { const rising = Number(candle.close) >= Number(candle.open); const x = index * step + step / 2; const openY = y(candle.open); const closeY = y(candle.close); return <g key={`${candle.timestamp}-${index}`} stroke={rising ? "#22c55e" : "#f05b67"} fill={rising ? "#22c55e" : "#f05b67"}><line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} strokeWidth=".7" /><rect x={x - Math.max(1, step * .3)} y={Math.min(openY, closeY)} width={Math.max(2, step * .6)} height={Math.max(1, Math.abs(closeY - openY))} /></g>; })}
+        <path d={markerPointsUp ? `M ${width - step / 2} ${height - 5} l -5 -8 h 3 v -7 h 4 v 7 h 3 z` : `M ${width - step / 2} 5 l -5 8 h 3 v 7 h 4 v -7 h 3 z`} fill={label === "Before entry" ? (record.direction === "long" ? "#22c55e" : "#f05b67") : "#fbbf24"} />
         {hoverIndex !== null && <line x1={(hoverIndex + .5) * step} x2={(hoverIndex + .5) * step} y1="0" y2={height} stroke="rgba(255,255,255,.35)" strokeWidth=".7" strokeDasharray="3 3" />}
       </svg>
     </div>
@@ -380,14 +380,14 @@ export function TradeJournalEditor({
               {visible.map((record) => (
                 <button key={record.journalId} type="button" onClick={() => setSelectedId(record.journalId)} className={`min-w-40 rounded-lg border p-2 text-left text-xs md:block md:w-full ${record.journalId === selected.journalId ? "border-brand-400/40 bg-brand-400/10" : "app-border hover:bg-white/[0.03]"}`}>
                   <span className="flex items-center justify-between gap-2">
-                    <strong className={record.direction === "long" ? "text-brand-300" : "text-bear"}>#{numberOf(record.journalId)} {record.direction === "long" ? "BUY" : "SELL"}</strong>
+                    <strong className={record.direction === "long" ? "text-profit" : "text-loss"}>#{numberOf(record.journalId)} {record.direction === "long" ? "BUY" : "SELL"}</strong>
                     <span className="flex items-center gap-1">
                       {!isJournaled(record.journal) && <span title="No write-up yet" aria-label="No write-up yet" className="h-1.5 w-1.5 rounded-full bg-amber-300" />}
                       <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] uppercase app-muted">{record.open ? "open" : record.journal.validity}</span>
                     </span>
                   </span>
                   <span className="mt-1 block font-mono app-muted">{record.entryPrice} · {record.lots} lots</span>
-                  {record.pnl !== null && <span className={`mt-1 block font-mono ${Number(record.pnl) >= 0 ? "text-brand-300" : "text-bear"}`}>{Number(record.pnl) >= 0 ? "+" : ""}{Number(record.pnl).toFixed(2)}</span>}
+                  {record.pnl !== null && <span className={`mt-1 block font-mono ${Number(record.pnl) >= 0 ? "text-profit" : "text-loss"}`}>{Number(record.pnl) >= 0 ? "+" : ""}{Number(record.pnl).toFixed(2)}</span>}
                 </button>
               ))}
               {!visible.length && <p className="px-1 py-6 text-center text-[11px] app-muted">No trades match that search.</p>}
@@ -414,7 +414,7 @@ export function TradeJournalEditor({
                   <button
                     type="button"
                     onClick={() => void persist(selected.journalId, draft)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-bear/40 px-2 py-1 text-[11px] font-semibold text-bear transition-colors hover:bg-bear/10"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-loss/40 px-2 py-1 text-[11px] font-semibold text-loss transition-colors hover:bg-loss/10"
                   >
                     <RotateCcw size={11} aria-hidden /> Autosave failed — retry
                   </button>
@@ -462,14 +462,14 @@ export function TradeJournalEditor({
                   {draft.ruleChecklist.map((rule, index) => (
                     <label key={rule.id} className="flex items-center gap-2 rounded-lg border app-border p-2 text-xs">
                       <input type="checkbox" checked={rule.followed} onChange={(event) => patch({ ruleChecklist: draft.ruleChecklist.map((item, itemIndex) => itemIndex === index ? { ...item, followed: event.target.checked } : item) })} className="accent-brand-400" />
-                      <span className="min-w-0 flex-1">{rule.label}</span><button type="button" aria-label={`Remove ${rule.label}`} onClick={(event) => { event.preventDefault(); patch({ ruleChecklist: draft.ruleChecklist.filter((_, itemIndex) => itemIndex !== index) }); }} className="app-muted hover:text-bear"><Trash2 size={12} /></button>
+                      <span className="min-w-0 flex-1">{rule.label}</span><button type="button" aria-label={`Remove ${rule.label}`} onClick={(event) => { event.preventDefault(); patch({ ruleChecklist: draft.ruleChecklist.filter((_, itemIndex) => itemIndex !== index) }); }} className="app-muted hover:text-loss"><Trash2 size={12} /></button>
                     </label>
                   ))}
                 </div>
               </fieldset>
               <dl className="grid grid-cols-2 gap-2 rounded-lg border app-border p-3 text-xs">
                 <div><dt className="app-muted">Planned R:R</dt><dd className="mt-1 font-mono font-semibold">{selected.journal.plannedRR ? `1:${selected.journal.plannedRR}` : "—"}</dd></div>
-                <div><dt className="app-muted">Realized R</dt><dd className={`mt-1 font-mono font-semibold ${Number(selected.journal.realizedR) >= 0 ? "text-brand-300" : "text-bear"}`}>{selected.journal.realizedR ? `${selected.journal.realizedR}R` : "—"}</dd></div>
+                <div><dt className="app-muted">Realized R</dt><dd className={`mt-1 font-mono font-semibold ${Number(selected.journal.realizedR) >= 0 ? "text-profit" : "text-loss"}`}>{selected.journal.realizedR ? `${selected.journal.realizedR}R` : "—"}</dd></div>
               </dl>
             </div>
 

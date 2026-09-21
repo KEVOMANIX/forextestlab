@@ -230,7 +230,7 @@ export function Composer({
               }`}
             >
               {state.error ? (
-                <span role="alert" className="text-bear">
+                <span role="alert" className="text-loss">
                   {state.error}
                 </span>
               ) : note ? (

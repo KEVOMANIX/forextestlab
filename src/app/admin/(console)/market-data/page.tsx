@@ -31,7 +31,7 @@ export default async function AdminMarketDataPage() {
         <AdminStat label="Active provider" value={provider.toUpperCase()} detail={r2Configured ? "Cloudflare R2 configured" : "R2 configuration incomplete"} icon={Cloud} />
         <AdminStat label="Enabled instruments" value={String(instruments.filter((item) => item.enabled).length)} detail={`${instruments.length} instruments registered`} icon={Database} />
         <AdminStat label="Database candles" value={candles.toLocaleString()} detail="Relational candle records" icon={CheckCircle2} tone="text-accent-400" />
-        <AdminStat label="Import alerts" value={String(failed)} detail="Non-completed imports" icon={failed ? AlertTriangle : CheckCircle2} tone={failed ? "text-bear" : "text-brand-300"} />
+        <AdminStat label="Import alerts" value={String(failed)} detail="Non-completed imports" icon={failed ? AlertTriangle : CheckCircle2} tone={failed ? "text-loss" : "text-brand-300"} />
       </section>
       <section className="mt-6 grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
         <article className="panel p-5"><h2 className="text-lg font-semibold">Instrument registry</h2><div className="mt-4 space-y-2">{instruments.map((instrument) => <div key={instrument.id} className="flex items-center justify-between gap-3 rounded-xl bg-[var(--app-panel-2)]/60 p-3"><div><p className="text-sm font-semibold">{formatSymbol(instrument.symbol)}</p><p className="mt-1 text-[11px] app-muted">{instrument._count.candles.toLocaleString()} DB candles · {instrument._count.sessions} sessions</p></div><AdminStatus value={instrument.enabled ? "active" : "inactive"} /></div>)}</div></article>

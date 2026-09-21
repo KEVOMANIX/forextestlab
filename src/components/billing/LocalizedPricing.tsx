@@ -271,7 +271,7 @@ export function LocalizedPricing({
           return (
             <article
               key={tier.id}
-              className={`relative flex h-full flex-col overflow-hidden rounded-3xl border p-6 shadow-card ${tier.featured ? "border-brand-400/55 bg-[linear-gradient(155deg,rgba(34,195,160,.17),rgba(17,23,37,.96)_48%)] shadow-glow" : "border-white/10 bg-surface-800/70"}`}
+              className={`relative flex h-full flex-col overflow-hidden rounded-3xl border p-6 shadow-card ${tier.featured ? "border-brand-400/55 bg-[linear-gradient(155deg,rgba(20,184,166,.17),rgba(17,23,37,.96)_48%)] shadow-glow" : "border-white/10 bg-surface-800/70"}`}
             >
               {tier.featured && <span className="absolute right-5 top-5 inline-flex items-center gap-1.5 rounded-full bg-brand-400/15 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-brand-200"><Star size={11} aria-hidden /> Most popular</span>}
               <p className="text-sm font-semibold text-slate-300">{tier.name}</p>

@@ -36,7 +36,7 @@ export function DeleteSessionButton({
     <button
       type="button"
       className={iconOnly
-        ? "ml-2 inline-grid h-8 w-8 place-items-center rounded-md text-bear/80 hover:bg-bear/10 hover:text-bear"
+        ? "ml-2 inline-grid h-8 w-8 place-items-center rounded-md text-loss/80 hover:bg-loss/10 hover:text-loss"
         : "btn-secondary py-2 text-xs"}
       onClick={() => setOpen(true)}
       disabled={busy}

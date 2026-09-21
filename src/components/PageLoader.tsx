@@ -8,9 +8,9 @@ import logoMark from "../../public/logo-mark.png";
 const bars = [
   { height: "h-5", delay: "0ms", tone: "bg-brand-400" },
   { height: "h-8", delay: "120ms", tone: "bg-brand-400" },
-  { height: "h-6", delay: "240ms", tone: "bg-bear" },
+  { height: "h-6", delay: "240ms", tone: "bg-loss" },
   { height: "h-10", delay: "360ms", tone: "bg-brand-400" },
-  { height: "h-7", delay: "480ms", tone: "bg-bear" },
+  { height: "h-7", delay: "480ms", tone: "bg-loss" },
   { height: "h-9", delay: "600ms", tone: "bg-brand-400" },
 ];
 

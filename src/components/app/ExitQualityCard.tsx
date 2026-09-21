@@ -160,7 +160,7 @@ export function ExitQualityCard({
                 />
               </p>
               <p
-                className={`mt-2 text-sm font-semibold leading-5 ${planAhead > 0 ? "text-bear" : planAhead < 0 ? "text-brand-300" : ""}`}
+                className={`mt-2 text-sm font-semibold leading-5 ${planAhead > 0 ? "text-loss" : planAhead < 0 ? "text-profit" : ""}`}
               >
                 {planAhead > 0
                   ? `The plan was ahead by ${rr(planAhead).replace("+", "")}`
@@ -188,7 +188,7 @@ export function ExitQualityCard({
               {plan.unresolved}
             </strong>
             . Cutting cost you money on{" "}
-            <strong className="font-semibold text-bear">{plan.cutEarly}</strong>{" "}
+            <strong className="font-semibold text-loss">{plan.cutEarly}</strong>{" "}
             and saved you money on{" "}
             <strong className="font-semibold text-brand-300">
               {plan.cutWell}
@@ -246,7 +246,7 @@ export function ExitQualityCard({
                         <span className="font-mono">{plan.tested}</span>
                       </td>
                       <td
-                        className={`py-2 pr-4 text-right font-medium ${versus > 0 ? "text-brand-300" : versus < 0 ? "text-bear" : "app-muted"}`}
+                        className={`py-2 pr-4 text-right font-medium ${versus > 0 ? "text-profit" : versus < 0 ? "text-loss" : "app-muted"}`}
                       >
                         {versus === 0
                           ? "the same"

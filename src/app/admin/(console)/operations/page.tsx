@@ -31,7 +31,7 @@ export default async function AdminOperationsPage() {
       <AdminPageHeader eyebrow="Reliability" title="Operations & usage" description="Live infrastructure checks, backup recency, data coverage, and free-tier capacity from the systems serving ForexTestLab." />
 
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminStat label="Overall health" value={snapshot.status} detail={`Checked ${new Date(snapshot.checkedAt).toLocaleTimeString()}`} icon={Activity} tone={snapshot.status === "healthy" ? "text-brand-300" : snapshot.status === "degraded" ? "text-amber-300" : "text-bear"} />
+        <AdminStat label="Overall health" value={snapshot.status} detail={`Checked ${new Date(snapshot.checkedAt).toLocaleTimeString()}`} icon={Activity} tone={snapshot.status === "healthy" ? "text-brand-300" : snapshot.status === "degraded" ? "text-amber-300" : "text-loss"} />
         <AdminStat label="Supabase database" value={bytes(snapshot.usage.databaseBytes)} detail="Current database size" icon={Database} />
         <AdminStat label="R2 storage" value={bytes(snapshot.usage.r2Bytes)} detail={`${snapshot.usage.r2Objects ?? 0} private objects`} icon={HardDrive} />
         <AdminStat label="Database backups" value={String(snapshot.usage.backupCount ?? 0)} detail={snapshot.usage.latestBackupAt ? `Latest ${formatNewYorkDateTime(new Date(snapshot.usage.latestBackupAt))}` : "No backup yet"} icon={Archive} />

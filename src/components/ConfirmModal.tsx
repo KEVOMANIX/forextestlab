@@ -53,7 +53,7 @@ export function ConfirmModal({
         <div className="flex items-start gap-4 p-5 sm:p-6">
           <span
             className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${
-              danger ? "bg-bear/10 text-bear" : "bg-brand-400/10 text-brand-300"
+              danger ? "bg-loss/10 text-loss" : "bg-brand-400/10 text-brand-300"
             }`}
           >
             <AlertTriangle size={20} aria-hidden />
@@ -83,7 +83,7 @@ export function ConfirmModal({
             onClick={onConfirm}
             disabled={busy}
             className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-              danger ? "bg-bear text-white hover:bg-bear/90" : "bg-brand-500 text-surface-950 hover:bg-brand-400"
+              danger ? "bg-loss text-white hover:bg-loss/90" : "bg-brand-500 text-surface-950 hover:bg-brand-400"
             }`}
           >
             {busy ? "Working…" : confirmLabel}

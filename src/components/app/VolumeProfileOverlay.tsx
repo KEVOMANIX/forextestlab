@@ -117,7 +117,7 @@ export function VolumeProfileOverlay({ instance, chart, series, candles, theme, 
       const widthPct = num(instance.inputs.widthPct, 30) / 100;
       const maxLen = paneW * widthPct;
       const st = instance.style;
-      const vaColor = withOpacity(st.va?.color ?? "#5b8bff", st.va?.opacity ?? 0.55);
+      const vaColor = withOpacity(st.va?.color ?? "#60a5fa", st.va?.opacity ?? 0.55);
       const outColor = withOpacity(st.outside?.color ?? "#5b6b8a", st.outside?.opacity ?? 0.35);
 
       const yOf = (price: number) => series.priceToCoordinate(price);
@@ -146,7 +146,7 @@ export function VolumeProfileOverlay({ instance, chart, series, candles, theme, 
         }
       }
       if (instance.inputs.showVa !== false) {
-        ctx.strokeStyle = withOpacity(st.va?.color ?? "#5b8bff", 0.9);
+        ctx.strokeStyle = withOpacity(st.va?.color ?? "#60a5fa", 0.9);
         ctx.setLineDash([4, 3]);
         ctx.lineWidth = 1;
         for (const bound of [minP + (hi + 1) * binSize, minP + lo * binSize]) {
@@ -180,7 +180,7 @@ export function VolumeProfileOverlay({ instance, chart, series, candles, theme, 
         <button type="button" aria-label="Settings" onClick={onEdit} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
           <Settings2 size={12} />
         </button>
-        <button type="button" aria-label="Remove" onClick={onRemove} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
+        <button type="button" aria-label="Remove" onClick={onRemove} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100">
           <Trash2 size={12} />
         </button>
       </div>

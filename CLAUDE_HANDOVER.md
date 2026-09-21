@@ -1,6 +1,6 @@
 # ForexTestLab operational handover
 
-Last updated: 2026-09-15 (Africa/Nairobi)
+Last updated: 2026-09-21 (Africa/Nairobi)
 
 This document lets another coding agent continue local development, deploy to
 AWS Lightsail, operate the data jobs, and diagnose production without asking the
@@ -513,6 +513,20 @@ Lightsail IP. Use the local Jetta pipeline for both daily current-month refreshe
 and bulk history.
 
 ## Current product state
+
+### UI colour semantics
+
+The visual system deliberately separates product identity from trading results:
+
+- Teal `brand-*` utilities are reserved for ForexTestLab identity, primary
+  actions, selection, and focus.
+- `profit`/`bull` is green, `loss`/`bear` is coral red, `entry` is blue, and
+  `exit` is gold. These semantic Tailwind colours use theme-aware RGB variables
+  declared in `src/app/globals.css`.
+- Canvas and SVG charts use the matching literal values because chart renderers
+  do not consistently resolve CSS variables.
+- Palette definitions live in `tailwind.config.ts`; do not use the brand colour
+  to represent positive P/L or bullish candles.
 
 - Deployment host: AWS Lightsail behind Cloudflare; Vercel is not used.
 - Production branch and server were deployed and verified at revision `209464a`

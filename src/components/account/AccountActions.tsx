@@ -40,7 +40,7 @@ export function AccountActions() {
 
   return (
     <div>
-      {error && <p role="alert" className="mb-4 rounded-lg border border-bear/25 bg-bear/5 px-4 py-3 text-sm text-bear">{error}</p>}
+      {error && <p role="alert" className="mb-4 rounded-lg border border-loss/25 bg-loss/5 px-4 py-3 text-sm text-loss">{error}</p>}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="panel-2 flex flex-col justify-between p-5">
           <div>
@@ -63,17 +63,17 @@ export function AccountActions() {
           </button>
         </div>
 
-        <div className="rounded-lg border border-bear/25 bg-bear/[0.04] p-5">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-bear/10 text-bear">
+        <div className="rounded-lg border border-loss/25 bg-loss/[0.04] p-5">
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-loss/10 text-loss">
             <Trash2 size={16} aria-hidden />
           </span>
-          <h3 className="mt-4 font-semibold text-bear">Delete account</h3>
+          <h3 className="mt-4 font-semibold text-loss">Delete account</h3>
           <p className="mt-1.5 text-sm leading-relaxed app-muted">
             Permanently remove your profile, sessions, trades, and notes.
           </p>
         <button
           type="button"
-          className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-bear/35 px-4 text-xs font-semibold text-bear transition-colors hover:bg-bear/10 disabled:opacity-50"
+          className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-loss/35 px-4 text-xs font-semibold text-loss transition-colors hover:bg-loss/10 disabled:opacity-50"
           onClick={() => setDeleteOpen(true)}
           disabled={busy}
         >

@@ -39,7 +39,7 @@ type PlanLevel = keyof Omit<TradePlan, "direction">;
  * markers, the replay toolbox, the blotter and this ticket.
  */
 const LONG_SOLID = "bg-brand-500 text-surface-950 hover:bg-brand-400";
-const SHORT_SOLID = "bg-bear text-surface-950 hover:opacity-90";
+const SHORT_SOLID = "bg-loss text-surface-950 hover:opacity-90";
 
 interface OrderTicketProps {
   state: PublicSessionState;
@@ -667,7 +667,7 @@ export function OrderTicket({
                 </div>
 
                 {metrics?.error && (
-                  <p className="mt-3 rounded border border-bear/30 bg-bear/10 px-2 py-1.5 text-[11px] text-bear" role="alert">
+                  <p className="mt-3 rounded border border-loss/30 bg-loss/10 px-2 py-1.5 text-[11px] text-loss" role="alert">
                     {metrics.error}
                   </p>
                 )}
@@ -762,7 +762,7 @@ function QuoteSide({
       className={`flex h-12 flex-col justify-center px-2 text-xs font-semibold transition disabled:opacity-40 ${
         long
           ? "items-end bg-brand-500/15 text-brand-300"
-          : "items-start bg-bear/15 text-bear"
+          : "items-start bg-loss/15 text-loss"
       } ${selected ? "ring-1 ring-inset ring-[var(--ticket-text)]/40" : ""}`}
     >
       <span>{long ? "Buy" : "Sell"}</span>

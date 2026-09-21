@@ -30,7 +30,7 @@ export function BranchComparison({
                   : branch.branchPointIndex == null
                     ? "Start"
                     : `Candle ${branch.branchPointIndex + 1}`}</td>
-                <td>{branch.trades}</td><td className={Number(branch.netPnl) >= 0 ? "text-brand-300" : "text-bear"}>{branch.netPnl}</td>
+                <td>{branch.trades}</td><td className={Number(branch.netPnl) >= 0 ? "text-profit" : "text-loss"}>{branch.netPnl}</td>
                 <td>{branch.winRate === "Not available" ? "—" : `${branch.winRate}%`}</td><td>{branch.balance}</td>
                 <td className="pr-4 text-right"><Link className="text-brand-300 hover:underline" href={`/app/results/${branch.sessionId}`}>Open</Link></td>
               </tr>

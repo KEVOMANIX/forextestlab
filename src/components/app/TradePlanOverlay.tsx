@@ -35,8 +35,8 @@ const LEVELS: {
   {
     key: "stopLoss",
     label: "SL",
-    line: "border-bear",
-    badge: "bg-bear text-surface-950",
+    line: "border-loss",
+    badge: "bg-loss text-surface-950",
   },
   {
     key: "takeProfit",

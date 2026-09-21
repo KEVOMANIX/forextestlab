@@ -217,7 +217,7 @@ export function NewConversation() {
             </label>
 
             {error && (
-              <p className="text-[11px] font-semibold text-bear">{error}</p>
+              <p className="text-[11px] font-semibold text-loss">{error}</p>
             )}
 
             <p className="text-[11px] leading-5 app-muted">

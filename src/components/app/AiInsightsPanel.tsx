@@ -349,7 +349,7 @@ export function AiInsightsPanel({
               onBlur={() => setConfirmClear(false)}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
                 confirmClear
-                  ? "border-bear/40 bg-bear/10 text-bear"
+                  ? "border-loss/40 bg-loss/10 text-loss"
                   : "app-border app-muted hover:text-brand-300"
               }`}
             >
@@ -425,13 +425,13 @@ export function AiInsightsPanel({
       </div>
 
       {error && (
-        <div className="mx-4 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-xs text-bear">
+        <div className="mx-4 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-loss/30 bg-loss/10 px-3 py-2 text-xs text-loss">
           <span role="alert">{error}</span>
           {failed && (
             <button
               type="button"
               onClick={() => ask(failed)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-bear/40 px-2 py-1 font-semibold transition-colors hover:bg-bear/15"
+              className="inline-flex items-center gap-1.5 rounded-md border border-loss/40 px-2 py-1 font-semibold transition-colors hover:bg-loss/15"
             >
               <RotateCcw size={12} aria-hidden /> Retry
             </button>
@@ -465,7 +465,7 @@ export function AiInsightsPanel({
           <button
             type="button"
             onClick={() => abortRef.current?.abort()}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border app-border text-[var(--app-text)] transition-colors hover:border-bear/50 hover:text-bear"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border app-border text-[var(--app-text)] transition-colors hover:border-loss/50 hover:text-loss"
             aria-label="Stop generating"
             title="Stop generating"
           >

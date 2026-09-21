@@ -393,7 +393,7 @@ export function ReplayToolbar({
             title={`${spreadLabel} pips${bidAsk ? ` · ${bidAsk.bid}` : ""}`}
             onClick={onSell}
             disabled={!canTrade}
-            className="inline-flex h-7 min-w-[48px] shrink-0 items-center justify-center gap-1 rounded-l-md rounded-r-sm bg-bear py-0 pl-1 pr-4 text-[11px] font-bold text-surface-950 hover:opacity-90 disabled:opacity-35 sm:pl-2"
+            className="inline-flex h-7 min-w-[48px] shrink-0 items-center justify-center gap-1 rounded-l-md rounded-r-sm bg-loss py-0 pl-1 pr-4 text-[11px] font-bold text-surface-950 hover:opacity-90 disabled:opacity-35 sm:pl-2"
           >
             <ArrowDownRight size={13} aria-hidden />
             <span className="hidden sm:inline">Sell</span>

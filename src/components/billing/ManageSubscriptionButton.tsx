@@ -20,5 +20,5 @@ export function ManageSubscriptionButton() {
       window.location.assign(payload.url);
     } catch(cause) { setError(cause instanceof Error?cause.message:"Could not open subscription management."); setBusy(false); }
   }
-  return <div><button type="button" onClick={manage} disabled={busy} className="btn-secondary w-full px-4 py-2 text-xs">{busy?<><Loader2 size={14} className="animate-spin"/>Opening…</>:<>Manage subscription <ExternalLink size={14}/></>}</button>{error&&<p role="alert" className="mt-2 text-xs text-bear">{error}</p>}</div>;
+  return <div><button type="button" onClick={manage} disabled={busy} className="btn-secondary w-full px-4 py-2 text-xs">{busy?<><Loader2 size={14} className="animate-spin"/>Opening…</>:<>Manage subscription <ExternalLink size={14}/></>}</button>{error&&<p role="alert" className="mt-2 text-xs text-loss">{error}</p>}</div>;
 }

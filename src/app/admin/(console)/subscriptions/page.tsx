@@ -27,7 +27,7 @@ export default async function AdminSubscriptionsPage() {
       <section className="mt-6 grid gap-3 sm:grid-cols-3">
         <AdminStat label="Active" value={String(active)} detail="Currently granting access" icon={ReceiptText} />
         <AdminStat label="Ending soon" value={String(canceling)} detail="Cancellation scheduled" icon={ReceiptText} tone="text-amber-300" />
-        <AdminStat label="Needs attention" value={String(attention)} detail="Past due, paused, or attention" icon={ReceiptText} tone={attention ? "text-bear" : "text-brand-300"} />
+        <AdminStat label="Needs attention" value={String(attention)} detail="Past due, paused, or attention" icon={ReceiptText} tone={attention ? "text-loss" : "text-brand-300"} />
       </section>
       <section className="panel mt-6 p-4 sm:p-5">
         <AdminTable label="Billing subscriptions">

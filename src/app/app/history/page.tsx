@@ -87,7 +87,7 @@ export default async function HistoryPage() {
                       {formatNewYorkDate(Number(s.endTime), { year: "numeric", month: "2-digit", day: "2-digit" })}
                     </td>
                     <td className="px-4 py-3">{s._count.trades}</td>
-                    <td className={`px-4 py-3 text-right font-mono ${positive ? "text-brand-300" : "text-bear"}`}>
+                    <td className={`px-4 py-3 text-right font-mono ${positive ? "text-profit" : "text-loss"}`}>
                       {net.toFixed(2)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">

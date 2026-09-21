@@ -24,8 +24,8 @@ export type DrawingIconProps = Omit<SVGProps<SVGSVGElement>, "children"> & {
 export type DrawingIcon = ComponentType<DrawingIconProps>;
 
 /** Bull and bear, matching tailwind.config.ts. */
-const BULL = "#22c3a0";
-const BEAR = "#f4646c";
+const BULL = "#22c55e";
+const BEAR = "#f05b67";
 
 function Glyph({
   size = 18,

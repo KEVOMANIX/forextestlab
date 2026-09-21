@@ -131,7 +131,7 @@ export function JournalReview({
 }
 
 function BreakdownTable({ title, empty, rows }: { title: string; empty: string; rows: Breakdown[] }) {
-  return <section className="overflow-hidden rounded-xl border app-border"><h3 className="border-b app-border px-4 py-3 text-xs font-semibold">{title}</h3>{rows.length ? <div className="overflow-x-auto"><table className="w-full text-left text-[11px]"><thead className="app-muted"><tr><th className="px-4 py-2">Name</th><th>Trades</th><th>Win rate</th><th>PF</th><th className="pr-4">Avg R</th></tr></thead><tbody>{rows.slice(0, 8).map((row) => <tr key={row.label} className="border-t app-border"><td className="max-w-44 truncate px-4 py-2 font-semibold">{row.label}</td><td>{row.trades}</td><td>{Math.round(row.wins / row.trades * 100)}%</td><td className="font-mono">{row.grossLoss ? (row.grossWin / row.grossLoss).toFixed(2) : row.grossWin ? "∞" : "—"}</td><td className={`pr-4 font-mono ${row.r >= 0 ? "text-brand-300" : "text-bear"}`}>{row.rCount ? `${row.r / row.rCount >= 0 ? "+" : ""}${(row.r / row.rCount).toFixed(2)}R` : "—"}</td></tr>)}</tbody></table></div> : <p className="px-4 py-8 text-center text-xs app-muted">{empty}</p>}</section>;
+  return <section className="overflow-hidden rounded-xl border app-border"><h3 className="border-b app-border px-4 py-3 text-xs font-semibold">{title}</h3>{rows.length ? <div className="overflow-x-auto"><table className="w-full text-left text-[11px]"><thead className="app-muted"><tr><th className="px-4 py-2">Name</th><th>Trades</th><th>Win rate</th><th>PF</th><th className="pr-4">Avg R</th></tr></thead><tbody>{rows.slice(0, 8).map((row) => <tr key={row.label} className="border-t app-border"><td className="max-w-44 truncate px-4 py-2 font-semibold">{row.label}</td><td>{row.trades}</td><td>{Math.round(row.wins / row.trades * 100)}%</td><td className="font-mono">{row.grossLoss ? (row.grossWin / row.grossLoss).toFixed(2) : row.grossWin ? "∞" : "—"}</td><td className={`pr-4 font-mono ${row.r >= 0 ? "text-profit" : "text-loss"}`}>{row.rCount ? `${row.r / row.rCount >= 0 ? "+" : ""}${(row.r / row.rCount).toFixed(2)}R` : "—"}</td></tr>)}</tbody></table></div> : <p className="px-4 py-8 text-center text-xs app-muted">{empty}</p>}</section>;
 }
 
 function Stat({
@@ -176,7 +176,7 @@ function ReviewCard({
         <div className="flex items-center gap-3">
           <span
             className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
-              positive ? "bg-brand-400/10 text-brand-300" : "bg-bear/10 text-bear"
+              positive ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss"
             }`}
           >
             {positive ? <TrendingUp size={16} aria-hidden /> : <TrendingDown size={16} aria-hidden />}
@@ -200,7 +200,7 @@ function ReviewCard({
         <div className="flex shrink-0 items-center gap-3">
           {pnl !== null && (
             <p
-              className={`font-mono text-sm font-semibold ${positive ? "text-brand-300" : "text-bear"}`}
+              className={`font-mono text-sm font-semibold ${positive ? "text-profit" : "text-loss"}`}
             >
               {positive ? "+" : "−"}${Math.abs(pnl).toFixed(2)}
             </p>
@@ -229,7 +229,7 @@ function ReviewCard({
           {journal.mistakeTags.map((tag) => (
             <span
               key={`m-${tag}`}
-              className="rounded-md bg-bear/[0.08] px-2 py-1 text-[11px] font-semibold text-bear"
+              className="rounded-md bg-loss/[0.08] px-2 py-1 text-[11px] font-semibold text-loss"
             >
               {tag}
             </span>

@@ -53,7 +53,7 @@ interface Props {
 }
 
 const RING: Record<EventImportance, string> = {
-  high: "#f4646c",
+  high: "#f05b67",
   medium: "#f0a63a",
   low: "#8794ab",
   none: "#5b6779",
@@ -317,7 +317,7 @@ function SingleEventCard({
   );
 }
 
-const SURPRISE_COLOUR = { beat: "#22c3a0", miss: "#f4646c", met: undefined } as const;
+const SURPRISE_COLOUR = { beat: "#22c55e", miss: "#f05b67", met: undefined } as const;
 
 function Figure({
   label,

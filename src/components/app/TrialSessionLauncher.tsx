@@ -35,7 +35,7 @@ export function TrialSessionLauncher({
 
   return (
     <section className="panel mx-auto w-full max-w-3xl overflow-hidden">
-      <div className="border-b app-border bg-[linear-gradient(135deg,rgba(34,195,160,.12),transparent_60%)] px-6 py-7 text-center sm:px-10 sm:py-9">
+      <div className="border-b app-border bg-[linear-gradient(135deg,rgba(20,184,166,.12),transparent_60%)] px-6 py-7 text-center sm:px-10 sm:py-9">
         <span className="mx-auto inline-flex rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-brand-300">
           {remaining} of 3 trial sessions remaining
         </span>
@@ -63,7 +63,7 @@ export function TrialSessionLauncher({
       </div>
 
       {error && (
-        <p role="alert" className="mx-6 rounded-lg border border-bear/25 bg-bear/10 px-4 py-3 text-sm text-bear sm:mx-10">
+        <p role="alert" className="mx-6 rounded-lg border border-loss/25 bg-loss/10 px-4 py-3 text-sm text-loss sm:mx-10">
           {error}
         </p>
       )}

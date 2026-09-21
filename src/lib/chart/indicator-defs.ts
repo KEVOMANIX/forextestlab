@@ -241,9 +241,9 @@ function maDef(
 
 export const INDICATOR_DEFS: IndicatorDef[] = [
   // ── Trend (price pane) ──
-  maDef("sma", "Moving Average Simple", "SMA", "#5b8bff", 20, sma),
+  maDef("sma", "Moving Average Simple", "SMA", "#60a5fa", 20, sma),
   maDef("ema", "Moving Average Exponential", "EMA", "#fbbf24", 9, ema),
-  maDef("wma", "Moving Average Weighted", "WMA", "#22c3a0", 20, wma),
+  maDef("wma", "Moving Average Weighted", "WMA", "#22c55e", 20, wma),
   maDef("hma", "Hull Moving Average", "HMA", "#c084fc", 20, hma),
   {
     kind: "vwap",
@@ -256,7 +256,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       { key: "bandMult", label: "Band multiplier", type: "number", default: 1, min: 0.1, max: 10, step: 0.1, section: "calculation" },
     ],
     plots: [
-      { key: "vwap", label: "VWAP", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 2 },
+      { key: "vwap", label: "VWAP", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 2 },
       { key: "upper", label: "Upper band", kind: "line", defaultColor: "#93a1b8", defaultLineWidth: 1, defaultLineStyle: "dashed" },
       { key: "lower", label: "Lower band", kind: "line", defaultColor: "#93a1b8", defaultLineWidth: 1, defaultLineStyle: "dashed" },
     ],
@@ -284,7 +284,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     ],
     // One continuous line: lightweight-charts joins across null gaps, so two
     // gappy up/down series produced a spurious diagonal across long trends.
-    plots: [{ key: "st", label: "Supertrend", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 2 }],
+    plots: [{ key: "st", label: "Supertrend", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 2 }],
     precision: null,
     short: (i) => `Supertrend ${num(i.atrLength, 10)} ${num(i.mult, 3)}`,
     compute: (candles, i) => {
@@ -305,9 +305,9 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       { key: "displacement", label: "Displacement", type: "number", default: 26, min: 1, max: 200, section: "inputs" },
     ],
     plots: [
-      { key: "tenkan", label: "Conversion (Tenkan)", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
-      { key: "kijun", label: "Base (Kijun)", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 1 },
-      { key: "spanA", label: "Leading Span A", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 1 },
+      { key: "tenkan", label: "Conversion (Tenkan)", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
+      { key: "kijun", label: "Base (Kijun)", kind: "line", defaultColor: "#f05b67", defaultLineWidth: 1 },
+      { key: "spanA", label: "Leading Span A", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 1 },
       { key: "spanB", label: "Leading Span B", kind: "line", defaultColor: "#e879f9", defaultLineWidth: 1 },
       { key: "chikou", label: "Lagging (Chikou)", kind: "line", defaultColor: "#93a1b8", defaultLineWidth: 1 },
     ],
@@ -333,9 +333,9 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       OFFSET_INPUT,
     ],
     plots: [
-      { key: "upper", label: "Upper", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "upper", label: "Upper", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
       { key: "middle", label: "Basis", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 1, defaultLineStyle: "dashed" },
-      { key: "lower", label: "Lower", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "lower", label: "Lower", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
     ],
     precision: null,
     short: (i) => `BB ${num(i.length, 20)}`,
@@ -357,9 +357,9 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       { key: "mult", label: "Multiplier", type: "number", default: 2, min: 0.1, max: 10, step: 0.1, section: "calculation" },
     ],
     plots: [
-      { key: "upper", label: "Upper", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "upper", label: "Upper", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
       { key: "middle", label: "Basis", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 1, defaultLineStyle: "dashed" },
-      { key: "lower", label: "Lower", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "lower", label: "Lower", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
     ],
     precision: null,
     short: (i) => `Keltner ${num(i.length, 20)}`,
@@ -376,9 +376,9 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "price",
     inputs: [{ key: "length", label: "Length", type: "number", default: 20, min: 1, max: 500, section: "inputs" }],
     plots: [
-      { key: "upper", label: "Upper", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "upper", label: "Upper", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
       { key: "middle", label: "Basis", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 1, defaultLineStyle: "dashed" },
-      { key: "lower", label: "Lower", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "lower", label: "Lower", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
     ],
     precision: null,
     short: (i) => `Donchian ${num(i.length, 20)}`,
@@ -426,14 +426,14 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "own",
     paneHeight: 132,
     hlines: [
-      { value: 70, color: "#f4646c", label: "70" },
-      { value: 30, color: "#22c3a0", label: "30" },
+      { value: 70, color: "#f05b67", label: "70" },
+      { value: 30, color: "#22c55e", label: "30" },
     ],
     inputs: [
       { key: "length", label: "Length", type: "number", default: 14, min: 1, max: 500, section: "inputs" },
       SOURCE_INPUT,
     ],
-    plots: [{ key: "rsi", label: "RSI", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 2 }],
+    plots: [{ key: "rsi", label: "RSI", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 2 }],
     precision: 2,
     short: (i) => `RSI ${num(i.length, 14)}`,
     compute: (candles, i) => ({ lines: { rsi: rsi(pickSource(candles, str(i.source, "close") as PriceSource), num(i.length, 14)) } }),
@@ -453,8 +453,8 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       SOURCE_INPUT,
     ],
     plots: [
-      { key: "hist", label: "Histogram", kind: "histogram", defaultColor: "#22c3a0" },
-      { key: "macd", label: "MACD", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 2 },
+      { key: "hist", label: "Histogram", kind: "histogram", defaultColor: "#22c55e" },
+      { key: "macd", label: "MACD", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 2 },
       { key: "signal", label: "Signal", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 1 },
     ],
     precision: 5,
@@ -464,7 +464,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       return {
         lines: { macd: pts.map((p) => p.macd), signal: pts.map((p) => p.signal) },
         histograms: {
-          hist: pts.map((p) => ({ value: p.hist, color: p.hist == null ? undefined : p.hist >= 0 ? "rgba(34,195,160,0.6)" : "rgba(244,100,108,0.6)" })),
+          hist: pts.map((p) => ({ value: p.hist, color: p.hist == null ? undefined : p.hist >= 0 ? "rgba(34,197,94,0.6)" : "rgba(240,91,103,0.6)" })),
         },
       };
     },
@@ -477,8 +477,8 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "own",
     paneHeight: 132,
     hlines: [
-      { value: 80, color: "#f4646c", label: "80" },
-      { value: 20, color: "#22c3a0", label: "20" },
+      { value: 80, color: "#f05b67", label: "80" },
+      { value: 20, color: "#22c55e", label: "20" },
     ],
     inputs: [
       { key: "k", label: "%K Length", type: "number", default: 14, min: 1, max: 200, section: "inputs" },
@@ -486,7 +486,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       { key: "d", label: "%D Smoothing", type: "number", default: 3, min: 1, max: 50, section: "inputs" },
     ],
     plots: [
-      { key: "k", label: "%K", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 2 },
+      { key: "k", label: "%K", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 2 },
       { key: "d", label: "%D", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 1 },
     ],
     precision: 2,
@@ -504,8 +504,8 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "own",
     paneHeight: 132,
     hlines: [
-      { value: 80, color: "#f4646c", label: "80" },
-      { value: 20, color: "#22c3a0", label: "20" },
+      { value: 80, color: "#f05b67", label: "80" },
+      { value: 20, color: "#22c55e", label: "20" },
     ],
     inputs: [
       { key: "rsiLen", label: "RSI Length", type: "number", default: 14, min: 1, max: 200, section: "inputs" },
@@ -515,7 +515,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       SOURCE_INPUT,
     ],
     plots: [
-      { key: "k", label: "%K", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 2 },
+      { key: "k", label: "%K", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 2 },
       { key: "d", label: "%D", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 1 },
     ],
     precision: 2,
@@ -533,11 +533,11 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "own",
     paneHeight: 132,
     hlines: [
-      { value: 100, color: "#f4646c", label: "100" },
-      { value: -100, color: "#22c3a0", label: "-100" },
+      { value: 100, color: "#f05b67", label: "100" },
+      { value: -100, color: "#22c55e", label: "-100" },
     ],
     inputs: [{ key: "length", label: "Length", type: "number", default: 20, min: 1, max: 500, section: "inputs" }],
-    plots: [{ key: "cci", label: "CCI", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 2 }],
+    plots: [{ key: "cci", label: "CCI", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 2 }],
     precision: 2,
     short: (i) => `CCI ${num(i.length, 20)}`,
     compute: (candles, i) => ({ lines: { cci: cci(candles, num(i.length, 20)) } }),
@@ -550,8 +550,8 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "own",
     paneHeight: 132,
     hlines: [
-      { value: -20, color: "#f4646c", label: "-20" },
-      { value: -80, color: "#22c3a0", label: "-80" },
+      { value: -20, color: "#f05b67", label: "-20" },
+      { value: -80, color: "#22c55e", label: "-80" },
     ],
     inputs: [{ key: "length", label: "Length", type: "number", default: 14, min: 1, max: 500, section: "inputs" }],
     plots: [{ key: "wr", label: "%R", kind: "line", defaultColor: "#c084fc", defaultLineWidth: 2 }],
@@ -571,7 +571,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       { key: "length", label: "Length", type: "number", default: 9, min: 1, max: 500, section: "inputs" },
       SOURCE_INPUT,
     ],
-    plots: [{ key: "roc", label: "ROC", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 2 }],
+    plots: [{ key: "roc", label: "ROC", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 2 }],
     precision: 2,
     short: (i) => `ROC ${num(i.length, 9)}`,
     compute: (candles, i) => ({ lines: { roc: roc(pickSource(candles, str(i.source, "close") as PriceSource), num(i.length, 9)) } }),
@@ -590,8 +590,8 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     ],
     plots: [
       { key: "adx", label: "ADX", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 2 },
-      { key: "plusDI", label: "+DI", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 1 },
-      { key: "minusDI", label: "-DI", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 1 },
+      { key: "plusDI", label: "+DI", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 1 },
+      { key: "minusDI", label: "-DI", kind: "line", defaultColor: "#f05b67", defaultLineWidth: 1 },
     ],
     precision: 2,
     short: (i) => `ADX ${num(i.diLen, 14)}`,
@@ -610,14 +610,14 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "own",
     paneHeight: 110,
     inputs: [],
-    plots: [{ key: "volume", label: "Volume", kind: "histogram", defaultColor: "#5b8bff" }],
+    plots: [{ key: "volume", label: "Volume", kind: "histogram", defaultColor: "#60a5fa" }],
     precision: 0,
     short: () => "Volume",
     compute: (candles) => ({
       histograms: {
         volume: candles.map((c) => ({
           value: c.volume ?? 0,
-          color: c.close >= c.open ? "rgba(34,195,160,0.5)" : "rgba(244,100,108,0.5)",
+          color: c.close >= c.open ? "rgba(34,197,94,0.5)" : "rgba(240,91,103,0.5)",
         })),
       },
     }),
@@ -630,7 +630,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "own",
     paneHeight: 120,
     inputs: [],
-    plots: [{ key: "obv", label: "OBV", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 2 }],
+    plots: [{ key: "obv", label: "OBV", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 2 }],
     precision: 0,
     short: () => "OBV",
     compute: (candles) => ({ lines: { obv: obv(candles) } }),
@@ -643,8 +643,8 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     pane: "own",
     paneHeight: 132,
     hlines: [
-      { value: 80, color: "#f4646c", label: "80" },
-      { value: 20, color: "#22c3a0", label: "20" },
+      { value: 80, color: "#f05b67", label: "80" },
+      { value: 20, color: "#22c55e", label: "20" },
     ],
     inputs: [{ key: "length", label: "Length", type: "number", default: 14, min: 1, max: 500, section: "inputs" }],
     plots: [{ key: "mfi", label: "MFI", kind: "line", defaultColor: "#c084fc", defaultLineWidth: 2 }],
@@ -661,7 +661,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     paneHeight: 120,
     hlines: [{ value: 0, color: "#93a1b8" }],
     inputs: [{ key: "length", label: "Length", type: "number", default: 20, min: 1, max: 500, section: "inputs" }],
-    plots: [{ key: "cmf", label: "CMF", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 2 }],
+    plots: [{ key: "cmf", label: "CMF", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 2 }],
     precision: 2,
     short: (i) => `CMF ${num(i.length, 20)}`,
     compute: (candles, i) => ({ lines: { cmf: cmf(candles, num(i.length, 20)) } }),
@@ -682,7 +682,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       { key: "showVa", label: "Show value area", type: "boolean", default: true, section: "inputs" },
     ],
     plots: [
-      { key: "va", label: "Value area", kind: "histogram", defaultColor: "#5b8bff" },
+      { key: "va", label: "Value area", kind: "histogram", defaultColor: "#60a5fa" },
       { key: "outside", label: "Outside value area", kind: "histogram", defaultColor: "#5b6b8a" },
       { key: "poc", label: "POC line", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 1 },
     ],
@@ -808,7 +808,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       { key: "deviation", label: "Deviation %", type: "number", default: 5, min: 0.1, max: 50, step: 0.1, section: "inputs" },
       { key: "depth", label: "Depth", type: "number", default: 10, min: 1, max: 200, section: "inputs" },
     ],
-    plots: [{ key: "zz", label: "Zig Zag", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 2, sparse: true }],
+    plots: [{ key: "zz", label: "Zig Zag", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 2, sparse: true }],
     precision: null,
     short: (i) => `Zig Zag ${num(i.deviation, 5)}%`,
     compute: (candles, i) => {
@@ -830,9 +830,9 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
       { key: "mult", label: "Deviation multiplier", type: "number", default: 2, min: 0.1, max: 10, step: 0.1, section: "calculation" },
     ],
     plots: [
-      { key: "upper", label: "Upper", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "upper", label: "Upper", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
       { key: "mid", label: "Regression", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 2 },
-      { key: "lower", label: "Lower", kind: "line", defaultColor: "#5b8bff", defaultLineWidth: 1 },
+      { key: "lower", label: "Lower", kind: "line", defaultColor: "#60a5fa", defaultLineWidth: 1 },
     ],
     precision: null,
     short: (i) => `Regression ${num(i.length, 100)}`,
@@ -867,12 +867,12 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     ],
     plots: [
       { key: "pp", label: "PP", kind: "line", defaultColor: "#fbbf24", defaultLineWidth: 2 },
-      { key: "r1", label: "R1", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 1 },
-      { key: "r2", label: "R2", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 1, defaultLineStyle: "dashed" },
-      { key: "r3", label: "R3", kind: "line", defaultColor: "#f4646c", defaultLineWidth: 1, defaultLineStyle: "dotted" },
-      { key: "s1", label: "S1", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 1 },
-      { key: "s2", label: "S2", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 1, defaultLineStyle: "dashed" },
-      { key: "s3", label: "S3", kind: "line", defaultColor: "#22c3a0", defaultLineWidth: 1, defaultLineStyle: "dotted" },
+      { key: "r1", label: "R1", kind: "line", defaultColor: "#f05b67", defaultLineWidth: 1 },
+      { key: "r2", label: "R2", kind: "line", defaultColor: "#f05b67", defaultLineWidth: 1, defaultLineStyle: "dashed" },
+      { key: "r3", label: "R3", kind: "line", defaultColor: "#f05b67", defaultLineWidth: 1, defaultLineStyle: "dotted" },
+      { key: "s1", label: "S1", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 1 },
+      { key: "s2", label: "S2", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 1, defaultLineStyle: "dashed" },
+      { key: "s3", label: "S3", kind: "line", defaultColor: "#22c55e", defaultLineWidth: 1, defaultLineStyle: "dotted" },
     ],
     precision: null,
     short: () => "Pivots",

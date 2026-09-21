@@ -726,7 +726,7 @@ export function Backtester({
         symbol: trade.symbol ?? state.config.symbol,
         time: trade.entryTime,
         position: trade.direction === "long" ? "belowBar" : "aboveBar",
-        color: trade.direction === "long" ? "#22c3a0" : "#f4646c",
+        color: trade.direction === "long" ? "#22c55e" : "#f05b67",
         shape: trade.direction === "long" ? "arrowUp" : "arrowDown",
         text: trade.direction === "long" ? "Buy" : "Sell",
       });
@@ -746,7 +746,7 @@ export function Backtester({
         position:
           position.direction === "long" ? "belowBar" : "aboveBar",
         color:
-          position.direction === "long" ? "#22c3a0" : "#f4646c",
+          position.direction === "long" ? "#22c55e" : "#f05b67",
         shape:
           position.direction === "long" ? "arrowUp" : "arrowDown",
         text: position.direction === "long" ? "Buy" : "Sell",
@@ -1193,7 +1193,7 @@ export function Backtester({
       {bt.error && (
         <p
           role="alert"
-          className="absolute left-1/2 top-14 z-[95] w-[min(28rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-bear/30 bg-[var(--app-panel-solid)] px-3 py-2 text-center text-sm text-bear shadow-2xl"
+          className="absolute left-1/2 top-14 z-[95] w-[min(28rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-loss/30 bg-[var(--app-panel-solid)] px-3 py-2 text-center text-sm text-loss shadow-2xl"
         >
           {bt.error}
         </p>

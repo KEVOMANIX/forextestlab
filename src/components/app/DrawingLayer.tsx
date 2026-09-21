@@ -407,7 +407,7 @@ export function DrawingLayer({
           <button type="button" aria-label={selection.locked ? "Unlock drawing" : "Lock drawing"} onClick={() => eng()?.toggleLock()} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
             {selection.locked ? <LockOpen size={15} /> : <Lock size={15} />}
           </button>
-          <button type="button" aria-label="Delete drawing" onClick={() => eng()?.deleteSelected()} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-bear/10 hover:text-bear">
+          <button type="button" aria-label="Delete drawing" onClick={() => eng()?.deleteSelected()} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-loss/10 hover:text-loss">
             <Trash2 size={15} />
           </button>
           <button type="button" aria-label="More drawing settings" onClick={() => setSettings(selection)} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
@@ -439,7 +439,7 @@ export function DrawingLayer({
             <MenuItem icon={<SquareStack size={13} />} label="Bring to front" onClick={() => { eng()?.bringToFront(); setMenu(null); }} />
             <MenuItem icon={<SendToBack size={13} />} label="Send to back" onClick={() => { eng()?.sendToBack(); setMenu(null); }} />
             <div className="my-1 border-t app-border" />
-            <MenuItem icon={<Trash2 size={13} className="text-bear" />} label="Delete" onClick={() => { eng()?.deleteSelected(); setMenu(null); }} />
+            <MenuItem icon={<Trash2 size={13} className="text-loss" />} label="Delete" onClick={() => { eng()?.deleteSelected(); setMenu(null); }} />
           </div>
         </>
       )}

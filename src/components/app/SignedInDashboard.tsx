@@ -423,8 +423,8 @@ export function SignedInDashboard({
       value: formatMoney(totalNet),
       detail: `${netPercent.gte(0) ? "+" : "−"}${netPercent.abs().toFixed(2)}% from funded balance`,
       icon: totalNet.isNegative() ? TrendingDown : TrendingUp,
-      tone: totalNet.isNegative() ? "text-bear" : "text-brand-300",
-      accent: totalNet.isNegative() ? "bg-bear/60" : "bg-brand-400/60",
+      tone: totalNet.isNegative() ? "text-loss" : "text-profit",
+      accent: totalNet.isNegative() ? "bg-loss/60" : "bg-profit/60",
     },
     {
       label: "Win rate",
@@ -434,8 +434,8 @@ export function SignedInDashboard({
       tone: "text-amber-300",
       accent: "bg-amber-400/60",
       visual: trades.length ? (
-        <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-bear/40">
-          <div className="h-full bg-brand-500" style={{ width: `${winRate}%` }} />
+        <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-loss/40">
+          <div className="h-full bg-profit" style={{ width: `${winRate}%` }} />
         </div>
       ) : undefined,
     },
@@ -462,12 +462,12 @@ export function SignedInDashboard({
           ? "No equity history recorded"
           : "No drawdown",
       icon: TrendingDown,
-      tone: "text-bear",
-      accent: "bg-bear/60",
+      tone: "text-loss",
+      accent: "bg-loss/60",
       visual: drawdownMeasured ? (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
           <div
-            className="h-full rounded-full bg-bear/80"
+            className="h-full rounded-full bg-loss/80"
             style={{ width: `${Math.min(100, Number(stats!.maxDrawdownPercent) || 0)}%` }}
           />
         </div>
@@ -533,7 +533,7 @@ export function SignedInDashboard({
 
 
       {!selectedSession ? (
-        <section className="relative mt-7 overflow-hidden rounded-3xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(34,195,160,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-6 shadow-card sm:p-9">
+        <section className="relative mt-7 overflow-hidden rounded-3xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(20,184,166,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-6 shadow-card sm:p-9">
           <div
             aria-hidden
             className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl"
@@ -571,7 +571,7 @@ export function SignedInDashboard({
       ) : (
         <>
           <section
-            className="relative mt-5 overflow-hidden rounded-2xl border border-brand-300/30 bg-[linear-gradient(125deg,rgba(34,195,160,0.12),var(--app-panel)_46%,rgba(59,107,255,0.10))] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.18)] sm:p-5"
+            className="relative mt-5 overflow-hidden rounded-2xl border border-brand-300/30 bg-[linear-gradient(125deg,rgba(20,184,166,0.12),var(--app-panel)_46%,rgba(59,107,255,0.10))] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.18)] sm:p-5"
             aria-label="Selected dashboard session"
           >
             <div
@@ -582,7 +582,7 @@ export function SignedInDashboard({
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand-300 shadow-[0_0_12px_rgba(34,195,160,0.9)]" aria-hidden />
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-300 shadow-[0_0_12px_rgba(20,184,166,0.9)]" aria-hidden />
                     {selectedSession.status === "finished"
                       ? "Review completed session"
                       : "Continue where you stopped"}
@@ -671,7 +671,7 @@ export function SignedInDashboard({
                     {formatBalance(new Decimal(selectedSession.balance))}
                   </p>
                   <p className="mt-1 text-[11px] app-muted">
-                    <span className={sessionNet.isNegative() ? "font-semibold text-bear" : sessionNet.isZero() ? "" : "font-semibold text-brand-300"}>
+                    <span className={sessionNet.isNegative() ? "font-semibold text-loss" : sessionNet.isZero() ? "" : "font-semibold text-profit"}>
                       {formatMoney(sessionNet)}
                       {sessionReturnPercent === null ? "" : ` (${sessionNet.isNegative() ? "−" : sessionNet.isZero() ? "" : "+"}${sessionReturnPercent}%)`}
                     </span>{" "}
@@ -730,7 +730,7 @@ export function SignedInDashboard({
               <div className="flex items-center gap-3">
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    netPositive ? "bg-brand-400/10 text-brand-300" : "bg-bear/10 text-bear"
+                    netPositive ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss"
                   }`}
                 >
                   {netPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}

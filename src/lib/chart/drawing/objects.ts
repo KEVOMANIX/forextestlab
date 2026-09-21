@@ -713,8 +713,8 @@ class PositionTool extends DrawingObject {
     const right = Math.max(xE, xT);
     const w = Math.max(right - left, 8);
     const cx = left + w / 2;
-    const green = "#22c3a0";
-    const red = "#f4646c";
+    const green = "#22c55e";
+    const red = "#f05b67";
 
     ctx.save();
     ctx.setLineDash([]);
@@ -929,7 +929,7 @@ class Measure extends DrawingObject {
     if (!a || !b) return;
     const dPrice = this.points[1]!.price - this.points[0]!.price;
     const up = dPrice >= 0;
-    const col = up ? "#22c3a0" : "#f4646c";
+    const col = up ? "#22c55e" : "#f05b67";
     ctx.save();
     ctx.setLineDash([]);
     ctx.fillStyle = withAlpha(col, 0.12);

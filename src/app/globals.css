@@ -5,6 +5,10 @@
 @layer base {
   :root {
     color-scheme: dark;
+    --trade-profit-rgb: 34 197 94;
+    --trade-loss-rgb: 240 91 103;
+    --trade-entry-rgb: 96 165 250;
+    --trade-exit-rgb: 251 191 36;
     /* Colour the focus ring's gap is punched out of. The app shell overrides it
        per theme so light mode doesn't draw a dark halo around focused controls. */
     --focus-ring-offset: #070a12;
@@ -66,7 +70,7 @@
   }
 
   .field-error {
-    @apply mt-1.5 text-sm text-bear;
+    @apply mt-1.5 text-sm text-loss;
   }
 }
 
@@ -79,8 +83,8 @@
   .app-shell,
   .app-theme-surface {
     --app-bg: #070a12;
-    --app-panel: rgba(17, 23, 37, 0.72);
-    --app-panel-solid: #111725;
+    --app-panel: rgba(17, 24, 39, 0.78);
+    --app-panel-solid: #111827;
     --app-panel-2: rgba(11, 15, 26, 0.72);
     --app-border: rgba(255, 255, 255, 0.10);
     --app-text: #e6ebf5;
@@ -90,13 +94,17 @@
      * about 1.9:1 on a light one, so accented text uses this instead of a fixed
      * shade and darkens with the light theme.
      */
-    --app-accent-text: #4fd8ba;
-    --app-accent-wash: rgba(34, 195, 160, 0.15);
+    --app-accent-text: #5eead4;
+    --app-accent-wash: rgba(20, 184, 166, 0.14);
+    --app-profit-text: rgb(var(--trade-profit-rgb));
+    --app-loss-text: rgb(var(--trade-loss-rgb));
+    --app-entry-text: rgb(var(--trade-entry-rgb));
+    --app-exit-text: rgb(var(--trade-exit-rgb));
     /* Caution colour for text, for the same reason as the accent above: amber
        that reads on a dark panel drops to about 1.7:1 on a light one. */
     --app-warn-text: #fcd34d;
     --app-warn-wash: rgba(251, 191, 36, 0.15);
-    --app-danger-text: #ff7c85;
+    --app-danger-text: #f8717d;
     --app-info-text: #7dd3fc;
     --app-blue-text: #8dacff;
     --app-subtle: rgba(255, 255, 255, 0.05);
@@ -196,6 +204,10 @@
 
   .app-shell.light,
   .app-theme-surface.light {
+    --trade-profit-rgb: 21 128 61;
+    --trade-loss-rgb: 190 35 54;
+    --trade-entry-rgb: 29 78 216;
+    --trade-exit-rgb: 146 97 10;
     --app-bg: #eef2f6;
     --app-panel: #f8fafc;
     --app-panel-solid: #f8fafc;
@@ -254,7 +266,7 @@
     fill: var(--app-accent-text);
   }
 
-  :is(.app-shell, .app-theme-surface) :is(.text-bear, .hover\:text-bear:hover) {
+  :is(.app-shell, .app-theme-surface) :is(.text-loss, .hover\:text-loss:hover) {
     color: var(--app-danger-text);
   }
 
@@ -266,7 +278,7 @@
     color: var(--app-info-text);
   }
 
-  :is(.app-shell, .app-theme-surface) .text-\[\#5b8bff\] {
+  :is(.app-shell, .app-theme-surface) .text-\[\#60a5fa\] {
     color: var(--app-blue-text);
   }
 
@@ -414,12 +426,12 @@
 @keyframes page-loader-mark {
   0%,
   100% {
-    box-shadow: 0 0 0 1px rgba(34, 195, 160, 0.12),
-      0 18px 55px -20px rgba(34, 195, 160, 0.28);
+    box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.12),
+      0 18px 55px -20px rgba(20, 184, 166, 0.28);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(34, 195, 160, 0.05),
-      0 18px 65px -16px rgba(34, 195, 160, 0.48);
+    box-shadow: 0 0 0 6px rgba(20, 184, 166, 0.05),
+      0 18px 65px -16px rgba(20, 184, 166, 0.48);
   }
 }
 

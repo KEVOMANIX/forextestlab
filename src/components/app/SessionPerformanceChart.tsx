@@ -136,7 +136,7 @@ export function SessionPerformanceChart({
               showEquity ? "bg-white/[0.08]" : "app-muted"
             }`}
           >
-            <i className="h-2 w-2 rounded-full bg-brand-400" /> Equity
+            <i className="h-2 w-2 rounded-full bg-profit" /> Equity
           </button>
           <button
             type="button"
@@ -180,9 +180,9 @@ export function SessionPerformanceChart({
         <div className="pointer-events-none absolute left-4 top-3 z-10 max-w-[calc(100%-2rem)] rounded-lg border app-border bg-[var(--app-panel)]/95 px-3 py-2 text-xs shadow-lg backdrop-blur">
           <p className="truncate app-muted">{formatNewYorkDateTime(active.time)}</p>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-mono font-semibold">
-            {showEquity && <span className="text-brand-300">Equity {money(active.equity)}</span>}
+            {showEquity && <span className="text-profit">Equity {money(active.equity)}</span>}
             {showBalance && <span className="text-accent-400">Balance {money(active.balance)}</span>}
-            <span className="text-bear">DD {money(activeDrawdown)}</span>
+            <span className="text-loss">DD {money(activeDrawdown)}</span>
           </div>
         </div>
         <svg
@@ -203,12 +203,12 @@ export function SessionPerformanceChart({
         >
           <defs>
             <linearGradient id="session-equity-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22c3a0" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#22c3a0" stopOpacity="0" />
+              <stop offset="0%" stopColor="#22c55e" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
             </linearGradient>
             <linearGradient id="session-drawdown-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f4646c" stopOpacity="0.03" />
-              <stop offset="100%" stopColor="#f4646c" stopOpacity="0.16" />
+              <stop offset="0%" stopColor="#f05b67" stopOpacity="0.03" />
+              <stop offset="100%" stopColor="#f05b67" stopOpacity="0.16" />
             </linearGradient>
             <pattern id="session-grid" width="86" height="48" patternUnits="userSpaceOnUse">
               <path
@@ -231,7 +231,7 @@ export function SessionPerformanceChart({
               <path
                 d={path("equity")}
                 fill="none"
-                stroke="#22c3a0"
+                stroke="#22c55e"
                 strokeWidth="2.5"
                 vectorEffect="non-scaling-stroke"
               />
@@ -241,7 +241,7 @@ export function SessionPerformanceChart({
             <path
               d={path("balance")}
               fill="none"
-              stroke="#5b8bff"
+              stroke="#60a5fa"
               strokeWidth="2"
               strokeDasharray="5 4"
               vectorEffect="non-scaling-stroke"
@@ -253,7 +253,7 @@ export function SessionPerformanceChart({
               cx={x(trade.index)}
               cy={y(visible[trade.index]!.equity)}
               r="3.5"
-              fill={trade.pnl >= 0 ? "#22c3a0" : "#f4646c"}
+              fill={trade.pnl >= 0 ? "#22c55e" : "#f05b67"}
               stroke="var(--app-panel)"
               strokeWidth="1.5"
               vectorEffect="non-scaling-stroke"
@@ -273,7 +273,7 @@ export function SessionPerformanceChart({
             cx={x(activeIndex)}
             cy={y(showEquity ? active.equity : active.balance)}
             r="4"
-            fill={showEquity ? "#22c3a0" : "#5b8bff"}
+            fill={showEquity ? "#22c55e" : "#60a5fa"}
             stroke="var(--app-panel)"
             strokeWidth="1.5"
             vectorEffect="non-scaling-stroke"
@@ -287,8 +287,8 @@ export function SessionPerformanceChart({
         </div>
         {tradeMarkers.length > 0 && (
           <div className="absolute bottom-7 right-3 flex items-center gap-3 rounded-md bg-[var(--app-panel)]/85 px-2.5 py-1.5 text-[10px] app-muted backdrop-blur">
-            <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-brand-400" /> Win</span>
-            <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-bear" /> Loss</span>
+            <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-profit" /> Win</span>
+            <span className="flex items-center gap-1.5"><i className="h-2 w-2 rounded-full bg-loss" /> Loss</span>
           </div>
         )}
       </div>

@@ -46,7 +46,7 @@ function ScreenFrame({
       {!imageIncludesChrome && (
         <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/95 px-3">
           <span className="flex gap-1.5" aria-hidden>
-            <span className="h-2 w-2 rounded-full bg-bear/80" />
+            <span className="h-2 w-2 rounded-full bg-loss/80" />
             <span className="h-2 w-2 rounded-full bg-amber-400/80" />
             <span className="h-2 w-2 rounded-full bg-brand-400/80" />
           </span>
@@ -105,7 +105,7 @@ export function Hero() {
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-48 -z-10 h-[42rem] w-[70rem] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse,rgba(34,195,160,.17),rgba(59,107,255,.06)_42%,transparent_70%)] blur-[80px]"
+        className="pointer-events-none absolute left-1/2 top-48 -z-10 h-[42rem] w-[70rem] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse,rgba(20,184,166,.17),rgba(59,107,255,.06)_42%,transparent_70%)] blur-[80px]"
       />
 
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">

@@ -225,7 +225,7 @@ export function TerminalTopBar({
           title={saveLabel}
           className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-[11px] font-semibold ${
             saveStatus === "error"
-              ? "border border-bear/40 bg-bear/10 text-bear hover:bg-bear/20"
+              ? "border border-loss/40 bg-loss/10 text-loss hover:bg-loss/20"
               : "app-muted hover:bg-[var(--app-panel-2)]"
           }`}
         >

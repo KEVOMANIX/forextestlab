@@ -140,7 +140,7 @@ function SessionInputs({
                 <i className="h-2 w-2 rounded-full" style={{ backgroundColor: String(value(`${session.id}Color`, session.color)) }} />
                 <span className="truncate">{session.label}</span>
               </span>
-              <span className={`mt-0.5 block text-[9px] ${sessionEnabled ? "app-muted" : "text-bear"}`}>
+              <span className={`mt-0.5 block text-[9px] ${sessionEnabled ? "app-muted" : "text-loss"}`}>
                 {sessionEnabled ? "Enabled" : "Hidden"}
               </span>
             </button>

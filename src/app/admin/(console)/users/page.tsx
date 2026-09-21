@@ -78,7 +78,7 @@ export default async function AdminUsersPage(
                       <select name="days" className="app-input py-1.5 text-xs"><option value="30">30 days</option><option value="90">90 days</option><option value="365">1 year</option></select>
                       <button className="inline-flex items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-semibold text-surface-950"><ShieldPlus size={13} aria-hidden /> Grant</button>
                     </form>
-                    {profile.proAccessUntil && <form action={revokeManualAccess}><input type="hidden" name="userId" value={profile.id} /><button className="rounded-lg border border-bear/25 px-2.5 py-1.5 text-xs font-semibold text-bear">Revoke grant</button></form>}
+                    {profile.proAccessUntil && <form action={revokeManualAccess}><input type="hidden" name="userId" value={profile.id} /><button className="rounded-lg border border-loss/25 px-2.5 py-1.5 text-xs font-semibold text-loss">Revoke grant</button></form>}
                   </div>
                 </td>
                 <td className={`${adminTd} text-xs app-muted`}>{formatNewYorkDateTime(profile.createdAt)}</td>

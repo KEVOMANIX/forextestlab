@@ -61,7 +61,7 @@ export function BookmarksPanel({
               />
               <div className="mt-2 flex justify-end gap-1">
                 <button type="button" className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] text-brand-300 hover:bg-brand-400/10" onClick={() => jump(bookmark)}><LocateFixed size={11} /> Show on chart</button>
-                <button type="button" aria-label={`Delete bookmark from ${formatInZone(bookmark.time, timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`} className="rounded p-1 text-bear hover:bg-bear/10" onClick={() => onDelete(bookmark.id)}><Trash2 size={12} /></button>
+                <button type="button" aria-label={`Delete bookmark from ${formatInZone(bookmark.time, timeZone, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`} className="rounded p-1 text-loss hover:bg-loss/10" onClick={() => onDelete(bookmark.id)}><Trash2 size={12} /></button>
               </div>
             </article>
           ))}

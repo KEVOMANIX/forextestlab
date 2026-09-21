@@ -35,7 +35,7 @@ export function LauncherButton({
       aria-expanded={open}
       aria-controls="support-panel"
       aria-label={open ? "Close support chat" : "Open support chat"}
-      className={`group relative isolate inline-flex items-center gap-2 rounded-full border border-brand-200/30 bg-[linear-gradient(180deg,#0b7a63_0%,#22c3a0_35%,#4fd8ba_50%,#22c3a0_65%,#0b7a63_100%)] bg-[length:100%_280%] px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95 motion-reduce:animate-none motion-reduce:transition-none ${
+      className={`group relative isolate inline-flex items-center gap-2 rounded-full border border-brand-200/30 bg-[linear-gradient(180deg,#0b7a63_0%,#14b8a6_35%,#4fd8ba_50%,#14b8a6_65%,#0b7a63_100%)] bg-[length:100%_280%] px-4 py-3 text-xs font-bold text-surface-950 shadow-glow transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.03] active:scale-95 motion-reduce:animate-none motion-reduce:transition-none ${
         idle ? "animate-wave-drift" : ""
       }`}
     >
@@ -45,7 +45,7 @@ export function LauncherButton({
             aria-hidden
             className={`absolute inset-0 -z-10 animate-sonar rounded-full border motion-reduce:animate-none ${
               loud
-                ? "border-bear/80 bg-bear/20 [animation-duration:1.6s]"
+                ? "border-loss/80 bg-loss/20 [animation-duration:1.6s]"
                 : "border-brand-200/70 bg-brand-300/20"
             }`}
           />
@@ -54,7 +54,7 @@ export function LauncherButton({
             style={{ animationDelay: "2s" }}
             className={`absolute inset-0 -z-10 animate-sonar rounded-full border motion-reduce:animate-none ${
               loud
-                ? "border-bear/60 [animation-duration:1.6s]"
+                ? "border-loss/60 [animation-duration:1.6s]"
                 : "border-brand-200/40"
             }`}
           />
@@ -89,7 +89,7 @@ export function LauncherButton({
       <span className="relative z-10">{open ? "Close" : "Help"}</span>
 
       {idle && loud && (
-        <span className="absolute -right-1 -top-1 z-10 grid h-4 min-w-4 animate-badge-pop place-items-center rounded-full bg-bear px-1 text-[10px] font-bold text-white ring-2 ring-surface-950/40 motion-reduce:animate-none">
+        <span className="absolute -right-1 -top-1 z-10 grid h-4 min-w-4 animate-badge-pop place-items-center rounded-full bg-loss px-1 text-[10px] font-bold text-white ring-2 ring-surface-950/40 motion-reduce:animate-none">
           {unread > 99 ? "99+" : unread}
         </span>
       )}

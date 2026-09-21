@@ -154,7 +154,7 @@ export default async function AccountPage() {
               </div>
             </section>
 
-            <section className={`relative overflow-hidden rounded-xl border p-5 ${hasPro ? "border-amber-300/25 bg-[linear-gradient(135deg,rgba(251,191,36,0.09),rgba(34,195,160,0.06))]" : "border-brand-400/20 bg-brand-400/[0.06]"}`}>
+            <section className={`relative overflow-hidden rounded-xl border p-5 ${hasPro ? "border-amber-300/25 bg-[linear-gradient(135deg,rgba(251,191,36,0.09),rgba(20,184,166,0.06))]" : "border-brand-400/20 bg-brand-400/[0.06]"}`}>
               {hasPro && <div aria-hidden className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-300/10 blur-2xl" />}
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">Your plan</p>
               <div className="mt-3 flex items-end justify-between gap-3">

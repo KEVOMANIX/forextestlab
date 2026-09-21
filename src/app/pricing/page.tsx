@@ -22,7 +22,7 @@ export default function PricingPage() {
   return (
     <PageShell>
       <section className="relative overflow-hidden border-b border-white/10">
-        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_18%_28%,rgba(34,195,160,.12),transparent_32%),radial-gradient(circle_at_85%_72%,rgba(59,107,255,.09),transparent_28%)]" />
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_18%_28%,rgba(20,184,166,.12),transparent_32%),radial-gradient(circle_at_85%_72%,rgba(59,107,255,.09),transparent_28%)]" />
         <div className="container-page relative py-14 sm:py-20 lg:py-24">
           <div className="grid items-center gap-10 lg:grid-cols-[1.12fr_.88fr] lg:gap-16">
             <div>

@@ -152,7 +152,7 @@ export function LotSizePopover({
             className={`h-6 min-w-0 flex-1 rounded border bg-transparent px-1 text-center font-mono text-xs font-bold outline-none ${
               summary.valid
                 ? "border-[var(--ticket-field-border)] focus:border-brand-400"
-                : "border-bear text-bear"
+                : "border-loss text-loss"
             }`}
           />
           <button
@@ -208,7 +208,7 @@ export function LotSizePopover({
         </dl>
 
         {!summary.valid && (
-          <p role="alert" className="mt-1 text-[10px] text-bear">
+          <p role="alert" className="mt-1 text-[10px] text-loss">
             Enter a size above zero.
           </p>
         )}

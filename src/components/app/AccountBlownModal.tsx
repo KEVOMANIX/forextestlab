@@ -80,15 +80,15 @@ export function AccountBlownModal({
         aria-modal="true"
         aria-labelledby="account-blown-title"
         data-testid="account-blown-modal"
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-bear/30 bg-[var(--app-panel)] shadow-2xl outline-none"
+        className="w-full max-w-lg overflow-hidden rounded-2xl border border-loss/30 bg-[var(--app-panel)] shadow-2xl outline-none"
       >
         <div className="relative overflow-hidden p-6 sm:p-7">
           <div
             aria-hidden
-            className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-bear/15 blur-3xl"
+            className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-loss/15 blur-3xl"
           />
           <div className="relative">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-bear/15 text-bear">
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-loss/15 text-loss">
               <Skull size={23} aria-hidden />
             </span>
             <h2 id="account-blown-title" className="mt-5 text-xl font-semibold">
@@ -150,7 +150,7 @@ export function AccountBlownModal({
               </div>
               <p className="mt-2 font-mono text-xs">
                 Trading balance after this top-up:{" "}
-                <span className={resultingBalance > 0 ? "font-semibold text-[var(--app-accent-text)]" : "font-semibold text-bear"}>
+                <span className={resultingBalance > 0 ? "font-semibold text-[var(--app-accent-text)]" : "font-semibold text-loss"}>
                   {resultingBalance.toLocaleString("en-US", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
@@ -177,7 +177,7 @@ export function AccountBlownModal({
                 .
               </p>
               {error && (
-                <p role="alert" className="mt-3 text-sm text-bear">
+                <p role="alert" className="mt-3 text-sm text-loss">
                   {error}
                 </p>
               )}

@@ -446,7 +446,7 @@ export function AnalyticsDesignPrototype({
                     <p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Account equity</p>
                     <div className="mt-1.5 flex items-end gap-3">
                       <p className="font-mono text-2xl font-semibold tracking-tight sm:text-3xl">{money(model.endingBalance)}</p>
-                      <span className={`mb-1 inline-flex items-center gap-1 text-xs font-semibold ${model.returnPercent >= 0 ? "text-brand-300" : "text-bear"}`}>{model.returnPercent >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />} {percentage(model.returnPercent)}</span>
+                      <span className={`mb-1 inline-flex items-center gap-1 text-xs font-semibold ${model.returnPercent >= 0 ? "text-profit" : "text-loss"}`}>{model.returnPercent >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />} {percentage(model.returnPercent)}</span>
                     </div>
                   </div>
                   <div className="inline-flex rounded-lg bg-[var(--app-panel-2)] p-1">
@@ -455,18 +455,18 @@ export function AnalyticsDesignPrototype({
                 </div>
                 <div className="relative mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
                   <svg viewBox="0 0 920 280" preserveAspectRatio="none" className="h-72 w-full" role="img" aria-label="Account equity history">
-                    <defs><linearGradient id="prototype-equity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#22c3a0" stopOpacity=".22"/><stop offset="1" stopColor="#22c3a0" stopOpacity="0"/></linearGradient><pattern id="prototype-grid" width="115" height="56" patternUnits="userSpaceOnUse"><path d="M115 0H0V56" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern></defs>
+                    <defs><linearGradient id="prototype-equity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#22c55e" stopOpacity=".22"/><stop offset="1" stopColor="#22c55e" stopOpacity="0"/></linearGradient><pattern id="prototype-grid" width="115" height="56" patternUnits="userSpaceOnUse"><path d="M115 0H0V56" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern></defs>
                     <rect width="920" height="280" fill="url(#prototype-grid)" className="app-muted" />
                     <path d={`${equityPath} L904,264 L16,264 Z`} fill="url(#prototype-equity)" />
-                    <path d={equityPath} fill="none" stroke="#22c3a0" strokeWidth="2.75" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                    <path d={equityPath} fill="none" stroke="#22c55e" strokeWidth="2.75" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
                   </svg>
-                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{chartPeriod.startTime ? formatNewYorkDate(chartPeriod.startTime, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-brand-300">━ Equity</span><span>{model.closedTrades} trades</span><span>{chartPeriod.endTime ? formatNewYorkDate(chartPeriod.endTime, { month: "short", year: "numeric" }) : "Now"}</span></div>
+                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{chartPeriod.startTime ? formatNewYorkDate(chartPeriod.startTime, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-profit">━ Equity</span><span>{model.closedTrades} trades</span><span>{chartPeriod.endTime ? formatNewYorkDate(chartPeriod.endTime, { month: "short", year: "numeric" }) : "Now"}</span></div>
                 </div>
               </div>
 
               <aside className="border-t app-border bg-[var(--app-panel-2)]/38 p-5 xl:border-l xl:border-t-0 xl:p-6">
                 <div className="flex items-start justify-between gap-3">
-                  <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Performance summary</p><p className={`mt-2 font-mono text-3xl font-semibold ${model.netProfit >= 0 ? "text-brand-300" : "text-bear"}`}>{money(model.netProfit, true)}</p><p className="mt-1 text-xs app-muted">Net realised P/L</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Performance summary</p><p className={`mt-2 font-mono text-3xl font-semibold ${model.netProfit >= 0 ? "text-profit" : "text-loss"}`}>{money(model.netProfit, true)}</p><p className="mt-1 text-xs app-muted">Net realised P/L</p></div>
                   <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-400/10 text-brand-300"><Sigma size={20} aria-hidden /></span>
                 </div>
                 <dl className="mt-6 divide-y app-border border-y app-border">
@@ -492,7 +492,7 @@ export function AnalyticsDesignPrototype({
             <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
               <div className="flex items-center justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Execution</p><h2 className="mt-1 text-lg font-semibold">Recent trades</h2></div><button type="button" onClick={() => setTab("trades")} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-300">View all <ArrowUpRight size={13}/></button></div>
               <div className="mt-4 divide-y app-border">
-                {model.recentTrades.length ? model.recentTrades.map((trade)=><article key={`${trade.time}-${trade.pair}`} className="flex items-center gap-3 py-3"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${trade.positive ? "bg-brand-400/10 text-brand-300" : "bg-bear/10 text-bear"}`}>{trade.positive ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-xs font-semibold">{trade.pair} · {trade.side}</p><span className="text-[9px] app-muted">{trade.r}</span></div><p className="mt-1 truncate text-[10px] app-muted">{trade.setup} · {trade.time}</p></div><p className={`shrink-0 font-mono text-xs font-semibold ${trade.positive ? "text-brand-300" : "text-bear"}`}>{trade.result}</p></article>) : <p className="py-8 text-center text-xs app-muted">Close a trade to populate execution history.</p>}
+                {model.recentTrades.length ? model.recentTrades.map((trade)=><article key={`${trade.time}-${trade.pair}`} className="flex items-center gap-3 py-3"><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${trade.positive ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss"}`}>{trade.positive ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-xs font-semibold">{trade.pair} · {trade.side}</p><span className="text-[9px] app-muted">{trade.r}</span></div><p className="mt-1 truncate text-[10px] app-muted">{trade.setup} · {trade.time}</p></div><p className={`shrink-0 font-mono text-xs font-semibold ${trade.positive ? "text-profit" : "text-loss"}`}>{trade.result}</p></article>) : <p className="py-8 text-center text-xs app-muted">Close a trade to populate execution history.</p>}
               </div>
             </section>
           </div>
@@ -548,11 +548,11 @@ function TradingActivityCalendar({ months }: { months: CalendarMonth[] }) {
       </div>
       <div className="mt-4 grid gap-1.5 text-center text-[9px] app-muted" style={columns}>{month.weekdays.map((weekday)=><span key={weekday} className="py-1">{WEEKDAY_LABELS[weekday]}</span>)}</div>
       <div className="mt-1 grid gap-1.5" style={columns}>
-        {month.cells.map((cell,cellIndex)=><div key={cellIndex} className={`relative min-h-16 rounded-lg p-2 ${cell.day == null ? "bg-white/[0.015]" : cell.value! > 0 ? "bg-brand-400/[0.12]" : cell.value! < 0 ? "bg-bear/[0.12]" : "bg-white/[0.035]"}`}><span className="text-[9px] app-muted">{cell.day}</span>{cell.value != null && cell.value !== 0 && <p className={`mt-2 truncate font-mono text-[10px] font-semibold ${cell.value > 0 ? "text-brand-300" : "text-bear"}`}>{money(cell.value, true)}</p>}</div>)}
+        {month.cells.map((cell,cellIndex)=><div key={cellIndex} className={`relative min-h-16 rounded-lg p-2 ${cell.day == null ? "bg-white/[0.015]" : cell.value! > 0 ? "bg-profit/[0.12]" : cell.value! < 0 ? "bg-loss/[0.12]" : "bg-white/[0.035]"}`}><span className="text-[9px] app-muted">{cell.day}</span>{cell.value != null && cell.value !== 0 && <p className={`mt-2 truncate font-mono text-[10px] font-semibold ${cell.value > 0 ? "text-profit" : "text-loss"}`}>{money(cell.value, true)}</p>}</div>)}
       </div>
       <p className="mt-3 text-[11px] app-muted">
         {months.length === 1 ? "One month of trading" : `Month ${position + 1} of ${months.length}`} ·{" "}
-        <span className={total > 0 ? "font-semibold text-brand-300" : total < 0 ? "font-semibold text-bear" : "font-semibold"}>{money(total, true)}</span> this month
+        <span className={total > 0 ? "font-semibold text-profit" : total < 0 ? "font-semibold text-loss" : "font-semibold"}>{money(total, true)}</span> this month
       </p>
     </section>
   );
@@ -585,10 +585,10 @@ function SampleVerdict({ model }: { model: AnalyticsModel }) {
 
   return (
     <div
-      className={`mt-5 rounded-xl p-4 ${verdict.positive === false ? "bg-bear/[0.07]" : verdict.positive ? "bg-brand-400/[0.07]" : "bg-white/[0.03]"}`}
+      className={`mt-5 rounded-xl p-4 ${verdict.positive === false ? "bg-loss/[0.07]" : verdict.positive ? "bg-profit/[0.07]" : "bg-white/[0.03]"}`}
     >
       <div
-        className={`flex items-center gap-2 text-xs font-semibold ${verdict.positive === false ? "text-bear" : verdict.positive ? "text-brand-300" : "app-muted"}`}
+        className={`flex items-center gap-2 text-xs font-semibold ${verdict.positive === false ? "text-loss" : verdict.positive ? "text-profit" : "app-muted"}`}
       >
         {verdict.positive === false ? <TrendingDown size={14} aria-hidden /> : <TrendingUp size={14} aria-hidden />}{" "}
         {verdict.label}
@@ -634,7 +634,7 @@ function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
       icon: TrendingUp,
       eyebrow: "Results",
       title: "Profit quality",
-      tone: "text-brand-300",
+      tone: "text-profit",
       rows: [
         ["Gross profit", money(model.grossProfit, true)],
         ["Gross loss", money(-model.grossLoss)],
@@ -646,7 +646,7 @@ function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
       icon: ShieldCheck,
       eyebrow: "Risk",
       title: "Robustness",
-      tone: "text-bear",
+      tone: "text-loss",
       rows: [
         ["Maximum drawdown", drawdownMoney(model.maxDrawdown)],
         ["Recovery factor", ratio(model.recoveryFactor)],
@@ -765,8 +765,8 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
 
         <ReportCard eyebrow="Risk diagnosis" title="What the drawdown says" icon={Gauge} info="The worst decline set against what the strategy earned, so the reward can be judged against the risk it took rather than on its own.">
           <div className="mt-5 rounded-xl border app-border p-4">
-            <div className="flex items-end justify-between"><div><p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] app-muted">Maximum depth<MetricInfo term="Maximum depth" /></p><p className={`mt-1 font-mono text-2xl font-semibold ${model.maxDrawdownPercent === null ? "app-muted" : "text-bear"}`}>{model.maxDrawdownPercent === null ? "—" : `−${model.maxDrawdownPercent.toFixed(2)}%`}</p></div><p className="font-mono text-xs app-muted">{drawdownMoney(model.maxDrawdown)}</p></div>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-bear" style={{ width: `${Math.min(100, (model.maxDrawdownPercent ?? 0) / 4 * 100)}%` }} /></div>
+            <div className="flex items-end justify-between"><div><p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.12em] app-muted">Maximum depth<MetricInfo term="Maximum depth" /></p><p className={`mt-1 font-mono text-2xl font-semibold ${model.maxDrawdownPercent === null ? "app-muted" : "text-loss"}`}>{model.maxDrawdownPercent === null ? "—" : `−${model.maxDrawdownPercent.toFixed(2)}%`}</p></div><p className="font-mono text-xs app-muted">{drawdownMoney(model.maxDrawdown)}</p></div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-loss" style={{ width: `${Math.min(100, (model.maxDrawdownPercent ?? 0) / 4 * 100)}%` }} /></div>
             <p className="mt-2 text-[10px] app-muted">{model.maxDrawdownPercent === null ? "No equity history was recorded for this session, so its drawdown cannot be measured." : `${drawdownPercent(model.maxDrawdownPercent)} maximum equity decline`}</p>
           </div>
           <dl className="mt-4 divide-y app-border">
@@ -791,10 +791,10 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
                 <div key={month.key} className="flex h-full flex-col items-center justify-center">
                   <div className="flex h-[172px] w-full flex-col justify-center">
                     <div className="relative h-1/2 border-b border-white/10">
-                      {month.percent > 0 && <div className="absolute bottom-0 left-1/2 w-[72%] -translate-x-1/2 rounded-t bg-brand-400/80" style={{ height: `${height}%` }} />}
+                      {month.percent > 0 && <div className="absolute bottom-0 left-1/2 w-[72%] -translate-x-1/2 rounded-t bg-profit/80" style={{ height: `${height}%` }} />}
                     </div>
                     <div className="relative h-1/2">
-                      {month.percent < 0 && <div className="absolute left-1/2 top-0 w-[72%] -translate-x-1/2 rounded-b bg-bear/80" style={{ height: `${height}%` }} />}
+                      {month.percent < 0 && <div className="absolute left-1/2 top-0 w-[72%] -translate-x-1/2 rounded-b bg-loss/80" style={{ height: `${height}%` }} />}
                     </div>
                   </div>
                   <span className="mt-2 truncate text-[9px] app-muted" title={`${month.label} ${month.year}`}>{caption}</span>
@@ -803,19 +803,19 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
             })}
           </div>
           )}
-          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="app-muted">Best month <b className="ml-1 font-mono text-brand-300">{percentage(bestMonth)}</b></span><span className="app-muted">Worst month <b className="ml-1 font-mono text-bear">{percentage(worstMonth)}</b></span><span className="app-muted">Average <b className="ml-1 font-mono text-[var(--app-text)]">{percentage(averageMonth)}</b></span></div>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs"><span className="app-muted">Best month <b className="ml-1 font-mono text-profit">{percentage(bestMonth)}</b></span><span className="app-muted">Worst month <b className="ml-1 font-mono text-loss">{percentage(worstMonth)}</b></span><span className="app-muted">Average <b className="ml-1 font-mono text-[var(--app-text)]">{percentage(averageMonth)}</b></span></div>
         </ReportCard>
 
         <ReportCard eyebrow="Market timing" title="Performance by session" icon={Clock3} info="Results grouped by the market window a trade was opened in, using New York time. Bar length is profit; the figure on the right is that window's win rate.">
           <div className="mt-5 space-y-5">
             {model.sessions.map((session) => (
               <div key={session.label}>
-                <div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold">{session.label}</span><span className={`font-mono font-semibold ${session.value >= 0 ? "text-brand-300" : "text-bear"}`}>{session.value >= 0 ? "+" : "−"}${Math.abs(session.value).toLocaleString()}</span></div>
-                <div className="mt-2 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]"><div className={`h-full rounded-full ${session.value >= 0 ? "bg-brand-400" : "bg-bear"}`} style={{ width: `${Math.max(12, Math.abs(session.value) / sessionMax * 100)}%` }} /></div><span className="w-8 text-right font-mono text-[9px] app-muted">{session.rate}%</span></div>
+                <div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold">{session.label}</span><span className={`font-mono font-semibold ${session.value >= 0 ? "text-profit" : "text-loss"}`}>{session.value >= 0 ? "+" : "−"}${Math.abs(session.value).toLocaleString()}</span></div>
+                <div className="mt-2 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]"><div className={`h-full rounded-full ${session.value >= 0 ? "bg-profit" : "bg-loss"}`} style={{ width: `${Math.max(12, Math.abs(session.value) / sessionMax * 100)}%` }} /></div><span className="w-8 text-right font-mono text-[9px] app-muted">{session.rate}%</span></div>
               </div>
             ))}
           </div>
-          <div className="mt-6 rounded-xl bg-brand-400/[0.07] p-3 text-xs leading-5 app-muted">{bestSession ? <><b className="text-brand-300">{bestSession.label}</b> currently leads with {money(bestSession.value, true)} and a {bestSession.rate}% win rate.</> : "Close trades in different market windows to compare session performance."}</div>
+          <div className="mt-6 rounded-xl bg-profit/[0.07] p-3 text-xs leading-5 app-muted">{bestSession ? <><b className="text-profit">{bestSession.label}</b> currently leads with {money(bestSession.value, true)} and a {bestSession.rate}% win rate.</> : "Close trades in different market windows to compare session performance."}</div>
         </ReportCard>
       </div>
 
@@ -825,8 +825,8 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
             {model.weekdays.map((day) => (
               <div key={day.label} className="grid grid-cols-[34px_minmax(0,1fr)_72px] items-center gap-3 text-xs">
                 <span className="font-semibold">{day.label}</span>
-                <div className="h-7 overflow-hidden rounded-md bg-white/[0.035]"><div className={`flex h-full items-center rounded-md px-2 ${day.value >= 0 ? "bg-brand-400/15" : "bg-bear/15"}`} style={{ width: `${Math.max(18, Math.abs(day.value) / weekdayMax * 100)}%` }}><span className="text-[9px] app-muted">{day.trades} trades</span></div></div>
-                <span className={`text-right font-mono font-semibold ${day.value >= 0 ? "text-brand-300" : "text-bear"}`}>{day.value >= 0 ? "+" : "−"}${Math.abs(day.value)}</span>
+                <div className="h-7 overflow-hidden rounded-md bg-white/[0.035]"><div className={`flex h-full items-center rounded-md px-2 ${day.value >= 0 ? "bg-profit/15" : "bg-loss/15"}`} style={{ width: `${Math.max(18, Math.abs(day.value) / weekdayMax * 100)}%` }}><span className="text-[9px] app-muted">{day.trades} trades</span></div></div>
+                <span className={`text-right font-mono font-semibold ${day.value >= 0 ? "text-profit" : "text-loss"}`}>{day.value >= 0 ? "+" : "−"}${Math.abs(day.value)}</span>
               </div>
             ))}
           </div>
@@ -834,7 +834,7 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
 
         <ReportCard eyebrow="Trade outcomes" title="R-multiple distribution" icon={Target} info="Each bar counts the trades that finished in that band. Trades with no recorded initial risk cannot be converted to R and are left out of this chart.">
           <div className="mt-6 grid h-44 grid-cols-6 items-end gap-3 border-b app-border px-2">
-            {model.rDistribution.map((bucket) => <div key={bucket.label} className="flex h-full flex-col justify-end text-center"><span className="mb-2 font-mono text-[10px] app-muted">{bucket.count}</span><div className={`mx-auto w-[72%] rounded-t ${bucket.label.startsWith("+") || bucket.label.startsWith(">") ? "bg-brand-400/75" : bucket.label === "0R" ? "bg-white/20" : "bg-bear/75"}`} style={{ height: `${bucket.count / rMax * 80}%` }} /><span className="mt-2 pb-2 text-[9px] app-muted">{bucket.label}</span></div>)}
+            {model.rDistribution.map((bucket) => <div key={bucket.label} className="flex h-full flex-col justify-end text-center"><span className="mb-2 font-mono text-[10px] app-muted">{bucket.count}</span><div className={`mx-auto w-[72%] rounded-t ${bucket.label.startsWith("+") || bucket.label.startsWith(">") ? "bg-profit/75" : bucket.label === "0R" ? "bg-white/20" : "bg-loss/75"}`} style={{ height: `${bucket.count / rMax * 80}%` }} /><span className="mt-2 pb-2 text-[9px] app-muted">{bucket.label}</span></div>)}
           </div>
         </ReportCard>
       </div>
@@ -850,10 +850,10 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
               <div className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] gap-4 pb-2 text-[9px] font-semibold uppercase tracking-[0.1em] app-muted"><span>Exit reason</span><span>Trades</span><span>Win rate</span><span className="text-right">Net P/L</span></div>
               {model.exits.map((exit) => (
                 <div key={exit.label} className="grid grid-cols-[minmax(170px,1fr)_72px_90px_90px] items-center gap-4 py-3 text-xs">
-                  <div><p className="font-semibold">{exit.label}</p><div className="mt-2 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[0.05]"><div className={`h-full rounded-full ${exit.value >= 0 ? "bg-brand-400" : "bg-bear"}`} style={{ width: `${Math.max(10, Math.abs(exit.value) / exitMax * 100)}%` }} /></div></div>
+                  <div><p className="font-semibold">{exit.label}</p><div className="mt-2 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[0.05]"><div className={`h-full rounded-full ${exit.value >= 0 ? "bg-profit" : "bg-loss"}`} style={{ width: `${Math.max(10, Math.abs(exit.value) / exitMax * 100)}%` }} /></div></div>
                   <span className="font-mono app-muted">{exit.trades}</span>
                   <span className="font-mono">{exit.winRate}%</span>
-                  <span className={`text-right font-mono font-semibold ${exit.value > 0 ? "text-brand-300" : exit.value < 0 ? "text-bear" : "app-muted"}`}>{exit.value > 0 ? "+" : exit.value < 0 ? "−" : ""}${Math.abs(exit.value).toLocaleString()}</span>
+                  <span className={`text-right font-mono font-semibold ${exit.value > 0 ? "text-profit" : exit.value < 0 ? "text-loss" : "app-muted"}`}>{exit.value > 0 ? "+" : exit.value < 0 ? "−" : ""}${Math.abs(exit.value).toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -864,8 +864,8 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
           <div className="mt-5 space-y-5">
             {model.sizes.map((bucket) => (
               <div key={bucket.label}>
-                <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold">{bucket.label}</p><p className="mt-1 text-[9px] app-muted">{bucket.trades} trades · {bucket.share}% of positive P/L</p></div><p className={`font-mono text-xs font-semibold ${bucket.value >= 0 ? "text-brand-300" : "text-bear"}`}>{money(bucket.value, true)}</p></div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-brand-400" style={{ width: `${bucket.share}%` }} /></div>
+                <div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold">{bucket.label}</p><p className="mt-1 text-[9px] app-muted">{bucket.trades} trades · {bucket.share}% of positive P/L</p></div><p className={`font-mono text-xs font-semibold ${bucket.value >= 0 ? "text-profit" : "text-loss"}`}>{money(bucket.value, true)}</p></div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-profit" style={{ width: `${bucket.share}%` }} /></div>
               </div>
             ))}
           </div>
@@ -875,8 +875,8 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
       <div className="grid gap-4 lg:grid-cols-3">
         <ReportCard eyebrow="Direction" title="Long versus short" icon={TrendingUp} info="Whether the edge works in both directions. Compare these before filtering the next test plan — but a lopsided result on a small sample is usually a few outlier trades rather than a real bias.">
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-brand-400/[0.07] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">Long</p><p className={`mt-2 font-mono text-xl font-semibold ${model.directions.long.value >= 0 ? "text-brand-300" : "text-bear"}`}>{money(model.directions.long.value, true)}</p><p className="mt-1 text-[10px] app-muted">{model.directions.long.trades} trades · {model.directions.long.rate}% won</p></div>
-            <div className="rounded-xl bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">Short</p><p className={`mt-2 font-mono text-xl font-semibold ${model.directions.short.value >= 0 ? "text-brand-300" : "text-bear"}`}>{money(model.directions.short.value, true)}</p><p className="mt-1 text-[10px] app-muted">{model.directions.short.trades} trades · {model.directions.short.rate}% won</p></div>
+            <div className="rounded-xl bg-brand-400/[0.07] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">Long</p><p className={`mt-2 font-mono text-xl font-semibold ${model.directions.long.value >= 0 ? "text-profit" : "text-loss"}`}>{money(model.directions.long.value, true)}</p><p className="mt-1 text-[10px] app-muted">{model.directions.long.trades} trades · {model.directions.long.rate}% won</p></div>
+            <div className="rounded-xl bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.1em] app-muted">Short</p><p className={`mt-2 font-mono text-xl font-semibold ${model.directions.short.value >= 0 ? "text-profit" : "text-loss"}`}>{money(model.directions.short.value, true)}</p><p className="mt-1 text-[10px] app-muted">{model.directions.short.trades} trades · {model.directions.short.rate}% won</p></div>
           </div>
         </ReportCard>
 
@@ -885,8 +885,8 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
             {model.holding.map((bucket) => (
               <div key={bucket.label} className="grid grid-cols-[76px_minmax(0,1fr)_72px] items-center gap-2 text-[10px]">
                 <span className="app-muted">{bucket.label}</span>
-                <div className="h-5 overflow-hidden rounded bg-white/[0.035]"><div className={`h-full rounded ${bucket.value >= 0 ? "bg-brand-400/20" : "bg-bear/20"}`} style={{ width: `${Math.max(12, Math.abs(bucket.value) / holdMax * 100)}%` }} /></div>
-                <span className={`text-right font-mono font-semibold ${bucket.value >= 0 ? "text-brand-300" : "text-bear"}`}>{bucket.value >= 0 ? "+" : "−"}${Math.abs(bucket.value)}</span>
+                <div className="h-5 overflow-hidden rounded bg-white/[0.035]"><div className={`h-full rounded ${bucket.value >= 0 ? "bg-profit/20" : "bg-loss/20"}`} style={{ width: `${Math.max(12, Math.abs(bucket.value) / holdMax * 100)}%` }} /></div>
+                <span className={`text-right font-mono font-semibold ${bucket.value >= 0 ? "text-profit" : "text-loss"}`}>{bucket.value >= 0 ? "+" : "−"}${Math.abs(bucket.value)}</span>
               </div>
             ))}
           </div>
@@ -894,10 +894,10 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
 
         <ReportCard eyebrow="Robustness" title="Profit concentration" icon={ShieldCheck}>
           <div className="mt-5 flex items-center gap-5">
-            <div className="relative grid h-24 w-24 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#22c3a0 0 ${model.concentration}%, rgba(255,255,255,.08) ${model.concentration}% 100%)` }}><div className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--app-panel)]"><div className="text-center"><p className="font-mono text-lg font-semibold">{model.concentration.toFixed(0)}%</p><p className="text-[8px] app-muted">top 3</p></div></div></div>
+            <div className="relative grid h-24 w-24 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(#22c55e 0 ${model.concentration}%, rgba(255,255,255,.08) ${model.concentration}% 100%)` }}><div className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[var(--app-panel)]"><div className="text-center"><p className="font-mono text-lg font-semibold">{model.concentration.toFixed(0)}%</p><p className="text-[8px] app-muted">top 3</p></div></div></div>
             <div><p className="text-xs font-semibold">{model.concentration <= 50 ? "Profit is reasonably distributed" : "Profit is concentrated"}</p><p className="mt-2 text-xs leading-5 app-muted">The three largest winners produce {model.concentration.toFixed(0)}% of net profit.</p></div>
           </div>
-          <dl className="mt-4 divide-y app-border"><div className="flex justify-between py-2.5 text-xs"><dt className="flex items-center gap-1.5 app-muted">Best trade<MetricInfo term="Best trade" /></dt><dd className="font-mono font-semibold text-brand-300">{money(model.bestTrade, true)}</dd></div><div className="flex justify-between py-2.5 text-xs"><dt className="flex items-center gap-1.5 app-muted">Top-three contribution<MetricInfo term="Top-three contribution" /></dt><dd className="font-mono font-semibold">{model.concentration.toFixed(1)}%</dd></div></dl>
+          <dl className="mt-4 divide-y app-border"><div className="flex justify-between py-2.5 text-xs"><dt className="flex items-center gap-1.5 app-muted">Best trade<MetricInfo term="Best trade" /></dt><dd className="font-mono font-semibold text-profit">{money(model.bestTrade, true)}</dd></div><div className="flex justify-between py-2.5 text-xs"><dt className="flex items-center gap-1.5 app-muted">Top-three contribution<MetricInfo term="Top-three contribution" /></dt><dd className="font-mono font-semibold">{model.concentration.toFixed(1)}%</dd></div></dl>
         </ReportCard>
       </div>
     </main>

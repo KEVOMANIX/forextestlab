@@ -288,7 +288,7 @@ export function AuthForm({
         </div>
 
         {error && (
-          <p id="auth-form-error" role="alert" className="mt-3.5 rounded-lg border border-bear/30 bg-bear/10 px-3 py-2 text-[13px] text-bear">
+          <p id="auth-form-error" role="alert" className="mt-3.5 rounded-lg border border-loss/30 bg-loss/10 px-3 py-2 text-[13px] text-loss">
             {error}
           </p>
         )}

@@ -95,7 +95,7 @@ export function DashboardSessionSwitcher({
                     <span className="block truncate text-sm font-semibold">{session.name}</span>
                     <span className="mt-1 block truncate text-xs app-muted">{session.symbols} · {session.status} · {session.updatedAt}</span>
                   </span>
-                  <span className={`shrink-0 font-mono text-xs font-semibold ${session.positive ? "text-brand-300" : "text-bear"}`}>{session.pnl}</span>
+                  <span className={`shrink-0 font-mono text-xs font-semibold ${session.positive ? "text-profit" : "text-loss"}`}>{session.pnl}</span>
                 </button>
               ))}
               {filtered.length === 0 && <p className="px-3 py-8 text-center text-sm app-muted">No matching sessions.</p>}

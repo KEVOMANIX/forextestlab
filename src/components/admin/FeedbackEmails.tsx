@@ -83,7 +83,7 @@ export function FeedbackEmails({ campaigns, userCount }: {
 
   return <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
     <section className="panel min-w-0 p-5">
-      {error && <p role="alert" className="mb-4 rounded-lg border border-bear/30 p-3 text-sm text-bear">{error}</p>}
+      {error && <p role="alert" className="mb-4 rounded-lg border border-loss/30 p-3 text-sm text-loss">{error}</p>}
       {!campaign ? <div className="space-y-5">
         <label className="block text-sm font-semibold">Subject<input className="app-input mt-2 w-full" value={subject} maxLength={160} onChange={(e) => { draftId.current = null; setSubject(e.target.value); }} /></label>
         <label className="block text-sm font-semibold">Message<textarea className="app-input mt-2 w-full text-sm leading-6" rows={14} value={body} maxLength={8000} onChange={(e) => { draftId.current = null; setBody(e.target.value); }} /></label>

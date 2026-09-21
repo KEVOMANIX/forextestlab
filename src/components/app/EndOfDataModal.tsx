@@ -130,7 +130,7 @@ export function EndOfDataModal({
                 ))}
               </div>
               {error && (
-                <p role="alert" className="mt-4 text-sm text-bear">
+                <p role="alert" className="mt-4 text-sm text-loss">
                   {error}
                 </p>
               )}
@@ -209,7 +209,7 @@ export function EndOfDataModal({
               </p>
             )}
             {error && (
-              <p role="alert" className="mt-3 text-sm text-bear">
+              <p role="alert" className="mt-3 text-sm text-loss">
                 {error}
               </p>
             )}

@@ -39,12 +39,12 @@ export function EquityCurve({ points }: { points: EquityPoint[] }) {
       >
         <defs>
           <linearGradient id="eq-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#22c3a0" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#22c3a0" stopOpacity="0" />
+            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
           </linearGradient>
         </defs>
         <path d={path.area} fill="url(#eq-fill)" />
-        <path d={path.line} fill="none" stroke="#22c3a0" strokeWidth="2" />
+        <path d={path.line} fill="none" stroke="#22c55e" strokeWidth="2" />
       </svg>
       <div className="flex justify-between px-1 font-mono text-xs app-muted">
         <span>Low ${path.min.toFixed(2)}</span>

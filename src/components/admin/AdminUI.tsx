@@ -63,7 +63,7 @@ const statusTones: Record<string, string> = {
   pending: "border-amber-400/25 bg-amber-400/10 text-amber-300",
   attention: "border-amber-400/25 bg-amber-400/10 text-amber-300",
   degraded: "border-amber-400/25 bg-amber-400/10 text-amber-300",
-  failed: "border-bear/25 bg-bear/10 text-bear",
+  failed: "border-loss/25 bg-loss/10 text-loss",
   canceled: "border-white/10 bg-white/5 app-muted",
   inactive: "border-white/10 bg-white/5 app-muted",
 };

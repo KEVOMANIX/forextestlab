@@ -80,7 +80,7 @@ export function SupportTeamRefresh() {
     >
       <span
         className={`h-1.5 w-1.5 rounded-full ${
-          connected ? "bg-brand-400" : "bg-bear"
+          connected ? "bg-profit" : "bg-loss"
         }`}
       />
       <span className="hidden min-[1440px]:inline">

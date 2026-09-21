@@ -289,7 +289,7 @@ function Feedback({ kind, children }: { kind: "error" | "success"; children: Rea
       role={kind === "error" ? "alert" : "status"}
       className={`mt-4 rounded-lg border px-3 py-2 text-sm ${
         kind === "error"
-          ? "border-bear/30 bg-bear/10 text-bear"
+          ? "border-loss/30 bg-loss/10 text-loss"
           : "border-brand-400/30 bg-brand-400/10 text-brand-300"
       }`}
     >

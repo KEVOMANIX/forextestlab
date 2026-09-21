@@ -95,7 +95,7 @@ export function ProfileDetailsForm({
 
       <div className="mt-6 flex flex-col gap-3 border-t app-border pt-5 sm:flex-row sm:items-center sm:justify-between">
         <div aria-live="polite">
-          {error && <p role="alert" className="text-sm text-bear">{error}</p>}
+          {error && <p role="alert" className="text-sm text-loss">{error}</p>}
           {status === "saved" && (
             <p className="inline-flex items-center gap-1.5 text-sm text-brand-300">
               <Check size={15} aria-hidden />

@@ -138,13 +138,13 @@ export function ProductPreview() {
         <div className="relative min-w-0">
           <div
             aria-hidden
-            className="absolute -inset-7 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_50%_55%,rgba(34,195,160,.12),transparent_65%)] blur-2xl"
+            className="absolute -inset-7 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_50%_55%,rgba(20,184,166,.12),transparent_65%)] blur-2xl"
           />
           <div className={`flex aspect-[4/3] flex-col overflow-hidden rounded-2xl sm:aspect-[19/10] border border-white/[0.12] bg-surface-800/90 shadow-[0_38px_100px_-40px_rgba(0,0,0,.95)] ${active.imageIncludesChrome ? "p-0" : "p-1.5"}`}>
             {!active.imageIncludesChrome && (
               <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/90 px-3">
                 <span className="flex gap-1.5" aria-hidden>
-                  <span className="h-2 w-2 rounded-full bg-bear/75" />
+                  <span className="h-2 w-2 rounded-full bg-loss/75" />
                   <span className="h-2 w-2 rounded-full bg-amber-400/75" />
                   <span className="h-2 w-2 rounded-full bg-brand-400/75" />
                 </span>

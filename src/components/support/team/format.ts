@@ -43,7 +43,7 @@ export function statusTone(status: string) {
 }
 
 export function priorityTone(priority: string) {
-  if (priority === "urgent") return "border-bear/35 text-bear";
+  if (priority === "urgent") return "border-loss/35 text-loss";
   if (priority === "high") return "border-amber-300/35 text-amber-200";
   if (priority === "low") return "app-border app-muted";
   return "app-border app-muted";

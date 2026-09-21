@@ -64,7 +64,7 @@ export default async function AdminOverviewPage() {
     { label: "Saved sessions", value: String(sessions), detail: `${recentSessions} created in the last 30 days`, icon: Activity },
     { label: "Executed trades", value: String(trades), detail: "Closed simulated positions", icon: TrendingUp, tone: "text-amber-300" },
     { label: "Open enquiries", value: String(openEnquiries), detail: "Awaiting support follow-up", icon: Mail, tone: openEnquiries ? "text-amber-300" : "text-brand-300" },
-    { label: "Data alerts", value: String(failedImports), detail: "Imports requiring review", icon: failedImports ? AlertTriangle : Database, tone: failedImports ? "text-bear" : "text-brand-300" },
+    { label: "Data alerts", value: String(failedImports), detail: "Imports requiring review", icon: failedImports ? AlertTriangle : Database, tone: failedImports ? "text-loss" : "text-brand-300" },
   ];
 
   return (

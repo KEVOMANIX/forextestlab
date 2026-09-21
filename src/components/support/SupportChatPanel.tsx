@@ -547,7 +547,7 @@ export function SupportChatPanel({
               className="app-input w-full resize-none text-xs"
             />
             {error && (
-              <p role="alert" className="text-xs text-bear">
+              <p role="alert" className="text-xs text-loss">
                 {error}
               </p>
             )}
@@ -695,7 +695,7 @@ export function SupportChatPanel({
           ) : (
             <div className="shrink-0 border-t border-white/10 p-3">
               {error && (
-                <p role="alert" className="mb-2 text-[11px] text-bear">
+                <p role="alert" className="mb-2 text-[11px] text-loss">
                   {error}
                 </p>
               )}

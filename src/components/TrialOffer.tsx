@@ -16,8 +16,8 @@ export function TrialOffer({
   return (
     <aside className={`relative overflow-hidden border border-brand-400/35 shadow-card ${
       hero
-        ? "rounded-[1.75rem] bg-[linear-gradient(145deg,rgba(34,195,160,.16),rgba(14,20,32,.96)_55%,rgba(59,107,255,.1))] p-6 sm:p-8"
-        : `rounded-3xl bg-[linear-gradient(135deg,rgba(34,195,160,.16),rgba(17,23,37,.96)_58%)] ${compact ? "p-5 sm:p-6" : "p-6 sm:p-8"}`
+        ? "rounded-[1.75rem] bg-[linear-gradient(145deg,rgba(20,184,166,.16),rgba(14,20,32,.96)_55%,rgba(59,107,255,.1))] p-6 sm:p-8"
+        : `rounded-3xl bg-[linear-gradient(135deg,rgba(20,184,166,.16),rgba(17,23,37,.96)_58%)] ${compact ? "p-5 sm:p-6" : "p-6 sm:p-8"}`
     }`}>
       <div aria-hidden className={`absolute rounded-full bg-brand-400/20 blur-3xl ${hero ? "-right-16 -top-20 h-64 w-64" : "-right-16 -top-20 h-52 w-52"}`} />
       <div className={`relative flex flex-col gap-6 ${hero ? "" : "lg:flex-row lg:items-center lg:justify-between"}`}>

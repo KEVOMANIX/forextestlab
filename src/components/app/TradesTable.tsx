@@ -87,7 +87,7 @@ export function TradesTable({
                 >
                   <td className="px-3 py-2 app-muted">{number}</td>
                   <td className="px-3 py-2">
-                    <span className={win ? "text-brand-300" : "text-bear"}>
+                    <span className={win ? "text-profit" : "text-loss"}>
                       {t.direction === "long" ? "▲ Long" : "▼ Short"}
                     </span>
                   </td>
@@ -120,7 +120,7 @@ export function TradesTable({
                     {peak === null ? "—" : `${peak >= 0 ? "+" : "−"}${Math.abs(peak).toFixed(2)}R`}
                   </td>
                   <td className="px-3 py-2 text-right">{t.pips}</td>
-                  <td className={`px-3 py-2 text-right ${win ? "text-brand-300" : "text-bear"}`}>
+                  <td className={`px-3 py-2 text-right ${win ? "text-profit" : "text-loss"}`}>
                     {t.pnl}
                   </td>
                 </tr>

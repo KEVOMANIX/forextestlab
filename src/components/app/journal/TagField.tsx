@@ -53,7 +53,7 @@ export function TagField({
 
   const chipTone =
     tone === "bear"
-      ? "border-bear/30 bg-bear/[0.09] text-bear"
+      ? "border-loss/30 bg-loss/[0.09] text-loss"
       : "border-brand-400/30 bg-brand-400/[0.09] text-brand-200";
 
   return (

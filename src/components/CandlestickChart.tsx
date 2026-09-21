@@ -98,7 +98,7 @@ export function CandlestickChart({ className = "" }: { className?: string }) {
       {CANDLES.map((c, i) => {
         const cx = padding + slot * i + slot / 2;
         const bullish = c.c >= c.o;
-        const color = bullish ? "#22c3a0" : "#f4646c";
+        const color = bullish ? "#22c55e" : "#f05b67";
         const bodyTop = y(Math.max(c.o, c.c));
         const bodyBottom = y(Math.min(c.o, c.c));
         return (

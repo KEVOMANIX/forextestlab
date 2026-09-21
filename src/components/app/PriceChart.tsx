@@ -412,8 +412,8 @@ function overlayFontSize(size: ChartTextSize): number {
   return AXIS_FONT_SIZES[size] - 1;
 }
 
-const BULL = "#22c3a0";
-const BEAR = "#f4646c";
+const BULL = "#22c55e";
+const BEAR = "#f05b67";
 const DEFAULT_BAR_SPACING = 10;
 const DEFAULT_RIGHT_OFFSET = 4;
 
@@ -519,8 +519,8 @@ function addPriceSeries(chart: IChartApi, type: ChartType, palette: Palette, pre
   if (type === "area") {
     return chart.addSeries(AreaSeries, {
       lineColor: BULL,
-      topColor: "rgba(34,195,160,0.28)",
-      bottomColor: "rgba(34,195,160,0.02)",
+      topColor: "rgba(34,197,94,0.28)",
+      bottomColor: "rgba(34,197,94,0.02)",
       lineWidth: 2,
       priceFormat,
       priceLineVisible: false,
@@ -2706,7 +2706,7 @@ export default function PriceChart({
         key,
         series.createPriceLine({
           price: level.price,
-          color: isStop ? "rgba(244, 100, 108, 0.48)" : "rgba(34, 195, 160, 0.48)",
+          color: isStop ? "rgba(240, 91, 103, 0.48)" : "rgba(34, 197, 94, 0.48)",
           lineWidth: 1,
           lineStyle: LineStyle.Dotted,
           axisLabelVisible: true,
@@ -3667,7 +3667,7 @@ export default function PriceChart({
                             title={def.description}
                             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
                           >
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: def.plots[0]?.defaultColor ?? "#5b8bff" }} />
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: def.plots[0]?.defaultColor ?? "#60a5fa" }} />
                             <span className="truncate">{def.name}</span>
                             {def.pane === "own" && <span className="ml-auto shrink-0 text-[9px] app-muted">pane</span>}
                           </button>
@@ -3889,7 +3889,7 @@ export default function PriceChart({
           {drawingsLocked ? <Lock size={19} aria-hidden /> : <Unlock size={19} aria-hidden />}
         </ToolButton>
         <ToolButton label={`Clear all drawings (${drawCount})`} onClick={() => drawingEngineRef.current?.clearAll()}>
-          <Trash2 size={17} className="text-bear" aria-hidden />
+          <Trash2 size={17} className="text-loss" aria-hidden />
         </ToolButton>
       </div>
 
@@ -4311,7 +4311,7 @@ export default function PriceChart({
                           </span>
                         )}
                         {legendChange != null && (
-                          <span className={legendChange >= 0 ? "text-[var(--app-accent-text)]" : "text-bear"}>
+                          <span className={legendChange >= 0 ? "text-[var(--app-accent-text)]" : "text-loss"}>
                             {legendChange >= 0 ? "+" : ""}
                             {(legendChange / pipSize).toFixed(1)}p
                           </span>
@@ -4333,7 +4333,7 @@ export default function PriceChart({
             {pricePaneIndicators.length > 0 && (
               <div className="pointer-events-auto flex flex-col items-start gap-0.5">
                 {pricePaneIndicators.map((inst) => {
-              const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#5b8bff";
+              const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#60a5fa";
               return (
                 <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] shadow backdrop-blur">
                   <span className="h-2 w-2 rounded-full" style={{ background: color, opacity: inst.visible ? 1 : 0.3 }} />
@@ -4344,7 +4344,7 @@ export default function PriceChart({
                   <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
                     <Settings2 size={12} />
                   </button>
-                  <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
+                  <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100">
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -4374,7 +4374,7 @@ export default function PriceChart({
               <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
                 <Settings2 size={12} />
               </button>
-              <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-bear group-hover:opacity-100">
+              <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100">
                 <Trash2 size={12} />
               </button>
             </div>
@@ -4415,7 +4415,7 @@ export default function PriceChart({
                   event.stopPropagation();
                   onCancelPendingOrder(order.id);
                 }}
-                className="grid h-full w-5 place-items-center hover:bg-bear/15 hover:text-bear"
+                className="grid h-full w-5 place-items-center hover:bg-loss/15 hover:text-loss"
                 aria-label="Cancel pending order"
               >
                 <X size={12} aria-hidden />
@@ -4465,9 +4465,9 @@ export default function PriceChart({
               className="group pointer-events-auto absolute left-0 right-16 z-30 h-4 -translate-y-1/2"
               style={{ top: 0, visibility: "hidden" }}
             >
-              <span className={`pointer-events-none absolute left-0 right-0 top-1/2 border-t ${isLong ? "border-[#2962ff]" : "border-bear"}`} />
+              <span className={`pointer-events-none absolute left-0 right-0 top-1/2 border-t ${isLong ? "border-[#2962ff]" : "border-loss"}`} />
               <div className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-[#2962ff] bg-[var(--app-panel-solid)] text-[9px] shadow-lg">
-                <span className="grid h-full min-w-5 place-items-center border-r border-[#2962ff]/60 bg-[#2962ff]/15 font-bold text-[#5b8bff]">
+                <span className="grid h-full min-w-5 place-items-center border-r border-[#2962ff]/60 bg-[#2962ff]/15 font-bold text-[#60a5fa]">
                   {isLong ? "B" : "S"}
                 </span>
                 {isActive && !position.takeProfit && (
@@ -4527,7 +4527,7 @@ export default function PriceChart({
                 <span className="h-full border-r app-border bg-[#2962ff] px-1.5 font-mono font-bold leading-5 text-white">
                   ACTIVE · {position.lots}
                 </span>
-                <span className={`h-full min-w-[132px] border-r app-border px-1.5 font-mono font-bold leading-5 ${positive ? "text-brand-300" : "text-bear"}`}>
+                <span className={`h-full min-w-[132px] border-r app-border px-1.5 font-mono font-bold leading-5 ${positive ? "text-profit" : "text-loss"}`}>
                   {Number(position.unrealizedPnl) >= 0 ? "+" : "−"}
                   {Math.abs(Number(position.unrealizedPnl)).toFixed(2)} {accountCurrency}
                   {livePips == null
@@ -4537,7 +4537,7 @@ export default function PriceChart({
                     ? ""
                     : ` · ${liveR >= 0 ? "+" : ""}${liveR.toFixed(2)}R`}
                 </span>
-                <button type="button" onClick={() => onEditPosition(position.id)} className="grid h-full w-5 place-items-center hover:bg-bear/15 hover:text-bear" aria-label={`Manage ${isLong ? "buy" : "sell"} position`}>
+                <button type="button" onClick={() => onEditPosition(position.id)} className="grid h-full w-5 place-items-center hover:bg-loss/15 hover:text-loss" aria-label={`Manage ${isLong ? "buy" : "sell"} position`}>
                   <X size={12} aria-hidden />
                 </button>
               </div>
@@ -4767,7 +4767,7 @@ export default function PriceChart({
         )}
         {error && (
           <div className="absolute inset-0 grid place-items-center bg-[var(--app-bg)]/70">
-            <span className="max-w-xs text-center text-sm text-bear">{error}</span>
+            <span className="max-w-xs text-center text-sm text-loss">{error}</span>
           </div>
         )}
         {!loading && !historyLoading && !error && initialCandles.length === 0 && (

@@ -108,7 +108,7 @@ export function DashboardSessionsTable({
           <div className="hidden gap-3 p-3 lg:grid lg:grid-cols-2 xl:grid-cols-3">
             {displayed.map((session) => (
               <article key={session.id} className="group relative flex h-full flex-col overflow-visible rounded-xl border app-border bg-[var(--app-panel-2)]/45 p-3.5 transition-all hover:-translate-y-0.5 hover:border-brand-400/25 hover:shadow-card focus-within:z-20">
-                <span aria-hidden className={`absolute inset-y-2 left-0 w-0.5 rounded-full ${session.pnl >= 0 ? "bg-brand-400/70" : "bg-bear/70"}`} />
+                <span aria-hidden className={`absolute inset-y-2 left-0 w-0.5 rounded-full ${session.pnl >= 0 ? "bg-profit/70" : "bg-loss/70"}`} />
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ export function DashboardSessionsTable({
                     </div>
                     <p className="mt-1.5 truncate font-mono text-[11px] app-muted">{session.symbols}</p>
                   </div>
-                  <p className={`shrink-0 font-mono text-sm font-semibold ${session.pnl >= 0 ? "text-brand-300" : "text-bear"}`}>{session.pnlLabel}</p>
+                  <p className={`shrink-0 font-mono text-sm font-semibold ${session.pnl >= 0 ? "text-profit" : "text-loss"}`}>{session.pnlLabel}</p>
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 text-[11px] app-muted">
                   <p className="truncate">{session.dateRange}</p>
@@ -174,7 +174,7 @@ export function DashboardSessionsTable({
                   </div>
                   <p
                     className={`font-mono text-sm font-semibold ${
-                      session.pnl >= 0 ? "text-brand-300" : "text-bear"
+                      session.pnl >= 0 ? "text-profit" : "text-loss"
                     }`}
                   >
                     {session.pnlLabel}

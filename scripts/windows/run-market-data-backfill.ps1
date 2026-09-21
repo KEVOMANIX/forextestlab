@@ -1,5 +1,6 @@
 param(
-  [switch]$Foreground
+  [switch]$Foreground,
+  [string[]]$Symbols = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +46,7 @@ if ($existing) {
 }
 
 $arguments = @("main.py", "--workers", "1", "--upload")
+foreach ($symbol in $Symbols) { $arguments += @("--symbol", $symbol) }
 if ($Foreground) {
   Push-Location $pipelineRoot
   try { & $python @arguments; exit $LASTEXITCODE } finally { Pop-Location }

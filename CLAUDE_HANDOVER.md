@@ -260,8 +260,10 @@ Production reads private monthly Parquet objects through the R2 S3-compatible AP
 - Symbol catalogue and flags: `src/lib/market-data/symbols.ts`
 - App symbol health: `https://forextestlab.com/api/backtest/symbols`
 
-All 32 configured instruments are currently enabled: 28 traditional FX pairs,
-XAUUSD, XAGUSD, BTCUSD, and DXY.
+The enabled catalogue includes 28 traditional FX pairs, XAUUSD, XAGUSD,
+BTCUSD, DXY, US30 (`USA30IDXUSD`), and NAS100 (`USATECHIDXUSD`). The Windows
+daily downloader refreshes both indices through their Dukascopy feeds; targeted
+historical backfills can be launched with `run-market-data-backfill.ps1 -Symbols`.
 
 Supabase is not used to serve OHLC candles. This design protects Supabase egress;
 historical candles are fetched from R2 monthly Parquet snapshots and cached in

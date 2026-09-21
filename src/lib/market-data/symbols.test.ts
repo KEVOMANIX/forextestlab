@@ -25,4 +25,15 @@ describe("forex symbol catalogue", () => {
     expect(getSymbolDefinition("GBPJPY")).toMatchObject({ pipSize: "0.01", pricePrecision: 3 });
     expect(describeSymbol("AUDCAD")).toBe("Australian Dollar / Canadian Dollar");
   });
+
+  it("exposes US30 and NAS100 with index pricing metadata", () => {
+    expect(getSymbolDefinition("USA30IDXUSD")).toMatchObject({
+      displayName: "US30", pipSize: "1", pricePrecision: 3,
+    });
+    expect(getSymbolDefinition("USATECHIDXUSD")).toMatchObject({
+      displayName: "NAS100", pipSize: "1", pricePrecision: 3,
+    });
+    expect(describeSymbol("USA30IDXUSD")).toBe("US30");
+    expect(describeSymbol("USATECHIDXUSD")).toBe("NAS100");
+  });
 });

@@ -1,6 +1,8 @@
 param(
   [switch]$Foreground,
-  [string[]]$Symbols = @()
+  [string[]]$Symbols = @(),
+  [ValidateRange(1, 8)]
+  [int]$Workers = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,7 +47,7 @@ if ($existing) {
   exit 0
 }
 
-$arguments = @("main.py", "--workers", "1", "--upload")
+$arguments = @("main.py", "--workers", $Workers.ToString(), "--upload")
 foreach ($symbol in $Symbols) { $arguments += @("--symbol", $symbol) }
 if ($Foreground) {
   Push-Location $pipelineRoot

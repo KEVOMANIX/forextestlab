@@ -69,7 +69,7 @@ import { configForSymbol } from "@/lib/backtest/instrument-config";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
-const JOURNAL_DISCOVERY_KEY = "forextestlab:journal-discovery-v2";
+const JOURNAL_DISCOVERY_KEY = "forextestlab:journal-discovery-v3";
 /**
  * Journal prompts are paged, not stacked, so the cap only guards against a
  * runaway queue — a long unattended run should not hold every trade in memory
@@ -479,22 +479,21 @@ export function Backtester({
     const timer = window.setTimeout(() => {
       notify({
         id,
-        title: "Journal every trade while you trade",
-        detail: "Each position gets its own journal automatically, including before-entry and after-exit chart snapshots. Add your reason, emotion, execution grade, and lesson without leaving the replay.",
+        title: "Automatic journal prompts are off",
+        detail: "Every trade is still saved in your Journal. To get a review card after each close or record your reason at entry, turn prompts on in Trading settings.",
         tone: "closed",
         icon: "journal",
-        actionLabel: "Open trade journal",
+        actionLabel: "Choose journal prompts",
         onAction: () => {
           remember();
-          revealNonceRef.current += 1;
-          setRevealPanelTab({ tab: "notes", nonce: revealNonceRef.current });
           setNotifications((current) => current.filter((item) => item.id !== id));
+          openSettings("trading");
         },
         onDismiss: remember,
       }, 0);
     }, 1_500);
     return () => window.clearTimeout(timer);
-  }, [bt.phase, notify, state?.anonymous, state?.sessionId]);
+  }, [bt.phase, notify, openSettings, state?.anonymous, state?.sessionId]);
 
   /**
    * One-click trading is one click: a quote button or a buy/sell shortcut sends
@@ -1396,6 +1395,10 @@ export function Backtester({
         onCancelPending={requestCancelPending}
         onCloseAllPositions={requestCloseAllPositions}
         onSaveTradeJournal={actions.saveTradeJournal}
+        pauseOnTradeClose={workspace.settings.pauseOnTradeClose}
+        onEnableAfterTradeReview={() =>
+          workspace.updateSettings({ pauseOnTradeClose: true })
+        }
         revealTab={revealPanelTab}
         onOpenAnalytics={openAnalytics}
         onShowPropFirmVerdict={openVerdict}

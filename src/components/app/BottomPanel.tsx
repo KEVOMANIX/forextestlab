@@ -39,6 +39,8 @@ interface BottomPanelProps {
   onCancelPending: (orderId: string) => void;
   onCloseAllPositions: () => void;
   onSaveTradeJournal: (journalId: string, journal: TradeJournalUpdate) => Promise<void> | void;
+  pauseOnTradeClose: boolean;
+  onEnableAfterTradeReview: () => void;
   onAddBookmark: () => void;
   onUpdateBookmark: (id: string, note: string) => void;
   onDeleteBookmark: (id: string) => void;
@@ -72,6 +74,8 @@ export function BottomPanel({
   onCancelPending,
   onCloseAllPositions,
   onSaveTradeJournal,
+  pauseOnTradeClose,
+  onEnableAfterTradeReview,
   onAddBookmark,
   onUpdateBookmark,
   onDeleteBookmark,
@@ -215,6 +219,23 @@ export function BottomPanel({
 
           {tab === "notes" ? (
             <div>
+              {!state.anonymous && !pauseOnTradeClose && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-400/20 bg-amber-400/[0.06] px-4 py-3">
+                  <div>
+                    <p className="text-xs font-semibold text-amber-300">After-trade review prompts are off</p>
+                    <p className="mt-0.5 text-[11px] app-muted">
+                      Your trades still appear here. Enable prompts to pause and review each trade as soon as it closes.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onEnableAfterTradeReview}
+                    className="rounded-md border border-amber-300/35 bg-amber-300/10 px-3 py-1.5 text-[11px] font-semibold text-amber-200 hover:bg-amber-300/15"
+                  >
+                    Enable after-trade review
+                  </button>
+                </div>
+              )}
               <TradeJournalEditor
                 sessionId={state.sessionId}
                 openPositions={state.openPositions}
@@ -271,6 +292,14 @@ export function BottomPanel({
                 }`}
               >
                 {item.label}
+                {item.id === "notes" && !state.anonymous && !pauseOnTradeClose && (
+                  <span
+                    className="rounded bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300"
+                    title="Automatic after-trade review prompts are off"
+                  >
+                    Auto off
+                  </span>
+                )}
                 {count !== null && <span className="rounded bg-white/[0.08] px-1 font-mono">{count}</span>}
               </button>
             );

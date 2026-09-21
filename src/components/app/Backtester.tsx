@@ -69,7 +69,7 @@ import { configForSymbol } from "@/lib/backtest/instrument-config";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
-const JOURNAL_DISCOVERY_KEY = "forextestlab:journal-discovery-v1";
+const JOURNAL_DISCOVERY_KEY = "forextestlab:journal-discovery-v2";
 /**
  * Journal prompts are paged, not stacked, so the cap only guards against a
  * runaway queue — a long unattended run should not hold every trade in memory
@@ -464,25 +464,34 @@ export function Backtester({
     if (bt.phase !== "active" || !state?.sessionId || state.anonymous) return;
     try {
       if (window.localStorage.getItem(JOURNAL_DISCOVERY_KEY)) return;
-      window.localStorage.setItem(JOURNAL_DISCOVERY_KEY, "shown");
     } catch {
-      // Storage can be unavailable in privacy mode; the reminder may reappear
-      // in a later session, but it should never interrupt the trading screen.
+      // Storage can be unavailable in privacy mode. The reminder still works,
+      // but may reappear in a later session.
     }
     const id = "journal-discovery";
+    const remember = () => {
+      try {
+        window.localStorage.setItem(JOURNAL_DISCOVERY_KEY, "seen");
+      } catch {
+        // Dismissing the notice must still work when storage is unavailable.
+      }
+    };
     const timer = window.setTimeout(() => {
       notify({
         id,
         title: "Journal every trade while you trade",
         detail: "Each position gets its own journal automatically, including before-entry and after-exit chart snapshots. Add your reason, emotion, execution grade, and lesson without leaving the replay.",
         tone: "closed",
+        icon: "journal",
         actionLabel: "Open trade journal",
         onAction: () => {
+          remember();
           revealNonceRef.current += 1;
           setRevealPanelTab({ tab: "notes", nonce: revealNonceRef.current });
           setNotifications((current) => current.filter((item) => item.id !== id));
         },
-      }, 14_000);
+        onDismiss: remember,
+      }, 0);
     }, 1_500);
     return () => window.clearTimeout(timer);
   }, [bt.phase, notify, state?.anonymous, state?.sessionId]);

@@ -289,29 +289,19 @@ function MarketPicker({
         )}
       </div>
 
-      {!loading && enabled.length > 0 && (
+      {!loading && enabled.length > 0 && visible.length !== enabled.length && (
         <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11px] app-muted">
-          {visible.length === enabled.length ? (
-            <span>{enabled.length} markets available</span>
-          ) : (
-            <>
-              <span>
-                Showing {visible.length} of {enabled.length} markets
-              </span>
-              {/* The way back out of a filter that has hidden everything else. */}
-              <button
-                type="button"
-                onClick={() => {
-                  setQuery("");
-                  setCategory("All");
-                }}
-                className="rounded px-1 font-medium text-brand-300 underline-offset-2 hover:underline"
-              >
-                Show all
-              </button>
-            </>
-          )}
-          {singleSelect && <span>· trial sessions replay one market at a time</span>}
+          <span>Showing {visible.length} of {enabled.length}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setCategory("All");
+            }}
+            className="rounded px-1 font-medium text-brand-300 underline-offset-2 hover:underline"
+          >
+            Show all
+          </button>
         </p>
       )}
     </fieldset>
@@ -759,7 +749,6 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">New backtest</p>
           <h2 className="mt-0.5 text-xl font-bold tracking-tight">Build your replay session</h2>
-          <p className="mt-1 text-xs app-muted">Choose a market and starting date. We will prepare the rest.</p>
         </div>
         <span className="w-fit rounded-full border border-brand-400/20 bg-brand-400/[0.07] px-3 py-1.5 text-xs font-semibold text-brand-300">
           {entitlements.plan === "free"
@@ -773,7 +762,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">1</span>
-              <div><h3 className="text-sm font-semibold">Session details</h3><p className="text-[11px] app-muted">Optional — we create a useful name if left blank.</p></div>
+              <h3 className="text-sm font-semibold">Session details</h3>
             </div>
             <label htmlFor="setup-name" className="sr-only">Session name</label>
             <input
@@ -814,13 +803,10 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
               <span className="text-sm font-semibold">Session type</span>
             </legend>
-            <p className="-mt-1 mb-3 pl-9 text-xs leading-relaxed app-muted">Choose a relaxed replay or test yourself against challenge rules.</p>
-
             <div className="grid min-w-0 gap-3 sm:grid-cols-2">
               <ModeCard
                 icon={Plus}
                 title="Backtesting session"
-                detail="Start a session"
                 info="Replay historical markets and test a strategy without challenge rules."
                 selected={challengePreset === null}
                 onSelect={() => setChallengePreset(null)}
@@ -828,7 +814,6 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               <ModeCard
                 icon={Trophy}
                 title="Prop firm session"
-                detail="Start a challenge"
                 info="Trade under prop-firm profit target and drawdown rules."
                 selected={challengePreset !== null}
                 onSelect={() => setChallengePreset((current) => current ?? "ftmo-phase-1")}
@@ -870,15 +855,13 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                     className="app-input min-w-0 flex-1 py-1.5 text-sm font-mono"
                   />
                 </div>
-                <p className="mt-1.5 text-[11px] app-muted">Use any positive balance for an unrestricted replay.</p>
               </div>
             )}
 
             {challengePreset && (
               <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="min-w-0"><p className="text-xs font-semibold">Choose account size</p><p className="mt-0.5 text-[11px] app-muted">Select an included prop-firm balance.</p></div>
-                  <span className="rounded-full bg-brand-400/10 px-2 py-1 text-[10px] font-semibold text-brand-300">Required</span>
+                  <p className="text-xs font-semibold">Account size</p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {PROP_FIRM_ACCOUNT_SIZES.map((size) => (
@@ -912,10 +895,6 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                   />
                   <RuleLine label="Daily reset" value="00:00 Prague" />
                 </dl>
-                <p className="mt-2 text-[11px] app-muted">
-                  Limits are measured on equity, including open trades, and are
-                  enforced candle by candle. A challenge cannot be rewound.
-                </p>
               </div>
             )}
 
@@ -926,14 +905,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">4</span>
-              <div>
-                <h3 className="text-sm font-semibold">Replay period</h3>
-                <p className="text-[11px] app-muted">
-                  {entitlements.maxSessionDays !== null && entitlements.maxSessionDays < 365
-                    ? `${periodDays}-day replay selected. Pick only the start date.`
-                    : "One year is selected automatically. Pick only the start date."}
-                </p>
-              </div>
+              <h3 className="text-sm font-semibold">Replay period</h3>
             </div>
 
             <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Replay duration">
@@ -1035,7 +1007,6 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               {selectedSymbols.length > 0 ? selectedSymbols.map(formatSymbol).join(", ") : "Choose a market"}
               {start && end ? ` · ${friendlyDate(start)} – ${friendlyDate(end)}` : ""}
             </p>
-            <p className="mt-0.5 text-[11px] app-muted">Saved automatically after it starts.</p>
           </div>
           <button type="submit" className="btn-primary min-w-44" disabled={!canStart}>
             {busy ? (
@@ -1081,7 +1052,7 @@ function ModeCard({
 }: {
   icon?: typeof Plus;
   title: string;
-  detail: string;
+  detail?: string;
   info?: string;
   selected: boolean;
   disabled?: boolean;
@@ -1093,14 +1064,14 @@ function ModeCard({
       onClick={onSelect}
       disabled={disabled}
       aria-pressed={selected}
-      className={`min-w-0 flex min-h-[100px] items-center gap-3 rounded-xl border px-4 py-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`min-w-0 flex min-h-[76px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
         selected
           ? "border-brand-400/50 bg-brand-400/10 shadow-[0_12px_28px_-18px_rgba(45,212,191,.9)]"
           : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30"
       }`}
     >
       {Icon && <Icon size={21} strokeWidth={1.8} className={selected ? "text-brand-300" : "app-muted"} aria-hidden />}
-      <span className="min-w-0 flex-1"><span className={`flex items-center gap-1.5 text-sm font-semibold ${selected ? "text-brand-200" : ""}`}>{title}{info && <span title={info} aria-label={info}><Info size={12} className="app-muted" aria-hidden /></span>}</span><span className="mt-0.5 block text-xs app-muted">{detail}</span></span>
+      <span className="min-w-0 flex-1"><span className={`flex items-center gap-1.5 text-sm font-semibold ${selected ? "text-brand-200" : ""}`}>{title}{info && <span title={info} aria-label={info}><Info size={12} className="app-muted" aria-hidden /></span>}</span>{detail && <span className="mt-0.5 block text-xs app-muted">{detail}</span>}</span>
     </button>
   );
 }

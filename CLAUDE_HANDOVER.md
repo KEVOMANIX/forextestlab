@@ -259,6 +259,9 @@ Production reads private monthly Parquet objects through the R2 S3-compatible AP
 - CLI: `scripts/sync-market-data-r2.ts`
 - Symbol catalogue and flags: `src/lib/market-data/symbols.ts`
 - App symbol health: `https://forextestlab.com/api/backtest/symbols`
+- Backward chart context is paged independently of the replay start. Scrolling
+  left can reach the provider's earliest candle; the session clock still clamps
+  future context so unrevealed replay candles cannot leak into the chart.
 
 The enabled catalogue includes 28 traditional FX pairs, XAUUSD, XAGUSD,
 BTCUSD, DXY, US30 (`USA30IDXUSD`), US500 (`USA500IDXUSD`), and NAS100

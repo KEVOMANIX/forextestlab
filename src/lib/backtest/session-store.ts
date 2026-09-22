@@ -47,7 +47,8 @@ import {
 /** Bounded replay chunk size; longer sessions are extended progressively. */
 const MAX_SESSION_CANDLES = 1500;
 const MAX_CONTEXT_CANDLES = 3000;
-const CONTEXT_LOOKBACK_MS = 183 * 24 * 60 * 60 * 1000;
+/** Keep one backward page cheap enough for an interactive chart/R2 request. */
+const MAX_CONTEXT_WINDOW_MS = 550 * 24 * 60 * 60 * 1000;
 
 /**
  * In-memory cache of each session's candle series. A session's candles never
@@ -327,28 +328,44 @@ export async function ensureSessionPairCandles(
 
 async function fetchChartContext(
   symbol: string,
-  replayStartTime: number,
   timeframe: Timeframe,
-  before = replayStartTime,
+  before: number,
+  earliestAvailable: number,
 ): Promise<Candle[]> {
-  const lowerBound = Math.max(0, replayStartTime - CONTEXT_LOOKBACK_MS);
   // `before` may be inside a long-running session when a resumed chart asks
   // for history adjacent to its current window. Capping every request at the
   // original replay start returned 2019 context beside a 2026 resume window,
   // producing a multi-year gap and extreme autoscaling.
   const endTime = before - 1;
-  if (endTime < lowerBound) return [];
+  if (endTime < earliestAvailable) return [];
   // Fetch a bounded window immediately before `before`. The extra calendar
   // width covers weekends/holidays; slicing from the end keeps it adjacent to
-  // the visible chart instead of returning the oldest part of six months.
-  const windowMs = TIMEFRAME_MS[timeframe] * MAX_CONTEXT_CANDLES * 3;
+  // the visible chart instead of returning the oldest part of the instrument.
+  const windowMs = Math.min(
+    TIMEFRAME_MS[timeframe] * MAX_CONTEXT_CANDLES * 3,
+    MAX_CONTEXT_WINDOW_MS,
+  );
   const candles = await getMarketDataProvider().getCandles({
     symbol,
     timeframe,
-    startTime: Math.max(lowerBound, endTime - windowMs),
+    startTime: Math.max(earliestAvailable, endTime - windowMs),
     endTime,
   });
   return candles.slice(-MAX_CONTEXT_CANDLES);
+}
+
+async function earliestAvailableTime(
+  symbol: string,
+  timeframe: Timeframe,
+  fallback: number,
+): Promise<number> {
+  const ranges = await getMarketDataProvider().getAvailableRanges(
+    symbol,
+    timeframe,
+  );
+  return ranges.length
+    ? Math.min(...ranges.map((range) => range.startTime))
+    : fallback;
 }
 
 export async function getChartContext(
@@ -361,10 +378,16 @@ export async function getChartContext(
   if (cached) return cached;
   const replayStartTime =
     session.ctx.candles[0]?.timestamp ?? session.ctx.state.config.startTime;
+  const earliestAvailable = await earliestAvailableTime(
+    symbol,
+    timeframe,
+    replayStartTime,
+  );
   const candles = await fetchChartContext(
     symbol,
-    replayStartTime,
     timeframe,
+    replayStartTime,
+    earliestAvailable,
   );
   cacheContext(key, candles);
   return candles;
@@ -387,19 +410,20 @@ export async function getChartContextPage(
   // candles. Requests inside the revealed range can page normally; later
   // requests are clamped to the current replay clock.
   const safeBefore = Math.min(before, replayClock + 1);
+  const earliestAvailable = await earliestAvailableTime(
+    symbol,
+    timeframe,
+    replayStartTime,
+  );
   const candles = await fetchChartContext(
     symbol,
-    replayStartTime,
     timeframe,
     safeBefore,
-  );
-  const lowerBound = Math.max(
-    0,
-    replayStartTime - CONTEXT_LOOKBACK_MS,
+    earliestAvailable,
   );
   return {
     candles,
-    hasMore: Boolean(candles[0] && candles[0].timestamp > lowerBound),
+    hasMore: Boolean(candles[0] && candles[0].timestamp > earliestAvailable),
   };
 }
 
@@ -596,8 +620,9 @@ export async function createSession(
   }
   const contextCandles = await fetchChartContext(
     params.symbol,
-    effectiveStart,
     params.timeframe,
+    effectiveStart,
+    await earliestAvailableTime(params.symbol, params.timeframe, effectiveStart),
   );
 
   const config = buildSessionConfig({

@@ -173,9 +173,11 @@ export function useChartWorkspace(
   useEffect(() => {
     if (!signedIn || !restored) return;
     let cancelled = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 8_000);
     setSyncStatus("loading");
     setServerRestoredStorageKey(null);
-    void fetch("/api/workspace", { cache: "no-store" }).then(async (response) => {
+    void fetch("/api/workspace", { cache: "no-store", signal: controller.signal }).then(async (response) => {
       const data = await response.json() as { ok?: boolean; workspace?: { payload: WorkspacePayload; updatedAt: string } | null };
       if (cancelled) return;
       if (!data.ok) {
@@ -199,8 +201,14 @@ export function useChartWorkspace(
       if (cancelled) return;
       setSyncStatus("error");
       setServerRestoredStorageKey(storageKey);
+    }).finally(() => {
+      window.clearTimeout(timeout);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [restored, signedIn, storageKey]);
 
   const payload = useCallback(

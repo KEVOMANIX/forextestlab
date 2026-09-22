@@ -2301,16 +2301,17 @@ export default function PriceChart({
   }, []);
 
   useEffect(() => {
-    if (!initialCanvasPainted || initialHistoryPending || readySentRef.current) return;
-    // Conditions can change in the same render cycle when a saved timeframe is
-    // restored. Delay once more and cancel if its history request begins.
+    if (!initialCanvasPainted || readySentRef.current) return;
+    // The replay candles are enough to use the chart. Historical context is an
+    // enhancement and may be slow on a cold object-store request, so it must
+    // continue behind the chart instead of holding the workspace loader open.
     const frame = requestAnimationFrame(() => {
-      if (historyLoadingRef.current || readySentRef.current) return;
+      if (readySentRef.current) return;
       readySentRef.current = true;
       onReadyRef.current?.();
     });
     return () => cancelAnimationFrame(frame);
-  }, [initialCanvasPainted, initialHistoryPending]);
+  }, [initialCanvasPainted]);
 
   // Rebuild the price series when the chart type changes.
   useEffect(() => {

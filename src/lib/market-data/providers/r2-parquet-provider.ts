@@ -66,6 +66,7 @@ interface ManifestCache {
 
 let manifestCache: ManifestCache | undefined;
 const candleCache = new Map<string, { expiresAt: number; candles: Promise<Candle[]> }>();
+const rollupCache = new Map<string, { expiresAt: number; candles: Promise<Candle[]> }>();
 let s3Bucket: R2BucketAdapter | undefined;
 
 /**
@@ -307,6 +308,31 @@ async function readMonth(config: R2Config, stored: StoredMonth): Promise<Candle[
   }
 }
 
+async function readDailyRollup(config: R2Config, symbol: string): Promise<Candle[] | null> {
+  const key = `${config.prefix}_rollups/1d/${symbol}.parquet`;
+  const cached = rollupCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.candles;
+  const pending = (async () => {
+    const object = await config.bucket.get(key);
+    if (!object) return [];
+    const file = await object.arrayBuffer();
+    const rows = await parquetReadObjects({
+      file,
+      compressors: PARQUET_COMPRESSORS,
+      columns: COLUMNS,
+    });
+    return parquetRowsToCandles(rows);
+  })();
+  rollupCache.set(key, { expiresAt: Date.now() + CANDLE_CACHE_TTL_MS, candles: pending });
+  try {
+    const candles = await pending;
+    return candles.length ? candles : null;
+  } catch {
+    rollupCache.delete(key);
+    return null;
+  }
+}
+
 function overlaps(month: StoredMonth, startTime: number, endTime: number): boolean {
   const monthStart = Date.UTC(month.year, month.month - 1, 1);
   const monthEnd = Date.UTC(month.year, month.month, 1) - 1;
@@ -350,6 +376,20 @@ export class R2ParquetProvider implements MarketDataProvider {
   async getCandles(request: CandleRequest): Promise<Candle[]> {
     if (!getSymbolDefinition(request.symbol) || request.endTime < request.startTime) return [];
     const config = r2Config();
+    if (TIMEFRAME_MS[request.timeframe] >= TIMEFRAME_MS["1d"]) {
+      const daily = await readDailyRollup(config, request.symbol);
+      if (daily) {
+        const selected = daily.filter(
+          (candle) => candle.timestamp >= request.startTime && candle.timestamp <= request.endTime,
+        );
+        if (selected.length) {
+          const rolled = request.timeframe === "1d"
+            ? selected
+            : aggregateCandles(selected, "1d", request.timeframe);
+          return request.limit === undefined ? rolled : rolled.slice(0, request.limit);
+        }
+      }
+    }
     const months = ((await loadManifest(config)).get(request.symbol) ?? []).filter((month) =>
       overlaps(month, request.startTime, request.endTime),
     );

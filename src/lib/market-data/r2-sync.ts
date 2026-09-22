@@ -10,6 +10,7 @@ import { decompress as decompressZstd } from "fzstd";
 import { SYMBOL_DEFINITIONS } from "./symbols";
 import type { Candle } from "./types";
 import { validateCandle } from "./validators";
+import { aggregateCandles } from "./aggregation";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -141,7 +142,7 @@ export function mergeCandles(existing: Candle[], incoming: Candle[]): Candle[] {
   return [...merged.values()].sort((a, b) => a.timestamp - b.timestamp);
 }
 
-async function encodeParquet(candles: Candle[]): Promise<ArrayBuffer> {
+export async function encodeParquet(candles: Candle[], timeframe = "1m"): Promise<ArrayBuffer> {
   const { parquetWriteBuffer } = await import("hyparquet-writer");
   return parquetWriteBuffer({
     codec: "SNAPPY",
@@ -161,7 +162,7 @@ async function encodeParquet(candles: Candle[]): Promise<ArrayBuffer> {
     ],
     kvMetadata: [
       { key: "forextestlab.source", value: "dukascopy" },
-      { key: "forextestlab.timeframe", value: "1m" },
+      { key: "forextestlab.timeframe", value: timeframe },
     ],
   });
 }
@@ -298,6 +299,7 @@ export async function syncMarketDataToR2(
   };
 
   for (const symbol of symbols) {
+    let rollupUpdates: Candle[] = [];
     const latestKey = await latestStoredKey(context, symbol);
     let start = options.earliest ? earliestMinuteForSymbol(symbol) : options.from?.getTime();
     if (start === undefined && latestKey) {
@@ -332,6 +334,10 @@ export async function syncMarketDataToR2(
         continue;
       }
       const merged = mergeCandles(existing, incoming);
+      rollupUpdates = mergeCandles(
+        rollupUpdates,
+        aggregateCandles(merged, "1m", "1d"),
+      );
       const parquet = await encodeParquet(merged);
       const verified = await decodeParquet(parquet);
       if (
@@ -361,6 +367,25 @@ export async function syncMarketDataToR2(
       report.objectsPrepared += 1;
       report.bytesPrepared += parquet.byteLength;
       log(`  ${key}: ${merged.length.toLocaleString()} candles, ${(parquet.byteLength / 1024).toFixed(1)} KiB${options.dryRun ? " (dry run)" : ""}.`);
+    }
+    if (rollupUpdates.length > 0 && !options.dryRun) {
+      const rollupKey = `${context.prefix}_rollups/1d/${symbol}.parquet`;
+      const currentRollup = await readObject(context, rollupKey);
+      const daily = mergeCandles(currentRollup, rollupUpdates);
+      const parquet = await encodeParquet(daily, "1d");
+      await context.client.send(new PutObjectCommand({
+        Bucket: context.bucket,
+        Key: rollupKey,
+        Body: Buffer.from(parquet),
+        ContentType: "application/vnd.apache.parquet",
+        Metadata: {
+          source: "dukascopy",
+          timeframe: "1d",
+          rows: String(daily.length),
+          updated: new Date().toISOString(),
+        },
+      }));
+      log(`  ${rollupKey}: ${daily.length.toLocaleString()} daily rollup candles.`);
     }
   }
   return report;

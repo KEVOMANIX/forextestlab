@@ -239,6 +239,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const localEngineRef = useRef<EngineContext | null>(null);
   /** Symbols with a pair fetch in flight, so duplicate cells share one request. */
   const pairRequestsRef = useRef<Set<string>>(new Set());
+  /** Matching layout cells must share one R2 history request. */
+  const historyRequestsRef = useRef(
+    new Map<string, Promise<{ candles: Candle[]; hasMore: boolean }>>(),
+  );
 
   const hydrateLocalEngine = useCallback(
     (state: PublicSessionState, candles: Candle[]) => {
@@ -1765,21 +1769,33 @@ export function useBacktester(resumeSessionId: string | null = null) {
     async (symbol: string, timeframe: Timeframe, before: number) => {
       const id = sessionIdRef.current;
       if (!id) return { candles: [], hasMore: false };
-      const result = await getChartHistory(
-        id,
-        tokenRef.current,
-        symbol,
-        timeframe,
-        before,
-      );
-      if (!result.ok) {
-        // Older history failing to page in leaves the visible candles untouched
-        // and self-heals the next time the view nears the loaded edge — not
-        // worth interrupting the trader with the global error banner over.
-        console.warn("Chart history page failed to load:", result.error);
-        return { candles: [], hasMore: false };
+      const key = `${id}:${symbol}:${timeframe}:${before}`;
+      const pending = historyRequestsRef.current.get(key);
+      if (pending) return pending;
+      const request = (async () => {
+        const result = await getChartHistory(
+          id,
+          tokenRef.current,
+          symbol,
+          timeframe,
+          before,
+        );
+        if (!result.ok) {
+          // A failed history page leaves the visible candles untouched and can
+          // be retried without covering the trading workspace with an error.
+          console.warn("Chart history page failed to load:", result.error);
+          return { candles: [], hasMore: false };
+        }
+        return { candles: result.candles, hasMore: result.hasMore };
+      })();
+      historyRequestsRef.current.set(key, request);
+      try {
+        return await request;
+      } finally {
+        if (historyRequestsRef.current.get(key) === request) {
+          historyRequestsRef.current.delete(key);
+        }
       }
-      return { candles: result.candles, hasMore: result.hasMore };
     },
     [],
   );

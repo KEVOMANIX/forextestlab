@@ -19,6 +19,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "data:import": "tsx scripts/import-market-data.ts",
     "data:sync-r2": "tsx scripts/sync-market-data-r2.ts",
+    "data:build-rollups": "tsx scripts/build-market-rollups.ts",
     "calendar:import": "tsx scripts/import-economic-calendar.ts",
     "calendar:sync": "tsx scripts/sync-economic-calendar.ts",
     "operations:monitor": "tsx scripts/monitor-production.ts",

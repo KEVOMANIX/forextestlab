@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff,
   History,
+  LoaderCircle,
   LineChart,
   LocateFixed,
   Lock,
@@ -1101,7 +1102,6 @@ export default function PriceChart({
   /** Invalidates history responses started for a timeframe the cell has left. */
   const historyRequestRef = useRef(0);
   const historyHasMoreRef = useRef(true);
-  const loadOlderRef = useRef<() => void>(() => {});
 
   const [displayTimeframe, setDisplayTimeframe] = useState<Timeframe>(initialTimeframe ?? baseTimeframe);
   /** Digit that opened the interval field, or null when it is closed. */
@@ -1242,6 +1242,8 @@ export default function PriceChart({
   const [historyLoading, setHistoryLoading] = useState(contextCandles.length === 0);
   const [olderHistoryLoading, setOlderHistoryLoading] = useState(false);
   const [hasOlderHistory, setHasOlderHistory] = useState(true);
+  const [leftHistoryBoundaryVisible, setLeftHistoryBoundaryVisible] = useState(false);
+  const [olderHistoryError, setOlderHistoryError] = useState(false);
   positionsRef.current = positions;
   pendingOrdersRef.current = pendingOrders;
   chartTypeRef.current = chartType;
@@ -1274,7 +1276,10 @@ export default function PriceChart({
     if (!earliest) return;
     historyLoadingRef.current = true;
     if (replace) setHistoryLoading(true);
-    else setOlderHistoryLoading(true);
+    else {
+      setOlderHistoryLoading(true);
+      setOlderHistoryError(false);
+    }
     try {
       const page = await onLoadHistory(requestedTimeframe, replace ? firstReplayTime ?? earliest : earliest);
       // Timeframe buttons can be clicked again while this request is in flight.
@@ -1293,6 +1298,7 @@ export default function PriceChart({
       historyHasMoreRef.current = page.hasMore;
       setHasOlderHistory(page.hasMore);
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
+      if (!replace && page.candles.length > 0) setLeftHistoryBoundaryVisible(false);
       requestAnimationFrame(updateViewportDiagnostics);
       if (replace) {
         // A full history replacement normally opens a fresh latest-candle
@@ -1308,6 +1314,9 @@ export default function PriceChart({
           resetLatestViewport();
         }
       }
+    } catch (error) {
+      if (replace) throw error;
+      if (requestId === historyRequestRef.current) setOlderHistoryError(true);
     } finally {
       if (requestId === historyRequestRef.current) {
         historyLoadingRef.current = false;
@@ -1319,8 +1328,6 @@ export default function PriceChart({
       }
     }
   }
-  loadOlderRef.current = () => void loadHistoryPage(false);
-
   const availableTimeframes = TIMEFRAMES.filter((timeframe) =>
     canAggregateTimeframes(baseTimeframe, timeframe),
   );
@@ -2124,7 +2131,11 @@ export default function PriceChart({
           container.dataset.visibleLogicalSpan = String(visible.to - visible.from);
         }
         updateViewportDiagnostics();
-        if (visible && visible.from < 100) loadOlderRef.current();
+        // Once the viewport exposes space before the first loaded candle, give
+        // the trader control over fetching another page. Applying older data
+        // shifts this boundary left, so the prompt naturally returns on the
+        // next visit to the newly exposed edge.
+        setLeftHistoryBoundaryVisible(Boolean(visible && visible.from <= 0));
         if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
         pendingRangeRef.current = range;
@@ -2558,6 +2569,8 @@ export default function PriceChart({
 
   useEffect(() => {
     displayTimeframeRef.current = displayTimeframe;
+    setLeftHistoryBoundaryVisible(false);
+    setOlderHistoryError(false);
     // Let a new timeframe start its own request immediately; any older response
     // is rejected by the request id check in loadHistoryPage.
     historyRequestRef.current += 1;
@@ -4735,6 +4748,58 @@ export default function PriceChart({
                 <X size={12} aria-hidden />
               </button>
             </span>
+          </div>
+        )}
+
+        {leftHistoryBoundaryVisible && !loading && !historyLoading && (
+          <div
+            className="pointer-events-none absolute inset-y-0 left-3 z-30 flex items-center"
+            data-testid="older-history-overlay"
+          >
+            <div className="pointer-events-auto w-56 overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-solid)]/95 shadow-2xl backdrop-blur-md">
+              <div className="h-0.5 bg-gradient-to-r from-brand-400 via-brand-300/70 to-transparent" />
+              <div className="p-3.5">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-brand-400/20 bg-brand-400/10 text-brand-300">
+                    {olderHistoryLoading
+                      ? <LoaderCircle size={16} className="animate-spin" aria-hidden />
+                      : <History size={16} aria-hidden />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-xs font-semibold text-[var(--app-text)]">
+                      {olderHistoryLoading
+                        ? "Loading older candles"
+                        : hasOlderHistory
+                          ? "Need more chart history?"
+                          : "Start of available data"}
+                    </span>
+                    <span className="mt-1 block text-[10px] leading-4 app-muted">
+                      {olderHistoryLoading
+                        ? "Fetching the next available period…"
+                        : olderHistoryError
+                          ? "Older data could not be loaded. Try again."
+                          : hasOlderHistory
+                            ? "Load the period before these candles."
+                            : "There are no earlier candles for this market."}
+                    </span>
+                  </span>
+                </div>
+                {hasOlderHistory && (
+                  <button
+                    type="button"
+                    disabled={olderHistoryLoading}
+                    onClick={() => void loadHistoryPage(false)}
+                    className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-brand-400 px-3 text-xs font-semibold text-slate-950 transition hover:bg-brand-300 disabled:cursor-wait disabled:opacity-80"
+                  >
+                    {olderHistoryLoading ? (
+                      <><LoaderCircle size={14} className="animate-spin" aria-hidden /> Loading…</>
+                    ) : (
+                      <><History size={14} aria-hidden /> Load more data</>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

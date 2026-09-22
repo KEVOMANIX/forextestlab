@@ -13,6 +13,7 @@ import { computeStatistics, type PerformanceStats } from "./statistics";
 import type { ClosedTrade, EquityPoint, SessionState } from "./types";
 import { fundedBalance } from "./replay-engine";
 import { readSavedSessionState } from "./saved-session-state";
+import { analyticsTrades } from "@/lib/analytics/trade-scope";
 
 export interface SessionResults {
   sessionId: string;
@@ -100,13 +101,19 @@ export async function getSessionResults(
   if (!row) return null;
 
   const state = await readSavedSessionState(row);
+  const scopedTrades = analyticsTrades(state.closedTrades);
+  const scopedEndingBalance = scopedTrades.reduce(
+    (sum, trade) => sum.plus(trade.pnl),
+    new Decimal(fundedBalance(state)),
+  ).toFixed(2);
   const stats = computeStatistics({
     // Everything the trader put in, so a demo top-up after a blown account is
     // not reported as profit.
     startingBalance: fundedBalance(state),
-    endingBalance: state.balance,
-    trades: state.closedTrades,
-    equityCurve: state.equityCurve,
+    endingBalance: scopedEndingBalance,
+    trades: scopedTrades,
+    equityCurve:
+      scopedTrades.length === state.closedTrades.length ? state.equityCurve : [],
   });
   const rootId = row.branchRootId ?? row.id;
   // Cross-session analytics used to load and parse every complete stateJson.
@@ -215,7 +222,7 @@ export async function getSessionResults(
     notes: row.notes ?? "",
     state,
     stats,
-    hasAmbiguousTrades: state.closedTrades.some((t) => t.intrabarAmbiguous),
+    hasAmbiguousTrades: scopedTrades.some((t) => t.intrabarAmbiguous),
     reviewSessions,
     branchComparison,
   };

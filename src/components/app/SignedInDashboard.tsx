@@ -25,6 +25,7 @@ import { SessionCardActions } from "@/components/app/SessionCardActions";
 import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
 import { isJournaled } from "@/components/app/journal-utils";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
+import { analyticsTrades } from "@/lib/analytics/trade-scope";
 import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
@@ -215,23 +216,27 @@ export function SignedInDashboard({
         selectedSession.depositedFunds ?? 0,
       )
     : new Decimal(0);
-  // The card used to show a balance and a starting balance and leave the
-  // subtraction to the reader; these give it the number it was missing.
+  const rawTrades = showDemoData ? DEMO_ANALYTICS_TRADES : selectedTrades;
+  const trades = analyticsTrades(rawTrades);
+  const excludedTrades = trades.length !== rawTrades.length;
+  // Performance is the sum of trades in the analytical sample. Using the
+  // persisted account balance here would add experimental P/L back in.
   const sessionNet = selectedSession
-    ? new Decimal(selectedSession.balance).minus(fundedBalance)
+    ? trades.reduce((sum, trade) => sum.plus(trade.pnl), new Decimal(0))
     : new Decimal(0);
   const sessionReturnPercent =
     selectedSession && !fundedBalance.isZero()
       ? sessionNet.dividedBy(fundedBalance).times(100).abs().toFixed(2)
       : null;
-  const trades = showDemoData ? DEMO_ANALYTICS_TRADES : selectedTrades;
-  const selectedEquityCurve = showDemoData ? DEMO_ANALYTICS_EQUITY_CURVE : realEquityCurve;
+  const selectedEquityCurve = excludedTrades
+    ? []
+    : showDemoData
+      ? DEMO_ANALYTICS_EQUITY_CURVE
+      : realEquityCurve;
   const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
   const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
   const winRate = trades.length ? (wins / trades.length) * 100 : 0;
-  const totalNet = selectedSession
-    ? new Decimal(selectedSession.balance).minus(fundedBalance)
-    : new Decimal(0);
+  const totalNet = sessionNet;
   const netPercent = fundedBalance.isZero()
     ? new Decimal(0)
     : totalNet.dividedBy(fundedBalance).times(100);
@@ -239,7 +244,7 @@ export function SignedInDashboard({
     selectedSession
       ? computeStatistics({
           startingBalance: fundedBalance.toFixed(2),
-          endingBalance: selectedSession.balance,
+          endingBalance: fundedBalance.plus(totalNet).toFixed(2),
           trades,
           equityCurve: selectedEquityCurve,
         })

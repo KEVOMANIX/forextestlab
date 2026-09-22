@@ -18,6 +18,7 @@ import { Decimal } from "@/lib/decimal";
 import { formatNewYorkDate, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 import type { SessionResults } from "@/lib/backtest/results";
+import { analyticsTrades } from "@/lib/analytics/trade-scope";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -45,13 +46,20 @@ function aggregate<T extends string | number>(
 
 /** A markdown fact-sheet for a single backtest session. */
 export function buildSessionContext(results: SessionResults): string {
-  const { state, stats } = results;
-  const trades = state.closedTrades;
+  const { state } = results;
+  const trades = analyticsTrades(state.closedTrades);
   // Opening balance plus any demo top-up, for the same reason as the portfolio
   // sheet below: a rescue is capital, not performance.
   const start = Number(fundedBalance(state));
-  const net = Number(state.balance) - start;
+  const net = trades.reduce((sum, trade) => sum + Number(trade.pnl), 0);
+  const endingBalance = start + net;
   const returnPct = start ? (net / start) * 100 : 0;
+  const stats = computeStatistics({
+    startingBalance: String(start),
+    endingBalance: String(endingBalance),
+    trades,
+    equityCurve: trades.length === state.closedTrades.length ? state.equityCurve : [],
+  });
 
   const lines: string[] = [];
   lines.push(`# Session: ${results.name}`);
@@ -67,7 +75,7 @@ export function buildSessionContext(results: SessionResults): string {
 
   lines.push("\n## Headline performance");
   lines.push(`- Starting balance: ${money(start)}`);
-  lines.push(`- Ending balance: ${money(Number(state.balance))}`);
+  lines.push(`- Ending balance: ${money(endingBalance)}`);
   lines.push(`- Net P/L: ${money(net)} (${returnPct.toFixed(2)}% return)`);
   lines.push(`- Total trades: ${stats.totalTrades} (${stats.winningTrades} wins / ${stats.losingTrades} losses)`);
   lines.push(`- Win rate: ${stats.winRate}%`);

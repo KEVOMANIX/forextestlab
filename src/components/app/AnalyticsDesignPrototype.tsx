@@ -41,12 +41,14 @@ import { recordedChartPeriod, returnPercent } from "@/lib/analytics/performance-
 import { monthlyReturnSeries, type MonthlyReturn } from "@/lib/analytics/monthly-returns";
 import { RELIABLE_SAMPLE_TRADES, sampleIsReliable, tradesUntilReliable } from "@/lib/analytics/sample-size";
 import { WEEKDAY_LABELS, createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
+import { analyticsTrades } from "@/lib/analytics/trade-scope";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
 type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "analyst";
 
 const TABS = ["overview", "trades", "journal", "reports", "analyst"] as const;
+const DEMO_ANALYTICS_SCOPED_TRADES = analyticsTrades(DEMO_ANALYTICS_TRADES);
 
 type ResultRow = { label: string; value: number; trades: number; rate?: number; winRate?: number; share?: number };
 
@@ -275,7 +277,7 @@ function modelSafeDivide(value: number, divisor: number): number {
  */
 function createDemoModel(): AnalyticsModel {
   return createLiveModel(
-    DEMO_ANALYTICS_TRADES,
+    DEMO_ANALYTICS_SCOPED_TRADES,
     DEMO_ANALYTICS_EQUITY_CURVE,
     "100000",
     "EUR/USD",
@@ -378,8 +380,22 @@ export function AnalyticsDesignPrototype({
   // traded pair, so that is the fallback — never the joined list of every pair
   // in the session, which claimed each trade had been taken on all of them.
   const tradedPairLabel = formatSymbol(symbols[0] ?? "EURUSD");
-  const model = useMemo(() => demo ? createDemoModel() : createLiveModel(trades, equityCurve, startingBalance, tradedPairLabel, endingBalance), [demo, trades, equityCurve, startingBalance, tradedPairLabel, endingBalance]);
-  const chartPeriod = demo ? DEMO_ANALYTICS_PERIOD : recordedChartPeriod(equityCurve, trades, startTime);
+  const scopedTrades = useMemo(() => analyticsTrades(trades), [trades]);
+  const hasExcludedTrades = scopedTrades.length !== trades.length;
+  // Persisted balances and equity still contain an experimental trade's P/L.
+  // Rebuild the path from included realised trades whenever one is excluded.
+  const scopedEquityCurve = useMemo(
+    () => hasExcludedTrades ? [] : equityCurve,
+    [equityCurve, hasExcludedTrades],
+  );
+  const scopedEndingBalance = hasExcludedTrades ? undefined : endingBalance;
+  const model = useMemo(
+    () => demo
+      ? createDemoModel()
+      : createLiveModel(scopedTrades, scopedEquityCurve, startingBalance, tradedPairLabel, scopedEndingBalance),
+    [demo, scopedTrades, scopedEquityCurve, startingBalance, tradedPairLabel, scopedEndingBalance],
+  );
+  const chartPeriod = demo ? DEMO_ANALYTICS_PERIOD : recordedChartPeriod(scopedEquityCurve, scopedTrades, startTime);
   const equityValues = model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance];
   const equityPath = linePath(equityValues);
   // The sample used to carry a hand-written period that its own trades,
@@ -395,8 +411,8 @@ export function AnalyticsDesignPrototype({
     setTab("trades");
   }, []);
   const tradeFocus = useMemo(
-    () => (demo ? null : { tradeCount: trades.length, focusTrade }),
-    [demo, focusTrade, trades.length],
+    () => (demo ? null : { tradeCount: scopedTrades.length, focusTrade }),
+    [demo, focusTrade, scopedTrades.length],
   );
 
   return (
@@ -425,7 +441,7 @@ export function AnalyticsDesignPrototype({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><Download size={14} /> Sample preview</span> : fullAccess ? <ExportTradesButton trades={trades} symbol={symbols[0] ?? "EURUSD"} sessionId={sessionId ?? "session"} compact /> : <Link href="/account/billing" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"><Download size={14} /> Export with Pro</Link>}
+          {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><Download size={14} /> Sample preview</span> : fullAccess ? <ExportTradesButton trades={scopedTrades} symbol={symbols[0] ?? "EURUSD"} sessionId={sessionId ?? "session"} compact /> : <Link href="/account/billing" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"><Download size={14} /> Export with Pro</Link>}
           {onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>}
         </div>
       </header>
@@ -507,9 +523,9 @@ export function AnalyticsDesignPrototype({
         </main>
       )}
 
-      {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Every closed trade</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">19 sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_TRADES : trades} focusedTrade={demo ? null : focusedTrade} /></section>}
+      {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Trades included in analytics</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">{DEMO_ANALYTICS_SCOPED_TRADES.length} sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} focusedTrade={demo ? null : focusedTrade} /></section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
-      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_TRADES : trades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</>}
+      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</>}
       {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
     </TradeFocusProvider>

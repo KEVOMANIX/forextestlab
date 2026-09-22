@@ -215,6 +215,8 @@ export function Backtester({
     direction: "long" | "short";
     /** Set when the chart asked for a resting order at a specific price. */
     orderType?: OrderType;
+    /** New order opens the ticket instead of submitting a one-click trade. */
+    openPlanner?: boolean;
   } | null>(null);
   const orderTicketActivationIdRef = useRef(0);
   const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
@@ -900,12 +902,14 @@ export function Backtester({
   const activateOrderTicket = (
     direction: "long" | "short",
     orderType?: OrderType,
+    openPlanner = false,
   ) => {
     orderTicketActivationIdRef.current += 1;
     setOrderTicketActivation({
       id: orderTicketActivationIdRef.current,
       direction,
       orderType,
+      openPlanner,
     });
   };
   const openPositionEditor = (positionId: string) => {
@@ -1149,7 +1153,7 @@ export function Backtester({
             <button
               data-tour="new-order"
               type="button"
-              onClick={() => activateOrderTicket("long")}
+              onClick={() => activateOrderTicket("long", "market", true)}
               disabled={!canTrade}
               title={
                 canTrade

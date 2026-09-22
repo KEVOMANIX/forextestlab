@@ -68,6 +68,8 @@ interface OrderTicketProps {
      * exactly the ones the planner exists to take.
      */
     orderType?: OrderType;
+    /** The top-bar New order command always opens the planner. */
+    openPlanner?: boolean;
   } | null;
   onActivationHandled?: (id: number) => void;
   onOpenChange?: (open: boolean) => void;
@@ -281,11 +283,11 @@ export function OrderTicket({
     }
     handledActivationRef.current = activationRequest.id;
     const requested = activationRequest.orderType;
-    if (requested && requested !== "market") {
+    if (activationRequest.openPlanner || (requested && requested !== "market")) {
       // Set directly rather than through `selectOrderType`, which derives an
       // entry price ten pips off the market — the whole point here is the price
       // the caller already put in the plan.
-      setOrderType(requested);
+      if (requested) setOrderType(requested);
       openPlanner(activationRequest.direction);
     } else {
       if (requested) setOrderType(requested);

@@ -21,6 +21,7 @@ import { configForSymbol, recordSymbol } from "@/lib/backtest/instrument-config"
 import type { SessionState } from "@/lib/backtest/types";
 import { getMarketDataProvider } from "@/lib/market-data";
 import type { Candle } from "@/lib/market-data/types";
+import { isAnalyticsTrade } from "@/lib/analytics/trade-scope";
 
 export interface ExitQualityReport {
   tests: PlanTest[];
@@ -37,7 +38,9 @@ export async function buildExitQualityReport(
 ): Promise<ExitQualityReport | null> {
   if (!planTestable(state)) return null;
 
-  const candidates = state.closedTrades.filter(tradePlanTestable);
+  const candidates = state.closedTrades.filter(
+    (trade) => isAnalyticsTrade(trade) && tradePlanTestable(trade),
+  );
   if (!candidates.length) return null;
 
   // One fetch per instrument covering every candidate, sliced per trade. The

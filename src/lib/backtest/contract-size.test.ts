@@ -14,6 +14,7 @@ const cases = [
   { symbol: "XAGUSD", entry: "30", exit: "31", stop: "29", profit: "50.00", margin: "15.00", value: "1500.00", riskLots: "0.02" },
   { symbol: "BTCUSD", entry: "60000", exit: "61000", stop: "59000", profit: "10.00", margin: "6.00", value: "600.00", riskLots: "0.10" },
   { symbol: "USA30IDXUSD", entry: "53200", exit: "53300", stop: "53100", profit: "1.00", margin: "5.32", value: "532.00", riskLots: "1.00" },
+  { symbol: "USA500IDXUSD", entry: "6500", exit: "6550", stop: "6450", profit: "0.50", margin: "0.65", value: "65.00", riskLots: "2.00" },
   { symbol: "USATECHIDXUSD", entry: "29400", exit: "29500", stop: "29300", profit: "1.00", margin: "2.94", value: "294.00", riskLots: "1.00" },
 ];
 

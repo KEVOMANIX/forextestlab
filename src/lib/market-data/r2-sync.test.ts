@@ -28,6 +28,7 @@ describe("R2 market-data synchronization", () => {
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("XAGUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("BTCUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("USA30IDXUSD");
+    expect(DUKASCOPY_MARKET_SYMBOLS).toContain("USA500IDXUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("USATECHIDXUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).not.toContain("DXY");
   });

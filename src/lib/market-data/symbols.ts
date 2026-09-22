@@ -327,6 +327,15 @@ export const SYMBOL_DEFINITIONS: SymbolDefinition[] = [
     demoBasePrice: "42000.000",
   },
   {
+    symbol: "USA500IDXUSD",
+    displayName: "US500",
+    baseCurrency: "USA500IDX",
+    quoteCurrency: "USD",
+    pipSize: "0.1",
+    pricePrecision: 3,
+    demoBasePrice: "6500.000",
+  },
+  {
     symbol: "USATECHIDXUSD",
     displayName: "NAS100",
     baseCurrency: "USATECHIDX",

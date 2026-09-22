@@ -172,6 +172,32 @@ describe("CoordinateMapper", () => {
     expect(mapper.timeToX(3_600)).toBeCloseTo(25, 1);
   });
 
+  it("adds the chart logical origin when higher-timeframe context shifts the timeline", () => {
+    const timeScale = {
+      // The middle monthly candle has not been attached to the price series,
+      // forcing the mapper through logical reconstruction.
+      timeToCoordinate: (time: Time) => time === 100 ? 100 : time === 300 ? 120 : null,
+      logicalToCoordinate: (logical: number) => logical * 10,
+      coordinateToTime: () => null,
+      coordinateToLogical: (x: number) => x / 10,
+    };
+    const chart = { timeScale: () => timeScale } as unknown as IChartApi;
+    const series = {
+      priceToCoordinate: (price: number) => price,
+      coordinateToPrice: (coordinate: number) => coordinate,
+    } as unknown as ISeriesApi<SeriesType>;
+    const mapper = new CoordinateMapper(chart, series);
+    mapper.setCandles([
+      { time: 100, open: 1, high: 1, low: 1, close: 1 },
+      { time: 200, open: 1, high: 1, low: 1, close: 1 },
+      { time: 300, open: 1, high: 1, low: 1, close: 1 },
+    ]);
+
+    // 250 is halfway between local bars 1 and 2. They sit at logical 11 and 12
+    // because the shared chart timeline begins at logical 10.
+    expect(mapper.timeToX(250)).toBe(115);
+  });
+
   describe("the forward runway", () => {
     const HOUR = 3_600;
     /** Friday 21:00 UTC — the last bar of the week on a 1h chart. */

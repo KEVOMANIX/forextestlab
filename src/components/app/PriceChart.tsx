@@ -4068,7 +4068,7 @@ export default function PriceChart({
           />
         )}
 
-        {overlayIndicators.map((inst) => (
+        {!loading && !historyLoading && overlayIndicators.map((inst) => (
           <VolumeProfileOverlay
             key={inst.id}
             instance={inst}

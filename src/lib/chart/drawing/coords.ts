@@ -280,7 +280,11 @@ export class CoordinateMapper {
         const t0 = cs[i - 1]!.time;
         const t1 = cs[i]!.time;
         const frac = t1 > t0 ? (time - t0) / (t1 - t0) : 0;
-        return i - 1 + frac;
+        // Candle indexes are local to this drawing timeline. The chart's
+        // logical origin is often non-zero once higher-timeframe history and
+        // context series share the axis; dropping `firstLogical` projected an
+        // August 2020 anchor near the far-left 2017 edge on monthly charts.
+        return firstLogical + i - 1 + frac;
       }
     }
     return lastIdx;

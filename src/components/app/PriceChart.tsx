@@ -89,6 +89,11 @@ import {
 } from "@/lib/chart/indicator-defs";
 import { Indicator } from "@/lib/chart/indicator-runtime";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
+import {
+  chartHistoryKey,
+  publishChartHistory,
+  subscribeChartHistory,
+} from "@/lib/chart/history-cache";
 import { currenciesForSymbol } from "@/lib/economic-calendar/types";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
@@ -1250,6 +1255,30 @@ export default function PriceChart({
   stopDraftRef.current = stopDraft;
   targetDraftRef.current = targetDraft;
 
+  useEffect(() => {
+    if (!storageKey) return;
+    const subscribedTimeframe = displayTimeframe;
+    const key = chartHistoryKey(storageKey, subscribedTimeframe);
+    return subscribeChartHistory(key, (snapshot) => {
+      if (displayTimeframeRef.current !== subscribedTimeframe) return;
+      const byTime = new Map<number, Candle>();
+      for (const candle of [...snapshot.candles, ...historyCandlesRef.current]) {
+        byTime.set(candle.timestamp, candle);
+      }
+      const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
+      historyCandlesRef.current = merged;
+      historyTimeframeRef.current = subscribedTimeframe;
+      historyHasMoreRef.current = snapshot.hasMore;
+      setHasOlderHistory(snapshot.hasMore);
+      drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
+      drawingEngineRef.current?.setEnv({ candles: drawingCandlesRef.current });
+      if (contextSeriesRef.current) {
+        applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
+      }
+      requestAnimationFrame(updateViewportDiagnostics);
+    });
+  }, [displayTimeframe, storageKey]);
+
   /**
    * Stop covering the chart after 8s, so a slow provider cannot leave the plot
    * behind a spinner forever.
@@ -1298,6 +1327,13 @@ export default function PriceChart({
       historyHasMoreRef.current = page.hasMore;
       setHasOlderHistory(page.hasMore);
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
+      if (storageKey) {
+        await publishChartHistory(
+          chartHistoryKey(storageKey, requestedTimeframe),
+          page.candles,
+          page.hasMore,
+        );
+      }
       if (!replace && page.candles.length > 0) setLeftHistoryBoundaryVisible(false);
       requestAnimationFrame(updateViewportDiagnostics);
       if (replace) {

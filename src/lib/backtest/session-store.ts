@@ -49,6 +49,12 @@ const MAX_SESSION_CANDLES = 1500;
 const MAX_CONTEXT_CANDLES = 3000;
 /** Keep one backward page cheap enough for an interactive chart/R2 request. */
 const MAX_CONTEXT_WINDOW_MS = 550 * 24 * 60 * 60 * 1000;
+/**
+ * Weekly and calendar candles need a wider source window or a page contains
+ * only a handful of bars (550 days is just 18 monthly candles). Five years is
+ * useful on the chart while still bounding R2 reads and server work.
+ */
+const MAX_HIGHER_CONTEXT_WINDOW_MS = 5 * 365 * 24 * 60 * 60 * 1000;
 
 /**
  * In-memory cache of each session's candle series. A session's candles never
@@ -341,9 +347,12 @@ async function fetchChartContext(
   // Fetch a bounded window immediately before `before`. The extra calendar
   // width covers weekends/holidays; slicing from the end keeps it adjacent to
   // the visible chart instead of returning the oldest part of the instrument.
+  const maximumWindow = TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1w"]
+    ? MAX_HIGHER_CONTEXT_WINDOW_MS
+    : MAX_CONTEXT_WINDOW_MS;
   const windowMs = Math.min(
     TIMEFRAME_MS[timeframe] * MAX_CONTEXT_CANDLES * 3,
-    MAX_CONTEXT_WINDOW_MS,
+    maximumWindow,
   );
   const candles = await getMarketDataProvider().getCandles({
     symbol,

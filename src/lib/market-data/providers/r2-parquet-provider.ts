@@ -356,6 +356,8 @@ export class R2ParquetProvider implements MarketDataProvider {
     if (months.length === 0) return [];
 
     const raw: Candle[] = [];
+    const aggregatePerMonth = TIMEFRAME_MS[request.timeframe] >= TIMEFRAME_MS["1d"];
+    const partialAggregates: Candle[] = [];
     const baseCandlesNeeded = request.limit === undefined
       ? Number.POSITIVE_INFINITY
       : request.limit * (TIMEFRAME_MS[request.timeframe] / TIMEFRAME_MS["1m"]);
@@ -365,19 +367,28 @@ export class R2ParquetProvider implements MarketDataProvider {
       const batch = months.slice(index, index + MONTH_READ_CONCURRENCY);
       const decoded = await Promise.all(batch.map((month) => readMonth(config, month)));
       for (const candles of decoded) {
-        raw.push(
-          ...candles.filter(
-            (candle) =>
-              candle.timestamp >= request.startTime && candle.timestamp <= request.endTime,
-          ),
+        const selected = candles.filter(
+          (candle) =>
+            candle.timestamp >= request.startTime && candle.timestamp <= request.endTime,
         );
+        if (aggregatePerMonth) {
+          // A five-year monthly-chart page can span millions of minute rows.
+          // Collapse each decoded object immediately and retain only a few
+          // daily/weekly/calendar fragments. The final aggregation below joins
+          // buckets that cross a month boundary without growing server heap.
+          partialAggregates.push(...aggregateCandles(selected, "1m", request.timeframe));
+        } else {
+          raw.push(...selected);
+        }
         if (raw.length >= baseCandlesNeeded) break;
       }
       if (raw.length >= baseCandlesNeeded) break;
     }
-    const candles = request.timeframe === "1m"
-      ? raw
-      : aggregateCandles(raw, "1m", request.timeframe);
+    const candles = aggregatePerMonth
+      ? aggregateCandles(partialAggregates, "1m", request.timeframe)
+      : request.timeframe === "1m"
+        ? raw
+        : aggregateCandles(raw, "1m", request.timeframe);
     return request.limit === undefined ? candles : candles.slice(0, request.limit);
   }
 }

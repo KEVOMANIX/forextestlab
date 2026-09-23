@@ -195,21 +195,45 @@ export function FibExtensionIcon(props: DrawingIconProps) {
   );
 }
 
-// Distinct component identities keep favorites/tooltips stable while the
-// related studies intentionally share a compact visual vocabulary.
-export const FibChannelIcon = (props: DrawingIconProps) => <ParallelChannelIcon {...props} />;
-export const FibTimeZoneIcon = (props: DrawingIconProps) => <FibonacciIcon {...props} />;
-export const FibSpeedFanIcon = (props: DrawingIconProps) => <TrendAngleIcon {...props} />;
-export const TrendFibTimeIcon = (props: DrawingIconProps) => <FibExtensionIcon {...props} />;
-export const FibCirclesIcon = (props: DrawingIconProps) => <CircleToolIcon {...props} />;
-export const FibSpiralIcon = (props: DrawingIconProps) => <CircleToolIcon {...props} />;
-export const FibSpeedArcsIcon = (props: DrawingIconProps) => <CircleToolIcon {...props} />;
-export const FibWedgeIcon = (props: DrawingIconProps) => <FibonacciIcon {...props} />;
-export const PitchfanIcon = (props: DrawingIconProps) => <TrendAngleIcon {...props} />;
-export const GannBoxIcon = (props: DrawingIconProps) => <RectangleToolIcon {...props} />;
-export const GannSquareFixedIcon = (props: DrawingIconProps) => <RectangleToolIcon {...props} />;
-export const GannSquareIcon = (props: DrawingIconProps) => <RectangleToolIcon {...props} />;
-export const GannFanIcon = (props: DrawingIconProps) => <TrendAngleIcon {...props} />;
+export function FibChannelIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M3 17 17 4M6 20 20 7M4.5 18.5 19 12M8 14.5 15 8" opacity=".9" /><Ring cx={3} cy={17} /><Ring cx={17} cy={4} /><Ring cx={6} cy={20} /></Glyph>;
+}
+export function FibTimeZoneIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M4 3v18M8 6v15M13 3v18M20 6v15" /><path d="M4 4h16" strokeDasharray="2 2" opacity=".55" /><Ring cx={4} cy={12} /><Ring cx={8} cy={12} /></Glyph>;
+}
+export function FibSpeedFanIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M4 19 20 4M4 19 20 9M4 19h16M10 19 20 4M15 19 20 4" /><Ring cx={4} cy={19} /><Ring cx={20} cy={4} /></Glyph>;
+}
+export function TrendFibTimeIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M3 18 8 7l5 7" /><path d="M14 4v17M17 7v14M21 4v17" opacity=".8" /><Ring cx={3} cy={18} /><Ring cx={8} cy={7} /><Ring cx={13} cy={14} /></Glyph>;
+}
+export function FibCirclesIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><circle cx="11" cy="12" r="3" /><circle cx="11" cy="12" r="6" /><circle cx="11" cy="12" r="9" /><Ring cx={11} cy={12} /><Ring cx={20} cy={12} /></Glyph>;
+}
+export function FibSpiralIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M12 12c0-2 3-2 3 0 0 4-6 5-8 1-3-6 5-11 11-6 7 6 1 15-8 14" /><Ring cx={12} cy={12} /><Ring cx={10} cy={21} /></Glyph>;
+}
+export function FibSpeedArcsIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M3 19a6 6 0 0 1 12 0M3 19a9 9 0 0 1 18 0M3 19a3 3 0 0 1 6 0" /><path d="M3 19h19" opacity=".5" /><Ring cx={3} cy={19} /><Ring cx={21} cy={19} /></Glyph>;
+}
+export function FibWedgeIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M3 20 20 5M3 20 20 16M8 15.5 8 18.2M12 12 12 17.5M16 8.5 16 16.7" /><Ring cx={3} cy={20} /><Ring cx={20} cy={5} /><Ring cx={20} cy={16} /></Glyph>;
+}
+export function PitchfanIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M4 5h10M9 5 4 20M9 5 9 20M9 5 14 20M9 5 20 20" /><Ring cx={4} cy={5} /><Ring cx={14} cy={5} /><Ring cx={9} cy={5} /></Glyph>;
+}
+export function GannBoxIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><rect x="3" y="3" width="18" height="18" /><path d="M3 21 21 3M3 3l18 18M3 12h18M12 3v18" opacity=".8" /><Ring cx={3} cy={21} /><Ring cx={21} cy={3} /></Glyph>;
+}
+export function GannSquareFixedIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><rect x="3" y="3" width="18" height="18" /><path d="M7.5 3v18M12 3v18M16.5 3v18M3 7.5h18M3 12h18M3 16.5h18" opacity=".75" /><Ring cx={3} cy={21} /><Ring cx={21} cy={3} /></Glyph>;
+}
+export function GannSquareIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><rect x="3" y="3" width="18" height="18" /><path d="M3 3l18 18M21 3 3 21M3 12h18M12 3v18" /><rect x="7.5" y="7.5" width="9" height="9" opacity=".65" /><Ring cx={3} cy={21} /><Ring cx={21} cy={3} /></Glyph>;
+}
+export function GannFanIcon(props: DrawingIconProps) {
+  return <Glyph {...props}><path d="M3 20 21 3M3 20 21 8M3 20 21 13M3 20h18M3 20 14 3M3 20 9 3" /><Ring cx={3} cy={20} /><Ring cx={21} cy={3} /></Glyph>;
+}
 
 // ---- positions ----
 

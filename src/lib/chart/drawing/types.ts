@@ -98,6 +98,15 @@ export interface DrawingStyle {
   // Fibonacci only:
   reverse?: boolean; // reflect levels vertically
   fibLevels?: number[]; // which ratios to display (undefined = all default levels)
+  studyLevels?: number[];
+  studyLevelColors?: Record<string, string>;
+  studyUseOneColor?: boolean;
+  studyShowTrendLine?: boolean;
+  studyShowGrid?: boolean;
+  studyShowPrices?: boolean;
+  studyLabelsAsPercent?: boolean;
+  studyFullCircles?: boolean;
+  studyCounterClockwise?: boolean;
   gannPriceLevels?: number[];
   gannTimeLevels?: number[];
   gannPriceLevelColors?: Record<string, string>;
@@ -110,6 +119,10 @@ export interface DrawingStyle {
   gannTimeBackground?: boolean;
   gannAngles?: boolean;
   gannUseOneColor?: boolean;
+  gannShowLevels?: boolean;
+  gannShowFans?: boolean;
+  gannShowArcs?: boolean;
+  gannShowRanges?: boolean;
 }
 
 /** Serializable form of any drawing — the single source of truth persisted / cloned / undone. */
@@ -145,6 +158,7 @@ export const EXTENDABLE_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
   "regression",
   "fib",
   "fibExtension",
+  "fibChannel",
 ]);
 
 export const SELECTION_BLUE = "#3b82f6";
@@ -213,6 +227,47 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     base.gannAngles = false;
     base.gannUseOneColor = false;
   }
+  const fibStudyKinds: ToolKind[] = [
+    "fibChannel", "fibSpeedResistanceFan", "fibCircles", "fibSpeedResistanceArcs", "fibWedge",
+  ];
+  if (fibStudyKinds.includes(kind)) {
+    base.fill = true;
+    base.fillOpacity = 0.08;
+    base.studyLevels = [0.236, 0.382, 0.5, 0.618, 1];
+    base.studyUseOneColor = false;
+    base.studyShowTrendLine = true;
+  }
+  if (kind === "fibTimeZone" || kind === "trendFibTime") {
+    base.fill = true;
+    base.fillOpacity = 0.06;
+    base.studyLevels = [0, 1, 2, 3, 5, 8, 13, 21, 34];
+    base.studyShowTrendLine = true;
+  }
+  if (kind === "pitchfan") {
+    base.fill = true;
+    base.fillOpacity = 0.08;
+    base.studyLevels = [0.5, 1];
+    base.studyShowTrendLine = true;
+  }
+  if (kind === "gannFan") {
+    base.fill = true;
+    base.fillOpacity = 0.08;
+    base.studyLevels = [0.125, 0.25, 1 / 3, 0.5, 1, 2, 3, 4, 8];
+    base.studyUseOneColor = false;
+  }
+  if (kind === "gannSquare" || kind === "gannSquareFixed") {
+    base.fill = true;
+    base.fillOpacity = 0.08;
+    base.reverse = false;
+    base.studyShowGrid = true;
+    base.gannShowLevels = true;
+    base.gannShowFans = true;
+    base.gannShowArcs = true;
+    base.gannShowRanges = false;
+  }
+  if (kind === "fibSpeedResistanceFan") base.studyShowGrid = true;
+  if (kind === "fibSpeedResistanceArcs") base.studyFullCircles = false;
+  if (kind === "fibSpiral") base.studyCounterClockwise = false;
   // A freehand stroke reads as a pen mark, not a measurement line — thin
   // enough to vanish at the 1px baseline every other tool starts from.
   if (kind === "brush") base.lineWidth = 3;

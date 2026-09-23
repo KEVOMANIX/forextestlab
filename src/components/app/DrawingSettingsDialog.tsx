@@ -12,9 +12,15 @@ import {
   type DrawingJSON,
   type LineStyleName,
   type Point,
+  type ToolKind,
 } from "@/lib/chart/drawing/types";
 
 type Tab = "style" | "text" | "coords" | "visibility";
+
+const LEVEL_STUDIES = new Set<ToolKind>([
+  "fibChannel", "fibTimeZone", "fibSpeedResistanceFan", "trendFibTime", "fibCircles",
+  "fibSpeedResistanceArcs", "fibWedge", "pitchfan", "gannFan",
+]);
 
 interface Props {
   value: DrawingJSON;
@@ -253,6 +259,73 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                   <Row label="Use one color"><input type="checkbox" checked={Boolean(s.gannUseOneColor)} onChange={(e) => setStyle({ gannUseOneColor: e.target.checked })} /></Row>
                   <Row label="Angles"><input type="checkbox" checked={Boolean(s.gannAngles)} onChange={(e) => setStyle({ gannAngles: e.target.checked })} /></Row>
                   <Row label="Reverse"><input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} /></Row>
+                </>
+              )}
+              {LEVEL_STUDIES.has(value.kind) && (() => {
+                const levels = s.studyLevels ?? [];
+                const colors = s.studyLevelColors ?? {};
+                return (
+                  <div className="mt-2 space-y-2 border-t app-border pt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide app-muted">Levels</span>
+                      <button
+                        type="button"
+                        disabled={levels.length >= 11}
+                        onClick={() => setStyle({ studyLevels: [...levels, levels.length ? Number((levels[levels.length - 1]! + 0.5).toFixed(3)) : 1] })}
+                        className="rounded border app-border px-2 py-1 text-[10px] disabled:opacity-40"
+                      >
+                        Add level
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {levels.map((level, index) => (
+                        <div key={`${index}-${level}`} className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            step="0.001"
+                            value={Number(level.toFixed(3))}
+                            aria-label={`Level ${index + 1}`}
+                            onChange={(event) => {
+                              const next = [...levels]; next[index] = Number(event.target.value);
+                              setStyle({ studyLevels: next });
+                            }}
+                            className="min-w-0 flex-1 rounded border app-border bg-transparent px-2 py-1 font-mono text-[11px]"
+                          />
+                          <input
+                            type="color"
+                            value={colors[String(level)] ?? s.color}
+                            disabled={Boolean(s.studyUseOneColor)}
+                            aria-label={`Level ${level} color`}
+                            onChange={(event) => setStyle({ studyLevelColors: { ...colors, [String(level)]: event.target.value } })}
+                            className="h-7 w-8 rounded border app-border bg-transparent p-0.5 disabled:opacity-40"
+                          />
+                          <button
+                            type="button"
+                            aria-label={`Remove level ${level}`}
+                            onClick={() => setStyle({ studyLevels: levels.filter((_, itemIndex) => itemIndex !== index) })}
+                            className="px-1 app-muted hover:text-loss"
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                    <Row label="Use one color"><input type="checkbox" checked={Boolean(s.studyUseOneColor)} onChange={(e) => setStyle({ studyUseOneColor: e.target.checked })} /></Row>
+                    {value.kind !== "gannFan" && <Row label="Trend line"><input type="checkbox" checked={s.studyShowTrendLine ?? true} onChange={(e) => setStyle({ studyShowTrendLine: e.target.checked })} /></Row>}
+                    {(value.kind === "fibSpeedResistanceFan") && <Row label="Grid"><input type="checkbox" checked={s.studyShowGrid ?? true} onChange={(e) => setStyle({ studyShowGrid: e.target.checked })} /></Row>}
+                    {value.kind === "fibSpeedResistanceArcs" && <Row label="Full circles"><input type="checkbox" checked={Boolean(s.studyFullCircles)} onChange={(e) => setStyle({ studyFullCircles: e.target.checked })} /></Row>}
+                    {(value.kind === "fibSpeedResistanceFan") && <Row label="Reverse"><input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} /></Row>}
+                  </div>
+                );
+              })()}
+              {value.kind === "fibSpiral" && (
+                <Row label="Counterclockwise"><input type="checkbox" checked={Boolean(s.studyCounterClockwise)} onChange={(e) => setStyle({ studyCounterClockwise: e.target.checked })} /></Row>
+              )}
+              {(value.kind === "gannSquare" || value.kind === "gannSquareFixed") && (
+                <>
+                  <Row label="Levels"><input type="checkbox" checked={s.gannShowLevels ?? true} onChange={(e) => setStyle({ gannShowLevels: e.target.checked, studyShowGrid: e.target.checked })} /></Row>
+                  <Row label="Fans"><input type="checkbox" checked={s.gannShowFans ?? true} onChange={(e) => setStyle({ gannShowFans: e.target.checked })} /></Row>
+                  <Row label="Arcs"><input type="checkbox" checked={s.gannShowArcs ?? true} onChange={(e) => setStyle({ gannShowArcs: e.target.checked })} /></Row>
+                  <Row label="Reverse"><input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} /></Row>
+                  {value.kind === "gannSquare" && <Row label="Ranges and ratio"><input type="checkbox" checked={Boolean(s.gannShowRanges)} onChange={(e) => setStyle({ gannShowRanges: e.target.checked })} /></Row>}
                 </>
               )}
               {(value.kind === "fib" || value.kind === "fibExtension") && (

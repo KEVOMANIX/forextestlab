@@ -1216,70 +1216,115 @@ class AdvancedStudy extends DrawingObject {
     const dy = b.y - a.y;
     const color = withAlpha(this.style.color, this.style.opacity);
     const faint = withAlpha(this.style.color, this.style.opacity * 0.58);
-    const line = (x1: number, y1: number, x2: number, y2: number, alpha = false) => {
-      ctx.strokeStyle = alpha ? faint : color;
+    const ratios = this.style.studyLevels?.length ? this.style.studyLevels : STUDY_RATIOS;
+    const studyColor = (ratio: number) => this.style.studyUseOneColor
+      ? color
+      : withAlpha(this.style.studyLevelColors?.[String(ratio)] ?? this.style.color, this.style.opacity);
+    const line = (x1: number, y1: number, x2: number, y2: number, alpha = false, stroke?: string) => {
+      ctx.strokeStyle = stroke ?? (alpha ? faint : color);
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     };
     const label = (text: string, x: number, y: number) => {
       if (!this.style.showLabels) return;
       ctx.fillStyle = faint; ctx.font = "9px ui-monospace, monospace"; ctx.fillText(text, x + 3, y - 3);
     };
+    const ray = (origin: { x: number; y: number }, through: { x: number; y: number }, stroke = color) => {
+      const vx = through.x - origin.x, vy = through.y - origin.y;
+      const scale = Math.max(mapper.width, mapper.height) * 4 / Math.max(1, Math.hypot(vx, vy));
+      ctx.strokeStyle = stroke;
+      ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(origin.x + vx * scale, origin.y + vy * scale); ctx.stroke();
+    };
     ctx.save();
     this.applyStroke(ctx);
 
     if (this.kind === "fibChannel") {
       const ox = c.x - a.x, oy = c.y - a.y;
-      STUDY_RATIOS.forEach((ratio) => {
+      const channelLevels = [...ratios].sort((x, y) => x - y);
+      if (this.style.fill) {
+        for (let index = 0; index < channelLevels.length - 1; index += 1) {
+          const first = channelLevels[index]!, second = channelLevels[index + 1]!;
+          ctx.fillStyle = withAlpha(this.style.studyLevelColors?.[String(first)] ?? this.style.fillColor, this.style.fillOpacity);
+          ctx.beginPath();
+          ctx.moveTo(a.x + ox * first, a.y + oy * first); ctx.lineTo(a.x + ox * first + dx, a.y + oy * first + dy);
+          ctx.lineTo(a.x + ox * second + dx, a.y + oy * second + dy); ctx.lineTo(a.x + ox * second, a.y + oy * second); ctx.closePath(); ctx.fill();
+        }
+      }
+      ratios.forEach((ratio) => {
         const x1 = a.x + ox * ratio, y1 = a.y + oy * ratio;
-        line(x1, y1, x1 + dx, y1 + dy, ratio !== 1);
+        const magnitude = Math.max(mapper.width, mapper.height) * 3 / Math.max(1, Math.hypot(dx, dy));
+        const startScale = this.style.extendLeft ? -magnitude : 0;
+        const endScale = this.style.extendRight ? magnitude : 1;
+        line(x1 + dx * startScale, y1 + dy * startScale, x1 + dx * endScale, y1 + dy * endScale, ratio !== 1, studyColor(ratio));
         label(String(ratio), x1 + dx, y1 + dy);
       });
     } else if (this.kind === "fibTimeZone" || this.kind === "trendFibTime") {
       const origin = this.kind === "trendFibTime" ? c.x : a.x;
       const step = Math.max(2, Math.abs(dx));
-      [0, 1, 2, 3, 5, 8, 13, 21, 34].forEach((n) => {
+      const zones = [...ratios].sort((x, y) => x - y).map((ratio) => origin + Math.sign(dx || 1) * step * ratio);
+      if (this.style.fill) {
+        for (let index = 0; index < zones.length - 1; index += 1) {
+          ctx.fillStyle = withAlpha(this.style.fillColor, this.style.fillOpacity * (index % 2 ? 0.55 : 1));
+          ctx.fillRect(Math.min(zones[index]!, zones[index + 1]!), 0, Math.abs(zones[index + 1]! - zones[index]!), mapper.height);
+        }
+      }
+      ratios.forEach((n) => {
         const x = origin + Math.sign(dx || 1) * step * n;
-        line(x, 0, x, mapper.height, n > 3); label(String(n), x, 14);
+        line(x, 0, x, mapper.height, n > 3, studyColor(n)); label(String(n), x, 14);
       });
+      if (this.style.studyShowTrendLine ?? true) line(a.x, a.y, b.x, b.y);
     } else if (this.kind === "fibSpeedResistanceFan" || this.kind === "gannFan") {
-      const ratios = this.kind === "gannFan" ? [0.125, 0.25, 0.333, 0.5, 1, 2, 3, 4, 8] : STUDY_RATIOS;
       ratios.forEach((ratio) => {
-        const ex = b.x;
-        const ey = a.y + dy * ratio;
-        line(a.x, a.y, ex, ey, ratio !== 1); label(ratio.toFixed(3), ex, ey);
+        const applied = this.style.reverse ? 1 - ratio : ratio;
+        const target = this.kind === "gannFan"
+          ? { x: b.x, y: a.y + dy * applied }
+          : { x: a.x + dx * ratio, y: b.y };
+        ray(a, target, studyColor(ratio)); label(ratio.toFixed(3), target.x, target.y);
       });
+      if (this.kind === "fibSpeedResistanceFan" && (this.style.studyShowTrendLine ?? true)) line(a.x, a.y, b.x, b.y);
+      if (this.kind === "fibSpeedResistanceFan" && (this.style.studyShowGrid ?? true)) {
+        line(a.x, b.y, b.x, b.y, true); line(b.x, a.y, b.x, b.y, true);
+      }
     } else if (this.kind === "fibCircles" || this.kind === "fibSpeedResistanceArcs") {
-      const rx = Math.max(2, Math.abs(dx));
-      const ry = Math.max(2, Math.abs(dy));
-      STUDY_RATIOS.forEach((ratio) => {
-        ctx.strokeStyle = ratio === 1 ? color : faint;
+      const radius = Math.max(2, Math.hypot(dx, dy));
+      ratios.forEach((ratio) => {
+        ctx.strokeStyle = studyColor(ratio);
         ctx.beginPath();
-        const start = this.kind === "fibCircles" ? 0 : Math.PI;
-        const end = this.kind === "fibCircles" ? Math.PI * 2 : Math.PI * 2;
-        ctx.ellipse(a.x, a.y, rx * ratio, ry * ratio, 0, start, end);
-        ctx.stroke(); label(String(ratio), a.x + rx * ratio, a.y);
+        const full = this.kind === "fibCircles" || Boolean(this.style.studyFullCircles);
+        const baseAngle = Math.atan2(dy, dx);
+        ctx.arc(a.x, a.y, radius * ratio, full ? 0 : baseAngle - Math.PI / 2, full ? Math.PI * 2 : baseAngle + Math.PI / 2);
+        ctx.stroke(); label(String(ratio), a.x + radius * ratio, a.y);
       });
+      if (this.style.studyShowTrendLine ?? true) line(a.x, a.y, b.x, b.y);
     } else if (this.kind === "fibSpiral") {
       const radius = Math.max(4, Math.hypot(dx, dy));
+      const baseAngle = Math.atan2(dy, dx);
+      const direction = this.style.studyCounterClockwise ? -1 : 1;
       ctx.beginPath();
-      for (let i = 0; i <= 120; i += 1) {
-        const angle = i * 0.14;
-        const r = radius * (i / 120) * 1.618;
+      for (let i = 0; i <= 180; i += 1) {
+        const turn = -Math.PI * 4 + i * (Math.PI * 6 / 180);
+        const r = radius * Math.pow(1.61803398875, turn / (Math.PI * 2));
+        const angle = baseAngle + direction * turn;
         const x = a.x + Math.cos(angle) * r;
         const y = a.y + Math.sin(angle) * r;
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       ctx.strokeStyle = color; ctx.stroke();
     } else if (this.kind === "fibWedge") {
-      line(a.x, a.y, b.x, b.y); line(a.x, a.y, c.x, c.y);
-      STUDY_RATIOS.forEach((ratio) => {
-        line(a.x + (b.x - a.x) * ratio, a.y + (b.y - a.y) * ratio,
-          a.x + (c.x - a.x) * ratio, a.y + (c.y - a.y) * ratio, true);
+      const startAngle = Math.atan2(b.y - a.y, b.x - a.x);
+      const endAngle = Math.atan2(c.y - a.y, c.x - a.x);
+      const radius = Math.max(Math.hypot(b.x - a.x, b.y - a.y), Math.hypot(c.x - a.x, c.y - a.y));
+      if (this.style.studyShowTrendLine ?? true) { line(a.x, a.y, b.x, b.y); line(a.x, a.y, c.x, c.y); }
+      ratios.forEach((ratio) => {
+        ctx.strokeStyle = studyColor(ratio); ctx.beginPath();
+        ctx.arc(a.x, a.y, radius * ratio, startAngle, endAngle, endAngle < startAngle);
+        ctx.stroke(); label(String(ratio), a.x + Math.cos(endAngle) * radius * ratio, a.y + Math.sin(endAngle) * radius * ratio);
       });
     } else if (this.kind === "pitchfan") {
-      const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
-      [-1, -0.5, 0, 0.5, 1].forEach((ratio) => line(c.x, c.y, midX + (b.x - a.x) * ratio, midY + (b.y - a.y) * ratio, ratio !== 0));
-      line(a.x, a.y, b.x, b.y);
+      ratios.forEach((ratio) => {
+        const target = { x: b.x + (c.x - b.x) * ratio, y: b.y + (c.y - b.y) * ratio };
+        ray(a, target, studyColor(ratio)); label(String(ratio), target.x, target.y);
+      });
+      if (this.style.studyShowTrendLine ?? true) { line(a.x, a.y, b.x, b.y); line(b.x, b.y, c.x, c.y, true); }
     } else if (this.kind === "gannBox") {
       const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x);
       const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
@@ -1337,11 +1382,32 @@ class AdvancedStudy extends DrawingObject {
       if (this.style.fill) { ctx.fillStyle = withAlpha(this.style.fillColor, this.style.fillOpacity); ctx.fillRect(left, top, width, height); }
       ctx.strokeStyle = color; ctx.strokeRect(left, top, width, height);
       const divisions = this.kind === "gannSquareFixed" ? 8 : this.kind === "gannSquare" ? 4 : 3;
-      for (let i = 1; i < divisions; i += 1) {
-        line(left + width * i / divisions, top, left + width * i / divisions, bottom, true);
-        line(left, top + height * i / divisions, right, top + height * i / divisions, true);
+      if (this.style.gannShowLevels ?? true) {
+        for (let i = 1; i < divisions; i += 1) {
+          line(left + width * i / divisions, top, left + width * i / divisions, bottom, true);
+          line(left, top + height * i / divisions, right, top + height * i / divisions, true);
+        }
       }
-      line(left, top, right, bottom); line(left, bottom, right, top);
+      if (this.style.gannShowFans ?? true) {
+        const originY = this.style.reverse ? top : bottom;
+        for (const ratio of [0.125, 0.25, 0.5, 1]) {
+          line(left, originY, right, originY + (this.style.reverse ? 1 : -1) * height * ratio, ratio !== 1);
+          line(left, originY, left + width * ratio, this.style.reverse ? bottom : top, ratio !== 1);
+        }
+        line(left, top, right, bottom); line(left, bottom, right, top);
+      }
+      if (this.style.gannShowArcs ?? true) {
+        const originY = this.style.reverse ? top : bottom;
+        for (const ratio of [0.25, 0.5, 0.75, 1]) {
+          ctx.strokeStyle = faint; ctx.beginPath();
+          ctx.ellipse(left, originY, width * ratio, height * ratio, 0, this.style.reverse ? 0 : -Math.PI / 2, this.style.reverse ? Math.PI / 2 : 0);
+          ctx.stroke();
+        }
+      }
+      if (this.kind === "gannSquare" && this.style.gannShowRanges) {
+        label(`${Math.abs(this.points[1]!.price - this.points[0]!.price).toFixed(5)}`, right, top);
+        label(`${Math.abs(this.points[1]!.time - this.points[0]!.time)}s`, left, bottom);
+      }
     }
     ctx.restore();
   }

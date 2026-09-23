@@ -29,4 +29,25 @@ describe("advanced Fibonacci and Gann studies", () => {
     expect(saved.style.gannPriceBackground).toBe(true);
     expect(saved.style.gannTimeBackground).toBe(true);
   });
+
+  it.each([
+    "fibChannel", "fibTimeZone", "fibSpeedResistanceFan", "trendFibTime", "fibCircles",
+    "fibSpeedResistanceArcs", "fibWedge", "pitchfan", "gannFan",
+  ] as ToolKind[])("gives %s editable study levels", (kind) => {
+    const saved = newDrawing(kind, { time: 100, price: 1.1 }, 2, TOOL_POINTS[kind]).serialize();
+    expect(saved.style.studyLevels?.length).toBeGreaterThan(0);
+  });
+
+  it("gives the spiral its TradingView direction input", () => {
+    const saved = newDrawing("fibSpiral", { time: 100, price: 1.1 }, 2, TOOL_POINTS.fibSpiral).serialize();
+    expect(saved.style.studyCounterClockwise).toBe(false);
+  });
+
+  it.each(["gannSquare", "gannSquareFixed"] as ToolKind[])("gives %s level, fan, arc, and reverse controls", (kind) => {
+    const saved = newDrawing(kind, { time: 100, price: 1.1 }, 2, TOOL_POINTS[kind]).serialize();
+    expect(saved.style.gannShowLevels).toBe(true);
+    expect(saved.style.gannShowFans).toBe(true);
+    expect(saved.style.gannShowArcs).toBe(true);
+    expect(saved.style.reverse).toBe(false);
+  });
 });

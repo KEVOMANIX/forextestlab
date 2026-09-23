@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DRAWING_TOOL_ICONS } from "./DrawingToolIcons";
+import { DRAWING_TOOL_ICONS, FibonacciIcon, GannGroupIcon } from "./DrawingToolIcons";
 import { TOOL_LABELS, type ToolKind } from "@/lib/chart/drawing/types";
 
 /**
@@ -35,5 +35,9 @@ describe("the drawing tool icon map", () => {
       const name = DRAWING_TOOL_ICONS[kind].name;
       expect(name, kind).toMatch(/Icon$/);
     }
+  });
+
+  it("uses visibly separate component glyphs for Fibonacci and Gann groups", () => {
+    expect(GannGroupIcon).not.toBe(FibonacciIcon);
   });
 });

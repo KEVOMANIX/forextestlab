@@ -2209,7 +2209,23 @@ export default function PriceChart({
         // the trader control over fetching another page. Applying older data
         // shifts this boundary left, so the prompt naturally returns on the
         // next visit to the newly exposed edge.
-        setLeftHistoryBoundaryVisible(Boolean(visible && visible.from <= 0));
+        const firstHistoryTime = historyCandlesRef.current[0]?.timestamp;
+        const firstReplayTime = displayRef.current[0]?.time;
+        const firstLoadedSeconds = firstHistoryTime == null
+          ? firstReplayTime
+          : firstReplayTime == null
+            ? Math.floor(firstHistoryTime / 1000)
+            : Math.min(Math.floor(firstHistoryTime / 1000), firstReplayTime);
+        const firstLoadedCoordinate = firstLoadedSeconds == null
+          ? null
+          : chart.timeScale().timeToCoordinate(firstLoadedSeconds as UTCTimestamp);
+        if (firstLoadedCoordinate != null) {
+          const boundaryWidth = Math.max(0, Math.min(chart.timeScale().width(), Number(firstLoadedCoordinate)));
+          container.style.setProperty("--history-overlay-width", `${boundaryWidth}px`);
+        }
+        setLeftHistoryBoundaryVisible(Boolean(
+          visible && visible.from <= 0 && firstLoadedCoordinate != null && firstLoadedCoordinate > 0,
+        ));
         if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
         pendingRangeRef.current = range;
@@ -4828,7 +4844,7 @@ export default function PriceChart({
 
         {leftHistoryBoundaryVisible && !loading && !historyLoading && (
           <div
-            className="pointer-events-none absolute inset-y-0 left-0 z-30 flex w-[44%] min-w-64 max-w-md items-center justify-center overflow-hidden border-r border-brand-400/10 bg-[var(--app-panel)]/50 px-4 backdrop-blur-[1px]"
+            className="pointer-events-none absolute inset-y-0 left-0 z-30 flex w-[var(--history-overlay-width)] items-center justify-center overflow-hidden border-r border-brand-400/10 bg-[var(--app-panel)]/50 px-4 backdrop-blur-[1px]"
             data-testid="older-history-overlay"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-[var(--app-bg)]/85 via-[var(--app-panel)]/55 to-brand-400/[0.025]" />

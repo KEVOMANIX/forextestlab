@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   ArrowRight,
-  Crown,
   FlaskConical,
   Gauge,
   ListChecks,
@@ -15,7 +14,6 @@ import {
 } from "lucide-react";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
 import { MetricInfo } from "@/components/app/MetricInfo";
-import { ReportTimeZone } from "@/components/app/ReportTimeZone";
 import { DashboardReviewWorkspace, type DashboardInsight } from "@/components/app/DashboardReviewWorkspace";
 import {
   DashboardSessionsTable,
@@ -484,23 +482,10 @@ export function SignedInDashboard({
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
       <header className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
-              Strategy workspace
-            </p>
-            {aiEnabled && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-200">
-                <Crown size={11} aria-hidden /> Pro
-              </span>
-            )}
-          </div>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             Welcome back, {displayName}
           </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm app-muted">
-            <span>Your strategy command center for replay, review, and improvement.</span>
-            <ReportTimeZone sessionId={showDemoData ? undefined : selectedSession?.id} />
-          </div>
+          <p className="mt-1.5 text-sm app-muted">Continue your replay or review recent performance.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Both states visible at once, so the control says which one is

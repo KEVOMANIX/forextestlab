@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { newDrawing } from "./objects";
+import type { CoordinateMapper } from "./coords";
 import { TOOL_LABELS, TOOL_POINTS, type ToolKind } from "./types";
 
 const STUDIES: ToolKind[] = [
@@ -8,6 +9,13 @@ const STUDIES: ToolKind[] = [
   "fibCircles", "fibSpiral", "fibSpeedResistanceArcs", "fibWedge",
   "pitchfan", "gannBox", "gannSquareFixed", "gannSquare", "gannFan",
 ];
+
+const mapper = {
+  width: 400,
+  height: 300,
+  timeToX: (time: number) => time,
+  priceToY: (price: number) => price,
+} as unknown as CoordinateMapper;
 
 describe("advanced Fibonacci and Gann studies", () => {
   it.each(STUDIES)("creates and serializes %s", (kind) => {
@@ -49,5 +57,23 @@ describe("advanced Fibonacci and Gann studies", () => {
     expect(saved.style.gannShowFans).toBe(true);
     expect(saved.style.gannShowArcs).toBe(true);
     expect(saved.style.reverse).toBe(false);
+  });
+
+  it("selects a Gann fan on a visible ray beyond its anchor box", () => {
+    const drawing = newDrawing("gannFan", { time: 100, price: 100 }, 2, 2);
+    drawing.points[1] = { time: 200, price: 200 };
+    expect(drawing.hitTest(260, 260, mapper)).toBe(true);
+  });
+
+  it("selects a Fibonacci time-zone line across the full chart height", () => {
+    const drawing = newDrawing("fibTimeZone", { time: 100, price: 100 }, 2, 2);
+    drawing.points[1] = { time: 200, price: 200 };
+    expect(drawing.hitTest(300, 275, mapper)).toBe(true);
+  });
+
+  it("selects the Fibonacci spiral on its anchored curve", () => {
+    const drawing = newDrawing("fibSpiral", { time: 100, price: 100 }, 2, 2);
+    drawing.points[1] = { time: 200, price: 100 };
+    expect(drawing.hitTest(200, 100, mapper)).toBe(true);
   });
 });

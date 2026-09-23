@@ -1422,7 +1422,70 @@ class AdvancedStudy extends DrawingObject {
   }
 
   hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
-    return pointInRect(x, y, this.bbox(mapper), HIT_TOLERANCE + 4);
+    const points = this.pixels(mapper);
+    const a = points[0], b = points[1];
+    if (!a || !b) return false;
+    const c = points[2] ?? b;
+    const tolerance = HIT_TOLERANCE + this.style.lineWidth;
+    const ratios = this.style.studyLevels?.length ? this.style.studyLevels : STUDY_RATIOS;
+    const onSegment = (first: { x: number; y: number }, second: { x: number; y: number }) =>
+      distToSegment(x, y, first.x, first.y, second.x, second.y) <= tolerance;
+    const onRay = (origin: { x: number; y: number }, through: { x: number; y: number }) => {
+      const edge = extendSeg(origin.x, origin.y, through.x, through.y, mapper.width, mapper.height, false, true);
+      return distToSegment(x, y, edge.sx, edge.sy, edge.ex, edge.ey) <= tolerance;
+    };
+
+    if (this.kind === "fibChannel") {
+      const dx = b.x - a.x, dy = b.y - a.y, ox = c.x - a.x, oy = c.y - a.y;
+      return ratios.some((ratio) => {
+        const start = { x: a.x + ox * ratio, y: a.y + oy * ratio };
+        const end = { x: start.x + dx, y: start.y + dy };
+        const edge = extendSeg(start.x, start.y, end.x, end.y, mapper.width, mapper.height, this.style.extendLeft, this.style.extendRight);
+        return distToSegment(x, y, edge.sx, edge.sy, edge.ex, edge.ey) <= tolerance;
+      });
+    }
+    if (this.kind === "fibTimeZone" || this.kind === "trendFibTime") {
+      const origin = this.kind === "trendFibTime" ? c.x : a.x;
+      const step = Math.max(2, Math.abs(b.x - a.x));
+      return ratios.some((ratio) => Math.abs(x - (origin + Math.sign(b.x - a.x || 1) * step * ratio)) <= tolerance);
+    }
+    if (this.kind === "fibSpeedResistanceFan" || this.kind === "gannFan") {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      return ratios.some((ratio) => {
+        const applied = this.style.reverse ? 1 - ratio : ratio;
+        const target = this.kind === "gannFan"
+          ? { x: b.x, y: a.y + dy * applied }
+          : { x: a.x + dx * ratio, y: b.y };
+        return onRay(a, target);
+      });
+    }
+    if (this.kind === "pitchfan") {
+      return ratios.some((ratio) => onRay(a, { x: b.x + (c.x - b.x) * ratio, y: b.y + (c.y - b.y) * ratio }));
+    }
+    if (this.kind === "fibCircles" || this.kind === "fibSpeedResistanceArcs") {
+      const radius = Math.hypot(b.x - a.x, b.y - a.y);
+      return ratios.some((ratio) => Math.abs(Math.hypot(x - a.x, y - a.y) - radius * ratio) <= tolerance) || onSegment(a, b);
+    }
+    if (this.kind === "fibWedge") {
+      const radius = Math.max(Math.hypot(b.x - a.x, b.y - a.y), Math.hypot(c.x - a.x, c.y - a.y));
+      return ratios.some((ratio) => Math.abs(Math.hypot(x - a.x, y - a.y) - radius * ratio) <= tolerance) || onSegment(a, b) || onSegment(a, c);
+    }
+    if (this.kind === "fibSpiral") {
+      const radius = Math.max(4, Math.hypot(b.x - a.x, b.y - a.y));
+      const baseAngle = Math.atan2(b.y - a.y, b.x - a.x);
+      const direction = this.style.studyCounterClockwise ? -1 : 1;
+      let previous: { x: number; y: number } | null = null;
+      for (let i = 0; i <= 180; i += 1) {
+        const turn = -Math.PI * 4 + i * (Math.PI * 6 / 180);
+        const spiralRadius = radius * Math.pow(1.61803398875, turn / (Math.PI * 2));
+        const angle = baseAngle + direction * turn;
+        const current = { x: a.x + Math.cos(angle) * spiralRadius, y: a.y + Math.sin(angle) * spiralRadius };
+        if (previous && onSegment(previous, current)) return true;
+        previous = current;
+      }
+      return false;
+    }
+    return pointInRect(x, y, this.bbox(mapper), tolerance + 4);
   }
 }
 

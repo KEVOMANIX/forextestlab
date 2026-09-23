@@ -403,6 +403,10 @@ export function AnalyticsDesignPrototype({
   const periodStart = demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime;
   const periodEnd = demo ? DEMO_ANALYTICS_PERIOD.endTime : endTime;
   const periodLabel = periodStart && periodEnd ? `${formatNewYorkDate(periodStart)} – ${formatNewYorkDate(periodEnd)}` : "Session period";
+  const displayedSessionName = demo ? "London-session breakout — sample" : sessionName;
+  const normalizedSessionName = displayedSessionName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const normalizedPair = (demo ? "EUR/USD" : pairLabel).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const showPairInMetadata = !normalizedPair || !normalizedSessionName.includes(normalizedPair);
   const resumeHref = sessionId ? `/app/backtest?session=${encodeURIComponent(sessionId)}` : "/app/backtest";
 
   // A trade number cited in an AI answer opens the ledger on that trade.
@@ -428,16 +432,15 @@ export function AnalyticsDesignPrototype({
 
       {!demo && notice}
 
-      <header className="mt-5 flex flex-col gap-5 border-b app-border pb-5 lg:flex-row lg:items-end lg:justify-between">
+      <header className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2 text-xs app-muted">
+          <h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] app-muted">
             <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
-            <span>{demo ? "EUR/USD" : pairLabel}</span><span>·</span><span>{periodLabel}</span>{demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
-          </div>
-          <h1 className="mt-2 truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{demo ? "London-session breakout — sample" : sessionName}</h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm app-muted">
-            <span>Strategy performance report</span>
-            <ReportTimeZone sessionId={demo ? undefined : sessionId} startTime={startTime} endTime={endTime} />
+            {showPairInMetadata && <><span aria-hidden>·</span><span>{demo ? "EUR/USD" : pairLabel}</span></>}
+            <span aria-hidden>·</span><span>{periodLabel}</span>
+            <span aria-hidden>·</span><ReportTimeZone compact sessionId={demo ? undefined : sessionId} startTime={startTime} endTime={endTime} />
+            {demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

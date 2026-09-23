@@ -30,6 +30,7 @@ export function ReportTimeZone({
   sessionId,
   startTime,
   endTime,
+  compact = false,
   className = "",
 }: {
   /**
@@ -40,6 +41,8 @@ export function ReportTimeZone({
   /** The report's period, used to decide whether one offset covers all of it. */
   startTime?: number;
   endTime?: number;
+  /** Render inline with nearby metadata instead of as a standalone pill. */
+  compact?: boolean;
   className?: string;
 }) {
   const chartZone = useChartZone(sessionId);
@@ -48,10 +51,10 @@ export function ReportTimeZone({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+      className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${compact ? "" : "rounded-full border px-2.5 py-1"} ${
         diverges
           ? "border-amber-300/30 bg-amber-300/[0.08] text-amber-200"
-          : "app-border bg-[var(--app-panel-2)] app-muted"
+          : compact ? "app-muted" : "app-border bg-[var(--app-panel-2)] app-muted"
       } ${className}`}
     >
       {diverges ? <TriangleAlert size={11} aria-hidden /> : <Clock3 size={11} aria-hidden />}

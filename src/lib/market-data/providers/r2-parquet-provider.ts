@@ -18,7 +18,7 @@ import type {
   MarketDataProvider,
   MarketSymbol,
 } from "@/lib/market-data/types";
-import { TIMEFRAME_MS } from "@/lib/market-data/types";
+import { nextTimeframeTimestamp, TIMEFRAME_MS } from "@/lib/market-data/types";
 
 const MANIFEST_TTL_MS = 5 * 60_000;
 const CANDLE_CACHE_TTL_MS = 15 * 60_000;
@@ -308,6 +308,16 @@ async function readMonth(config: R2Config, stored: StoredMonth): Promise<Candle[
   }
 }
 
+export function completedRollupCandles(
+  candles: Candle[],
+  timeframe: CandleRequest["timeframe"],
+  endTime: number,
+): Candle[] {
+  return candles.filter(
+    (candle) => nextTimeframeTimestamp(candle.timestamp, timeframe) <= endTime + 1,
+  );
+}
+
 async function readDailyRollup(config: R2Config, symbol: string): Promise<Candle[] | null> {
   const key = `${config.prefix}_rollups/1d/${symbol}.parquet`;
   const cached = rollupCache.get(key);
@@ -386,7 +396,12 @@ export class R2ParquetProvider implements MarketDataProvider {
           const rolled = request.timeframe === "1d"
             ? selected
             : aggregateCandles(selected, "1d", request.timeframe);
-          return request.limit === undefined ? rolled : rolled.slice(0, request.limit);
+          // A stored daily candle contains its entire UTC day. Never use it to
+          // build a daily/weekly/monthly candle whose period has not completed
+          // by the caller's replay-safe end time; the live replay series builds
+          // that active candle only from already revealed base candles.
+          const completed = completedRollupCandles(rolled, request.timeframe, request.endTime);
+          return request.limit === undefined ? completed : completed.slice(0, request.limit);
         }
       }
     }

@@ -68,6 +68,7 @@ import {
   canAggregateTimeframes,
   isForexSessionTimestamp,
   nextForexTimeframeTimestamp,
+  nextTimeframeTimestamp,
   type Candle,
   type Timeframe,
 } from "@/lib/market-data/types";
@@ -1261,8 +1262,16 @@ export default function PriceChart({
     const key = chartHistoryKey(storageKey, subscribedTimeframe);
     return subscribeChartHistory(key, (snapshot) => {
       if (displayTimeframeRef.current !== subscribedTimeframe) return;
+      const replayClock = rawCandlesRef.current.at(-1)?.timestamp;
       const byTime = new Map<number, Candle>();
       for (const candle of [...snapshot.candles, ...historyCandlesRef.current]) {
+        // Older browser caches may contain a full daily/weekly candle produced
+        // before completed-period filtering was introduced. Keep it out until
+        // the replay clock has actually passed that candle's closing boundary.
+        if (
+          replayClock !== undefined &&
+          nextTimeframeTimestamp(candle.timestamp, subscribedTimeframe) > replayClock
+        ) continue;
         byTime.set(candle.timestamp, candle);
       }
       const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
@@ -1846,17 +1855,25 @@ export default function PriceChart({
     const latestSeconds = Number(latestTime);
     const timeframe = displayTimeframeRef.current;
     const stepSeconds = TIMEFRAME_MS[timeframe] / 1000;
+    const futurePointCount = TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1M"]
+      ? 4
+      : TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1w"]
+        ? 6
+        : TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]
+          ? 10
+          : 200;
     const cached = futureTimeRangeRef.current;
-    // Keep a generous invisible time-only runway. Refresh only after half of it
-    // has been consumed, so the time axis continues through the blank quarter
-    // without rebuilding whitespace data on every replay candle.
+    // Intraday drawing tools benefit from a long forward runway. On daily and
+    // higher charts that same 200-bar runway labels months or years that have
+    // not occurred yet and looks like leaked replay data, so keep only a small
+    // working margin there.
     if (
       cached.timeframe === timeframe &&
-      cached.through - latestSeconds >= stepSeconds * 100
+      cached.through - latestSeconds >= stepSeconds * Math.max(2, Math.floor(futurePointCount / 2))
     ) {
       return;
     }
-    const whitespace: WhitespaceData<Time>[] = Array.from({ length: 200 }, (_, index) => ({
+    const whitespace: WhitespaceData<Time>[] = Array.from({ length: futurePointCount }, (_, index) => ({
       time: (nextForexTimeframeTimestamp(latestSeconds * 1000, timeframe, index + 1) / 1000) as UTCTimestamp,
     }));
     series.setData(whitespace);

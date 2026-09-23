@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { completedRollupCandles, parquetRowsToCandles } from "./r2-parquet-provider";
+import {
+  completedRollupCandles,
+  parquetRowsToCandles,
+  replaySafeDailyRollup,
+} from "./r2-parquet-provider";
 
 const OHLC = { open: 1, high: 2, low: 0.5, close: 1.5 };
 const INSTANT_MS = Date.parse("2024-01-15T10:30:00Z");
@@ -37,5 +41,24 @@ describe("completed higher-timeframe rollups", () => {
     const candle = parquetRowsToCandles([{ timestamp: monday, ...OHLC }])[0]!;
     expect(completedRollupCandles([candle], "1w", Date.UTC(2015, 3, 29))).toEqual([]);
     expect(completedRollupCandles([candle], "1w", Date.UTC(2015, 4, 4) - 1)).toEqual([candle]);
+  });
+
+  it("retains the completed-day portion of an open week without leaking later days", () => {
+    const monday = Date.UTC(2015, 3, 27);
+    const daily = [0, 1, 2, 3, 4].map((offset) => parquetRowsToCandles([{
+      timestamp: monday + offset * 24 * 60 * 60_000,
+      open: offset + 1,
+      high: offset + 2,
+      low: offset + 0.5,
+      close: offset + 1.5,
+    }])[0]!);
+
+    const weekly = replaySafeDailyRollup(daily, "1w", Date.UTC(2015, 3, 30) - 1);
+
+    expect(weekly).toHaveLength(1);
+    expect(weekly[0]?.timestamp).toBe(monday);
+    expect(weekly[0]?.open).toBe("1");
+    expect(weekly[0]?.close).toBe("3.5");
+    expect(weekly[0]?.high).toBe("4");
   });
 });

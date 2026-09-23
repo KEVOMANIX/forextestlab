@@ -318,6 +318,21 @@ export function completedRollupCandles(
   );
 }
 
+/**
+ * Build replay-safe candles from the stored daily rollup. Higher-timeframe
+ * buckets may remain open, but contain only daily candles that have closed by
+ * `endTime`; this preserves the safe part of the current week/month.
+ */
+export function replaySafeDailyRollup(
+  daily: Candle[],
+  timeframe: CandleRequest["timeframe"],
+  endTime: number,
+): Candle[] {
+  const completedDays = completedRollupCandles(daily, "1d", endTime);
+  if (timeframe === "1d") return completedDays;
+  return aggregateCandles(completedDays, "1d", timeframe);
+}
+
 async function readDailyRollup(config: R2Config, symbol: string): Promise<Candle[] | null> {
   const key = `${config.prefix}_rollups/1d/${symbol}.parquet`;
   const cached = rollupCache.get(key);
@@ -393,15 +408,8 @@ export class R2ParquetProvider implements MarketDataProvider {
           (candle) => candle.timestamp >= request.startTime && candle.timestamp <= request.endTime,
         );
         if (selected.length) {
-          const rolled = request.timeframe === "1d"
-            ? selected
-            : aggregateCandles(selected, "1d", request.timeframe);
-          // A stored daily candle contains its entire UTC day. Never use it to
-          // build a daily/weekly/monthly candle whose period has not completed
-          // by the caller's replay-safe end time; the live replay series builds
-          // that active candle only from already revealed base candles.
-          const completed = completedRollupCandles(rolled, request.timeframe, request.endTime);
-          return request.limit === undefined ? completed : completed.slice(0, request.limit);
+          const safe = replaySafeDailyRollup(selected, request.timeframe, request.endTime);
+          return request.limit === undefined ? safe : safe.slice(0, request.limit);
         }
       }
     }

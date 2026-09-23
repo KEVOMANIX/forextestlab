@@ -488,6 +488,23 @@ function joinTimeline(history: Candle[], replay: OHLCV[]): OHLCV[] {
   return (boundary == null ? prefix : prefix.filter((candle) => candle.time < boundary)).concat(replay);
 }
 
+/** Join the safely revealed pre-session part of an open week/month. */
+function mergeOpeningHistoryBucket(history: Candle[], replay: OHLCV[]): OHLCV[] {
+  const first = replay[0];
+  const prior = history.at(-1);
+  if (!first || !prior || Math.floor(prior.timestamp / 1000) !== first.time) return replay;
+  const volume = prior.volume === undefined && first.volume === undefined
+    ? undefined
+    : Number(prior.volume ?? 0) + (first.volume ?? 0);
+  return [{
+    ...first,
+    open: Number(prior.open),
+    high: Math.max(Number(prior.high), first.high),
+    low: Math.min(Number(prior.low), first.low),
+    volume,
+  }, ...replay.slice(1)];
+}
+
 /** Colour options for a price series of the given type. */
 function seriesColorOptions(type: ChartType, up: string, down: string) {
   if (type === "line") return { color: up };
@@ -1270,6 +1287,7 @@ export default function PriceChart({
         // the replay clock has actually passed that candle's closing boundary.
         if (
           replayClock !== undefined &&
+          subscribedTimeframe === "1d" &&
           nextTimeframeTimestamp(candle.timestamp, subscribedTimeframe) > replayClock
         ) continue;
         byTime.set(candle.timestamp, candle);
@@ -1629,7 +1647,10 @@ export default function PriceChart({
     const startedAt = performance.now();
     const series = seriesRef.current;
     if (!series) return;
-    const display = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
+    const replayDisplay = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
+    const display = TIMEFRAME_MS[displayTimeframeRef.current] > TIMEFRAME_MS["1d"]
+      ? mergeOpeningHistoryBucket(historyCandlesRef.current, replayDisplay)
+      : replayDisplay;
     const previous = displayRef.current;
     displayRef.current = display;
     syncFutureTimeScale(display.at(-1)?.time);

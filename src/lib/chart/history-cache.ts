@@ -19,7 +19,8 @@ export function chartHistoryKey(
   storageKey: string,
   timeframe: Timeframe,
 ): string {
-  return `${storageKey}:${timeframe}`;
+  // v2 discards pages written before replay-safe partial week/month rollups.
+  return `v2:${storageKey}:${timeframe}`;
 }
 
 function mergeCandles(...groups: Candle[][]): Candle[] {
@@ -126,4 +127,3 @@ export function subscribeChartHistory(key: string, listener: Listener): () => vo
     if (group.size === 0) listeners.delete(key);
   };
 }
-

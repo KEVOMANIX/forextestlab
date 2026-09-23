@@ -16,7 +16,7 @@ function candle(timestamp: number): Candle {
 
 describe("shared chart history cache", () => {
   it("keys history by session, symbol, and timeframe", () => {
-    expect(chartHistoryKey("session-1:EURUSD", "1M")).toBe("session-1:EURUSD:1M");
+    expect(chartHistoryKey("session-1:EURUSD", "1M")).toBe("v2:session-1:EURUSD:1M");
   });
 
   it("merges pages and updates every matching chart subscriber", async () => {
@@ -41,4 +41,3 @@ describe("shared chart history cache", () => {
     stopSecond();
   });
 });
-

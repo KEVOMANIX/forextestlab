@@ -195,6 +195,22 @@ export function FibExtensionIcon(props: DrawingIconProps) {
   );
 }
 
+// Distinct component identities keep favorites/tooltips stable while the
+// related studies intentionally share a compact visual vocabulary.
+export const FibChannelIcon = (props: DrawingIconProps) => <ParallelChannelIcon {...props} />;
+export const FibTimeZoneIcon = (props: DrawingIconProps) => <FibonacciIcon {...props} />;
+export const FibSpeedFanIcon = (props: DrawingIconProps) => <TrendAngleIcon {...props} />;
+export const TrendFibTimeIcon = (props: DrawingIconProps) => <FibExtensionIcon {...props} />;
+export const FibCirclesIcon = (props: DrawingIconProps) => <CircleToolIcon {...props} />;
+export const FibSpiralIcon = (props: DrawingIconProps) => <CircleToolIcon {...props} />;
+export const FibSpeedArcsIcon = (props: DrawingIconProps) => <CircleToolIcon {...props} />;
+export const FibWedgeIcon = (props: DrawingIconProps) => <FibonacciIcon {...props} />;
+export const PitchfanIcon = (props: DrawingIconProps) => <TrendAngleIcon {...props} />;
+export const GannBoxIcon = (props: DrawingIconProps) => <RectangleToolIcon {...props} />;
+export const GannSquareFixedIcon = (props: DrawingIconProps) => <RectangleToolIcon {...props} />;
+export const GannSquareIcon = (props: DrawingIconProps) => <RectangleToolIcon {...props} />;
+export const GannFanIcon = (props: DrawingIconProps) => <TrendAngleIcon {...props} />;
+
 // ---- positions ----
 
 /**
@@ -475,6 +491,19 @@ export const DRAWING_TOOL_ICONS = {
   flatChannel: FlatChannelIcon,
   disjointChannel: DisjointChannelIcon,
   fibExtension: FibExtensionIcon,
+  fibChannel: FibChannelIcon,
+  fibTimeZone: FibTimeZoneIcon,
+  fibSpeedResistanceFan: FibSpeedFanIcon,
+  trendFibTime: TrendFibTimeIcon,
+  fibCircles: FibCirclesIcon,
+  fibSpiral: FibSpiralIcon,
+  fibSpeedResistanceArcs: FibSpeedArcsIcon,
+  fibWedge: FibWedgeIcon,
+  pitchfan: PitchfanIcon,
+  gannBox: GannBoxIcon,
+  gannSquareFixed: GannSquareFixedIcon,
+  gannSquare: GannSquareIcon,
+  gannFan: GannFanIcon,
   priceRange: PriceRangeIcon,
   dateRange: DateRangeIcon,
   datePriceRange: DatePriceRangeIcon,

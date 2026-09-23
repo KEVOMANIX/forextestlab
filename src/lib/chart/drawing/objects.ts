@@ -1196,6 +1196,123 @@ class PriceLabel extends DrawingObject {
   hitTest(x:number,y:number,mapper:CoordinateMapper):boolean{const p=this.px(mapper,this.points[0]!);return !!p&&dist(x,y,p.x,p.y)<32;}
 }
 
+// ---- Fibonacci and Gann studies ----
+
+const STUDY_RATIOS = [0.236, 0.382, 0.5, 0.618, 1, 1.618, 2.618];
+
+/** Multi-line geometric studies that share the normal drawing lifecycle. */
+class AdvancedStudy extends DrawingObject {
+  private pixels(mapper: CoordinateMapper) {
+    return this.points.map((point) => this.px(mapper, point));
+  }
+
+  render({ ctx, mapper }: RenderCtx): void {
+    const points = this.pixels(mapper);
+    const a = points[0];
+    const b = points[1];
+    if (!a || !b) return;
+    const c = points[2] ?? b;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const color = withAlpha(this.style.color, this.style.opacity);
+    const faint = withAlpha(this.style.color, this.style.opacity * 0.58);
+    const line = (x1: number, y1: number, x2: number, y2: number, alpha = false) => {
+      ctx.strokeStyle = alpha ? faint : color;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    };
+    const label = (text: string, x: number, y: number) => {
+      if (!this.style.showLabels) return;
+      ctx.fillStyle = faint; ctx.font = "9px ui-monospace, monospace"; ctx.fillText(text, x + 3, y - 3);
+    };
+    ctx.save();
+    this.applyStroke(ctx);
+
+    if (this.kind === "fibChannel") {
+      const ox = c.x - a.x, oy = c.y - a.y;
+      STUDY_RATIOS.forEach((ratio) => {
+        const x1 = a.x + ox * ratio, y1 = a.y + oy * ratio;
+        line(x1, y1, x1 + dx, y1 + dy, ratio !== 1);
+        label(String(ratio), x1 + dx, y1 + dy);
+      });
+    } else if (this.kind === "fibTimeZone" || this.kind === "trendFibTime") {
+      const origin = this.kind === "trendFibTime" ? c.x : a.x;
+      const step = Math.max(2, Math.abs(dx));
+      [0, 1, 2, 3, 5, 8, 13, 21, 34].forEach((n) => {
+        const x = origin + Math.sign(dx || 1) * step * n;
+        line(x, 0, x, mapper.height, n > 3); label(String(n), x, 14);
+      });
+    } else if (this.kind === "fibSpeedResistanceFan" || this.kind === "gannFan") {
+      const ratios = this.kind === "gannFan" ? [0.125, 0.25, 0.333, 0.5, 1, 2, 3, 4, 8] : STUDY_RATIOS;
+      ratios.forEach((ratio) => {
+        const ex = b.x;
+        const ey = a.y + dy * ratio;
+        line(a.x, a.y, ex, ey, ratio !== 1); label(ratio.toFixed(3), ex, ey);
+      });
+    } else if (this.kind === "fibCircles" || this.kind === "fibSpeedResistanceArcs") {
+      const rx = Math.max(2, Math.abs(dx));
+      const ry = Math.max(2, Math.abs(dy));
+      STUDY_RATIOS.forEach((ratio) => {
+        ctx.strokeStyle = ratio === 1 ? color : faint;
+        ctx.beginPath();
+        const start = this.kind === "fibCircles" ? 0 : Math.PI;
+        const end = this.kind === "fibCircles" ? Math.PI * 2 : Math.PI * 2;
+        ctx.ellipse(a.x, a.y, rx * ratio, ry * ratio, 0, start, end);
+        ctx.stroke(); label(String(ratio), a.x + rx * ratio, a.y);
+      });
+    } else if (this.kind === "fibSpiral") {
+      const radius = Math.max(4, Math.hypot(dx, dy));
+      ctx.beginPath();
+      for (let i = 0; i <= 120; i += 1) {
+        const angle = i * 0.14;
+        const r = radius * (i / 120) * 1.618;
+        const x = a.x + Math.cos(angle) * r;
+        const y = a.y + Math.sin(angle) * r;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = color; ctx.stroke();
+    } else if (this.kind === "fibWedge") {
+      line(a.x, a.y, b.x, b.y); line(a.x, a.y, c.x, c.y);
+      STUDY_RATIOS.forEach((ratio) => {
+        line(a.x + (b.x - a.x) * ratio, a.y + (b.y - a.y) * ratio,
+          a.x + (c.x - a.x) * ratio, a.y + (c.y - a.y) * ratio, true);
+      });
+    } else if (this.kind === "pitchfan") {
+      const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+      [-1, -0.5, 0, 0.5, 1].forEach((ratio) => line(c.x, c.y, midX + (b.x - a.x) * ratio, midY + (b.y - a.y) * ratio, ratio !== 0));
+      line(a.x, a.y, b.x, b.y);
+    } else {
+      const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x);
+      const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
+      const width = right - left, height = bottom - top;
+      if (this.style.fill) { ctx.fillStyle = withAlpha(this.style.fillColor, this.style.fillOpacity); ctx.fillRect(left, top, width, height); }
+      ctx.strokeStyle = color; ctx.strokeRect(left, top, width, height);
+      const divisions = this.kind === "gannSquareFixed" ? 8 : this.kind === "gannSquare" ? 4 : 3;
+      for (let i = 1; i < divisions; i += 1) {
+        line(left + width * i / divisions, top, left + width * i / divisions, bottom, true);
+        line(left, top + height * i / divisions, right, top + height * i / divisions, true);
+      }
+      line(left, top, right, bottom); line(left, bottom, right, top);
+      if (this.kind === "gannBox") {
+        line(left, (top + bottom) / 2, right, top); line(left, (top + bottom) / 2, right, bottom, true);
+      }
+    }
+    ctx.restore();
+  }
+
+  bbox(mapper: CoordinateMapper): Rect {
+    const pixels = this.pixels(mapper).filter((point): point is { x: number; y: number } => point != null);
+    if (!pixels.length) return { x: 0, y: 0, w: 0, h: 0 };
+    const xs = pixels.map((point) => point.x);
+    const ys = pixels.map((point) => point.y);
+    const x = Math.min(...xs), y = Math.min(...ys);
+    return { x, y, w: Math.max(1, Math.max(...xs) - x), h: Math.max(1, Math.max(...ys) - y) };
+  }
+
+  hitTest(x: number, y: number, mapper: CoordinateMapper): boolean {
+    return pointInRect(x, y, this.bbox(mapper), HIT_TOLERANCE + 4);
+  }
+}
+
 // ---- factory ----
 
 const REGISTRY: Record<ToolKind, new (json: DrawingJSON) => DrawingObject> = {
@@ -1233,6 +1350,19 @@ const REGISTRY: Record<ToolKind, new (json: DrawingJSON) => DrawingObject> = {
   flatChannel: FlatChannel,
   disjointChannel: DisjointChannel,
   fibExtension: FibExtension,
+  fibChannel: AdvancedStudy,
+  fibTimeZone: AdvancedStudy,
+  fibSpeedResistanceFan: AdvancedStudy,
+  trendFibTime: AdvancedStudy,
+  fibCircles: AdvancedStudy,
+  fibSpiral: AdvancedStudy,
+  fibSpeedResistanceArcs: AdvancedStudy,
+  fibWedge: AdvancedStudy,
+  pitchfan: AdvancedStudy,
+  gannBox: AdvancedStudy,
+  gannSquareFixed: AdvancedStudy,
+  gannSquare: AdvancedStudy,
+  gannFan: AdvancedStudy,
   priceRange: RangeTool,
   dateRange: RangeTool,
   datePriceRange: RangeTool,

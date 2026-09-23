@@ -46,7 +46,7 @@ function creationMode(kind: ToolKind): CreateMode {
   // Position tools drop a default 1:1 box on a single click, then the user
   // drags the handles to place stop/target.
   if (kind === "long" || kind === "short") return "single";
-  if (kind === "triangle" || kind === "channel" || kind === "flatChannel" || kind === "disjointChannel" || kind === "fibExtension" || kind === "anchoredText" || kind === "callout" || kind === "path") return "click";
+  if (kind === "triangle" || kind === "channel" || kind === "flatChannel" || kind === "disjointChannel" || kind === "fibExtension" || kind === "fibChannel" || kind === "trendFibTime" || kind === "fibWedge" || kind === "pitchfan" || kind === "anchoredText" || kind === "callout" || kind === "path") return "click";
   // A brush/highlighter stroke is pressed, dragged and released — points are
   // sampled continuously while the pointer moves, not placed one click at a
   // time like `path`.
@@ -642,6 +642,10 @@ export class DrawingEngine {
       o.kind === "channel" || o.kind === "horizontalRay" || o.kind === "crossline" ||
       o.kind === "infoLine" || o.kind === "trendAngle" || o.kind === "regression" ||
       o.kind === "flatChannel" || o.kind === "disjointChannel" || o.kind === "fibExtension" ||
+      o.kind === "fibChannel" || o.kind === "fibTimeZone" || o.kind === "fibSpeedResistanceFan" ||
+      o.kind === "trendFibTime" || o.kind === "fibCircles" || o.kind === "fibSpiral" ||
+      o.kind === "fibSpeedResistanceArcs" || o.kind === "fibWedge" || o.kind === "pitchfan" ||
+      o.kind === "gannBox" || o.kind === "gannSquareFixed" || o.kind === "gannSquare" || o.kind === "gannFan" ||
       o.kind === "priceRange" || o.kind === "dateRange" || o.kind === "datePriceRange" ||
       o.kind === "callout" || o.kind === "priceLabel" || o.kind === "anchoredText" ||
       // A position's three points are an entry, a stop and a target, each of

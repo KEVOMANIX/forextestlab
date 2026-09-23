@@ -35,6 +35,19 @@ export type ToolKind =
   | "flatChannel"
   | "disjointChannel"
   | "fibExtension"
+  | "fibChannel"
+  | "fibTimeZone"
+  | "fibSpeedResistanceFan"
+  | "trendFibTime"
+  | "fibCircles"
+  | "fibSpiral"
+  | "fibSpeedResistanceArcs"
+  | "fibWedge"
+  | "pitchfan"
+  | "gannBox"
+  | "gannSquareFixed"
+  | "gannSquare"
+  | "gannFan"
   | "priceRange"
   | "dateRange"
   | "datePriceRange"
@@ -211,6 +224,19 @@ export const TOOL_POINTS: Record<ToolKind, number> = {
   flatChannel: 3,
   disjointChannel: 4,
   fibExtension: 3,
+  fibChannel: 3,
+  fibTimeZone: 2,
+  fibSpeedResistanceFan: 2,
+  trendFibTime: 3,
+  fibCircles: 2,
+  fibSpiral: 2,
+  fibSpeedResistanceArcs: 2,
+  fibWedge: 3,
+  pitchfan: 3,
+  gannBox: 2,
+  gannSquareFixed: 2,
+  gannSquare: 2,
+  gannFan: 2,
   priceRange: 2,
   dateRange: 2,
   datePriceRange: 2,
@@ -249,6 +275,19 @@ export const TOOL_LABELS: Record<ToolKind, string> = {
   flatChannel: "Flat top / bottom",
   disjointChannel: "Disjoint channel",
   fibExtension: "Trend-based Fib extension",
+  fibChannel: "Fib channel",
+  fibTimeZone: "Fib time zone",
+  fibSpeedResistanceFan: "Fib speed resistance fan",
+  trendFibTime: "Trend-based Fib time",
+  fibCircles: "Fib circles",
+  fibSpiral: "Fib spiral",
+  fibSpeedResistanceArcs: "Fib speed resistance arcs",
+  fibWedge: "Fib wedge",
+  pitchfan: "Pitchfan",
+  gannBox: "Gann box",
+  gannSquareFixed: "Gann square fixed",
+  gannSquare: "Gann square",
+  gannFan: "Gann fan",
   priceRange: "Price range",
   dateRange: "Date range",
   datePriceRange: "Date & price range",

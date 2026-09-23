@@ -441,13 +441,14 @@ const LIVE_CANDLE_POSITION = 0.75;
  */
 const MAX_LIVE_CANDLE_POSITION = 4;
 
-type DrawMenu = "lines" | "shapes" | "fib" | "trade" | "notes" | "brushes";
+type DrawMenu = "lines" | "shapes" | "fib" | "gann" | "trade" | "notes" | "brushes";
 
 /** Grouping of drawing tools into toolbar flyouts. */
 const DRAW_GROUPS: { key: DrawMenu; label: string; Icon: DrawingIcon; tools: ToolKind[] }[] = [
   { key: "lines", label: "Lines & channels", Icon: LinesGroupIcon, tools: ["trend", "ray", "horizontalRay", "extended", "arrow", "horizontal", "vertical", "crossline", "infoLine", "trendAngle", "channel", "flatChannel", "disjointChannel", "regression"] },
   { key: "shapes", label: "Shapes", Icon: ShapesGroupIcon, tools: ["rectangle", "session", "circle", "ellipse", "triangle", "path"] },
-  { key: "fib", label: "Fibonacci", Icon: FibonacciIcon, tools: ["fib", "fibExtension"] },
+  { key: "fib", label: "Fibonacci", Icon: FibonacciIcon, tools: ["fib", "fibExtension", "fibChannel", "fibTimeZone", "fibSpeedResistanceFan", "trendFibTime", "fibCircles", "fibSpiral", "fibSpeedResistanceArcs", "fibWedge", "pitchfan"] },
+  { key: "gann", label: "Gann", Icon: FibonacciIcon, tools: ["gannBox", "gannSquareFixed", "gannSquare", "gannFan"] },
   { key: "trade", label: "Positions & measure", Icon: PositionsGroupIcon, tools: ["long", "short", "measure", "priceRange", "dateRange", "datePriceRange"] },
   { key: "notes", label: "Text & notes", Icon: NotesGroupIcon, tools: ["text", "anchoredText", "label", "callout", "priceLabel"] },
   { key: "brushes", label: "Brushes", Icon: BrushesGroupIcon, tools: ["brush", "highlighter"] },

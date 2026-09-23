@@ -98,6 +98,18 @@ export interface DrawingStyle {
   // Fibonacci only:
   reverse?: boolean; // reflect levels vertically
   fibLevels?: number[]; // which ratios to display (undefined = all default levels)
+  gannPriceLevels?: number[];
+  gannTimeLevels?: number[];
+  gannPriceLevelColors?: Record<string, string>;
+  gannTimeLevelColors?: Record<string, string>;
+  gannLeftLabels?: boolean;
+  gannRightLabels?: boolean;
+  gannTopLabels?: boolean;
+  gannBottomLabels?: boolean;
+  gannPriceBackground?: boolean;
+  gannTimeBackground?: boolean;
+  gannAngles?: boolean;
+  gannUseOneColor?: boolean;
 }
 
 /** Serializable form of any drawing — the single source of truth persisted / cloned / undone. */
@@ -183,6 +195,23 @@ export function defaultStyle(kind: ToolKind): DrawingStyle {
     base.riskMode = "percent";
     base.leverage = 1;
     base.lotSize = 1;
+  }
+  if (kind === "gannBox") {
+    base.fill = true;
+    base.fillColor = "#22c55e";
+    base.fillOpacity = 0.08;
+    base.gannPriceLevels = [0, 0.5, 1];
+    base.gannTimeLevels = [0, 0.5, 1];
+    base.gannPriceLevelColors = { "0": "#9ca3af", "0.25": "#d97706", "0.382": "#0891b2", "0.5": "#22c55e", "0.618": "#0f766e", "0.75": "#3155a6", "1": "#9ca3af" };
+    base.gannTimeLevelColors = { "0": "#6b7280", "0.25": "#d97706", "0.382": "#0891b2", "0.5": "#166534", "0.618": "#0f766e", "0.75": "#3155a6", "1": "#52525b" };
+    base.gannLeftLabels = true;
+    base.gannRightLabels = true;
+    base.gannTopLabels = false;
+    base.gannBottomLabels = false;
+    base.gannPriceBackground = true;
+    base.gannTimeBackground = true;
+    base.gannAngles = false;
+    base.gannUseOneColor = false;
   }
   // A freehand stroke reads as a pen mark, not a measurement line — thin
   // enough to vanish at the 1px baseline every other tool starts from.
@@ -302,6 +331,7 @@ export const TOOLS_NEEDING_TEXT: ReadonlySet<ToolKind> = new Set<ToolKind>(["tex
 
 /** TradingView's default visible Fibonacci retracement ratios (incl. extensions). */
 export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1, 1.618, 2.618, 3.618, 4.236] as const;
+export const GANN_LEVELS = [0, 0.25, 0.382, 0.5, 0.618, 0.75, 1] as const;
 
 // White leads because it is the default, so the picker opens with the current
 // colour selected. It replaces the near-white #e5e7eb rather than joining it:

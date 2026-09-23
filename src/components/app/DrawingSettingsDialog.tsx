@@ -7,6 +7,7 @@ import {
   DRAW_PALETTE,
   EXTENDABLE_TOOLS,
   FIB_LEVELS,
+  GANN_LEVELS,
   TOOL_LABELS,
   type DrawingJSON,
   type LineStyleName,
@@ -52,7 +53,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40" onPointerDown={onClose}>
       <div
-        className="w-[320px] rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl"
+        className={`${value.kind === "gannBox" ? "w-[430px]" : "w-[320px]"} rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl`}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b app-border px-3 py-2">
@@ -199,6 +200,60 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                 <Row label="Reverse">
                   <input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} />
                 </Row>
+              )}
+              {value.kind === "gannBox" && (
+                <>
+                  {(["gannPriceLevels", "gannTimeLevels"] as const).map((field) => {
+                    const current = s[field] ?? [0, 0.5, 1];
+                    const colorField = field === "gannPriceLevels" ? "gannPriceLevelColors" : "gannTimeLevelColors";
+                    const colors = s[colorField] ?? {};
+                    return (
+                      <div className="py-1" key={field}>
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide app-muted">
+                          {field === "gannPriceLevels" ? "Price levels" : "Time levels"}
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                          {GANN_LEVELS.map((level) => {
+                            const enabled = current.includes(level);
+                            return (
+                              <label key={level} className="flex items-center gap-1.5 text-[11px]">
+                                <input
+                                  type="checkbox"
+                                  checked={enabled}
+                                  onChange={() => setStyle({
+                                    [field]: enabled
+                                      ? current.filter((item) => item !== level)
+                                      : [...current, level].sort((a, b) => a - b),
+                                  })}
+                                />
+                                <span className={`flex-1 rounded border app-border px-2 py-1 font-mono ${enabled ? "" : "opacity-45"}`}>{level}</span>
+                                <input
+                                  type="color"
+                                  aria-label={`${field === "gannPriceLevels" ? "Price" : "Time"} level ${level} color`}
+                                  value={colors[String(level)] ?? s.color}
+                                  disabled={!enabled || Boolean(s.gannUseOneColor)}
+                                  onChange={(event) => setStyle({ [colorField]: { ...colors, [String(level)]: event.target.value } })}
+                                  className="h-7 w-8 cursor-pointer rounded border app-border bg-transparent p-0.5 disabled:opacity-40"
+                                />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="grid grid-cols-2 gap-x-4">
+                    <Row label="Left labels"><input type="checkbox" checked={s.gannLeftLabels ?? true} onChange={(e) => setStyle({ gannLeftLabels: e.target.checked })} /></Row>
+                    <Row label="Right labels"><input type="checkbox" checked={s.gannRightLabels ?? true} onChange={(e) => setStyle({ gannRightLabels: e.target.checked })} /></Row>
+                    <Row label="Top labels"><input type="checkbox" checked={Boolean(s.gannTopLabels)} onChange={(e) => setStyle({ gannTopLabels: e.target.checked })} /></Row>
+                    <Row label="Bottom labels"><input type="checkbox" checked={Boolean(s.gannBottomLabels)} onChange={(e) => setStyle({ gannBottomLabels: e.target.checked })} /></Row>
+                  </div>
+                  <Row label="Price background"><input type="checkbox" checked={s.gannPriceBackground ?? true} onChange={(e) => setStyle({ gannPriceBackground: e.target.checked })} /></Row>
+                  <Row label="Time background"><input type="checkbox" checked={s.gannTimeBackground ?? true} onChange={(e) => setStyle({ gannTimeBackground: e.target.checked })} /></Row>
+                  <Row label="Use one color"><input type="checkbox" checked={Boolean(s.gannUseOneColor)} onChange={(e) => setStyle({ gannUseOneColor: e.target.checked })} /></Row>
+                  <Row label="Angles"><input type="checkbox" checked={Boolean(s.gannAngles)} onChange={(e) => setStyle({ gannAngles: e.target.checked })} /></Row>
+                  <Row label="Reverse"><input type="checkbox" checked={Boolean(s.reverse)} onChange={(e) => setStyle({ reverse: e.target.checked })} /></Row>
+                </>
               )}
               {(value.kind === "fib" || value.kind === "fibExtension") && (
                 <div className="py-1">

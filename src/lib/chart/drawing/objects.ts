@@ -1280,6 +1280,56 @@ class AdvancedStudy extends DrawingObject {
       const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
       [-1, -0.5, 0, 0.5, 1].forEach((ratio) => line(c.x, c.y, midX + (b.x - a.x) * ratio, midY + (b.y - a.y) * ratio, ratio !== 0));
       line(a.x, a.y, b.x, b.y);
+    } else if (this.kind === "gannBox") {
+      const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x);
+      const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
+      const width = right - left, height = bottom - top;
+      const priceLevels = (this.style.gannPriceLevels ?? [0, 0.5, 1]).slice().sort((x, y) => x - y);
+      const timeLevels = (this.style.gannTimeLevels ?? [0, 0.5, 1]).slice().sort((x, y) => x - y);
+      const position = (ratio: number) => this.style.reverse ? 1 - ratio : ratio;
+      const levelColor = (axis: "price" | "time", ratio: number) => this.style.gannUseOneColor
+        ? color
+        : withAlpha((axis === "price" ? this.style.gannPriceLevelColors : this.style.gannTimeLevelColors)?.[String(ratio)] ?? this.style.color, this.style.opacity);
+      const gannLine = (x1: number, y1: number, x2: number, y2: number, stroke: string, dashed = false) => {
+        ctx.strokeStyle = stroke;
+        ctx.setLineDash(dashed ? [4, 3] : []);
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      };
+      if (this.style.gannPriceBackground ?? true) {
+        for (let index = 0; index < priceLevels.length - 1; index += 1) {
+          const y1 = top + height * position(priceLevels[index]!);
+          const y2 = top + height * position(priceLevels[index + 1]!);
+          ctx.fillStyle = withAlpha(this.style.fillColor, this.style.fillOpacity * (index % 2 ? 0.55 : 1));
+          ctx.fillRect(left, Math.min(y1, y2), width, Math.abs(y2 - y1));
+        }
+      }
+      if (this.style.gannTimeBackground ?? true) {
+        for (let index = 0; index < timeLevels.length - 1; index += 1) {
+          const x1 = left + width * position(timeLevels[index]!);
+          const x2 = left + width * position(timeLevels[index + 1]!);
+          ctx.fillStyle = withAlpha(this.style.color, this.style.fillOpacity * (index % 2 ? 0.12 : 0.04));
+          ctx.fillRect(Math.min(x1, x2), top, Math.abs(x2 - x1), height);
+        }
+      }
+      priceLevels.forEach((ratio) => {
+        const y = top + height * position(ratio);
+        gannLine(left, y, right, y, levelColor("price", ratio), ratio !== 0 && ratio !== 1);
+        if (this.style.gannLeftLabels ?? true) label(String(ratio), left - 18, y);
+        if (this.style.gannRightLabels ?? true) label(String(ratio), right, y);
+      });
+      timeLevels.forEach((ratio) => {
+        const x = left + width * position(ratio);
+        gannLine(x, top, x, bottom, levelColor("time", ratio), ratio !== 0 && ratio !== 1);
+        if (this.style.gannTopLabels) label(String(ratio), x, top);
+        if (this.style.gannBottomLabels) label(String(ratio), x, bottom + 10);
+      });
+      if (this.style.gannAngles) {
+        line(left, top, right, bottom); line(left, bottom, right, top);
+        priceLevels.filter((ratio) => ratio > 0 && ratio < 1).forEach((ratio) => {
+          line(left, top, right, top + height * position(ratio), true);
+          line(left, bottom, right, bottom - height * position(ratio), true);
+        });
+      }
     } else {
       const left = Math.min(a.x, b.x), right = Math.max(a.x, b.x);
       const top = Math.min(a.y, b.y), bottom = Math.max(a.y, b.y);
@@ -1292,9 +1342,6 @@ class AdvancedStudy extends DrawingObject {
         line(left, top + height * i / divisions, right, top + height * i / divisions, true);
       }
       line(left, top, right, bottom); line(left, bottom, right, top);
-      if (this.kind === "gannBox") {
-        line(left, (top + bottom) / 2, right, top); line(left, (top + bottom) / 2, right, bottom, true);
-      }
     }
     ctx.restore();
   }

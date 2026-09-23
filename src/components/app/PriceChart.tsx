@@ -2077,6 +2077,30 @@ export default function PriceChart({
     } else {
       delete container.dataset.latestCandlePosition;
     }
+    // History can arrive without changing the visible range. Recalculate the
+    // blank area here as well as on pan/zoom so slow 4M+ pages cannot leave the
+    // overlay at the boundary measured before their earliest candles loaded.
+    const firstHistoryTime = historyCandlesRef.current[0]?.timestamp;
+    const firstReplayTime = displayRef.current[0]?.time;
+    const firstLoadedSeconds = firstHistoryTime == null
+      ? firstReplayTime
+      : firstReplayTime == null
+        ? Math.floor(firstHistoryTime / 1000)
+        : Math.min(Math.floor(firstHistoryTime / 1000), firstReplayTime);
+    const firstLoadedCoordinate = firstLoadedSeconds == null
+      ? null
+      : scale.timeToCoordinate(firstLoadedSeconds as UTCTimestamp);
+    if (firstLoadedCoordinate != null) {
+      const boundaryWidth = Math.max(0, Math.min(plotWidth, Number(firstLoadedCoordinate)));
+      container.style.setProperty("--history-overlay-width", `${boundaryWidth}px`);
+    }
+    const visibleLogicalRange = scale.getVisibleLogicalRange();
+    setLeftHistoryBoundaryVisible(Boolean(
+      visibleLogicalRange &&
+      visibleLogicalRange.from <= 0 &&
+      firstLoadedCoordinate != null &&
+      firstLoadedCoordinate > 0,
+    ));
   }
 
   function createSeriesPair(type: ChartType) {
@@ -2209,23 +2233,6 @@ export default function PriceChart({
         // the trader control over fetching another page. Applying older data
         // shifts this boundary left, so the prompt naturally returns on the
         // next visit to the newly exposed edge.
-        const firstHistoryTime = historyCandlesRef.current[0]?.timestamp;
-        const firstReplayTime = displayRef.current[0]?.time;
-        const firstLoadedSeconds = firstHistoryTime == null
-          ? firstReplayTime
-          : firstReplayTime == null
-            ? Math.floor(firstHistoryTime / 1000)
-            : Math.min(Math.floor(firstHistoryTime / 1000), firstReplayTime);
-        const firstLoadedCoordinate = firstLoadedSeconds == null
-          ? null
-          : chart.timeScale().timeToCoordinate(firstLoadedSeconds as UTCTimestamp);
-        if (firstLoadedCoordinate != null) {
-          const boundaryWidth = Math.max(0, Math.min(chart.timeScale().width(), Number(firstLoadedCoordinate)));
-          container.style.setProperty("--history-overlay-width", `${boundaryWidth}px`);
-        }
-        setLeftHistoryBoundaryVisible(Boolean(
-          visible && visible.from <= 0 && firstLoadedCoordinate != null && firstLoadedCoordinate > 0,
-        ));
         if (!viewStorageKey) return;
         const range = chart.timeScale().getVisibleLogicalRange();
         pendingRangeRef.current = range;

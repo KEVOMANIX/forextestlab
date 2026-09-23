@@ -50,11 +50,12 @@ const MAX_CONTEXT_CANDLES = 3000;
 /** Keep one backward page cheap enough for an interactive chart/R2 request. */
 const MAX_CONTEXT_WINDOW_MS = 550 * 24 * 60 * 60 * 1000;
 /**
- * Weekly and calendar candles need a wider source window or a page contains
- * only a handful of bars (550 days is just 18 monthly candles). Five years is
- * useful on the chart while still bounding R2 reads and server work.
+ * Weekly and calendar charts are served from compact daily rollups. Their
+ * first request can therefore cover every realistic market-data range without
+ * decoding the underlying minute archive. One hundred years acts only as a
+ * defensive timestamp bound; current instruments have far less history.
  */
-const MAX_HIGHER_CONTEXT_WINDOW_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+const MAX_HIGHER_CONTEXT_WINDOW_MS = 100 * 365 * 24 * 60 * 60 * 1000;
 
 /**
  * In-memory cache of each session's candle series. A session's candles never

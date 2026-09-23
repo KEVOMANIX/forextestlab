@@ -4790,10 +4790,11 @@ export default function PriceChart({
 
         {leftHistoryBoundaryVisible && !loading && !historyLoading && (
           <div
-            className="pointer-events-none absolute inset-y-0 left-3 z-30 flex items-center"
+            className="pointer-events-none absolute inset-y-0 left-0 z-30 flex w-[44%] min-w-64 max-w-md items-center justify-center overflow-hidden border-r border-brand-400/10 bg-[var(--app-panel)]/50 px-4 backdrop-blur-[1px]"
             data-testid="older-history-overlay"
           >
-            <div className="pointer-events-auto w-56 overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-solid)]/95 shadow-2xl backdrop-blur-md">
+            <div className="absolute inset-0 bg-gradient-to-r from-[var(--app-bg)]/85 via-[var(--app-panel)]/55 to-brand-400/[0.025]" />
+            <div className="pointer-events-auto relative w-60 overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-solid)]/95 shadow-2xl backdrop-blur-md">
               <div className="h-0.5 bg-gradient-to-r from-brand-400 via-brand-300/70 to-transparent" />
               <div className="p-3.5">
                 <div className="flex items-start gap-3">

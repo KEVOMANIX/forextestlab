@@ -118,10 +118,10 @@ function MarketPicker({
   return (
     <fieldset className="min-w-0">
       <legend className="mb-3 flex w-full items-center gap-2">
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">2</span>
+        <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">2</span>
         <span className="text-sm font-semibold">Choose market{singleSelect ? "" : "s"}</span>
         {selected.length > 0 && (
-          <span className="rounded-full bg-brand-400/12 px-2 py-0.5 text-[11px] font-semibold text-brand-300">
+          <span className="text-[11px] font-medium app-muted">
             {selected.length} selected
           </span>
         )}
@@ -161,10 +161,10 @@ function MarketPicker({
                 type="button"
                 aria-pressed={active}
                 onClick={() => setCategory(item)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
                   active
-                    ? "border-brand-400/45 bg-brand-400/12 text-brand-200"
-                    : "app-border bg-[var(--app-panel-2)]/55 app-muted hover:border-brand-400/35 hover:text-brand-200"
+                    ? "border-brand-400/45 bg-[var(--app-panel-2)] text-brand-200"
+                    : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
                 }`}
               >
                 {item}
@@ -180,7 +180,7 @@ function MarketPicker({
           {selectedItems.map((item) => (
             <span
               key={item.symbol}
-              className="inline-flex items-center gap-1 rounded-md border border-brand-400/35 bg-brand-400/10 py-0.5 pl-2 pr-0.5 text-[11px] font-semibold text-brand-200"
+              className="inline-flex items-center gap-1 rounded-md border app-border bg-[var(--app-panel-2)] py-0.5 pl-2 pr-0.5 text-[11px] font-semibold"
             >
               <span className="font-mono">{item.displayName}</span>
               <button
@@ -224,8 +224,8 @@ function MarketPicker({
                     title={description}
                     className={`group relative flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-400/60 ${
                       active
-                        ? "border-brand-400/50 bg-brand-400/10"
-                        : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30 hover:bg-brand-400/[0.04]"
+                        ? "border-brand-400/55 bg-[var(--app-panel-2)]"
+                        : "app-border hover:bg-[var(--app-panel-2)]"
                     }`}
                   >
                     {/* Anchor the sr-only input to its row so native focus cannot
@@ -260,7 +260,7 @@ function MarketPicker({
                       {active && <Check size={11} strokeWidth={3.5} />}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className={`block truncate font-mono text-[13px] font-semibold leading-tight ${active ? "text-brand-200" : ""}`}>
+                      <span className="block truncate font-mono text-[13px] font-semibold leading-tight">
                         {item.displayName}
                       </span>
                       {description !== item.displayName && (
@@ -745,14 +745,11 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
 
   return (
     <form onSubmit={handleStart} className="panel mx-auto w-full max-w-6xl overflow-visible">
-      <div className="flex flex-col gap-2 border-b app-border px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">New backtest</p>
-          <h2 className="mt-0.5 text-xl font-bold tracking-tight">Build your replay session</h2>
-        </div>
-        <span className="w-fit rounded-full border border-brand-400/20 bg-brand-400/[0.07] px-3 py-1.5 text-xs font-semibold text-brand-300">
+      <div className="flex flex-col gap-1 border-b app-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <h2 className="text-xl font-semibold tracking-tight">New backtest</h2>
+        <span className="w-fit text-xs font-medium app-muted">
           {entitlements.plan === "free"
-            ? `Trial · ${entitlements.trialSessionsRemaining ?? 0} of 3 left · 1 pair · 31 days`
+            ? `Trial · ${entitlements.trialSessionsRemaining ?? 0} of 3 remaining`
             : "Pro workspace"}
         </span>
       </div>
@@ -761,7 +758,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         <div className="min-w-0 space-y-5 overflow-clip px-5 py-4 sm:px-6 lg:row-span-2 lg:border-r lg:border-[var(--app-border)]">
           <section>
             <div className="mb-3 flex items-center gap-2">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">1</span>
+              <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">1</span>
               <h3 className="text-sm font-semibold">Session details</h3>
             </div>
             <label htmlFor="setup-name" className="sr-only">Session name</label>
@@ -797,10 +794,10 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           />
         </div>
 
-        <div className="min-w-0 overflow-hidden border-t app-border bg-[linear-gradient(180deg,rgba(20,184,166,.035),transparent_45%)] px-5 py-4 sm:px-6 lg:border-t-0">
+        <div className="min-w-0 overflow-hidden border-t app-border px-5 py-4 sm:px-6 lg:border-t-0">
           <fieldset>
             <legend className="mb-3 flex w-full items-center gap-2">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">3</span>
+              <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">3</span>
               <span className="text-sm font-semibold">Session type</span>
             </legend>
             <div className="grid min-w-0 gap-3 sm:grid-cols-2">
@@ -838,7 +835,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
             )}
 
             {!challengePreset && (
-              <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
+              <div className="mt-3 rounded-lg border app-border p-3">
                 <label htmlFor="setup-account-balance" className="mb-1.5 block text-xs font-medium app-muted">
                   Starting account balance (USD)
                 </label>
@@ -859,7 +856,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
             )}
 
             {challengePreset && (
-              <div className="mt-3 rounded-xl border app-border bg-[var(--app-panel-2)]/50 p-3">
+              <div className="mt-3 rounded-lg border app-border p-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold">Account size</p>
                 </div>
@@ -904,7 +901,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         <div className="min-w-0 overflow-visible border-t app-border px-5 py-4 sm:px-6">
           <section>
             <div className="mb-3 flex items-center gap-2">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-400/10 text-xs font-bold text-brand-300">4</span>
+              <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">4</span>
               <h3 className="text-sm font-semibold">Replay period</h3>
             </div>
 
@@ -920,7 +917,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                     aria-pressed={active}
                     title={disabled ? `Your plan supports up to ${entitlements.maxSessionDays} days` : item.label}
                     onClick={() => selectPeriod(item.days)}
-                    className={`rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${active ? "border-brand-400/50 bg-brand-400/12 text-brand-200" : "app-border bg-[var(--app-panel-2)]/45 app-muted hover:border-brand-400/30 hover:text-brand-200"}`}
+                    className={`rounded-md border px-2 py-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${active ? "border-brand-400/50 bg-[var(--app-panel-2)] text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
                   >
                     {item.label}
                   </button>
@@ -930,7 +927,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                 type="button"
                 aria-pressed={customPeriod}
                 onClick={() => setCustomPeriod(true)}
-                className={`rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors ${customPeriod ? "border-brand-400/50 bg-brand-400/12 text-brand-200" : "app-border bg-[var(--app-panel-2)]/45 app-muted hover:border-brand-400/30 hover:text-brand-200"}`}
+                className={`rounded-md border px-2 py-2 text-[11px] font-semibold transition-colors ${customPeriod ? "border-brand-400/50 bg-[var(--app-panel-2)] text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
               >
                 Custom
               </button>
@@ -957,15 +954,15 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               ) : (
                 <div>
                   <span className="mb-1.5 block text-sm font-medium">End date</span>
-                  <div className="app-input flex min-h-10 items-center justify-between bg-[var(--app-panel-2)]/45">
+                  <div className="app-input flex min-h-10 items-center justify-between">
                     <span className={end ? "font-medium" : "app-muted"}>{friendlyDate(end)}</span>
-                    <span className="rounded bg-brand-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-brand-300">Automatic</span>
+                    <span className="text-[10px] font-medium app-muted">Automatic</span>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--app-panel-2)]/55 px-3 py-2.5 text-xs app-muted" aria-live="polite">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t app-border pt-3 text-xs app-muted" aria-live="polite">
               <span className="flex min-w-0 items-start gap-2">
                 {loadingRange ? (
                   <Loader2 size={14} className="mt-0.5 shrink-0 animate-spin text-brand-300" aria-hidden />
@@ -995,20 +992,14 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </div>
       </div>
 
-      <div className="border-t app-border bg-[var(--app-panel-2)]/30 px-5 py-3 sm:px-6">
+      <div className="border-t app-border px-5 py-3 sm:px-6">
         {error && (
           <p role="alert" className="mb-4 rounded-lg border border-loss/30 bg-loss/10 px-3 py-2 text-sm text-loss">
             {error}
           </p>
         )}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="truncate text-xs font-medium">
-              {selectedSymbols.length > 0 ? selectedSymbols.map(formatSymbol).join(", ") : "Choose a market"}
-              {start && end ? ` · ${friendlyDate(start)} – ${friendlyDate(end)}` : ""}
-            </p>
-          </div>
-          <button type="submit" className="btn-primary min-w-44" disabled={!canStart}>
+        <div className="flex justify-end">
+          <button type="submit" className="btn-primary h-10 min-w-44 py-0" disabled={!canStart}>
             {busy ? (
               <>
                 <Loader2 size={16} className="animate-spin" aria-hidden /> Creating…
@@ -1064,10 +1055,10 @@ function ModeCard({
       onClick={onSelect}
       disabled={disabled}
       aria-pressed={selected}
-      className={`min-w-0 flex min-h-[76px] items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`min-w-0 flex min-h-[76px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
         selected
-          ? "border-brand-400/50 bg-brand-400/10 shadow-[0_12px_28px_-18px_rgba(45,212,191,.9)]"
-          : "app-border bg-[var(--app-panel-2)]/55 hover:border-brand-400/30"
+          ? "border-brand-400/50 bg-[var(--app-panel-2)]"
+          : "app-border hover:bg-[var(--app-panel-2)]"
       }`}
     >
       {Icon && <Icon size={21} strokeWidth={1.8} className={selected ? "text-brand-300" : "app-muted"} aria-hidden />}

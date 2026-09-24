@@ -3903,7 +3903,7 @@ export default function PriceChart({
         const Icon = DRAWING_TOOL_ICONS[t];
         return (
           <ToolButton key={t} label={TOOL_LABELS[t]} active={drawTool === t} size="sm" onClick={() => { if (favMovedRef.current) return; setDrawTool(t); setMenu(null); }}>
-            <Icon size={19} aria-hidden />
+            <Icon size={21} aria-hidden />
           </ToolButton>
         );
       })}

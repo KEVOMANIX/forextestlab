@@ -3440,6 +3440,10 @@ export default function PriceChart({
   const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
   const sessionOverlayIndicators = overlayIndicators.filter((indicator) => indicator.kind === "sessions");
+  // Overlay is a placement mode, not a renderer. Market Sessions shares that
+  // mode with Volume Profile but is painted by renderSessionOverlays(). Passing
+  // it to VolumeProfileOverlay produced a side histogram the user never added.
+  const volumeProfileIndicators = overlayIndicators.filter((indicator) => indicator.kind === "volprofile");
   const sessionOverlayKey = sessionOverlayIndicators
     .map((indicator) => `${indicator.id}:${indicator.visible}:${JSON.stringify(indicator.inputs)}`)
     .join("|");
@@ -4181,7 +4185,7 @@ export default function PriceChart({
           />
         )}
 
-        {!loading && !historyLoading && overlayIndicators.map((inst) => (
+        {!loading && !historyLoading && volumeProfileIndicators.map((inst) => (
           <VolumeProfileOverlay
             key={inst.id}
             instance={inst}

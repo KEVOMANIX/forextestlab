@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Prisma } from "@/generated/prisma/client";
 import {
   ArrowRight,
@@ -20,6 +21,10 @@ import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { readSavedSessionState } from "@/lib/backtest/saved-session-state";
 import { depositedFunds } from "@/lib/backtest/replay-engine";
+import {
+  DASHBOARD_SESSION_COOKIE,
+  resolveDashboardSessionId,
+} from "@/lib/dashboard-session";
 
 export const dynamic = "force-dynamic";
 
@@ -154,7 +159,7 @@ export default async function AppHome(
   const legacySelectedId = searchParams?.performance?.startsWith("session:")
     ? searchParams.performance.slice("session:".length)
     : null;
-  const selectedId = searchParams?.session ?? legacySelectedId;
+  const requestedSessionId = searchParams?.session ?? legacySelectedId;
 
   // A full engine state can be several megabytes. The old dashboard selected
   // and parsed stateJson for as many as 100 sessions. PostgreSQL extracts the
@@ -189,8 +194,14 @@ export default async function AppHome(
       archived: details?.archived ?? false,
     };
   });
+  const rememberedSessionId = (await cookies()).get(DASHBOARD_SESSION_COOKIE)?.value;
+  const selectedId = resolveDashboardSessionId(
+    requestedSessionId,
+    rememberedSessionId,
+    sessions.map((session) => session.id),
+  );
   const selectedSession =
-    sessions.find((session) => session.id === selectedId) ?? sessions[0] ?? null;
+    sessions.find((session) => session.id === selectedId) ?? null;
   const selectedDetails = selectedSession
     ? await prisma.backtestSession.findFirst({
         where: { id: selectedSession.id, userId: user.id, anonymous: false },
@@ -223,7 +234,7 @@ export default async function AppHome(
       selectedTrades={trades}
       selectedEquityCurve={equityCurve}
       displayName={displayName}
-      selectedId={selectedId}
+      selectedId={selectedSession?.id ?? null}
       aiEnabled={entitlements.fullAnalytics}
     />
   );

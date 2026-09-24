@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
+import {
+  DASHBOARD_SESSION_COOKIE,
+  DASHBOARD_SESSION_COOKIE_MAX_AGE,
+} from "@/lib/dashboard-session";
 
 interface SessionOption {
   id: string;
@@ -27,6 +31,10 @@ export function DashboardSessionSwitcher({
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    document.cookie = `${DASHBOARD_SESSION_COOKIE}=${encodeURIComponent(selectedId)}; path=/; max-age=${DASHBOARD_SESSION_COOKIE_MAX_AGE}; samesite=lax`;
+  }, [selectedId]);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return sessions;

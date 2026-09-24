@@ -9,6 +9,7 @@ vi.mock("@/lib/supabase/server", () => ({ getCurrentUser: async () => ({ id: "ow
 vi.mock("@/lib/billing/entitlements", () => ({ getUserEntitlements: async () => ({ fullAnalytics: true }) }));
 vi.mock("@/lib/backtest/state-snapshot-store", () => ({ readSessionSnapshot: db.snapshot }));
 vi.mock("@/components/app/SignedInDashboard", () => ({ SignedInDashboard: () => null }));
+vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 
 import AppHome from "./page";
 

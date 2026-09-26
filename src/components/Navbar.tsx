@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LogIn, Menu, UserPlus, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/Logo";
 import { mainNav, TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export function Navbar() {
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -47,7 +49,12 @@ export function Navbar() {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:text-white"
+              aria-current={pathname === item.href ? "page" : undefined}
+              className={`relative rounded-md px-3 py-2 text-sm font-medium transition-colors after:absolute after:inset-x-3 after:-bottom-[13px] after:h-px after:bg-brand-300 after:transition-opacity ${
+                pathname === item.href
+                  ? "text-white after:opacity-100"
+                  : "text-slate-300 after:opacity-0 hover:text-white"
+              }`}
             >
               {item.label}
             </Link>
@@ -92,7 +99,12 @@ export function Navbar() {
               key={item.href}
               href={item.href}
               onClick={() => setOpen(false)}
-              className="rounded-lg px-3 py-3 text-base font-medium text-slate-200 hover:bg-white/5 hover:text-white"
+              aria-current={pathname === item.href ? "page" : undefined}
+              className={`rounded-lg px-3 py-3 text-base font-medium transition-colors ${
+                pathname === item.href
+                  ? "bg-white/[0.06] text-white"
+                  : "text-slate-200 hover:bg-white/[0.04] hover:text-white"
+              }`}
             >
               {item.label}
             </Link>

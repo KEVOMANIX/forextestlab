@@ -24,19 +24,19 @@ export const siteConfig = {
 export const TRIAL_START_PATH = "/app/backtest?trial=instant";
 export const TRIAL_SIGN_UP_PATH = `/sign-up?next=${encodeURIComponent(TRIAL_START_PATH)}`;
 
-/** Primary landing-page navigation (anchor links + routes). */
+/** Primary marketing navigation. Each destination is independently addressable. */
 export const mainNav = [
-  { label: "Features", href: "/#features" },
-  { label: "How It Works", href: "/#how-it-works" },
+  { label: "Features", href: "/features" },
+  { label: "How It Works", href: "/how-it-works" },
   { label: "Pricing", href: "/pricing" },
-  { label: "FAQ", href: "/#faq" },
+  { label: "FAQ", href: "/faq" },
   { label: "About", href: "/about" },
 ] as const;
 
 export const footerNav = {
   product: [
-    { label: "Features", href: "/#features" },
-    { label: "How It Works", href: "/#how-it-works" },
+    { label: "Features", href: "/features" },
+    { label: "How It Works", href: "/how-it-works" },
     { label: "Product Preview", href: "/#product-preview" },
     { label: "Pricing", href: "/pricing" },
     { label: "Start Backtesting", href: "/app/backtest" },
@@ -45,7 +45,7 @@ export const footerNav = {
     { label: "About", href: "/about" },
     { label: "Support", href: "/support" },
     { label: "Contact", href: "/contact" },
-    { label: "FAQ", href: "/#faq" },
+    { label: "FAQ", href: "/faq" },
   ],
   legal: [
     { label: "Privacy Policy", href: "/privacy" },

@@ -13,10 +13,10 @@ export const metadata: Metadata = {
 };
 
 const ANNOTATIONS = [
-  ["1", "Replay controls", "Advance one candle or change replay speed."],
-  ["2", "Chart context", "Switch timeframes and layouts without changing the replay clock."],
-  ["3", "Trade execution", "Place and manage simulated orders from the chart."],
-  ["4", "Workspace tools", "Open saved sessions, statistics, news, and settings."],
+  ["1", "Replay toolbar", "Play, pause, step forward, or change the replay speed."],
+  ["2", "Timeframes and charts", "Change timeframe, candle view, indicators, or chart layout."],
+  ["3", "Order entry", "Open a new simulated order directly from the chart."],
+  ["4", "Workspace navigation", "Open saved sessions, analytics, news, settings, and help."],
 ] as const;
 
 function Screenshot({
@@ -60,13 +60,13 @@ export default function FeaturesPage() {
         <div className="container-page">
           <div className="relative">
             <Screenshot src="/product/replay-desk-20260909.webp" alt="Annotated ForexTestLab replay workspace" width={1911} height={826} priority />
-            <span className="absolute left-[43%] top-[43%] grid h-8 w-8 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">1</span>
-            <span className="absolute left-[16%] top-[8%] grid h-8 w-8 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">2</span>
-            <span className="absolute bottom-[5%] left-[48%] grid h-8 w-8 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">3</span>
-            <span className="absolute right-[3%] top-[32%] grid h-8 w-8 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">4</span>
+            <span title="Replay toolbar" aria-label="1. Replay toolbar" className="absolute left-[50%] top-[26%] grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">1</span>
+            <span title="Timeframes and charts" aria-label="2. Timeframes and charts" className="absolute left-[22%] top-[4%] grid h-8 w-8 -translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">2</span>
+            <span title="Order entry" aria-label="3. Order entry" className="absolute right-[17%] top-[4%] grid h-8 w-8 translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">3</span>
+            <span title="Workspace navigation" aria-label="4. Workspace navigation" className="absolute right-[3%] top-[32%] grid h-8 w-8 translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">4</span>
           </div>
           <ol className="mt-6 grid gap-px overflow-hidden rounded-lg border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
-            {ANNOTATIONS.map(([number, title, text]) => <li key={number} className="bg-surface-950 p-4"><div className="flex items-center gap-2"><span className="font-mono text-xs font-bold text-brand-300">{number}</span><h2 className="text-sm font-semibold text-white">{title}</h2></div><p className="mt-2 text-xs leading-5 text-slate-400">{text}</p></li>)}
+            {ANNOTATIONS.map(([number, title, text]) => <li key={number} className="border-t-2 border-brand-400/50 bg-surface-950 p-5"><div className="flex items-center gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-400 font-mono text-[11px] font-bold text-surface-950">{number}</span><h2 className="text-sm font-semibold text-white">{title}</h2></div><p className="mt-3 text-xs leading-5 text-slate-400">{text}</p></li>)}
           </ol>
         </div>
       </section>

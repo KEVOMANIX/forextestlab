@@ -26,6 +26,7 @@ export const TRIAL_SIGN_UP_PATH = `/sign-up?next=${encodeURIComponent(TRIAL_STAR
 
 /** Primary marketing navigation. Each destination is independently addressable. */
 export const mainNav = [
+  { label: "Home", href: "/" },
   { label: "Features", href: "/features" },
   { label: "How It Works", href: "/how-it-works" },
   { label: "Pricing", href: "/pricing" },
@@ -35,6 +36,7 @@ export const mainNav = [
 
 export const footerNav = {
   product: [
+    { label: "Home", href: "/" },
     { label: "Features", href: "/features" },
     { label: "How It Works", href: "/how-it-works" },
     { label: "Product Preview", href: "/#product-preview" },

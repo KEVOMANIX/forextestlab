@@ -58,14 +58,14 @@ export default function FeaturesPage() {
 
       <section className="py-10 sm:py-14">
         <div className="container-page">
-          <div className="relative mx-auto max-w-6xl">
+          <div className="relative">
             <Screenshot src="/product/replay-desk-20260909.webp" alt="Annotated ForexTestLab replay workspace" width={1911} height={826} priority />
             <span className="absolute left-[43%] top-[43%] grid h-8 w-8 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">1</span>
             <span className="absolute left-[16%] top-[8%] grid h-8 w-8 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">2</span>
             <span className="absolute bottom-[5%] left-[48%] grid h-8 w-8 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">3</span>
             <span className="absolute right-[3%] top-[32%] grid h-8 w-8 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">4</span>
           </div>
-          <ol className="mx-auto mt-6 grid max-w-6xl gap-px overflow-hidden rounded-lg border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
+          <ol className="mt-6 grid gap-px overflow-hidden rounded-lg border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
             {ANNOTATIONS.map(([number, title, text]) => <li key={number} className="bg-surface-950 p-4"><div className="flex items-center gap-2"><span className="font-mono text-xs font-bold text-brand-300">{number}</span><h2 className="text-sm font-semibold text-white">{title}</h2></div><p className="mt-2 text-xs leading-5 text-slate-400">{text}</p></li>)}
           </ol>
         </div>

@@ -57,7 +57,7 @@ function FeatureList({ features }: { features: string[] }) {
 
 function UpcomingPricing() {
   return (
-    <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-3">
+    <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-3">
       <article className="flex min-h-[30rem] flex-col rounded-2xl border border-white/10 bg-surface-900/70 p-7 shadow-card">
         <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-bold text-white">Free</h2>

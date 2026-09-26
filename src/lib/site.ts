@@ -31,7 +31,6 @@ export const mainNav = [
   { label: "How It Works", href: "/how-it-works" },
   { label: "Pricing", href: "/pricing" },
   { label: "FAQ", href: "/faq" },
-  { label: "About", href: "/about" },
 ] as const;
 
 export const footerNav = {
@@ -44,7 +43,6 @@ export const footerNav = {
     { label: "Start Backtesting", href: "/app/backtest" },
   ],
   company: [
-    { label: "About", href: "/about" },
     { label: "Support", href: "/support" },
     { label: "Contact", href: "/contact" },
     { label: "FAQ", href: "/faq" },

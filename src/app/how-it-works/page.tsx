@@ -14,10 +14,10 @@ export const metadata: Metadata = {
 };
 
 const OVERVIEW = [
-  ["01", "Define", "Choose the market and testing period."],
-  ["02", "Execute", "Replay and place simulated trades."],
-  ["03", "Document", "Record the thinking behind each trade."],
-  ["04", "Evaluate", "Review results and update the process."],
+  ["01", "Define", "Choose the market and testing period.", "#setup"],
+  ["02", "Execute", "Replay and place simulated trades.", "#replay"],
+  ["03", "Document", "Record the thinking behind each trade.", "#journal"],
+  ["04", "Evaluate", "Review results and update the process.", "#review"],
 ] as const;
 
 function Screenshot({ src, alt, width, height, priority = false }: { src: string; alt: string; width: number; height: number; priority?: boolean }) {
@@ -58,12 +58,16 @@ export default function HowItWorksPage() {
         </div>
       </header>
 
-      <section className="py-10 sm:py-14">
+      <section className="py-8 sm:py-10">
         <div className="container-page">
-          <Screenshot src="/product/replay-desk-20260909.webp" alt="ForexTestLab replay workspace" width={1911} height={826} priority />
-          <ol className="mt-6 grid gap-px overflow-hidden rounded-lg border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
-            {OVERVIEW.map(([number, title, text]) => <li key={number} className="bg-surface-950 p-4"><div className="flex items-center gap-2"><span className="font-mono text-xs font-bold text-brand-300">{number}</span><h2 className="text-sm font-semibold text-white">{title}</h2></div><p className="mt-2 text-xs leading-5 text-slate-400">{text}</p></li>)}
-          </ol>
+          <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(17rem,1fr)]">
+            <div className="self-center">
+              <Screenshot src="/product/replay-desk-20260909.webp" alt="ForexTestLab replay workspace" width={1911} height={826} priority />
+            </div>
+            <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-4">
+              {OVERVIEW.map(([number, title, text, href]) => <li key={number}><a href={href} className="group flex h-full min-h-24 flex-col justify-center rounded-xl border border-white/10 bg-surface-900/70 p-4 transition-colors hover:border-brand-400/40 hover:bg-brand-400/[0.06] focus-visible:border-brand-400/60"><div className="flex items-center gap-3"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-400 font-mono text-[10px] font-bold text-surface-950 shadow-[0_0_0_3px_rgba(45,212,191,.1)]">{number}</span><h2 className="text-sm font-semibold text-white">{title}</h2><ArrowRight size={14} className="ml-auto text-slate-600 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-300" aria-hidden /></div><p className="mt-2 pl-10 text-xs leading-5 text-slate-400">{text}</p></a></li>)}
+            </ol>
+          </div>
         </div>
       </section>
 

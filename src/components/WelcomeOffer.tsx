@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Sparkles } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -48,15 +48,13 @@ export function WelcomeOfferBanner() {
   return (
     <aside
       aria-label="Pre-launch access"
-      className="relative z-20 border-y border-brand-100/50 bg-gradient-to-r from-brand-300 via-cyan-300 to-accent-300 text-surface-950 shadow-[0_10px_34px_-18px_rgba(45,212,191,.9)]"
+      className="relative z-20 border-y border-brand-200/40 bg-brand-300 text-surface-950"
     >
       <div className="container-page flex min-h-12 flex-wrap items-center justify-center gap-x-3 gap-y-2 py-2 text-center text-sm">
-        <span className="inline-flex items-center gap-2 font-bold">
-          <Sparkles size={15} aria-hidden />
-          Free before launch
-        </span>
+        <span className="font-bold">Free during early access</span>
+        <span aria-hidden className="hidden h-3 w-px bg-surface-950/25 sm:block" />
         <span className="text-xs font-semibold text-surface-800">
-          Explore the complete workspace for now. No payment required.
+          Explore the complete workspace. No payment required.
         </span>
         <Link
           href="/sign-up"

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Tag } from "lucide-react";
+import { Check, Copy, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -47,23 +47,22 @@ export function CopyWelcomeCode({
 export function WelcomeOfferBanner() {
   return (
     <aside
-      aria-label="Launch offer"
+      aria-label="Pre-launch access"
       className="relative z-20 border-y border-brand-100/50 bg-gradient-to-r from-brand-300 via-cyan-300 to-accent-300 text-surface-950 shadow-[0_10px_34px_-18px_rgba(45,212,191,.9)]"
     >
       <div className="container-page flex min-h-12 flex-wrap items-center justify-center gap-x-3 gap-y-2 py-2 text-center text-sm">
         <span className="inline-flex items-center gap-2 font-bold">
-          <Tag size={15} aria-hidden />
-          Launch offer: {WELCOME_OFFER.discountLabel}
+          <Sparkles size={15} aria-hidden />
+          Free before launch
         </span>
-        <CopyWelcomeCode bright />
-        <span className="text-xs font-medium text-surface-800">
-          Ends {WELCOME_OFFER.expiresLabel}
+        <span className="text-xs font-semibold text-surface-800">
+          Explore the complete workspace for now. No payment required.
         </span>
         <Link
-          href="/pricing"
+          href="/sign-up"
           className="text-xs font-bold text-surface-950 underline decoration-surface-950/35 underline-offset-4 transition hover:text-white"
         >
-          View plans
+          Get early access
         </Link>
       </div>
     </aside>

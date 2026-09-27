@@ -74,18 +74,20 @@ export default function FeaturesPage() {
         </div>
       </header>
 
-      <section className="py-10 sm:py-14">
+      <section className="py-8 sm:py-10">
         <div className="container-page">
-          <div className="relative">
-            <Screenshot src="/product/replay-desk-20260909.webp" alt="Annotated ForexTestLab replay workspace" width={1911} height={826} priority />
-            <span title="Replay toolbar" aria-label="1. Replay toolbar" className="absolute left-[50%] top-[26%] grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">1</span>
-            <span title="Timeframes and charts" aria-label="2. Timeframes and charts" className="absolute left-[22%] top-[4%] grid h-8 w-8 -translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">2</span>
-            <span title="Order entry" aria-label="3. Order entry" className="absolute right-[17%] top-[4%] grid h-8 w-8 translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">3</span>
-            <span title="Workspace navigation" aria-label="4. Workspace navigation" className="absolute right-[3%] top-[32%] grid h-8 w-8 translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-xs font-bold text-surface-950 shadow-lg">4</span>
+          <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(17rem,1fr)]">
+            <div className="relative self-center">
+              <Screenshot src="/product/replay-desk-20260909.webp" alt="Annotated ForexTestLab replay workspace" width={1911} height={826} priority />
+              <span title="Replay toolbar" aria-label="1. Replay toolbar" className="absolute left-[50%] top-[28%] grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-lg ring-2 ring-brand-400/20">1</span>
+              <span title="Timeframes and charts" aria-label="2. Timeframes and charts" className="absolute left-[22%] top-[4%] grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-lg ring-2 ring-brand-400/20">2</span>
+              <span title="Order entry" aria-label="3. Order entry" className="absolute right-[17%] top-[4%] grid h-7 w-7 translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-lg ring-2 ring-brand-400/20">3</span>
+              <span title="Workspace navigation" aria-label="4. Workspace navigation" className="absolute right-[3%] top-[32%] grid h-7 w-7 translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-lg ring-2 ring-brand-400/20">4</span>
+            </div>
+            <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-4">
+              {ANNOTATIONS.map(([number, title, text]) => <li key={number} className="group flex min-h-24 flex-col justify-center rounded-xl border border-white/10 bg-surface-900/70 p-4 transition-colors hover:border-brand-400/40 hover:bg-brand-400/[0.06]"><div className="flex items-center gap-3"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-[0_0_0_3px_rgba(45,212,191,.1)]">{number}</span><h2 className="text-sm font-semibold text-white">{title}</h2></div><p className="mt-2 pl-10 text-xs leading-5 text-slate-400">{text}</p></li>)}
+            </ol>
           </div>
-          <ol className="mt-6 grid gap-px overflow-hidden rounded-lg border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
-            {ANNOTATIONS.map(([number, title, text]) => <li key={number} className="border-t-2 border-brand-400/50 bg-surface-950 p-5"><div className="flex items-center gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-400 font-mono text-[11px] font-bold text-surface-950">{number}</span><h2 className="text-sm font-semibold text-white">{title}</h2></div><p className="mt-3 text-xs leading-5 text-slate-400">{text}</p></li>)}
-          </ol>
         </div>
       </section>
 

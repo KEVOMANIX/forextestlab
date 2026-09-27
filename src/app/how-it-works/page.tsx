@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, BarChart3, Check, CandlestickChart, NotebookPen, Play } from "lucide-react";
 
 import { PageShell } from "@/components/PageShell";
+import { ProductDemoVideo } from "@/components/ProductDemoVideo";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -21,6 +22,23 @@ const OVERVIEW = [
 
 function Screenshot({ src, alt, width, height, priority = false }: { src: string; alt: string; width: number; height: number; priority?: boolean }) {
   return <div className="overflow-hidden rounded-2xl border border-white/10 bg-surface-900 p-1.5 shadow-[0_32px_80px_-38px_rgba(0,0,0,.95)]"><Image src={src} alt={alt} width={width} height={height} priority={priority} className="h-auto w-full rounded-lg" sizes="(max-width:1024px) 100vw, 64vw" /></div>;
+}
+
+function ReplayDemo() {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-surface-900 p-1.5 shadow-[0_32px_80px_-38px_rgba(0,0,0,.95)]">
+      <div className="overflow-hidden rounded-lg">
+        <ProductDemoVideo
+          webm="/product/replay-controls-demo.webm"
+          mp4="/product/replay-controls-demo.mp4"
+          poster="/product/replay-controls-demo-poster.jpg"
+          alt="ForexTestLab advancing synchronized historical charts during replay"
+          width={1280}
+          height={633}
+        />
+      </div>
+    </div>
+  );
 }
 
 function Points({ items }: { items: readonly string[] }) {
@@ -55,7 +73,7 @@ export default function HowItWorksPage() {
         </section>
 
         <section id="replay" className="scroll-mt-24 border-y border-white/10 bg-surface-900/30 py-12 sm:py-14">
-          <div className="container-page grid items-center gap-8 lg:grid-cols-[1.28fr_.72fr] lg:gap-12"><Screenshot src="/product/market-replay-20260814-v2.webp" alt="ForexTestLab historical replay" width={1786} height={880} /><div><CandlestickChart size={22} className="text-brand-300" aria-hidden /><span className="mt-4 block font-mono text-sm font-semibold text-brand-300">02</span><p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Replay and execute</p><h2 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white lg:text-4xl">Make decisions before the outcome is known.</h2><p className="mt-4 text-base leading-7 text-slate-400">Advance the replay at your pace, inspect synchronized chart context, and place simulated orders using the plan you defined.</p><Points items={["Pause or advance candle by candle", "Use drawing and position-planning tools", "Manage entries, stops, targets, and exits"]} /></div></div>
+          <div className="container-page grid items-center gap-8 lg:grid-cols-[1.28fr_.72fr] lg:gap-12"><ReplayDemo /><div><CandlestickChart size={22} className="text-brand-300" aria-hidden /><span className="mt-4 block font-mono text-sm font-semibold text-brand-300">02</span><p className="mt-3 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Replay and execute</p><h2 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white lg:text-4xl">Make decisions before the outcome is known.</h2><p className="mt-4 text-base leading-7 text-slate-400">Advance the replay at your pace, inspect synchronized chart context, and place simulated orders using the plan you defined.</p><Points items={["Pause or advance candle by candle", "Use drawing and position-planning tools", "Manage entries, stops, targets, and exits"]} /></div></div>
         </section>
 
         <section id="journal" className="scroll-mt-24 py-12 sm:py-14">

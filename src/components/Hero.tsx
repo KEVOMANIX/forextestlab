@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
+import { ProductDemoVideo } from "@/components/ProductDemoVideo";
 
 function ScreenFrame({
   src,
@@ -22,6 +23,7 @@ function ScreenFrame({
   mobileZoom = false,
   width = 1600,
   height = 940,
+  video,
 }: {
   src: string;
   alt: string;
@@ -38,6 +40,7 @@ function ScreenFrame({
   mobileZoom?: boolean;
   width?: number;
   height?: number;
+  video?: { webm: string; mp4: string; poster: string };
 }) {
   return (
     <div
@@ -64,23 +67,27 @@ function ScreenFrame({
           mobileZoom ? "aspect-[4/3] sm:aspect-auto" : ""
         }`}
       >
-        <Image
-          src={src}
-          alt={alt}
-          width={width}
-          height={height}
-          priority={priority}
-          sizes={
-            mobileZoom
-              ? "(max-width: 640px) 200vw, (max-width: 1024px) 100vw, 78vw"
-              : "(max-width: 1024px) 100vw, 78vw"
-          }
-          className={
-            mobileZoom
-              ? "absolute -left-[12%] -top-[8%] h-auto w-[200%] max-w-none sm:static sm:left-auto sm:top-auto sm:w-full"
-              : "h-auto w-full"
-          }
-        />
+        {video ? (
+          <ProductDemoVideo {...video} alt={alt} width={width} height={height} priority={priority} mobileZoom={mobileZoom} />
+        ) : (
+          <Image
+            src={src}
+            alt={alt}
+            width={width}
+            height={height}
+            priority={priority}
+            sizes={
+              mobileZoom
+                ? "(max-width: 640px) 200vw, (max-width: 1024px) 100vw, 78vw"
+                : "(max-width: 1024px) 100vw, 78vw"
+            }
+            className={
+              mobileZoom
+                ? "absolute -left-[12%] -top-[8%] h-auto w-[200%] max-w-none sm:static sm:left-auto sm:top-auto sm:w-full"
+                : "h-auto w-full"
+            }
+          />
+        )}
       </div>
     </div>
   );
@@ -217,6 +224,11 @@ export function Hero() {
               mobileZoom
               width={1786}
               height={880}
+              video={{
+                webm: "/product/market-replay-demo.webm",
+                mp4: "/product/market-replay-demo.mp4",
+                poster: "/product/market-replay-demo-poster.jpg",
+              }}
             />
 
             <div className="absolute -bottom-5 left-1/2 hidden -translate-x-1/2 items-center gap-1.5 rounded-xl border border-white/[0.11] bg-surface-900/95 p-1.5 shadow-2xl backdrop-blur sm:flex">

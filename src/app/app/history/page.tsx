@@ -116,22 +116,22 @@ export default async function HistoryPage() {
                 const progress = replayProgress(session);
                 const replayPosition = replayTime(session);
                 return (
-                  <article key={session.id} className="grid gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.025] xl:grid-cols-[minmax(16rem,1.35fr)_minmax(13rem,1fr)_10rem_8rem_auto] xl:items-center">
-                    <div className="flex min-w-0 items-center gap-3">
+                  <article key={session.id} className="flex flex-col gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.025] xl:flex-row xl:items-center xl:gap-8">
+                    <div className="flex min-w-0 items-center gap-3 xl:w-[26rem] xl:shrink-0">
                       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-brand-400/25 bg-brand-400/[0.08] font-mono text-[11px] font-bold text-brand-200">{formatSymbol(session.symbol).slice(0, 3)}</span>
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold">{sessionLabel}</h3>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] app-muted"><span>{session.timeframe}</span><span aria-hidden>•</span><span>{formatNewYorkDate(session.updatedAt.getTime(), { month: "short", day: "numeric" })}</span></div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs app-muted"><CalendarDays size={14} className="shrink-0 text-brand-300" aria-hidden /><span>{formatNewYorkDate(Number(session.startTime), { month: "short", day: "numeric", year: "numeric" })} – {formatNewYorkDate(Number(session.endTime), { month: "short", day: "numeric", year: "numeric" })}</span></div>
-                    <div>
+                    <div className="flex items-center gap-2 text-xs app-muted xl:w-[20rem] xl:shrink-0"><CalendarDays size={14} className="shrink-0 text-brand-300" aria-hidden /><span>{formatNewYorkDate(Number(session.startTime), { month: "short", day: "numeric", year: "numeric" })} – {formatNewYorkDate(Number(session.endTime), { month: "short", day: "numeric", year: "numeric" })}</span></div>
+                    <div className="xl:w-40 xl:shrink-0">
                       <div className="flex items-center justify-end text-[11px] app-muted"><span className="font-mono font-semibold text-[var(--app-text)]">{progress.toFixed(0)}%</span></div>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${progress}%` }} /></div>
                       <span className="mt-1.5 block text-[10px] app-muted">{session.status === "finished" ? "Complete" : replayDayLabel({ startTime: Number(session.startTime), endTime: Number(session.endTime), currentTime: replayPosition })}</span>
                     </div>
-                    <div><p className={`font-mono text-sm font-semibold ${net.isNegative() ? "text-loss" : !net.isZero() && net.isPositive() ? "text-profit" : ""}`}>{formatSignedMoney(net)}</p></div>
-                    <div className="flex items-center gap-2 xl:justify-end">
+                    <div className="xl:w-24 xl:shrink-0"><p className={`font-mono text-sm font-semibold ${net.isNegative() ? "text-loss" : !net.isZero() && net.isPositive() ? "text-profit" : ""}`}>{formatSignedMoney(net)}</p></div>
+                    <div className="flex items-center gap-2 xl:ml-auto">
                       {!finished && <Link href={`/app/backtest?session=${encodeURIComponent(session.id)}`} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-[11px] font-bold text-surface-950 transition-colors hover:bg-brand-400"><Play size={12} aria-hidden /> Resume</Link>}
                       <Link href={`/app/results/${session.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-md border app-border px-2.5 text-[11px] font-semibold app-muted transition-colors hover:border-brand-400/35 hover:text-brand-300"><BarChart3 size={13} aria-hidden /> Analytics</Link>
                       <DeleteSessionButton sessionId={session.id} iconOnly redirectAfterDelete={false} />

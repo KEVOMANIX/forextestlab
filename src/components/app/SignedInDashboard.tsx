@@ -105,7 +105,6 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Practice overview</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Welcome back, {displayName}</h1>
-          <p className="mt-1.5 text-sm app-muted">Pick up your testing routine and continue when you are ready.</p>
         </div>
         {latestSession && <Link href={`/app/backtest?session=${encodeURIComponent(latestSession.id)}`} className="inline-flex h-9 items-center gap-2 self-start rounded-lg bg-brand-500 px-3.5 text-xs font-bold text-surface-950 transition-colors hover:bg-brand-400 lg:self-auto"><Play size={13} fill="currentColor" aria-hidden /> Continue latest session</Link>}
       </header>

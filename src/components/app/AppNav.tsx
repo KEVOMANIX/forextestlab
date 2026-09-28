@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, MessageCircle, Moon, NotebookPen, PanelLeft, Plus, Sun } from "lucide-react";
+import { BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, MessageCircle, Moon, PanelLeft, Plus, Sun } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -14,10 +14,6 @@ type NavItem = { label: string; href: string; icon: typeof LayoutDashboard };
 const WORKSPACE: NavItem[] = [
   { label: "Dashboard", href: "/app", icon: LayoutDashboard },
   { label: "Sessions", href: "/app/history", icon: BookOpenText },
-];
-const REVIEW: NavItem[] = [
-  { label: "Performance", href: "/app#performance-ledger", icon: BarChart3 },
-  { label: "Journal & insights", href: "/app#review-workspace", icon: NotebookPen },
 ];
 const ACCOUNT: NavItem[] = [
   { label: "Account", href: "/account", icon: CircleUserRound },
@@ -60,7 +56,6 @@ export function AppNav({ signedIn, displayName }: { signedIn: boolean; displayNa
       <div className="flex h-16 items-center border-b app-border px-5"><Logo className="h-7" /></div>
       <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-3 py-5">
         <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div>
-        <NavGroup label="Review" items={REVIEW} pathname={pathname} />
         <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
         <div className="mt-7"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link><Link href="/app/support" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><MessageCircle size={16} aria-hidden />Support</Link></div></div>
       </nav>

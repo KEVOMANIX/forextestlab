@@ -485,7 +485,7 @@ export function SignedInDashboard({
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             Welcome back, {displayName}
           </h1>
-          <p className="mt-1.5 text-sm app-muted">Your desk for replay, review, and measured improvement.</p>
+          <p className="mt-1.5 text-sm app-muted">Your desk for replay and saved sessions.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {showDemoData ? (
@@ -686,7 +686,7 @@ export function SignedInDashboard({
             </div>
           </section>
 
-          <section
+          {false && <><section
             className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
             aria-label="Selected session summary"
           >
@@ -757,7 +757,7 @@ export function SignedInDashboard({
               })}
               aiEnabled={aiEnabled}
             />
-          </div>
+          </div></>}
         </>
       )}
 

@@ -12,6 +12,8 @@ export interface AnalyticsSessionOption {
   symbols: string;
   status: string;
   updatedAt: string;
+  pnl: string;
+  positive: boolean;
 }
 
 export function AnalyticsSessionPicker({ sessions, selectedId }: { sessions: AnalyticsSessionOption[]; selectedId: string }) {
@@ -55,8 +57,7 @@ export function AnalyticsSessionPicker({ sessions, selectedId }: { sessions: Ana
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
             {filtered.map((session) => {
               const active = session.id === selectedId;
-              const status = session.status === "finished" ? "Completed" : "Active";
-              return <button key={session.id} type="button" onClick={() => choose(session.id)} aria-current={active ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${active ? "bg-brand-400/[0.10]" : "hover:bg-white/[0.045]"}`}><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-bold ${active ? "bg-brand-500 text-surface-950" : "bg-white/[0.055] app-muted"}`}>{active ? <Check size={15} aria-hidden /> : session.name.slice(0, 1).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{session.name}</span><span className="mt-1 block truncate text-[11px] app-muted">{session.symbols}</span></span><span className="shrink-0 text-right"><span className={`block text-[10px] font-semibold ${status === "Completed" ? "text-brand-300" : "text-amber-300"}`}>{status}</span><span className="mt-1 block text-[9px] app-muted">{session.updatedAt}</span></span></button>;
+              return <button key={session.id} type="button" onClick={() => choose(session.id)} aria-current={active ? "page" : undefined} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${active ? "bg-brand-400/[0.10]" : "hover:bg-white/[0.045]"}`}><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-bold ${active ? "bg-brand-500 text-surface-950" : "bg-white/[0.055] app-muted"}`}>{active ? <Check size={15} aria-hidden /> : session.name.slice(0, 1).toUpperCase()}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{session.name}</span><span className="mt-1 block truncate text-[11px] app-muted">{session.symbols}</span></span><span className="shrink-0 text-right"><span className={`block font-mono text-xs font-semibold ${session.positive ? "text-profit" : "text-loss"}`}>{session.pnl}</span><span className="mt-1 block text-[9px] app-muted">{session.updatedAt}</span></span></button>;
             })}
             {filtered.length === 0 && <div className="px-4 py-12 text-center"><Search size={20} className="mx-auto app-muted" aria-hidden /><p className="mt-3 text-sm font-semibold">No matching sessions</p><p className="mt-1 text-xs app-muted">Try a session name or market symbol.</p></div>}
           </div>

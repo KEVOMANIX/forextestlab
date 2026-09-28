@@ -16,6 +16,7 @@ import { getSessionResults } from "@/lib/backtest/results";
 import { fundedBalance } from "@/lib/backtest/replay-engine";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db";
+import { Decimal } from "@/lib/decimal";
 import { formatSymbol } from "@/lib/market-data/symbols";
 import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
@@ -35,6 +36,12 @@ function replayTime(session: { startTime: bigint; endTime: bigint; visibleTime: 
   if (session.visibleTime != null) return Number(session.visibleTime);
   const step = TIMEFRAME_MS[session.timeframe as keyof typeof TIMEFRAME_MS] ?? 0;
   return Math.min(Number(session.endTime), Number(session.startTime) + Math.max(0, session.visibleIndex) * step);
+}
+
+function sessionPnl(session: { balance: string; startingBalance: string; depositedFunds: string }) {
+  const value = new Decimal(session.balance).minus(session.startingBalance).minus(session.depositedFunds);
+  const amount = value.abs().toFixed(2);
+  return { value: `${value.isZero() ? "" : value.isPositive() ? "+" : "−"}$${amount}`, positive: !value.isNegative() };
 }
 
 export const dynamic = "force-dynamic";
@@ -62,7 +69,7 @@ export default async function AnalyticsHubPage({
     where: { userId: user.id, anonymous: false },
     orderBy: { updatedAt: "desc" },
     take: 50,
-    select: { id: true, symbol: true, timeframe: true, status: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, updatedAt: true },
+    select: { id: true, symbol: true, timeframe: true, status: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, startingBalance: true, depositedFunds: true, balance: true, updatedAt: true },
   });
   const metadataRows = sessions.length
     ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
@@ -121,7 +128,7 @@ export default async function AnalyticsHubPage({
   ) : null;
 
   const sessionSelector = selected ? (
-    <AnalyticsSessionPicker sessions={choices.map((session) => ({ id: session.id, name: session.name, symbols: session.symbols, status: session.status, updatedAt: lastSavedLabel(session.updatedAt) }))} selectedId={selected.id} />
+    <AnalyticsSessionPicker sessions={choices.map((session) => { const pnl = sessionPnl(session); return { id: session.id, name: session.name, symbols: session.symbols, status: session.status, updatedAt: lastSavedLabel(session.updatedAt), pnl: pnl.value, positive: pnl.positive }; })} selectedId={selected.id} />
   ) : null;
 
   if (!selected || !results) {

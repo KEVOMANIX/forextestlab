@@ -485,7 +485,7 @@ export function SignedInDashboard({
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             Welcome back, {displayName}
           </h1>
-          <p className="mt-1.5 text-sm app-muted">Continue your replay or review recent performance.</p>
+          <p className="mt-1.5 text-sm app-muted">Your desk for replay, review, and measured improvement.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Both states visible at once, so the control says which one is
@@ -568,7 +568,8 @@ export function SignedInDashboard({
               aria-hidden
               className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent-400/15 blur-3xl"
             />
-            <div className="relative">
+            <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,.62fr)]">
+              <div>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
@@ -678,6 +679,32 @@ export function SignedInDashboard({
                   <p className="mt-1 text-[11px] app-muted">Market time · saved {savedAgo(selectedSession.updatedAt)}</p>
                 </div>
               </div>
+              </div>
+
+              <aside className="rounded-xl border border-white/[0.10] bg-[var(--app-panel-2)]/65 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">Session pulse</p>
+                    <p className="mt-1 text-sm font-semibold">Your replay is saved</p>
+                  </div>
+                  <span className={`h-2.5 w-2.5 rounded-full ${selectedSession.status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} aria-label={selectedSession.status === "finished" ? "Session completed" : "Session active"} />
+                </div>
+                <dl className="mt-5 space-y-4">
+                  <div className="flex items-start justify-between gap-5">
+                    <dt className="text-xs app-muted">Market time</dt>
+                    <dd className="max-w-[13rem] text-right text-xs font-semibold">{lastReplayTime ? formatNewYorkDateTime(lastReplayTime) : "Not started"}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-5 border-t app-border pt-4">
+                    <dt className="text-xs app-muted">Last saved</dt>
+                    <dd className="text-right text-xs font-semibold">{savedAgo(selectedSession.updatedAt)}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-5 border-t app-border pt-4">
+                    <dt className="text-xs app-muted">Journal</dt>
+                    <dd className="text-right text-xs font-semibold">{unwrittenTrades ? `${unwrittenTrades} trade${unwrittenTrades === 1 ? "" : "s"} to review` : "Up to date"}</dd>
+                  </div>
+                </dl>
+                <p className="mt-5 border-t app-border pt-4 text-[11px] leading-5 app-muted">Continue from the last revealed candle. Your trades, drawings, and loaded history remain attached to this session.</p>
+              </aside>
             </div>
           </section>
 
@@ -713,7 +740,7 @@ export function SignedInDashboard({
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-                  Performance
+                  Performance ledger
                 </p>
                 <h2 className="mt-1.5 text-xl font-semibold">Balance and equity</h2>
               </div>
@@ -759,9 +786,9 @@ export function SignedInDashboard({
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-                Saved sessions
+                Session archive
               </p>
-              <h2 className="mt-2 text-xl font-semibold">Continue or review</h2>
+              <h2 className="mt-2 text-xl font-semibold">Your testing record</h2>
             </div>
             <Link
               href="/app/history"

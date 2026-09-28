@@ -75,15 +75,11 @@ export default async function HistoryPage() {
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 sm:py-9">
-      <header className="border-b app-border pb-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">Session library</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Sessions</h1>
-            <p className="mt-2 max-w-xl text-sm app-muted">Resume a replay, inspect its analytics, or keep your testing record organised.</p>
-          </div>
-          <p className="text-xs app-muted">{sessions.length} session{sessions.length === 1 ? "" : "s"} · Updated most recently first</p>
+      <header className="flex items-end justify-between border-b app-border pb-5">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Sessions</h1>
         </div>
+        <p className="text-xs app-muted">{sessions.length} session{sessions.length === 1 ? "" : "s"}</p>
       </header>
 
       {sessions.length === 0 ? (
@@ -97,29 +93,21 @@ export default async function HistoryPage() {
         </section>
       ) : (
         <>
-          <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Session library summary">
+          <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Session library summary">
             {[
-              ["Sessions", String(sessions.length), "Your complete testing record"],
-              ["Markets tested", String(marketCount), marketCount === 1 ? "Market in this library" : "Markets in this library"],
-              ["Closed trades", String(totalTrades), "Across the sessions shown"],
-              ["Net P/L", formatSignedMoney(totalNet), totalNet.isNegative() ? "Net loss across sessions shown" : "Net result across sessions shown"],
-            ].map(([label, value, detail], index) => (
-              <article key={label} className="rounded-xl border app-border bg-[var(--app-panel)]/55 px-4 py-3.5">
+              ["Sessions", String(sessions.length)],
+              ["Markets", String(marketCount)],
+              ["Closed trades", String(totalTrades)],
+              ["Net P/L", formatSignedMoney(totalNet)],
+            ].map(([label, value], index) => (
+              <article key={label} className="rounded-xl border app-border bg-[var(--app-panel)]/55 px-4 py-3">
                 <p className="text-[11px] font-medium app-muted">{label}</p>
                 <p className={`mt-1 font-mono text-xl font-semibold ${index === 3 ? totalNet.isNegative() ? "text-loss" : !totalNet.isZero() && totalNet.isPositive() ? "text-profit" : "" : ""}`}>{value}</p>
-                <p className="mt-1 text-[11px] app-muted">{detail}</p>
               </article>
             ))}
           </section>
 
-          <section className="mt-6 overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)]/45" aria-label="Saved sessions">
-            <div className="flex items-center justify-between border-b app-border px-5 py-4">
-              <div>
-                <h2 className="font-semibold">Saved sessions</h2>
-                <p className="mt-1 text-xs app-muted">Most recently updated first</p>
-              </div>
-              <span className="rounded-full bg-brand-400/10 px-2.5 py-1 text-xs font-semibold text-brand-300">{sessions.length}</span>
-            </div>
+          <section className="mt-5 overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)]/45" aria-label="Saved sessions">
             <div className="divide-y app-border">
               {sessions.map((session) => {
                 const net = netResult(session);
@@ -128,21 +116,21 @@ export default async function HistoryPage() {
                 const progress = replayProgress(session);
                 const replayPosition = replayTime(session);
                 return (
-                  <article key={session.id} className="grid gap-4 px-5 py-4 transition-colors hover:bg-white/[0.025] xl:grid-cols-[minmax(16rem,1.4fr)_minmax(12rem,1fr)_10rem_11rem_auto] xl:items-center">
+                  <article key={session.id} className="grid gap-4 px-5 py-3.5 transition-colors hover:bg-white/[0.025] xl:grid-cols-[minmax(16rem,1.35fr)_minmax(13rem,1fr)_10rem_8rem_auto] xl:items-center">
                     <div className="flex min-w-0 items-center gap-3">
                       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-brand-400/25 bg-brand-400/[0.08] font-mono text-[11px] font-bold text-brand-200">{formatSymbol(session.symbol).slice(0, 3)}</span>
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-semibold">{sessionLabel}</h3>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] app-muted"><span>{session.timeframe}</span><span aria-hidden>•</span><span>Updated {formatNewYorkDate(session.updatedAt.getTime(), { month: "short", day: "numeric" })}</span></div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] app-muted"><span>{session.timeframe}</span><span aria-hidden>•</span><span>{formatNewYorkDate(session.updatedAt.getTime(), { month: "short", day: "numeric" })}</span></div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs app-muted"><CalendarDays size={14} className="shrink-0 text-brand-300" aria-hidden /><span>{formatNewYorkDate(Number(session.startTime), { month: "short", day: "numeric", year: "numeric" })} – {formatNewYorkDate(Number(session.endTime), { month: "short", day: "numeric", year: "numeric" })}</span></div>
                     <div>
-                      <div className="flex items-center justify-between gap-2 text-[11px] app-muted"><span>Replay progress</span><span className="font-mono font-semibold text-[var(--app-text)]">{progress.toFixed(0)}%</span></div>
+                      <div className="flex items-center justify-end text-[11px] app-muted"><span className="font-mono font-semibold text-[var(--app-text)]">{progress.toFixed(0)}%</span></div>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${progress}%` }} /></div>
                       <span className="mt-1.5 block text-[10px] app-muted">{session.status === "finished" ? "Complete" : replayDayLabel({ startTime: Number(session.startTime), endTime: Number(session.endTime), currentTime: replayPosition })}</span>
                     </div>
-                    <div><p className={`font-mono text-sm font-semibold ${net.isNegative() ? "text-loss" : !net.isZero() && net.isPositive() ? "text-profit" : ""}`}>{formatSignedMoney(net)}</p><p className="mt-1 text-[11px] app-muted">Net P/L</p></div>
+                    <div><p className={`font-mono text-sm font-semibold ${net.isNegative() ? "text-loss" : !net.isZero() && net.isPositive() ? "text-profit" : ""}`}>{formatSignedMoney(net)}</p></div>
                     <div className="flex items-center gap-2 xl:justify-end">
                       {!finished && <Link href={`/app/backtest?session=${encodeURIComponent(session.id)}`} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-brand-500 px-3 text-[11px] font-bold text-surface-950 transition-colors hover:bg-brand-400"><Play size={12} aria-hidden /> Resume</Link>}
                       <Link href={`/app/results/${session.id}`} className="inline-flex h-8 items-center gap-1.5 rounded-md border app-border px-2.5 text-[11px] font-semibold app-muted transition-colors hover:border-brand-400/35 hover:text-brand-300"><BarChart3 size={13} aria-hidden /> Analytics</Link>

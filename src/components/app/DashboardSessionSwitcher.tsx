@@ -42,6 +42,7 @@ export function DashboardSessionSwitcher({
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [dismissedSessionIds, setDismissedSessionIds] = useState<string[]>([]);
 
   useEffect(() => {
     document.cookie = `${DASHBOARD_SESSION_COOKIE}=${encodeURIComponent(selectedId)}; path=/; max-age=${DASHBOARD_SESSION_COOKIE_MAX_AGE}; samesite=lax`;
@@ -68,11 +69,26 @@ export function DashboardSessionSwitcher({
     router.push(`/app?${next.toString()}`);
   };
 
+  const dismissFromRail = (id: string) => {
+    if (id === selectedId) {
+      const replacement = sessions.find(
+        (session) => session.id !== id && !dismissedSessionIds.includes(session.id),
+      );
+      if (!replacement) return;
+      setDismissedSessionIds((ids) => [...ids, id]);
+      choose(replacement.id);
+      return;
+    }
+    setDismissedSessionIds((ids) => [...ids, id]);
+  };
+
   // Keep the selected session in the first tile. A user must never have to
   // scroll a horizontal rail just to find what is currently in view.
   const recentSessions = [
     ...sessions.filter((session) => session.id === selectedId),
-    ...sessions.filter((session) => session.id !== selectedId),
+    ...sessions.filter(
+      (session) => session.id !== selectedId && !dismissedSessionIds.includes(session.id),
+    ),
   ].slice(0, 4);
 
   return (
@@ -82,19 +98,30 @@ export function DashboardSessionSwitcher({
           {recentSessions.map((session) => {
             const current = session.id === selectedId;
             return (
-              <button
+              <div
                 key={session.id}
-                type="button"
-                onClick={() => !current && choose(session.id)}
-                aria-current={current ? "page" : undefined}
-                className={`group flex h-10 w-[10.5rem] shrink-0 items-center gap-2 border px-2.5 text-left transition-colors ${current ? "border-brand-400 bg-brand-400/[0.09] text-[var(--app-text)]" : "app-border bg-[var(--app-panel-2)]/55 text-[var(--app-muted)] hover:border-brand-400/40 hover:bg-white/[0.035] hover:text-[var(--app-text)]"}`}
+                className={`flex h-10 w-[10.5rem] shrink-0 items-stretch border transition-colors ${current ? "border-brand-400 bg-brand-400/[0.09] text-[var(--app-text)]" : "app-border bg-[var(--app-panel-2)]/55 text-[var(--app-muted)] hover:border-brand-400/40 hover:bg-white/[0.035] hover:text-[var(--app-text)]"}`}
               >
-                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${session.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
-                <span className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => !current && choose(session.id)}
+                  aria-current={current ? "page" : undefined}
+                  className="min-w-0 flex-1 px-2.5 text-left"
+                >
                   <span className="block truncate text-[10px] font-semibold leading-3">{session.name}</span>
                   <span className="mt-0.5 block truncate text-[9px] leading-3 app-muted">{session.symbols}</span>
-                </span>
-              </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => dismissFromRail(session.id)}
+                  disabled={current && recentSessions.length === 1}
+                  className="grid w-7 shrink-0 place-items-center app-muted transition-colors hover:text-[var(--app-text)] disabled:cursor-not-allowed disabled:opacity-35"
+                  aria-label={`Remove ${session.name} from recent sessions`}
+                  title="Remove from recent sessions"
+                >
+                  <X size={13} strokeWidth={1.8} aria-hidden />
+                </button>
+              </div>
             );
           })}
           <button

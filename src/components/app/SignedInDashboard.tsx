@@ -7,7 +7,6 @@ import {
   FlaskConical,
   Gauge,
   ListChecks,
-  Plus,
   Target,
   TrendingDown,
   TrendingUp,
@@ -492,7 +491,7 @@ export function SignedInDashboard({
               active without a banner underneath repeating it. Same pattern as
               the session report's data-source switch. */}
           <div
-            className="inline-flex h-10 items-center rounded-lg border app-border bg-[var(--app-panel-2)] p-1"
+            className="inline-flex h-8 items-center gap-1 rounded-md bg-white/[0.04] p-0.5"
             role="group"
             aria-label="Dashboard data source"
           >
@@ -501,7 +500,7 @@ export function SignedInDashboard({
               onClick={() => setShowDemoData(false)}
               aria-pressed={!showDemoData}
               title="Show your saved session data"
-              className={`inline-flex h-full items-center rounded-md px-3 text-xs font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
+              className={`inline-flex h-full items-center rounded px-2.5 text-[11px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
             >
               Your data
             </button>
@@ -510,14 +509,11 @@ export function SignedInDashboard({
               onClick={() => setShowDemoData(true)}
               aria-pressed={showDemoData}
               title="Preview a complete dashboard with sample trades"
-              className={`inline-flex h-full items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
+              className={`inline-flex h-full items-center gap-1.5 rounded px-2.5 text-[11px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
             >
-              <FlaskConical size={14} aria-hidden /> Sample
+              <FlaskConical size={13} aria-hidden /> Sample view
             </button>
           </div>
-          <Link href="/app/backtest" className={`${selectedSession ? "btn-secondary" : "btn-primary shadow-glow"} shrink-0 px-4 py-2.5 text-xs`}>
-            <Plus size={16} aria-hidden /> New backtest
-          </Link>
         </div>
       </header>
 
@@ -566,25 +562,14 @@ export function SignedInDashboard({
             </div>
           </section>
           <section
-            className="panel mt-4 overflow-hidden"
+            className="mt-4"
             aria-label="Selected dashboard session"
           >
             <div className="relative">
               <div>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">
-                    <span className={`h-1.5 w-1.5 rounded-full ${selectedSession.status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
-                    Current session
-                    {/* The state belongs where the data is, not only in the
-                        header control several inches away. */}
-                    {showDemoData && (
-                      <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">
-                        SAMPLE
-                      </span>
-                    )}
-                  </p>
-                  <h2 className="mt-2 truncate text-xl font-semibold tracking-tight sm:text-2xl">
+                  <h2 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
                     {scopeLabel}
                   </h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs app-muted">
@@ -620,6 +605,7 @@ export function SignedInDashboard({
                       {formatNewYorkDate(Number(selectedSession.startTime))} –{" "}
                       {formatNewYorkDate(Number(selectedSession.endTime))}
                     </span>
+                    {showDemoData && <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Sample view</span>}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -631,8 +617,8 @@ export function SignedInDashboard({
                   dashboard for, and it used to be absent: the card showed a
                   balance and a starting balance and left the subtraction to
                   the reader. */}
-              <div className="mt-5 grid gap-px overflow-hidden border-y app-border bg-[var(--app-border)] sm:grid-cols-3">
-                <div className="bg-[var(--app-panel)]/90 p-3.5">
+              <div className="mt-4 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
+                <div className="bg-[var(--app-panel)]/55 p-3.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-semibold app-muted">Replay progress<MetricInfo term="Replay progress" /></span>
                     <span className="font-mono font-semibold">{progress.toFixed(0)}%</span>
@@ -655,7 +641,7 @@ export function SignedInDashboard({
                         : "Not started"}
                   </p>
                 </div>
-                <div className="bg-[var(--app-panel)]/90 p-3.5">
+                <div className="bg-[var(--app-panel)]/55 p-3.5">
                   <p className="flex items-center gap-1.5 text-xs font-semibold app-muted">Current balance<MetricInfo term="Current balance" /></p>
                   <p className="mt-1.5 font-mono text-base font-semibold">
                     {formatBalance(new Decimal(selectedSession.balance))}
@@ -668,7 +654,7 @@ export function SignedInDashboard({
                     from {formatBalance(new Decimal(selectedSession.startingBalance))}
                   </p>
                 </div>
-                <div className="bg-[var(--app-panel)]/90 p-3.5">
+                <div className="bg-[var(--app-panel)]/55 p-3.5">
                   <p className="text-xs font-semibold app-muted">Replay position</p>
                   <p className="mt-1.5 text-sm font-semibold">
                     {lastReplayTime ? formatNewYorkDateTime(lastReplayTime) : "Not started"}

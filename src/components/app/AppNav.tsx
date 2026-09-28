@@ -13,7 +13,6 @@ type NavItem = { label: string; href: string; icon: typeof LayoutDashboard };
 
 const WORKSPACE: NavItem[] = [
   { label: "Dashboard", href: "/app", icon: LayoutDashboard },
-  { label: "New backtest", href: "/app/backtest", icon: Plus },
   { label: "Sessions", href: "/app/history", icon: BookOpenText },
 ];
 const REVIEW: NavItem[] = [

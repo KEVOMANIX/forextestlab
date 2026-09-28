@@ -8,7 +8,6 @@ import {
   ArrowUpRight,
   BarChart3,
   CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -423,10 +422,9 @@ export function AnalyticsDesignPrototype({
     <TradeFocusProvider value={tradeFocus}>
     <div className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Dashboard</Link>}
+        {onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Back to dashboard</Link>}
         <div className="flex flex-wrap items-center gap-2">
           {mode === "live" && <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel)] p-1" role="group" aria-label="Analytics data source"><button type="button" onClick={() => setShowDemoData(false)} aria-pressed={!showDemoData} title="Show your own session data" className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Your data</button><button type="button" onClick={() => setShowDemoData(true)} aria-pressed={showDemoData} title="Preview a completed report with sample trades" className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}><FlaskConical size={11} aria-hidden /> Sample</button></div>}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-400/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-300"><LineChart size={11} aria-hidden /> Session analytics</span>
         </div>
       </div>
 
@@ -491,7 +489,6 @@ export function AnalyticsDesignPrototype({
                 <dl className="mt-6 divide-y app-border border-y app-border">
                   {[["Win rate", model.winRate === "Not available" ? "—" : `${model.winRate}%`], ["Profit factor", model.profitFactor === "Not available" ? "—" : model.profitFactor], ["Expectancy", model.closedTrades ? money(model.expectancy, true) : "—"], ["Max drawdown", drawdownMoney(model.maxDrawdown)], ["Closed trades", String(model.closedTrades)]].map(([label,value]) => <div key={label} className="flex items-center justify-between py-3"><dt className="flex items-center gap-1.5 text-xs app-muted">{label}<MetricInfo term={label!} /></dt><dd className="font-mono text-sm font-semibold">{value}</dd></div>)}
                 </dl>
-                <SampleVerdict model={model} />
               </aside>
             </div>
           </section>
@@ -516,11 +513,10 @@ export function AnalyticsDesignPrototype({
             </section>
           </div>
 
-          <section className="grid gap-4 lg:grid-cols-3">
+          <section className="grid gap-4 lg:grid-cols-2">
             {[
               { icon: Target, label: "Best exit profile", value: model.exits.slice().sort((a,b)=>b.value-a.value)[0]?.label ?? "No trade data", detail: model.exits.length ? `${money(model.exits.slice().sort((a,b)=>b.value-a.value)[0]!.value, true)} across ${model.exits.slice().sort((a,b)=>b.value-a.value)[0]!.trades} trades` : "Close trades to reveal the pattern" },
               { icon: LineChart, label: "Best market window", value: model.sessions.slice().sort((a,b)=>b.value-a.value)[0]?.label ?? "No trade data", detail: model.sessions.length ? `${model.sessions.slice().sort((a,b)=>b.value-a.value)[0]!.rate}% win rate · ${money(model.sessions.slice().sort((a,b)=>b.value-a.value)[0]!.value, true)}` : "Close trades to reveal the pattern" },
-              { icon: CheckCircle2, label: "Sample quality", value: sampleIsReliable(model.closedTrades) ? "Decision-ready" : "Still developing", detail: `${model.closedTrades} of ${RELIABLE_SAMPLE_TRADES} trades collected for a first reliable read` },
             ].map(({icon:Icon,label,value,detail})=><article key={label} className="rounded-xl bg-[var(--app-panel)] p-4"><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.04] app-muted"><Icon size={15}/></span><div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">{label}</p><h3 className="mt-1.5 text-sm font-semibold">{value}</h3><p className="mt-1 text-xs app-muted">{detail}</p></div></div></article>)}
           </section>
         </main>
@@ -574,52 +570,6 @@ function TradingActivityCalendar({ months }: { months: CalendarMonth[] }) {
         <span className={total > 0 ? "font-semibold text-profit" : total < 0 ? "font-semibold text-loss" : "font-semibold"}>{money(total, true)}</span> this month
       </p>
     </section>
-  );
-}
-
-/**
- * The one-line read on the sample so far.
- *
- * The heading here was the fixed string "Edge forming", in brand green under
- * an upward arrow, shown whatever the numbers said — so a session that had
- * lost money was congratulated on an edge while the sentence underneath
- * explained the losses. A verdict that cannot come out badly is not a verdict.
- */
-function SampleVerdict({ model }: { model: AnalyticsModel }) {
-  const reliable = sampleIsReliable(model.closedTrades);
-  const verdict =
-    model.closedTrades === 0
-      ? { label: "Nothing to judge yet", positive: null as boolean | null }
-      : model.netProfit > 0
-        ? { label: reliable ? "Edge established" : "Edge forming", positive: true }
-        : model.netProfit < 0
-          ? { label: reliable ? "No edge in this sample" : "Losing so far", positive: false }
-          : { label: "Break-even", positive: null };
-
-  const drawdown =
-    model.maxDrawdownPercent === null
-      ? "an unmeasured drawdown"
-      : `${model.maxDrawdownPercent.toFixed(1)}% maximum drawdown`;
-  const remaining = tradesUntilReliable(model.closedTrades);
-
-  return (
-    <div
-      className={`mt-5 rounded-xl p-4 ${verdict.positive === false ? "bg-loss/[0.07]" : verdict.positive ? "bg-profit/[0.07]" : "bg-white/[0.03]"}`}
-    >
-      <div
-        className={`flex items-center gap-2 text-xs font-semibold ${verdict.positive === false ? "text-loss" : verdict.positive ? "text-profit" : "app-muted"}`}
-      >
-        {verdict.positive === false ? <TrendingDown size={14} aria-hidden /> : <TrendingUp size={14} aria-hidden />}{" "}
-        {verdict.label}
-      </div>
-      <p className="mt-2 text-xs leading-5 app-muted">
-        {model.closedTrades === 0
-          ? "Close a trade to start building a sample."
-          : reliable
-            ? `The sample is large enough to start judging consistency across market conditions, at ${drawdown}.`
-            : `${model.closedTrades} trade${model.closedTrades === 1 ? "" : "s"} with ${drawdown}. Add ${remaining} more before treating the result as dependable.`}
-      </p>
-    </div>
   );
 }
 
@@ -678,7 +628,7 @@ function ProjectAnalyticsOverview({ model }: { model: AnalyticsModel }) {
   return (
     <section className="rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Project analytics</p><h2 className="mt-1 flex items-center gap-2 text-lg font-semibold">The test at a glance<MetricInfo term="The test at a glance" detail="Coverage, execution frequency, outcome quality, and risk in one compact read. Every figure below has its own (i) with the definition and how to read it." /></h2></div>
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Detailed metrics</p><h2 className="mt-1 flex items-center gap-2 text-lg font-semibold">Session breakdown<MetricInfo term="Session breakdown" detail="Coverage, execution, results, and risk for this session." /></h2></div>
         <span className="rounded-full border app-border bg-[var(--app-panel-2)] px-3 py-1.5 font-mono text-[10px] app-muted">{model.closedTrades} closed trades</span>
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

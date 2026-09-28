@@ -550,7 +550,7 @@ export function SignedInDashboard({
         </section>
       ) : (
         <>
-          <section className="mt-5 border-y app-border bg-[var(--app-panel)]/45 px-1" aria-label="Session switcher">
+          <section className="mt-5 px-1" aria-label="Session switcher">
             <div className="flex items-center">
               <DashboardSessionSwitcher selectedId={selectedSession.id} sessions={sessionOptions} variant="rail" />
             </div>

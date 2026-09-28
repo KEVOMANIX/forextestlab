@@ -27,6 +27,8 @@ interface SessionTriggerDetails {
   progress: number;
 }
 
+const DASHBOARD_RAIL_STORAGE_KEY = "forextestlab.dashboard-session-rail";
+
 export function DashboardSessionSwitcher({
   sessions,
   selectedId,
@@ -42,11 +44,31 @@ export function DashboardSessionSwitcher({
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [dismissedSessionIds, setDismissedSessionIds] = useState<string[]>([]);
+  const [railSessionIds, setRailSessionIds] = useState<string[] | null>(null);
+  const sessionIdsKey = sessions.map((session) => session.id).join(",");
 
   useEffect(() => {
     document.cookie = `${DASHBOARD_SESSION_COOKIE}=${encodeURIComponent(selectedId)}; path=/; max-age=${DASHBOARD_SESSION_COOKIE_MAX_AGE}; samesite=lax`;
   }, [selectedId]);
+
+  useEffect(() => {
+    const availableIds = new Set(sessions.map((session) => session.id));
+    let rememberedIds: string[] = [];
+    try {
+      const stored = window.localStorage.getItem(DASHBOARD_RAIL_STORAGE_KEY);
+      const parsed: unknown = stored ? JSON.parse(stored) : [];
+      rememberedIds = Array.isArray(parsed)
+        ? parsed.filter((id): id is string => typeof id === "string")
+        : [];
+    } catch {
+      // A blocked or malformed local-storage value should never hide the
+      // active dashboard session.
+    }
+    const next = [selectedId, ...rememberedIds].filter(
+      (id, index, ids) => availableIds.has(id) && ids.indexOf(id) === index,
+    );
+    setRailSessionIds(next);
+  }, [selectedId, sessionIdsKey, sessions]);
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return sessions;
@@ -60,7 +82,18 @@ export function DashboardSessionSwitcher({
     onClose: () => setOpen(false),
   });
 
+  const saveRail = (ids: string[]) => {
+    setRailSessionIds(ids);
+    window.localStorage.setItem(DASHBOARD_RAIL_STORAGE_KEY, JSON.stringify(ids));
+  };
+
+  const addToRail = (id: string) => {
+    const ids = railSessionIds ?? [selectedId];
+    saveRail([id, ...ids.filter((sessionId) => sessionId !== id)].slice(0, 4));
+  };
+
   const choose = (id: string) => {
+    addToRail(id);
     const next = new URLSearchParams(searchParams.toString());
     next.set("session", id);
     next.delete("performance");
@@ -70,26 +103,28 @@ export function DashboardSessionSwitcher({
   };
 
   const dismissFromRail = (id: string) => {
+    const ids = railSessionIds ?? [selectedId];
     if (id === selectedId) {
-      const replacement = sessions.find(
-        (session) => session.id !== id && !dismissedSessionIds.includes(session.id),
-      );
+      const replacement = recentSessions.find((session) => session.id !== id);
       if (!replacement) return;
-      setDismissedSessionIds((ids) => [...ids, id]);
-      choose(replacement.id);
+      saveRail([
+        replacement.id,
+        ...ids.filter((sessionId) => sessionId !== id && sessionId !== replacement.id),
+      ]);
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("session", replacement.id);
+      next.delete("performance");
+      router.push(`/app?${next.toString()}`);
       return;
     }
-    setDismissedSessionIds((ids) => [...ids, id]);
+    saveRail(ids.filter((sessionId) => sessionId !== id));
   };
 
   // Keep the selected session in the first tile. A user must never have to
   // scroll a horizontal rail just to find what is currently in view.
-  const recentSessions = [
-    ...sessions.filter((session) => session.id === selectedId),
-    ...sessions.filter(
-      (session) => session.id !== selectedId && !dismissedSessionIds.includes(session.id),
-    ),
-  ].slice(0, 4);
+  const recentSessions = (railSessionIds ?? [selectedId])
+    .map((id) => sessions.find((session) => session.id === id))
+    .filter((session): session is SessionOption => Boolean(session));
 
   return (
     <div className="relative">

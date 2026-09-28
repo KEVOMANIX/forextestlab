@@ -486,18 +486,6 @@ export function SignedInDashboard({
             Welcome back, {displayName}
           </h1>
           <p className="mt-1.5 text-sm app-muted">Your desk for replay, review, and measured improvement.</p>
-          {selectedSession && !showDemoData && (
-            <DashboardSessionSwitcher
-              selectedId={selectedSession.id}
-              sessions={sessionOptions}
-              triggerDetails={{
-                name: scopeLabel,
-                symbols: `${selectedSymbols.slice(0, 1).map(formatSymbol).join(", ")}${selectedSymbols.length > 1 ? ` +${selectedSymbols.length - 1} market${selectedSymbols.length === 2 ? "" : "s"}` : ""}`,
-                status: selectedSession.status === "finished" ? "Completed" : "Active",
-                progress,
-              }}
-            />
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Both states visible at once, so the control says which one is
@@ -573,22 +561,16 @@ export function SignedInDashboard({
       ) : (
         <>
           <section
-            className="relative mt-5 overflow-hidden rounded-2xl border border-brand-300/30 bg-[linear-gradient(125deg,rgba(20,184,166,0.12),var(--app-panel)_46%,rgba(59,107,255,0.10))] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.18)] sm:p-5"
+            className="panel mt-5 overflow-hidden"
             aria-label="Selected dashboard session"
           >
-            <div
-              aria-hidden
-              className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent-400/15 blur-3xl"
-            />
-            <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,.62fr)]">
+            <div className="relative">
               <div>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand-300 shadow-[0_0_12px_rgba(20,184,166,0.9)]" aria-hidden />
-                    {selectedSession.status === "finished"
-                      ? "Review completed session"
-                      : "Continue where you stopped"}
+                  <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">
+                    <span className={`h-1.5 w-1.5 rounded-full ${selectedSession.status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
+                    Current session
                     {/* The state belongs where the data is, not only in the
                         header control several inches away. */}
                     {showDemoData && (
@@ -597,7 +579,7 @@ export function SignedInDashboard({
                       </span>
                     )}
                   </p>
-                  <h2 className="mt-1.5 truncate text-2xl font-bold tracking-tight">
+                  <h2 className="mt-2 truncate text-xl font-semibold tracking-tight sm:text-2xl">
                     {scopeLabel}
                   </h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs app-muted">
@@ -644,7 +626,7 @@ export function SignedInDashboard({
                   dashboard for, and it used to be absent: the card showed a
                   balance and a starting balance and left the subtraction to
                   the reader. */}
-              <div className="mt-4 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
+              <div className="mt-5 grid gap-px overflow-hidden border-y app-border bg-[var(--app-border)] sm:grid-cols-3">
                 <div className="bg-[var(--app-panel)]/90 p-3.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="flex items-center gap-1.5 font-semibold app-muted">Replay progress<MetricInfo term="Replay progress" /></span>
@@ -693,7 +675,7 @@ export function SignedInDashboard({
               </div>
               </div>
 
-              <aside className="rounded-xl border border-white/[0.10] bg-[var(--app-panel-2)]/65 p-4">
+              <aside className="hidden">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">Session pulse</p>

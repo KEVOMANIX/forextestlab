@@ -23,7 +23,6 @@ interface SessionOption {
 interface SessionTriggerDetails {
   name: string;
   symbols: string;
-  dateRange: string;
   status: string;
   progress: number;
 }
@@ -72,7 +71,7 @@ export function DashboardSessionSwitcher({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={triggerDetails ? "group mt-4 flex w-full max-w-md items-center gap-3 rounded-xl border border-brand-400/25 bg-[var(--app-panel-2)]/80 px-3.5 py-3 text-left transition-colors hover:border-brand-400/50 hover:bg-brand-400/[0.06]" : "inline-flex h-9 items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-left text-xs font-semibold transition-colors hover:border-brand-400/40 hover:bg-white/[0.04]"}
+        className={triggerDetails ? "group mt-4 flex w-full max-w-[22rem] items-center gap-3 rounded-xl border app-border bg-[var(--app-panel-2)]/65 px-3.5 py-3 text-left transition-colors hover:border-brand-400/40 hover:bg-brand-400/[0.05]" : "inline-flex h-9 items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-left text-xs font-semibold transition-colors hover:border-brand-400/40 hover:bg-white/[0.04]"}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="Choose dashboard session"
@@ -80,8 +79,8 @@ export function DashboardSessionSwitcher({
       >
         {triggerDetails ? <>
           <span className={`h-2 w-2 shrink-0 rounded-full ${triggerDetails.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
-          <span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">Viewing session</span><span className="mt-1 block truncate text-sm font-semibold">{triggerDetails.symbols} <span className="font-normal app-muted">· {triggerDetails.name}</span></span><span className="mt-1 block text-[11px] app-muted">{triggerDetails.dateRange} · {triggerDetails.status} · {triggerDetails.progress.toFixed(0)}% replayed</span></span>
-          <ChevronDown size={16} className="shrink-0 app-muted transition-colors group-hover:text-brand-300" aria-hidden />
+          <span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">Current session</span><span className="mt-1 block truncate text-sm font-semibold">{triggerDetails.name}</span><span className="mt-1 block truncate text-[11px] app-muted">{triggerDetails.symbols}</span></span>
+          <span className="flex shrink-0 items-center gap-2"><span className="text-right text-[11px] font-medium app-muted"><span className="block">{triggerDetails.status}</span><span className="block font-mono text-brand-300">{triggerDetails.progress.toFixed(0)}%</span></span><ChevronDown size={16} className="app-muted transition-colors group-hover:text-brand-300" aria-hidden /></span>
         </> : <><span className="truncate">Change session{sessions.length > 1 && <span className="ml-1.5 font-mono app-muted">{sessions.length}</span>}</span><ChevronDown size={15} className="shrink-0 app-muted" aria-hidden /></>}
       </button>
 

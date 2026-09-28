@@ -492,8 +492,7 @@ export function SignedInDashboard({
               sessions={sessionOptions}
               triggerDetails={{
                 name: scopeLabel,
-                symbols: selectedSymbols.map(formatSymbol).join(", "),
-                dateRange: `${formatNewYorkDate(Number(selectedSession.startTime), { day: "numeric", month: "short", year: "numeric" })} – ${formatNewYorkDate(Number(selectedSession.endTime), { day: "numeric", month: "short", year: "numeric" })}`,
+                symbols: `${selectedSymbols.slice(0, 1).map(formatSymbol).join(", ")}${selectedSymbols.length > 1 ? ` +${selectedSymbols.length - 1} market${selectedSymbols.length === 2 ? "" : "s"}` : ""}`,
                 status: selectedSession.status === "finished" ? "Completed" : "Active",
                 progress,
               }}

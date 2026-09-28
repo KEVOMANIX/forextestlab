@@ -404,6 +404,8 @@ export function AnalyticsDesignPrototype({
   const overviewMonthMax = Math.max(...model.monthlyReturns.map((month) => Math.abs(month.percent)), 1);
   const overviewRMax = Math.max(...model.rDistribution.map((bucket) => bucket.count), 1);
   const overviewSessionMax = Math.max(...model.sessions.map((row) => Math.abs(row.value)), 1);
+  const overviewTradePnls = (demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades).slice(-20).map((trade) => Number(trade.pnl));
+  const overviewTradePnlMax = Math.max(...overviewTradePnls.map((value) => Math.abs(value)), 1);
   // The sample used to carry a hand-written period that its own trades,
   // calendar and equity axis all contradicted. Both modes now derive it.
   const periodStart = demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime;
@@ -499,8 +501,8 @@ export function AnalyticsDesignPrototype({
             </section>
 
             <section className="min-w-0 rounded-2xl border app-border bg-[var(--app-panel)] p-4 sm:p-5">
-              <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-rose-300">Drawdown</p><p className="mt-1 text-xs app-muted">Decline from each new equity high</p></div>
-              {model.closedTrades > 0 ? <InteractiveDrawdownChart values={model.drawdown} maxDrawdown={model.maxDrawdown} closedTrades={model.closedTrades} /> : <div className="mt-5 grid h-[276px] place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/35 px-6 text-center"><div><TrendingDown size={20} className="mx-auto text-rose-300/70" aria-hidden /><p className="mt-3 text-sm font-semibold">Drawdown starts with your first result</p><p className="mt-1 text-xs app-muted">No closed trades</p></div></div>}
+              <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-cyan-300">Trade results</p><p className="mt-1 text-xs app-muted">Realised P/L for the latest 20 trades</p></div>{overviewTradePnls.length > 0 && <span className="rounded-full bg-[var(--app-panel-2)] px-2.5 py-1 font-mono text-[9px] app-muted">{overviewTradePnls.length} trades</span>}</div>
+              {overviewTradePnls.length > 0 ? <div className="mt-5"><div className="grid h-[226px] items-center gap-1 rounded-xl bg-[var(--app-panel-2)]/35 px-3 py-4" style={{ gridTemplateColumns: `repeat(${overviewTradePnls.length}, minmax(3px, 1fr))` }}>{overviewTradePnls.map((value, index) => { const height = Math.max(6, Math.abs(value) / overviewTradePnlMax * 88); return <div key={`${index}-${value}`} className="flex h-full min-w-0 flex-col justify-center" title={`Trade ${Math.max(1, model.closedTrades - overviewTradePnls.length + index + 1)}: ${money(value, true)}`}><div className="relative h-1/2 border-b border-white/10">{value > 0 && <div className="absolute bottom-0 left-1/2 w-[72%] -translate-x-1/2 rounded-t bg-profit/85" style={{ height: `${height}%` }} />}</div><div className="relative h-1/2">{value < 0 && <div className="absolute left-1/2 top-0 w-[72%] -translate-x-1/2 rounded-b bg-loss/85" style={{ height: `${height}%` }} />}</div></div>; })}</div><div className="mt-3 flex items-center justify-between text-[10px] app-muted"><span>Older</span><span className="inline-flex items-center gap-3"><i className="inline-flex items-center gap-1.5"><b className="h-1.5 w-1.5 rounded-full bg-profit" /> Profit</i><i className="inline-flex items-center gap-1.5"><b className="h-1.5 w-1.5 rounded-full bg-loss" /> Loss</i></span><span>Latest</span></div></div> : <div className="mt-5 grid h-[276px] place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/35 px-6 text-center"><div><BarChart3 size={20} className="mx-auto text-cyan-300/70" aria-hidden /><p className="mt-3 text-sm font-semibold">Trade results appear here</p><p className="mt-1 text-xs app-muted">Close a trade to plot its realised P/L</p></div></div>}
             </section>
           </section>
 

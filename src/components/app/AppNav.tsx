@@ -52,7 +52,7 @@ export function AppNav({ signedIn, displayName }: { signedIn: boolean; displayNa
   }
 
   return <>
-    <aside className="hidden min-h-dvh flex-col border-r app-border bg-[var(--app-panel)] lg:sticky lg:top-0 lg:row-span-2 lg:h-dvh lg:self-start lg:flex">
+    <aside className="hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:row-span-2 lg:h-dvh lg:self-start lg:flex">
       <div className="flex h-16 items-center border-b app-border px-5"><Logo className="h-7" /></div>
       <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-3 py-5">
         <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div>

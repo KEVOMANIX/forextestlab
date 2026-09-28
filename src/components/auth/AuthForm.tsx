@@ -300,7 +300,7 @@ export function AuthForm({
 
         <button
           type="submit"
-          className="btn-primary mt-5 min-h-11 w-full rounded-xl text-[13px] shadow-[0_10px_24px_-14px_rgba(37,99,235,.85)] transition-transform hover:-translate-y-px"
+          className="btn-primary mt-5 min-h-11 w-full rounded-xl text-[13px] shadow-[0_10px_24px_-14px_rgba(14,165,233,.85)] transition-transform hover:-translate-y-px"
           disabled={pending}
         >
           {busy === "form" ? "Please wait…" : COPY[mode].submit}

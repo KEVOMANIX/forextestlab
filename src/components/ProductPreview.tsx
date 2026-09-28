@@ -138,7 +138,7 @@ export function ProductPreview() {
         <div className="relative min-w-0">
           <div
             aria-hidden
-            className="absolute -inset-7 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_50%_55%,rgba(37,99,235,.14),transparent_65%)] blur-2xl"
+            className="absolute -inset-7 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_50%_55%,rgba(14,165,233,.14),transparent_65%)] blur-2xl"
           />
           <div className={`flex aspect-[4/3] flex-col overflow-hidden rounded-2xl sm:aspect-[19/10] border border-white/[0.12] bg-surface-800/90 shadow-[0_38px_100px_-40px_rgba(0,0,0,.95)] ${active.imageIncludesChrome ? "p-0" : "p-1.5"}`}>
             {!active.imageIncludesChrome && (

@@ -11,7 +11,7 @@
     --trade-exit-rgb: 251 191 36;
     /* Colour the focus ring's gap is punched out of. The app shell overrides it
        per theme so light mode doesn't draw a dark halo around focused controls. */
-    --focus-ring-offset: #060b16;
+    --focus-ring-offset: #030712;
   }
 
   html {
@@ -82,20 +82,21 @@
 @layer components {
   .app-shell,
   .app-theme-surface {
-    --app-bg: #060b16;
-    --app-panel: rgba(12, 23, 48, 0.84);
-    --app-panel-solid: #0c1730;
-    --app-panel-2: rgba(8, 16, 34, 0.76);
-    --app-border: rgba(255, 255, 255, 0.10);
-    --app-text: #dce9ff;
-    --app-muted: #9aabc4;
+    --app-bg: #030712;
+    --app-sidebar: #071a36;
+    --app-panel: #0a2040;
+    --app-panel-solid: #0a2040;
+    --app-panel-2: #0d2a52;
+    --app-border: #1d4e89;
+    --app-text: #f8fbff;
+    --app-muted: #b5d5f5;
     /*
      * Brand colour for text. `brand-300` reads well on a dark panel but drops to
      * about 1.9:1 on a light one, so accented text uses this instead of a fixed
      * shade and darkens with the light theme.
      */
-    --app-accent-text: #bfdbfe;
-    --app-accent-wash: rgba(59, 130, 246, 0.2);
+    --app-accent-text: #bae6fd;
+    --app-accent-wash: rgba(14, 165, 233, 0.18);
     --app-profit-text: rgb(var(--trade-profit-rgb));
     --app-loss-text: rgb(var(--trade-loss-rgb));
     --app-entry-text: rgb(var(--trade-entry-rgb));
@@ -105,12 +106,12 @@
     --app-warn-text: #fcd34d;
     --app-warn-wash: rgba(251, 191, 36, 0.15);
     --app-danger-text: #f8717d;
-    --app-info-text: #7dd3fc;
-    --app-blue-text: #bfdbfe;
+    --app-info-text: #bae6fd;
+    --app-blue-text: #bae6fd;
     --app-subtle: rgba(255, 255, 255, 0.05);
     --app-hover: rgba(255, 255, 255, 0.08);
     --app-strong-line: rgba(255, 255, 255, 0.24);
-    --focus-ring-offset: #060b16;
+    --focus-ring-offset: #030712;
     /*
      * Ink for text drawn *on* the chart — axis labels, the legend, indicator
      * chips. It sits on the plot rather than on a panel, competing with candles
@@ -209,6 +210,7 @@
     --trade-entry-rgb: 29 78 216;
     --trade-exit-rgb: 146 97 10;
     --app-bg: #eef2f6;
+    --app-sidebar: #f8fafc;
     --app-panel: #f8fafc;
     --app-panel-solid: #f8fafc;
     --app-panel-2: #e8edf3;

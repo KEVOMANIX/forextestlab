@@ -32,7 +32,7 @@ const topics = [
 export function SupportSection() {
   return (
     <section className="relative overflow-hidden py-14 sm:py-20 lg:py-24">
-      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_14%_8%,rgba(37,99,235,.14),transparent_30%),radial-gradient(circle_at_86%_28%,rgba(96,165,250,.10),transparent_28%)]" />
+      <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_14%_8%,rgba(14,165,233,.14),transparent_30%),radial-gradient(circle_at_86%_28%,rgba(56,189,248,.10),transparent_28%)]" />
       <div className="container-page relative">
         <div className="mx-auto max-w-6xl">
           <div className="grid gap-10 lg:grid-cols-[.86fr_1.14fr] lg:items-start lg:gap-16">

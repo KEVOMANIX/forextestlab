@@ -69,7 +69,7 @@ export function TradeReviewChartModal({ sessionId, record, onClose }: { sessionI
           {stopY !== null && <PriceLine y={stopY} label={`STOP ${record.stopLoss}`} color="#f05b67" width={plotRight} />}
           {targetY !== null && <PriceLine y={targetY} label={`TARGET ${record.takeProfit}`} color="#22c55e" width={plotRight} />}
           <PriceLine y={exitY} label={`EXIT ${record.exitPrice}`} color="#fbbf24" width={plotRight} dashed />
-          <line x1={tradeX1} x2={tradeX1} y1="18" y2={height - 18} stroke="rgba(96,165,250,.55)" strokeDasharray="3 5" />
+          <line x1={tradeX1} x2={tradeX1} y1="18" y2={height - 18} stroke="rgba(56,189,248,.55)" strokeDasharray="3 5" />
           <line x1={tradeX2} x2={tradeX2} y1="18" y2={height - 18} stroke="rgba(251,191,36,.55)" strokeDasharray="3 5" />
         </svg></div> : <div className="grid min-h-80 place-items-center rounded-xl border border-dashed app-border text-sm app-muted">Chart snapshots are unavailable for this older trade.</div>}
         <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">{[

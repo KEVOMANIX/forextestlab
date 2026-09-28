@@ -34,7 +34,6 @@ import {
 import { useAppTheme } from "./ThemeContext";
 import { useBacktester } from "./useBacktester";
 import { useChartWorkspace } from "./useChartWorkspace";
-import { BackLink } from "./BackLink";
 import { TradingOnboarding } from "./TradingOnboarding";
 import type { OrderRequest, OrderType, PublicSessionState } from "@/lib/backtest/types";
 import {
@@ -863,10 +862,7 @@ export function Backtester({
   if (bt.phase === "setup" || !state) {
     if (bt.busy) return <PageLoader message="Preparing your backtest…" />;
     return (
-      <div className="mx-auto max-w-[1600px] px-4 py-4 sm:py-6">
-        <div className="mx-auto mb-3 max-w-6xl">
-          <BackLink />
-        </div>
+      <div className="mx-auto max-w-[1600px] px-4 py-3">
         {effectiveEntitlements.plan === "free" ? (
           <TrialSessionLauncher
             remaining={effectiveEntitlements.trialSessionsRemaining ?? 0}

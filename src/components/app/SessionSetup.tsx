@@ -117,7 +117,7 @@ function MarketPicker({
 
   return (
     <fieldset className="min-w-0">
-      <legend className="mb-3 flex w-full items-center gap-2">
+      <legend className="mb-2 flex w-full items-center gap-2">
         <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">2</span>
         <span className="text-sm font-semibold">Choose market{singleSelect ? "" : "s"}</span>
         {selected.length > 0 && (
@@ -152,7 +152,7 @@ function MarketPicker({
       </div>
 
       {categories.length > 1 && (
-        <div className="mt-2.5 flex flex-wrap gap-1.5" role="group" aria-label="Filter markets by category">
+        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Filter markets by category">
           {categories.map((item) => {
             const active = category === item;
             return (
@@ -176,7 +176,7 @@ function MarketPicker({
       )}
 
       {!singleSelect && selectedItems.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {selectedItems.map((item) => (
             <span
               key={item.symbol}
@@ -205,7 +205,7 @@ function MarketPicker({
         </div>
       )}
 
-      <div className="relative mt-2.5">
+      <div className="relative mt-2">
         {loading ? (
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1" aria-label="Loading markets">
             {Array.from({ length: 5 }, (_, index) => (
@@ -214,7 +214,7 @@ function MarketPicker({
           </div>
         ) : visible.length > 0 ? (
           <>
-            <div className="grid max-h-[30rem] grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain pb-3 pr-1 sm:grid-cols-2">
+            <div className="grid max-h-48 grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain pb-3 pr-1 sm:grid-cols-2">
               {visible.map((item) => {
                 const active = selected.includes(item.symbol);
                 const description = describeSymbol(item.symbol);
@@ -744,8 +744,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
   }
 
   return (
-    <form onSubmit={handleStart} className="panel mx-auto w-full max-w-6xl overflow-visible">
-      <div className="flex flex-col gap-1 border-b app-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <form onSubmit={handleStart} className="panel mx-auto w-full max-w-7xl overflow-visible lg:flex lg:h-[calc(100dvh-5.5rem)] lg:max-h-[48rem] lg:flex-col lg:overflow-hidden">
+      <div className="flex shrink-0 flex-col gap-1 border-b app-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <h2 className="text-xl font-semibold tracking-tight">New backtest</h2>
         <span className="w-fit text-xs font-medium app-muted">
           {entitlements.plan === "free"
@@ -754,33 +754,23 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </span>
       </div>
 
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.12fr)_minmax(25rem,.88fr)]">
-        <div className="min-w-0 space-y-5 overflow-clip px-5 py-4 sm:px-6 lg:row-span-2 lg:border-r lg:border-[var(--app-border)]">
+      <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(0,1.12fr)_minmax(25rem,.88fr)] lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden">
+        <div className="min-w-0 space-y-4 overflow-clip px-5 py-3 sm:px-6 lg:row-span-2 lg:overflow-y-auto lg:border-r lg:border-[var(--app-border)]">
           <section>
-            <div className="mb-3 flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">1</span>
               <h3 className="text-sm font-semibold">Session details</h3>
             </div>
-            <label htmlFor="setup-name" className="sr-only">Session name</label>
-            <input
-              id="setup-name"
-              className="app-input w-full text-base"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={generatedName}
-              maxLength={80}
-              autoFocus
-            />
-            <div className="relative mt-2">
-              <Tags size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
-              <label htmlFor="setup-tags" className="sr-only">Strategy tags</label>
-              <input
-                id="setup-tags"
-                className="app-input w-full pl-9 text-sm"
-                value={tagsText}
-                onChange={(event) => setTagsText(event.target.value)}
-                placeholder="Optional tags: breakout, London, trend"
-              />
+            <div className="grid gap-2 sm:grid-cols-[1.1fr_.9fr]">
+              <div>
+                <label htmlFor="setup-name" className="sr-only">Session name</label>
+                <input id="setup-name" className="app-input w-full text-sm" value={name} onChange={(event) => setName(event.target.value)} placeholder={generatedName} maxLength={80} autoFocus />
+              </div>
+              <div className="relative">
+                <Tags size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
+                <label htmlFor="setup-tags" className="sr-only">Strategy tags</label>
+                <input id="setup-tags" className="app-input w-full pl-9 text-sm" value={tagsText} onChange={(event) => setTagsText(event.target.value)} placeholder="Optional tags" />
+              </div>
             </div>
           </section>
 
@@ -794,9 +784,9 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           />
         </div>
 
-        <div className="min-w-0 overflow-hidden border-t app-border px-5 py-4 sm:px-6 lg:border-t-0">
+        <div className="min-w-0 overflow-hidden border-t app-border px-5 py-3 sm:px-6 lg:overflow-y-auto lg:border-t-0">
           <fieldset>
-            <legend className="mb-3 flex w-full items-center gap-2">
+            <legend className="mb-2 flex w-full items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">3</span>
               <span className="text-sm font-semibold">Session type</span>
             </legend>
@@ -898,9 +888,9 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           </fieldset>
         </div>
 
-        <div className="min-w-0 overflow-visible border-t app-border px-5 py-4 sm:px-6">
+        <div className="min-w-0 overflow-visible border-t app-border px-5 py-3 sm:px-6 lg:overflow-y-auto">
           <section>
-            <div className="mb-3 flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">4</span>
               <h3 className="text-sm font-semibold">Replay period</h3>
             </div>
@@ -992,7 +982,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </div>
       </div>
 
-      <div className="border-t app-border px-5 py-3 sm:px-6">
+      <div className="shrink-0 border-t app-border px-5 py-2.5 sm:px-6">
         {error && (
           <p role="alert" className="mb-4 rounded-lg border border-loss/30 bg-loss/10 px-3 py-2 text-sm text-loss">
             {error}
@@ -1055,7 +1045,7 @@ function ModeCard({
       onClick={onSelect}
       disabled={disabled}
       aria-pressed={selected}
-      className={`min-w-0 flex min-h-[76px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+      className={`min-w-0 flex min-h-[64px] items-center gap-3 rounded-lg border px-3.5 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
         selected
           ? "border-brand-400/50 bg-[var(--app-panel-2)]"
           : "app-border hover:bg-[var(--app-panel-2)]"

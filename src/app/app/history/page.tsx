@@ -8,6 +8,8 @@ import { Decimal } from "@/lib/decimal";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
 import { DeleteSessionButton } from "@/components/app/DeleteSessionButton";
 import { formatSymbol } from "@/lib/market-data/symbols";
+import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
 export const metadata: Metadata = {
   title: "Sessions",
@@ -28,6 +30,21 @@ function formatSignedMoney(value: Decimal) {
   return `${value.isZero() ? "" : value.isPositive() ? "+" : "−"}$${amount}`;
 }
 
+function replayTime(session: { startTime: bigint; endTime: bigint; visibleTime: bigint | null; visibleIndex: number; timeframe: string }) {
+  if (session.visibleTime != null) return Number(session.visibleTime);
+  const step = TIMEFRAME_MS[session.timeframe as keyof typeof TIMEFRAME_MS] ?? 0;
+  return Math.min(Number(session.endTime), Number(session.startTime) + Math.max(0, session.visibleIndex) * step);
+}
+
+function replayProgress(session: { startTime: bigint; endTime: bigint; visibleTime: bigint | null; visibleIndex: number; timeframe: string; status: string }) {
+  if (session.status === "finished") return 100;
+  return replayDayPercent({
+    startTime: Number(session.startTime),
+    endTime: Number(session.endTime),
+    currentTime: replayTime(session),
+  });
+}
+
 export default async function HistoryPage() {
   const user = await requireUser("/app/history");
   await ensureUserProfile(user);
@@ -42,6 +59,8 @@ export default async function HistoryPage() {
       status: true,
       startTime: true,
       endTime: true,
+      visibleTime: true,
+      visibleIndex: true,
       startingBalance: true,
       depositedFunds: true,
       balance: true,
@@ -51,8 +70,8 @@ export default async function HistoryPage() {
   });
 
   const totalNet = sessions.reduce((sum, session) => sum.plus(netResult(session)), new Decimal(0));
-  const activeCount = sessions.filter((session) => session.status !== "finished").length;
   const totalTrades = sessions.reduce((sum, session) => sum + session._count.trades, 0);
+  const marketCount = new Set(sessions.map((session) => session.symbol)).size;
 
   return (
     <div className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 sm:py-9">
@@ -81,7 +100,7 @@ export default async function HistoryPage() {
           <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Session library summary">
             {[
               ["Sessions", String(sessions.length), "Your complete testing record"],
-              ["Ready to resume", String(activeCount), activeCount === 1 ? "Session ready to resume" : "Sessions ready to resume"],
+              ["Markets tested", String(marketCount), marketCount === 1 ? "Market in this library" : "Markets in this library"],
               ["Closed trades", String(totalTrades), "Across the sessions shown"],
               ["Net P/L", formatSignedMoney(totalNet), totalNet.isNegative() ? "Net loss across sessions shown" : "Net result across sessions shown"],
             ].map(([label, value, detail], index) => (
@@ -106,6 +125,8 @@ export default async function HistoryPage() {
                 const net = netResult(session);
                 const finished = session.status === "finished";
                 const sessionLabel = `${formatSymbol(session.symbol)} · ${formatNewYorkDate(Number(session.startTime), { month: "short", year: "numeric" })}`;
+                const progress = replayProgress(session);
+                const replayPosition = replayTime(session);
                 return (
                   <article key={session.id} className="grid gap-4 px-5 py-4 transition-colors hover:bg-white/[0.025] xl:grid-cols-[minmax(16rem,1.4fr)_minmax(12rem,1fr)_10rem_11rem_auto] xl:items-center">
                     <div className="flex min-w-0 items-center gap-3">
@@ -116,9 +137,10 @@ export default async function HistoryPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs app-muted"><CalendarDays size={14} className="shrink-0 text-brand-300" aria-hidden /><span>{formatNewYorkDate(Number(session.startTime), { month: "short", day: "numeric", year: "numeric" })} – {formatNewYorkDate(Number(session.endTime), { month: "short", day: "numeric", year: "numeric" })}</span></div>
-                    <div className="flex items-center gap-2 xl:block">
-                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${finished ? "bg-white/[0.06] app-muted" : "bg-brand-400/10 text-brand-300"}`}>{finished ? "Completed" : "Ready to resume"}</span>
-                      <span className="text-[11px] app-muted xl:mt-1.5 xl:block">{session._count.trades} closed trade{session._count.trades === 1 ? "" : "s"}</span>
+                    <div>
+                      <div className="flex items-center justify-between gap-2 text-[11px] app-muted"><span>Replay progress</span><span className="font-mono font-semibold text-[var(--app-text)]">{progress.toFixed(0)}%</span></div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${progress}%` }} /></div>
+                      <span className="mt-1.5 block text-[10px] app-muted">{session.status === "finished" ? "Complete" : replayDayLabel({ startTime: Number(session.startTime), endTime: Number(session.endTime), currentTime: replayPosition })}</span>
                     </div>
                     <div><p className={`font-mono text-sm font-semibold ${net.isNegative() ? "text-loss" : !net.isZero() && net.isPositive() ? "text-profit" : ""}`}>{formatSignedMoney(net)}</p><p className="mt-1 text-[11px] app-muted">Net P/L</p></div>
                     <div className="flex items-center gap-2 xl:justify-end">

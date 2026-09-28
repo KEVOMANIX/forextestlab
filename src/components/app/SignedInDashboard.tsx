@@ -4,9 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   ArrowRight,
+  BarChart3,
+  BookOpenText,
   FlaskConical,
   Gauge,
+  LayoutDashboard,
   ListChecks,
+  NotebookPen,
   Plus,
   Target,
   TrendingDown,
@@ -480,7 +484,36 @@ export function SignedInDashboard({
 
   return (
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
-      <header className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+      <div className="lg:grid lg:grid-cols-[12.5rem_minmax(0,1fr)] lg:gap-8">
+        <aside className="mb-6 hidden lg:block">
+          <div className="sticky top-20 rounded-2xl border app-border bg-[var(--app-panel)]/75 p-3 shadow-card backdrop-blur">
+            <p className="px-2.5 pb-3 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Trading desk</p>
+            <nav aria-label="Dashboard navigation" className="space-y-1">
+              <a href="#dashboard-overview" className="flex items-center gap-3 rounded-lg bg-brand-400/10 px-2.5 py-2.5 text-sm font-semibold text-brand-300"><LayoutDashboard size={16} aria-hidden /> Overview</a>
+              <Link href="/app/backtest" className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300"><Plus size={16} aria-hidden /> New backtest</Link>
+              <Link href="/app/history" className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300"><BookOpenText size={16} aria-hidden /> Sessions</Link>
+            </nav>
+            <div className="my-3 h-px app-border" aria-hidden />
+            <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Review</p>
+            <nav aria-label="Review navigation" className="space-y-1">
+              <a href="#performance-ledger" className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300"><BarChart3 size={16} aria-hidden /> Performance</a>
+              <a href="#review-workspace" className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300"><NotebookPen size={16} aria-hidden /> Journal & insights</a>
+            </nav>
+            {selectedSession && (
+              <div className="mt-5 border-t app-border pt-4">
+                <p className="px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Open session</p>
+                <Link href={`/app/backtest?session=${encodeURIComponent(selectedSession.id)}`} className="mt-2 block rounded-xl border border-brand-400/20 bg-brand-400/[0.06] px-3 py-3 transition-colors hover:border-brand-400/40 hover:bg-brand-400/[0.10]">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-brand-200"><span className="h-1.5 w-1.5 rounded-full bg-brand-300" aria-hidden /> {formatSymbol(selectedSession.symbol)}</span>
+                  <span className="mt-1 block truncate text-[11px] app-muted">{scopeLabel}</span>
+                  <span className="mt-2 block h-1 overflow-hidden rounded-full bg-white/[0.08]"><span className="block h-full rounded-full bg-brand-400" style={{ width: `${progress}%` }} /></span>
+                </Link>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        <div>
+      <header id="dashboard-overview" className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             Welcome back, {displayName}
@@ -736,7 +769,7 @@ export function SignedInDashboard({
             ))}
           </section>
 
-          <section className="panel mt-4 p-4">
+          <section id="performance-ledger" className="panel mt-4 p-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
@@ -764,9 +797,10 @@ export function SignedInDashboard({
             <SessionPerformanceChart points={chartPoints} trades={chartTrades} />
           </section>
 
-          <DashboardReviewWorkspace
-            insights={insightCards}
-            activity={recentTradeActivity.map((trade) => {
+          <div id="review-workspace">
+            <DashboardReviewWorkspace
+              insights={insightCards}
+              activity={recentTradeActivity.map((trade) => {
               const pnl = new Decimal(trade.pnl);
               return {
                 id: trade.id,
@@ -775,9 +809,10 @@ export function SignedInDashboard({
                 pnl: formatMoney(pnl),
                 positive: pnl.gte(0),
               };
-            })}
-            aiEnabled={aiEnabled}
-          />
+              })}
+              aiEnabled={aiEnabled}
+            />
+          </div>
         </>
       )}
 
@@ -800,6 +835,8 @@ export function SignedInDashboard({
           <DashboardSessionsTable sessions={sessionRows} />
         </section>
       )}
+        </div>
+      </div>
     </div>
   );
 }

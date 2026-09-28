@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Clock3, Flame, FlaskConical, ListChecks, Play, Target, X } from "lucide-react";
+import { Clock3, Flame, ListChecks, Play, Target } from "lucide-react";
 import { DashboardSessionsTable, type DashboardSessionRow } from "@/components/app/DashboardSessionsTable";
 import { replayDayPercent } from "@/lib/backtest/replay-progress";
 import { formatNewYorkDate } from "@/lib/date-time";
@@ -69,7 +68,6 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
   displayName: string;
   metrics: DashboardPracticeMetrics;
 }) {
-  const [showDemoData, setShowDemoData] = useState(false);
   const visibleSessions = sessions.filter((session) => !session.archived);
   const latestSession = visibleSessions.find((session) => session.status !== "finished") ?? visibleSessions[0] ?? null;
   const sessionRows: DashboardSessionRow[] = visibleSessions.map((session) => {
@@ -95,13 +93,6 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
     { label: "Sessions touched", value: String(metrics.sessionsThisWeek), detail: "Updated this week", icon: ListChecks, tone: "text-brand-300" },
     { label: "Average win rate", value: metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`, detail: metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} closed trades` : "Close trades to build a sample", icon: Target, tone: "text-accent-400" },
   ];
-  const demoCards = [
-    { ...cards[0]!, value: "4h 35m", detail: "This week" },
-    { ...cards[1]!, value: "3 days", detail: "Consecutive replay days" },
-    { ...cards[2]!, value: "2", detail: "Updated this week" },
-    { ...cards[3]!, value: "58%", detail: "Last 30 closed trades" },
-  ];
-
   return (
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
       <header id="dashboard-overview" className="flex flex-col justify-between gap-5 border-b app-border pb-6 lg:flex-row lg:items-end">
@@ -110,10 +101,7 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Welcome back, {displayName}</h1>
           <p className="mt-1.5 text-sm app-muted">Pick up your testing routine and continue when you are ready.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {showDemoData ? <button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-brand-400/30 text-brand-200 transition-colors hover:bg-brand-400/10" aria-label="Exit sample view" title="Exit sample view"><X size={15} aria-hidden /></button> : <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border app-border px-3 text-xs font-semibold app-muted transition-colors hover:border-brand-400/30 hover:text-brand-200" title="Preview example practice metrics"><FlaskConical size={14} aria-hidden /> Sample view</button>}
-          {latestSession && <Link href={`/app/backtest?session=${encodeURIComponent(latestSession.id)}`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-3.5 text-xs font-bold text-surface-950 transition-colors hover:bg-brand-400"><Play size={13} fill="currentColor" aria-hidden /> Continue latest</Link>}
-        </div>
+        {latestSession && <Link href={`/app/backtest?session=${encodeURIComponent(latestSession.id)}`} className="inline-flex h-9 items-center gap-2 self-start rounded-lg bg-brand-500 px-3.5 text-xs font-bold text-surface-950 transition-colors hover:bg-brand-400 lg:self-auto"><Play size={13} fill="currentColor" aria-hidden /> Continue latest session</Link>}
       </header>
 
       {visibleSessions.length === 0 ? (
@@ -128,7 +116,7 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
           <section className="mt-7" aria-labelledby="practice-this-week">
             <div className="flex items-baseline justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Your practice</p><h2 id="practice-this-week" className="mt-1.5 text-xl font-semibold">This week</h2></div><p className="hidden text-xs app-muted sm:block">Your progress is measured across saved sessions.</p></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {(showDemoData ? demoCards : cards).map(({ label, value, detail, icon: Icon, tone }) => <article key={label} className="panel p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><p className="text-xs font-semibold app-muted">{label}</p><span className={`grid h-8 w-8 place-items-center rounded-lg bg-brand-400/[0.09] ${tone}`}><Icon size={16} aria-hidden /></span></div><p className={`mt-4 font-mono text-2xl font-semibold tracking-tight ${tone}`}>{value}</p><p className="mt-1.5 text-xs app-muted">{detail}</p></article>)}
+              {cards.map(({ label, value, detail, icon: Icon, tone }) => <article key={label} className="panel p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><p className="text-xs font-semibold app-muted">{label}</p><span className={`grid h-8 w-8 place-items-center rounded-lg bg-brand-400/[0.14] ${tone}`}><Icon size={16} aria-hidden /></span></div><p className={`mt-4 font-mono text-2xl font-semibold tracking-tight ${tone}`}>{value}</p><p className="mt-1.5 text-xs app-muted">{detail}</p></article>)}
             </div>
           </section>
           <section className="mt-8" aria-labelledby="recent-sessions">

@@ -94,8 +94,8 @@
      * about 1.9:1 on a light one, so accented text uses this instead of a fixed
      * shade and darkens with the light theme.
      */
-    --app-accent-text: #93c5fd;
-    --app-accent-wash: rgba(37, 99, 235, 0.16);
+    --app-accent-text: #bfdbfe;
+    --app-accent-wash: rgba(59, 130, 246, 0.2);
     --app-profit-text: rgb(var(--trade-profit-rgb));
     --app-loss-text: rgb(var(--trade-loss-rgb));
     --app-entry-text: rgb(var(--trade-entry-rgb));
@@ -106,7 +106,7 @@
     --app-warn-wash: rgba(251, 191, 36, 0.15);
     --app-danger-text: #f8717d;
     --app-info-text: #7dd3fc;
-    --app-blue-text: #93c5fd;
+    --app-blue-text: #bfdbfe;
     --app-subtle: rgba(255, 255, 255, 0.05);
     --app-hover: rgba(255, 255, 255, 0.08);
     --app-strong-line: rgba(255, 255, 255, 0.24);

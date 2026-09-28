@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, BarChart3 } from "lucide-react";
+import { AlertTriangle, BarChart3 } from "lucide-react";
 import { Prisma } from "@/generated/prisma/client";
 
 import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
@@ -132,7 +132,7 @@ export default async function AnalyticsHubPage({
   ) : null;
 
   if (!selected || !results) {
-    return <div className="dashboard-workspace mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8"><header className="border-b app-border pb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Analytics</p><h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Sessions</h1></header><section className="mt-6 rounded-2xl border app-border bg-[var(--app-panel)] p-6 sm:p-8"><span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><BarChart3 size={20} aria-hidden /></span><h2 className="mt-5 text-xl font-semibold">No sessions to analyse</h2><Link href="/app/backtest" className="btn-primary mt-5">New backtest <ArrowRight size={14} aria-hidden /></Link></section></div>;
+    return <div className="dashboard-workspace mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8"><header className="border-b app-border pb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Analytics</p><h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Sessions</h1></header><section className="mt-6 rounded-2xl border app-border bg-[var(--app-panel)] p-6 sm:p-8"><span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><BarChart3 size={20} aria-hidden /></span><h2 className="mt-5 text-xl font-semibold">No sessions to analyse</h2><p className="mt-2 text-sm app-muted">Create a session from New backtest in the sidebar.</p></section></div>;
   }
 
   return (

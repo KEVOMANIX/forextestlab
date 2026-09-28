@@ -732,7 +732,7 @@ export function SignedInDashboard({
                   {formatMoney(totalNet)}
                 </span>
                 {realSelectedSession && <Link
-                  href={`/app/results/${realSelectedSession.id}${showDemoData ? "?demo=1" : ""}`}
+                  href={`/app/results/${realSelectedSession!.id}${showDemoData ? "?demo=1" : ""}`}
                   className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200"
                 >
                   Open full analytics <ArrowRight size={14} aria-hidden />

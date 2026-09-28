@@ -68,12 +68,17 @@ export function DashboardSessionSwitcher({
     router.push(`/app?${next.toString()}`);
   };
 
-  const recentSessions = sessions.slice(0, 4);
+  // Keep the selected session in the first tile. A user must never have to
+  // scroll a horizontal rail just to find what is currently in view.
+  const recentSessions = [
+    ...sessions.filter((session) => session.id === selectedId),
+    ...sessions.filter((session) => session.id !== selectedId),
+  ].slice(0, 4);
 
   return (
     <div className="relative">
       {variant === "rail" ? (
-        <nav className="flex min-w-0 items-stretch gap-1 overflow-x-auto py-0.5" aria-label="Recent dashboard sessions">
+        <nav className="flex min-w-0 items-stretch gap-2 overflow-x-auto py-1" aria-label="Recent dashboard sessions">
           {recentSessions.map((session) => {
             const current = session.id === selectedId;
             return (
@@ -82,21 +87,20 @@ export function DashboardSessionSwitcher({
                 type="button"
                 onClick={() => !current && choose(session.id)}
                 aria-current={current ? "page" : undefined}
-                className={`group flex min-w-[10.75rem] max-w-[14rem] items-center gap-2 border-b-2 px-3 py-2.5 text-left transition-colors ${current ? "border-brand-400 bg-brand-400/[0.07] text-[var(--app-text)]" : "border-transparent text-[var(--app-muted)] hover:border-brand-400/40 hover:bg-white/[0.035] hover:text-[var(--app-text)]"}`}
+                className={`group flex h-10 w-[10.5rem] shrink-0 items-center gap-2 border px-2.5 text-left transition-colors ${current ? "border-brand-400 bg-brand-400/[0.09] text-[var(--app-text)]" : "app-border bg-[var(--app-panel-2)]/55 text-[var(--app-muted)] hover:border-brand-400/40 hover:bg-white/[0.035] hover:text-[var(--app-text)]"}`}
               >
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${session.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold">{session.name}</span>
-                  <span className="mt-0.5 block truncate text-[10px] app-muted">{session.symbols}</span>
+                  <span className="block truncate text-[10px] font-semibold leading-3">{session.name}</span>
+                  <span className="mt-0.5 block truncate text-[9px] leading-3 app-muted">{session.symbols}</span>
                 </span>
-                {current && <span className="text-[10px] font-semibold text-brand-300">Current</span>}
               </button>
             );
           })}
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="inline-flex shrink-0 items-center gap-2 border-b-2 border-transparent px-3 text-xs font-semibold app-muted transition-colors hover:border-brand-400/40 hover:bg-white/[0.035] hover:text-brand-300"
+            className="inline-flex h-10 w-[8.85rem] shrink-0 items-center justify-center gap-2 border border-dashed border-[var(--app-border)] text-[10px] font-semibold app-muted transition-colors hover:border-brand-400/55 hover:bg-white/[0.035] hover:text-brand-300"
             aria-haspopup="dialog"
             aria-expanded={open}
           >

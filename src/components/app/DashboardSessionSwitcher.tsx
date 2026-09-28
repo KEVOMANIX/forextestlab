@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
@@ -31,10 +31,12 @@ export function DashboardSessionSwitcher({
   sessions,
   selectedId,
   triggerDetails,
+  variant = "button",
 }: {
   sessions: SessionOption[];
   selectedId: string;
   triggerDetails?: SessionTriggerDetails;
+  variant?: "button" | "rail";
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,31 +68,66 @@ export function DashboardSessionSwitcher({
     router.push(`/app?${next.toString()}`);
   };
 
+  const recentSessions = sessions.slice(0, 4);
+
   return (
     <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className={triggerDetails ? "group mt-4 flex w-full max-w-[22rem] items-center gap-3 rounded-xl border app-border bg-[var(--app-panel-2)]/65 px-3.5 py-3 text-left transition-colors hover:border-brand-400/40 hover:bg-brand-400/[0.05]" : "inline-flex h-9 items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-left text-xs font-semibold transition-colors hover:border-brand-400/40 hover:bg-white/[0.04]"}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label="Choose dashboard session"
-        title="Choose dashboard session"
-      >
-        {triggerDetails ? <>
-          <span className={`h-2 w-2 shrink-0 rounded-full ${triggerDetails.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
-          <span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">Current session</span><span className="mt-1 block truncate text-sm font-semibold">{triggerDetails.name}</span><span className="mt-1 block truncate text-[11px] app-muted">{triggerDetails.symbols}</span></span>
-          <span className="flex shrink-0 items-center gap-2"><span className="text-right text-[11px] font-medium app-muted"><span className="block">{triggerDetails.status}</span><span className="block font-mono text-brand-300">{triggerDetails.progress.toFixed(0)}%</span></span><ChevronDown size={16} className="app-muted transition-colors group-hover:text-brand-300" aria-hidden /></span>
-        </> : <><span className="truncate">Change session{sessions.length > 1 && <span className="ml-1.5 font-mono app-muted">{sessions.length}</span>}</span><ChevronDown size={15} className="shrink-0 app-muted" aria-hidden /></>}
-      </button>
+      {variant === "rail" ? (
+        <nav className="flex min-w-0 items-stretch gap-1 overflow-x-auto py-0.5" aria-label="Recent dashboard sessions">
+          {recentSessions.map((session) => {
+            const current = session.id === selectedId;
+            return (
+              <button
+                key={session.id}
+                type="button"
+                onClick={() => !current && choose(session.id)}
+                aria-current={current ? "page" : undefined}
+                className={`group flex min-w-[10.75rem] max-w-[14rem] items-center gap-2 border-b-2 px-3 py-2.5 text-left transition-colors ${current ? "border-brand-400 bg-brand-400/[0.07] text-[var(--app-text)]" : "border-transparent text-[var(--app-muted)] hover:border-brand-400/40 hover:bg-white/[0.035] hover:text-[var(--app-text)]"}`}
+              >
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${session.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold">{session.name}</span>
+                  <span className="mt-0.5 block truncate text-[10px] app-muted">{session.symbols}</span>
+                </span>
+                {current && <span className="text-[10px] font-semibold text-brand-300">Current</span>}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="inline-flex shrink-0 items-center gap-2 border-b-2 border-transparent px-3 text-xs font-semibold app-muted transition-colors hover:border-brand-400/40 hover:bg-white/[0.035] hover:text-brand-300"
+            aria-haspopup="dialog"
+            aria-expanded={open}
+          >
+            <Plus size={15} aria-hidden /> All sessions
+          </button>
+        </nav>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={triggerDetails ? "group mt-4 flex w-full max-w-[22rem] items-center gap-3 rounded-xl border app-border bg-[var(--app-panel-2)]/65 px-3.5 py-3 text-left transition-colors hover:border-brand-400/40 hover:bg-brand-400/[0.05]" : "inline-flex h-9 items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-left text-xs font-semibold transition-colors hover:border-brand-400/40 hover:bg-white/[0.04]"}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label="Choose dashboard session"
+          title="Choose dashboard session"
+        >
+          {triggerDetails ? <>
+            <span className={`h-2 w-2 shrink-0 rounded-full ${triggerDetails.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
+            <span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">Current session</span><span className="mt-1 block truncate text-sm font-semibold">{triggerDetails.name}</span><span className="mt-1 block truncate text-[11px] app-muted">{triggerDetails.symbols}</span></span>
+            <span className="flex shrink-0 items-center gap-2"><span className="text-right text-[11px] font-medium app-muted"><span className="block">{triggerDetails.status}</span><span className="block font-mono text-brand-300">{triggerDetails.progress.toFixed(0)}%</span></span><ChevronDown size={16} className="app-muted transition-colors group-hover:text-brand-300" aria-hidden /></span>
+          </> : <><span className="truncate">Change session{sessions.length > 1 && <span className="ml-1.5 font-mono app-muted">{sessions.length}</span>}</span><ChevronDown size={15} className="shrink-0 app-muted" aria-hidden /></>}
+        </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
           <section ref={dialogRef} tabIndex={-1} className="flex max-h-[min(620px,85dvh)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl outline-none" role="dialog" aria-modal="true" aria-labelledby="session-picker-title">
             <div className="flex items-center justify-between border-b app-border p-4">
               <div>
-                <h2 id="session-picker-title" className="font-semibold">Choose dashboard session</h2>
-                <p className="mt-1 text-xs app-muted">Results update to the session you select.</p>
+                <h2 id="session-picker-title" className="font-semibold">All sessions</h2>
+                <p className="mt-1 text-xs app-muted">Choose a session to make it your active dashboard context.</p>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg app-muted hover:bg-white/[0.06]" aria-label="Close session picker"><X size={16} /></button>
             </div>

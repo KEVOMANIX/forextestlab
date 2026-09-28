@@ -560,8 +560,16 @@ export function SignedInDashboard({
         </section>
       ) : (
         <>
+          <section className="mt-5 border-y app-border bg-[var(--app-panel)]/45" aria-label="Session switcher">
+            <div className="flex items-center gap-3 px-1">
+              <span className="hidden shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] app-muted sm:inline">
+                Sessions
+              </span>
+              <DashboardSessionSwitcher selectedId={selectedSession.id} sessions={sessionOptions} variant="rail" />
+            </div>
+          </section>
           <section
-            className="panel mt-5 overflow-hidden"
+            className="panel mt-4 overflow-hidden"
             aria-label="Selected dashboard session"
           >
             <div className="relative">
@@ -618,7 +626,7 @@ export function SignedInDashboard({
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {showDemoData ? realSelectedSession && <Link href={`/app/results/${realSelectedSession.id}?demo=1`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400">Open full sample analytics <ArrowRight size={14} aria-hidden /></Link> : <><DashboardSessionSwitcher selectedId={selectedSession.id} sessions={sessionOptions} /><SessionCardActions sessionId={selectedSession.id} sessionName={scopeLabel} status={selectedSession.status} archived={selectedSession.archived} compact command /></>}
+                  {showDemoData ? realSelectedSession && <Link href={`/app/results/${realSelectedSession.id}?demo=1`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400">Open full sample analytics <ArrowRight size={14} aria-hidden /></Link> : <SessionCardActions sessionId={selectedSession.id} sessionName={scopeLabel} status={selectedSession.status} archived={selectedSession.archived} compact command />}
                 </div>
               </div>
 

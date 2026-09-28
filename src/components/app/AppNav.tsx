@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2, LogIn, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
+import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, MessageCircle, Moon, NotebookPen, PanelLeft, Plus, Sun } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -9,32 +9,39 @@ import { Logo } from "@/components/Logo";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useAppTheme } from "./ThemeContext";
 
-const LINKS = [
-  { label: "Dashboard", href: "/app" },
-  { label: "Backtester", href: "/app/backtest" },
-  { label: "Sessions", href: "/app/history" },
-  { label: "Pricing", href: "/pricing" },
+type NavItem = { label: string; href: string; icon: typeof LayoutDashboard };
+
+const WORKSPACE: NavItem[] = [
+  { label: "Dashboard", href: "/app", icon: LayoutDashboard },
+  { label: "New backtest", href: "/app/backtest", icon: Plus },
+  { label: "Sessions", href: "/app/history", icon: BookOpenText },
+];
+const REVIEW: NavItem[] = [
+  { label: "Performance", href: "/app#performance-ledger", icon: BarChart3 },
+  { label: "Journal & insights", href: "/app#review-workspace", icon: NotebookPen },
+];
+const ACCOUNT: NavItem[] = [
+  { label: "Account", href: "/account", icon: CircleUserRound },
+  { label: "Billing", href: "/account/billing", icon: CreditCard },
 ];
 
 function initials(displayName: string | null): string {
   if (!displayName) return "FT";
-  return displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "FT";
+  return displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "FT";
 }
 
-export function AppNav({
-  signedIn,
-  displayName,
-  admin = false,
-}: {
-  signedIn: boolean;
-  displayName: string | null;
-  admin?: boolean;
-}) {
+function isActive(pathname: string, href: string): boolean {
+  const target = href.split("#")[0]!;
+  return target === "/app" ? pathname === target : pathname.startsWith(target);
+}
+
+function DesktopLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const Icon = item.icon;
+  const active = isActive(pathname, item.href);
+  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}</Link>;
+}
+
+export function AppNav({ signedIn, displayName }: { signedIn: boolean; displayName: string | null; admin?: boolean }) {
   const { theme, toggle } = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
@@ -49,129 +56,23 @@ export function AppNav({
     router.refresh();
   }
 
-  return (
-    <header className="sticky top-0 z-40 border-b app-border bg-[var(--app-bg)]/85 backdrop-blur">
-      <nav
-        className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-4 px-4"
-        aria-label="Backtester"
-      >
-        <Logo className="h-7" />
-
-        <div className="hidden items-center gap-1 md:flex">
-          {LINKS.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              aria-current={
-                pathname === l.href ||
-                (l.href !== "/app" && pathname.startsWith(`${l.href}/`))
-                  ? "page"
-                  : undefined
-              }
-              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                pathname === l.href ||
-                (l.href !== "/app" && pathname.startsWith(`${l.href}/`))
-                  ? "bg-brand-400/10 text-brand-300"
-                  : "app-muted hover:text-brand-300"
-              }`}
-            >
-              {l.label}
-            </Link>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {admin && (
-            <Link
-              href="/admin"
-              className="hidden h-9 items-center gap-2 rounded-lg border border-brand-400/25 bg-brand-400/[0.07] px-3 text-xs font-semibold text-brand-300 sm:inline-flex"
-            >
-              <ShieldCheck size={14} aria-hidden />
-              Admin
-            </Link>
-          )}
-          <Link
-            href={signedIn ? "/account" : "/sign-in"}
-            aria-label={signedIn ? "Open profile" : "Sign in"}
-            title={signedIn ? "Profile" : "Sign in"}
-            className={
-              signedIn
-                ? "group relative grid h-9 w-9 place-items-center rounded-full border border-brand-400/25 bg-gradient-to-br from-brand-400/20 to-brand-500/[0.04] text-[11px] font-bold text-brand-200 shadow-sm transition-all hover:border-brand-400/60 hover:shadow-glow"
-                : "inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs app-muted hover:text-brand-300"
-            }
-          >
-            {signedIn ? (
-              <>
-                <span aria-hidden>{initials(displayName)}</span>
-                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--app-bg)] bg-brand-400" aria-hidden />
-              </>
-            ) : (
-              <>
-                <LogIn size={15} aria-hidden />
-                <span className="hidden sm:inline">Sign in</span>
-              </>
-            )}
-          </Link>
-          <button
-            type="button"
-            onClick={toggle}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border app-border"
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-          >
-            {theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}
-          </button>
-          {signedIn && (
-            <div className="ml-1 border-l app-border pl-2">
-              <button
-                type="button"
-                onClick={signOut}
-                disabled={signingOut}
-                aria-label="Sign out"
-                title="Sign out"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border app-border app-muted transition-colors hover:border-loss/35 hover:bg-loss/[0.06] hover:text-loss disabled:opacity-50"
-              >
-                {signingOut ? (
-                  <Loader2 size={15} className="animate-spin" aria-hidden />
-                ) : (
-                  <LogOut size={15} aria-hidden />
-                )}
-              </button>
-            </div>
-          )}
-        </div>
+  return <>
+    <aside className="hidden min-h-dvh flex-col border-r app-border bg-[var(--app-panel)] lg:row-span-2 lg:flex">
+      <div className="flex h-16 items-center border-b app-border px-5"><Logo className="h-7" /></div>
+      <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-3 py-5">
+        <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div>
+        <NavGroup label="Review" items={REVIEW} pathname={pathname} />
+        <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
+        <div className="mt-7"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link><Link href="/app/support" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><MessageCircle size={16} aria-hidden />Support</Link></div></div>
       </nav>
-      <nav
-        className="mx-auto flex max-w-[1600px] gap-1 overflow-x-auto border-t app-border px-3 py-1.5 md:hidden"
-        aria-label="Mobile workspace"
-      >
-        {LINKS.map((link) => {
-          const active =
-            pathname === link.href ||
-            (link.href !== "/app" && pathname.startsWith(`${link.href}/`));
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              aria-current={active ? "page" : undefined}
-              className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold ${
-                active
-                  ? "bg-brand-400/10 text-brand-300"
-                  : "app-muted hover:text-brand-300"
-              }`}
-            >
-              {link.label}
-            </Link>
-          );
-        })}
-        {admin && (
-          <Link
-            href="/admin"
-            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-brand-400/10 px-3 py-1.5 text-xs font-semibold text-brand-300"
-          >
-            <ShieldCheck size={13} aria-hidden /> Admin
-          </Link>
-        )}
-      </nav>
-    </header>
-  );
+      <div className="border-t app-border p-3"><Link href={signedIn ? "/account" : "/sign-in"} className="flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition-colors hover:bg-[var(--app-panel-2)]"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-400/15 text-xs font-bold text-brand-200">{signedIn ? initials(displayName) : <LogIn size={16} aria-hidden />}</span><span className="min-w-0"><span className="block truncate text-xs font-semibold">{signedIn ? displayName ?? "ForexTestLab trader" : "Sign in"}</span><span className="mt-0.5 block text-[11px] app-muted">{signedIn ? "Trading workspace" : "Access your workspace"}</span></span></Link>{signedIn && <button type="button" onClick={signOut} disabled={signingOut} className="mt-1 flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium app-muted transition-colors hover:bg-loss/[0.06] hover:text-loss disabled:opacity-50">{signingOut ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogOut size={15} aria-hidden />}Sign out</button>}</div>
+    </aside>
+
+    <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-7 backdrop-blur lg:flex"><div className="flex min-w-0 items-center gap-3 text-sm"><span className="text-brand-300"><PanelLeft size={17} aria-hidden /></span><span className="app-muted">Workspace</span><span className="app-muted">/</span><span className="truncate font-semibold">{pathname.startsWith("/account") ? "Account" : pathname.startsWith("/app/backtest") ? "Backtester" : pathname.startsWith("/app/history") ? "Sessions" : "Dashboard"}</span></div><div className="flex items-center gap-2"><Link href="/app/backtest" className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-3 py-2 text-xs font-bold text-surface-950"><Plus size={14} aria-hidden />New backtest</Link><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:text-brand-300" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button></div></header>
+    <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-4 backdrop-blur lg:hidden"><Link href="/app"><Logo className="h-7" /></Link><div className="flex items-center gap-2"><Link href="/app/backtest" className="grid h-9 w-9 place-items-center rounded-lg bg-brand-500 text-surface-950" aria-label="New backtest"><Plus size={17} aria-hidden /></Link><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button><Menu size={18} className="app-muted" aria-hidden /></div></header>
+  </>;
+}
+
+function NavGroup({ label, items, pathname }: { label: string; items: NavItem[]; pathname: string }) {
+  return <div className="mt-7"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">{label}</p><div className="space-y-1">{items.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div></div>;
 }

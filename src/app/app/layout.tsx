@@ -30,11 +30,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppThemeProvider initialTheme={isAppTheme(storedTheme) ? storedTheme : null}>
       <DeploymentRefresh />
-      <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} />
-      <main id="main" className="min-h-[calc(100dvh-3.5rem)]">
-        {children}
-      </main>
-      <AppFooter />
+      <div className="min-h-dvh lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
+        <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} />
+        <div className="min-w-0 lg:col-start-2">
+          <main id="main" className="min-h-[calc(100dvh-4rem)]">
+            {children}
+          </main>
+          <AppFooter />
+        </div>
+      </div>
     </AppThemeProvider>
   );
 }

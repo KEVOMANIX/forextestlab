@@ -18,9 +18,13 @@ export default async function AccountLayout({
 
   return (
     <AppThemeProvider>
-      <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} />
-      {children}
-      <AppFooter />
+      <div className="min-h-dvh lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
+        <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} />
+        <div className="min-w-0 lg:col-start-2">
+          {children}
+          <AppFooter />
+        </div>
+      </div>
     </AppThemeProvider>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { SessionCardActions } from "@/components/app/SessionCardActions";
@@ -108,10 +108,9 @@ export function DashboardSessionsTable({
       ) : (
         <>
           <div className="hidden overflow-x-auto lg:block">
-            <div className="min-w-[67rem]">
-            <div className="grid grid-cols-[minmax(16rem,1.55fr)_minmax(10rem,1fr)_8rem_6rem_7rem_14rem] items-center gap-5 border-b app-border bg-[var(--app-bg)]/30 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.13em] app-muted">
+            <div className="min-w-[55rem]">
+            <div className="grid grid-cols-[minmax(18rem,1.8fr)_8rem_6rem_7rem_14rem] items-center gap-5 border-b app-border bg-[var(--app-bg)]/30 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.13em] app-muted">
               <span>Session</span>
-              <span>Replay range</span>
               <span>Progress</span>
               <span className="text-right">Win rate</span>
               <span className="text-right">Net P/L</span>
@@ -119,20 +118,18 @@ export function DashboardSessionsTable({
             </div>
             <div className="divide-y app-border">
               {displayed.map((session) => (
-                <article key={session.id} className="group grid grid-cols-[minmax(16rem,1.55fr)_minmax(10rem,1fr)_8rem_6rem_7rem_14rem] items-center gap-5 px-5 py-4 transition-colors hover:bg-brand-400/[0.055] focus-within:bg-brand-400/[0.055]">
+                <article key={session.id} className="group grid grid-cols-[minmax(18rem,1.8fr)_8rem_6rem_7rem_14rem] items-center gap-5 px-5 py-4 transition-colors hover:bg-brand-400/[0.055] focus-within:bg-brand-400/[0.055]">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <Link href={`/app?session=${encodeURIComponent(session.id)}`} className="truncate font-semibold transition-colors group-hover:text-brand-300">{session.name}</Link>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${session.status === "Completed" ? "bg-brand-400/10 text-brand-300" : "bg-accent-400/10 text-accent-300"}`}>{session.status}</span>
                     </div>
-                    <p className="mt-1 truncate font-mono text-[11px] app-muted">{session.symbols} <span className="font-sans">· {session.updatedLabel}</span></p>
+                    <p className="mt-1 truncate font-mono text-[11px] app-muted">{session.symbols}</p>
                   </div>
-                  <p className="flex items-center gap-2 truncate text-xs app-muted"><CalendarDays size={13} className="shrink-0 text-brand-300" aria-hidden />{session.dateRange}</p>
                   <div>
-                    <div className="flex items-center justify-between gap-2 text-[11px] app-muted"><span>Replay</span><span className="font-mono text-[var(--app-text)]">{session.progress.toFixed(0)}%</span></div>
-                    <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${session.progress}%` }} /></div>
+                    <p className="text-right font-mono text-sm font-semibold text-[var(--app-text)]">{session.progress.toFixed(0)}%</p>
+                    <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${session.progress}%` }} /></div>
                   </div>
-                  <div className="text-right"><p className={`font-mono text-sm font-semibold ${session.winRate === null ? "app-muted" : "text-brand-300"}`}>{session.winRate === null ? "—" : `${session.winRate.toFixed(0)}%`}</p><p className="mt-0.5 text-[10px] app-muted">{session.closedTrades} trades</p></div>
+                  <div className="text-right"><p className={`font-mono text-sm font-semibold ${session.winRate === null ? "app-muted" : "text-brand-300"}`}>{session.winRate === null ? "—" : `${session.winRate.toFixed(0)}%`}</p></div>
                   <p className={`text-right font-mono text-sm font-semibold ${session.pnl >= 0 ? "text-profit" : "text-loss"}`}>{session.pnlLabel}</p>
                   <div className="justify-self-end"><SessionCardActions sessionId={session.id} sessionName={session.name} status={session.status === "Completed" ? "finished" : "paused"} archived={session.archived} compact /></div>
                 </article>
@@ -144,7 +141,7 @@ export function DashboardSessionsTable({
           <div className="divide-y app-border lg:hidden">
             {displayed.map((session) => (
               <article key={session.id} className="p-4">
-                <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
                   <div className="min-w-0">
                     <Link
                       href={`/app?session=${encodeURIComponent(session.id)}`}
@@ -152,26 +149,12 @@ export function DashboardSessionsTable({
                     >
                       {session.name}
                     </Link>
-                    <p className="mt-1 truncate font-mono text-xs app-muted">
-                      {session.symbols} · {session.dateRange}
-                    </p>
+                    <p className="mt-1 truncate font-mono text-xs app-muted">{session.symbols}</p>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                      session.status === "Completed"
-                        ? "bg-brand-400/10 text-brand-300"
-                        : "bg-amber-400/10 text-amber-300"
-                    }`}
-                  >
-                    {session.status}
-                  </span>
                 </div>
                 <div className="mt-4 grid grid-cols-[1fr_auto_auto] items-end gap-4">
                   <div>
-                    <div className="mb-2 flex items-center justify-between text-[11px] app-muted">
-                      <span>{session.updatedLabel}</span>
-                      <span>{session.progress.toFixed(0)}%</span>
-                    </div>
+                    <div className="mb-2 flex items-center justify-end text-[11px] app-muted"><span>{session.progress.toFixed(0)}%</span></div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
                       <div
                         className="h-full rounded-full bg-brand-500"

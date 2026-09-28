@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, BarChart3 } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3, Check, ChevronDown } from "lucide-react";
 import { Prisma } from "@/generated/prisma/client";
 
 import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
@@ -100,23 +100,31 @@ export default async function AnalyticsHubPage({
     </div>
   ) : null;
 
+  const sessionSelector = selected ? (
+    <details className="group relative w-fit max-w-full">
+      <summary className="flex max-w-full cursor-pointer list-none items-center gap-3 rounded-xl border border-brand-400/25 bg-[var(--app-panel-2)]/55 px-3.5 py-2.5 transition-colors hover:border-brand-400/45">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><BarChart3 size={15} aria-hidden /></span>
+        <span className="min-w-0 text-left"><span className="block text-[9px] font-semibold uppercase tracking-[0.16em] app-muted">Viewing session</span><span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">{selected.name}</span></span>
+        <ChevronDown size={16} className="shrink-0 app-muted transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <div className="absolute left-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border app-border bg-[var(--app-panel)] p-1.5 shadow-2xl">
+        <p className="px-3 pb-2 pt-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] app-muted">Select session</p>
+        <nav className="max-h-72 space-y-1 overflow-y-auto" aria-label="Analytics sessions">
+          {choices.map((session) => {
+            const active = session.id === selected.id;
+            return <Link key={session.id} href={`/app/analytics?session=${encodeURIComponent(session.id)}`} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${active ? "bg-brand-400/12 text-[var(--app-text)]" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">{session.name}</span><span className="mt-1 block truncate font-mono text-[10px] opacity-75">{session.symbols}</span></span>{active && <Check size={14} className="shrink-0 text-brand-300" aria-hidden />}</Link>;
+          })}
+        </nav>
+      </div>
+    </details>
+  ) : null;
+
   if (!selected || !results) {
     return <div className="dashboard-workspace mx-auto max-w-[1120px] px-4 py-6 sm:px-6 sm:py-8"><header className="border-b app-border pb-6"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Analytics</p><h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Sessions</h1></header><section className="mt-6 rounded-2xl border app-border bg-[var(--app-panel)] p-6 sm:p-8"><span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><BarChart3 size={20} aria-hidden /></span><h2 className="mt-5 text-xl font-semibold">No sessions to analyse</h2><Link href="/app/backtest" className="btn-primary mt-5">New backtest <ArrowRight size={14} aria-hidden /></Link></section></div>;
   }
 
   return (
-    <div className="min-h-full xl:grid xl:grid-cols-[17rem_minmax(0,1fr)]">
-      <aside className="border-b app-border bg-[var(--app-sidebar)] xl:sticky xl:top-16 xl:h-[calc(100dvh-4rem)] xl:overflow-y-auto xl:border-b-0 xl:border-r">
-        <div className="px-4 py-5"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">Analytics</p><h1 className="mt-1 text-lg font-semibold">Sessions</h1></div>
-        <nav className="flex gap-2 overflow-x-auto border-t app-border px-3 py-3 xl:block xl:space-y-1 xl:overflow-visible" aria-label="Analytics sessions">
-          {choices.map((session) => {
-            const active = session.id === selected.id;
-            return <Link key={session.id} href={`/app/analytics?session=${encodeURIComponent(session.id)}`} aria-current={active ? "page" : undefined} className={`block min-w-48 shrink-0 rounded-xl px-3 py-3 transition-colors xl:min-w-0 ${active ? "bg-brand-400/12 text-[var(--app-text)]" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><p className="truncate text-xs font-semibold">{session.name}</p><p className="mt-1 truncate font-mono text-[10px] opacity-75">{session.symbols}</p></Link>;
-          })}
-        </nav>
-      </aside>
-      <div className="min-w-0">
-        <AnalyticsDesignPrototype
+    <AnalyticsDesignPrototype
           mode="live"
           sessionId={results.sessionId}
           sessionName={results.name}
@@ -135,8 +143,7 @@ export default async function AnalyticsHubPage({
           reportFooter={reportFooter}
           notice={notice}
           showReturn={false}
+          sessionSelector={sessionSelector}
         />
-      </div>
-    </div>
   );
 }

@@ -133,6 +133,7 @@ export interface AnalyticsDesignPrototypeProps {
   reportFooter?: ReactNode;
   notice?: ReactNode;
   showReturn?: boolean;
+  sessionSelector?: ReactNode;
 }
 
 const money = (value: number, signed = false) => `${signed && value > 0 ? "+" : value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -370,6 +371,7 @@ export function AnalyticsDesignPrototype({
   reportFooter,
   notice,
   showReturn = true,
+  sessionSelector,
 }: AnalyticsDesignPrototypeProps = {}) {
   const [tab, setTab] = useState<PrototypeTab>("overview");
   const [focusedTrade, setFocusedTrade] = useState<number | null>(null);
@@ -434,7 +436,7 @@ export function AnalyticsDesignPrototype({
 
       <header className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1>
+          {sessionSelector ?? <h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1>}
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] app-muted">
             <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
             {showPairInMetadata && <><span aria-hidden>·</span><span>{demo ? "EUR/USD" : pairLabel}</span></>}

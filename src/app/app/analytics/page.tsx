@@ -102,9 +102,9 @@ export default async function AnalyticsHubPage({
 
   const sessionSelector = selected ? (
     <details className="group relative w-fit max-w-full">
-      <summary className="flex max-w-full cursor-pointer list-none items-center gap-3 rounded-xl border border-brand-400/25 bg-[var(--app-panel-2)]/55 px-3.5 py-2.5 transition-colors hover:border-brand-400/45">
+      <summary className="flex max-w-full cursor-pointer list-none items-center gap-3 rounded-xl px-1 py-1 transition-colors hover:bg-white/[0.035]">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><BarChart3 size={15} aria-hidden /></span>
-        <span className="min-w-0 text-left"><span className="block text-[9px] font-semibold uppercase tracking-[0.16em] app-muted">Viewing session</span><span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">{selected.name}</span></span>
+        <span className="min-w-0 text-left"><span className="block text-[9px] font-semibold uppercase tracking-[0.16em] app-muted">Selected session</span><span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">{selected.name}</span></span>
         <ChevronDown size={16} className="shrink-0 app-muted transition-transform group-open:rotate-180" aria-hidden />
       </summary>
       <div className="absolute left-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border app-border bg-[var(--app-panel)] p-1.5 shadow-2xl">

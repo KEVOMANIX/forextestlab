@@ -18,10 +18,10 @@ import {
   NotebookPen,
   Play,
   ShieldCheck,
-  Sigma,
   Target,
   TrendingDown,
   TrendingUp,
+  X,
 } from "lucide-react";
 
 import { JournalReview, type ReviewRecord } from "@/components/app/journal/JournalReview";
@@ -421,35 +421,38 @@ export function AnalyticsDesignPrototype({
     () => (demo ? null : { tradeCount: scopedTrades.length, focusTrade }),
     [demo, focusTrade, scopedTrades.length],
   );
+  const sampleControl = mode === "live" ? (
+    showDemoData
+      ? <button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:border-brand-400/40 hover:text-[var(--app-text)]" aria-label="Close sample preview" title="Close sample preview"><X size={15} aria-hidden /></button>
+      : <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted transition-colors hover:border-brand-400/40 hover:text-[var(--app-text)]"><FlaskConical size={13} aria-hidden /> Sample</button>
+  ) : null;
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {sampleControl}
+      {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><Download size={14} /> Sample preview</span> : fullAccess ? <ExportTradesButton trades={scopedTrades} symbol={symbols[0] ?? "EURUSD"} sessionId={sessionId ?? "session"} compact /> : <Link href="/account/billing" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"><Download size={14} /> Export with Pro</Link>}
+      {onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>}
+    </div>
+  );
+  const sessionMetadata = (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] app-muted">
+      <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
+      {showPairInMetadata && <><span aria-hidden>·</span><span>{demo ? "EUR/USD" : pairLabel}</span></>}
+      <span aria-hidden>·</span><span>{periodLabel}</span>
+      <span aria-hidden>·</span><ReportTimeZone compact sessionId={demo ? undefined : sessionId} startTime={startTime} endTime={endTime} />
+      {demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
+    </div>
+  );
 
   return (
     <TradeFocusProvider value={tradeFocus}>
     <div className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-      <div className={`flex flex-wrap items-center gap-3 ${showReturn ? "justify-between" : "justify-end"}`}>
+      {showReturn && <div className="flex flex-wrap items-center justify-between gap-3">
         {showReturn && (onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Back to dashboard</Link>)}
-        <div className="flex flex-wrap items-center gap-2">
-          {mode === "live" && <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel)] p-1" role="group" aria-label="Analytics data source"><button type="button" onClick={() => setShowDemoData(false)} aria-pressed={!showDemoData} title="Show your own session data" className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Your data</button><button type="button" onClick={() => setShowDemoData(true)} aria-pressed={showDemoData} title="Preview a completed report with sample trades" className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}><FlaskConical size={11} aria-hidden /> Sample</button></div>}
-        </div>
-      </div>
+      </div>}
 
       {!demo && notice}
 
-      <header className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0">
-          {sessionSelector ?? <h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1>}
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] app-muted">
-            <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
-            {showPairInMetadata && <><span aria-hidden>·</span><span>{demo ? "EUR/USD" : pairLabel}</span></>}
-            <span aria-hidden>·</span><span>{periodLabel}</span>
-            <span aria-hidden>·</span><ReportTimeZone compact sessionId={demo ? undefined : sessionId} startTime={startTime} endTime={endTime} />
-            {demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><Download size={14} /> Sample preview</span> : fullAccess ? <ExportTradesButton trades={scopedTrades} symbol={symbols[0] ?? "EURUSD"} sessionId={sessionId ?? "session"} compact /> : <Link href="/account/billing" className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"><Download size={14} /> Export with Pro</Link>}
-          {onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>}
-        </div>
-      </header>
+      {sessionSelector ? <header className="mt-4 border-b app-border pb-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">Session analytics</p><h1 className="mt-1.5 text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Performance review</h1></div>{headerActions}</div><div className="mt-4 grid gap-4 rounded-2xl border border-brand-400/25 bg-[linear-gradient(120deg,var(--app-panel),var(--app-panel-2))] p-3.5 sm:grid-cols-[minmax(15rem,1fr)_minmax(0,1.35fr)] sm:items-center">{sessionSelector}<div className="sm:justify-self-end">{sessionMetadata}</div></div></header> : <header className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{headerActions}</header>}
 
       <nav className="flex overflow-x-auto border-b app-border" aria-label="Prototype report sections">
         {TABS.filter((item) => item !== "analyst" || Boolean(aiPanel)).map((item) => (
@@ -459,49 +462,48 @@ export function AnalyticsDesignPrototype({
 
       {tab === "overview" && (
         <main className="mt-5 space-y-4">
-          <section className="overflow-hidden rounded-2xl bg-[var(--app-panel)] shadow-[0_18px_55px_-38px_rgba(0,0,0,0.9)]">
-            <div className="grid xl:grid-cols-[minmax(0,1.8fr)_360px]">
-              <div className="min-w-0 p-4 sm:p-5 lg:p-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Account equity</p>
-                    <div className="mt-1.5 flex items-end gap-3">
-                      <p className="font-mono text-2xl font-semibold tracking-tight sm:text-3xl">{money(model.endingBalance)}</p>
-                      <span className={`mb-1 inline-flex items-center gap-1 text-xs font-semibold ${model.returnPercent >= 0 ? "text-profit" : "text-loss"}`}>{model.returnPercent >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />} {percentage(model.returnPercent)}</span>
-                    </div>
-                  </div>
-                  <div className="inline-flex rounded-lg bg-[var(--app-panel-2)] p-1">
-                    {["1M", "3M", "1Y", "All"].map((value) => <button key={value} type="button" onClick={() => setRange(value)} className={`rounded-md px-2.5 py-1.5 text-[10px] font-semibold ${range === value ? "bg-white/[0.08] text-[var(--app-text)]" : "app-muted"}`}>{value}</button>)}
-                  </div>
-                </div>
-                <div className="relative mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
-                  <svg viewBox="0 0 920 280" preserveAspectRatio="none" className="h-72 w-full" role="img" aria-label="Account equity history">
-                    <defs><linearGradient id="prototype-equity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#22c55e" stopOpacity=".22"/><stop offset="1" stopColor="#22c55e" stopOpacity="0"/></linearGradient><pattern id="prototype-grid" width="115" height="56" patternUnits="userSpaceOnUse"><path d="M115 0H0V56" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern></defs>
-                    <rect width="920" height="280" fill="url(#prototype-grid)" className="app-muted" />
-                    <path d={`${equityPath} L904,264 L16,264 Z`} fill="url(#prototype-equity)" />
-                    <path d={equityPath} fill="none" stroke="#22c55e" strokeWidth="2.75" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-                  </svg>
-                  <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{chartPeriod.startTime ? formatNewYorkDate(chartPeriod.startTime, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-profit">━ Equity</span><span>{model.closedTrades} trades</span><span>{chartPeriod.endTime ? formatNewYorkDate(chartPeriod.endTime, { month: "short", year: "numeric" }) : "Now"}</span></div>
-                </div>
-              </div>
-
-              <aside className="border-t app-border bg-[var(--app-panel-2)]/38 p-5 xl:border-l xl:border-t-0 xl:p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Performance summary</p><p className={`mt-2 font-mono text-3xl font-semibold ${model.netProfit >= 0 ? "text-profit" : "text-loss"}`}>{money(model.netProfit, true)}</p><p className="mt-1 text-xs app-muted">Net realised P/L</p></div>
-                  <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-400/10 text-brand-300"><Sigma size={20} aria-hidden /></span>
-                </div>
-                <dl className="mt-6 divide-y app-border border-y app-border">
-                  {[["Win rate", model.winRate === "Not available" ? "—" : `${model.winRate}%`], ["Profit factor", model.profitFactor === "Not available" ? "—" : model.profitFactor], ["Expectancy", model.closedTrades ? money(model.expectancy, true) : "—"], ["Max drawdown", drawdownMoney(model.maxDrawdown)], ["Closed trades", String(model.closedTrades)]].map(([label,value]) => <div key={label} className="flex items-center justify-between py-3"><dt className="flex items-center gap-1.5 text-xs app-muted">{label}<MetricInfo term={label!} /></dt><dd className="font-mono text-sm font-semibold">{value}</dd></div>)}
-                </dl>
-              </aside>
-            </div>
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {[
+              { label: "Account equity", value: money(model.endingBalance), tone: "text-[var(--app-text)]" },
+              { label: "Net realised P/L", value: model.closedTrades ? money(model.netProfit, true) : "—", tone: model.netProfit >= 0 ? "text-profit" : "text-loss" },
+              { label: "Win rate", value: model.winRate === "Not available" ? "—" : `${model.winRate}%`, tone: "text-[var(--app-text)]" },
+              { label: "Closed trades", value: String(model.closedTrades), tone: "text-[var(--app-text)]" },
+              { label: "Maximum drawdown", value: model.closedTrades ? drawdownMoney(model.maxDrawdown) : "—", tone: "text-[var(--app-text)]" },
+            ].map(({ label, value, tone }, index) => (
+              <article key={label} className={`relative overflow-hidden rounded-xl border app-border bg-[var(--app-panel)] px-4 py-4 ${index === 4 ? "col-span-2 lg:col-span-1" : ""}`}>
+                <span aria-hidden className={`absolute inset-x-0 top-0 h-px ${index === 1 ? (model.netProfit >= 0 ? "bg-profit/70" : "bg-loss/70") : "bg-brand-400/55"}`} />
+                <p className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] app-muted">{label}<MetricInfo term={label} /></p>
+                <p className={`mt-2.5 font-mono text-xl font-semibold tracking-tight ${tone}`}>{value}</p>
+              </article>
+            ))}
           </section>
 
-          <section className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3 lg:grid-cols-6">
-            {[
-              ["Average R", model.averageR], ["Payoff ratio", model.payoffRatio], ["Avg hold", model.averageHold],
-              ["Best trade", money(model.bestTrade, true)], ["Worst trade", money(model.worstTrade, true)], ["Current streak", model.streak],
-            ].map(([label, value]) => <div key={label} className="bg-[var(--app-panel)] px-4 py-3.5"><p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] app-muted">{label}<MetricInfo term={label!} /></p><p className="mt-1.5 font-mono text-base font-semibold">{value}</p></div>)}
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(260px,0.7fr)]">
+            <section className="min-w-0 rounded-2xl bg-[var(--app-panel)] p-4 shadow-[0_18px_55px_-38px_rgba(0,0,0,0.9)] sm:p-5 lg:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Equity curve</p><p className="mt-1 text-xs app-muted">Realised account equity after each closed trade</p></div>
+                <div className="inline-flex rounded-lg bg-[var(--app-panel-2)] p-1">
+                  {["1M", "3M", "1Y", "All"].map((value) => <button key={value} type="button" onClick={() => setRange(value)} className={`rounded-md px-2.5 py-1.5 text-[10px] font-semibold ${range === value ? "bg-white/[0.08] text-[var(--app-text)]" : "app-muted"}`}>{value}</button>)}
+                </div>
+              </div>
+              <div className="relative mt-5 overflow-hidden rounded-xl bg-[var(--app-panel-2)]/55">
+                <svg viewBox="0 0 920 280" preserveAspectRatio="none" className="h-72 w-full" role="img" aria-label={model.closedTrades ? "Account equity history" : "Equity chart awaiting closed trades"}>
+                  <defs><linearGradient id="prototype-equity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#22c55e" stopOpacity=".22"/><stop offset="1" stopColor="#22c55e" stopOpacity="0"/></linearGradient><pattern id="prototype-grid" width="115" height="56" patternUnits="userSpaceOnUse"><path d="M115 0H0V56" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern></defs>
+                  <rect width="920" height="280" fill="url(#prototype-grid)" className="app-muted" />
+                  {model.closedTrades > 0 && <><path d={`${equityPath} L904,264 L16,264 Z`} fill="url(#prototype-equity)" /><path d={equityPath} fill="none" stroke="#22c55e" strokeWidth="2.75" strokeLinecap="round" vectorEffect="non-scaling-stroke" /></>}
+                </svg>
+                {model.closedTrades > 0 ? <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{chartPeriod.startTime ? formatNewYorkDate(chartPeriod.startTime, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-profit">━ Equity</span><span>{model.closedTrades} trades</span><span>{chartPeriod.endTime ? formatNewYorkDate(chartPeriod.endTime, { month: "short", year: "numeric" }) : "Now"}</span></div> : <div className="absolute inset-0 grid place-items-center px-6 text-center"><div><span className="mx-auto grid h-10 w-10 place-items-center rounded-xl border app-border bg-[var(--app-panel)] text-brand-300"><LineChart size={18} aria-hidden /></span><h2 className="mt-4 text-base font-semibold">No closed trades yet</h2><p className="mx-auto mt-2 max-w-md text-xs leading-5 app-muted">Close a trade in this session to calculate the equity curve, win rate, expectancy, and drawdown.</p></div></div>}
+              </div>
+            </section>
+
+            <aside className="rounded-2xl bg-[var(--app-panel)] p-5 lg:p-6">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Core statistics</p>
+              <p className="mt-1 text-xs app-muted">Calculated from closed trades</p>
+              <dl className="mt-5 divide-y app-border border-y app-border">
+                {[["Profit factor", model.profitFactor === "Not available" ? "—" : model.profitFactor], ["Expectancy", model.closedTrades ? money(model.expectancy, true) : "—"], ["Average R", model.closedTrades ? model.averageR : "—"], ["Payoff ratio", model.closedTrades ? model.payoffRatio : "—"], ["Average hold", model.closedTrades ? model.averageHold : "—"]].map(([label,value]) => <div key={label} className="flex items-center justify-between gap-4 py-3"><dt className="flex items-center gap-1.5 text-xs app-muted">{label}<MetricInfo term={label!} /></dt><dd className="font-mono text-sm font-semibold">{value}</dd></div>)}
+              </dl>
+              {model.closedTrades === 0 && <p className="mt-4 rounded-xl border app-border bg-[var(--app-panel-2)]/55 px-3.5 py-3 text-xs leading-5 app-muted">Metrics appear after the first trade closes.</p>}
+            </aside>
           </section>
 
           <ProjectAnalyticsOverview model={model} />

@@ -10,6 +10,7 @@ import {
   Target,
   TrendingDown,
   TrendingUp,
+  X,
 } from "lucide-react";
 import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
 import { MetricInfo } from "@/components/app/MetricInfo";
@@ -487,33 +488,26 @@ export function SignedInDashboard({
           <p className="mt-1.5 text-sm app-muted">Your desk for replay, review, and measured improvement.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {/* Both states visible at once, so the control says which one is
-              active without a banner underneath repeating it. Same pattern as
-              the session report's data-source switch. */}
-          <div
-            className="inline-flex h-8 items-center gap-1 rounded-md bg-white/[0.04] p-0.5"
-            role="group"
-            aria-label="Dashboard data source"
-          >
+          {showDemoData ? (
             <button
               type="button"
               onClick={() => setShowDemoData(false)}
-              aria-pressed={!showDemoData}
-              title="Show your saved session data"
-              className={`inline-flex h-full items-center rounded px-2.5 text-[11px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
+              className="grid h-8 w-8 place-items-center rounded-md border border-amber-300/35 text-amber-200 transition-colors hover:bg-amber-300 hover:text-surface-950"
+              aria-label="Exit sample view and return to your dashboard"
+              title="Exit sample view"
             >
-              Your data
+              <X size={15} aria-hidden />
             </button>
+          ) : (
             <button
               type="button"
               onClick={() => setShowDemoData(true)}
-              aria-pressed={showDemoData}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold app-muted transition-colors hover:bg-white/[0.05] hover:text-[var(--app-text)]"
               title="Preview a complete dashboard with sample trades"
-              className={`inline-flex h-full items-center gap-1.5 rounded px-2.5 text-[11px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}
             >
               <FlaskConical size={13} aria-hidden /> Sample view
             </button>
-          </div>
+          )}
         </div>
       </header>
 
@@ -605,7 +599,6 @@ export function SignedInDashboard({
                       {formatNewYorkDate(Number(selectedSession.startTime))} –{" "}
                       {formatNewYorkDate(Number(selectedSession.endTime))}
                     </span>
-                    {showDemoData && <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">Sample view</span>}
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">

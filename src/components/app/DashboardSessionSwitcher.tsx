@@ -131,7 +131,7 @@ export function DashboardSessionSwitcher({
             aria-haspopup="dialog"
             aria-expanded={open}
           >
-            <Plus size={15} aria-hidden /> All sessions
+            <Plus size={15} aria-hidden /> Add session
           </button>
         </nav>
       ) : (
@@ -157,8 +157,8 @@ export function DashboardSessionSwitcher({
           <section ref={dialogRef} tabIndex={-1} className="flex max-h-[min(620px,85dvh)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-2xl outline-none" role="dialog" aria-modal="true" aria-labelledby="session-picker-title">
             <div className="flex items-center justify-between border-b app-border p-4">
               <div>
-                <h2 id="session-picker-title" className="font-semibold">All sessions</h2>
-                <p className="mt-1 text-xs app-muted">Choose a session to make it your active dashboard context.</p>
+                <h2 id="session-picker-title" className="font-semibold">Add session</h2>
+                <p className="mt-1 text-xs app-muted">Choose a saved session to add it to this rail and make it active.</p>
               </div>
               <button type="button" onClick={() => setOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg app-muted hover:bg-white/[0.06]" aria-label="Close session picker"><X size={16} /></button>
             </div>

@@ -122,7 +122,7 @@ export function SessionCardActions({
       )}
       {showAnalytics && (
         <Link
-          href={`/app/results/${sessionId}`}
+          href={`/app/analytics?session=${encodeURIComponent(sessionId)}`}
           className={command ? `inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${finished ? "border-brand-400/40 bg-brand-500 text-surface-950 shadow-sm hover:bg-brand-400" : "app-border bg-[var(--app-panel-2)] text-[var(--app-text)] hover:border-brand-400/35 hover:text-brand-300"}` : `${finished ? "btn-primary" : "btn-secondary"} px-3 py-2 text-xs`}
         >
           <BarChart3 size={14} aria-hidden /> Analytics

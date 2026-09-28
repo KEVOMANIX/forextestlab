@@ -132,6 +132,7 @@ export interface AnalyticsDesignPrototypeProps {
   exitQuality?: PlanSummary | null;
   reportFooter?: ReactNode;
   notice?: ReactNode;
+  showReturn?: boolean;
 }
 
 const money = (value: number, signed = false) => `${signed && value > 0 ? "+" : value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -368,6 +369,7 @@ export function AnalyticsDesignPrototype({
   exitQuality = null,
   reportFooter,
   notice,
+  showReturn = true,
 }: AnalyticsDesignPrototypeProps = {}) {
   const [tab, setTab] = useState<PrototypeTab>("overview");
   const [focusedTrade, setFocusedTrade] = useState<number | null>(null);
@@ -421,8 +423,8 @@ export function AnalyticsDesignPrototype({
   return (
     <TradeFocusProvider value={tradeFocus}>
     <div className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Back to dashboard</Link>}
+      <div className={`flex flex-wrap items-center gap-3 ${showReturn ? "justify-between" : "justify-end"}`}>
+        {showReturn && (onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Back to dashboard</Link>)}
         <div className="flex flex-wrap items-center gap-2">
           {mode === "live" && <div className="inline-flex rounded-lg border app-border bg-[var(--app-panel)] p-1" role="group" aria-label="Analytics data source"><button type="button" onClick={() => setShowDemoData(false)} aria-pressed={!showDemoData} title="Show your own session data" className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${!showDemoData ? "bg-brand-500 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}>Your data</button><button type="button" onClick={() => setShowDemoData(true)} aria-pressed={showDemoData} title="Preview a completed report with sample trades" className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-semibold transition-colors ${showDemoData ? "bg-amber-300 text-surface-950" : "app-muted hover:text-[var(--app-text)]"}`}><FlaskConical size={11} aria-hidden /> Sample</button></div>}
         </div>

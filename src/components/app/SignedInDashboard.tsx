@@ -486,6 +486,19 @@ export function SignedInDashboard({
             Welcome back, {displayName}
           </h1>
           <p className="mt-1.5 text-sm app-muted">Your desk for replay, review, and measured improvement.</p>
+          {selectedSession && !showDemoData && (
+            <DashboardSessionSwitcher
+              selectedId={selectedSession.id}
+              sessions={sessionOptions}
+              triggerDetails={{
+                name: scopeLabel,
+                symbols: selectedSymbols.map(formatSymbol).join(", "),
+                dateRange: `${formatNewYorkDate(Number(selectedSession.startTime), { day: "numeric", month: "short", year: "numeric" })} – ${formatNewYorkDate(Number(selectedSession.endTime), { day: "numeric", month: "short", year: "numeric" })}`,
+                status: selectedSession.status === "finished" ? "Completed" : "Active",
+                progress,
+              }}
+            />
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Both states visible at once, so the control says which one is

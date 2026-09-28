@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, BarChart3, Check, ChevronDown } from "lucide-react";
+import { AlertTriangle, ArrowRight, BarChart3 } from "lucide-react";
 import { Prisma } from "@/generated/prisma/client";
 
 import { AiInsightsPanel } from "@/components/app/AiInsightsPanel";
 import { AnalyticsDesignPrototype } from "@/components/app/AnalyticsDesignPrototype";
+import { AnalyticsSessionPicker } from "@/components/app/AnalyticsSessionPicker";
 import { BranchComparison } from "@/components/app/BranchComparison";
 import { SessionFeedback } from "@/components/app/SessionFeedback";
 import { SessionTradeJournal } from "@/components/app/SessionTradeJournal";
@@ -61,7 +62,7 @@ export default async function AnalyticsHubPage({
     where: { userId: user.id, anonymous: false },
     orderBy: { updatedAt: "desc" },
     take: 50,
-    select: { id: true, symbol: true, timeframe: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, updatedAt: true },
+    select: { id: true, symbol: true, timeframe: true, status: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, updatedAt: true },
   });
   const metadataRows = sessions.length
     ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
@@ -120,22 +121,7 @@ export default async function AnalyticsHubPage({
   ) : null;
 
   const sessionSelector = selected ? (
-    <details className="group relative w-fit max-w-full">
-      <summary className="flex max-w-full cursor-pointer list-none items-center gap-3 rounded-xl px-1 py-1 transition-colors hover:bg-white/[0.035]">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><BarChart3 size={15} aria-hidden /></span>
-        <span className="min-w-0 text-left"><span className="block text-[9px] font-semibold uppercase tracking-[0.16em] app-muted">Selected session</span><span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">{selected.name}</span></span>
-        <ChevronDown size={16} className="shrink-0 app-muted transition-transform group-open:rotate-180" aria-hidden />
-      </summary>
-      <div className="absolute left-0 top-full z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border app-border bg-[var(--app-panel)] p-1.5 shadow-2xl">
-        <p className="px-3 pb-2 pt-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] app-muted">Select session</p>
-        <nav className="max-h-72 space-y-1 overflow-y-auto" aria-label="Analytics sessions">
-          {choices.map((session) => {
-            const active = session.id === selected.id;
-            return <Link key={session.id} href={`/app/analytics?session=${encodeURIComponent(session.id)}`} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${active ? "bg-brand-400/12 text-[var(--app-text)]" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><span className="min-w-0 flex-1"><span className="block truncate text-xs font-semibold">{session.name}</span><span className="mt-1 block truncate font-mono text-[10px] opacity-75">{session.symbols}</span></span>{active && <Check size={14} className="shrink-0 text-brand-300" aria-hidden />}</Link>;
-          })}
-        </nav>
-      </div>
-    </details>
+    <AnalyticsSessionPicker sessions={choices.map((session) => ({ id: session.id, name: session.name, symbols: session.symbols, status: session.status, updatedAt: lastSavedLabel(session.updatedAt) }))} selectedId={selected.id} />
   ) : null;
 
   if (!selected || !results) {

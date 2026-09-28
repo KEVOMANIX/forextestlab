@@ -16,6 +16,25 @@ import { fundedBalance } from "@/lib/backtest/replay-engine";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db";
 import { formatSymbol } from "@/lib/market-data/symbols";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
+
+function lastSavedLabel(value: Date): string {
+  const elapsed = Math.max(0, Date.now() - value.getTime());
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return value.toLocaleDateString("en-US", { month: "short", day: "numeric", year: value.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+}
+
+function replayTime(session: { startTime: bigint; endTime: bigint; visibleTime: bigint | null; visibleIndex: number; timeframe: string }) {
+  if (session.visibleTime != null) return Number(session.visibleTime);
+  const step = TIMEFRAME_MS[session.timeframe as keyof typeof TIMEFRAME_MS] ?? 0;
+  return Math.min(Number(session.endTime), Number(session.startTime) + Math.max(0, session.visibleIndex) * step);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +61,7 @@ export default async function AnalyticsHubPage({
     where: { userId: user.id, anonymous: false },
     orderBy: { updatedAt: "desc" },
     take: 50,
-    select: { id: true, symbol: true },
+    select: { id: true, symbol: true, timeframe: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, updatedAt: true },
   });
   const metadataRows = sessions.length
     ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
@@ -131,6 +150,8 @@ export default async function AnalyticsHubPage({
           symbols={results.symbols}
           startTime={results.state.config.startTime}
           endTime={results.state.config.endTime}
+          currentTime={replayTime(selected)}
+          lastSavedLabel={lastSavedLabel(selected.updatedAt)}
           status={results.state.status}
           trades={results.state.closedTrades}
           equityCurve={results.state.equityCurve}

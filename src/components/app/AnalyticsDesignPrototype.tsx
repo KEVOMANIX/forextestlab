@@ -41,6 +41,7 @@ import { monthlyReturnSeries, type MonthlyReturn } from "@/lib/analytics/monthly
 import { RELIABLE_SAMPLE_TRADES, sampleIsReliable, tradesUntilReliable } from "@/lib/analytics/sample-size";
 import { WEEKDAY_LABELS, createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
 import { analyticsTrades } from "@/lib/analytics/trade-scope";
+import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
 
@@ -109,6 +110,8 @@ export interface AnalyticsDesignPrototypeProps {
   symbols?: string[];
   startTime?: number;
   endTime?: number;
+  currentTime?: number | null;
+  lastSavedLabel?: string;
   status?: string;
   trades?: ClosedTrade[];
   equityCurve?: EquityPoint[];
@@ -358,6 +361,8 @@ export function AnalyticsDesignPrototype({
   symbols = ["EURUSD"],
   startTime,
   endTime,
+  currentTime = null,
+  lastSavedLabel,
   status = "finished",
   trades = [],
   equityCurve = [],
@@ -411,6 +416,10 @@ export function AnalyticsDesignPrototype({
   const periodStart = demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime;
   const periodEnd = demo ? DEMO_ANALYTICS_PERIOD.endTime : endTime;
   const periodLabel = periodStart && periodEnd ? `${formatNewYorkDate(periodStart)} – ${formatNewYorkDate(periodEnd)}` : "Session period";
+  const compactMarketLabel = symbols.length > 1 ? `${formatSymbol(symbols[0] ?? "EURUSD")} +${symbols.length - 1} markets` : formatSymbol(symbols[0] ?? "EURUSD");
+  const replayInput = { startTime: startTime ?? 0, endTime: endTime ?? startTime ?? 0, currentTime };
+  const replayPercent = status === "finished" ? 100 : replayDayPercent(replayInput);
+  const replayPositionLabel = replayDayLabel(replayInput);
   const displayedSessionName = demo ? "London-session breakout — sample" : sessionName;
   const normalizedSessionName = displayedSessionName.toLowerCase().replace(/[^a-z0-9]/g, "");
   const normalizedPair = (demo ? "EUR/USD" : pairLabel).toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -437,10 +446,17 @@ export function AnalyticsDesignPrototype({
   const sessionMetadata = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] app-muted">
       <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
-      {showPairInMetadata && <><span aria-hidden>·</span><span>{demo ? "EUR/USD" : pairLabel}</span></>}
+      {showPairInMetadata && <><span aria-hidden>·</span><span>{demo ? "EUR/USD" : sessionSelector ? compactMarketLabel : pairLabel}</span></>}
       <span aria-hidden>·</span><span>{periodLabel}</span>
-      <span aria-hidden>·</span><ReportTimeZone compact sessionId={demo ? undefined : sessionId} startTime={periodStart} endTime={periodEnd} />
+      {!sessionSelector && <><span aria-hidden>·</span><ReportTimeZone compact sessionId={demo ? undefined : sessionId} startTime={periodStart} endTime={periodEnd} /></>}
       {demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
+    </div>
+  );
+  const sessionContinuation = (
+    <div className="grid gap-3 sm:grid-cols-[minmax(9rem,1.2fr)_minmax(10rem,1fr)_minmax(7rem,0.7fr)] sm:divide-x sm:divide-[var(--app-border)]">
+      <div className="sm:pr-5"><div className="flex items-center justify-between gap-3 text-[9px] font-semibold uppercase tracking-[0.12em] app-muted"><span>Replay progress</span><span className="font-mono text-brand-300">{replayPercent.toFixed(0)}%</span></div><div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-400" style={{ width: `${replayPercent}%` }} /></div></div>
+      <div className="sm:px-5"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] app-muted">Position</p><p className="mt-1 text-xs font-semibold">{status === "finished" ? "Replay complete" : replayPositionLabel}</p></div>
+      <div className="sm:pl-5"><p className="text-[9px] font-semibold uppercase tracking-[0.12em] app-muted">Last saved</p><p className="mt-1 text-xs font-semibold">{lastSavedLabel ?? "Recently"}</p></div>
     </div>
   );
 
@@ -453,7 +469,7 @@ export function AnalyticsDesignPrototype({
 
       {!demo && notice}
 
-      {sessionSelector ? <header className="mt-4 border-b app-border pb-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>{!showingLiveSample && headerActions}</div>{showingLiveSample ? <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div><div className="hidden sm:block">{sessionMetadata}</div><button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-amber-200/20 text-amber-100 transition-colors hover:bg-amber-200/10" aria-label="Close sample report" title="Close sample report"><X size={16} aria-hidden /></button></div> : <div className="mt-4 grid gap-4 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3 sm:grid-cols-[minmax(15rem,1fr)_minmax(0,1.35fr)] sm:items-center">{sessionSelector}<div className="sm:justify-self-end">{sessionMetadata}</div></div>}</header> : <header className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{headerActions}</header>}
+      {sessionSelector ? <header className="mt-4 border-b app-border pb-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>{!showingLiveSample && headerActions}</div>{showingLiveSample ? <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div><div className="hidden sm:block">{sessionMetadata}</div><button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-amber-200/20 text-amber-100 transition-colors hover:bg-amber-200/10" aria-label="Close sample report" title="Close sample report"><X size={16} aria-hidden /></button></div> : <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>}</header> : <header className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{headerActions}</header>}
 
       <nav className="flex overflow-x-auto border-b app-border" aria-label="Prototype report sections">
         {TABS.filter((item) => item !== "analyst" || Boolean(aiPanel)).map((item) => (

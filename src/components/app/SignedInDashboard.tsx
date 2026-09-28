@@ -28,6 +28,10 @@ export interface DashboardSession {
   maxDrawdownPercent: string;
   updatedAt: Date;
   archived: boolean;
+  sessionWinRate?: {
+    closedTrades: number;
+    winRate: number | null;
+  };
 }
 
 export interface DashboardPracticeMetrics {
@@ -83,6 +87,8 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
       pnl: net.toNumber(),
       pnlLabel: formatMoney(net),
       progress: sessionProgress(session),
+      winRate: session.sessionWinRate?.winRate ?? null,
+      closedTrades: session.sessionWinRate?.closedTrades ?? 0,
       archived: false,
     };
   });

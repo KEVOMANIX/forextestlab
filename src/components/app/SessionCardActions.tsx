@@ -111,7 +111,7 @@ export function SessionCardActions({
 
   return (
     <>
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className={`flex items-center justify-end gap-2 ${compact ? "flex-nowrap" : "flex-wrap"}`}>
       {!finished && (
         <Link
           href={`/app/backtest?session=${encodeURIComponent(sessionId)}`}

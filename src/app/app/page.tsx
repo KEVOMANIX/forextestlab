@@ -34,6 +34,12 @@ interface SessionMetadataRow {
   archived: boolean;
 }
 
+interface SessionWinRateRow {
+  sessionId: string;
+  closedTrades: bigint;
+  winningTrades: bigint;
+}
+
 function SignedOutDashboard() {
   const previewCards = [
     {
@@ -179,7 +185,24 @@ export default async function AppHome() {
         WHERE "id" IN (${Prisma.join(sessionRows.map((session) => session.id))})
       `)
     : [];
+  const sessionWinRateRows = sessionRows.length
+    ? await prisma.$queryRaw<SessionWinRateRow[]>(Prisma.sql`
+        SELECT "sessionId",
+               COUNT(*)::bigint AS "closedTrades",
+               COUNT(*) FILTER (WHERE "pnl"::numeric > 0)::bigint AS "winningTrades"
+        FROM "SimulatedTrade"
+        WHERE "sessionId" IN (${Prisma.join(sessionRows.map((session) => session.id))})
+        GROUP BY "sessionId"
+      `)
+    : [];
   const metadata = new Map(metadataRows.map((row) => [row.id, row]));
+  const sessionWinRates = new Map(sessionWinRateRows.map((row) => [
+    row.sessionId,
+    {
+      closedTrades: Number(row.closedTrades),
+      winRate: Number(row.closedTrades) ? (Number(row.winningTrades) / Number(row.closedTrades)) * 100 : null,
+    },
+  ]));
   const sessions: DashboardSession[] = sessionRows.map((session) => {
     const details = metadata.get(session.id);
     const symbols = Array.isArray(details?.symbols)
@@ -211,7 +234,10 @@ export default async function AppHome() {
 
   return (
     <SignedInDashboard
-      sessions={sessions}
+      sessions={sessions.map((session) => ({
+        ...session,
+        sessionWinRate: sessionWinRates.get(session.id) ?? { closedTrades: 0, winRate: null },
+      }))}
       displayName={displayName}
       metrics={{
         replayMinutes: activityEvents.length,

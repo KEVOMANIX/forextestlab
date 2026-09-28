@@ -111,7 +111,7 @@ export function Hero() {
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-48 -z-10 h-[42rem] w-[70rem] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse,rgba(20,184,166,.17),rgba(59,107,255,.06)_42%,transparent_70%)] blur-[80px]"
+        className="pointer-events-none absolute left-1/2 top-48 -z-10 h-[42rem] w-[70rem] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse,rgba(37,99,235,.18),rgba(96,165,250,.07)_42%,transparent_70%)] blur-[80px]"
       />
 
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">

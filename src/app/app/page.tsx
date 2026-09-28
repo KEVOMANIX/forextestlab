@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { Prisma } from "@/generated/prisma/client";
 import {
   ArrowRight,
@@ -15,16 +14,9 @@ import {
   type DashboardSession,
 } from "@/components/app/SignedInDashboard";
 import { ensureUserProfile } from "@/lib/auth";
-import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { readSavedSessionState } from "@/lib/backtest/saved-session-state";
-import { depositedFunds } from "@/lib/backtest/replay-engine";
-import {
-  DASHBOARD_SESSION_COOKIE,
-  resolveDashboardSessionId,
-} from "@/lib/dashboard-session";
 
 export const dynamic = "force-dynamic";
 
@@ -117,20 +109,12 @@ function SignedOutDashboard() {
   );
 }
 
-export default async function AppHome(
-  props: {
-    searchParams?: Promise<{
-      performance?: string;
-      session?: string;
-    }>;
-  }
-) {
-  const searchParams = await props.searchParams;
+export default async function AppHome() {
   const user = await getCurrentUser();
   if (!user) return <SignedOutDashboard />;
 
   await ensureUserProfile(user);
-  const [sessionRows, entitlements] = await Promise.all([
+  const [sessionRows, activityEvents, recentTrades] = await Promise.all([
     prisma.backtestSession.findMany({
       where: { userId: user.id, anonymous: false },
       orderBy: { updatedAt: "desc" },
@@ -153,13 +137,21 @@ export default async function AppHome(
         updatedAt: true,
       },
     }),
-    getUserEntitlements(user.id),
+    prisma.productEvent.findMany({
+      where: {
+        userId: user.id,
+        name: "backtest_activity",
+        createdAt: { gte: new Date(Date.now() - 60 * 24 * 60 * 60_000) },
+      },
+      select: { createdAt: true },
+    }),
+    prisma.simulatedTrade.findMany({
+      where: { session: { userId: user.id, anonymous: false } },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      select: { pnl: true },
+    }),
   ]);
-
-  const legacySelectedId = searchParams?.performance?.startsWith("session:")
-    ? searchParams.performance.slice("session:".length)
-    : null;
-  const requestedSessionId = searchParams?.session ?? legacySelectedId;
 
   // A full engine state can be several megabytes. The old dashboard selected
   // and parsed stateJson for as many as 100 sessions. PostgreSQL extracts the
@@ -194,33 +186,17 @@ export default async function AppHome(
       archived: details?.archived ?? false,
     };
   });
-  const rememberedSessionId = (await cookies()).get(DASHBOARD_SESSION_COOKIE)?.value;
-  const selectedId = resolveDashboardSessionId(
-    requestedSessionId,
-    rememberedSessionId,
-    sessions.map((session) => session.id),
-  );
-  const selectedSession =
-    sessions.find((session) => session.id === selectedId) ?? null;
-  const selectedDetails = selectedSession
-    ? await prisma.backtestSession.findFirst({
-        where: { id: selectedSession.id, userId: user.id, anonymous: false },
-        select: {
-          stateJson: true,
-          stateObjectKey: true,
-        },
-      })
-    : null;
-  // Load only the selected snapshot, never all 100 session snapshots. The
-  // append-only trade projection can be stale after replay edits/rewinds.
-  const state = selectedDetails ? await readSavedSessionState(selectedDetails) : null;
-  if (selectedSession && state) {
-    selectedSession.balance = state.balance;
-    selectedSession.startingBalance = state.config.startingBalance;
-    selectedSession.depositedFunds = depositedFunds(state);
+  const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
+  const activityDays = new Set(activityEvents.map((event) => todayKey.format(event.createdAt)));
+  const cursor = new Date();
+  if (!activityDays.has(todayKey.format(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1);
+  let streakDays = 0;
+  for (let offset = 0; offset < 60 && activityDays.has(todayKey.format(cursor)); offset += 1) {
+    streakDays += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
-  const trades = state?.closedTrades ?? [];
-  const equityCurve = state?.equityCurve ?? [];
+  const sessionsThisWeek = sessions.filter((session) => session.updatedAt.getTime() >= Date.now() - 7 * 24 * 60 * 60_000).length;
+  const wins = recentTrades.filter((trade) => Number(trade.pnl) > 0).length;
 
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&
@@ -231,11 +207,14 @@ export default async function AppHome(
   return (
     <SignedInDashboard
       sessions={sessions}
-      selectedTrades={trades}
-      selectedEquityCurve={equityCurve}
       displayName={displayName}
-      selectedId={selectedSession?.id ?? null}
-      aiEnabled={entitlements.fullAnalytics}
+      metrics={{
+        replayMinutes: activityEvents.length,
+        streakDays,
+        sessionsThisWeek,
+        winRate: recentTrades.length ? (wins / recentTrades.length) * 100 : null,
+        winRateSampleSize: recentTrades.length,
+      }}
     />
   );
 }

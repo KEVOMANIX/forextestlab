@@ -11,7 +11,7 @@
     --trade-exit-rgb: 251 191 36;
     /* Colour the focus ring's gap is punched out of. The app shell overrides it
        per theme so light mode doesn't draw a dark halo around focused controls. */
-    --focus-ring-offset: #070a12;
+    --focus-ring-offset: #060b16;
   }
 
   html {
@@ -82,20 +82,20 @@
 @layer components {
   .app-shell,
   .app-theme-surface {
-    --app-bg: #070a12;
-    --app-panel: rgba(17, 24, 39, 0.78);
-    --app-panel-solid: #111827;
-    --app-panel-2: rgba(11, 15, 26, 0.72);
+    --app-bg: #060b16;
+    --app-panel: rgba(12, 23, 48, 0.84);
+    --app-panel-solid: #0c1730;
+    --app-panel-2: rgba(8, 16, 34, 0.76);
     --app-border: rgba(255, 255, 255, 0.10);
-    --app-text: #e6ebf5;
-    --app-muted: #93a1b8;
+    --app-text: #dce9ff;
+    --app-muted: #9aabc4;
     /*
      * Brand colour for text. `brand-300` reads well on a dark panel but drops to
      * about 1.9:1 on a light one, so accented text uses this instead of a fixed
      * shade and darkens with the light theme.
      */
-    --app-accent-text: #5eead4;
-    --app-accent-wash: rgba(20, 184, 166, 0.14);
+    --app-accent-text: #93c5fd;
+    --app-accent-wash: rgba(37, 99, 235, 0.16);
     --app-profit-text: rgb(var(--trade-profit-rgb));
     --app-loss-text: rgb(var(--trade-loss-rgb));
     --app-entry-text: rgb(var(--trade-entry-rgb));
@@ -106,11 +106,11 @@
     --app-warn-wash: rgba(251, 191, 36, 0.15);
     --app-danger-text: #f8717d;
     --app-info-text: #7dd3fc;
-    --app-blue-text: #8dacff;
+    --app-blue-text: #93c5fd;
     --app-subtle: rgba(255, 255, 255, 0.05);
     --app-hover: rgba(255, 255, 255, 0.08);
     --app-strong-line: rgba(255, 255, 255, 0.24);
-    --focus-ring-offset: #070a12;
+    --focus-ring-offset: #060b16;
     /*
      * Ink for text drawn *on* the chart — axis labels, the legend, indicator
      * chips. It sits on the plot rather than on a panel, competing with candles
@@ -215,8 +215,8 @@
     --app-border: #cfd7e3;
     --app-text: #0b1220;
     --app-muted: #506078;
-    --app-accent-text: #076653;
-    --app-accent-wash: rgba(18, 168, 136, 0.14);
+    --app-accent-text: #1d4ed8;
+    --app-accent-wash: rgba(37, 99, 235, 0.14);
     --app-warn-text: #92610a;
     --app-warn-wash: rgba(180, 130, 10, 0.14);
     --app-danger-text: #b4233c;

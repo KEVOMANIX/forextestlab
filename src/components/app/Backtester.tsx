@@ -497,6 +497,24 @@ export function Backtester({
     return () => window.clearTimeout(timer);
   }, [bt.phase, notify, openSettings, state?.anonymous, state?.sessionId]);
 
+  // The dashboard records practice in whole active minutes. We only send a
+  // heartbeat while this signed-in workspace is visible, so an abandoned tab
+  // cannot inflate a trader's practice time or streak.
+  useEffect(() => {
+    if (bt.phase !== "active" || !state?.sessionId || state.anonymous) return;
+    const recordMinute = () => {
+      if (document.visibilityState !== "visible") return;
+      void fetch("/api/analytics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "backtest_activity", path: "/app/backtest" }),
+        keepalive: true,
+      }).catch(() => undefined);
+    };
+    const timer = window.setInterval(recordMinute, 60_000);
+    return () => window.clearInterval(timer);
+  }, [bt.phase, state?.anonymous, state?.sessionId]);
+
   /**
    * One-click trading is one click: a quote button or a buy/sell shortcut sends
    * the order straight through. The safeguards below (risk, daily loss,

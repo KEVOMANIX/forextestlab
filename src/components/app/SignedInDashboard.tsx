@@ -2,50 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import {
-  ArrowRight,
-  FlaskConical,
-  Gauge,
-  ListChecks,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  X,
-} from "lucide-react";
-import { DashboardSessionSwitcher } from "@/components/app/DashboardSessionSwitcher";
-import { MetricInfo } from "@/components/app/MetricInfo";
-import { DashboardReviewWorkspace, type DashboardInsight } from "@/components/app/DashboardReviewWorkspace";
-import {
-  DashboardSessionsTable,
-  type DashboardSessionRow,
-} from "@/components/app/DashboardSessionsTable";
-import { SessionCardActions } from "@/components/app/SessionCardActions";
-import { SessionPerformanceChart } from "@/components/app/SessionPerformanceChart";
-import { isJournaled } from "@/components/app/journal-utils";
-import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_TRADES } from "@/lib/analytics/demo-data";
-import { analyticsTrades } from "@/lib/analytics/trade-scope";
-import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
-import { computeStatistics } from "@/lib/backtest/statistics";
-import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
-import {
-  formatNewYorkDate,
-  formatNewYorkDateTime,
-  getNewYorkDateParts,
-  getTradingSession,
-} from "@/lib/date-time";
+import { Clock3, Flame, FlaskConical, ListChecks, Play, Target, X } from "lucide-react";
+import { DashboardSessionsTable, type DashboardSessionRow } from "@/components/app/DashboardSessionsTable";
+import { replayDayPercent } from "@/lib/backtest/replay-progress";
+import { formatNewYorkDate } from "@/lib/date-time";
 import { Decimal } from "@/lib/decimal";
 import { formatSymbol } from "@/lib/market-data/symbols";
 import { TIMEFRAME_MS } from "@/lib/market-data/types";
-
-const WEEKDAYS = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-] as const;
 
 export interface DashboardSession {
   id: string;
@@ -57,12 +20,9 @@ export interface DashboardSession {
   endTime: bigint;
   status: string;
   visibleIndex: number;
-  /** Replay clock. Null on sessions last saved before it was recorded. */
   visibleTime: bigint | null;
-  /** Candles LOADED so far — not the session's range. Never a progress divisor. */
   totalCandles: number;
   startingBalance: string;
-  /** Demo funds added after the account was blown. */
   depositedFunds: string;
   balance: string;
   maxDrawdown: string;
@@ -71,714 +31,111 @@ export interface DashboardSession {
   archived: boolean;
 }
 
-/** Signed, for a profit or loss where the direction is the point. */
+export interface DashboardPracticeMetrics {
+  replayMinutes: number;
+  streakDays: number;
+  sessionsThisWeek: number;
+  winRate: number | null;
+  winRateSampleSize: number;
+}
+
 function formatMoney(value: Decimal): string {
   const sign = value.isPositive() ? "+" : value.isNegative() ? "−" : "";
-  // formatBalance signs negatives itself, so hand it the magnitude.
-  return `${sign}${formatBalance(value.abs())}`;
+  const [whole, fraction] = value.abs().toFixed(2).split(".");
+  return `${sign}$${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
 }
 
-/**
- * Unsigned, for a balance. A balance is always a positive number, so a "+"
- * in front of it says nothing about the session and reads as a gain — which
- * it is not when the account has fallen below where it started.
- */
-function formatBalance(value: Decimal): string {
-  const [whole, frac] = value.abs().toFixed(2).split(".");
-  const grouped = whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${value.isNegative() ? "−" : ""}$${grouped}.${frac}`;
-}
-
-/** "3 hours ago" beats a second absolute timestamp beside a market one. */
-function savedAgo(value: Date | string | number): string {
-  const then = new Date(value).getTime();
-  const minutes = Math.round((Date.now() - then) / 60_000);
-  if (!Number.isFinite(minutes) || minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
-  return formatNewYorkDate(then);
-}
-
-/** Opening balance plus any demo funds added after the account was blown. */
 function sessionFunded(session: DashboardSession): Decimal {
   return new Decimal(session.startingBalance).plus(session.depositedFunds ?? 0);
 }
 
-/**
- * Where the replay clock is, as exactly as the row can say.
- *
- * `visibleTime` is the real timestamp of the revealed candle. Older rows have
- * none, so they fall back to an estimate that assumes contiguous candles and
- * therefore runs behind by roughly every weekend crossed.
- */
-function sessionReplayTime(session: DashboardSession): number {
-  if (session.visibleTime != null) return Number(session.visibleTime);
-  return Math.min(
-    Number(session.endTime),
-    Number(session.startTime) +
-      Math.max(0, session.visibleIndex) *
-        (TIMEFRAME_MS[session.timeframe as keyof typeof TIMEFRAME_MS] ?? 0),
-  );
-}
-
-/**
- * Progress through the session, in days.
- *
- * This used to divide by `totalCandles`, which counts the candles *loaded* so
- * far — 1,500 on a fresh session, however many years the range covers. A
- * six-year session therefore showed 91% while its own label read "Day 17 of
- * 2,408", and the bar fell backwards every time more data was loaded. Both now
- * come from the same day arithmetic, so they cannot disagree.
- */
-function sessionProgress(session: DashboardSession | null): number {
-  if (!session) return 0;
+function sessionProgress(session: DashboardSession): number {
   if (session.status === "finished") return 100;
   if (!session.totalCandles) return 0;
-  return replayDayPercent({
-    startTime: Number(session.startTime),
-    endTime: Number(session.endTime),
-    currentTime: sessionReplayTime(session),
-  });
+  const currentTime = session.visibleTime != null
+    ? Number(session.visibleTime)
+    : Math.min(Number(session.endTime), Number(session.startTime) + Math.max(0, session.visibleIndex) * (TIMEFRAME_MS[session.timeframe as keyof typeof TIMEFRAME_MS] ?? 0));
+  return replayDayPercent({ startTime: Number(session.startTime), endTime: Number(session.endTime), currentTime });
 }
 
-function aggregateTradePnl<T extends string | number>(
-  trades: ClosedTrade[],
-  keyFor: (trade: ClosedTrade) => T,
-): Array<{ key: T; pnl: Decimal; count: number }> {
-  const values = new Map<T, { pnl: Decimal; count: number }>();
-  trades.forEach((trade) => {
-    const key = keyFor(trade);
-    const current = values.get(key) ?? { pnl: new Decimal(0), count: 0 };
-    values.set(key, {
-      pnl: current.pnl.plus(trade.pnl),
-      count: current.count + 1,
-    });
-  });
-  return [...values.entries()]
-    .map(([key, value]) => ({ key, ...value }))
-    .sort((left, right) => right.pnl.comparedTo(left.pnl));
+function formatReplayTime(minutes: number): string {
+  if (!minutes) return "—";
+  const hours = Math.floor(minutes / 60);
+  return hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
 }
 
-export function SignedInDashboard({
-  sessions,
-  selectedTrades,
-  selectedEquityCurve: realEquityCurve,
-  displayName,
-  selectedId,
-  aiEnabled = false,
-}: {
+export function SignedInDashboard({ sessions, displayName, metrics }: {
   sessions: DashboardSession[];
-  selectedTrades: ClosedTrade[];
-  selectedEquityCurve: EquityPoint[];
   displayName: string;
-  selectedId?: string | null;
-  aiEnabled?: boolean;
+  metrics: DashboardPracticeMetrics;
 }) {
   const [showDemoData, setShowDemoData] = useState(false);
-  const realSelectedSession =
-    sessions.find((session) => session.id === selectedId) ?? sessions[0] ?? null;
-  const demoSession: DashboardSession = {
-    id: realSelectedSession?.id ?? "demo-preview",
-    symbol: realSelectedSession?.symbol ?? "EURUSD",
-    symbols: realSelectedSession?.symbols?.length ? realSelectedSession.symbols : ["EURUSD"],
-    name: "London-session breakout — sample",
-    timeframe: realSelectedSession?.timeframe ?? "15m",
-    startTime: BigInt(Date.UTC(2025, 1, 1)),
-    endTime: BigInt(Date.UTC(2025, 1, 28, 23, 59)),
-    status: "finished",
-    visibleIndex: 999,
-    visibleTime: BigInt(Date.UTC(2025, 1, 28, 23, 0)),
-    totalCandles: 1000,
-    startingBalance: "100000",
-    depositedFunds: "0",
-    balance: "104820",
-    maxDrawdown: "1492",
-    maxDrawdownPercent: "1.49",
-    updatedAt: new Date(Date.UTC(2025, 1, 28, 18, 0)),
-    archived: false,
-  };
-  const selectedSession = showDemoData ? demoSession : realSelectedSession;
-  const scopeLabel = selectedSession?.name ?? "No session selected";
-  const selectedSymbols = selectedSession?.symbols ?? [];
-  const progress = sessionProgress(selectedSession);
-  /**
-   * Everything the trader put into this account: the opening balance plus any
-   * demo funds added after blowing it. Measuring profit against the opening
-   * balance alone would report a rescue as a gain.
-   */
-  const fundedBalance = selectedSession
-    ? new Decimal(selectedSession.startingBalance).plus(
-        selectedSession.depositedFunds ?? 0,
-      )
-    : new Decimal(0);
-  const rawTrades = showDemoData ? DEMO_ANALYTICS_TRADES : selectedTrades;
-  const trades = analyticsTrades(rawTrades);
-  const excludedTrades = trades.length !== rawTrades.length;
-  // Performance is the sum of trades in the analytical sample. Using the
-  // persisted account balance here would add experimental P/L back in.
-  const sessionNet = selectedSession
-    ? trades.reduce((sum, trade) => sum.plus(trade.pnl), new Decimal(0))
-    : new Decimal(0);
-  const sessionReturnPercent =
-    selectedSession && !fundedBalance.isZero()
-      ? sessionNet.dividedBy(fundedBalance).times(100).abs().toFixed(2)
-      : null;
-  const selectedEquityCurve = excludedTrades
-    ? []
-    : showDemoData
-      ? DEMO_ANALYTICS_EQUITY_CURVE
-      : realEquityCurve;
-  const wins = trades.filter((trade) => new Decimal(trade.pnl).gt(0)).length;
-  const losses = trades.filter((trade) => new Decimal(trade.pnl).lt(0)).length;
-  const winRate = trades.length ? (wins / trades.length) * 100 : 0;
-  const totalNet = sessionNet;
-  const netPercent = fundedBalance.isZero()
-    ? new Decimal(0)
-    : totalNet.dividedBy(fundedBalance).times(100);
-  const stats =
-    selectedSession
-      ? computeStatistics({
-          startingBalance: fundedBalance.toFixed(2),
-          endingBalance: fundedBalance.plus(totalNet).toFixed(2),
-          trades,
-          equityCurve: selectedEquityCurve,
-        })
-      : null;
-  const recordedChartPoints = selectedEquityCurve.map((point) => ({
-      time: point.time,
-      balance: Number(point.balance),
-      equity: Number(point.equity),
-    }));
-  const chartPoints =
-    recordedChartPoints.length >= 2 || !selectedSession || trades.length === 0
-      ? recordedChartPoints
-      : [
-          {
-            time: Number(selectedSession.startTime),
-            balance: Number(selectedSession.startingBalance),
-            equity: Number(selectedSession.startingBalance),
-          },
-          ...[...trades]
-            .sort((left, right) => left.exitTime - right.exitTime)
-            .map((trade, index, sorted) => {
-              const balance = sorted
-                .slice(0, index + 1)
-                .reduce(
-                  (value, item) => value.plus(item.pnl),
-                  new Decimal(selectedSession.startingBalance),
-                );
-              return {
-                time: trade.exitTime,
-                balance: balance.toNumber(),
-                equity: balance.toNumber(),
-              };
-            }),
-        ];
-  const chartTrades = trades.map((trade) => ({
-    time: trade.exitTime,
-    pnl: Number(trade.pnl),
-  }));
-
-  const lastReplayTime = selectedSession ? sessionReplayTime(selectedSession) : null;
-
-  const dayLeaders = aggregateTradePnl(
-    trades,
-    (trade) => getNewYorkDateParts(trade.exitTime).weekday,
-  );
-  const marketSessionLeaders = aggregateTradePnl(trades, (trade) =>
-    getTradingSession(trade.entryTime),
-  );
-
-  const baseInsightCards: DashboardInsight[] = trades.length >= 5
-    ? [
-        {
-          icon: "trophy",
-          title: `${WEEKDAYS[Number(dayLeaders[0]?.key ?? 0)]} is your strongest day`,
-          detail: `${formatMoney(dayLeaders[0]?.pnl ?? new Decimal(0))} across ${dayLeaders[0]?.count ?? 0} closed trade${dayLeaders[0]?.count === 1 ? "" : "s"}.`,
-        },
-        {
-          icon: "clock",
-          title: `${marketSessionLeaders[0]?.key ?? "New York"} leads your session results`,
-          detail: `${formatMoney(marketSessionLeaders[0]?.pnl ?? new Decimal(0))} from ${marketSessionLeaders[0]?.count ?? 0} trade${marketSessionLeaders[0]?.count === 1 ? "" : "s"} entered in this market window.`,
-        },
-        {
-          icon: "gauge",
-          title:
-            stats?.expectancy === "Not available"
-              ? "Build a larger trade sample"
-              : `${formatMoney(new Decimal(stats?.expectancy ?? 0))} expectancy per trade`,
-          detail:
-            stats?.profitFactor === "Not available"
-              ? "Close both winning and losing trades to establish a profit factor."
-              : `Profit factor ${stats?.profitFactor} · average risk/reward ${stats?.averageRiskReward}.`,
-        },
-      ]
-    : trades.length
-      ? [
-          {
-            icon: "target",
-            title: `${trades.length} of 10 trades recorded`,
-            detail: "Keep building the sample before relying on day or session patterns.",
-          },
-          {
-            icon: "gauge",
-            title: `${formatMoney(totalNet)} from the current sample`,
-            detail: `${wins} win${wins === 1 ? "" : "s"} and ${losses} loss${losses === 1 ? "" : "es"} so far. Treat this as an early signal.`,
-          },
-          {
-            icon: "play",
-            title: `${progress.toFixed(0)}% replay coverage`,
-            detail: `Close ${Math.max(0, 10 - trades.length)} more trade${10 - trades.length === 1 ? "" : "s"} to unlock stronger comparisons.`,
-          },
-        ]
-      : [
-        {
-          icon: "play",
-          title: "Resume replay and place your first trade",
-          detail: "Insights become specific to this session as you close positions.",
-        },
-        {
-          icon: "target",
-          title: `${progress.toFixed(0)}% of the replay completed`,
-          detail: "Continue from the last saved candle whenever you are ready.",
-        },
-        {
-          icon: "lightbulb",
-          title: "Use notes to capture the reason behind each decision",
-          detail: "A consistent record makes the analytics more useful later.",
-        },
-        ];
-  const unwrittenTrades = trades.filter((trade) => trade.journal && !isJournaled(trade.journal)).length;
-  const journalReminder: DashboardInsight = { icon: "target", title: `${unwrittenTrades} trade${unwrittenTrades === 1 ? "" : "s"} waiting for review`, detail: "Open the session journal and use Next unwritten to finish the review while the decisions are fresh." };
-  const insightCards: DashboardInsight[] = unwrittenTrades > 0
-    ? [journalReminder, ...baseInsightCards].slice(0, 3)
-    : baseInsightCards;
-
-  const recentTradeActivity = [...trades]
-    .sort((left, right) => right.exitTime - left.exitTime)
-    .slice(0, 4);
-
-  const sessionOptions = sessions.map((session) => {
+  const visibleSessions = sessions.filter((session) => !session.archived);
+  const latestSession = visibleSessions.find((session) => session.status !== "finished") ?? visibleSessions[0] ?? null;
+  const sessionRows: DashboardSessionRow[] = visibleSessions.map((session) => {
     const net = new Decimal(session.balance).minus(sessionFunded(session));
     return {
       id: session.id,
       name: session.name,
       symbols: session.symbols.map(formatSymbol).join(", "),
+      dateRange: `${formatNewYorkDate(Number(session.startTime), { day: "numeric", month: "short" })} – ${formatNewYorkDate(Number(session.endTime), { day: "numeric", month: "short", year: "numeric" })}`,
       status: session.status === "finished" ? "Completed" : "Active",
-      updatedAt: formatNewYorkDate(session.updatedAt, {
-        day: "numeric",
-        month: "short",
-      }),
-      pnl: formatMoney(net),
-      positive: net.gte(0),
+      updatedAt: session.updatedAt.getTime(),
+      updatedLabel: `Updated ${formatNewYorkDate(session.updatedAt, { day: "numeric", month: "short" })}`,
+      pnl: net.toNumber(),
+      pnlLabel: formatMoney(net),
+      progress: sessionProgress(session),
+      archived: false,
     };
   });
 
-  const sessionRows: DashboardSessionRow[] = sessions
-    .map((session) => {
-      if (session.archived) return null;
-      const net = new Decimal(session.balance).minus(sessionFunded(session));
-      return {
-        id: session.id,
-        name: session.name,
-        symbols: session.symbols.map(formatSymbol).join(", "),
-        dateRange: `${formatNewYorkDate(Number(session.startTime), {
-          day: "numeric",
-          month: "short",
-        })} – ${formatNewYorkDate(Number(session.endTime), {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        })}`,
-        status:
-          session.status === "finished"
-            ? ("Completed" as const)
-            : ("Active" as const),
-        updatedAt: session.updatedAt.getTime(),
-        updatedLabel: `Updated ${formatNewYorkDate(session.updatedAt, {
-          day: "numeric",
-          month: "short",
-        })}`,
-        pnl: net.toNumber(),
-        pnlLabel: formatMoney(net),
-        progress: sessionProgress(session),
-        archived: false,
-      };
-    })
-    .filter((session): session is DashboardSessionRow => session !== null);
-
-  const drawdownMeasured = Boolean(stats) && stats!.maxDrawdown !== "Not available";
-  const netPositive = !totalNet.isNegative();
-  const summaryCards: {
-    label: string;
-    value: string;
-    detail: string;
-    icon: typeof TrendingUp;
-    tone: string;
-    accent: string;
-    visual?: React.ReactNode;
-  }[] = [
-    {
-      label: "Net P/L",
-      value: formatMoney(totalNet),
-      detail: `${netPercent.gte(0) ? "+" : "−"}${netPercent.abs().toFixed(2)}% from funded balance`,
-      icon: totalNet.isNegative() ? TrendingDown : TrendingUp,
-      tone: totalNet.isNegative() ? "text-loss" : "text-profit",
-      accent: totalNet.isNegative() ? "bg-loss/60" : "bg-profit/60",
-    },
-    {
-      label: "Win rate",
-      value: trades.length ? `${winRate.toFixed(1)}%` : "—",
-      detail: trades.length ? `${wins} wins · ${losses} losses` : "No closed trades",
-      icon: Gauge,
-      tone: "text-amber-300",
-      accent: "bg-amber-400/60",
-      visual: trades.length ? (
-        <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-loss/40">
-          <div className="h-full bg-profit" style={{ width: `${winRate}%` }} />
-        </div>
-      ) : undefined,
-    },
-    {
-      label: "Total trades",
-      value: String(trades.length),
-      detail:
-        stats?.expectancy === "Not available"
-          ? "Build your sample"
-          : `${stats?.expectancy ?? "$0.00"} average result`,
-      icon: Target,
-      tone: "text-accent-400",
-      accent: "bg-accent-400/60",
-    },
-    {
-      label: "Maximum drawdown",
-      // "Not available" is a real answer from computeStatistics when a session
-      // has trades but no recorded equity history. Interpolating it blindly
-      // would have printed "$Not available".
-      value: drawdownMeasured ? `$${stats!.maxDrawdown}` : "—",
-      detail: drawdownMeasured
-        ? `${stats!.maxDrawdownPercent}% from peak equity`
-        : stats
-          ? "No equity history recorded"
-          : "No drawdown",
-      icon: TrendingDown,
-      tone: "text-loss",
-      accent: "bg-loss/60",
-      visual: drawdownMeasured ? (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-          <div
-            className="h-full rounded-full bg-loss/80"
-            style={{ width: `${Math.min(100, Number(stats!.maxDrawdownPercent) || 0)}%` }}
-          />
-        </div>
-      ) : undefined,
-    },
+  const cards = [
+    { label: "Replay time", value: formatReplayTime(metrics.replayMinutes), detail: metrics.replayMinutes ? "This week" : "Starts with your next replay", icon: Clock3, tone: "text-brand-300" },
+    { label: "Practice streak", value: metrics.streakDays ? `${metrics.streakDays} day${metrics.streakDays === 1 ? "" : "s"}` : "—", detail: metrics.streakDays ? "Consecutive replay days" : "Build a daily replay habit", icon: Flame, tone: "text-accent-400" },
+    { label: "Sessions touched", value: String(metrics.sessionsThisWeek), detail: "Updated this week", icon: ListChecks, tone: "text-brand-300" },
+    { label: "Average win rate", value: metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`, detail: metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} closed trades` : "Close trades to build a sample", icon: Target, tone: "text-accent-400" },
+  ];
+  const demoCards = [
+    { ...cards[0]!, value: "4h 35m", detail: "This week" },
+    { ...cards[1]!, value: "3 days", detail: "Consecutive replay days" },
+    { ...cards[2]!, value: "2", detail: "Updated this week" },
+    { ...cards[3]!, value: "58%", detail: "Last 30 closed trades" },
   ];
 
   return (
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
-      <header id="dashboard-overview" className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+      <header id="dashboard-overview" className="flex flex-col justify-between gap-5 border-b app-border pb-6 lg:flex-row lg:items-end">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Welcome back, {displayName}
-          </h1>
-          <p className="mt-1.5 text-sm app-muted">Your desk for replay and saved sessions.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Practice overview</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Welcome back, {displayName}</h1>
+          <p className="mt-1.5 text-sm app-muted">Pick up your testing routine and continue when you are ready.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {showDemoData ? (
-            <button
-              type="button"
-              onClick={() => setShowDemoData(false)}
-              className="grid h-8 w-8 place-items-center rounded-md border border-amber-300/35 text-amber-200 transition-colors hover:bg-amber-300 hover:text-surface-950"
-              aria-label="Exit sample view and return to your dashboard"
-              title="Exit sample view"
-            >
-              <X size={15} aria-hidden />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowDemoData(true)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-semibold app-muted transition-colors hover:bg-white/[0.05] hover:text-[var(--app-text)]"
-              title="Preview a complete dashboard with sample trades"
-            >
-              <FlaskConical size={13} aria-hidden /> Sample view
-            </button>
-          )}
+          {showDemoData ? <button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-brand-400/30 text-brand-200 transition-colors hover:bg-brand-400/10" aria-label="Exit sample view" title="Exit sample view"><X size={15} aria-hidden /></button> : <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border app-border px-3 text-xs font-semibold app-muted transition-colors hover:border-brand-400/30 hover:text-brand-200" title="Preview example practice metrics"><FlaskConical size={14} aria-hidden /> Sample view</button>}
+          {latestSession && <Link href={`/app/backtest?session=${encodeURIComponent(latestSession.id)}`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-3.5 text-xs font-bold text-surface-950 transition-colors hover:bg-brand-400"><Play size={13} fill="currentColor" aria-hidden /> Continue latest</Link>}
         </div>
       </header>
 
-
-      {!selectedSession ? (
-        <section className="relative mt-7 overflow-hidden rounded-3xl border border-brand-400/20 bg-[linear-gradient(135deg,rgba(20,184,166,0.12),var(--app-panel)_48%,rgba(59,107,255,0.09))] p-6 shadow-card sm:p-9">
-          <div
-            aria-hidden
-            className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-brand-400/10 blur-3xl"
-          />
-          <div className="relative">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl border border-brand-400/25 bg-brand-400/10 text-brand-300">
-              <ListChecks size={22} aria-hidden />
-            </span>
-            <h2 className="mt-5 text-2xl font-bold tracking-tight">
-              Create your first backtest
-            </h2>
-            <div className="mt-6 grid gap-3 md:grid-cols-3">
-              {[
-                ["1", "Choose a market", "Select the pair and historical period."],
-                ["2", "Replay and trade", "Practise without seeing future candles."],
-                ["3", "Review the evidence", "Use analytics to refine your process."],
-              ].map(([number, title, detail]) => (
-                <div
-                  key={number}
-                  className="rounded-2xl border app-border bg-[var(--app-panel-2)]/60 p-4"
-                >
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-500 text-xs font-bold text-surface-950">
-                    {number}
-                  </span>
-                  <h3 className="mt-4 font-semibold">{title}</h3>
-                  <p className="mt-1 text-sm app-muted">{detail}</p>
-                </div>
-              ))}
-            </div>
-            <Link href="/app/backtest" className="btn-primary mt-6">
-              Start backtesting <ArrowRight size={15} aria-hidden />
-            </Link>
-          </div>
+      {visibleSessions.length === 0 ? (
+        <section className="mt-7 rounded-2xl border border-brand-400/25 bg-brand-400/[0.06] p-6 shadow-card sm:p-8">
+          <span className="grid h-11 w-11 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><ListChecks size={20} aria-hidden /></span>
+          <h2 className="mt-5 text-2xl font-bold tracking-tight">Create your first backtest</h2>
+          <p className="mt-2 max-w-xl text-sm leading-6 app-muted">Choose a market and period, replay the price action, then return here whenever you want to continue.</p>
+          <Link href="/app/backtest" className="btn-primary mt-6">Start backtesting <Play size={14} fill="currentColor" aria-hidden /></Link>
         </section>
       ) : (
         <>
-          <section className="mt-5 px-1" aria-label="Session switcher">
-            <div className="flex items-center">
-              <DashboardSessionSwitcher selectedId={selectedSession.id} sessions={sessionOptions} variant="rail" />
+          <section className="mt-7" aria-labelledby="practice-this-week">
+            <div className="flex items-baseline justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Your practice</p><h2 id="practice-this-week" className="mt-1.5 text-xl font-semibold">This week</h2></div><p className="hidden text-xs app-muted sm:block">Your progress is measured across saved sessions.</p></div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {(showDemoData ? demoCards : cards).map(({ label, value, detail, icon: Icon, tone }) => <article key={label} className="panel p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><p className="text-xs font-semibold app-muted">{label}</p><span className={`grid h-8 w-8 place-items-center rounded-lg bg-brand-400/[0.09] ${tone}`}><Icon size={16} aria-hidden /></span></div><p className={`mt-4 font-mono text-2xl font-semibold tracking-tight ${tone}`}>{value}</p><p className="mt-1.5 text-xs app-muted">{detail}</p></article>)}
             </div>
           </section>
-          <section
-            className="mt-4"
-            aria-label="Selected dashboard session"
-          >
-            <div className="relative">
-              <div>
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0">
-                  <h2 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
-                    {scopeLabel}
-                  </h2>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs app-muted">
-                    <span
-                      className={`rounded-full px-2.5 py-1 font-semibold ${
-                        selectedSession.status === "finished"
-                          ? "bg-brand-400/10 text-brand-300"
-                          : "bg-amber-400/10 text-amber-300"
-                      }`}
-                    >
-                      {selectedSession.status === "finished" ? "Completed" : "Active"}
-                    </span>
-                    {/* The first symbol is the session's active chart. The
-                        rest collapse, so eight pairs cannot push the card
-                        onto a second line or bury which one is in play. */}
-                    {selectedSymbols.slice(0, 1).map((symbol) => (
-                      <span
-                        key={symbol}
-                        className="rounded-md border border-brand-400/30 bg-brand-400/10 px-2 py-1 font-mono font-semibold text-brand-200"
-                      >
-                        {formatSymbol(symbol)}
-                      </span>
-                    ))}
-                    {selectedSymbols.length > 1 && (
-                      <span
-                        className="rounded-md border app-border bg-black/10 px-2 py-1 font-mono font-semibold"
-                        title={selectedSymbols.slice(1).map(formatSymbol).join(", ")}
-                      >
-                        +{selectedSymbols.length - 1}
-                      </span>
-                    )}
-                    <span className="text-[11px]">
-                      {formatNewYorkDate(Number(selectedSession.startTime))} –{" "}
-                      {formatNewYorkDate(Number(selectedSession.endTime))}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {showDemoData ? realSelectedSession && <Link href={`/app/results/${realSelectedSession.id}?demo=1`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400">Open full sample analytics <ArrowRight size={14} aria-hidden /></Link> : <SessionCardActions sessionId={selectedSession.id} sessionName={scopeLabel} status={selectedSession.status} archived={selectedSession.archived} compact command />}
-                </div>
-              </div>
-
-              {/* Four equal cells. Net P/L is the one a trader opens the
-                  dashboard for, and it used to be absent: the card showed a
-                  balance and a starting balance and left the subtraction to
-                  the reader. */}
-              <div className="mt-4 grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-3">
-                <div className="bg-[var(--app-panel)]/55 p-3.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-1.5 font-semibold app-muted">Replay progress<MetricInfo term="Replay progress" /></span>
-                    <span className="font-mono font-semibold">{progress.toFixed(0)}%</span>
-                  </div>
-                  <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-                    <div
-                      className="h-full rounded-full bg-brand-500"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-[11px] app-muted">
-                    {selectedSession.totalCandles
-                      ? replayDayLabel({
-                          startTime: Number(selectedSession.startTime),
-                          endTime: Number(selectedSession.endTime),
-                          currentTime: lastReplayTime,
-                        })
-                      : selectedSession.status === "finished"
-                        ? "Session complete"
-                        : "Not started"}
-                  </p>
-                </div>
-                <div className="bg-[var(--app-panel)]/55 p-3.5">
-                  <p className="flex items-center gap-1.5 text-xs font-semibold app-muted">Current balance<MetricInfo term="Current balance" /></p>
-                  <p className="mt-1.5 font-mono text-base font-semibold">
-                    {formatBalance(new Decimal(selectedSession.balance))}
-                  </p>
-                  <p className="mt-1 text-[11px] app-muted">
-                    <span className={sessionNet.isNegative() ? "font-semibold text-loss" : sessionNet.isZero() ? "" : "font-semibold text-profit"}>
-                      {formatMoney(sessionNet)}
-                      {sessionReturnPercent === null ? "" : ` (${sessionNet.isNegative() ? "−" : sessionNet.isZero() ? "" : "+"}${sessionReturnPercent}%)`}
-                    </span>{" "}
-                    from {formatBalance(new Decimal(selectedSession.startingBalance))}
-                  </p>
-                </div>
-                <div className="bg-[var(--app-panel)]/55 p-3.5">
-                  <p className="text-xs font-semibold app-muted">Replay position</p>
-                  <p className="mt-1.5 text-sm font-semibold">
-                    {lastReplayTime ? formatNewYorkDateTime(lastReplayTime) : "Not started"}
-                  </p>
-                  {/* Market time and wall-clock time sat side by side with
-                      nothing to tell them apart, which read as a data error. */}
-                  <p className="mt-1 text-[11px] app-muted">Market time · saved {savedAgo(selectedSession.updatedAt)}</p>
-                </div>
-              </div>
-              </div>
-
-              <aside className="hidden">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">Session pulse</p>
-                    <p className="mt-1 text-sm font-semibold">Your replay is saved</p>
-                  </div>
-                  <span className={`h-2.5 w-2.5 rounded-full ${selectedSession.status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} aria-label={selectedSession.status === "finished" ? "Session completed" : "Session active"} />
-                </div>
-                <dl className="mt-5 space-y-4">
-                  <div className="flex items-start justify-between gap-5">
-                    <dt className="text-xs app-muted">Market time</dt>
-                    <dd className="max-w-[13rem] text-right text-xs font-semibold">{lastReplayTime ? formatNewYorkDateTime(lastReplayTime) : "Not started"}</dd>
-                  </div>
-                  <div className="flex items-start justify-between gap-5 border-t app-border pt-4">
-                    <dt className="text-xs app-muted">Last saved</dt>
-                    <dd className="text-right text-xs font-semibold">{savedAgo(selectedSession.updatedAt)}</dd>
-                  </div>
-                  <div className="flex items-start justify-between gap-5 border-t app-border pt-4">
-                    <dt className="text-xs app-muted">Journal</dt>
-                    <dd className="text-right text-xs font-semibold">{unwrittenTrades ? `${unwrittenTrades} trade${unwrittenTrades === 1 ? "" : "s"} to review` : "Up to date"}</dd>
-                  </div>
-                </dl>
-                <p className="mt-5 border-t app-border pt-4 text-[11px] leading-5 app-muted">Continue from the last revealed candle. Your trades, drawings, and loaded history remain attached to this session.</p>
-              </aside>
-            </div>
+          <section className="mt-8" aria-labelledby="recent-sessions">
+            <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Sessions</p><h2 id="recent-sessions" className="mt-1.5 text-xl font-semibold">Recently updated</h2></div><Link href="/app/history" className="text-sm font-semibold text-brand-300 transition-colors hover:text-brand-200">View all sessions</Link></div>
+            <DashboardSessionsTable sessions={sessionRows} />
           </section>
-
-          {false && <><section
-            className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-            aria-label="Selected session summary"
-          >
-            {summaryCards.map(({ label, value, detail, icon: Icon, tone, accent, visual }) => (
-              <article key={label} className="panel group relative overflow-hidden p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-400/25 hover:shadow-card">
-                <span aria-hidden className={`absolute inset-y-0 left-0 w-0.5 ${accent}`} />
-                <div
-                  aria-hidden
-                  className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-brand-400/5 blur-2xl"
-                />
-                <div className="relative">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-1.5 text-xs font-medium app-muted">{label}<MetricInfo term={label} /></p>
-                      <p className={`mt-1.5 font-mono text-xl font-semibold tracking-tight ${tone}`}>{value}</p>
-                    </div>
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border app-border bg-[var(--app-panel-2)] transition-colors group-hover:border-brand-400/25">
-                      <Icon size={16} className={tone} aria-hidden />
-                    </span>
-                  </div>
-                  {visual}
-                  <p className="mt-2 text-xs app-muted">{detail}</p>
-                </div>
-              </article>
-            ))}
-          </section>
-
-          <section id="performance-ledger" className="panel mt-4 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-                  Performance ledger
-                </p>
-                <h2 className="mt-1.5 text-xl font-semibold">Balance and equity</h2>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    netPositive ? "bg-profit/10 text-profit" : "bg-loss/10 text-loss"
-                  }`}
-                >
-                  {netPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                  {formatMoney(totalNet)}
-                </span>
-                {realSelectedSession && <Link
-                  href={`/app/results/${realSelectedSession!.id}${showDemoData ? "?demo=1" : ""}`}
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200"
-                >
-                  Open full analytics <ArrowRight size={14} aria-hidden />
-                </Link>}
-              </div>
-            </div>
-            <SessionPerformanceChart points={chartPoints} trades={chartTrades} />
-          </section>
-
-          <div id="review-workspace">
-            <DashboardReviewWorkspace
-              insights={insightCards}
-              activity={recentTradeActivity.map((trade) => {
-              const pnl = new Decimal(trade.pnl);
-              return {
-                id: trade.id,
-                label: `${selectedSymbols.map(formatSymbol).join(", ")} · ${trade.direction} · ${trade.exitReason.replace("-", " ")}`,
-                date: formatNewYorkDateTime(trade.exitTime, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
-                pnl: formatMoney(pnl),
-                positive: pnl.gte(0),
-              };
-              })}
-              aiEnabled={aiEnabled}
-            />
-          </div></>}
         </>
-      )}
-
-      {sessionRows.length > 0 && (
-        <section className="mt-7">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] app-muted">
-                Session archive
-              </p>
-              <h2 className="mt-2 text-xl font-semibold">Your testing record</h2>
-            </div>
-            <Link
-              href="/app/history"
-              className="text-sm font-semibold text-brand-300 hover:text-brand-200"
-            >
-              View full history
-            </Link>
-          </div>
-          <DashboardSessionsTable sessions={sessionRows} />
-        </section>
       )}
     </div>
   );

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({ findMany: vi.fn(), metadata: vi.fn(), activity: vi.fn(), trades: vi.fn() }));
+const db = vi.hoisted(() => ({ findMany: vi.fn(), metadata: vi.fn(), activity: vi.fn(), trades: vi.fn(), tradeCount: vi.fn() }));
 const dashboard = vi.hoisted(() => vi.fn(() => null));
 
-vi.mock("@/lib/db", () => ({ prisma: { backtestSession: db, productEvent: { findMany: db.activity }, simulatedTrade: { findMany: db.trades }, $queryRaw: db.metadata } }));
+vi.mock("@/lib/db", () => ({ prisma: { backtestSession: db, productEvent: { findMany: db.activity }, simulatedTrade: { findMany: db.trades, count: db.tradeCount }, $queryRaw: db.metadata } }));
 vi.mock("@/lib/auth", () => ({ ensureUserProfile: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ getCurrentUser: async () => ({ id: "owner", email: "owner@example.com", user_metadata: {} }) }));
 vi.mock("@/components/app/SignedInDashboard", () => ({ SignedInDashboard: dashboard }));
@@ -16,12 +16,13 @@ describe("dashboard practice overview", () => {
     db.metadata.mockResolvedValue([]);
     db.activity.mockResolvedValue([]);
     db.trades.mockResolvedValue([{ pnl: "10" }, { pnl: "-5" }, { pnl: "2" }]);
+    db.tradeCount.mockResolvedValue(2);
 
     const page = await AppHome();
 
     expect(page.props).toEqual(expect.objectContaining({
       sessions: [expect.objectContaining({ id: "session", name: "EURUSD backtest" })],
-      metrics: expect.objectContaining({ replayMinutes: 0, sessionsThisWeek: 1, winRate: (2 / 3) * 100, winRateSampleSize: 3 }),
+      metrics: expect.objectContaining({ replayMinutes: 0, closedTradesThisWeek: 2, winRate: (2 / 3) * 100, winRateSampleSize: 3 }),
     }));
     expect(db.activity).toHaveBeenCalledOnce();
     expect(db.trades).toHaveBeenCalledOnce();

@@ -114,7 +114,7 @@ export default async function AppHome() {
   if (!user) return <SignedOutDashboard />;
 
   await ensureUserProfile(user);
-  const [sessionRows, activityEvents, recentTrades] = await Promise.all([
+  const [sessionRows, activityEvents, recentTrades, closedTradesThisWeek] = await Promise.all([
     prisma.backtestSession.findMany({
       where: { userId: user.id, anonymous: false },
       orderBy: { updatedAt: "desc" },
@@ -150,6 +150,12 @@ export default async function AppHome() {
       orderBy: { createdAt: "desc" },
       take: 30,
       select: { pnl: true },
+    }),
+    prisma.simulatedTrade.count({
+      where: {
+        session: { userId: user.id, anonymous: false },
+        createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) },
+      },
     }),
   ]);
 
@@ -195,7 +201,6 @@ export default async function AppHome() {
     streakDays += 1;
     cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
-  const sessionsThisWeek = sessions.filter((session) => session.updatedAt.getTime() >= Date.now() - 7 * 24 * 60 * 60_000).length;
   const wins = recentTrades.filter((trade) => Number(trade.pnl) > 0).length;
 
   const displayName =
@@ -211,7 +216,7 @@ export default async function AppHome() {
       metrics={{
         replayMinutes: activityEvents.length,
         streakDays,
-        sessionsThisWeek,
+        closedTradesThisWeek,
         winRate: recentTrades.length ? (wins / recentTrades.length) * 100 : null,
         winRateSampleSize: recentTrades.length,
       }}

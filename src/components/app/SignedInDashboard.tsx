@@ -33,7 +33,7 @@ export interface DashboardSession {
 export interface DashboardPracticeMetrics {
   replayMinutes: number;
   streakDays: number;
-  sessionsThisWeek: number;
+  closedTradesThisWeek: number;
   winRate: number | null;
   winRateSampleSize: number;
 }
@@ -90,7 +90,7 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
   const cards = [
     { label: "Replay time", value: formatReplayTime(metrics.replayMinutes), detail: metrics.replayMinutes ? "This week" : "Starts with your next replay", icon: Clock3, tone: "text-brand-300" },
     { label: "Practice streak", value: metrics.streakDays ? `${metrics.streakDays} day${metrics.streakDays === 1 ? "" : "s"}` : "—", detail: metrics.streakDays ? "Consecutive replay days" : "Build a daily replay habit", icon: Flame, tone: "text-accent-400" },
-    { label: "Sessions touched", value: String(metrics.sessionsThisWeek), detail: "Updated this week", icon: ListChecks, tone: "text-brand-300" },
+    { label: "Closed trades", value: String(metrics.closedTradesThisWeek), detail: "This week", icon: ListChecks, tone: "text-brand-300" },
     { label: "Average win rate", value: metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`, detail: metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} closed trades` : "Close trades to build a sample", icon: Target, tone: "text-accent-400" },
   ];
   return (

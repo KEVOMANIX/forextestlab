@@ -661,8 +661,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </span>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(0,1.08fr)_minmax(27rem,.92fr)] lg:overflow-hidden">
-        <div className="min-w-0 space-y-4 px-5 py-3 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="grid shrink-0 gap-4 border-b app-border px-5 py-3 sm:px-6 lg:grid-cols-2 lg:items-start">
           <section>
             <div className="mb-2 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">1</span>
@@ -691,8 +691,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           />
         </div>
 
-        <div className="min-w-0 overflow-y-auto border-t app-border lg:border-t-0">
-        <div className="px-5 py-3 sm:px-6">
+        <div className="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-2">
+        <div className="px-5 py-3 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
           <fieldset>
             <legend className="mb-2 flex w-full items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">3</span>
@@ -796,7 +796,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           </fieldset>
         </div>
 
-        <div className="min-w-0 border-t app-border px-5 py-3 sm:px-6">
+        <div className="min-w-0 border-t app-border px-5 py-3 sm:px-6 lg:border-t-0">
           <section>
             <div className="mb-2 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">4</span>

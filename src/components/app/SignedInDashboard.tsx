@@ -125,7 +125,7 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
         <>
           <section className="mt-7" aria-labelledby="practice-this-week">
             <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Practice activity</p><h2 id="practice-this-week" className="mt-1.5 text-xl font-semibold">This week</h2></div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_.82fr_.82fr] xl:grid-rows-[8.75rem_7rem]">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_.82fr_.82fr] xl:grid-rows-[8.75rem_8.5rem]">
               <article className="relative overflow-hidden rounded-2xl border border-brand-400/25 bg-[radial-gradient(circle_at_82%_12%,rgba(69,214,168,.16),transparent_35%),var(--app-panel)] p-5 shadow-card sm:col-span-2 xl:col-span-1 xl:row-span-2">
                 <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Replay time</p><p className="mt-4 font-mono text-4xl font-semibold leading-none tracking-tight text-[var(--app-text)]">{formatReplayTime(metrics.replayMinutes)}</p></div><span className="grid h-10 w-10 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><Clock3 size={18} aria-hidden /></span></div>
                 <div className="mt-7 flex h-16 items-end gap-2" role="img" aria-label={`Replay activity from Monday to Sunday: ${replayDays.join(", ")} minutes`}>
@@ -138,16 +138,16 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
 
               <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Closed trades</p><p className="mt-5 font-mono text-[1.65rem] font-semibold leading-none tracking-tight text-[var(--app-text)]">{metrics.closedTradesThisWeek}</p><p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">This week</p></div><span className="grid h-9 w-9 place-items-center rounded-lg border app-border bg-brand-400/10 text-brand-300"><ListChecks size={17} aria-hidden /></span></div></article>
 
-              <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:col-span-2 sm:p-5 xl:col-span-2">
+              <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:col-span-2 xl:col-span-2">
                 <div className="flex h-full flex-col justify-center">
                   <div className="flex items-start justify-between gap-5">
                     <div><p className="text-xs font-semibold app-muted">Recent results</p><div className="mt-2 flex items-baseline gap-2"><p className="font-mono text-2xl font-semibold leading-none text-[var(--app-text)]">{metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`}</p><span className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">win rate</span></div></div>
                     <div className="flex items-center gap-2.5 font-mono"><span className="text-lg font-semibold text-profit">{metrics.winningTrades}</span><span className="text-[9px] font-semibold uppercase tracking-[0.1em] app-muted">W</span><span className="h-5 w-px bg-[var(--app-border)]" /><span className="text-lg font-semibold text-loss">{metrics.losingTrades}</span><span className="text-[9px] font-semibold uppercase tracking-[0.1em] app-muted">L</span><Target size={17} className="ml-1 text-brand-300" aria-hidden /></div>
                   </div>
-                  <div className="mt-4 grid h-8 items-end gap-1" style={{ gridTemplateColumns: "repeat(30, minmax(0, 1fr))" }} role="img" aria-label={`Last ${metrics.winRateSampleSize} closed trades: ${metrics.winningTrades} wins and ${metrics.losingTrades} losses`}>
+                  <div className="mt-4 grid h-8 shrink-0 items-end gap-1" style={{ gridTemplateColumns: "repeat(30, minmax(0, 1fr))" }} role="img" aria-label={`Last ${metrics.winRateSampleSize} closed trades: ${metrics.winningTrades} wins and ${metrics.losingTrades} losses`}>
                     {recentOutcomeSlots.map((outcome, index) => <span key={index} className="block min-w-0 rounded-sm" style={{ height: outcome === "win" ? "100%" : outcome === "loss" ? "58%" : outcome === "flat" ? "35%" : "22%", backgroundColor: outcome === "win" ? "rgb(var(--trade-profit-rgb))" : outcome === "loss" ? "rgb(var(--trade-loss-rgb))" : outcome === "flat" ? "var(--app-muted)" : "var(--app-panel-2)" }} title={outcome ? `${outcome[0]!.toUpperCase()}${outcome.slice(1)}` : "No trade"} />)}
                   </div>
-                  <div className="mt-2 flex justify-between text-[9px] font-semibold uppercase tracking-[0.11em] app-muted"><span>Oldest</span><span>{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades"}</span><span>Latest</span></div>
+                  <div className="mt-2 flex shrink-0 justify-between text-[9px] font-semibold uppercase tracking-[0.11em] app-muted"><span>Oldest</span><span>{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades"}</span><span>Latest</span></div>
                 </div>
               </article>
             </div>

@@ -73,7 +73,7 @@ export function DashboardSessionSwitcher({
     const normalized = query.trim().toLowerCase();
     if (!normalized) return sessions;
     return sessions.filter((session) =>
-      `${session.name} ${session.symbols} ${session.status}`.toLowerCase().includes(normalized),
+      `${session.name} ${session.symbols}`.toLowerCase().includes(normalized),
     );
   }, [query, sessions]);
 
@@ -180,9 +180,9 @@ export function DashboardSessionSwitcher({
           title="Choose dashboard session"
         >
           {triggerDetails ? <>
-            <span className={`h-2 w-2 shrink-0 rounded-full ${triggerDetails.status === "Completed" ? "bg-brand-400" : "bg-amber-400"}`} aria-hidden />
+            <span className="h-2 w-2 shrink-0 rounded-full bg-brand-400" aria-hidden />
             <span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">Current session</span><span className="mt-1 block truncate text-sm font-semibold">{triggerDetails.name}</span><span className="mt-1 block truncate text-[11px] app-muted">{triggerDetails.symbols}</span></span>
-            <span className="flex shrink-0 items-center gap-2"><span className="text-right text-[11px] font-medium app-muted"><span className="block">{triggerDetails.status}</span><span className="block font-mono text-brand-300">{triggerDetails.progress.toFixed(0)}%</span></span><ChevronDown size={16} className="app-muted transition-colors group-hover:text-brand-300" aria-hidden /></span>
+            <span className="flex shrink-0 items-center gap-2"><span className="font-mono text-[11px] font-medium text-brand-300">{triggerDetails.progress.toFixed(0)}%</span><ChevronDown size={16} className="app-muted transition-colors group-hover:text-brand-300" aria-hidden /></span>
           </> : <><span className="truncate">Change session{sessions.length > 1 && <span className="ml-1.5 font-mono app-muted">{sessions.length}</span>}</span><ChevronDown size={15} className="shrink-0 app-muted" aria-hidden /></>}
         </button>
       )}
@@ -199,7 +199,7 @@ export function DashboardSessionSwitcher({
             </div>
             <label className="m-4 flex items-center gap-2 rounded-lg border app-border bg-[var(--app-panel-2)] px-3">
               <Search size={15} className="app-muted" aria-hidden />
-              <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Search name, pair, or status…" aria-label="Search sessions" />
+              <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Search name or market…" aria-label="Search sessions" />
             </label>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
               {filtered.map((session) => (
@@ -209,7 +209,7 @@ export function DashboardSessionSwitcher({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">{session.name}</span>
-                    <span className="mt-1 block truncate text-xs app-muted">{session.symbols} · {session.status} · {session.updatedAt}</span>
+                    <span className="mt-1 block truncate text-xs app-muted">{session.symbols} · {session.updatedAt}</span>
                   </span>
                   <span className={`shrink-0 font-mono text-xs font-semibold ${session.positive ? "text-profit" : "text-loss"}`}>{session.pnl}</span>
                 </button>

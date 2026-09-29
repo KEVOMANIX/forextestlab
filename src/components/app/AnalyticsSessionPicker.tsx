@@ -24,7 +24,7 @@ export function AnalyticsSessionPicker({ sessions, selectedId }: { sessions: Ana
   const filtered = useMemo(() => {
     const value = query.trim().toLowerCase();
     if (!value) return sessions;
-    return sessions.filter((session) => `${session.name} ${session.symbols} ${session.status}`.toLowerCase().includes(value));
+    return sessions.filter((session) => `${session.name} ${session.symbols}`.toLowerCase().includes(value));
   }, [query, sessions]);
   const dialogRef = useModalBehavior<HTMLElement>({ open, onClose: () => setOpen(false) });
 
@@ -52,7 +52,7 @@ export function AnalyticsSessionPicker({ sessions, selectedId }: { sessions: Ana
           </div>
           <label className="m-4 flex items-center gap-2 rounded-xl border app-border bg-[var(--app-panel-2)] px-3.5 focus-within:border-brand-400/45">
             <Search size={15} className="app-muted" aria-hidden />
-            <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--app-muted)]" placeholder="Search name, market, or status…" aria-label="Search analytics sessions" />
+            <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--app-muted)]" placeholder="Search name or market…" aria-label="Search analytics sessions" />
           </label>
           <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
             {filtered.map((session) => {

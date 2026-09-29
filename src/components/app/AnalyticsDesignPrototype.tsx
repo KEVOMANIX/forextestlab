@@ -445,9 +445,8 @@ export function AnalyticsDesignPrototype({
   );
   const sessionMetadata = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] app-muted">
-      <span className={`inline-flex items-center gap-1.5 font-semibold ${demo || status === "finished" ? "text-brand-300" : "text-amber-300"}`}><i className={`h-1.5 w-1.5 rounded-full ${demo || status === "finished" ? "bg-brand-400" : "bg-amber-400"}`} /> {demo || status === "finished" ? "Completed" : "Active"}</span>
-      {showPairInMetadata && <><span aria-hidden>·</span><span>{demo ? "EUR/USD" : sessionSelector ? compactMarketLabel : pairLabel}</span></>}
-      <span aria-hidden>·</span><span>{periodLabel}</span>
+      {showPairInMetadata && <><span>{demo ? "EUR/USD" : sessionSelector ? compactMarketLabel : pairLabel}</span><span aria-hidden>·</span></>}
+      <span>{periodLabel}</span>
       {!sessionSelector && <><span aria-hidden>·</span><ReportTimeZone compact sessionId={demo ? undefined : sessionId} startTime={periodStart} endTime={periodEnd} /></>}
       {demo && <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-bold tracking-[0.12em] text-amber-200">SAMPLE</span>}
     </div>

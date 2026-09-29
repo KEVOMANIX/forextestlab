@@ -3,20 +3,16 @@
 import Image from "next/image";
 
 import {
-  Camera,
   CandlestickChart,
   Check,
   ChevronLeft,
   ChevronRight,
-  Columns2,
   FlaskConical,
-  Maximize2,
   NotebookPen,
   PenLine,
   Paperclip,
   Plus,
   RotateCcw,
-  Rows3,
   Save,
   Search,
   Trash2,
@@ -39,7 +35,6 @@ import { TradeReviewChartModal } from "@/components/app/journal/TradeReviewChart
 import type {
   ClosedTrade,
   OpenPosition,
-  TradeChartSnapshot,
   TradeJournal,
   TradeJournalUpdate,
 } from "@/lib/backtest/types";
@@ -74,31 +69,6 @@ function editable(journal: TradeJournal): TradeJournalUpdate {
     ruleChecklist: journal.ruleChecklist.map((rule) => ({ ...rule })),
     validity: journal.validity,
   };
-}
-
-function Snapshot({ snapshot, label, record, onOpen }: { snapshot: TradeChartSnapshot | null; label: string; record: ReviewRecord; onOpen: () => void }) {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  if (!snapshot?.candles.length) return <div className="grid h-56 place-items-center rounded-xl border border-dashed app-border text-[11px] app-muted"><span className="inline-flex items-center gap-1.5"><Camera size={13} /> {label} unavailable for an older trade</span></div>;
-  const width = 720; const height = 220;
-  const levelValues = [record.entryPrice, record.stopLoss, record.takeProfit, label === "After exit" ? record.exitPrice : null].filter((value): value is string => Boolean(value)).map(Number);
-  const values = snapshot.candles.flatMap((candle) => [Number(candle.high), Number(candle.low)]).concat(levelValues);
-  const min = Math.min(...values); const max = Math.max(...values); const spread = max - min || 1; const step = width / snapshot.candles.length;
-  const y = (value: string | number) => 9 + (1 - (Number(value) - min) / spread) * (height - 18);
-  const hovered = hoverIndex == null ? null : snapshot.candles[hoverIndex];
-  const markerPointsUp = label === "Before entry" ? record.direction === "long" : record.direction === "short";
-  const levels = [{ value: record.entryPrice, label: "Entry", color: "#60a5fa" }, ...(record.stopLoss ? [{ value: record.stopLoss, label: "Stop", color: "#f05b67" }] : []), ...(record.takeProfit ? [{ value: record.takeProfit, label: "Target", color: "#22c55e" }] : []), ...(label === "After exit" ? [{ value: record.exitPrice, label: "Exit", color: "#fbbf24" }] : [])];
-  return <figure className="overflow-hidden rounded-xl border app-border bg-[var(--app-bg)]">
-    <figcaption className="flex flex-wrap items-center justify-between gap-2 border-b app-border px-3 py-2 text-[11px] app-muted"><span className="inline-flex items-center gap-1.5 font-semibold text-[var(--app-text)]"><Camera size={12} /> {label}</span><span className="flex items-center gap-3"><span>{snapshot.symbol} · {snapshot.timeframe} · {new Date(snapshot.capturedAt).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} ET</span><button type="button" onClick={onOpen} className="inline-flex items-center gap-1 rounded-md border app-border px-2 py-1 font-semibold text-brand-300 hover:bg-brand-400/10"><Maximize2 size={11} /> Interactive</button></span></figcaption>
-    <div className="relative">{hovered && <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-md border app-border bg-[var(--app-bg)]/95 px-2 py-1 font-mono text-[10px] shadow-lg"><span className="app-muted">{new Date(hovered.timestamp).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" })}</span><span className="ml-2">O {hovered.open} · H {hovered.high} · L {hovered.low} · C {hovered.close}</span></div>}
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-56 w-full cursor-crosshair" role="img" aria-label={`${label} candlestick snapshot`} onMouseLeave={() => setHoverIndex(null)} onMouseMove={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setHoverIndex(Math.max(0, Math.min(snapshot.candles.length - 1, Math.floor(((event.clientX - rect.left) / rect.width) * snapshot.candles.length)))); }}>
-        {[.25, .5, .75].map((ratio) => <line key={ratio} x1="0" x2={width} y1={height * ratio} y2={height * ratio} stroke="rgba(148,163,184,.08)" />)}
-        {levels.map((level) => <g key={`${label}-${level.label}`}><line x1="0" x2={width} y1={y(level.value)} y2={y(level.value)} stroke={level.color} strokeWidth=".8" strokeDasharray="2 3" opacity=".65" /><text x={width - 4} y={Math.max(10, y(level.value) - 3)} textAnchor="end" fill={level.color} fontSize="8">{level.label}</text></g>)}
-        {snapshot.candles.map((candle, index) => { const rising = Number(candle.close) >= Number(candle.open); const x = index * step + step / 2; const openY = y(candle.open); const closeY = y(candle.close); return <g key={`${candle.timestamp}-${index}`} stroke={rising ? "#22c55e" : "#f05b67"} fill={rising ? "#22c55e" : "#f05b67"}><line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} strokeWidth=".7" /><rect x={x - Math.max(1, step * .3)} y={Math.min(openY, closeY)} width={Math.max(2, step * .6)} height={Math.max(1, Math.abs(closeY - openY))} /></g>; })}
-        <path d={markerPointsUp ? `M ${width - step / 2} ${height - 5} l -5 -8 h 3 v -7 h 4 v 7 h 3 z` : `M ${width - step / 2} 5 l -5 8 h 3 v 7 h 4 v -7 h 3 z`} fill={label === "Before entry" ? (record.direction === "long" ? "#22c55e" : "#f05b67") : "#fbbf24"} />
-        {hoverIndex !== null && <line x1={(hoverIndex + .5) * step} x2={(hoverIndex + .5) * step} y1="0" y2={height} stroke="rgba(255,255,255,.35)" strokeWidth=".7" strokeDasharray="3 3" />}
-      </svg>
-    </div>
-  </figure>;
 }
 
 export function TradeJournalEditor({
@@ -163,7 +133,6 @@ export function TradeJournalEditor({
   const [gradeFilter, setGradeFilter] = useState<"all" | "A" | "B" | "C" | "D">("all");
   const [selectedId, setSelectedId] = useState<string | null>(records[0]?.journalId ?? null);
   const [chartOpen, setChartOpen] = useState(false);
-  const [snapshotLayout, setSnapshotLayout] = useState<"stacked" | "compare">("stacked");
   const [previewAttachment, setPreviewAttachment] = useState<{ name: string; dataUrl: string } | null>(null);
   const selected = records.find((record) => record.journalId === selectedId) ?? records[0] ?? null;
   const [draft, setDraft] = useState<TradeJournalUpdate | null>(selected ? editable(selected.journal) : null);
@@ -404,7 +373,7 @@ export function TradeJournalEditor({
                 ))}
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setChartOpen(true)} disabled={!selectedReview || (!sessionId && !selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.07] px-3 text-[11px] font-semibold text-brand-300 hover:bg-brand-400/[0.13] disabled:cursor-not-allowed disabled:opacity-40" title={!sessionId && !selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot ? "Chart data is unavailable for this trade" : "Open interactive marked trade chart"}><CandlestickChart size={13} /> View chart</button>
+                <button type="button" onClick={() => setChartOpen(true)} disabled={!selectedReview || (!sessionId && !selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.07] px-3 text-[11px] font-semibold text-brand-300 hover:bg-brand-400/[0.13] disabled:cursor-not-allowed disabled:opacity-40" title={!sessionId && !selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot ? "Chart data is unavailable for this trade" : "Open interactive marked trade chart"}><CandlestickChart size={13} /> Interactive chart</button>
                 <div className="flex items-center gap-1 text-[11px] app-muted">
                   <button type="button" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous trade" className="rounded border app-border p-1 disabled:opacity-30"><ChevronLeft size={12} /></button>
                   <span className="font-mono">{position === -1 ? "—" : position + 1} / {visible.length}</span>
@@ -472,12 +441,6 @@ export function TradeJournalEditor({
                 <div><dt className="app-muted">Realized R</dt><dd className={`mt-1 font-mono font-semibold ${Number(selected.journal.realizedR) >= 0 ? "text-profit" : "text-loss"}`}>{selected.journal.realizedR ? `${selected.journal.realizedR}R` : "—"}</dd></div>
               </dl>
             </div>
-
-            <section className="rounded-xl border app-border p-3">
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="inline-flex items-center gap-2 text-xs font-semibold"><Camera size={13} /> Visual trade review</h3><p className="mt-1 text-[11px] app-muted">Hover for candle OHLC. Open the interactive chart to change timeframe, zoom, and inspect the marked trade.</p></div><div className="inline-flex rounded-lg border app-border bg-[var(--app-panel-2)] p-1"><button type="button" onClick={() => setSnapshotLayout("stacked")} aria-pressed={snapshotLayout === "stacked"} className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold ${snapshotLayout === "stacked" ? "bg-white/[0.08] text-[var(--app-text)]" : "app-muted"}`}><Rows3 size={11} /> Focus</button><button type="button" onClick={() => setSnapshotLayout("compare")} aria-pressed={snapshotLayout === "compare"} className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold ${snapshotLayout === "compare" ? "bg-white/[0.08] text-[var(--app-text)]" : "app-muted"}`}><Columns2 size={11} /> Compare</button></div></div>
-              {selectedReview && <dl className="mt-3 grid gap-px overflow-hidden rounded-lg bg-[var(--app-border-color,rgba(255,255,255,.06))] sm:grid-cols-4">{[["Planned R:R", selectedReview.journal.plannedRR ? `1:${selectedReview.journal.plannedRR}` : "—"], ["Realized", selectedReview.journal.realizedR ? `${selectedReview.journal.realizedR}R` : "—"], ["Holding time", selectedReview.exitTime > selectedReview.entryTime ? `${Math.max(1, Math.round((selectedReview.exitTime - selectedReview.entryTime) / 60000))} min` : "Open"], ["Result", selectedReview.pnl == null ? "Open" : `${Number(selectedReview.pnl) >= 0 ? "+" : ""}${Number(selectedReview.pnl).toFixed(2)}`]].map(([label, value]) => <div key={label} className="bg-[var(--app-panel)] px-3 py-2"><dt className="text-[9px] uppercase tracking-wide app-muted">{label}</dt><dd className="mt-1 font-mono text-xs font-semibold">{value}</dd></div>)}</dl>}
-              {selectedReview && <div className={`mt-3 grid gap-3 ${snapshotLayout === "compare" ? "lg:grid-cols-2" : "grid-cols-1"}`}><Snapshot snapshot={selected.journal.beforeEntrySnapshot} label="Before entry" record={selectedReview} onOpen={() => setChartOpen(true)} /><Snapshot snapshot={selected.journal.afterExitSnapshot} label="After exit" record={selectedReview} onOpen={() => setChartOpen(true)} /></div>}
-            </section>
 
             <section tabIndex={0} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); addAttachment(event.dataTransfer.files[0]); }} onPaste={(event) => addAttachment(event.clipboardData.files[0])} className="rounded-xl border border-dashed app-border p-3 outline-none transition-colors focus:border-brand-400/50">
               <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-xs font-semibold">Trade evidence</h3><p className="mt-1 text-[11px] app-muted">Drop, paste, or upload up to 3 images, 750 KB each.</p></div><label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border app-border px-3 py-2 text-[11px] font-semibold hover:text-brand-300"><Upload size={12} /> Add image<input type="file" accept="image/*" className="sr-only" disabled={draft.attachments.length >= 3} onChange={(event) => { addAttachment(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label></div>

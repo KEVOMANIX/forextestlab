@@ -3433,11 +3433,6 @@ export default function PriceChart({
     setIndicatorEditing((cur) => (cur === id ? null : cur));
   }
 
-  const pricePaneIndicators = indicators.filter((i) => {
-    const d = getDef(i.kind);
-    return d?.pane === "price" && d.render !== "overlay";
-  });
-  const ownPaneIndicators = indicators.filter((i) => getDef(i.kind)?.pane === "own");
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
   const sessionOverlayIndicators = overlayIndicators.filter((indicator) => indicator.kind === "sessions");
   // Overlay is a placement mode, not a renderer. Market Sessions shares that
@@ -3514,26 +3509,6 @@ export default function PriceChart({
     if (drawingsActiveRef.current) scheduleRender();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawTool, drawCount]);
-
-  // Track each pane's top offset (container-relative px) so we can float an
-  // in-pane label at the top-left of every oscillator pane, TradingView-style.
-  const [paneTops, setPaneTops] = useState<number[]>([]);
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    try {
-      const panes = chart.panes();
-      const tops: number[] = [];
-      let acc = 0;
-      for (let i = 0; i < panes.length; i++) {
-        tops[i] = acc;
-        acc += panes[i]!.getHeight() + 1; // +1 for the pane separator
-      }
-      setPaneTops(tops);
-    } catch {
-      setPaneTops([]);
-    }
-  }, [indicators, viewVersion, seriesEpoch]);
 
   /**
    * Width of the price scale, which is the width of the corner cell the zone
@@ -4391,7 +4366,7 @@ export default function PriceChart({
               the mount/unmount nor the hit-testing can be allowed to react to
               the very hover this row exists to display.
             */}
-            {(legend || pricePaneIndicators.length > 0) && (
+            {(legend || indicators.length > 0) && (
               <div
                 className="pointer-events-none flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-0.5 font-mono text-[0.78em] shadow"
                 style={{ visibility: legend ? "visible" : "hidden" }}
@@ -4446,57 +4421,31 @@ export default function PriceChart({
               </div>
             )}
 
-            {/* Indicator labels continue the same column, so they never collide. */}
-            {pricePaneIndicators.length > 0 && (
+            {/* Every active indicator lives in this one stack directly below OHLC. */}
+            {indicators.length > 0 && (
               <div className="pointer-events-auto flex flex-col items-start gap-0.5">
-                {pricePaneIndicators.map((inst) => {
-              const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#60a5fa";
-              return (
-                <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] shadow backdrop-blur">
-                  <span className="h-2 w-2 rounded-full" style={{ background: color, opacity: inst.visible ? 1 : 0.3 }} />
-                  <span className={`font-medium ${inst.visible ? "" : "text-[var(--chart-muted)] line-through"}`}>{indicatorLabel(inst)}</span>
-                  <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
-                    {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
-                  </button>
-                  <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
-                    <Settings2 size={12} />
-                  </button>
-                  <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
+                {indicators.map((inst) => {
+                  const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#60a5fa";
+                  return (
+                    <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] shadow backdrop-blur">
+                      <span className="h-2 w-2 rounded-full" style={{ background: color, opacity: inst.visible ? 1 : 0.3 }} />
+                      <span className={`font-medium ${inst.visible ? "" : "text-[var(--chart-muted)] line-through"}`}>{indicatorLabel(inst)}</span>
+                      <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
+                        {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+                      </button>
+                      <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
+                        <Settings2 size={12} />
+                      </button>
+                      <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
             )}
           </div>
         </div>
-
-        {/* In-pane oscillator labels — floated at the top-left of each native pane. */}
-        {ownPaneIndicators.map((inst, i) => {
-          const top = paneTops[i + 1];
-          if (top == null) return null;
-          return (
-            <div
-              key={inst.id}
-              className={`group absolute z-10 flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] text-[var(--chart-text)] shadow backdrop-blur ${
-                showRail && !railSlot ? "left-14" : "left-2"
-              }`}
-              style={{ top: top + 4, fontSize: overlayFont }}
-            >
-              <span className={`font-medium ${inst.visible ? "" : "text-[var(--chart-muted)] line-through"}`}>{indicatorLabel(inst)}</span>
-              <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
-                {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
-              </button>
-              <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
-                <Settings2 size={12} />
-              </button>
-              <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100">
-                <Trash2 size={12} />
-              </button>
-            </div>
-          );
-        })}
 
         {pendingOrders.filter((order) => order.status === "pending").map((order) => (
           <div

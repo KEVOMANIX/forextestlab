@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Crosshair, RotateCcw, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Crosshair, Info, RotateCcw, X } from "lucide-react";
 
 import { formatNewYorkDateTime } from "@/lib/date-time";
+import { zoneOptionsAt } from "@/lib/chart/timezones";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import {
   SOURCE_OPTIONS,
@@ -39,7 +40,18 @@ const LINE_STYLES: { value: LineStyleName; label: string }[] = [
   { value: "dotted", label: "Dotted" },
 ];
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function InfoTip({ text, label = "More information" }: { text: string; label?: string }) {
+  return (
+    <span className="group relative inline-flex shrink-0" tabIndex={0} aria-label={`${label}: ${text}`}>
+      <Info size={13} aria-hidden="true" className="cursor-help app-muted transition-colors group-hover:text-brand-300 group-focus:text-brand-300" />
+      <span role="tooltip" className="pointer-events-none invisible absolute left-1/2 top-full z-50 mt-2 w-max max-w-64 -translate-x-1/2 rounded-lg border app-border bg-[var(--app-panel-solid)] px-3 py-2 text-left text-[11px] font-normal leading-4 text-[var(--app-text)] opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function Row({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <label className="flex min-h-12 items-center justify-between gap-4 rounded-lg border app-border bg-[var(--app-panel-2)]/35 px-3 py-2 text-xs">
       <span className="font-medium app-muted">{label}</span>
@@ -62,6 +74,8 @@ function SessionInputs({
   inputs: IndicatorInstance["inputs"];
   onSet: (key: string, value: InputValue) => void;
 }) {
+  const [openedAt] = useState(() => Date.now());
+  const timezoneOptions = useMemo(() => zoneOptionsAt(openedAt), [openedAt]);
   const sessions = [
     { id: "asia", label: "Asia", hint: "Tokyo / Pacific", color: "#2962ff", start: "20:00", end: "00:00", line: false },
     { id: "london", label: "London", hint: "European open", color: "#f9ab00", start: "03:00", end: "08:00", line: true },
@@ -77,10 +91,9 @@ function SessionInputs({
           <label className="text-[11px] font-medium app-muted">
             Time zone
             <select value={String(value("timezone", "America/New_York"))} onChange={(event) => onSet("timezone", event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60">
-              <option value="America/New_York">New York</option>
-              <option value="Etc/UTC">UTC</option>
-              <option value="Europe/London">London</option>
-              <option value="Asia/Tokyo">Tokyo</option>
+              {timezoneOptions.map((zone) => (
+                <option key={zone.id} value={zone.id}>{zone.label} ({zone.offset})</option>
+              ))}
             </select>
           </label>
           <label className="text-[11px] font-medium app-muted">
@@ -89,7 +102,7 @@ function SessionInputs({
           </label>
         </div>
         <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)]/35 px-3 py-2.5 text-xs">
-          <span><span className="block font-medium">Show session ranges</span><span className="mt-0.5 block text-[10px] app-muted">Shade the high-to-low range for every enabled session</span></span>
+          <span className="flex items-center gap-2 font-medium">Show session ranges <InfoTip text="Shade each enabled session from its high to its low." /></span>
           <input type="checkbox" checked={value("showBoxes", true) !== false} onChange={(event) => onSet("showBoxes", event.target.checked)} className="h-4 w-4 shrink-0 accent-brand-400" />
         </label>
       </section>
@@ -115,7 +128,7 @@ function SessionInputs({
               </div>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_7.5rem_1rem_7.5rem] sm:items-end">
-                <div><p className="text-[11px] font-medium app-muted">Hours</p><p className="mt-1 text-[10px] app-muted">Times use the selected zone</p></div>
+                <div className="flex items-center gap-2 self-center text-[11px] font-medium app-muted">Hours <InfoTip text="Start and end times use the selected session time zone." /></div>
                 <label className="text-[10px] app-muted">Starts<input type="time" value={String(value(`${session.id}Start`, session.start))} onChange={(event) => onSet(`${session.id}Start`, event.target.value)} disabled={!enabled} className="mt-1.5 h-9 w-full rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60 disabled:cursor-not-allowed" /></label>
                 <span className="hidden h-9 items-center justify-center app-muted sm:flex">–</span>
                 <label className="text-[10px] app-muted">Ends<input type="time" value={String(value(`${session.id}End`, session.end))} onChange={(event) => onSet(`${session.id}End`, event.target.value)} disabled={!enabled} className="mt-1.5 h-9 w-full rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60 disabled:cursor-not-allowed" /></label>
@@ -243,6 +256,11 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
   };
 
   const sectionsPresent = SECTION_ORDER.filter((sec) => def.inputs.some((i) => (i.section ?? "inputs") === sec));
+  const dialogWidth = def.kind === "sessions"
+    ? "max-w-[640px]"
+    : def.inputs.length <= 6 && def.plots.length <= 3
+      ? "max-w-[460px]"
+      : "max-w-[500px]";
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/55 p-3 backdrop-blur-[2px]" onPointerDown={onClose}>
@@ -252,11 +270,14 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
         aria-modal="true"
         aria-label={`${def.name} settings`}
         tabIndex={-1}
-        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none ${def.kind === "sessions" ? "max-w-[680px]" : "max-w-[540px]"}`}
+        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none ${dialogWidth}`}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b app-border px-5 py-4">
-          <div className="min-w-0"><h3 className="truncate text-base font-semibold">{def.name}</h3><p className="mt-1 text-[11px] app-muted">{def.description}</p></div>
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="truncate text-base font-semibold">{def.name}</h3>
+            <InfoTip label={def.name} text={def.description} />
+          </div>
           <button type="button" aria-label="Close" onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
             <X size={16} />
           </button>
@@ -345,7 +366,7 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
               <Row label="Visible on chart">
                 <input type="checkbox" checked={value.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="accent-brand-400" />
               </Row>
-              <Row label="Price precision">
+              <Row label={<span className="flex items-center gap-2">Price precision <InfoTip text="Leave this blank to use the chart's decimal precision." /></span>}>
                 <input
                   type="number"
                   min={0}
@@ -356,7 +377,6 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
                   className={`w-24 ${inputCls}`}
                 />
               </Row>
-              <p className="rounded-lg bg-[var(--app-panel-2)]/35 p-3 text-[11px] leading-5 app-muted sm:col-span-2">Leave precision blank to inherit the chart&apos;s decimals.</p>
             </div>
           )}
         </div>

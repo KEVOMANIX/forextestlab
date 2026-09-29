@@ -58,7 +58,7 @@ import {
   type WhitespaceData,
 } from "lightweight-charts";
 
-import { formatInZone } from "@/lib/chart/timezones";
+import { formatInZone, resolveZone } from "@/lib/chart/timezones";
 import { zoneParts, zoneWallClockToUtc } from "@/lib/backtest/goto";
 import { barLabelZone, formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
@@ -645,7 +645,7 @@ function sessionSettings(indicator: IndicatorInstance): { timezone: string; look
     };
   };
   return {
-    timezone: inputString(inputs, "timezone", "America/New_York"),
+    timezone: resolveZone(inputString(inputs, "timezone", "America/New_York")),
     lookbackDays: Math.max(1, Math.min(30, inputNumber(inputs, "lookbackDays", 3))),
     showBoxes: inputs.showBoxes !== false,
     sessions: [

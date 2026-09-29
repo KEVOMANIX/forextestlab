@@ -217,6 +217,14 @@ export default async function AppHome() {
   });
   const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
   const activityDays = new Set(activityEvents.map((event) => todayKey.format(event.createdAt)));
+  const now = new Date();
+  const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(now);
+  const weekdayIndex = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekdayName);
+  const monday = new Date(now.getTime() - Math.max(0, weekdayIndex) * 24 * 60 * 60_000);
+  const replayMinutesByDay = Array.from({ length: 7 }, (_, index) => {
+    const dayKey = todayKey.format(new Date(monday.getTime() + index * 24 * 60 * 60_000));
+    return activityEvents.filter((event) => todayKey.format(event.createdAt) === dayKey).length;
+  });
   const cursor = new Date();
   if (!activityDays.has(todayKey.format(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1);
   let streakDays = 0;
@@ -225,6 +233,7 @@ export default async function AppHome() {
     cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
   const wins = recentTrades.filter((trade) => Number(trade.pnl) > 0).length;
+  const losses = recentTrades.filter((trade) => Number(trade.pnl) < 0).length;
 
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&
@@ -241,10 +250,14 @@ export default async function AppHome() {
       displayName={displayName}
       metrics={{
         replayMinutes: activityEvents.length,
+        replayMinutesByDay,
+        currentWeekdayIndex: Math.max(0, weekdayIndex),
         streakDays,
         closedTradesThisWeek,
         winRate: recentTrades.length ? (wins / recentTrades.length) * 100 : null,
         winRateSampleSize: recentTrades.length,
+        winningTrades: wins,
+        losingTrades: losses,
       }}
     />
   );

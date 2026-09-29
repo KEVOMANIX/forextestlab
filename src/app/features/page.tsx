@@ -1,126 +1,56 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, BarChart3, Check, LayoutDashboard, NotebookPen, Play, ShieldCheck } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpenText, Check, Crosshair, Layers3, Play, ShieldCheck, Sparkles } from "lucide-react";
 
 import { PageShell } from "@/components/PageShell";
 import { ProductDemoVideo } from "@/components/ProductDemoVideo";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Features",
-  description: "Explore ForexTestLab market replay, simulated execution, journaling, analytics, and strategy-review tools.",
+  title: "Backtesting Features",
+  description: "Replay historical markets, practise execution, journal decisions, and review strategy performance in one connected workspace.",
   alternates: { canonical: "/features" },
 };
 
-const ANNOTATIONS = [
-  ["1", "Replay toolbar", "Play, pause, step forward, or change the replay speed."],
-  ["2", "Timeframes and charts", "Change timeframe, candle view, indicators, or chart layout."],
-  ["3", "Order entry", "Open a new simulated order directly from the chart."],
-  ["4", "Workspace navigation", "Open saved sessions, analytics, news, settings, and help."],
+const WORKFLOW = [
+  { number: "01", title: "Define", text: "Choose the markets, dates, account size, and testing rules." },
+  { number: "02", title: "Replay", text: "Advance without future data and execute the plan as price unfolds." },
+  { number: "03", title: "Record", text: "Capture the setup, decision, emotion, and result while context is fresh." },
+  { number: "04", title: "Improve", text: "Use the evidence to isolate repeatable strengths and costly mistakes." },
 ] as const;
 
-function Screenshot({
-  src,
-  alt,
-  width,
-  height,
-  priority = false,
-}: {
-  src: string;
-  alt: string;
-  width: number;
-  height: number;
-  priority?: boolean;
-}) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-surface-900 p-1.5 shadow-[0_32px_80px_-38px_rgba(0,0,0,.95)]">
-      <Image src={src} alt={alt} width={width} height={height} priority={priority} className="h-auto w-full rounded-lg" sizes="(max-width:1024px) 100vw, 58vw" />
-    </div>
-  );
+function Checklist({ items }: { items: readonly string[] }) {
+  return <ul className="mt-5 space-y-2.5">{items.map((item) => <li key={item} className="flex gap-2.5 text-sm leading-6 text-slate-300"><Check size={15} className="mt-1 shrink-0 text-brand-300" aria-hidden />{item}</li>)}</ul>;
 }
 
-function ReplayDemo() {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-white/10 bg-surface-900 p-1.5 shadow-[0_32px_80px_-38px_rgba(0,0,0,.95)]">
-      <div className="overflow-hidden rounded-lg">
-        <ProductDemoVideo
-          webm="/product/replay-controls-demo.webm"
-          mp4="/product/replay-controls-demo.mp4"
-          poster="/product/replay-controls-demo-poster.jpg"
-          alt="Historical charts advancing through a synchronized ForexTestLab replay"
-          width={1280}
-          height={633}
-        />
-      </div>
-    </div>
-  );
+function JournalPreview() {
+  return <div className="mt-7 rounded-xl border border-white/10 bg-surface-950/70 p-4"><div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold text-white">London continuation</span><span className="rounded-full bg-brand-400/10 px-2 py-1 text-[10px] font-semibold text-brand-200">A setup</span></div><p className="mt-3 text-xs leading-5 text-slate-400">Waited for the retest. Entry followed the plan; stop stayed below structure.</p><div className="mt-4 flex gap-1.5">{["patient", "trend", "planned"].map((tag) => <span key={tag} className="rounded-md border border-white/10 px-2 py-1 text-[10px] text-slate-400">{tag}</span>)}</div></div>;
 }
 
-function Points({ items }: { items: readonly string[] }) {
-  return <ul className="mt-6 space-y-3">{items.map((item) => <li key={item} className="flex gap-3 text-sm leading-6 text-slate-300"><Check size={16} className="mt-1 shrink-0 text-brand-300" aria-hidden />{item}</li>)}</ul>;
+function AnalyticsPreview() {
+  return <div className="mt-6 overflow-hidden rounded-xl border border-white/10 bg-surface-950/70 p-4"><div className="flex items-end justify-between"><div><p className="text-[10px] uppercase tracking-[.18em] text-slate-500">Net result</p><p className="mt-1 font-mono text-xl font-semibold text-emerald-300">+$2,779.75</p></div><p className="text-xs text-slate-400">46% win rate</p></div><svg className="mt-5 h-24 w-full" viewBox="0 0 480 100" role="img" aria-label="Rising example equity curve"><defs><linearGradient id="equity-fill" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#45d6a8" stopOpacity=".28"/><stop offset="1" stopColor="#45d6a8" stopOpacity="0"/></linearGradient></defs><path d="M0 80 L34 73 L62 79 L92 57 L122 63 L150 42 L179 50 L211 31 L242 45 L271 34 L304 18 L337 29 L370 12 L404 23 L438 7 L480 17 L480 100 L0 100 Z" fill="url(#equity-fill)"/><path d="M0 80 L34 73 L62 79 L92 57 L122 63 L150 42 L179 50 L211 31 L242 45 L271 34 L304 18 L337 29 L370 12 L404 23 L438 7 L480 17" fill="none" stroke="#45d6a8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg></div>;
 }
 
 export default function FeaturesPage() {
-  return (
-    <PageShell>
-      <header className="border-b border-white/10 py-10 sm:py-12">
-        <div className="container-page">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Product</p>
-          <div className="mt-3 grid gap-4 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
-            <h1 className="text-4xl font-bold tracking-[-0.04em] text-white sm:text-5xl">Features</h1>
-            <p className="max-w-2xl text-base leading-7 text-slate-400 lg:justify-self-end">Everything needed to replay historical markets, execute simulated trades, document decisions, and review the evidence.</p>
-          </div>
-        </div>
-      </header>
+  return <PageShell>
+    <section className="relative overflow-hidden border-b border-white/10 pb-14 pt-16 sm:pb-20 sm:pt-24">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_8%,rgba(69,214,168,.12),transparent_30%),radial-gradient(circle_at_8%_78%,rgba(69,214,168,.06),transparent_28%)]" />
+      <div className="container-page relative"><div className="grid gap-10 lg:grid-cols-[.78fr_1.22fr] lg:items-center lg:gap-14">
+        <div><span className="eyebrow"><Sparkles size={13} aria-hidden />The testing system</span><h1 className="mt-6 max-w-xl text-4xl font-bold leading-[1.05] tracking-[-0.045em] text-white sm:text-6xl">Test the process. <span className="text-brand-300">See the evidence.</span></h1><p className="mt-6 max-w-lg text-base leading-7 text-slate-300 sm:text-lg">ForexTestLab connects market replay, execution, journaling, and analysis so every test produces a record you can learn from.</p><div className="mt-8 flex flex-wrap gap-3"><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary">Start free trial <ArrowRight size={16} aria-hidden /></Link><Link href="/markets" className="btn-secondary">Explore markets</Link></div></div>
+        <div className="relative"><div className="absolute -inset-6 rounded-[2rem] bg-brand-400/10 blur-3xl" /><div className="relative overflow-hidden rounded-2xl border border-brand-400/25 bg-surface-900 p-1.5 shadow-[0_35px_100px_-42px_rgba(45,212,191,.5)]"><div className="overflow-hidden rounded-xl"><ProductDemoVideo webm="/product/replay-controls-demo.webm" mp4="/product/replay-controls-demo.mp4" poster="/product/replay-controls-demo-poster.jpg" alt="ForexTestLab historical replay workspace" width={1280} height={633} /></div><div className="grid gap-px bg-white/10 sm:grid-cols-3">{[["Replay state", "Aug 19, 2020"], ["Risk planned", "1.00%"], ["Journal linked", "46 trades"]].map(([label, value]) => <div key={label} className="bg-surface-900 px-4 py-3"><p className="text-[10px] uppercase tracking-[.16em] text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-slate-200">{value}</p></div>)}</div></div></div>
+      </div></div>
+    </section>
 
-      <section className="py-8 sm:py-10">
-        <div className="container-page">
-          <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(17rem,1fr)]">
-            <div className="relative self-center">
-              <Screenshot src="/product/replay-desk-20260909.webp" alt="Annotated ForexTestLab replay workspace" width={1911} height={826} priority />
-              <span title="Replay toolbar" aria-label="1. Replay toolbar" className="absolute left-[50%] top-[20%] grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-lg ring-2 ring-brand-400/20 after:absolute after:left-1/2 after:top-full after:h-4 after:w-px after:-translate-x-1/2 after:bg-brand-300/70">1</span>
-              <span title="Timeframes and charts" aria-label="2. Timeframes and charts" className="absolute left-[22%] top-[11%] grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-lg ring-2 ring-brand-400/20 before:absolute before:bottom-full before:left-1/2 before:h-4 before:w-px before:-translate-x-1/2 before:bg-brand-300/70">2</span>
-              <span title="Order entry" aria-label="3. Order entry" className="absolute right-[17%] top-[11%] grid h-7 w-7 translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-lg ring-2 ring-brand-400/20 before:absolute before:bottom-full before:left-1/2 before:h-4 before:w-px before:-translate-x-1/2 before:bg-brand-300/70">3</span>
-              <span title="Workspace navigation" aria-label="4. Workspace navigation" className="absolute right-[6%] top-[32%] grid h-7 w-7 translate-x-1/2 place-items-center rounded-full border-2 border-surface-950 bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-lg ring-2 ring-brand-400/20 after:absolute after:left-full after:top-1/2 after:h-px after:w-5 after:-translate-y-1/2 after:bg-brand-300/70">4</span>
-            </div>
-            <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-4">
-              {ANNOTATIONS.map(([number, title, text]) => <li key={number} className="group flex min-h-24 flex-col justify-center rounded-xl border border-white/10 bg-surface-900/70 p-4 transition-colors hover:border-brand-400/40 hover:bg-brand-400/[0.06]"><div className="flex items-center gap-3"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-400 font-mono text-[11px] font-bold text-surface-950 shadow-[0_0_0_3px_rgba(45,212,191,.1)]">{number}</span><h2 className="text-sm font-semibold text-white">{title}</h2></div><p className="mt-2 pl-10 text-xs leading-5 text-slate-400">{text}</p></li>)}
-            </ol>
-          </div>
-        </div>
-      </section>
+    <section id="workflow" className="scroll-mt-24 border-b border-white/10 py-14 sm:py-20"><div className="container-page"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand-300">One continuous workflow</p><h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">From idea to reviewed evidence.</h2></div><p className="max-w-md text-sm leading-6 text-slate-400">The session keeps the chart state, trades, notes, and results together from the first candle to final review.</p></div><ol className="mt-10 grid overflow-hidden rounded-2xl border border-white/10 bg-white/10 md:grid-cols-4 md:gap-px">{WORKFLOW.map((step, index) => <li key={step.number} className="relative bg-surface-950 p-6 sm:p-7"><span className="font-mono text-xs text-brand-300">{step.number}</span><h3 className="mt-8 text-xl font-semibold text-white">{step.title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{step.text}</p>{index < WORKFLOW.length - 1 && <ArrowRight size={16} className="absolute right-5 top-6 hidden text-slate-600 md:block" aria-hidden />}</li>)}</ol></div></section>
 
-      <div className="border-t border-white/10">
-        <section id="replay" className="scroll-mt-24 py-12 sm:py-14">
-          <div className="container-page grid items-center gap-8 lg:grid-cols-[.72fr_1.28fr] lg:gap-12">
-            <div><Play size={22} className="text-brand-300" aria-hidden /><p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Historical replay</p><h2 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white lg:text-4xl">Move through the market without seeing what happens next.</h2><p className="mt-4 text-base leading-7 text-slate-400">Select a historical period, control the replay pace, and study each decision using only information available at that moment.</p><Points items={["Step forward candle by candle", "Choose replay speed or pause at any time", "Load earlier context without revealing future data"]} /></div>
-            <ReplayDemo />
-          </div>
-        </section>
+    <section className="py-16 sm:py-24"><div className="container-page"><div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand-300">Inside the workspace</p><h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">Four kinds of evidence. One testing record.</h2></div><div className="mt-10 grid gap-4 lg:grid-cols-12">
+      <article className="relative overflow-hidden rounded-2xl border border-white/10 bg-surface-900/70 p-6 lg:col-span-7 sm:p-8"><Play size={20} className="text-brand-300" aria-hidden /><p className="mt-5 text-xs font-semibold uppercase tracking-[.16em] text-brand-300">Historical replay</p><h3 className="mt-3 text-2xl font-semibold text-white">Practise without future knowledge.</h3><p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">Move candle by candle, change speed, compare synchronized timeframes, and make the decision before the next move is revealed.</p><div className="mt-7 overflow-hidden rounded-xl border border-white/10"><ProductDemoVideo webm="/product/replay-controls-demo.webm" mp4="/product/replay-controls-demo.mp4" poster="/product/replay-controls-demo-poster.jpg" alt="Historical charts moving through synchronized replay" width={1280} height={633} /></div></article>
+      <article className="rounded-2xl border border-white/10 bg-surface-900/70 p-6 lg:col-span-5 sm:p-8"><Crosshair size={20} className="text-brand-300" aria-hidden /><p className="mt-5 text-xs font-semibold uppercase tracking-[.16em] text-brand-300">Execution and risk</p><h3 className="mt-3 text-2xl font-semibold text-white">Turn a thesis into a defined trade.</h3><p className="mt-3 text-sm leading-6 text-slate-400">Plan position size, entry, stop, and target before committing the simulated order.</p><div className="mt-7 rounded-xl border border-white/10 bg-surface-950/70 p-4"><div className="flex gap-2"><span className="flex-1 rounded-lg bg-brand-400/15 px-3 py-2 text-center text-xs font-semibold text-brand-200">Buy</span><span className="flex-1 rounded-lg border border-white/10 px-3 py-2 text-center text-xs text-slate-400">Sell</span></div><div className="mt-4 grid grid-cols-3 gap-2">{[["Risk", "1.00%"], ["Stop", "18.4 pips"], ["Target", "2.1 R"]].map(([a,b]) => <div key={a} className="rounded-lg border border-white/10 p-3"><p className="text-[10px] text-slate-500">{a}</p><p className="mt-1 font-mono text-xs font-semibold text-white">{b}</p></div>)}</div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full w-[48%] rounded-full bg-brand-400" /></div></div><Checklist items={["Market, limit, and stop entries", "Visible reward-to-risk before entry", "Account-aware position sizing"]} /></article>
+      <article className="rounded-2xl border border-white/10 bg-surface-900/70 p-6 lg:col-span-4 sm:p-8"><BookOpenText size={20} className="text-brand-300" aria-hidden /><p className="mt-5 text-xs font-semibold uppercase tracking-[.16em] text-brand-300">Decision journal</p><h3 className="mt-3 text-2xl font-semibold text-white">Keep the reason beside the result.</h3><p className="mt-3 text-sm leading-6 text-slate-400">Review what you saw, what you did, and whether the execution matched the plan.</p><JournalPreview /></article>
+      <article className="rounded-2xl border border-white/10 bg-surface-900/70 p-6 lg:col-span-5 sm:p-8"><BarChart3 size={20} className="text-brand-300" aria-hidden /><p className="mt-5 text-xs font-semibold uppercase tracking-[.16em] text-brand-300">Strategy analytics</p><h3 className="mt-3 text-2xl font-semibold text-white">Read the shape of performance.</h3><p className="mt-3 text-sm leading-6 text-slate-400">Inspect expectancy, win rate, payoff, timing, streaks, and the equity curve for each session.</p><AnalyticsPreview /></article>
+      <article className="rounded-2xl border border-brand-400/25 bg-[linear-gradient(145deg,rgba(69,214,168,.12),rgba(30,48,42,.72))] p-6 lg:col-span-3 sm:p-8"><Layers3 size={20} className="text-brand-300" aria-hidden /><p className="mt-5 text-xs font-semibold uppercase tracking-[.16em] text-brand-300">Saved sessions</p><h3 className="mt-3 text-2xl font-semibold text-white">Return to the exact test.</h3><p className="mt-3 text-sm leading-6 text-slate-300">Replay position, charts, drawings, trades, and notes stay attached to the session.</p><div className="mt-8 space-y-2">{[["London breakout", "64%"], ["Asian range", "38%"], ["NY reversal", "12%"]].map(([name, progress]) => <div key={name} className="rounded-lg border border-white/10 bg-surface-950/50 p-3"><div className="flex justify-between text-xs"><span className="text-slate-200">{name}</span><span className="font-mono text-slate-400">{progress}</span></div><div className="mt-2 h-1 rounded-full bg-white/10"><div className="h-full rounded-full bg-brand-400" style={{ width: progress }} /></div></div>)}</div></article>
+    </div></div></section>
 
-        <section id="orders" className="scroll-mt-24 border-y border-white/10 bg-surface-900/30 py-12 sm:py-14">
-          <div className="container-page grid items-center gap-8 lg:grid-cols-[1.28fr_.72fr] lg:gap-12"><Screenshot src="/product/market-replay.webp" alt="Simulated trading order controls" width={1600} height={940} /><div><ShieldCheck size={22} className="text-brand-300" aria-hidden /><p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Orders and risk</p><h2 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white lg:text-4xl">Plan and manage the complete simulated position.</h2><p className="mt-4 text-base leading-7 text-slate-400">Practise the execution process with account-aware position sizing, pending orders, and visible risk and reward levels.</p><Points items={["Market, limit, and stop entries", "Adjustable stop-loss and take-profit levels", "Position sizing based on account risk"]} /></div></div>
-        </section>
-
-        <section id="charting" className="scroll-mt-24 py-12 sm:py-14">
-          <div className="container-page grid items-center gap-8 lg:grid-cols-[.72fr_1.28fr] lg:gap-12"><div><LayoutDashboard size={22} className="text-brand-300" aria-hidden /><p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Charting workspace</p><h2 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white lg:text-4xl">Keep market context visible across layouts.</h2><p className="mt-4 text-base leading-7 text-slate-400">Use synchronized charts, change timeframe, and apply drawing tools while every pane follows the same replay moment.</p><Points items={["Multiple chart layouts", "Independent timeframe and scale controls", "Saved drawings and technical studies"]} /></div><Screenshot src="/product/replay-desk-20260909.webp" alt="ForexTestLab multi-chart layout" width={1911} height={826} /></div>
-        </section>
-
-        <section id="journal" className="scroll-mt-24 border-y border-white/10 bg-surface-900/30 py-12 sm:py-14">
-          <div className="container-page grid items-center gap-8 lg:grid-cols-[1.28fr_.72fr] lg:gap-12"><Screenshot src="/product/session-dashboard-20260814.webp" alt="Saved trading sessions and review workspace" width={1600} height={940} /><div><NotebookPen size={22} className="text-brand-300" aria-hidden /><p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Trade journal</p><h2 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white lg:text-4xl">Record the reasoning while it is still fresh.</h2><p className="mt-4 text-base leading-7 text-slate-400">Attach structured notes to each trade, then return to the entry candle and compare the original plan with the outcome.</p><Points items={["Setup, emotion, confidence, and mistake tags", "Before-entry and after-exit snapshots", "Interactive chart review for every recorded trade"]} /></div></div>
-        </section>
-
-        <section id="analytics" className="scroll-mt-24 py-12 sm:py-14">
-          <div className="container-page grid items-center gap-8 lg:grid-cols-[.72fr_1.28fr] lg:gap-12"><div><BarChart3 size={22} className="text-brand-300" aria-hidden /><p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Performance review</p><h2 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white lg:text-4xl">Find the pattern behind the final balance.</h2><p className="mt-4 text-base leading-7 text-slate-400">Move beyond net profit with drawdown, expectancy, timing, streak, session, and execution-quality analysis.</p><Points items={["Equity and drawdown history", "Performance by time, day, session, and direction", "Experimental trades excluded from strategy results"]} /></div><Screenshot src="/product/session-analytics-20260814.webp" alt="ForexTestLab performance analytics" width={1600} height={940} /></div>
-        </section>
-
-        <section id="sessions" className="scroll-mt-24 border-t border-white/10 py-12 sm:py-14">
-          <div className="container-page grid items-center gap-8 lg:grid-cols-[1.28fr_.72fr] lg:gap-12"><Screenshot src="/product/session-dashboard.webp" alt="ForexTestLab session dashboard" width={1600} height={940} /><div><LayoutDashboard size={22} className="text-brand-300" aria-hidden /><p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Saved sessions</p><h2 className="mt-3 text-3xl font-bold leading-tight tracking-tight text-white lg:text-4xl">Continue from the state you saved.</h2><p className="mt-4 text-base leading-7 text-slate-400">Return through the dashboard, reopen the selected test, and keep its replay progress, trades, drawings, and loaded history.</p><Points items={["Active and completed session history", "Remembered dashboard selection", "Session-level analytics and trade review"]} /></div></div>
-        </section>
-      </div>
-
-      <section className="border-t border-white/10 py-14"><div className="container-page flex flex-col justify-between gap-5 sm:flex-row sm:items-center"><div><h2 className="text-xl font-semibold text-white">Try the complete workflow.</h2><p className="mt-1 text-sm text-slate-400">Create a replay session and keep the result in your private workspace.</p></div><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary shrink-0">Start free trial <ArrowRight size={16} aria-hidden /></Link></div></section>
-    </PageShell>
-  );
+    <section className="border-y border-white/10 bg-surface-900/35 py-16"><div className="container-page flex flex-col justify-between gap-7 sm:flex-row sm:items-center"><div><ShieldCheck size={22} className="text-brand-300" aria-hidden /><h2 className="mt-4 text-2xl font-semibold text-white">Build evidence before risking capital.</h2><p className="mt-2 text-sm text-slate-400">Start a replay session and keep the complete testing record in your workspace.</p></div><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary shrink-0">Start free trial <ArrowRight size={16} aria-hidden /></Link></div></section>
+  </PageShell>;
 }

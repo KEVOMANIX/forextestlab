@@ -36,6 +36,7 @@ import type { MarketSymbol } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 interface SessionSetupProps {
+  initialMarket?: string | null;
   onStart: (body: CreateSessionBody) => void;
   busy: boolean;
   error: string | null;
@@ -443,7 +444,7 @@ function SessionDatePicker({
   );
 }
 
-export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetupProps) {
+export function SessionSetup({ initialMarket, onStart, busy, error, entitlements }: SessionSetupProps) {
   const [name, setName] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
@@ -472,7 +473,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
       .then((list) => {
         if (!active) return;
         setSymbols(list);
-        const firstEnabled = list.find((item) => item.enabled);
+        const firstEnabled = list.find((item) => item.enabled && item.symbol === initialMarket) ?? list.find((item) => item.enabled);
         if (firstEnabled) setSelectedSymbols([firstEnabled.symbol]);
       })
       .catch(() => {
@@ -484,7 +485,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialMarket]);
 
   useEffect(() => {
     if (selectedSymbols.length === 0) {

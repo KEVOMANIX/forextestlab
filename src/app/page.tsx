@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BarChart3, ListChecks, Route } from "lucide-react";
+import { ArrowRight, BarChart3, CandlestickChart, ListChecks } from "lucide-react";
 
 import { Footer } from "@/components/Footer";
 import { Hero } from "@/components/Hero";
@@ -9,7 +9,7 @@ import { WelcomeOfferBanner } from "@/components/WelcomeOffer";
 
 const EXPLORE = [
   { href: "/features", icon: BarChart3, title: "Explore the workspace", text: "See the replay, execution, journal, and analytics tools." },
-  { href: "/how-it-works", icon: Route, title: "Understand the process", text: "Follow a session from setup through structured review." },
+  { href: "/markets", icon: CandlestickChart, title: "Explore the markets", text: "Search available instruments and inspect their replay history." },
   { href: "/pricing", icon: ListChecks, title: "Choose your access", text: "Compare trial access and available workspace plans." },
 ] as const;
 

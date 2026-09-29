@@ -28,7 +28,7 @@ export const TRIAL_SIGN_UP_PATH = `/sign-up?next=${encodeURIComponent(TRIAL_STAR
 export const mainNav = [
   { label: "Home", href: "/" },
   { label: "Features", href: "/features" },
-  { label: "How It Works", href: "/how-it-works" },
+  { label: "Markets", href: "/markets" },
   { label: "Pricing", href: "/pricing" },
   { label: "FAQ", href: "/faq" },
 ] as const;
@@ -37,7 +37,7 @@ export const footerNav = {
   product: [
     { label: "Home", href: "/" },
     { label: "Features", href: "/features" },
-    { label: "How It Works", href: "/how-it-works" },
+    { label: "Markets", href: "/markets" },
     { label: "Product Preview", href: "/#product-preview" },
     { label: "Pricing", href: "/pricing" },
     { label: "Start Backtesting", href: "/app/backtest" },

@@ -23,10 +23,12 @@ const Backtester = dynamic(
 
 export function BacktesterClient({
   resumeSessionId,
+  initialMarket,
   entitlements,
   autoStartTrial,
 }: {
   resumeSessionId: string | null;
+  initialMarket: string | null;
   entitlements: PlanEntitlements;
   autoStartTrial: boolean;
 }) {
@@ -34,6 +36,7 @@ export function BacktesterClient({
     <>
       <Backtester
         resumeSessionId={resumeSessionId}
+        initialMarket={initialMarket}
         entitlements={entitlements}
         autoStartTrial={autoStartTrial}
       />

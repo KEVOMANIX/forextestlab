@@ -33,6 +33,7 @@ import {
 import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date-time";
 import { describeSymbol, formatSymbol } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
+import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 interface SessionSetupProps {
   onStart: (body: CreateSessionBody) => void;
@@ -80,8 +81,13 @@ function MarketPicker({
   onToggle: (symbol: string) => void;
   onReset: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<MarketCategory>("All");
+  const dialogRef = useModalBehavior<HTMLElement>({
+    open,
+    onClose: () => setOpen(false),
+  });
 
   const enabled = useMemo(() => symbols.filter((item) => item.enabled), [symbols]);
 
@@ -115,194 +121,95 @@ function MarketPicker({
     [enabled, selected],
   );
 
+  const closePicker = () => {
+    setOpen(false);
+    setQuery("");
+    setCategory("All");
+  };
+
   return (
     <fieldset className="min-w-0">
       <legend className="mb-2 flex w-full items-center gap-2">
         <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">2</span>
-        <span className="text-sm font-semibold">Choose market{singleSelect ? "" : "s"}</span>
-        {selected.length > 0 && (
-          <span className="text-[11px] font-medium app-muted">
-            {selected.length} selected
-          </span>
-        )}
+        <span className="text-sm font-semibold">Markets</span>
+        <span className="text-[11px] font-medium app-muted">{selected.length} selected</span>
       </legend>
 
-      <div className="relative">
-        <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
-        <label htmlFor="setup-market-search" className="sr-only">Search markets</label>
-        <input
-          id="setup-market-search"
-          type="search"
-          className="app-input w-full py-2 pl-9 pr-9 text-sm"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={loading ? "Loading markets…" : `Search ${enabled.length} markets`}
-          autoComplete="off"
-        />
-        {query && (
-          <button
-            type="button"
-            aria-label="Clear market search"
-            onClick={() => setQuery("")}
-            className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300"
-          >
-            <X size={14} aria-hidden />
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center gap-3 rounded-xl border app-border bg-[var(--app-panel-2)]/45 px-3.5 py-3 text-left transition-colors hover:border-brand-400/45 hover:bg-[var(--app-panel-2)]"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-400/10 text-brand-300"><Search size={16} aria-hidden /></span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">{loading ? "Loading markets…" : "Choose markets"}</span>
+          <span className="mt-0.5 block truncate text-xs app-muted">
+            {selectedItems.length > 0 ? selectedItems.map((item) => item.displayName).join(", ") : "Search the complete market catalogue"}
+          </span>
+        </span>
+        <ChevronRight size={16} className="shrink-0 app-muted" aria-hidden />
+      </button>
 
-      {categories.length > 1 && (
-        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Filter markets by category">
-          {categories.map((item) => {
-            const active = category === item;
-            return (
-              <button
-                key={item}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setCategory(item)}
-                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                  active
-                    ? "border-brand-400/45 bg-[var(--app-panel-2)] text-brand-200"
-                    : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
-                }`}
-              >
-                {item}
-                <span className={active ? "text-brand-300/80" : "opacity-60"}>{counts.get(item)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {!singleSelect && selectedItems.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      {selectedItems.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
           {selectedItems.map((item) => (
-            <span
-              key={item.symbol}
-              className="inline-flex items-center gap-1 rounded-md border app-border bg-[var(--app-panel-2)] py-0.5 pl-2 pr-0.5 text-[11px] font-semibold"
-            >
-              <span className="font-mono">{item.displayName}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${item.displayName}`}
-                onClick={() => onToggle(item.symbol)}
-                className="grid h-4 w-4 place-items-center rounded transition-colors hover:bg-brand-400/25"
-              >
-                <X size={11} strokeWidth={2.5} aria-hidden />
-              </button>
+            <span key={item.symbol} className="inline-flex items-center gap-1 rounded-md border app-border px-2 py-1 font-mono text-[11px] font-semibold">
+              {item.displayName}
+              {!singleSelect && <button type="button" aria-label={`Remove ${item.displayName}`} onClick={() => onToggle(item.symbol)}><X size={11} aria-hidden /></button>}
             </span>
           ))}
-          {selectedItems.length > 1 && (
-            <button
-              type="button"
-              onClick={onReset}
-              className="rounded-md px-1.5 py-0.5 text-[11px] font-medium app-muted underline-offset-2 transition-colors hover:text-brand-300 hover:underline"
-            >
-              Clear all
-            </button>
-          )}
         </div>
       )}
 
-      <div className="relative mt-2">
-        {loading ? (
-          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-1" aria-label="Loading markets">
-            {Array.from({ length: 5 }, (_, index) => (
-              <span key={index} className="h-[46px] animate-pulse rounded-lg bg-white/[0.05]" />
-            ))}
-          </div>
-        ) : visible.length > 0 ? (
-          <>
-            <div className="grid max-h-48 grid-cols-1 gap-1.5 overflow-y-auto overscroll-contain pb-3 pr-1 sm:grid-cols-2">
-              {visible.map((item) => {
-                const active = selected.includes(item.symbol);
-                const description = describeSymbol(item.symbol);
-                return (
-                  <label
-                    key={item.symbol}
-                    title={description}
-                    className={`group relative flex min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-400/60 ${
-                      active
-                        ? "border-brand-400/55 bg-[var(--app-panel-2)]"
-                        : "app-border hover:bg-[var(--app-panel-2)]"
-                    }`}
-                  >
-                    {/* Anchor the sr-only input to its row so native focus cannot
-                        scroll an outer clipped column to an off-screen position. */}
-                    <input
-                      type={singleSelect ? "radio" : "checkbox"}
-                      name={singleSelect ? "session-pair" : undefined}
-                      className="sr-only"
-                      checked={active}
-                      onChange={() => {
-                        onToggle(item.symbol);
-                        // Finding a market means filtering the list down to it
-                        // — often to a single row, and DXY is the only index in
-                        // the catalogue. Leaving the term in place after the
-                        // pick made every other market look like it had
-                        // disappeared, with the selection chips as the only
-                        // sign anything had happened. Clearing it hands the
-                        // full list back so the next pair can be found.
-                        if (!active) setQuery("");
-                      }}
-                    />
-                    <span
-                      aria-hidden
-                      className={`grid h-[18px] w-[18px] shrink-0 place-items-center border transition-colors ${
-                        singleSelect ? "rounded-full" : "rounded-[5px]"
-                      } ${
-                        active
-                          ? "border-brand-400 bg-brand-500 text-surface-950"
-                          : "app-border group-hover:border-brand-400/40"
-                      }`}
-                    >
-                      {active && <Check size={11} strokeWidth={3.5} />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-mono text-[13px] font-semibold leading-tight">
-                        {item.displayName}
-                      </span>
-                      {description !== item.displayName && (
-                        <span className="mt-0.5 block truncate text-[11px] leading-tight app-muted">
-                          {description}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[var(--app-panel)] to-transparent"
-            />
-          </>
-        ) : (
-          <p className="rounded-lg border app-border bg-[var(--app-panel-2)]/55 px-3 py-4 text-sm app-muted">
-            {enabled.length === 0
-              ? "Markets are temporarily unavailable. Please refresh and try again."
-              : query.trim()
-                ? `No markets match “${query.trim()}”.`
-                : `No ${category.toLowerCase()} markets are available yet.`}
-          </p>
-        )}
-      </div>
+      {open && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) closePicker(); }}>
+          <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="market-picker-title" className="panel flex max-h-[min(42rem,calc(100dvh-2rem))] w-full max-w-3xl flex-col overflow-hidden shadow-2xl">
+            <header className="flex items-center justify-between gap-4 border-b app-border px-5 py-4">
+              <div>
+                <h2 id="market-picker-title" className="text-lg font-semibold">Choose markets</h2>
+                <p className="mt-0.5 text-xs app-muted">{selected.length} selected · {enabled.length} available</p>
+              </div>
+              <button type="button" onClick={closePicker} aria-label="Close market picker" className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><X size={17} aria-hidden /></button>
+            </header>
 
-      {!loading && enabled.length > 0 && visible.length !== enabled.length && (
-        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11px] app-muted">
-          <span>Showing {visible.length} of {enabled.length}</span>
-          <button
-            type="button"
-            onClick={() => {
-              setQuery("");
-              setCategory("All");
-            }}
-            className="rounded px-1 font-medium text-brand-300 underline-offset-2 hover:underline"
-          >
-            Show all
-          </button>
-        </p>
+            <div className="border-b app-border px-5 py-3">
+              <div className="relative">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
+                <label htmlFor="setup-market-search" className="sr-only">Search markets</label>
+                <input id="setup-market-search" type="search" className="app-input w-full py-2 pl-9 pr-9 text-sm" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${enabled.length} markets`} autoComplete="off" />
+                {query && <button type="button" aria-label="Clear market search" onClick={() => setQuery("")} className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)]"><X size={14} aria-hidden /></button>}
+              </div>
+              {categories.length > 1 && (
+                <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Filter markets by category">
+                  {categories.map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`rounded-md border px-2.5 py-1 text-[11px] font-medium ${category === item ? "border-brand-400/50 bg-brand-400/10 text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)]"}`}>{item} <span className="opacity-70">{counts.get(item)}</span></button>)}
+                </div>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              {loading ? (
+                <div className="grid gap-2 sm:grid-cols-2">{Array.from({ length: 8 }, (_, index) => <span key={index} className="h-12 animate-pulse rounded-lg bg-white/[0.05]" />)}</div>
+              ) : visible.length > 0 ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {visible.map((item) => {
+                    const active = selected.includes(item.symbol);
+                    const description = describeSymbol(item.symbol);
+                    return <label key={item.symbol} className={`group flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ${active ? "border-brand-400/60 bg-brand-400/10" : "app-border hover:bg-[var(--app-panel-2)]"}`}>
+                      <input type={singleSelect ? "radio" : "checkbox"} name={singleSelect ? "session-pair" : undefined} className="sr-only" checked={active} onChange={() => { onToggle(item.symbol); if (!active) setQuery(""); if (singleSelect) closePicker(); }} />
+                      <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center border ${singleSelect ? "rounded-full" : "rounded-md"} ${active ? "border-brand-400 bg-brand-500 text-surface-950" : "app-border"}`}>{active && <Check size={12} strokeWidth={3.5} />}</span>
+                      <span className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{item.displayName}</span><span className="block truncate text-xs app-muted">{description}</span></span>
+                    </label>;
+                  })}
+                </div>
+              ) : <p className="py-10 text-center text-sm app-muted">No markets match your search.</p>}
+            </div>
+
+            <footer className="flex items-center justify-between gap-3 border-t app-border px-5 py-3">
+              <button type="button" onClick={onReset} disabled={selected.length === 0} className="text-xs font-medium app-muted hover:text-[var(--app-text)] disabled:opacity-40">Clear selection</button>
+              <button type="button" onClick={closePicker} className="btn-primary px-5 py-2">Done · {selected.length}</button>
+            </footer>
+          </section>
+        </div>
       )}
     </fieldset>
   );
@@ -754,8 +661,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
         </span>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(0,1.12fr)_minmax(25rem,.88fr)] lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden">
-        <div className="min-w-0 space-y-4 overflow-clip px-5 py-3 sm:px-6 lg:row-span-2 lg:overflow-y-auto lg:border-r lg:border-[var(--app-border)]">
+      <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(0,1.08fr)_minmax(27rem,.92fr)] lg:overflow-hidden">
+        <div className="min-w-0 space-y-4 px-5 py-3 sm:px-6 lg:border-r lg:border-[var(--app-border)]">
           <section>
             <div className="mb-2 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">1</span>
@@ -784,7 +691,8 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           />
         </div>
 
-        <div className="min-w-0 overflow-hidden border-t app-border px-5 py-3 sm:px-6 lg:overflow-y-auto lg:border-t-0">
+        <div className="min-w-0 overflow-y-auto border-t app-border lg:border-t-0">
+        <div className="px-5 py-3 sm:px-6">
           <fieldset>
             <legend className="mb-2 flex w-full items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">3</span>
@@ -850,14 +758,14 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold">Account size</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                   {PROP_FIRM_ACCOUNT_SIZES.map((size) => (
                     <button
                       key={size}
                       type="button"
                       onClick={() => setAccountSize(size)}
                       aria-pressed={accountSize === size}
-                      className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                      className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition-colors ${
                         accountSize === size
                           ? "border-brand-400/50 bg-brand-400/10 text-brand-200"
                           : "app-border hover:border-brand-400/30"
@@ -888,7 +796,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
           </fieldset>
         </div>
 
-        <div className="min-w-0 overflow-visible border-t app-border px-5 py-3 sm:px-6 lg:overflow-y-auto">
+        <div className="min-w-0 border-t app-border px-5 py-3 sm:px-6">
           <section>
             <div className="mb-2 flex items-center gap-2">
               <span className="grid h-7 w-7 place-items-center rounded-md border app-border bg-[var(--app-panel-2)] text-xs font-semibold app-muted">4</span>
@@ -977,8 +885,7 @@ export function SessionSetup({ onStart, busy, error, entitlements }: SessionSetu
               </button>
             </div>
           </section>
-
-
+        </div>
         </div>
       </div>
 

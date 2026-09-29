@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BarChart3, BookOpenText, Check, Crosshair, Layers3, Play, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpenText, Check, Crosshair, Layers3, Play, ShieldCheck } from "lucide-react";
 
 import { PageShell } from "@/components/PageShell";
 import { ProductDemoVideo } from "@/components/ProductDemoVideo";
@@ -38,8 +38,7 @@ export default function FeaturesPage() {
       <div className="container-page relative">
         <div className="grid gap-7 border-b border-white/10 pb-10 lg:grid-cols-[1.25fr_.75fr] lg:items-end lg:gap-16">
           <div>
-            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-brand-300"><Sparkles size={13} aria-hidden />Market replay · execution · review</span>
-            <h1 className="mt-5 max-w-4xl text-4xl font-bold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">Replay the market.<br /><span className="text-slate-300">Review every decision.</span></h1>
+            <h1 className="max-w-4xl text-4xl font-bold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">Replay the market.<br /><span className="text-slate-300">Review every decision.</span></h1>
           </div>
           <div className="lg:pb-1">
             <p className="max-w-xl text-base leading-7 text-slate-300">Run historical backtests without future data, place simulated trades, and inspect the decisions behind every result.</p>

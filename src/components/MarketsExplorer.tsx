@@ -78,6 +78,11 @@ function MarketCard({ market, selected, onSelect }: { market: MarketSymbol; sele
   </button>;
 }
 
+function signInForMarket(symbol: string): string {
+  const backtestPath = `/app/backtest?market=${encodeURIComponent(symbol)}`;
+  return `/sign-in?next=${encodeURIComponent(backtestPath)}`;
+}
+
 export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymbol[] }) {
   const [markets, setMarkets] = useState(initialMarkets);
   const [query, setQuery] = useState("");
@@ -157,7 +162,7 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
             <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Asset class</dt><dd className="text-sm font-semibold text-slate-200">{categoryFor(activeMarket)}</dd></div>
           </dl>
 
-          <Link href={`/app/backtest?market=${encodeURIComponent(activeMarket.symbol)}`} className="btn-primary mt-6 w-full">Backtest {activeMarket.displayName} <ArrowRight size={16} aria-hidden /></Link>
+          <Link href={signInForMarket(activeMarket.symbol)} className="btn-primary mt-6 w-full">Backtest {activeMarket.displayName} <ArrowRight size={16} aria-hidden /></Link>
         </div>
       </aside>}
     </div>

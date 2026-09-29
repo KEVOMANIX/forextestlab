@@ -42,9 +42,9 @@ const LINE_STYLES: { value: LineStyleName; label: string }[] = [
 
 function InfoTip({ text, label = "More information" }: { text: string; label?: string }) {
   return (
-    <span className="group relative inline-flex shrink-0" tabIndex={0} aria-label={`${label}: ${text}`}>
-      <Info size={13} aria-hidden="true" className="cursor-help app-muted transition-colors group-hover:text-brand-300 group-focus:text-brand-300" />
-      <span role="tooltip" className="pointer-events-none invisible absolute left-1/2 top-full z-50 mt-2 w-max max-w-64 -translate-x-1/2 rounded-lg border app-border bg-[var(--app-panel-solid)] px-3 py-2 text-left text-[11px] font-normal leading-4 text-[var(--app-text)] opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100 group-focus:visible group-focus:opacity-100">
+    <span className="group relative inline-flex shrink-0" aria-label={`${label}: ${text}`}>
+      <Info size={13} aria-hidden="true" className="cursor-help app-muted transition-colors group-hover:text-brand-300" />
+      <span role="tooltip" className="pointer-events-none invisible absolute left-1/2 top-full z-50 mt-2 w-max max-w-64 -translate-x-1/2 rounded-lg border app-border bg-[var(--app-panel-solid)] px-3 py-2 text-left text-[11px] font-normal leading-4 text-[var(--app-text)] opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100">
         {text}
       </span>
     </span>

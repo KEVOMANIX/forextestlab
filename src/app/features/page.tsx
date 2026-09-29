@@ -33,31 +33,22 @@ function AnalyticsPreview() {
 
 export default function FeaturesPage() {
   return <PageShell>
-    <section className="relative overflow-hidden border-b border-white/10 pb-14 pt-12 sm:pb-20 sm:pt-16">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(69,214,168,.11),transparent_38%)]" />
+    <section className="relative overflow-hidden border-b border-white/10 py-5 sm:py-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_76%_50%,rgba(69,214,168,.11),transparent_42%)]" />
       <div className="container-page relative">
-        <div className="grid gap-7 border-b border-white/10 pb-10 lg:grid-cols-[1.25fr_.75fr] lg:items-end lg:gap-16">
-          <div>
-            <h1 className="max-w-4xl text-4xl font-bold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">Replay the market.<br /><span className="text-slate-300">Review every decision.</span></h1>
+        <div className="relative mx-auto max-w-[1440px] overflow-hidden rounded-2xl border border-white/15 bg-surface-900 shadow-[0_44px_120px_-54px_rgba(45,212,191,.42)] lg:min-h-[680px]">
+          <div className="lg:absolute lg:inset-0 lg:[&>div]:h-full lg:[&_video]:h-full lg:[&_video]:w-full lg:[&_video]:object-cover lg:[&_img]:h-full lg:[&_img]:w-full lg:[&_img]:object-cover">
+            <ProductDemoVideo webm="/product/replay-controls-demo.webm" mp4="/product/replay-controls-demo.mp4" poster="/product/replay-controls-demo-poster.jpg" alt="ForexTestLab historical replay workspace" width={1280} height={633} priority mobileZoom />
           </div>
-          <div className="lg:pb-1">
-            <p className="max-w-xl text-base leading-7 text-slate-300">Run historical backtests without future data, place simulated trades, and inspect the decisions behind every result.</p>
-            <div className="mt-6 flex flex-wrap gap-3"><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary">Start free trial <ArrowRight size={16} aria-hidden /></Link><Link href="/markets" className="btn-secondary">Browse 38 markets</Link></div>
+          <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(5,16,12,.97)_0%,rgba(5,16,12,.84)_31%,rgba(5,16,12,.32)_59%,rgba(5,16,12,.05)_100%)] lg:block" />
+          <div className="relative z-10 border-t border-white/10 bg-surface-950/95 p-6 sm:p-8 lg:absolute lg:left-12 lg:top-1/2 lg:w-[34rem] lg:-translate-y-1/2 lg:border-0 lg:bg-transparent lg:p-0 xl:left-16">
+            <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand-300">The complete testing workspace</p>
+            <h1 className="mt-5 text-4xl font-bold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">Practise the decision.<br /><span className="text-slate-300">Study the outcome.</span></h1>
+            <p className="mt-6 max-w-md text-base leading-7 text-slate-300">Replay historical markets, manage simulated risk, and turn every trade into evidence you can review.</p>
+            <div className="mt-7 flex flex-wrap gap-3"><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary">Start free trial <ArrowRight size={16} aria-hidden /></Link><Link href="/markets" className="btn-secondary">Explore 38 markets</Link></div>
           </div>
-        </div>
-
-        <div className="relative mx-auto mt-10 max-w-[1320px]">
-          <div className="absolute -inset-x-12 bottom-0 top-1/3 rounded-[3rem] bg-brand-400/[0.08] blur-3xl" />
-          <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-surface-900 shadow-[0_42px_110px_-50px_rgba(45,212,191,.48)]">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <div className="flex items-center gap-1.5" aria-hidden><span className="h-2 w-2 rounded-full bg-white/15"/><span className="h-2 w-2 rounded-full bg-white/10"/><span className="h-2 w-2 rounded-full bg-white/10"/></div>
-              <p className="font-mono text-[10px] uppercase tracking-[.16em] text-slate-500">Historical replay · EUR/USD</p>
-              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-brand-200"><span className="h-1.5 w-1.5 rounded-full bg-brand-400"/>Session saved</span>
-            </div>
-            <div className="p-1.5"><div className="overflow-hidden rounded-lg"><ProductDemoVideo webm="/product/replay-controls-demo.webm" mp4="/product/replay-controls-demo.mp4" poster="/product/replay-controls-demo-poster.jpg" alt="ForexTestLab historical replay workspace" width={1280} height={633} /></div></div>
-            <div className="grid gap-px bg-white/10 sm:grid-cols-4">
-              {[["01", "Replay without hindsight"], ["02", "Plan risk before entry"], ["03", "Journal the decision"], ["04", "Review the evidence"]].map(([number, label]) => <div key={number} className="flex items-center gap-3 bg-surface-900 px-4 py-4"><span className="font-mono text-[10px] text-brand-300">{number}</span><p className="text-xs font-medium text-slate-300">{label}</p></div>)}
-            </div>
+          <div className="relative z-10 grid gap-px border-t border-white/10 bg-white/10 sm:grid-cols-3 lg:absolute lg:bottom-6 lg:right-6 lg:flex lg:border-0 lg:bg-transparent">
+            {["Historical replay", "Simulated execution", "Session analytics"].map((label) => <span key={label} className="bg-surface-900/95 px-4 py-3 text-center text-[11px] font-medium text-slate-300 backdrop-blur lg:rounded-lg lg:border lg:border-white/15 lg:bg-surface-950/80">{label}</span>)}
           </div>
         </div>
       </div>

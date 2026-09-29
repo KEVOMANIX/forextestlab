@@ -33,12 +33,35 @@ function AnalyticsPreview() {
 
 export default function FeaturesPage() {
   return <PageShell>
-    <section className="relative overflow-hidden border-b border-white/10 pb-14 pt-16 sm:pb-20 sm:pt-24">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_8%,rgba(69,214,168,.12),transparent_30%),radial-gradient(circle_at_8%_78%,rgba(69,214,168,.06),transparent_28%)]" />
-      <div className="container-page relative"><div className="grid gap-10 lg:grid-cols-[.78fr_1.22fr] lg:items-center lg:gap-14">
-        <div><span className="eyebrow"><Sparkles size={13} aria-hidden />The testing system</span><h1 className="mt-6 max-w-xl text-4xl font-bold leading-[1.05] tracking-[-0.045em] text-white sm:text-6xl">Test the process. <span className="text-brand-300">See the evidence.</span></h1><p className="mt-6 max-w-lg text-base leading-7 text-slate-300 sm:text-lg">ForexTestLab connects market replay, execution, journaling, and analysis so every test produces a record you can learn from.</p><div className="mt-8 flex flex-wrap gap-3"><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary">Start free trial <ArrowRight size={16} aria-hidden /></Link><Link href="/markets" className="btn-secondary">Explore markets</Link></div></div>
-        <div className="relative"><div className="absolute -inset-6 rounded-[2rem] bg-brand-400/10 blur-3xl" /><div className="relative overflow-hidden rounded-2xl border border-brand-400/25 bg-surface-900 p-1.5 shadow-[0_35px_100px_-42px_rgba(45,212,191,.5)]"><div className="overflow-hidden rounded-xl"><ProductDemoVideo webm="/product/replay-controls-demo.webm" mp4="/product/replay-controls-demo.mp4" poster="/product/replay-controls-demo-poster.jpg" alt="ForexTestLab historical replay workspace" width={1280} height={633} /></div><div className="grid gap-px bg-white/10 sm:grid-cols-3">{[["Replay state", "Aug 19, 2020"], ["Risk planned", "1.00%"], ["Journal linked", "46 trades"]].map(([label, value]) => <div key={label} className="bg-surface-900 px-4 py-3"><p className="text-[10px] uppercase tracking-[.16em] text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-slate-200">{value}</p></div>)}</div></div></div>
-      </div></div>
+    <section className="relative overflow-hidden border-b border-white/10 pb-14 pt-12 sm:pb-20 sm:pt-16">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(69,214,168,.11),transparent_38%)]" />
+      <div className="container-page relative">
+        <div className="grid gap-7 border-b border-white/10 pb-10 lg:grid-cols-[1.25fr_.75fr] lg:items-end lg:gap-16">
+          <div>
+            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-brand-300"><Sparkles size={13} aria-hidden />Market replay · execution · review</span>
+            <h1 className="mt-5 max-w-4xl text-4xl font-bold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">Replay the market.<br /><span className="text-slate-300">Review every decision.</span></h1>
+          </div>
+          <div className="lg:pb-1">
+            <p className="max-w-xl text-base leading-7 text-slate-300">Run historical backtests without future data, place simulated trades, and inspect the decisions behind every result.</p>
+            <div className="mt-6 flex flex-wrap gap-3"><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary">Start free trial <ArrowRight size={16} aria-hidden /></Link><Link href="/markets" className="btn-secondary">Browse 38 markets</Link></div>
+          </div>
+        </div>
+
+        <div className="relative mx-auto mt-10 max-w-[1320px]">
+          <div className="absolute -inset-x-12 bottom-0 top-1/3 rounded-[3rem] bg-brand-400/[0.08] blur-3xl" />
+          <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-surface-900 shadow-[0_42px_110px_-50px_rgba(45,212,191,.48)]">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div className="flex items-center gap-1.5" aria-hidden><span className="h-2 w-2 rounded-full bg-white/15"/><span className="h-2 w-2 rounded-full bg-white/10"/><span className="h-2 w-2 rounded-full bg-white/10"/></div>
+              <p className="font-mono text-[10px] uppercase tracking-[.16em] text-slate-500">Historical replay · EUR/USD</p>
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-brand-200"><span className="h-1.5 w-1.5 rounded-full bg-brand-400"/>Session saved</span>
+            </div>
+            <div className="p-1.5"><div className="overflow-hidden rounded-lg"><ProductDemoVideo webm="/product/replay-controls-demo.webm" mp4="/product/replay-controls-demo.mp4" poster="/product/replay-controls-demo-poster.jpg" alt="ForexTestLab historical replay workspace" width={1280} height={633} /></div></div>
+            <div className="grid gap-px bg-white/10 sm:grid-cols-4">
+              {[["01", "Replay without hindsight"], ["02", "Plan risk before entry"], ["03", "Journal the decision"], ["04", "Review the evidence"]].map(([number, label]) => <div key={number} className="flex items-center gap-3 bg-surface-900 px-4 py-4"><span className="font-mono text-[10px] text-brand-300">{number}</span><p className="text-xs font-medium text-slate-300">{label}</p></div>)}
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="workflow" className="scroll-mt-24 border-b border-white/10 py-14 sm:py-20"><div className="container-page"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand-300">One continuous workflow</p><h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">From idea to reviewed evidence.</h2></div><p className="max-w-md text-sm leading-6 text-slate-400">The session keeps the chart state, trades, notes, and results together from the first candle to final review.</p></div><ol className="mt-10 grid overflow-hidden rounded-2xl border border-white/10 bg-white/10 md:grid-cols-4 md:gap-px">{WORKFLOW.map((step, index) => <li key={step.number} className="relative bg-surface-950 p-6 sm:p-7"><span className="font-mono text-xs text-brand-300">{step.number}</span><h3 className="mt-8 text-xl font-semibold text-white">{step.title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{step.text}</p>{index < WORKFLOW.length - 1 && <ArrowRight size={16} className="absolute right-5 top-6 hidden text-slate-600 md:block" aria-hidden />}</li>)}</ol></div></section>

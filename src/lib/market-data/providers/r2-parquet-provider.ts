@@ -368,15 +368,20 @@ export class R2ParquetProvider implements MarketDataProvider {
   async getAvailableSymbols(): Promise<MarketSymbol[]> {
     const config = r2Config();
     const manifest = await loadManifest(config);
-    return SYMBOL_DEFINITIONS.map((definition) => ({
-      symbol: definition.symbol,
-      displayName: definition.displayName,
-      baseCurrency: definition.baseCurrency,
-      quoteCurrency: definition.quoteCurrency,
-      pipSize: definition.pipSize,
-      pricePrecision: definition.pricePrecision,
-      enabled: (manifest.get(definition.symbol)?.length ?? 0) > 0,
-    }));
+    return SYMBOL_DEFINITIONS.map((definition) => {
+      const months = manifest.get(definition.symbol) ?? [];
+      return {
+        symbol: definition.symbol,
+        displayName: definition.displayName,
+        baseCurrency: definition.baseCurrency,
+        quoteCurrency: definition.quoteCurrency,
+        pipSize: definition.pipSize,
+        pricePrecision: definition.pricePrecision,
+        enabled: months.length > 0,
+        availableFromYear: months[0]?.year,
+        availableThroughYear: months[months.length - 1]?.year,
+      };
+    });
   }
 
   async getAvailableRanges(symbol: string): Promise<DataRange[]> {

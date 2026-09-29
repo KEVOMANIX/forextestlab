@@ -28,6 +28,8 @@ export class DemoDataProvider implements MarketDataProvider {
       pipSize: def.pipSize,
       pricePrecision: def.pricePrecision,
       enabled: true,
+      availableFromYear: new Date(DEMO_RANGE_START).getUTCFullYear(),
+      availableThroughYear: new Date(DEMO_RANGE_END).getUTCFullYear(),
     }));
   }
 

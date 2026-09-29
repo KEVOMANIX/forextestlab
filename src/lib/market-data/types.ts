@@ -184,6 +184,9 @@ export interface MarketSymbol {
   pipSize: string;
   pricePrecision: number;
   enabled: boolean;
+  /** Calendar years covered by the provider manifest; no candle file read is required. */
+  availableFromYear?: number;
+  availableThroughYear?: number;
 }
 
 export interface Candle {

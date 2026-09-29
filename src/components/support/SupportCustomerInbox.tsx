@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Headphones, Inbox, Paperclip, Plus, Send } from "lucide-react";
+import { CheckCircle2, Clock3, Headphones, Inbox, MessageSquareText, Paperclip, Plus, Send } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { playSupportChime } from "@/lib/support-sound";
@@ -49,6 +49,22 @@ type Conversation = Omit<Summary, "messages" | "lastMessageAt"> & {
     attachments: Attachment[];
   }>;
 };
+
+function shortDate(value: string): string {
+  const date = new Date(value);
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) {
+    return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+  }
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+}
+
+function statusLabel(status: string): string {
+  if (status === "resolved" || status === "closed") return "Closed";
+  if (status === "waiting_customer") return "Your reply";
+  if (status === "waiting_agent") return "With support";
+  return "Open";
+}
 
 export function SupportCustomerInbox({
   initialConversations,
@@ -243,13 +259,11 @@ export function SupportCustomerInbox({
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="mx-auto max-w-[1320px] px-4 py-6 sm:px-6 sm:py-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Support</h1>
-          <p className="mt-1.5 text-sm app-muted">
-            Message the team. Replies land here and in your email.
-          </p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-300">Help center</p>
+          <h1 className="mt-1.5 text-3xl font-bold tracking-tight">Your conversations</h1>
         </div>
         <button
           type="button"
@@ -259,60 +273,77 @@ export function SupportCustomerInbox({
             setInput("");
             setError("");
           }}
-          className="btn-primary px-4 py-2.5 text-xs"
+          className="btn-primary h-10 px-4 text-xs"
         >
-          <Plus size={15} aria-hidden /> New message
+          <Plus size={15} aria-hidden /> New conversation
         </button>
       </div>
 
-      <section className="mt-6 grid overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] lg:h-[min(680px,calc(100dvh-13rem))] lg:grid-cols-[280px_1fr]">
-        <aside className="flex max-h-52 min-h-0 flex-col border-b app-border lg:max-h-none lg:border-b-0 lg:border-r">
+      <section className="mt-6 grid overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-card lg:h-[min(720px,calc(100dvh-12.5rem))] lg:min-h-[560px] lg:grid-cols-[320px_1fr]">
+        <aside className="flex max-h-64 min-h-0 flex-col border-b app-border bg-[var(--app-panel-2)]/35 lg:max-h-none lg:border-b-0 lg:border-r">
+          <div className="flex shrink-0 items-center justify-between border-b app-border px-5 py-4">
+            <div>
+              <p className="text-sm font-semibold">Inbox</p>
+              <p className="mt-0.5 text-[11px] app-muted">{conversations.length} conversation{conversations.length === 1 ? "" : "s"}</p>
+            </div>
+            <span className="grid h-9 w-9 place-items-center rounded-xl border app-border bg-[var(--app-panel)] text-brand-300"><Inbox size={16} aria-hidden /></span>
+          </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {conversations.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => openConversation(item.id)}
-                className={`block w-full border-b app-border px-4 py-3.5 text-left transition-colors ${
+                className={`relative block w-full border-b app-border px-5 py-4 text-left transition-colors ${
                   selectedId === item.id && !composing
-                    ? "bg-brand-400/[0.07]"
-                    : "hover:bg-white/[0.03]"
+                    ? "bg-brand-400/[0.10]"
+                    : "hover:bg-brand-400/[0.04]"
                 }`}
               >
-                <div className="flex items-center gap-2">
+                {selectedId === item.id && !composing && <span className="absolute inset-y-3 left-0 w-0.5 rounded-r bg-brand-400" />}
+                <div className="flex items-center gap-2.5">
                   <strong className="min-w-0 flex-1 truncate text-sm">
                     {item.subject}
                   </strong>
+                  <span className="shrink-0 text-[10px] app-muted">{shortDate(item.lastMessageAt)}</span>
                   {item.customerUnreadCount > 0 && (
-                    <span className="rounded-full bg-brand-500 px-1.5 text-[9px] font-bold text-surface-950">
+                    <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-brand-500 px-1 text-[9px] font-bold text-surface-950">
                       {item.customerUnreadCount}
                     </span>
                   )}
                 </div>
-                <p className="mt-1.5 truncate text-xs app-muted">
+                <p className="mt-1.5 truncate text-xs leading-5 app-muted">
                   {item.messages[0]?.body}
                 </p>
+                <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-brand-300">{statusLabel(item.status)}</p>
               </button>
             ))}
             {!conversations.length && (
               <div className="px-5 py-12 text-center">
                 <Inbox size={22} className="mx-auto text-brand-300" aria-hidden />
-                <p className="mt-3 text-xs app-muted">No messages yet.</p>
+                <p className="mt-3 text-sm font-semibold">No conversations</p>
+                <p className="mt-1 text-xs app-muted">Start one when you need help.</p>
               </div>
             )}
           </div>
         </aside>
 
         {composing ? (
-          <div className="min-h-0 overflow-y-auto p-6 sm:p-8">
-            <h2 className="text-lg font-semibold">How can we help?</h2>
-            <div className="mt-5 max-w-xl space-y-3">
+          <div className="min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_100%_0%,rgba(69,214,168,.08),transparent_32%)] p-6 sm:p-9">
+            <div className="max-w-2xl">
+              <span className="grid h-11 w-11 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><MessageSquareText size={20} aria-hidden /></span>
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight">Start a conversation</h2>
+              <p className="mt-2 text-sm app-muted">Describe the issue and include the result you expected.</p>
+            </div>
+            <div className="mt-6 max-w-2xl space-y-4">
+              <label className="block"><span className="mb-1.5 block text-xs font-semibold">Subject</span>
               <input
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
-                placeholder="Subject"
+                placeholder="A short summary"
                 className="app-input w-full py-3 text-sm"
-              />
+              /></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-semibold">Topic</span>
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
@@ -324,15 +355,16 @@ export function SupportCustomerInbox({
                     {label}
                   </option>
                 ))}
-              </select>
+              </select></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-semibold">Message</span>
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                rows={8}
+                rows={7}
                 maxLength={4_000}
                 placeholder="What’s happening, and what did you expect?"
                 className="app-input w-full resize-none text-sm"
-              />
+              /></label>
               {error && (
                 <p role="alert" className="text-xs text-loss">
                   {error}
@@ -344,27 +376,31 @@ export function SupportCustomerInbox({
                 disabled={busy || !subject.trim() || !input.trim()}
                 className="btn-primary px-5 py-3 text-sm"
               >
-                <Send size={15} aria-hidden /> {busy ? "Sending…" : "Send message"}
+                <Send size={15} aria-hidden /> {busy ? "Sending…" : "Start conversation"}
               </button>
             </div>
           </div>
         ) : conversation ? (
-          <div className="flex min-h-[60vh] flex-col lg:min-h-0">
-            <header className="flex shrink-0 items-center gap-3 border-b app-border px-5 py-3.5">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-400/10 text-brand-300">
+          <div className="flex min-h-[62vh] flex-col bg-[radial-gradient(circle_at_100%_0%,rgba(69,214,168,.06),transparent_28%)] lg:min-h-0">
+            <header className="flex shrink-0 items-center gap-3 border-b app-border bg-[var(--app-panel)]/85 px-5 py-4 sm:px-6">
+              <span className="grid h-10 w-10 place-items-center rounded-xl border border-brand-400/20 bg-brand-400/10 text-brand-300">
                 <Headphones size={17} aria-hidden />
               </span>
               <div className="min-w-0">
                 <h2 className="truncate font-semibold">{conversation.subject}</h2>
-                <p className="mt-0.5 text-[11px] app-muted">
+                <div className="mt-1 flex items-center gap-2 text-[11px] app-muted">
+                  <span className={`h-1.5 w-1.5 rounded-full ${closed ? "bg-[var(--app-muted)]" : "bg-brand-400"}`} />
+                  <span>
                   {conversation.assignedAgentName
-                    ? `${conversation.assignedAgentName} is on this conversation`
-                    : "With the support team"}
-                </p>
+                    ? conversation.assignedAgentName
+                    : statusLabel(conversation.status)}
+                  </span>
+                </div>
               </div>
+              <span className="ml-auto rounded-full border app-border bg-[var(--app-panel-2)] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] app-muted">{statusLabel(conversation.status)}</span>
             </header>
             <div
-              className="min-h-0 flex-1 space-y-2.5 overflow-y-auto p-5"
+              className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-6 sm:px-7"
               aria-live="polite"
             >
               {conversation.messages.map((message) => (
@@ -372,11 +408,12 @@ export function SupportCustomerInbox({
                   key={message.id}
                   className={`flex ${message.senderType === "customer" ? "justify-end" : "justify-start"}`}
                 >
-                  <div
-                    className={`max-w-[76%] rounded-2xl px-4 py-2.5 text-sm leading-6 ${
+                  <div className={`max-w-[82%] sm:max-w-[70%] ${message.senderType === "customer" ? "text-right" : "text-left"}`}>
+                    <div
+                    className={`inline-block rounded-2xl px-4 py-3 text-left text-sm leading-6 shadow-sm ${
                       message.senderType === "customer"
                         ? "rounded-br-md bg-brand-500 text-surface-950"
-                        : "rounded-bl-md bg-white/[0.06]"
+                        : "rounded-bl-md border app-border bg-[var(--app-panel-2)]"
                     }`}
                   >
                     {message.senderType !== "customer" && (
@@ -394,24 +431,20 @@ export function SupportCustomerInbox({
                         {attachment.fileName}
                       </a>
                     ))}
+                    </div>
+                    <p className="mt-1.5 px-1 text-[10px] app-muted">{shortDate(message.createdAt)}</p>
                   </div>
                 </div>
               ))}
               {!conversation.assignedAgentName && !closed && (
-                <div className="rounded-xl border app-border px-4 py-3 text-center">
-                  <span className="mx-auto block h-2 w-2 animate-pulse-soft rounded-full bg-brand-400 motion-reduce:animate-none" />
-                  <p className="mt-2 text-xs font-semibold">
-                    Waiting for a support agent to join
-                  </p>
-                  <p className="mt-1 text-[11px] app-muted">
-                    You can leave this page. Replies arrive here and by email.
-                  </p>
+                <div className="mx-auto flex max-w-md items-center justify-center gap-2 rounded-full border app-border bg-[var(--app-panel)] px-4 py-2 text-[11px] app-muted">
+                  <Clock3 size={13} className="text-brand-300" aria-hidden /> Awaiting support response
                 </div>
               )}
               <div ref={endRef} />
             </div>
             {closed ? (
-              <div className="shrink-0 border-t app-border p-4">
+              <div className="shrink-0 border-t app-border bg-[var(--app-panel)] p-4">
                 <div className="flex items-center gap-3 rounded-xl border app-border px-4 py-3">
                   <CheckCircle2 size={16} aria-hidden className="shrink-0 text-brand-300" />
                   <p className="min-w-0 flex-1 text-xs app-muted">
@@ -432,7 +465,7 @@ export function SupportCustomerInbox({
                 </div>
               </div>
             ) : (
-            <div className="shrink-0 border-t app-border p-4">
+            <div className="shrink-0 border-t app-border bg-[var(--app-panel)] p-4 sm:px-6">
               {error && (
                 <p role="alert" className="mb-2 text-xs text-loss">
                   {error}
@@ -490,7 +523,7 @@ export function SupportCustomerInbox({
                   rows={2}
                   maxLength={4_000}
                   disabled={closed}
-                  placeholder={closed ? "This conversation is closed" : "Reply…"}
+                  placeholder={closed ? "This conversation is closed" : "Write a reply…"}
                   className="app-input min-w-0 flex-1 resize-none text-sm"
                 />
                 <button
@@ -507,7 +540,7 @@ export function SupportCustomerInbox({
           </div>
         ) : (
           <div className="grid place-items-center p-10 text-center">
-            <p className="text-sm app-muted">Loading…</p>
+            <div><span className="mx-auto block h-2.5 w-2.5 animate-pulse-soft rounded-full bg-brand-400 motion-reduce:animate-none" /><p className="mt-3 text-sm app-muted">Opening conversation…</p></div>
           </div>
         )}
       </section>

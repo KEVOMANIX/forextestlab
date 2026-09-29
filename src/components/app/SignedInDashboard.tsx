@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Clock3, Flame, ListChecks, Play, Target, TrendingUp } from "lucide-react";
+import { Clock3, Flame, ListChecks, Play, Target } from "lucide-react";
 import { DashboardSessionsTable, type DashboardSessionRow } from "@/components/app/DashboardSessionsTable";
 import { replayDayPercent } from "@/lib/backtest/replay-progress";
 import { formatNewYorkDate } from "@/lib/date-time";
@@ -136,15 +136,13 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
 
               <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Closed trades</p><p className="mt-5 font-mono text-[1.65rem] font-semibold leading-none tracking-tight text-[var(--app-text)]">{metrics.closedTradesThisWeek}</p><p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">This week</p></div><span className="grid h-9 w-9 place-items-center rounded-lg border app-border bg-brand-400/10 text-brand-300"><ListChecks size={17} aria-hidden /></span></div></article>
 
-              <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:col-span-2 xl:col-span-2">
-                <div className="grid h-full gap-4 sm:grid-cols-[.78fr_1.22fr] sm:items-center">
-                  <div className="flex items-center justify-between gap-4 sm:border-r sm:pr-5 app-border"><div><p className="text-xs font-semibold app-muted">Win rate</p><p className="mt-2 font-mono text-2xl font-semibold leading-none text-profit">{metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`}</p><p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.12em] app-muted">{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades"}</p></div><Target size={19} className="text-brand-300" aria-hidden /></div>
-                  <div><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Recent record</p><p className="mt-1 font-mono text-lg font-semibold text-[var(--app-text)]"><span className="text-profit">{metrics.winningTrades}</span><span className="mx-1.5 app-muted">—</span><span className="text-loss">{metrics.losingTrades}</span></p></div><TrendingUp size={17} className="text-brand-300" aria-hidden /></div>
-                    <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-[var(--app-panel-2)]" aria-label={`${metrics.winningTrades} wins and ${metrics.losingTrades} losses`}>
+              <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:col-span-2 sm:p-5 xl:col-span-2">
+                <div className="flex h-full flex-col justify-center">
+                  <div className="flex items-end justify-between gap-5"><div><p className="text-xs font-semibold app-muted">Recent results</p><div className="mt-2 flex items-baseline gap-2"><p className="font-mono text-2xl font-semibold leading-none text-[var(--app-text)]">{metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`}</p><span className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">win rate</span></div></div><Target size={19} className="text-brand-300" aria-hidden /></div>
+                    <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-[var(--app-panel-2)]" aria-label={`${metrics.winningTrades} wins and ${metrics.losingTrades} losses`}>
                       {outcomes ? <><span className="h-full bg-profit" style={{ width: `${winShare}%` }} /><span className="h-full bg-loss" style={{ width: `${lossShare}%` }} /></> : <span className="h-full w-full bg-[var(--app-border)]" />}
                     </div>
-                    <div className="mt-2 flex justify-between text-[9px] font-semibold uppercase tracking-[0.11em]"><span className="text-profit">{metrics.winningTrades} wins</span><span className="text-loss">{metrics.losingTrades} losses</span></div>
-                  </div>
+                    <div className="mt-2 flex justify-between text-[9px] font-semibold uppercase tracking-[0.11em]"><span className="text-profit">{metrics.winningTrades} wins</span><span className="app-muted">{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades"}</span><span className="text-loss">{metrics.losingTrades} losses</span></div>
                 </div>
               </article>
             </div>

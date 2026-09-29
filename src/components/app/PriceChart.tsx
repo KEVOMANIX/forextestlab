@@ -4641,18 +4641,12 @@ export default function PriceChart({
                     BE
                   </button>
                 )}
-                <span className="h-full border-r app-border bg-[#2962ff] px-1.5 font-mono font-bold leading-5 text-white">
-                  ACTIVE · {position.lots}
+                <span className="h-full border-r app-border bg-[#2962ff] px-1.5 font-mono font-bold leading-5 text-white" title={`${position.lots} lots`}>
+                  {position.lots}
                 </span>
-                <span className={`h-full min-w-[132px] border-r app-border px-1.5 font-mono font-bold leading-5 ${positive ? "text-profit" : "text-loss"}`}>
+                <span title={`${Number(position.unrealizedPnl) >= 0 ? "+" : "−"}${Math.abs(Number(position.unrealizedPnl)).toFixed(2)} ${accountCurrency}${livePips == null ? "" : ` · ${livePips >= 0 ? "+" : ""}${livePips.toFixed(1)} pips`}${liveR == null ? "" : ` · ${liveR >= 0 ? "+" : ""}${liveR.toFixed(2)}R`}`} className={`h-full min-w-[62px] border-r app-border px-1.5 font-mono font-bold leading-5 ${positive ? "text-profit" : "text-loss"}`}>
                   {Number(position.unrealizedPnl) >= 0 ? "+" : "−"}
-                  {Math.abs(Number(position.unrealizedPnl)).toFixed(2)} {accountCurrency}
-                  {livePips == null
-                    ? ""
-                    : ` · ${livePips >= 0 ? "+" : ""}${livePips.toFixed(1)}p`}
-                  {liveR == null
-                    ? ""
-                    : ` · ${liveR >= 0 ? "+" : ""}${liveR.toFixed(2)}R`}
+                  {Math.abs(Number(position.unrealizedPnl)).toFixed(2)}
                 </span>
                 <button type="button" onClick={() => onEditPosition(position.id)} className="grid h-full w-5 place-items-center hover:bg-loss/15 hover:text-loss" aria-label={`Manage ${isLong ? "buy" : "sell"} position`}>
                   <X size={12} aria-hidden />
@@ -4771,7 +4765,7 @@ export default function PriceChart({
           >
             <span className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-amber-400 bg-[var(--app-panel-solid)] font-mono text-[9px] font-bold shadow-lg">
               <span className="h-full border-r border-amber-400/50 bg-amber-400/10 px-1.5 leading-5 text-amber-400">
-                {activePosition?.trailingStopPips ? "TRAIL" : "ACTIVE SL"} · {activePosition?.lots ?? "—"}
+                {activePosition?.trailingStopPips ? "TRAIL" : "SL"} · {activePosition?.lots ?? "—"}
               </span>
               <span className="h-full min-w-[88px] border-r border-amber-400/50 px-1.5 leading-5 text-amber-400">
                 {signedAccountValue(
@@ -4823,7 +4817,7 @@ export default function PriceChart({
           >
             <span className="absolute right-1 -top-2.5 flex h-5 items-center overflow-hidden rounded border border-brand-400 bg-[var(--app-panel-solid)] font-mono text-[9px] font-bold shadow-lg">
               <span className="h-full border-r border-brand-400/50 bg-brand-400/10 px-1.5 leading-5 text-brand-300">
-                ACTIVE TP · {activePosition?.lots ?? "—"}
+                TP · {activePosition?.lots ?? "—"}
               </span>
               <span className="h-full min-w-[72px] border-r border-brand-400/50 px-1.5 leading-5 text-brand-300">
                 {signedAccountValue(

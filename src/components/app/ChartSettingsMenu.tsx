@@ -269,9 +269,9 @@ export function ChartSettingsDialog({
   const openedAt = useRef(Date.now()).current;
   const zones = useMemo(() => zoneOptionsAt(openedAt), [openedAt]);
 
-  const surface = theme === "dark" ? "#111725" : "#f8fafc";
-  const inset = theme === "dark" ? "#0b0f1a" : "#eef2f6";
-  const line = theme === "dark" ? "rgba(255,255,255,0.10)" : "#cfd7e3";
+  const surface = theme === "dark" ? "#1e302a" : "#ffffff";
+  const inset = theme === "dark" ? "#16241f" : "#eef5f1";
+  const line = theme === "dark" ? "rgba(123,232,196,0.14)" : "#c2d6cc";
 
   return createPortal(
     <div
@@ -294,7 +294,7 @@ export function ChartSettingsDialog({
           {
             backgroundColor: surface,
             borderColor: line,
-            color: theme === "dark" ? "#e6ecf7" : "#0f172a",
+            color: theme === "dark" ? "#f4fff9" : "#10231c",
             "--focus-ring-offset": surface,
           } as React.CSSProperties
         }

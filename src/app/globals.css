@@ -7,11 +7,11 @@
     color-scheme: dark;
     --trade-profit-rgb: 34 197 94;
     --trade-loss-rgb: 240 91 103;
-    --trade-entry-rgb: 96 165 250;
+    --trade-entry-rgb: 69 214 168;
     --trade-exit-rgb: 251 191 36;
     /* Colour the focus ring's gap is punched out of. The app shell overrides it
        per theme so light mode doesn't draw a dark halo around focused controls. */
-    --focus-ring-offset: #030712;
+    --focus-ring-offset: #101a17;
   }
 
   html {
@@ -82,25 +82,25 @@
 @layer components {
   .app-shell,
   .app-theme-surface {
-    --app-bg: #030712;
-    --app-sidebar: #071a36;
-    --app-panel: #0a2040;
-    --app-panel-solid: #0a2040;
-    --app-panel-2: #0d2a52;
-    --app-border: #1d4e89;
-    --app-text: #f8fbff;
-    --app-muted: #b5d5f5;
+    --app-bg: #101a17;
+    --app-sidebar: #16241f;
+    --app-panel: #1e302a;
+    --app-panel-solid: #1e302a;
+    --app-panel-2: #294038;
+    --app-border: #3c5b50;
+    --app-text: #f4fff9;
+    --app-muted: #aac8bc;
     /*
      * Brand colour for text. `brand-300` reads well on a dark panel but drops to
      * about 1.9:1 on a light one, so accented text uses this instead of a fixed
      * shade and darkens with the light theme.
      */
-    --app-accent-text: #bae6fd;
-    --app-accent-wash: rgba(14, 165, 233, 0.18);
-    --app-accent: #0ea5e9;
-    --app-accent-hover: #38bdf8;
-    --app-accent-ink: #030712;
-    --app-accent-rgb: 14 165 233;
+    --app-accent-text: #7be8c4;
+    --app-accent-wash: rgb(69 214 168 / 0.16);
+    --app-accent: #45d6a8;
+    --app-accent-hover: #7be8c4;
+    --app-accent-ink: #092019;
+    --app-accent-rgb: 69 214 168;
     --app-profit-text: rgb(var(--trade-profit-rgb));
     --app-loss-text: rgb(var(--trade-loss-rgb));
     --app-entry-text: rgb(var(--trade-entry-rgb));
@@ -110,12 +110,12 @@
     --app-warn-text: #fcd34d;
     --app-warn-wash: rgba(251, 191, 36, 0.15);
     --app-danger-text: #f8717d;
-    --app-info-text: #bae6fd;
-    --app-blue-text: #bae6fd;
+    --app-info-text: #7be8c4;
+    --app-blue-text: #7be8c4;
     --app-subtle: rgba(255, 255, 255, 0.05);
     --app-hover: rgba(255, 255, 255, 0.08);
     --app-strong-line: rgba(255, 255, 255, 0.24);
-    --focus-ring-offset: #030712;
+    --focus-ring-offset: #101a17;
     /*
      * Ink for text drawn *on* the chart — axis labels, the legend, indicator
      * chips. It sits on the plot rather than on a panel, competing with candles
@@ -140,50 +140,6 @@
     /* Colour "sell" is drawn in; "buy" uses the brand accent. */
     color-scheme: dark;
     color: var(--app-text);
-  }
-
-  /* Temporary A/B palette preview. These two classes are intentionally
-     isolated so the losing option and switcher can be removed cleanly. */
-  .app-shell.palette-a:not(.light),
-  html[data-app-palette="a"] .app-theme-surface:not(.light) {
-    --app-bg: #171717;
-    --app-sidebar: #20201e;
-    --app-panel: #292925;
-    --app-panel-solid: #292925;
-    --app-panel-2: #33332e;
-    --app-border: #494942;
-    --app-text: #fffdf7;
-    --app-muted: #c2beb2;
-    --app-accent-text: #ffd275;
-    --app-accent-wash: rgb(245 185 66 / 0.16);
-    --app-accent: #f5b942;
-    --app-accent-hover: #ffd275;
-    --app-accent-ink: #211a0b;
-    --app-accent-rgb: 245 185 66;
-    --app-info-text: #ffd275;
-    --app-blue-text: #ffd275;
-    --focus-ring-offset: #171717;
-  }
-
-  .app-shell.palette-b:not(.light),
-  html[data-app-palette="b"] .app-theme-surface:not(.light) {
-    --app-bg: #101a17;
-    --app-sidebar: #16241f;
-    --app-panel: #1e302a;
-    --app-panel-solid: #1e302a;
-    --app-panel-2: #294038;
-    --app-border: #3c5b50;
-    --app-text: #f4fff9;
-    --app-muted: #aac8bc;
-    --app-accent-text: #7be8c4;
-    --app-accent-wash: rgb(69 214 168 / 0.16);
-    --app-accent: #45d6a8;
-    --app-accent-hover: #7be8c4;
-    --app-accent-ink: #092019;
-    --app-accent-rgb: 69 214 168;
-    --app-info-text: #7be8c4;
-    --app-blue-text: #7be8c4;
-    --focus-ring-offset: #101a17;
   }
 
   .app-shell {
@@ -255,42 +211,42 @@
   .app-theme-surface.light {
     --trade-profit-rgb: 21 128 61;
     --trade-loss-rgb: 190 35 54;
-    --trade-entry-rgb: 29 78 216;
+    --trade-entry-rgb: 15 118 94;
     --trade-exit-rgb: 146 97 10;
-    --app-bg: #eef2f6;
-    --app-sidebar: #f8fafc;
-    --app-panel: #f8fafc;
-    --app-panel-solid: #f8fafc;
-    --app-panel-2: #e8edf3;
-    --app-border: #cfd7e3;
-    --app-text: #0b1220;
-    --app-muted: #506078;
-    --app-accent-text: #1d4ed8;
-    --app-accent-wash: rgba(37, 99, 235, 0.14);
-    --app-accent: #2563eb;
-    --app-accent-hover: #3b82f6;
+    --app-bg: #eef5f1;
+    --app-sidebar: #f7faf8;
+    --app-panel: #ffffff;
+    --app-panel-solid: #ffffff;
+    --app-panel-2: #e4efe9;
+    --app-border: #c2d6cc;
+    --app-text: #10231c;
+    --app-muted: #52675f;
+    --app-accent-text: #08785f;
+    --app-accent-wash: rgb(15 159 125 / 0.13);
+    --app-accent: #0f9f7d;
+    --app-accent-hover: #0c8066;
     --app-accent-ink: #ffffff;
-    --app-accent-rgb: 37 99 235;
+    --app-accent-rgb: 15 159 125;
     --app-warn-text: #92610a;
     --app-warn-wash: rgba(180, 130, 10, 0.14);
     --app-danger-text: #b4233c;
-    --app-info-text: #0369a1;
-    --app-blue-text: #1d4ed8;
+    --app-info-text: #08785f;
+    --app-blue-text: #08785f;
     --app-subtle: rgba(15, 23, 42, 0.07);
     --app-hover: rgba(15, 23, 42, 0.10);
     --app-strong-line: rgba(15, 23, 42, 0.24);
-    --focus-ring-offset: #eef2f6;
-    --chart-text: #0b1220;
-    --chart-muted: #46536b;
-    --ticket-bg: #f8fafc;
-    --ticket-surface: #eef2f6;
-    --ticket-raised: #e3e9f1;
-    --ticket-track: #cfd8e5;
-    --ticket-border: #cbd4e1;
-    --ticket-field-border: #b4bfd2;
-    --ticket-text: #0b1220;
-    --ticket-muted: #4a566d;
-    --ticket-subtle: #5d6a82;
+    --focus-ring-offset: #eef5f1;
+    --chart-text: #10231c;
+    --chart-muted: #4f665d;
+    --ticket-bg: #f7faf8;
+    --ticket-surface: #eef5f1;
+    --ticket-raised: #e4efe9;
+    --ticket-track: #cedfd6;
+    --ticket-border: #c2d6cc;
+    --ticket-field-border: #a8c2b5;
+    --ticket-text: #10231c;
+    --ticket-muted: #4f665d;
+    --ticket-subtle: #62786f;
     color-scheme: light;
   }
 

@@ -73,7 +73,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#070a12",
+  themeColor: "#101a17",
   // The marketing site is dark, but the signed-in app has a light theme, so the
   // document must not advertise itself as dark-only or native controls inside
   // the light shell keep rendering with a dark UA palette.

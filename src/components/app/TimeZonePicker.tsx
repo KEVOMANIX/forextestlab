@@ -150,13 +150,13 @@ export function TimeZonePicker({
               maxHeight: PANEL_MAX_HEIGHT,
               left: Math.max(8, Math.min(anchor.x - PANEL_WIDTH, window.innerWidth - PANEL_WIDTH - 8)),
               top: Math.max(8, anchor.y - Math.min(PANEL_MAX_HEIGHT, window.innerHeight - 16)),
-              backgroundColor: theme === "dark" ? "#111725" : "#f8fafc",
-              borderColor: theme === "dark" ? "rgba(255,255,255,0.10)" : "#cfd7e3",
-              color: theme === "dark" ? "#e6ecf7" : "#0f172a",
+              backgroundColor: theme === "dark" ? "#1e302a" : "#ffffff",
+              borderColor: theme === "dark" ? "rgba(123,232,196,0.14)" : "#c2d6cc",
+              color: theme === "dark" ? "#f4fff9" : "#10231c",
               // The focus ring punches its gap out of this panel, not the page
               // behind it — without this the search field draws a dark halo on
               // the light theme, since the shell's variable can't reach a portal.
-              "--focus-ring-offset": theme === "dark" ? "#111725" : "#f8fafc",
+              "--focus-ring-offset": theme === "dark" ? "#1e302a" : "#ffffff",
             } as React.CSSProperties}
           >
             <div className="px-2 pb-1.5 pt-1">
@@ -167,7 +167,7 @@ export function TimeZonePicker({
                 placeholder="Search city or offset…"
                 aria-label="Search time zones"
                 className="w-full rounded border bg-transparent px-2 py-1 text-xs outline-none focus:border-brand-400"
-                style={{ borderColor: theme === "dark" ? "rgba(255,255,255,0.14)" : "#cfd7e3" }}
+                style={{ borderColor: theme === "dark" ? "rgba(123,232,196,0.18)" : "#c2d6cc" }}
               />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">

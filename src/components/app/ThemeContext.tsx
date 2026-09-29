@@ -20,18 +20,12 @@ import {
 interface ThemeContextValue {
   theme: Theme;
   toggle: () => void;
-  palette: "a" | "b";
-  selectPalette: (palette: "a" | "b") => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: "dark",
   toggle: () => {},
-  palette: "a",
-  selectPalette: () => {},
 });
-
-const PALETTE_STORAGE_KEY = "forextestlab:palette-preview";
 
 function persist(theme: Theme) {
   // The cookie is what the server reads to render the right palette on the first
@@ -53,7 +47,6 @@ export function AppThemeProvider({
   initialTheme?: Theme | null;
 }) {
   const [theme, setTheme] = useState<Theme>(initialTheme ?? "dark");
-  const [palette, setPalette] = useState<"a" | "b">("a");
 
   useEffect(() => {
     // Only consult localStorage for visitors who have no cookie yet. Once the
@@ -71,20 +64,6 @@ export function AppThemeProvider({
     }
   }, [initialTheme]);
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(PALETTE_STORAGE_KEY);
-      if (stored === "a" || stored === "b") setPalette(stored);
-    } catch {
-      // Preview preference is optional.
-    }
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.appPalette = palette;
-    return () => { delete document.documentElement.dataset.appPalette; };
-  }, [palette]);
-
   const toggle = useCallback(() => {
     setTheme((previous) => {
       const next = previous === "dark" ? "light" : "dark";
@@ -93,18 +72,9 @@ export function AppThemeProvider({
     });
   }, []);
 
-  const selectPalette = useCallback((next: "a" | "b") => {
-    setPalette(next);
-    try {
-      window.localStorage.setItem(PALETTE_STORAGE_KEY, next);
-    } catch {
-      // Preview preference is optional.
-    }
-  }, []);
-
   return (
-    <ThemeContext.Provider value={{ theme, toggle, palette, selectPalette }}>
-      <div className={`app-shell palette-${palette} flex min-h-[100dvh] flex-col ${theme === "light" ? "light" : ""}`}>
+    <ThemeContext.Provider value={{ theme, toggle }}>
+      <div className={`app-shell flex min-h-[100dvh] flex-col ${theme === "light" ? "light" : ""}`}>
         {children}
       </div>
     </ThemeContext.Provider>

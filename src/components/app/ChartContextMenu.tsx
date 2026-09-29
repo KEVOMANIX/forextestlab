@@ -98,7 +98,7 @@ export function ChartContextMenu({
     position.y,
     Math.max(EDGE_GAP, window.innerHeight - height - EDGE_GAP),
   );
-  const surface = theme === "dark" ? "#161b28" : "#f8fafc";
+  const surface = theme === "dark" ? "#1e302a" : "#ffffff";
 
   return createPortal(
     <div
@@ -121,8 +121,8 @@ export function ChartContextMenu({
           top,
           width: MENU_WIDTH,
           backgroundColor: surface,
-          borderColor: theme === "dark" ? "rgba(255,255,255,0.12)" : "#cfd7e3",
-          color: theme === "dark" ? "#ffffff" : "#0f172a",
+          borderColor: theme === "dark" ? "rgba(123,232,196,0.14)" : "#c2d6cc",
+          color: theme === "dark" ? "#f4fff9" : "#10231c",
           "--focus-ring-offset": surface,
         } as React.CSSProperties
       }
@@ -136,7 +136,7 @@ export function ChartContextMenu({
                 className="my-1.5 border-t"
                 style={{
                   borderColor:
-                    theme === "dark" ? "rgba(255,255,255,0.10)" : "#dce3eb",
+                    theme === "dark" ? "rgba(123,232,196,0.12)" : "#e4efe9",
                 }}
               />
             )}

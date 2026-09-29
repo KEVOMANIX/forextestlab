@@ -382,18 +382,18 @@ interface Palette {
 
 const PALETTES: Record<"dark" | "light", Palette> = {
   dark: {
-    background: "#0b0f1a",
-    text: "#93a1b8",
-    axisText: "#ffffff",
+    background: "#14231e",
+    text: "#aac8bc",
+    axisText: "#f4fff9",
     grid: "rgba(255,255,255,0.05)",
-    border: "rgba(255,255,255,0.10)",
+    border: "rgba(123,232,196,0.14)",
   },
   light: {
-    background: "#f4f7fa",
-    text: "#566179",
-    axisText: "#0b1220",
-    grid: "rgba(15,23,42,0.06)",
-    border: "#cfd7e3",
+    background: "#f7faf8",
+    text: "#52675f",
+    axisText: "#10231c",
+    grid: "rgba(16,35,28,0.07)",
+    border: "#c2d6cc",
   },
 };
 
@@ -3636,7 +3636,7 @@ export default function PriceChart({
   const legendChange = legend && legend.kind === "ohlc" ? legend.c - legend.o : null;
   // Portaled popovers live outside `.app-shell`, so the scoped CSS var doesn't
   // reach them — use an explicit solid colour keyed to the theme.
-  const solidPanel = theme === "dark" ? "#111725" : "#f8fafc";
+  const solidPanel = theme === "dark" ? "#1e302a" : "#ffffff";
 
   // Chart controls (timeframes + chart type + indicators). Rendered into the top
   // header via a portal when a slot is provided, otherwise docked above the chart.

@@ -5,30 +5,30 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Dark fintech surface palette
+        // Deep Forest + Mint: shared by the marketing site and app workspace.
         surface: {
-          950: "#030712",
-          900: "#061020",
-          800: "#0a2040",
-          700: "#0d2a52",
-          600: "#123e70",
+          950: "#101a17",
+          900: "#16241f",
+          800: "#1e302a",
+          700: "#294038",
+          600: "#3c5b50",
         },
         brand: {
-          50: "#f0f9ff",
-          100: "#e0f2fe",
-          200: "#bae6fd",
-          300: "#7dd3fc",
-          400: "#38bdf8",
-          500: "#0ea5e9",
-          600: "#0284c7",
-          700: "#0369a1",
-          800: "#075985",
-          900: "#0c4a6e",
+          50: "#ecfdf7",
+          100: "#d2faeb",
+          200: "#bdf6e3",
+          300: "#9af0d4",
+          400: "#7be8c4",
+          500: "#45d6a8",
+          600: "#27aa82",
+          700: "#178064",
+          800: "#11664f",
+          900: "#0f4f40",
         },
         accent: {
-          400: "#bae6fd",
-          500: "#7dd3fc",
-          600: "#38bdf8",
+          400: "#9af0d4",
+          500: "#7be8c4",
+          600: "#45d6a8",
         },
         profit: "rgb(var(--trade-profit-rgb) / <alpha-value>)",
         loss: "rgb(var(--trade-loss-rgb) / <alpha-value>)",
@@ -41,7 +41,7 @@ const config: Config = {
         // threshold, and it carries real content (the risk warning, price
         // intervals, the trial qualifier). Lifted just far enough to clear it
         // with margin on every panel shade, dark through surface-700.
-        slate: { 500: "#8593a6" },
+        slate: { 500: "#91a89f" },
       },
       fontFamily: {
         // Do not put an undefined custom property first here. When --font-sans
@@ -68,10 +68,10 @@ const config: Config = {
         "grid-faint":
           "linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px)",
         "radial-brand":
-          "radial-gradient(60% 60% at 50% 0%, rgba(14,165,233,0.16) 0%, rgba(14,165,233,0) 70%)",
+          "radial-gradient(60% 60% at 50% 0%, rgba(69,214,168,0.16) 0%, rgba(69,214,168,0) 70%)",
       },
       boxShadow: {
-        glow: "0 0 0 1px rgba(14,165,233,0.2), 0 20px 60px -20px rgba(14,165,233,0.35)",
+        glow: "0 0 0 1px rgba(69,214,168,0.2), 0 20px 60px -20px rgba(69,214,168,0.32)",
         card: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 20px 50px -30px rgba(0,0,0,0.8)",
       },
       keyframes: {

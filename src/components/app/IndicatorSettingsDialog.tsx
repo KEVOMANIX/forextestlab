@@ -6,7 +6,6 @@ import { Crosshair, RotateCcw, X } from "lucide-react";
 import { formatNewYorkDateTime } from "@/lib/date-time";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import {
-  CATEGORY_LABELS,
   SOURCE_OPTIONS,
   defaultInputs,
   defaultStyle,
@@ -18,7 +17,7 @@ import {
   type PlotStyle,
 } from "@/lib/chart/indicator-defs";
 
-type Tab = "inputs" | "style" | "visibility" | "defaults";
+type Tab = "inputs" | "style" | "visibility";
 
 interface Props {
   value: IndicatorInstance;
@@ -42,14 +41,14 @@ const LINE_STYLES: { value: LineStyleName; label: string }[] = [
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="flex items-center justify-between gap-3 py-1.5 text-xs">
-      <span className="app-muted">{label}</span>
+    <label className="flex min-h-12 items-center justify-between gap-4 rounded-lg border app-border bg-[var(--app-panel-2)]/35 px-3 py-2 text-xs">
+      <span className="font-medium app-muted">{label}</span>
       <span className="flex items-center gap-2">{children}</span>
     </label>
   );
 }
 
-const inputCls = "rounded border app-border bg-transparent px-1.5 py-1 text-right";
+const inputCls = "h-9 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-right outline-none focus:border-brand-400/60";
 
 type InputValue = number | string | boolean;
 
@@ -63,165 +62,83 @@ function SessionInputs({
   inputs: IndicatorInstance["inputs"];
   onSet: (key: string, value: InputValue) => void;
 }) {
-  const [active, setActive] = useState("london");
   const sessions = [
-    { id: "asia", label: "Asia", hint: "Tokyo / Pacific", color: "#2962ff" },
-    { id: "london", label: "London", hint: "European open", color: "#f9ab00" },
-    { id: "newYork", label: "New York", hint: "US cash session", color: "#089981" },
+    { id: "asia", label: "Asia", hint: "Tokyo / Pacific", color: "#2962ff", start: "20:00", end: "00:00", line: false },
+    { id: "london", label: "London", hint: "European open", color: "#f9ab00", start: "03:00", end: "08:00", line: true },
+    { id: "newYork", label: "New York", hint: "US cash session", color: "#089981", start: "08:00", end: "12:00", line: false },
   ];
-  const current = sessions.find((session) => session.id === active) ?? sessions[1]!;
   const value = (key: string, fallback: InputValue) => inputs[key] ?? fallback;
-  const enabled = value(`${current.id}Enabled`, true) !== false;
-  const lineEnabled = value(`${current.id}LineEnabled`, current.id === "london") === true;
-  const currentColor = String(value(`${current.id}Color`, current.color));
 
   return (
-    <div className="space-y-4 py-1">
-      <section className="rounded-lg border app-border bg-[var(--app-panel-2)]/45 p-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">Session clock</p>
-        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_5rem] gap-2">
-          <label className="min-w-0 text-[11px] app-muted">
+    <div className="space-y-5 pb-2">
+      <section>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">Session clock</p>
+        <div className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+          <label className="text-[11px] font-medium app-muted">
             Time zone
-            <select
-              value={String(value("timezone", "America/New_York"))}
-              onChange={(event) => onSet("timezone", event.target.value)}
-              className="mt-1 h-8 w-full rounded border app-border bg-[var(--app-panel-solid)] px-2 text-xs text-[var(--app-text)]"
-            >
+            <select value={String(value("timezone", "America/New_York"))} onChange={(event) => onSet("timezone", event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60">
               <option value="America/New_York">New York</option>
-              <option value="UTC">UTC</option>
+              <option value="Etc/UTC">UTC</option>
               <option value="Europe/London">London</option>
               <option value="Asia/Tokyo">Tokyo</option>
             </select>
           </label>
-          <label className="text-[11px] app-muted">
+          <label className="text-[11px] font-medium app-muted">
             Days back
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={Number(value("lookbackDays", 3))}
-              onChange={(event) => onSet("lookbackDays", Math.max(1, Math.min(30, Number(event.target.value))))}
-              className="mt-1 h-8 w-full rounded border app-border bg-[var(--app-panel-solid)] px-2 text-right text-xs text-[var(--app-text)]"
-            />
+            <input type="number" min={1} max={30} value={Number(value("lookbackDays", 3))} onChange={(event) => onSet("lookbackDays", Math.max(1, Math.min(30, Number(event.target.value))))} className="mt-1.5 h-10 w-full rounded-lg border app-border bg-[var(--app-panel-2)] px-3 text-right text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60" />
           </label>
         </div>
-        <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-md border app-border bg-[var(--app-panel-solid)] px-2.5 py-2 text-xs">
-          <span className="min-w-0">
-            <span className="block font-medium text-[var(--app-text)]">Session boxes</span>
-            <span className="block text-[11px] text-[var(--app-muted)]">Shade each session range on the chart</span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2 text-[11px] text-[var(--app-muted)]">
-            {value("showBoxes", true) !== false ? "Shown" : "Lines only"}
-            <input
-              type="checkbox"
-              checked={value("showBoxes", true) !== false}
-              onChange={(event) => onSet("showBoxes", event.target.checked)}
-              className="h-4 w-4 accent-brand-400"
-            />
-          </span>
+        <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-lg border app-border bg-[var(--app-panel-2)]/35 px-3 py-2.5 text-xs">
+          <span><span className="block font-medium">Show session ranges</span><span className="mt-0.5 block text-[10px] app-muted">Shade the high-to-low range for every enabled session</span></span>
+          <input type="checkbox" checked={value("showBoxes", true) !== false} onChange={(event) => onSet("showBoxes", event.target.checked)} className="h-4 w-4 shrink-0 accent-brand-400" />
         </label>
       </section>
 
-      <div className="grid grid-cols-3 gap-1 rounded-lg bg-[var(--app-panel-2)] p-1" role="tablist" aria-label="Trading session">
-        {sessions.map((session) => {
-          const sessionEnabled = value(`${session.id}Enabled`, true) !== false;
+      <div className="space-y-3">
+        {sessions.map((session, index) => {
+          const enabled = value(`${session.id}Enabled`, true) !== false;
+          const lineEnabled = value(`${session.id}LineEnabled`, session.line) === true;
+          const sessionColor = String(value(`${session.id}Color`, session.color));
           return (
-            <button
-              key={session.id}
-              type="button"
-              role="tab"
-              aria-selected={active === session.id}
-              onClick={() => setActive(session.id)}
-              className={`min-w-0 rounded-md px-1.5 py-2 text-left transition-colors ${
-                active === session.id ? "bg-[var(--app-panel-solid)] shadow-sm" : "hover:bg-white/[0.04]"
-              }`}
-            >
-              <span className="flex items-center gap-1.5 text-[11px] font-semibold">
-                <i className="h-2 w-2 rounded-full" style={{ backgroundColor: String(value(`${session.id}Color`, session.color)) }} />
-                <span className="truncate">{session.label}</span>
-              </span>
-              <span className={`mt-0.5 block text-[9px] ${sessionEnabled ? "app-muted" : "text-loss"}`}>
-                {sessionEnabled ? "Enabled" : "Hidden"}
-              </span>
-            </button>
+            <section key={session.id} className={`rounded-xl border app-border bg-[var(--app-panel-2)]/30 p-4 transition-opacity ${enabled ? "" : "opacity-55"}`}>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--app-panel-2)] font-mono text-[10px] font-semibold app-muted">{String.fromCharCode(65 + index)}</span>
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold">
+                  <input type="checkbox" checked={enabled} onChange={(event) => onSet(`${session.id}Enabled`, event.target.checked)} className="h-4 w-4 accent-brand-400" />
+                  Enable
+                </label>
+                <label className="flex min-w-40 flex-1 items-center gap-2 text-[11px] app-muted">
+                  Name
+                  <input type="text" value={String(value(`${session.id}Name`, session.label))} onChange={(event) => onSet(`${session.id}Name`, event.target.value)} disabled={!enabled} className="h-9 min-w-0 flex-1 rounded-lg border app-border bg-[var(--app-panel-solid)] px-3 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60 disabled:cursor-not-allowed" />
+                </label>
+                <input type="color" value={sessionColor} onChange={(event) => onSet(`${session.id}Color`, event.target.value)} disabled={!enabled} className="h-9 w-11 cursor-pointer rounded-lg border app-border bg-transparent p-1 disabled:cursor-not-allowed" aria-label={`${session.label} color`} />
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_7.5rem_1rem_7.5rem] sm:items-end">
+                <div><p className="text-[11px] font-medium app-muted">Hours</p><p className="mt-1 text-[10px] app-muted">Times use the selected zone</p></div>
+                <label className="text-[10px] app-muted">Starts<input type="time" value={String(value(`${session.id}Start`, session.start))} onChange={(event) => onSet(`${session.id}Start`, event.target.value)} disabled={!enabled} className="mt-1.5 h-9 w-full rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60 disabled:cursor-not-allowed" /></label>
+                <span className="hidden h-9 items-center justify-center app-muted sm:flex">–</span>
+                <label className="text-[10px] app-muted">Ends<input type="time" value={String(value(`${session.id}End`, session.end))} onChange={(event) => onSet(`${session.id}End`, event.target.value)} disabled={!enabled} className="mt-1.5 h-9 w-full rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60 disabled:cursor-not-allowed" /></label>
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 border-t app-border pt-3">
+                <label className="flex cursor-pointer items-center gap-2 text-[11px]"><input type="checkbox" checked={lineEnabled} onChange={(event) => onSet(`${session.id}LineEnabled`, event.target.checked)} disabled={!enabled} className="h-4 w-4 accent-brand-400 disabled:cursor-not-allowed" /> Start line</label>
+                <label className="ml-auto flex items-center gap-2 text-[11px] app-muted">Fill <input type="range" min={0} max={100} value={Number(value(`${session.id}Transparency`, 76))} onChange={(event) => onSet(`${session.id}Transparency`, Number(event.target.value))} disabled={!enabled} className="w-24 accent-brand-400 disabled:cursor-not-allowed" /><span className="w-8 text-right font-mono text-[10px]">{Number(value(`${session.id}Transparency`, 76))}%</span></label>
+                <label className="flex items-center gap-2 text-[11px] app-muted">Border<select value={String(value(`${session.id}BorderWidth`, 1))} onChange={(event) => onSet(`${session.id}BorderWidth`, Number(event.target.value))} disabled={!enabled} className="h-8 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-[11px] text-[var(--app-text)] disabled:cursor-not-allowed">{[0, 1, 2, 3, 4].map((width) => <option key={width} value={width}>{width === 0 ? "None" : `${width}px`}</option>)}</select></label>
+              </div>
+
+              {lineEnabled && enabled && (
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-[var(--app-panel-2)] p-3 sm:grid-cols-4">
+                  <label className="text-[10px] app-muted">Line time<input type="time" value={String(value(`${session.id}LineTime`, session.start))} onChange={(event) => onSet(`${session.id}LineTime`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-[var(--app-panel-solid)] px-2 text-[11px] text-[var(--app-text)]" /></label>
+                  <label className="text-[10px] app-muted">Color<input type="color" value={String(value(`${session.id}LineColor`, session.color))} onChange={(event) => onSet(`${session.id}LineColor`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-transparent p-0.5" /></label>
+                  <label className="text-[10px] app-muted">Style<select value={String(value(`${session.id}LineStyle`, "dashed"))} onChange={(event) => onSet(`${session.id}LineStyle`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-[var(--app-panel-solid)] px-2 text-[11px] text-[var(--app-text)]"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
+                  <label className="text-[10px] app-muted">Width<select value={String(value(`${session.id}LineWidth`, 1))} onChange={(event) => onSet(`${session.id}LineWidth`, Number(event.target.value))} className="mt-1 h-8 w-full rounded border app-border bg-[var(--app-panel-solid)] px-2 text-[11px] text-[var(--app-text)]">{[1, 2, 3, 4].map((width) => <option key={width} value={width}>{width}px</option>)}</select></label>
+                </div>
+              )}
+            </section>
           );
         })}
       </div>
-
-      <section className="overflow-hidden rounded-lg border app-border">
-        <div className="flex items-center gap-3 border-b app-border bg-[var(--app-panel-2)]/45 px-3 py-2.5">
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(event) => onSet(`${current.id}Enabled`, event.target.checked)}
-            className="h-4 w-4 accent-brand-400"
-            aria-label={`Show ${current.label} session`}
-          />
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold">{current.label} session</p>
-            <p className="text-[10px] app-muted">{current.hint}</p>
-          </div>
-          <input
-            type="color"
-            value={currentColor}
-            onChange={(event) => onSet(`${current.id}Color`, event.target.value)}
-            className="h-7 w-9 rounded border app-border bg-transparent p-0.5"
-            aria-label={`${current.label} session color`}
-          />
-        </div>
-
-        <div className={`space-y-4 p-3 ${enabled ? "" : "opacity-45"}`}>
-          <div className="grid grid-cols-[minmax(0,1fr)_5.25rem_5.25rem] gap-2">
-            <label className="min-w-0 text-[11px] app-muted">
-              Label
-              <input
-                type="text"
-                value={String(value(`${current.id}Name`, current.label))}
-                onChange={(event) => onSet(`${current.id}Name`, event.target.value)}
-                disabled={!enabled}
-                className="mt-1 h-8 w-full rounded border app-border bg-transparent px-2 text-xs text-[var(--app-text)] disabled:cursor-not-allowed"
-              />
-            </label>
-            <label className="text-[11px] app-muted">
-              Starts
-              <input type="time" value={String(value(`${current.id}Start`, "00:00"))} onChange={(event) => onSet(`${current.id}Start`, event.target.value)} disabled={!enabled} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-xs text-[var(--app-text)] disabled:cursor-not-allowed" />
-            </label>
-            <label className="text-[11px] app-muted">
-              Ends
-              <input type="time" value={String(value(`${current.id}End`, "00:00"))} onChange={(event) => onSet(`${current.id}End`, event.target.value)} disabled={!enabled} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-xs text-[var(--app-text)] disabled:cursor-not-allowed" />
-            </label>
-          </div>
-
-          <div className="grid grid-cols-[minmax(0,1fr)_5rem] gap-3">
-            <label className="text-[11px] app-muted">
-              Fill transparency <span className="float-right text-[var(--app-text)]">{Number(value(`${current.id}Transparency`, 76))}%</span>
-              <input type="range" min={0} max={100} value={Number(value(`${current.id}Transparency`, 76))} onChange={(event) => onSet(`${current.id}Transparency`, Number(event.target.value))} disabled={!enabled} className="mt-2 w-full accent-brand-400 disabled:cursor-not-allowed" />
-            </label>
-            <label className="text-[11px] app-muted">
-              Border
-              <select value={String(value(`${current.id}BorderWidth`, 1))} onChange={(event) => onSet(`${current.id}BorderWidth`, Number(event.target.value))} disabled={!enabled} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-2 text-xs text-[var(--app-text)] disabled:cursor-not-allowed">
-                {[0, 1, 2, 3, 4].map((width) => <option key={width} value={width}>{width === 0 ? "None" : `${width}px`}</option>)}
-              </select>
-            </label>
-          </div>
-
-          <div className="border-t app-border pt-3">
-            <label className="flex items-center justify-between text-xs font-semibold">
-              <span>Session start line</span>
-              <span className="flex items-center gap-2 text-[10px] font-medium app-muted">
-                {lineEnabled ? "Shown" : "Hidden"}
-                <input type="checkbox" checked={lineEnabled} onChange={(event) => onSet(`${current.id}LineEnabled`, event.target.checked)} disabled={!enabled} className="h-4 w-4 accent-brand-400 disabled:cursor-not-allowed" />
-              </span>
-            </label>
-            <div className={`mt-3 grid grid-cols-4 gap-2 ${lineEnabled && enabled ? "" : "pointer-events-none opacity-40"}`}>
-              <label className="text-[10px] app-muted">Time<input type="time" value={String(value(`${current.id}LineTime`, "00:00"))} onChange={(event) => onSet(`${current.id}LineTime`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-xs text-[var(--app-text)]" /></label>
-              <label className="text-[10px] app-muted">Color<input type="color" value={String(value(`${current.id}LineColor`, current.color))} onChange={(event) => onSet(`${current.id}LineColor`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-transparent p-0.5" /></label>
-              <label className="text-[10px] app-muted">Style<select value={String(value(`${current.id}LineStyle`, "dashed"))} onChange={(event) => onSet(`${current.id}LineStyle`, event.target.value)} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-[11px] text-[var(--app-text)]"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></label>
-              <label className="text-[10px] app-muted">Width<select value={String(value(`${current.id}LineWidth`, 1))} onChange={(event) => onSet(`${current.id}LineWidth`, Number(event.target.value))} className="mt-1 h-8 w-full rounded border app-border bg-transparent px-1 text-[11px] text-[var(--app-text)]">{[1, 2, 3, 4].map((width) => <option key={width} value={width}>{width}px</option>)}</select></label>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
@@ -248,7 +165,7 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
         <button
           type="button"
           onClick={() => onPickAnchor?.(inp.key)}
-          className="inline-flex items-center gap-1.5 rounded border app-border px-2 py-1 text-[11px] hover:bg-[var(--app-panel-2)]"
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border app-border bg-[var(--app-panel-solid)] px-3 text-[11px] hover:border-brand-400/50"
         >
           <Crosshair size={12} />
           {t > 0 ? formatNewYorkDateTime(t * 1000, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Pick on chart"}
@@ -256,7 +173,7 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
       );
     }
     if (inp.type === "boolean") {
-      return <input type="checkbox" checked={Boolean(v)} onChange={(e) => setInput(inp.key, e.target.checked)} className="accent-brand-400" />;
+      return <input type="checkbox" checked={Boolean(v)} onChange={(e) => setInput(inp.key, e.target.checked)} className="h-4 w-4 accent-brand-400" />;
     }
     if (inp.type === "time") {
       return (
@@ -264,7 +181,7 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
           type="time"
           value={typeof v === "string" ? v : String(inp.default)}
           onChange={(e) => setInput(inp.key, e.target.value)}
-          className="rounded border app-border bg-transparent px-1.5 py-1"
+          className="h-9 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 outline-none focus:border-brand-400/60"
         />
       );
     }
@@ -274,7 +191,7 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
           type="color"
           value={typeof v === "string" ? v : String(inp.default)}
           onChange={(e) => setInput(inp.key, e.target.value)}
-          className="h-7 w-10 rounded border app-border bg-transparent p-0.5"
+          className="h-9 w-11 cursor-pointer rounded-lg border app-border bg-transparent p-1"
           aria-label={inp.label}
         />
       );
@@ -285,13 +202,13 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
           type="text"
           value={typeof v === "string" ? v : String(inp.default)}
           onChange={(e) => setInput(inp.key, e.target.value)}
-          className="w-32 rounded border app-border bg-transparent px-1.5 py-1 text-right"
+          className="h-9 w-36 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-right outline-none focus:border-brand-400/60"
         />
       );
     }
     if (inp.type === "source") {
       return (
-        <select value={String(v)} onChange={(e) => setInput(inp.key, e.target.value)} className="rounded border app-border bg-transparent px-1.5 py-1">
+        <select value={String(v)} onChange={(e) => setInput(inp.key, e.target.value)} className="h-9 min-w-28 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 outline-none focus:border-brand-400/60">
           {SOURCE_OPTIONS.map((s) => (
             <option key={s.value} value={s.value}>{s.label}</option>
           ))}
@@ -300,7 +217,7 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
     }
     if (inp.type === "select") {
       return (
-        <select value={String(v)} onChange={(e) => setInput(inp.key, e.target.value)} className="rounded border app-border bg-transparent px-1.5 py-1">
+        <select value={String(v)} onChange={(e) => setInput(inp.key, e.target.value)} className="h-9 min-w-28 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 outline-none focus:border-brand-400/60">
           {(inp.options ?? []).map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
@@ -320,7 +237,7 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
           if (inp.max != null) n = Math.min(inp.max, n);
           setInput(inp.key, n);
         }}
-        className={`w-24 ${inputCls}`}
+        className={`w-28 ${inputCls}`}
       />
     );
   };
@@ -328,37 +245,37 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
   const sectionsPresent = SECTION_ORDER.filter((sec) => def.inputs.some((i) => (i.section ?? "inputs") === sec));
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-black/40" onPointerDown={onClose}>
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-black/55 p-3 backdrop-blur-[2px]" onPointerDown={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${def.name} settings`}
         tabIndex={-1}
-        className="flex max-h-[80vh] w-[340px] flex-col rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none"
+        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none ${def.kind === "sessions" ? "max-w-[680px]" : "max-w-[540px]"}`}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b app-border px-3 py-2">
-          <h3 className="truncate text-sm font-semibold">{def.name}</h3>
-          <button type="button" aria-label="Close" onClick={onClose} className="app-muted hover:text-[var(--app-text)]">
+        <div className="flex items-start justify-between gap-4 border-b app-border px-5 py-4">
+          <div className="min-w-0"><h3 className="truncate text-base font-semibold">{def.name}</h3><p className="mt-1 text-[11px] app-muted">{def.description}</p></div>
+          <button type="button" aria-label="Close" onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
             <X size={16} />
           </button>
         </div>
 
-        <div className="flex gap-1 border-b app-border px-2 pt-2">
-          {(["inputs", "style", "visibility", "defaults"] as Tab[]).map((t) => (
+        <div className="flex gap-6 border-b app-border px-5">
+          {(["inputs", "style", "visibility"] as Tab[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`rounded-t-md px-3 py-1.5 text-xs font-medium capitalize ${tab === t ? "bg-[var(--app-panel-2)] text-[var(--app-text)]" : "app-muted hover:text-[var(--app-text)]"}`}
+              className={`border-b-2 px-0 py-3 text-xs font-semibold capitalize transition-colors ${tab === t ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}
             >
               {t}
             </button>
           ))}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {tab === "inputs" && (
             def.kind === "sessions" ? (
               <SessionInputs inputs={value.inputs} onSet={setInput} />
@@ -366,21 +283,20 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
               <p className="py-4 text-center text-xs app-muted">This indicator has no inputs.</p>
             ) : (
               sectionsPresent.map((sec) => (
-                <div key={sec}>
-                  {sec !== "inputs" && <p className="pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide app-muted">{SECTION_LABELS[sec]}</p>}
-                  {def.inputs.filter((i) => (i.section ?? "inputs") === sec).map((inp) => (
+                <div key={sec} className="mb-5 last:mb-0">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.15em] app-muted">{SECTION_LABELS[sec]}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">{def.inputs.filter((i) => (i.section ?? "inputs") === sec).map((inp) => (
                     <Row key={inp.key} label={inp.label}>{renderInput(inp)}</Row>
-                  ))}
+                  ))}</div>
                 </div>
               ))
             )
           )}
 
-          {tab === "style" &&
-            def.plots.map((plot) => {
+          {tab === "style" && (def.plots.length === 0 ? <p className="py-10 text-center text-xs app-muted">This indicator has no separate plot styles.</p> : <div className="grid gap-3 sm:grid-cols-2">{def.plots.map((plot) => {
               const s = value.style[plot.key]!;
               return (
-                <div key={plot.key} className="border-b app-border py-2 last:border-0">
+                <div key={plot.key} className="rounded-xl border app-border bg-[var(--app-panel-2)]/35 p-3">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-2 text-xs font-medium">
                       <input type="checkbox" checked={s.visible} onChange={(e) => setStyle(plot.key, { visible: e.target.checked })} className="accent-brand-400" />
@@ -391,24 +307,24 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
                       aria-label={`${plot.label} color`}
                       value={s.color}
                       onChange={(e) => setStyle(plot.key, { color: e.target.value })}
-                      className="h-6 w-8 cursor-pointer rounded border app-border bg-transparent p-0.5"
+                      className="h-9 w-11 cursor-pointer rounded-lg border app-border bg-transparent p-1"
                     />
                   </div>
                   {plot.kind === "line" && (
-                    <div className="mt-1 flex items-center gap-2 pl-6">
-                      <select value={s.lineStyle} onChange={(e) => setStyle(plot.key, { lineStyle: e.target.value as LineStyleName })} className="rounded border app-border bg-transparent px-1 py-0.5 text-[11px]">
+                    <div className="mt-3 flex items-center gap-2">
+                      <select value={s.lineStyle} onChange={(e) => setStyle(plot.key, { lineStyle: e.target.value as LineStyleName })} className="h-8 flex-1 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-[11px]">
                         {LINE_STYLES.map((ls) => (
                           <option key={ls.value} value={ls.value}>{ls.label}</option>
                         ))}
                       </select>
-                      <select value={s.lineWidth} onChange={(e) => setStyle(plot.key, { lineWidth: Number(e.target.value) })} className="rounded border app-border bg-transparent px-1 py-0.5 text-[11px]">
+                      <select value={s.lineWidth} onChange={(e) => setStyle(plot.key, { lineWidth: Number(e.target.value) })} className="h-8 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-[11px]">
                         {[1, 2, 3, 4].map((w) => (
                           <option key={w} value={w}>{w}px</option>
                         ))}
                       </select>
                     </div>
                   )}
-                  <div className="mt-1 flex items-center gap-2 pl-6 text-[11px] app-muted">
+                  <div className="mt-3 flex items-center gap-2 text-[11px] app-muted">
                     <span>Opacity</span>
                     <input
                       type="range"
@@ -422,10 +338,10 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
                   </div>
                 </div>
               );
-            })}
+            })}</div>)}
 
           {tab === "visibility" && (
-            <>
+            <div className="grid gap-2 sm:grid-cols-2">
               <Row label="Visible on chart">
                 <input type="checkbox" checked={value.visible} onChange={(e) => onChange({ visible: e.target.checked })} className="accent-brand-400" />
               </Row>
@@ -440,31 +356,15 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
                   className={`w-24 ${inputCls}`}
                 />
               </Row>
-              <p className="pt-2 text-[11px] app-muted">Precision blank = inherit the chart&apos;s decimals.</p>
-            </>
-          )}
-
-          {tab === "defaults" && (
-            <div className="py-1">
-              <p className="text-[11px] leading-relaxed app-muted">{def.description}</p>
-              <p className="pt-2 text-[11px] app-muted">
-                Category: <span className="text-[var(--app-text)]">{CATEGORY_LABELS[def.category]}</span> · Pane:{" "}
-                <span className="text-[var(--app-text)]">{def.pane === "own" ? "Separate" : "Overlay"}</span>
-              </p>
-              <button
-                type="button"
-                onClick={resetDefaults}
-                className="mt-4 inline-flex items-center gap-2 rounded-md border app-border px-3 py-1.5 text-xs font-medium hover:bg-[var(--app-panel-2)]"
-              >
-                <RotateCcw size={13} /> Reset to defaults
-              </button>
+              <p className="rounded-lg bg-[var(--app-panel-2)]/35 p-3 text-[11px] leading-5 app-muted sm:col-span-2">Leave precision blank to inherit the chart&apos;s decimals.</p>
             </div>
           )}
         </div>
 
-        <div className="flex justify-end gap-2 border-t app-border px-3 py-2">
-          <button type="button" onClick={onClose} className="rounded-md bg-brand-500 px-4 py-1.5 text-xs font-semibold text-surface-950 hover:bg-brand-400">
-            Ok
+        <div className="flex items-center justify-between gap-3 border-t app-border px-5 py-3">
+          <button type="button" onClick={resetDefaults} className="inline-flex h-9 items-center gap-2 rounded-lg px-2 text-xs font-medium app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><RotateCcw size={13} /> Reset</button>
+          <button type="button" onClick={onClose} className="h-9 rounded-lg bg-brand-500 px-5 text-xs font-semibold text-surface-950 hover:bg-brand-400">
+            Done
           </button>
         </div>
       </div>

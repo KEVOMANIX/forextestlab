@@ -76,12 +76,14 @@ export function TradeJournalEditor({
   closedTrades = [],
   anonymous = false,
   onSave,
+  onClose,
 }: {
   sessionId?: string;
   openPositions?: OpenPosition[];
   closedTrades?: ClosedTrade[];
   anonymous?: boolean;
   onSave: (journalId: string, journal: TradeJournalUpdate) => Promise<void> | void;
+  onClose?: () => void;
 }) {
   const records = useMemo(() => {
     const byId = new Map<string, JournalRecord>();
@@ -211,6 +213,13 @@ export function TradeJournalEditor({
     setReviewStep(0);
   }, [records]);
 
+  const closeEditor = useCallback(async () => {
+    if (!anonymous && selectedJournalId && draft && JSON.stringify(draft) !== savedHash.current) {
+      await persist(selectedJournalId, draft);
+    }
+    onClose?.();
+  }, [anonymous, draft, onClose, persist, selectedJournalId]);
+
   useEffect(() => {
     const navigate = (event: KeyboardEvent) => {
       if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
@@ -290,6 +299,17 @@ export function TradeJournalEditor({
               className="rounded-lg border app-border px-2 py-1 transition-colors hover:text-brand-300"
             >
               Next unwritten
+            </button>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={() => void closeEditor()}
+              aria-label="Close journal"
+              title="Close journal"
+              className="grid h-8 w-8 place-items-center rounded-lg border app-border transition-colors hover:border-brand-400/40 hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+            >
+              <X size={15} aria-hidden />
             </button>
           )}
         </div>

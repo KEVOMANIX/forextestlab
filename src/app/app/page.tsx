@@ -258,6 +258,9 @@ export default async function AppHome() {
         winRateSampleSize: recentTrades.length,
         winningTrades: wins,
         losingTrades: losses,
+        recentOutcomes: recentTrades
+          .map((trade): "win" | "loss" | "flat" => Number(trade.pnl) > 0 ? "win" : Number(trade.pnl) < 0 ? "loss" : "flat")
+          .reverse(),
       }}
     />
   );

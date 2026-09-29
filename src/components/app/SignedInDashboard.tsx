@@ -44,6 +44,7 @@ export interface DashboardPracticeMetrics {
   winRateSampleSize: number;
   winningTrades: number;
   losingTrades: number;
+  recentOutcomes: Array<"win" | "loss" | "flat">;
 }
 
 function formatMoney(value: Decimal): string {
@@ -99,9 +100,10 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
 
   const replayDays = metrics.replayMinutesByDay.length === 7 ? metrics.replayMinutesByDay : [0, 0, 0, 0, 0, 0, 0];
   const maxReplayMinutes = Math.max(1, ...replayDays);
-  const outcomes = metrics.winningTrades + metrics.losingTrades;
-  const winShare = outcomes ? (metrics.winningTrades / outcomes) * 100 : 0;
-  const lossShare = outcomes ? 100 - winShare : 0;
+  const recentOutcomeSlots: Array<"win" | "loss" | "flat" | null> = [
+    ...Array.from({ length: Math.max(0, 30 - metrics.recentOutcomes.length) }, () => null),
+    ...metrics.recentOutcomes.slice(-30),
+  ];
   return (
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
       <header id="dashboard-overview" className="flex flex-col justify-between gap-5 border-b app-border pb-6 lg:flex-row lg:items-end">
@@ -138,11 +140,14 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
 
               <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:col-span-2 sm:p-5 xl:col-span-2">
                 <div className="flex h-full flex-col justify-center">
-                  <div className="flex items-end justify-between gap-5"><div><p className="text-xs font-semibold app-muted">Recent results</p><div className="mt-2 flex items-baseline gap-2"><p className="font-mono text-2xl font-semibold leading-none text-[var(--app-text)]">{metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`}</p><span className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">win rate</span></div></div><Target size={19} className="text-brand-300" aria-hidden /></div>
-                    <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-[var(--app-panel-2)]" aria-label={`${metrics.winningTrades} wins and ${metrics.losingTrades} losses`}>
-                      {outcomes ? <><span className="h-full bg-profit" style={{ width: `${winShare}%` }} /><span className="h-full bg-loss" style={{ width: `${lossShare}%` }} /></> : <span className="h-full w-full bg-[var(--app-border)]" />}
-                    </div>
-                    <div className="mt-2 flex justify-between text-[9px] font-semibold uppercase tracking-[0.11em]"><span className="text-profit">{metrics.winningTrades} wins</span><span className="app-muted">{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades"}</span><span className="text-loss">{metrics.losingTrades} losses</span></div>
+                  <div className="flex items-start justify-between gap-5">
+                    <div><p className="text-xs font-semibold app-muted">Recent results</p><div className="mt-2 flex items-baseline gap-2"><p className="font-mono text-2xl font-semibold leading-none text-[var(--app-text)]">{metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`}</p><span className="text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">win rate</span></div></div>
+                    <div className="flex items-center gap-2.5 font-mono"><span className="text-lg font-semibold text-profit">{metrics.winningTrades}</span><span className="text-[9px] font-semibold uppercase tracking-[0.1em] app-muted">W</span><span className="h-5 w-px bg-[var(--app-border)]" /><span className="text-lg font-semibold text-loss">{metrics.losingTrades}</span><span className="text-[9px] font-semibold uppercase tracking-[0.1em] app-muted">L</span><Target size={17} className="ml-1 text-brand-300" aria-hidden /></div>
+                  </div>
+                  <div className="mt-4 grid h-8 grid-cols-[repeat(30,minmax(0,1fr))] items-end gap-1" role="img" aria-label={`Last ${metrics.winRateSampleSize} closed trades: ${metrics.winningTrades} wins and ${metrics.losingTrades} losses`}>
+                    {recentOutcomeSlots.map((outcome, index) => <span key={index} className={`block rounded-sm ${outcome === "win" ? "h-full bg-profit" : outcome === "loss" ? "h-[58%] bg-loss" : outcome === "flat" ? "h-[35%] bg-[var(--app-muted)]" : "h-[22%] bg-[var(--app-panel-2)]"}`} title={outcome ? `${outcome[0]!.toUpperCase()}${outcome.slice(1)}` : "No trade"} />)}
+                  </div>
+                  <div className="mt-2 flex justify-between text-[9px] font-semibold uppercase tracking-[0.11em] app-muted"><span>Oldest</span><span>{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades"}</span><span>Latest</span></div>
                 </div>
               </article>
             </div>

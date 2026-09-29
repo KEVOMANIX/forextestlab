@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, ChevronUp } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronUp, NotebookText, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import type { PublicSessionState, TradeJournalUpdate } from "@/lib/backtest/types";
@@ -95,6 +95,7 @@ export function BottomPanel({
     setExpanded(true);
   }, [revealTab?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const [notes, setNotes] = useState(initialNotes);
+  const [notesOpen, setNotesOpen] = useState(false);
 
   const openCount = state.openPositions.length;
 
@@ -244,20 +245,45 @@ export function BottomPanel({
                 onSave={onSaveTradeJournal}
                 onClose={() => setExpanded(false)}
               />
-              <div className="space-y-2 border-t app-border p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2"><label htmlFor="session-notes" className="text-xs app-muted">Session notes and reviews</label><div className="flex gap-1.5"><button type="button" className="rounded-md border app-border px-2 py-1 text-[10px] app-muted hover:text-brand-300" onClick={() => setNotes("Session review\n\nWhat worked:\n\nWhat did not work:\n\nBest execution:\n\nWorst execution:\n\nNext-session focus:\n")}>Session template</button><button type="button" className="rounded-md border app-border px-2 py-1 text-[10px] app-muted hover:text-brand-300" onClick={() => setNotes("Weekly review\n\nStrongest setup:\n\nMost expensive mistake:\n\nRule adherence:\n\nProgress on last goal:\n\nOne goal for next week:\n")}>Weekly template</button></div></div>
-              <textarea
-                id="session-notes"
-                rows={3}
-                className="app-input w-full resize-y"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="Record your observations…"
-              />
-              <button type="button" className="btn-secondary" onClick={() => onSaveNotes(notes)} disabled={busy || state.anonymous}>
-                Save session notes
-              </button>
-              </div>
+              <section className="border-t app-border bg-[var(--app-panel-solid)]/35">
+                <button
+                  type="button"
+                  onClick={() => setNotesOpen((current) => !current)}
+                  aria-expanded={notesOpen}
+                  aria-controls="session-notes-editor"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.025]"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border app-border bg-[var(--app-panel-2)] text-brand-300"><NotebookText size={14} aria-hidden /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-xs font-semibold">Session notes</span>
+                    <span className="mt-0.5 block truncate text-[10px] app-muted">{notes.trim() ? notes.trim().split("\n")[0] : "Add observations that apply to the whole session"}</span>
+                  </span>
+                  <ChevronDown size={14} aria-hidden className={`shrink-0 app-muted transition-transform ${notesOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {notesOpen && (
+                  <div id="session-notes-editor" className="space-y-3 border-t app-border px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="mr-1 text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">Start with</span>
+                      <button type="button" className="rounded-md border app-border px-2 py-1 text-[10px] app-muted hover:border-brand-400/40 hover:text-brand-300" onClick={() => setNotes("Session review\n\nWhat worked:\n\nWhat did not work:\n\nBest execution:\n\nWorst execution:\n\nNext-session focus:\n")}>Session review</button>
+                      <button type="button" className="rounded-md border app-border px-2 py-1 text-[10px] app-muted hover:border-brand-400/40 hover:text-brand-300" onClick={() => setNotes("Weekly review\n\nStrongest setup:\n\nMost expensive mistake:\n\nRule adherence:\n\nProgress on last goal:\n\nOne goal for next week:\n")}>Weekly review</button>
+                    </div>
+                    <textarea
+                      id="session-notes"
+                      rows={4}
+                      className="app-input w-full resize-y"
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      placeholder="Record observations for this session…"
+                    />
+                    <div className="flex justify-end">
+                      <button type="button" className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-500 px-3 text-[11px] font-semibold text-surface-950 hover:bg-brand-400 disabled:opacity-40" onClick={() => onSaveNotes(notes)} disabled={busy || state.anonymous}>
+                        <Save size={12} aria-hidden /> Save notes
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
             </div>
           ) : null}
         </div>

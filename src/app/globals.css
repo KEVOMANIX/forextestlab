@@ -97,6 +97,10 @@
      */
     --app-accent-text: #bae6fd;
     --app-accent-wash: rgba(14, 165, 233, 0.18);
+    --app-accent: #0ea5e9;
+    --app-accent-hover: #38bdf8;
+    --app-accent-ink: #030712;
+    --app-accent-rgb: 14 165 233;
     --app-profit-text: rgb(var(--trade-profit-rgb));
     --app-loss-text: rgb(var(--trade-loss-rgb));
     --app-entry-text: rgb(var(--trade-entry-rgb));
@@ -136,6 +140,50 @@
     /* Colour "sell" is drawn in; "buy" uses the brand accent. */
     color-scheme: dark;
     color: var(--app-text);
+  }
+
+  /* Temporary A/B palette preview. These two classes are intentionally
+     isolated so the losing option and switcher can be removed cleanly. */
+  .app-shell.palette-a:not(.light),
+  html[data-app-palette="a"] .app-theme-surface:not(.light) {
+    --app-bg: #171717;
+    --app-sidebar: #20201e;
+    --app-panel: #292925;
+    --app-panel-solid: #292925;
+    --app-panel-2: #33332e;
+    --app-border: #494942;
+    --app-text: #fffdf7;
+    --app-muted: #c2beb2;
+    --app-accent-text: #ffd275;
+    --app-accent-wash: rgb(245 185 66 / 0.16);
+    --app-accent: #f5b942;
+    --app-accent-hover: #ffd275;
+    --app-accent-ink: #211a0b;
+    --app-accent-rgb: 245 185 66;
+    --app-info-text: #ffd275;
+    --app-blue-text: #ffd275;
+    --focus-ring-offset: #171717;
+  }
+
+  .app-shell.palette-b:not(.light),
+  html[data-app-palette="b"] .app-theme-surface:not(.light) {
+    --app-bg: #101a17;
+    --app-sidebar: #16241f;
+    --app-panel: #1e302a;
+    --app-panel-solid: #1e302a;
+    --app-panel-2: #294038;
+    --app-border: #3c5b50;
+    --app-text: #f4fff9;
+    --app-muted: #aac8bc;
+    --app-accent-text: #7be8c4;
+    --app-accent-wash: rgb(69 214 168 / 0.16);
+    --app-accent: #45d6a8;
+    --app-accent-hover: #7be8c4;
+    --app-accent-ink: #092019;
+    --app-accent-rgb: 69 214 168;
+    --app-info-text: #7be8c4;
+    --app-blue-text: #7be8c4;
+    --focus-ring-offset: #101a17;
   }
 
   .app-shell {
@@ -219,6 +267,10 @@
     --app-muted: #506078;
     --app-accent-text: #1d4ed8;
     --app-accent-wash: rgba(37, 99, 235, 0.14);
+    --app-accent: #2563eb;
+    --app-accent-hover: #3b82f6;
+    --app-accent-ink: #ffffff;
+    --app-accent-rgb: 37 99 235;
     --app-warn-text: #92610a;
     --app-warn-wash: rgba(180, 130, 10, 0.14);
     --app-danger-text: #b4233c;
@@ -258,6 +310,30 @@
    */
   :is(.app-shell, .app-theme-surface) :is(.text-brand-200, .text-brand-300) {
     color: var(--app-accent-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) .bg-brand-500 {
+    background-color: var(--app-accent);
+  }
+
+  :is(.app-shell, .app-theme-surface) :is(.bg-brand-400, .hover\:bg-brand-400:hover, .hover\:bg-brand-300:hover) {
+    background-color: var(--app-accent-hover);
+  }
+
+  :is(.app-shell, .app-theme-surface) [class*="bg-brand-400/"] {
+    background-color: rgb(var(--app-accent-rgb) / 0.14);
+  }
+
+  :is(.app-shell, .app-theme-surface) [class*="bg-brand-500/"] {
+    background-color: rgb(var(--app-accent-rgb) / 0.18);
+  }
+
+  :is(.app-shell, .app-theme-surface) :is([class*="border-brand-400"], [class*="border-brand-300"]) {
+    border-color: rgb(var(--app-accent-rgb) / 0.5);
+  }
+
+  :is(.app-shell, .app-theme-surface) :is([class*="ring-brand-400"], [class*="ring-brand-300"]) {
+    --tw-ring-color: rgb(var(--app-accent-rgb) / 0.55);
   }
 
   :is(.app-shell, .app-theme-surface) :is(.hover\:text-brand-200, .hover\:text-brand-300):hover {

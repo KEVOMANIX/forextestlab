@@ -36,19 +36,19 @@ export default function FeaturesPage() {
     <section className="relative overflow-hidden border-b border-white/10 py-5 sm:py-8">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_76%_50%,rgba(69,214,168,.11),transparent_42%)]" />
       <div className="container-page relative">
-        <div className="relative mx-auto max-w-[1440px] overflow-hidden rounded-2xl border border-white/15 bg-surface-900 shadow-[0_44px_120px_-54px_rgba(45,212,191,.42)] lg:min-h-[680px]">
-          <div className="lg:absolute lg:inset-0 lg:[&>div]:h-full lg:[&_video]:h-full lg:[&_video]:w-full lg:[&_video]:object-cover lg:[&_img]:h-full lg:[&_img]:w-full lg:[&_img]:object-cover">
-            <ProductDemoVideo webm="/product/replay-controls-demo.webm" mp4="/product/replay-controls-demo.mp4" poster="/product/replay-controls-demo-poster.jpg" alt="ForexTestLab historical replay workspace" width={1280} height={633} priority mobileZoom />
+        <div className="relative mx-auto max-w-[1440px] overflow-hidden rounded-2xl border border-white/15 bg-surface-950 shadow-[0_44px_120px_-54px_rgba(45,212,191,.42)]">
+          <div className="[&_img]:h-auto [&_img]:w-full [&_video]:h-auto [&_video]:w-full [&_video]:object-contain">
+            <ProductDemoVideo webm="/product/replay-controls-demo.webm" mp4="/product/replay-controls-demo.mp4" poster="/product/replay-controls-demo-poster.jpg" alt="ForexTestLab historical replay workspace" width={1280} height={633} priority />
           </div>
-          <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(5,16,12,.97)_0%,rgba(5,16,12,.84)_31%,rgba(5,16,12,.32)_59%,rgba(5,16,12,.05)_100%)] lg:block" />
-          <div className="relative z-10 border-t border-white/10 bg-surface-950/95 p-6 sm:p-8 lg:absolute lg:left-12 lg:top-1/2 lg:w-[34rem] lg:-translate-y-1/2 lg:border-0 lg:bg-transparent lg:p-0 xl:left-16">
+          <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(5,16,12,.97)_0%,rgba(5,16,12,.84)_31%,rgba(5,16,12,.32)_59%,rgba(5,16,12,.05)_100%)] xl:block" />
+          <div className="relative z-10 border-t border-white/10 bg-surface-950/95 p-6 sm:p-8 xl:absolute xl:left-16 xl:top-1/2 xl:w-[34rem] xl:-translate-y-1/2 xl:border-0 xl:bg-transparent xl:p-0">
             <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand-300">The complete testing workspace</p>
             <h1 className="mt-5 text-4xl font-bold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">Practise the decision.<br /><span className="text-slate-300">Study the outcome.</span></h1>
             <p className="mt-6 max-w-md text-base leading-7 text-slate-300">Replay historical markets, manage simulated risk, and turn every trade into evidence you can review.</p>
             <div className="mt-7 flex flex-wrap gap-3"><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary">Start free trial <ArrowRight size={16} aria-hidden /></Link><Link href="/markets" className="btn-secondary">Explore 38 markets</Link></div>
           </div>
-          <div className="relative z-10 grid gap-px border-t border-white/10 bg-white/10 sm:grid-cols-3 lg:absolute lg:bottom-6 lg:right-6 lg:flex lg:border-0 lg:bg-transparent">
-            {["Historical replay", "Simulated execution", "Session analytics"].map((label) => <span key={label} className="bg-surface-900/95 px-4 py-3 text-center text-[11px] font-medium text-slate-300 backdrop-blur lg:rounded-lg lg:border lg:border-white/15 lg:bg-surface-950/80">{label}</span>)}
+          <div className="relative z-10 grid gap-px border-t border-white/10 bg-white/10 sm:grid-cols-3 xl:absolute xl:bottom-6 xl:right-6 xl:flex xl:border-0 xl:bg-transparent">
+            {["Historical replay", "Simulated execution", "Session analytics"].map((label) => <span key={label} className="bg-surface-900/95 px-4 py-3 text-center text-[11px] font-medium text-slate-300 backdrop-blur xl:rounded-lg xl:border xl:border-white/15 xl:bg-surface-950/80">{label}</span>)}
           </div>
         </div>
       </div>

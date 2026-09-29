@@ -213,16 +213,16 @@
     --trade-loss-rgb: 190 35 54;
     --trade-entry-rgb: 15 118 94;
     --trade-exit-rgb: 146 97 10;
-    --app-bg: #eef5f1;
-    --app-sidebar: #f7faf8;
+    --app-bg: #f4f5f2;
+    --app-sidebar: #fafbf8;
     --app-panel: #ffffff;
     --app-panel-solid: #ffffff;
-    --app-panel-2: #e4efe9;
-    --app-border: #c2d6cc;
-    --app-text: #10231c;
-    --app-muted: #52675f;
-    --app-accent-text: #08785f;
-    --app-accent-wash: rgb(15 159 125 / 0.13);
+    --app-panel-2: #eef1ec;
+    --app-border: #d7ddd8;
+    --app-text: #17201c;
+    --app-muted: #5d6963;
+    --app-accent-text: #08745c;
+    --app-accent-wash: rgb(15 159 125 / 0.10);
     --app-accent: #0f9f7d;
     --app-accent-hover: #0c8066;
     --app-accent-ink: #ffffff;
@@ -230,23 +230,23 @@
     --app-warn-text: #92610a;
     --app-warn-wash: rgba(180, 130, 10, 0.14);
     --app-danger-text: #b4233c;
-    --app-info-text: #08785f;
-    --app-blue-text: #08785f;
-    --app-subtle: rgba(15, 23, 42, 0.07);
-    --app-hover: rgba(15, 23, 42, 0.10);
-    --app-strong-line: rgba(15, 23, 42, 0.24);
-    --focus-ring-offset: #eef5f1;
-    --chart-text: #10231c;
-    --chart-muted: #4f665d;
-    --ticket-bg: #f7faf8;
-    --ticket-surface: #eef5f1;
-    --ticket-raised: #e4efe9;
-    --ticket-track: #cedfd6;
-    --ticket-border: #c2d6cc;
-    --ticket-field-border: #a8c2b5;
-    --ticket-text: #10231c;
-    --ticket-muted: #4f665d;
-    --ticket-subtle: #62786f;
+    --app-info-text: #08745c;
+    --app-blue-text: #08745c;
+    --app-subtle: rgba(23, 32, 28, 0.055);
+    --app-hover: rgba(23, 32, 28, 0.085);
+    --app-strong-line: rgba(23, 32, 28, 0.20);
+    --focus-ring-offset: #f4f5f2;
+    --chart-text: #17201c;
+    --chart-muted: #56635d;
+    --ticket-bg: #fafbf8;
+    --ticket-surface: #f4f5f2;
+    --ticket-raised: #eef1ec;
+    --ticket-track: #dce2dd;
+    --ticket-border: #d2dad4;
+    --ticket-field-border: #b8c3bb;
+    --ticket-text: #17201c;
+    --ticket-muted: #56635d;
+    --ticket-subtle: #69756f;
     color-scheme: light;
   }
 
@@ -276,22 +276,6 @@
     background-color: var(--app-accent-hover);
   }
 
-  :is(.app-shell, .app-theme-surface) [class*="bg-brand-400/"] {
-    background-color: rgb(var(--app-accent-rgb) / 0.14);
-  }
-
-  :is(.app-shell, .app-theme-surface) [class*="bg-brand-500/"] {
-    background-color: rgb(var(--app-accent-rgb) / 0.18);
-  }
-
-  :is(.app-shell, .app-theme-surface) :is([class*="border-brand-400"], [class*="border-brand-300"]) {
-    border-color: rgb(var(--app-accent-rgb) / 0.5);
-  }
-
-  :is(.app-shell, .app-theme-surface) :is([class*="ring-brand-400"], [class*="ring-brand-300"]) {
-    --tw-ring-color: rgb(var(--app-accent-rgb) / 0.55);
-  }
-
   :is(.app-shell, .app-theme-surface) :is(.hover\:text-brand-200, .hover\:text-brand-300):hover {
     color: var(--app-accent-text);
   }
@@ -314,6 +298,41 @@
 
   :is(.app-shell, .app-theme-surface) .text-\[\#60a5fa\] {
     color: var(--app-blue-text);
+  }
+
+  :is(.app-shell, .app-theme-surface) :is(.text-accent-400, .text-accent-500, .text-accent-600) {
+    color: var(--app-accent-text);
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light) :is(.text-slate-100, .text-slate-200, .text-slate-300) {
+    color: var(--app-text);
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light) :is(.text-slate-400, .text-slate-500) {
+    color: var(--app-muted);
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light) .bg-surface-900 {
+    background-color: var(--app-panel-2);
+  }
+
+  :is(.app-shell.light, .app-theme-surface.light) .bg-surface-800 {
+    background-color: var(--app-panel);
+  }
+
+  .app-shell.light .shadow-card {
+    box-shadow: 0 1px 2px rgb(23 32 28 / 0.05), 0 12px 30px -24px rgb(23 32 28 / 0.28);
+  }
+
+  .app-shell.light .btn-secondary {
+    border-color: var(--app-border);
+    background-color: var(--app-panel);
+    color: var(--app-text);
+  }
+
+  .app-shell.light .btn-secondary:hover {
+    border-color: rgb(var(--app-accent-rgb) / 0.34);
+    background-color: var(--app-panel-2);
   }
 
   :is(.app-shell.light, .app-theme-surface.light)

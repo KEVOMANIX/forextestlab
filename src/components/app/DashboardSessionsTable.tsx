@@ -118,7 +118,7 @@ export function DashboardSessionsTable({
             </div>
             <div className="divide-y app-border">
               {displayed.map((session) => (
-                <article key={session.id} className="group grid grid-cols-[minmax(18rem,1.8fr)_8rem_6rem_7rem_14rem] items-center gap-5 px-5 py-4 transition-colors hover:bg-brand-400/[0.055] focus-within:bg-brand-400/[0.055]">
+                <article key={session.id} className="group grid grid-cols-[minmax(18rem,1.8fr)_8rem_6rem_7rem_14rem] items-center gap-5 bg-[var(--app-panel)] px-5 py-4 transition-colors hover:bg-brand-400/[0.055] focus-within:bg-brand-400/[0.055]">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <Link href={`/app?session=${encodeURIComponent(session.id)}`} className="truncate font-semibold transition-colors group-hover:text-brand-300">{session.name}</Link>
@@ -140,7 +140,7 @@ export function DashboardSessionsTable({
 
           <div className="divide-y app-border lg:hidden">
             {displayed.map((session) => (
-              <article key={session.id} className="p-4">
+              <article key={session.id} className="bg-[var(--app-panel)] p-4">
                 <div className="min-w-0">
                   <div className="min-w-0">
                     <Link

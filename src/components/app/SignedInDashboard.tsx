@@ -94,10 +94,10 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
   });
 
   const cards = [
-    { label: "Replay time", value: formatReplayTime(metrics.replayMinutes), period: "This week", icon: Clock3, tone: "text-brand-300" },
-    { label: "Current streak", value: `${metrics.streakDays} day${metrics.streakDays === 1 ? "" : "s"}`, period: "Consecutive days", icon: Flame, tone: "text-accent-400" },
-    { label: "Closed trades", value: String(metrics.closedTradesThisWeek), period: "This week", icon: ListChecks, tone: "text-brand-300" },
-    { label: "Win rate", value: metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`, period: metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades yet", icon: Target, tone: "text-accent-400" },
+    { label: "Replay time", value: formatReplayTime(metrics.replayMinutes), period: "This week", icon: Clock3 },
+    { label: "Current streak", value: `${metrics.streakDays} day${metrics.streakDays === 1 ? "" : "s"}`, period: "Consecutive days", icon: Flame },
+    { label: "Closed trades", value: String(metrics.closedTradesThisWeek), period: "This week", icon: ListChecks },
+    { label: "Win rate", value: metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`, period: metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades yet", icon: Target },
   ];
   return (
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
@@ -121,7 +121,7 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
           <section className="mt-7" aria-labelledby="practice-this-week">
             <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Practice activity</p><h2 id="practice-this-week" className="mt-1.5 text-xl font-semibold">This week</h2></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {cards.map(({ label, value, period, icon: Icon, tone }) => <article key={label} className="relative overflow-hidden rounded-xl border border-brand-400/30 bg-[linear-gradient(145deg,var(--app-panel),var(--app-panel-2))] p-4 shadow-card sm:p-5"><div className="absolute inset-x-0 top-0 h-px bg-brand-300/70" /><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">{label}</p><p className={`mt-3 font-mono text-[1.7rem] font-semibold leading-none tracking-tight ${tone}`}>{value}</p></div><span className={`grid h-9 w-9 place-items-center rounded-lg border border-brand-300/15 bg-brand-400/[0.12] ${tone}`}><Icon size={17} aria-hidden /></span></div><p className="mt-4 text-[11px] font-medium uppercase tracking-[0.1em] app-muted">{period}</p></article>)}
+              {cards.map(({ label, value, period, icon: Icon }) => <article key={label} className="relative overflow-hidden rounded-xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:p-5"><div className="absolute left-5 top-0 h-0.5 w-10 rounded-b bg-brand-500" /><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">{label}</p><p className="mt-3 font-mono text-[1.7rem] font-semibold leading-none tracking-tight text-[var(--app-text)]">{value}</p></div><span className="grid h-9 w-9 place-items-center rounded-lg border app-border bg-brand-400/10 text-brand-300"><Icon size={17} aria-hidden /></span></div><p className="mt-4 text-[11px] font-medium uppercase tracking-[0.1em] app-muted">{period}</p></article>)}
             </div>
           </section>
           <section className="mt-8" aria-labelledby="recent-sessions">

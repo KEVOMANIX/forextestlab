@@ -37,6 +37,8 @@ interface Props {
   height: number;
   /** Height of the chart's time axis, so badges sit above the labels. */
   timeAxisHeight: number;
+  /** Distance from the chart bottom to the bottom edge of the price pane. */
+  pricePaneBottom?: number;
   /** Matches the drawing layer's inset when a rail is docked inside the pane. */
   insetLeft?: number;
   /** The chart's display timezone, so the card agrees with the axis. */
@@ -81,6 +83,7 @@ export function EconomicEventLayer({
   width,
   height,
   timeAxisHeight,
+  pricePaneBottom,
   insetLeft = 0,
   zone,
   viewVersion,
@@ -105,7 +108,11 @@ export function EconomicEventLayer({
 
   const clusters = clusterEvents(placed);
   const open = clusters.find((cluster) => cluster.id === openId) ?? null;
-  const badgeBottom = timeAxisHeight + 3;
+  // With oscillator panes, the chart's time axis belongs to the final pane.
+  // Anchor news to pane zero so badges never cover Volume, MACD, ATR, or any
+  // other study added below price.
+  const paneBottom = pricePaneBottom ?? timeAxisHeight;
+  const badgeBottom = paneBottom + 3;
 
   return (
     <div
@@ -126,7 +133,7 @@ export function EconomicEventLayer({
           className="absolute top-0"
           style={{
             left: open.x,
-            bottom: timeAxisHeight,
+            bottom: paneBottom,
             borderLeft: `1px dashed ${RING[open.importance]}`,
             opacity: 0.75,
           }}

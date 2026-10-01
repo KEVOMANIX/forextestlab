@@ -37,6 +37,13 @@ import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 
 type AnySeries = ISeriesApi<"Line"> | ISeriesApi<"Histogram">;
 
+export interface IndicatorValue {
+  key: string;
+  label: string;
+  color: string;
+  value: MaybeNumber;
+}
+
 /** A point as handed to lightweight-charts: a value, or whitespace at a time. */
 type SeriesPoint = { time: UTCTimestamp; value?: number; color?: string };
 
@@ -62,6 +69,62 @@ function withOpacity(color: string, opacity: number): string {
   return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, opacity))})`;
 }
 
+type ThemeName = "dark" | "light";
+type Rgba = { r: number; g: number; b: number; a: number };
+
+function parseColor(color: string): Rgba | null {
+  const hex = color.trim().match(/^#([\da-f]{3}|[\da-f]{6})$/i)?.[1];
+  if (hex) {
+    const value = hex.length === 3 ? hex.split("").map((part) => part + part).join("") : hex;
+    return { r: parseInt(value.slice(0, 2), 16), g: parseInt(value.slice(2, 4), 16), b: parseInt(value.slice(4, 6), 16), a: 1 };
+  }
+  const functional = color.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?/i);
+  return functional
+    ? { r: Number(functional[1]), g: Number(functional[2]), b: Number(functional[3]), a: functional[4] == null ? 1 : Number(functional[4]) }
+    : null;
+}
+
+function relativeLuminance({ r, g, b }: Rgba): number {
+  const channel = (value: number) => {
+    const normalized = value / 255;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+function contrast(foreground: Rgba, background: Rgba): number {
+  const painted = {
+    r: foreground.r * foreground.a + background.r * (1 - foreground.a),
+    g: foreground.g * foreground.a + background.g * (1 - foreground.a),
+    b: foreground.b * foreground.a + background.b * (1 - foreground.a),
+    a: 1,
+  };
+  const first = relativeLuminance(painted);
+  const second = relativeLuminance(background);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+/** Preserve a plot's hue while ensuring it remains visible on either chart theme. */
+export function indicatorColorForTheme(color: string, theme: ThemeName): string {
+  const parsed = parseColor(color);
+  if (!parsed) return color;
+  const background = parseColor(theme === "light" ? "#f7faf8" : "#14231e")!;
+  if (contrast(parsed, background) >= 3) return color;
+  const target = theme === "light" ? 0 : 255;
+  for (let amount = 0.12; amount <= 1; amount += 0.08) {
+    const adjusted: Rgba = {
+      r: Math.round(parsed.r + (target - parsed.r) * amount),
+      g: Math.round(parsed.g + (target - parsed.g) * amount),
+      b: Math.round(parsed.b + (target - parsed.b) * amount),
+      a: 1,
+    };
+    if (contrast(adjusted, background) >= 3) {
+      return `#${[adjusted.r, adjusted.g, adjusted.b].map((part) => part.toString(16).padStart(2, "0")).join("")}`;
+    }
+  }
+  return theme === "light" ? "#17201c" : "#f4fff9";
+}
+
 function clampWidth(w: number): LineWidth {
   return Math.max(1, Math.min(4, Math.round(w))) as LineWidth;
 }
@@ -84,6 +147,7 @@ export class Indicator {
   private inst: IndicatorInstance;
   private chart: IChartApi;
   private fallbackPrecision: number;
+  private theme: ThemeName;
 
   private series = new Map<string, AnySeries>();
   private priceLines: IPriceLine[] = [];
@@ -101,7 +165,7 @@ export class Indicator {
   private deferredHistory = false;
 
   /** `paneIndex` 0 = the main price pane; >0 = a dedicated oscillator pane. */
-  constructor(chart: IChartApi, inst: IndicatorInstance, fallbackPrecision: number, paneIndex = 0) {
+  constructor(chart: IChartApi, inst: IndicatorInstance, fallbackPrecision: number, paneIndex = 0, theme: ThemeName = "dark") {
     const def = getDef(inst.kind);
     if (!def) throw new Error(`Unknown indicator kind: ${inst.kind}`);
     this.chart = chart;
@@ -110,6 +174,7 @@ export class Indicator {
     this.id = inst.id;
     this.fallbackPrecision = fallbackPrecision;
     this.paneIndex = paneIndex;
+    this.theme = theme;
   }
 
   getDef(): IndicatorDef {
@@ -131,11 +196,43 @@ export class Indicator {
     return null;
   }
 
+  /** Latest plotted values, with the user's current plot colours, for pane headers. */
+  latestValues(): IndicatorValue[] {
+    if (!this.result) return [];
+    return this.def.plots.flatMap<IndicatorValue>((plot) => {
+      const style = this.inst.style[plot.key];
+      if (style?.visible === false) return [];
+      const entries = plot.kind === "histogram"
+        ? (this.result?.histograms?.[plot.key] ?? [])
+        : (this.result?.lines?.[plot.key] ?? []);
+      for (let index = entries.length - 1; index >= 0; index -= 1) {
+        const entry = entries[index];
+        const value = typeof entry === "object" && entry != null ? entry.value : entry;
+        if (value == null) continue;
+        const barColor = typeof entry === "object" && entry != null ? entry.color : undefined;
+        return [{
+          key: plot.key,
+          label: plot.label,
+          color: indicatorColorForTheme(barColor ?? style?.color ?? plot.defaultColor, this.theme),
+          value,
+        }];
+      }
+      return [{
+        key: plot.key,
+        label: plot.label,
+        color: indicatorColorForTheme(style?.color ?? plot.defaultColor, this.theme),
+        value: null,
+      }];
+    });
+  }
+
   /** Create one series per plot (+ oscillator guide lines). */
   initialize(): void {
     recordReplayMetric("indicator-create", 0);
     const precision = this.inst.precision ?? this.fallbackPrecision;
-    const priceFormat = { type: "price" as const, precision, minMove: 1 / 10 ** precision };
+    const priceFormat = this.def.kind === "volume" || this.def.kind === "obv"
+      ? { type: "volume" as const, precision: 0, minMove: 1 }
+      : { type: "price" as const, precision, minMove: 1 / 10 ** precision };
     for (const plot of this.def.plots) {
       const series: AnySeries =
         plot.kind === "histogram"
@@ -148,7 +245,7 @@ export class Indicator {
     if (host && this.def.hlines) {
       for (const h of this.def.hlines) {
         this.priceLines.push(
-          host.createPriceLine({ price: h.value, color: h.color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: h.label ?? "" }),
+          host.createPriceLine({ price: h.value, color: indicatorColorForTheme(h.color, this.theme), lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: h.label ?? "" }),
         );
       }
     }
@@ -182,7 +279,9 @@ export class Indicator {
         const bars = shift(result.histograms?.[plot.key] ?? [], offset, null);
         data = times.map((t, i) => {
           const bar = bars[i];
-          return bar && bar.value != null ? { time: t, value: bar.value, color: bar.color } : { time: t };
+          return bar && bar.value != null
+            ? { time: t, value: bar.value, color: bar.color ? indicatorColorForTheme(bar.color, this.theme) : undefined }
+            : { time: t };
         });
       } else {
         const values = shift<number>(result.lines?.[plot.key] ?? [], offset, null);
@@ -292,7 +391,7 @@ export class Indicator {
         visible: true,
       };
       const visible = this.inst.visible && s.visible;
-      const color = withOpacity(s.color, s.opacity);
+      const color = indicatorColorForTheme(withOpacity(s.color, s.opacity), this.theme);
       const key = `${color}|${visible}|${s.lineWidth}|${s.lineStyle}`;
       if (this.styleKeys.get(plot.key) === key) continue;
       this.styleKeys.set(plot.key, key);
@@ -307,6 +406,18 @@ export class Indicator {
         });
       }
     }
+  }
+
+  setTheme(theme: ThemeName): void {
+    if (theme === this.theme) return;
+    this.theme = theme;
+    this.styleKeys.clear();
+    this.dataKey = "";
+    this.drawn.clear();
+    this.priceLines.forEach((line, index) => {
+      const guide = this.def.hlines?.[index];
+      if (guide) line.applyOptions({ color: indicatorColorForTheme(guide.color, theme) });
+    });
   }
 
   /**

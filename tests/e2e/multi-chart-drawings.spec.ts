@@ -877,6 +877,44 @@ test("the layout controls stay legible in both themes", async ({ page }) => {
   }
 });
 
+test("every own-pane indicator gets a readable live header in its own pane", async ({ page }) => {
+  const addIndicator = async (name: string) => {
+    await page.getByRole("button", { name: "Indicators", exact: true }).click();
+    const search = page.getByPlaceholder("Search indicators…");
+    await search.fill(name);
+    await page.getByRole("button", { name: `${name} pane`, exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: `${name} settings` });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  };
+
+  await addIndicator("Volume");
+  await addIndicator("MACD");
+  await addIndicator("Average True Range");
+
+  const headers = page.getByTestId("indicator-pane-header");
+  await expect(headers).toHaveCount(3);
+  await expect(headers.nth(0)).toContainText("Volume");
+  await expect(headers.nth(1)).toContainText("Histogram");
+  await expect(headers.nth(1)).toContainText("Signal");
+  await expect(headers.nth(2)).toContainText(/ATR 14.*0\.\d{5}/);
+
+  const boxes = await Promise.all([0, 1, 2].map((index) => headers.nth(index).boundingBox()));
+  expect(boxes.every(Boolean)).toBe(true);
+  expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + 30);
+  expect(boxes[2]!.y).toBeGreaterThan(boxes[1]!.y + 30);
+
+  await headers.nth(2).getByRole("button", { name: "Collapse Average True Range pane" }).click();
+  await expect(headers.nth(2).getByRole("button", { name: "Expand Average True Range pane" })).toBeVisible();
+
+  await page.getByLabel("Trading header").getByRole("button", { name: "Switch to light theme" }).click();
+  await expect(page.locator(".app-shell.light")).toHaveCount(1);
+  const headerFailures = (await visibleTextContrastViolations(page)).filter((failure) =>
+    /Volume|MACD|ATR|Histogram|Signal/.test(failure),
+  );
+  expect(headerFailures).toEqual([]);
+});
+
 test("the timeframe bar stays in ascending order however stars are added", async ({ page }) => {
   const bar = page.locator('[aria-label="Pinned timeframes"]');
   const pinned = () => bar.getByRole("button").allInnerTexts();

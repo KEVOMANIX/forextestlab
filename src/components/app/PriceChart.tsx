@@ -237,6 +237,12 @@ function formatVolume(volume: number): string {
   return String(Math.round(volume));
 }
 
+export function formatIndicatorValue(value: number | null, precision: number, compact = false): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  if (compact || Math.abs(value) >= 100_000) return formatVolume(value);
+  return value.toFixed(Math.max(0, Math.min(8, precision)));
+}
+
 interface PriceChartProps {
   /** Fires after the canvas and its initial price series have been created. */
   onReady?: () => void;
@@ -378,6 +384,12 @@ interface Palette {
   axisText: string;
   grid: string;
   border: string;
+}
+
+interface IndicatorPaneLayout {
+  id: string;
+  top: number;
+  height: number;
 }
 
 const PALETTES: Record<"dark" | "light", Palette> = {
@@ -1162,6 +1174,11 @@ export default function PriceChart({
   axisFontSizeRef.current = axisFontSize;
   timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
+  const [indicatorPaneLayouts, setIndicatorPaneLayouts] = useState<IndicatorPaneLayout[]>([]);
+  const [pricePaneBottom, setPricePaneBottom] = useState<number | null>(null);
+  const [collapsedIndicatorPanes, setCollapsedIndicatorPanes] = useState<Set<string>>(() => new Set());
+  const [, setIndicatorReadoutVersion] = useState(0);
+  const indicatorReadoutFrameRef = useRef(0);
   // The replay listener remains mounted for the session. A ref keeps its
   // indicator reconciliation on the latest React state instead of the empty
   // list captured by the chart's first render.
@@ -1606,7 +1623,7 @@ export default function PriceChart({
     for (const inst of priceInsts) {
       let ind = priceMap.get(inst.id);
       if (!ind) {
-        ind = new Indicator(chart, inst, precision, 0);
+        ind = new Indicator(chart, inst, precision, 0, theme);
         ind.initialize();
         priceMap.set(inst.id, ind);
       }
@@ -1627,12 +1644,17 @@ export default function PriceChart({
       }
       ownInsts.forEach((inst, i) => {
         const paneIndex = i + 1;
-        const ind = new Indicator(chart, inst, inst.precision ?? 2, paneIndex);
+        // Indicators whose definition inherits precision (ATR, standard
+        // deviation) need the instrument's precision. Forcing two decimals
+        // turns ordinary FX volatility values into a flat-looking 0.00 scale.
+        const ind = new Indicator(chart, inst, inst.precision ?? precision, paneIndex, theme);
         ind.initialize();
         ind.update(inst, display, replayRunningRef.current);
         ownMap.set(inst.id, ind);
         try {
-          chart.panes()[paneIndex]?.setHeight(getDef(inst.kind)?.paneHeight ?? 130);
+          chart.panes()[paneIndex]?.setHeight(
+            collapsedIndicatorPanes.has(inst.id) ? 38 : getDef(inst.kind)?.paneHeight ?? 130,
+          );
         } catch {
           // Pane height applied on the next resize.
         }
@@ -1642,6 +1664,12 @@ export default function PriceChart({
       for (const inst of ownInsts) {
         ownMap.get(inst.id)?.update(inst, display, replayRunningRef.current);
       }
+    }
+    if (ownInsts.length > 0 && indicatorReadoutFrameRef.current === 0) {
+      indicatorReadoutFrameRef.current = requestAnimationFrame(() => {
+        indicatorReadoutFrameRef.current = 0;
+        setIndicatorReadoutVersion((version) => version + 1);
+      });
     }
   }
 
@@ -2128,9 +2156,18 @@ export default function PriceChart({
         textColor: palette.axisText,
         fontSize: axisFontSizeRef.current,
         fontFamily: "inherit",
+        panes: {
+          enableResize: true,
+          separatorColor: palette.border,
+          separatorHoverColor: theme === "light" ? "rgba(15,159,125,0.24)" : "rgba(123,232,196,0.28)",
+        },
       },
       grid: { vertLines: { color: palette.grid }, horzLines: { color: palette.grid } },
-      rightPriceScale: { borderColor: palette.border, scaleMargins: { top: 0.12, bottom: 0.08 } },
+      rightPriceScale: {
+        borderColor: palette.border,
+        entireTextOnly: true,
+        scaleMargins: { top: 0.12, bottom: 0.08 },
+      },
       timeScale: {
         borderColor: palette.border,
         borderVisible: true,
@@ -2382,6 +2419,7 @@ export default function PriceChart({
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(coordinateUpdate);
       chart.unsubscribeCrosshairMove(onCrosshair);
       if (renderRafRef.current != null) cancelAnimationFrame(renderRafRef.current);
+      if (indicatorReadoutFrameRef.current !== 0) cancelAnimationFrame(indicatorReadoutFrameRef.current);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -2474,9 +2512,14 @@ export default function PriceChart({
         },
         textColor: palette.axisText,
         fontSize: axisFontSize,
+        panes: {
+          enableResize: true,
+          separatorColor: palette.border,
+          separatorHoverColor: theme === "light" ? "rgba(15,159,125,0.24)" : "rgba(123,232,196,0.28)",
+        },
       },
       grid: { vertLines: { color: gridVisible ? palette.grid : "transparent" }, horzLines: { color: gridVisible ? palette.grid : "transparent" } },
-      rightPriceScale: { borderColor: palette.border },
+      rightPriceScale: { borderColor: palette.border, entireTextOnly: true },
       timeScale: { borderColor: palette.border },
       crosshair: {
         mode: drawTool != null
@@ -2486,6 +2529,11 @@ export default function PriceChart({
             : magnetCrosshair ? CrosshairMode.Magnet : CrosshairMode.Normal,
       },
     });
+    for (const indicator of priceIndicatorsRef.current.values()) indicator.setTheme(theme);
+    for (const indicator of ownIndicatorsRef.current.values()) indicator.setTheme(theme);
+    if (indicatorsRef.current.length > 0) scheduleRender(true);
+    // scheduleRender is stable for the mounted chart and reads mutable refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme, gridVisible, magnetCrosshair, settings.background, axisFontSize, cursorMode, drawTool]);
 
   useEffect(() => {
@@ -2517,6 +2565,46 @@ export default function PriceChart({
         : displayRef.current,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indicators, seriesEpoch]);
+
+  // Native lightweight-charts panes own their sizing and can be dragged by the
+  // user. Observe their real DOM boxes so React headers stay seated inside the
+  // correct pane after add/remove, resize, layout, and window changes.
+  useEffect(() => {
+    const chart = chartRef.current;
+    const container = containerRef.current;
+    if (!chart || !container) return;
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const containerBox = container.getBoundingClientRect();
+        const panes = chart.panes();
+        const priceElement = panes[0]?.getHTMLElement();
+        if (priceElement) {
+          const priceBox = priceElement.getBoundingClientRect();
+          setPricePaneBottom(Math.max(0, containerBox.bottom - priceBox.bottom));
+        }
+        const own = indicatorsRef.current.filter((indicator) => getDef(indicator.kind)?.pane === "own");
+        setIndicatorPaneLayouts(own.flatMap((indicator, index) => {
+          const element = panes[index + 1]?.getHTMLElement();
+          if (!element) return [];
+          const box = element.getBoundingClientRect();
+          return [{ id: indicator.id, top: box.top - containerBox.top, height: box.height }];
+        }));
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    chart.panes().forEach((pane) => {
+      const element = pane.getHTMLElement();
+      if (element) observer.observe(element);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [indicators, seriesEpoch]);
 
   useEffect(() => {
@@ -3431,6 +3519,31 @@ export default function PriceChart({
   function removeIndicator(id: string) {
     commitIndicators((prev) => prev.filter((i) => i.id !== id));
     setIndicatorEditing((cur) => (cur === id ? null : cur));
+    setCollapsedIndicatorPanes((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleIndicatorPane(id: string) {
+    const runtime = ownIndicatorsRef.current.get(id);
+    if (!runtime) return;
+    const collapse = !collapsedIndicatorPanes.has(id);
+    const instance = indicatorsRef.current.find((indicator) => indicator.id === id);
+    const height = collapse ? 38 : getDef(instance?.kind ?? "")?.paneHeight ?? 130;
+    try {
+      chartRef.current?.panes()[runtime.paneIndex]?.setHeight(height);
+    } catch {
+      return;
+    }
+    setCollapsedIndicatorPanes((current) => {
+      const next = new Set(current);
+      if (collapse) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   }
 
   const overlayIndicators = indicators.filter((i) => getDef(i.kind)?.render === "overlay");
@@ -4142,6 +4255,7 @@ export default function PriceChart({
             width={drawingEngineRef.current?.width ?? 0}
             height={drawingEngineRef.current?.height ?? 0}
             timeAxisHeight={timeAxisHeight}
+            pricePaneBottom={pricePaneBottom ?? undefined}
             insetLeft={showRail && !railSlot ? 56 : 0}
             zone={settings.timeZone}
             viewVersion={viewVersion}
@@ -4422,10 +4536,11 @@ export default function PriceChart({
               </div>
             )}
 
-            {/* Every active indicator lives in this one stack directly below OHLC. */}
-            {indicators.length > 0 && (
+            {/* Price overlays stay below OHLC; own-pane studies are labelled in
+                the pane that contains their plots. */}
+            {indicators.some((indicator) => getDef(indicator.kind)?.pane !== "own") && (
               <div className="pointer-events-auto flex flex-col items-start gap-0.5">
-                {indicators.map((inst) => {
+                {indicators.filter((indicator) => getDef(indicator.kind)?.pane !== "own").map((inst) => {
                   const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#60a5fa";
                   return (
                     <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] shadow backdrop-blur">
@@ -4447,6 +4562,61 @@ export default function PriceChart({
             )}
           </div>
         </div>
+
+        {/* Each oscillator owns a compact header inside its native pane. Values
+            use neutral readable ink; plot-colour dots retain the visual key in
+            both themes without making yellow or cyan text fail contrast. */}
+        {indicatorPaneLayouts.map((layout) => {
+          const inst = indicators.find((indicator) => indicator.id === layout.id);
+          if (!inst) return null;
+          const def = getDef(inst.kind);
+          if (!def) return null;
+          const runtime = ownIndicatorsRef.current.get(inst.id);
+          const values = runtime?.latestValues() ?? [];
+          const indicatorPrecision = inst.precision ?? precision;
+          const compactValues = inst.kind === "volume" || inst.kind === "obv";
+          const collapsed = collapsedIndicatorPanes.has(inst.id);
+          return (
+            <div
+              key={inst.id}
+              data-testid="indicator-pane-header"
+              data-indicator-kind={inst.kind}
+              className={`pointer-events-auto absolute z-30 flex max-w-[calc(100%-5rem)] items-center gap-2 overflow-hidden rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 shadow-sm ${
+                showRail && !railSlot ? "left-[3.75rem]" : "left-2"
+              }`}
+              style={{ top: layout.top + 5, minHeight: 28, fontSize: Math.max(11, overlayFont - 2) }}
+            >
+              <span className={`shrink-0 font-semibold ${inst.visible ? "text-[var(--chart-text)]" : "text-[var(--chart-muted)] line-through"}`}>
+                {indicatorLabel(inst)}
+              </span>
+              {!collapsed && inst.visible && values.length > 0 && (
+                <span className="flex min-w-0 items-center gap-2 overflow-hidden font-mono text-[0.92em] text-[var(--chart-text)]">
+                  {values.map((value) => (
+                    <span key={value.key} className="inline-flex shrink-0 items-center gap-1" title={`${value.label}: ${formatIndicatorValue(value.value, indicatorPrecision, compactValues)}`}>
+                      <i className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: value.color }} aria-hidden />
+                      <span className="text-[var(--chart-muted)]">{value.label}</span>
+                      <b className="font-semibold text-[var(--chart-text)]">{formatIndicatorValue(value.value, indicatorPrecision, compactValues)}</b>
+                    </span>
+                  ))}
+                </span>
+              )}
+              <span className="ml-auto flex shrink-0 items-center gap-0.5">
+                <button type="button" title={inst.visible ? "Hide indicator" : "Show indicator"} aria-label={`${inst.visible ? "Hide" : "Show"} ${def.name}`} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-[var(--app-panel-2)] hover:text-[var(--chart-text)]">
+                  {inst.visible ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
+                </button>
+                <button type="button" title="Indicator settings" aria-label={`Settings for ${def.name}`} onClick={() => setIndicatorEditing(inst.id)} className="grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-[var(--app-panel-2)] hover:text-[var(--chart-text)]">
+                  <Settings2 size={12} aria-hidden />
+                </button>
+                <button type="button" title={collapsed ? "Expand pane" : "Collapse pane"} aria-label={`${collapsed ? "Expand" : "Collapse"} ${def.name} pane`} onClick={() => toggleIndicatorPane(inst.id)} className="grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-[var(--app-panel-2)] hover:text-[var(--chart-text)]">
+                  {collapsed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}
+                </button>
+                <button type="button" title="Remove indicator" aria-label={`Remove ${def.name}`} onClick={() => removeIndicator(inst.id)} className="grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-loss/15 hover:text-loss">
+                  <X size={12} aria-hidden />
+                </button>
+              </span>
+            </div>
+          );
+        })}
 
         {pendingOrders.filter((order) => order.status === "pending").map((order) => (
           <div

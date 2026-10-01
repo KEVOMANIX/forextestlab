@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { hydrateInstance } from "./indicator-defs";
 import type { OHLCV } from "./indicators";
-import { Indicator } from "./indicator-runtime";
+import { Indicator, indicatorColorForTheme } from "./indicator-runtime";
 
 /**
  * How much the runtime pushes into the chart on each replay candle.
@@ -25,8 +25,10 @@ interface StubSeries {
 
 function stubChart() {
   const series: StubSeries[] = [];
+  const seriesOptions: Array<Record<string, unknown>> = [];
   const chart = {
-    addSeries: () => {
+    addSeries: (_type: unknown, options: Record<string, unknown>) => {
+      seriesOptions.push(options);
       const s: StubSeries = {
         setData: vi.fn(),
         update: vi.fn(),
@@ -55,7 +57,7 @@ function stubChart() {
     }
   };
   // The stub only implements what `Indicator` touches.
-  return { chart: chart as never, totals, reset, series };
+  return { chart: chart as never, totals, reset, series, seriesOptions };
 }
 
 function bars(count: number, from = 0): OHLCV[] {
@@ -249,5 +251,44 @@ describe("every registered indicator", () => {
       expect(value, kind).not.toBeNull();
       expect(Number.isFinite(value as number), kind).toBe(true);
     }
+  });
+
+  it("exposes every visible plot value with its configured colour", () => {
+    const { chart } = stubChart();
+    const inst = hydrateInstance({ id: "t-macd", kind: "macd", visible: true })!;
+    inst.style.signal = { ...inst.style.signal!, color: "#60a5fa" };
+    const indicator = new Indicator(chart, inst, 5, 1);
+    indicator.initialize();
+    indicator.update(inst, bars(200));
+
+    const values = indicator.latestValues();
+    expect(values.map((value) => value.label)).toEqual(["Histogram", "MACD", "Signal"]);
+    expect(values.find((value) => value.key === "signal")?.color).toBe("#60a5fa");
+    expect(values.every((value) => Number.isFinite(value.value))).toBe(true);
+  });
+
+  it("uses abbreviated scale formatting for raw volume panes", () => {
+    const { chart, seriesOptions } = stubChart();
+    make("volume", chart);
+    expect(seriesOptions[0]?.priceFormat).toMatchObject({ type: "volume", precision: 0 });
+  });
+
+  it("keeps inherited FX precision for ATR panes", () => {
+    const { chart, seriesOptions } = stubChart();
+    make("atr", chart);
+    expect(seriesOptions[0]?.priceFormat).toMatchObject({ type: "price", precision: 5 });
+  });
+});
+
+describe("indicator theme colours", () => {
+  it("darkens low-contrast yellow without replacing its hue in light mode", () => {
+    const adjusted = indicatorColorForTheme("#fbbf24", "light");
+    expect(adjusted).not.toBe("#fbbf24");
+    expect(adjusted).not.toBe("#17201c");
+  });
+
+  it("strengthens translucent histogram bars for the active chart surface", () => {
+    expect(indicatorColorForTheme("rgba(34,197,94,0.5)", "light")).toMatch(/^#/);
+    expect(indicatorColorForTheme("rgba(240,91,103,0.6)", "dark")).toBeTruthy();
   });
 });

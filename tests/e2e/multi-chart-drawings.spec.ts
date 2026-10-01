@@ -905,7 +905,17 @@ test("every own-pane indicator gets a readable live header in its own pane", asy
   expect(boxes.every(Boolean)).toBe(true);
   expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + 30);
   expect(boxes[2]!.y).toBeGreaterThan(boxes[1]!.y + 30);
+  const paneHeights = await headers.evaluateAll((elements) =>
+    elements.map((element) => Number((element as HTMLElement).dataset.paneHeight)),
+  );
+  expect(Math.min(...paneHeights)).toBeGreaterThanOrEqual(70);
 
+  const macdControls = headers.nth(1).locator("span").last();
+  await expect(macdControls).toHaveCSS("opacity", "0");
+  await headers.nth(1).hover();
+  await expect(macdControls).toHaveCSS("opacity", "1");
+
+  await headers.nth(2).hover();
   await headers.nth(2).getByRole("button", { name: "Collapse Average True Range pane" }).click();
   await expect(headers.nth(2).getByRole("button", { name: "Expand Average True Range pane" })).toBeVisible();
 

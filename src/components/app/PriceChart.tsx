@@ -400,6 +400,11 @@ interface IndicatorPaneLayout {
   height: number;
 }
 
+const DEFAULT_PRICE_PANE_STRETCH = 3.2;
+const DEFAULT_INDICATOR_PANE_HEIGHT = 132;
+const COLLAPSED_INDICATOR_PANE_STRETCH = 0.28;
+const INDICATOR_HISTORY_WARMUP_BARS = 200;
+
 const PALETTES: Record<"dark" | "light", Palette> = {
   dark: {
     background: "#14231e",
@@ -1329,8 +1334,15 @@ export default function PriceChart({
       if (contextSeriesRef.current) {
         applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
       }
+      // Indicator runtimes are separate series. Updating only the muted price
+      // context left them calculated from the old, shorter timeline until the
+      // next replay candle arrived.
+      scheduleRender(true);
       requestAnimationFrame(updateViewportDiagnostics);
     });
+    // The subscription deliberately reads the current chart functions and refs;
+    // resubscribing on each render would duplicate the history listener.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayTimeframe, storageKey]);
 
   /**
@@ -1381,6 +1393,10 @@ export default function PriceChart({
       historyHasMoreRef.current = page.hasMore;
       setHasOlderHistory(page.hasMore);
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
+      // Recalculate every indicator immediately with the newly loaded prefix.
+      // This removes the false blank lead-in caused by calculating MACD/ATR
+      // before their warm-up candles had arrived.
+      scheduleRender(true);
       if (storageKey) {
         await publishChartHistory(
           chartHistoryKey(storageKey, requestedTimeframe),
@@ -1605,6 +1621,27 @@ export default function PriceChart({
   }
 
   /**
+   * Give oscillator panes predictable room at every chart height. Pixel heights
+   * are redistributed each time Lightweight Charts adds another pane, which
+   * made the first indicators collapse into narrow strips. Stretch factors are
+   * responsive and are also the same sizing model used by pane drag handles.
+   */
+  function applyDefaultIndicatorPaneSizes(instances: IndicatorInstance[]) {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const panes = chart.panes();
+    panes[0]?.setStretchFactor(DEFAULT_PRICE_PANE_STRETCH);
+    instances.forEach((instance, index) => {
+      const pane = panes[index + 1];
+      if (!pane) return;
+      const stretch = collapsedIndicatorPanes.has(instance.id)
+        ? COLLAPSED_INDICATOR_PANE_STRETCH
+        : (getDef(instance.kind)?.paneHeight ?? DEFAULT_INDICATOR_PANE_HEIGHT) / DEFAULT_INDICATOR_PANE_HEIGHT;
+      pane.setStretchFactor(stretch);
+    });
+  }
+
+  /**
    * Reconcile indicator controllers with the current instance list. Price-pane
    * indicators live on pane 0 (incremental create/update/destroy); own-pane
    * indicators each get a native lightweight-charts pane (rebuilt only when the
@@ -1659,14 +1696,17 @@ export default function PriceChart({
         ind.initialize();
         ind.update(inst, display, replayRunningRef.current);
         ownMap.set(inst.id, ind);
-        try {
-          chart.panes()[paneIndex]?.setHeight(
-            collapsedIndicatorPanes.has(inst.id) ? 38 : getDef(inst.kind)?.paneHeight ?? 130,
-          );
-        } catch {
-          // Pane height applied on the next resize.
-        }
       });
+      try {
+        applyDefaultIndicatorPaneSizes(ownInsts);
+        // Pane DOM is committed after the series. A second pass prevents the
+        // library's creation layout from overwriting the intended proportions.
+        requestAnimationFrame(() => {
+          if (ownOrderRef.current === ownKey) applyDefaultIndicatorPaneSizes(ownInsts);
+        });
+      } catch {
+        // Pane sizing is retried by the next structural indicator update.
+      }
       ownOrderRef.current = ownKey;
     } else {
       for (const inst of ownInsts) {
@@ -2572,6 +2612,22 @@ export default function PriceChart({
         ? joinedTimelineCached(historyCandlesRef.current, displayRef.current)
         : displayRef.current,
     );
+    const needsCalculatedHistory = indicators.some((indicator) => {
+      const definition = getDef(indicator.kind);
+      return indicator.visible && definition?.render !== "overlay";
+    });
+    const visibleStart = displayRef.current[0]?.time;
+    const warmupBars = visibleStart == null
+      ? 0
+      : historyCandlesRef.current.filter((candle) => candle.timestamp / 1000 < Number(visibleStart)).length;
+    if (
+      needsCalculatedHistory &&
+      warmupBars < INDICATOR_HISTORY_WARMUP_BARS &&
+      historyHasMoreRef.current &&
+      !historyLoadingRef.current
+    ) {
+      void loadHistoryPage(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [indicators, seriesEpoch]);
 
@@ -3540,9 +3596,11 @@ export default function PriceChart({
     if (!runtime) return;
     const collapse = !collapsedIndicatorPanes.has(id);
     const instance = indicatorsRef.current.find((indicator) => indicator.id === id);
-    const height = collapse ? 38 : getDef(instance?.kind ?? "")?.paneHeight ?? 130;
+    const stretch = collapse
+      ? COLLAPSED_INDICATOR_PANE_STRETCH
+      : (getDef(instance?.kind ?? "")?.paneHeight ?? DEFAULT_INDICATOR_PANE_HEIGHT) / DEFAULT_INDICATOR_PANE_HEIGHT;
     try {
-      chartRef.current?.panes()[runtime.paneIndex]?.setHeight(height);
+      chartRef.current?.panes()[runtime.paneIndex]?.setStretchFactor(stretch);
     } catch {
       return;
     }
@@ -4589,7 +4647,8 @@ export default function PriceChart({
               key={inst.id}
               data-testid="indicator-pane-header"
               data-indicator-kind={inst.kind}
-              className={`pointer-events-auto absolute z-30 flex max-w-[calc(100%-5rem)] items-center gap-2 overflow-hidden rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 shadow-sm ${
+              data-pane-height={Math.round(layout.height)}
+              className={`group pointer-events-auto absolute z-30 flex max-w-[calc(100%-5rem)] items-center gap-1.5 overflow-hidden rounded-sm border border-transparent bg-[var(--app-panel-solid)]/90 px-1.5 hover:border-[var(--app-border)] ${
                 showRail && !railSlot ? "left-[3.75rem]" : "left-2"
               }`}
               style={{ top: layout.top + 5, minHeight: 28, fontSize: Math.max(11, overlayFont - 2) }}
@@ -4598,7 +4657,7 @@ export default function PriceChart({
                 {paneIndicatorLabel(inst)}
               </span>
               {!collapsed && inst.visible && values.length > 0 && (
-                <span className="flex min-w-0 items-center gap-2 overflow-hidden font-mono text-[0.92em] text-[var(--chart-text)]">
+                <span className="flex min-w-0 items-center gap-1.5 overflow-hidden font-mono text-[0.92em] text-[var(--chart-text)]">
                   {values.map((value) => (
                     <span key={value.key} className="inline-flex shrink-0 items-center gap-1" title={`${value.label}: ${formatIndicatorValue(value.value, indicatorPrecision, compactValues)}`}>
                       <b className="font-semibold" style={{ color: indicatorColorForTheme(value.color, theme, 4.5) }}>
@@ -4608,7 +4667,7 @@ export default function PriceChart({
                   ))}
                 </span>
               )}
-              <span className="ml-auto flex shrink-0 items-center gap-0.5">
+              <span className="pointer-events-none ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
                 <button type="button" title={inst.visible ? "Hide indicator" : "Show indicator"} aria-label={`${inst.visible ? "Hide" : "Show"} ${def.name}`} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-[var(--app-panel-2)] hover:text-[var(--chart-text)]">
                   {inst.visible ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
                 </button>

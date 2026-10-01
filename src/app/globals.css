@@ -338,12 +338,17 @@
   :is(.app-shell.light, .app-theme-surface.light)
     :is(
       [class~="bg-white/[0.02]"],
+      [class~="bg-white/[0.015]"],
+      [class~="bg-white/[0.025]"],
       [class~="bg-white/[0.03]"],
+      [class~="bg-white/[0.035]"],
       [class~="bg-white/[0.04]"],
       [class~="bg-white/[0.05]"],
+      [class~="bg-white/[0.055]"],
       [class~="bg-white/[0.06]"],
       [class~="bg-white/[0.07]"],
       [class~="bg-white/[0.08]"],
+      [class~="bg-white/10"],
       [class~="bg-white/15"],
       [class~="bg-white/20"]
     ) {
@@ -352,8 +357,12 @@
 
   :is(.app-shell.light, .app-theme-surface.light)
     :is(
+      [class~="hover:bg-white/[0.02]"],
       [class~="hover:bg-white/[0.025]"],
       [class~="hover:bg-white/[0.03]"],
+      [class~="hover:bg-white/[0.035]"],
+      [class~="hover:bg-white/[0.04]"],
+      [class~="hover:bg-white/[0.045]"],
       [class~="hover:bg-white/[0.05]"],
       [class~="hover:bg-white/[0.06]"],
       [class~="hover:bg-white/[0.08]"]
@@ -366,7 +375,7 @@
   }
 
   :is(.app-shell.light, .app-theme-surface.light)
-    :is([class~="border-white/15"], [class~="border-white/20"]) {
+    :is([class~="border-white/10"], [class~="border-white/15"], [class~="border-white/20"]) {
     border-color: var(--app-border);
   }
 

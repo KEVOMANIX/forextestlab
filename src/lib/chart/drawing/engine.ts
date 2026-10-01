@@ -71,6 +71,7 @@ interface EngineEnv {
   timeframe: string;
   /** Chart display zone, forwarded to any drawing that stamps a time. */
   timeZone: string;
+  theme: "dark" | "light";
   /** The live account, so the position tool sizes against a real balance. */
   account: DrawingAccount;
 }
@@ -123,7 +124,7 @@ export class DrawingEngine {
   private create: CreateState | null = null;
   private snapDot: { x: number; y: number } | null = null;
 
-  private env: EngineEnv = { tool: null, selectionEnabled: true, magnet: "off", candles: [], futureTimes: [], precision: 5, pipSize: 0.0001, timeframe: "", timeZone: EXCHANGE_ZONE, account: { balance: 10000, currency: "USD", pipValuePerLot: null } };
+  private env: EngineEnv = { tool: null, selectionEnabled: true, magnet: "off", candles: [], futureTimes: [], precision: 5, pipSize: 0.0001, timeframe: "", timeZone: EXCHANGE_ZONE, theme: "dark", account: { balance: 10000, currency: "USD", pipValuePerLot: null } };
 
   private history: DrawingJSON[][] = [];
   private future: DrawingJSON[][] = [];
@@ -296,7 +297,8 @@ export class DrawingEngine {
     const geometryChanged =
       (env.precision !== undefined && env.precision !== this.env.precision) ||
       (env.pipSize !== undefined && env.pipSize !== this.env.pipSize) ||
-      (env.timeframe !== undefined && env.timeframe !== this.env.timeframe);
+      (env.timeframe !== undefined && env.timeframe !== this.env.timeframe) ||
+      (env.theme !== undefined && env.theme !== this.env.theme);
     this.env = { ...this.env, ...env };
     // Candle updates happen before the chart completes its own replay paint.
     // Updating the mapper is necessary for dragging/future extrapolation, but
@@ -1297,9 +1299,15 @@ export class DrawingEngine {
         pipSize: this.env.pipSize,
         candles: this.env.candles,
         timeZone: this.env.timeZone,
+        theme: this.env.theme,
         account: this.env.account,
       };
       ctx.save();
+      // User-selected white and black strokes must remain visible when the
+      // chart theme changes. A tight opposite-tone edge preserves the chosen
+      // colour while separating it from either canvas.
+      ctx.shadowColor = this.env.theme === "light" ? "rgba(15, 23, 42, 0.58)" : "rgba(255, 255, 255, 0.42)";
+      ctx.shadowBlur = 1.25;
       o.render(r);
       // Text/label tools paint their own text; every other tool gets the shared label.
       if (o.kind !== "text" && o.kind !== "label" && o.kind !== "callout" && o.kind !== "anchoredText") o.drawLabel(r);
@@ -1327,7 +1335,7 @@ export class DrawingEngine {
           } else {
             ctx.arc(a.x, a.y, SELECTION_HANDLE, 0, Math.PI * 2);
           }
-          ctx.fillStyle = this.isLocked(sel) ? "#94a3b8" : HANDLE_FILL;
+          ctx.fillStyle = this.isLocked(sel) ? "#94a3b8" : this.env.theme === "light" ? "#ffffff" : HANDLE_FILL;
           ctx.fill();
           ctx.lineWidth = 2;
           ctx.strokeStyle = this.isLocked(sel) ? "#94a3b8" : SELECTION_BLUE;

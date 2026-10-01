@@ -35,6 +35,7 @@ export interface RenderCtx {
   candles: Candle[];
   /** The chart's display zone, so a drawing's label agrees with the axis. */
   timeZone: string;
+  theme: "dark" | "light";
   /**
    * The account the position tool sizes against.
    *
@@ -57,6 +58,42 @@ export interface DrawingAccount {
 }
 
 export const HIT_TOLERANCE = 6;
+
+type Rgb = [number, number, number];
+
+function rgb(color: string): Rgb | null {
+  const hex = color.trim().match(/^#([\da-f]{3}|[\da-f]{6}|[\da-f]{8})$/i)?.[1];
+  if (hex) {
+    const value = hex.length === 3 ? hex.split("").map((part) => part + part).join("") : hex.slice(0, 6);
+    return [Number.parseInt(value.slice(0, 2), 16), Number.parseInt(value.slice(2, 4), 16), Number.parseInt(value.slice(4, 6), 16)];
+  }
+  const functional = color.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i);
+  return functional ? [Number(functional[1]), Number(functional[2]), Number(functional[3])] : null;
+}
+
+function luminance(color: Rgb): number {
+  const channel = (value: number) => {
+    const normalized = value / 255;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(color[0]) + 0.7152 * channel(color[1]) + 0.0722 * channel(color[2]);
+}
+
+/** Keep canvas text readable even when a saved/user colour matches its background. */
+export function readableCanvasColor(preferred: string, background: string): string {
+  const foregroundRgb = rgb(preferred);
+  const backgroundRgb = rgb(background);
+  if (!foregroundRgb || !backgroundRgb) return preferred;
+  const foregroundLum = luminance(foregroundRgb);
+  const backgroundLum = luminance(backgroundRgb);
+  const contrast = (Math.max(foregroundLum, backgroundLum) + 0.05) / (Math.min(foregroundLum, backgroundLum) + 0.05);
+  if (contrast >= 3) return preferred;
+  return backgroundLum > 0.42 ? "#17201c" : "#f4fff9";
+}
+
+export function chartCanvasBackground(theme: "dark" | "light"): string {
+  return theme === "light" ? "#f7faf8" : "#14231e";
+}
 
 /** Tools that draw as a line/segment — their label breaks the line and sits in the gap. */
 const LINE_KINDS: ReadonlySet<ToolKind> = new Set<ToolKind>([
@@ -234,7 +271,7 @@ export abstract class DrawingObject {
    * placed relative to the bounding box per the alignment / placement style.
    * Text/label tools render their own text and skip this.
    */
-  drawLabel({ ctx, mapper }: RenderCtx): void {
+  drawLabel({ ctx, mapper, theme }: RenderCtx): void {
     const text = this.style.text?.trim();
     if (!text) return;
     const lines = text.split("\n");
@@ -245,7 +282,7 @@ export abstract class DrawingObject {
     const italic = this.style.italic ? "italic " : "";
     ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "middle";
-    const color = withAlpha(this.style.textColor ?? "#e5e7eb", 1);
+    const color = readableCanvasColor(this.style.textColor ?? "#e5e7eb", chartCanvasBackground(theme));
 
     if (LINE_KINDS.has(this.kind)) {
       const c = this.labelAnchor(mapper);

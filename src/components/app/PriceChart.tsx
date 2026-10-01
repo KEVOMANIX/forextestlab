@@ -100,7 +100,7 @@ import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
 import { opensIntervalInput } from "@/lib/chart/interval-input";
 import { IntervalPrompt } from "./IntervalPrompt";
-import type { DrawingAccount } from "@/lib/chart/drawing/object";
+import { readableCanvasColor, type DrawingAccount } from "@/lib/chart/drawing/object";
 import { renderedLivePrice } from "@/lib/chart/live-price";
 import { subscribeReplayVisual } from "@/lib/backtest/replay-visual-bus";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
@@ -862,7 +862,7 @@ function MarketSessionLayer({
           />
           <span
             className="absolute bottom-[3px] left-0 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm"
-            style={{ color: "#0b0f1a", backgroundColor: session.lineColor }}
+            style={{ color: readableCanvasColor("#0b0f1a", session.lineColor), backgroundColor: session.lineColor }}
           >
             {formatInZone(timestamp, chartTimeZone, SESSION_LINE_AXIS_FORMAT)}
           </span>
@@ -4085,6 +4085,7 @@ export default function PriceChart({
           chart={chartApi}
           series={priceSeries}
           timeZone={settings.timeZone}
+          theme={theme}
           tool={drawTool}
           // Drawings are selectable and draggable in both cursor modes. Gating
           // selection on the pointer mode made every drawing inert under the

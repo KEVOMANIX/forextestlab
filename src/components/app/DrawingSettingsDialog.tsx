@@ -96,7 +96,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                       aria-label={c}
                       onClick={() => setStyle({ color: c })}
                       className="h-4 w-4 rounded-full border"
-                      style={{ backgroundColor: c, borderColor: s.color === c ? "#fff" : "transparent" }}
+                      style={{ backgroundColor: c, borderColor: s.color === c ? "var(--app-text)" : "transparent" }}
                     />
                   ))}
                   <input
@@ -153,7 +153,7 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
                           aria-label={c}
                           onClick={() => setStyle({ fillColor: c })}
                           className="h-4 w-4 rounded-full border"
-                          style={{ backgroundColor: c, borderColor: s.fillColor === c ? "#fff" : "transparent" }}
+                          style={{ backgroundColor: c, borderColor: s.fillColor === c ? "var(--app-text)" : "transparent" }}
                         />
                       ))}
                       <input

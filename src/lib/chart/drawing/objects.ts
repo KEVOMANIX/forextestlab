@@ -9,10 +9,12 @@ import type { CoordinateMapper } from "./coords";
 import {
   DrawingObject,
   HIT_TOLERANCE,
+  chartCanvasBackground,
   distToSegment,
   dist,
   pointInPolygon,
   pointInRect,
+  readableCanvasColor,
   rectFromPoints,
   type Rect,
   type RenderCtx,
@@ -138,7 +140,7 @@ function chip(ctx: CanvasRenderingContext2D, x: number, y: number, text: string,
   ctx.arcTo(x, y + h, x, y, r);
   ctx.arcTo(x, y, x + w, y, r);
   ctx.fill();
-  ctx.fillStyle = fg;
+  ctx.fillStyle = readableCanvasColor(fg, bg);
   ctx.textBaseline = "middle";
   ctx.fillText(text, x + 5, y + h / 2 + 0.5);
   ctx.restore();
@@ -176,7 +178,7 @@ function centerChip(ctx: CanvasRenderingContext2D, cx: number, cy: number, lines
   ctx.fillStyle = bg;
   roundRectPath(ctx, x, y, w, h, 4);
   ctx.fill();
-  ctx.fillStyle = fg;
+  ctx.fillStyle = readableCanvasColor(fg, bg);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   lines.forEach((l, i) => ctx.fillText(l, cx, y + 3 + lh * (i + 0.5)));
@@ -462,7 +464,7 @@ class PathObj extends DrawingObject {
 // ---- text ----
 
 class TextObj extends DrawingObject {
-  render({ ctx, mapper }: RenderCtx): void {
+  render({ ctx, mapper, theme }: RenderCtx): void {
     const p = this.px(mapper, this.points[0]!);
     if (!p) return;
     const text = this.style.text;
@@ -474,9 +476,9 @@ class TextObj extends DrawingObject {
     ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "middle";
     if (this.style.background || this.kind === "label") {
-      chip(ctx, p.x, p.y - (this.style.fontSize + 6) / 2, text, withAlpha(this.style.fillColor, Math.max(0.15, this.style.fillOpacity)), this.style.textColor ?? this.style.color, this.style.fontSize);
+      chip(ctx, p.x, p.y - (this.style.fontSize + 6) / 2, text, withAlpha(this.style.fillColor, Math.max(0.82, this.style.fillOpacity)), this.style.textColor ?? this.style.color, this.style.fontSize);
     } else {
-      ctx.fillStyle = withAlpha(this.style.textColor ?? this.style.color, this.style.opacity);
+      ctx.fillStyle = readableCanvasColor(this.style.textColor ?? this.style.color, chartCanvasBackground(theme));
       ctx.fillText(text, p.x, p.y);
     }
     ctx.restore();
@@ -529,7 +531,9 @@ class AnchoredTextObj extends DrawingObject {
     ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui, sans-serif`;
     ctx.textBaseline = "top";
     ctx.textAlign = "left";
-    ctx.fillStyle = this.style.text ? withAlpha(this.style.textColor ?? this.style.color, this.style.opacity) : withAlpha("#94a3b8", .78);
+    ctx.fillStyle = this.style.text
+      ? readableCanvasColor(this.style.textColor ?? this.style.color, this.style.fillColor)
+      : readableCanvasColor("#94a3b8", this.style.fillColor);
     const textTop = box.y + (box.h - lines.length * lineHeight) / 2;
     lines.forEach((line, index) => ctx.fillText(line, box.x + 10, textTop + index * lineHeight));
     ctx.restore();
@@ -567,7 +571,7 @@ class FibObj extends DrawingObject {
     const p1 = this.points[1]!;
     return this.style.reverse ? p1.price + (p0.price - p1.price) * lvl : p0.price + (p1.price - p0.price) * lvl;
   }
-  render({ ctx, mapper, precision }: RenderCtx): void {
+  render({ ctx, mapper, precision, theme }: RenderCtx): void {
     const p0 = this.points[0]!;
     const p1 = this.points[1]!;
     const x1 = mapper.timeToX(p0.time);
@@ -605,7 +609,7 @@ class FibObj extends DrawingObject {
       ctx.lineTo(right, y);
       ctx.stroke();
       if (this.style.showLabels) {
-        ctx.fillStyle = withAlpha(col, this.style.opacity);
+        ctx.fillStyle = readableCanvasColor(col, chartCanvasBackground(theme));
         ctx.fillText(`${lvl.toFixed(3)}  ${price.toFixed(precision)}`, right + 4, y);
       }
     });
@@ -1175,7 +1179,9 @@ class Callout extends DrawingObject {
     const italic = this.style.italic ? "italic " : "";
     ctx.font = `${italic}${weight}${this.style.fontSize}px ui-sans-serif, system-ui`;
     ctx.textBaseline = "top";
-    ctx.fillStyle = this.style.text ? withAlpha(this.style.textColor ?? "#fff", this.style.opacity) : withAlpha("#94a3b8", .78);
+    ctx.fillStyle = this.style.text
+      ? readableCanvasColor(this.style.textColor ?? "#fff", this.style.fillColor)
+      : readableCanvasColor("#94a3b8", this.style.fillColor);
     const textTop = box.y + (box.h - lines.length * lineHeight) / 2;
     lines.forEach((line, index) => ctx.fillText(line, box.x + 11, textTop + index * lineHeight));
     ctx.restore();
@@ -1206,7 +1212,7 @@ class AdvancedStudy extends DrawingObject {
     return this.points.map((point) => this.px(mapper, point));
   }
 
-  render({ ctx, mapper }: RenderCtx): void {
+  render({ ctx, mapper, theme }: RenderCtx): void {
     const points = this.pixels(mapper);
     const a = points[0];
     const b = points[1];
@@ -1226,7 +1232,7 @@ class AdvancedStudy extends DrawingObject {
     };
     const label = (text: string, x: number, y: number) => {
       if (!this.style.showLabels) return;
-      ctx.fillStyle = faint; ctx.font = "9px ui-monospace, monospace"; ctx.fillText(text, x + 3, y - 3);
+      ctx.fillStyle = readableCanvasColor(faint, chartCanvasBackground(theme)); ctx.font = "9px ui-monospace, monospace"; ctx.fillText(text, x + 3, y - 3);
     };
     const ray = (origin: { x: number; y: number }, through: { x: number; y: number }, stroke = color) => {
       const vx = through.x - origin.x, vy = through.y - origin.y;

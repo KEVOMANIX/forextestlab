@@ -376,7 +376,7 @@ export function OrderTicket({
             data-testid="chart-trade-spread"
             aria-label={`${spreadLabel} pips`}
             title={`${spreadLabel} pips`}
-            className={`pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border border-white/20 bg-[#0b1220] font-mono font-bold leading-none text-white shadow-md ${
+            className={`pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border app-border bg-[var(--app-panel-solid)] font-mono font-bold leading-none text-[var(--app-text)] shadow-md ${
               compactQuote ? "h-5 min-w-6 px-0.5 text-[8px]" : "h-6 min-w-7 px-1 text-[10px]"
             }`}
           >

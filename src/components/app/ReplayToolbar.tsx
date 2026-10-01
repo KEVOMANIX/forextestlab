@@ -402,7 +402,7 @@ export function ReplayToolbar({
             data-testid="quick-trade-spread"
             aria-label={`${spreadLabel} pips`}
             title={`${spreadLabel} pips`}
-            className="pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-5 min-w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border border-white/20 bg-[#0b1220] px-1 font-mono text-[10px] font-bold leading-none text-white shadow-md"
+            className="pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-5 min-w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border app-border bg-[var(--app-panel-solid)] px-1 font-mono text-[10px] font-bold leading-none text-[var(--app-text)] shadow-md"
           >
             {spreadLabel}
           </span>

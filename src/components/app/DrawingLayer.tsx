@@ -23,7 +23,7 @@ import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 
 import { DrawingEngine, type ContextMenuRequest } from "@/lib/chart/drawing/engine";
 import type { Candle } from "@/lib/chart/drawing/coords";
-import type { DrawingAccount } from "@/lib/chart/drawing/object";
+import { chartCanvasBackground, readableCanvasColor, type DrawingAccount } from "@/lib/chart/drawing/object";
 import type { DrawingJSON, MagnetMode, ToolKind } from "@/lib/chart/drawing/types";
 import { DrawingSettingsDialog } from "./DrawingSettingsDialog";
 
@@ -48,6 +48,7 @@ interface Props {
   timeframe: string;
   /** Chart display zone, so a vertical line stamps the same clock as the axis. */
   timeZone: string;
+  theme: "dark" | "light";
   timeframes: string[];
   candles: Candle[];
   /** Bar times the chart's time axis continues through past the last candle. */
@@ -79,6 +80,7 @@ export function DrawingLayer({
   account,
   timeframe,
   timeZone,
+  theme,
   timeframes,
   candles,
   futureTimes,
@@ -208,12 +210,13 @@ export function DrawingLayer({
       pipSize,
       timeframe,
       timeZone,
+      theme,
       account,
       candles: candlesRef.current,
       futureTimes: futureTimesRef.current,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, account, candles, futureTimes]);
+  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, theme, account, candles, futureTimes]);
 
   // Re-render objects when the chart view moves.
   useEffect(() => {
@@ -320,8 +323,14 @@ export function DrawingLayer({
               ? boxedEditorHeight
               : Math.max(textEdit.style.fontSize + 6, (textDraft.split("\n").length || 1) * (textEdit.style.fontSize + 4)),
             pointerEvents: "auto",
-            color: textEdit.style.textColor ?? textEdit.style.color,
-            caretColor: textEdit.style.textColor ?? textEdit.style.color,
+            color: readableCanvasColor(
+              textEdit.style.textColor ?? textEdit.style.color,
+              boxedTextEdit ? textEdit.style.fillColor : chartCanvasBackground(theme),
+            ),
+            caretColor: readableCanvasColor(
+              textEdit.style.textColor ?? textEdit.style.color,
+              boxedTextEdit ? textEdit.style.fillColor : chartCanvasBackground(theme),
+            ),
             fontSize: textEdit.style.fontSize,
             fontWeight: textEdit.style.bold ? 700 : 400,
             fontStyle: textEdit.style.italic ? "italic" : "normal",

@@ -262,7 +262,7 @@ describe("every registered indicator", () => {
     indicator.update(inst, bars(200));
 
     const values = indicator.latestValues();
-    expect(values.map((value) => value.label)).toEqual(["Histogram", "MACD", "Signal"]);
+    expect(values.map((value) => value.label)).toEqual(["MACD", "Signal", "Histogram"]);
     expect(values.find((value) => value.key === "signal")?.color).toBe("#60a5fa");
     expect(values.every((value) => Number.isFinite(value.value))).toBe(true);
   });
@@ -271,6 +271,26 @@ describe("every registered indicator", () => {
     const { chart, seriesOptions } = stubChart();
     make("volume", chart);
     expect(seriesOptions[0]?.priceFormat).toMatchObject({ type: "volume", precision: 0 });
+  });
+
+  it("shows a last-value scale label for every visible plot", () => {
+    const { chart, seriesOptions } = stubChart();
+    make("macd", chart);
+    expect(seriesOptions).toHaveLength(3);
+    expect(seriesOptions.every((options) => options.lastValueVisible === true)).toBe(true);
+  });
+
+  it("reads pane values from the candle under the crosshair", () => {
+    const { chart } = stubChart();
+    const inst = hydrateInstance({ id: "t-rsi", kind: "rsi", visible: true })!;
+    const indicator = new Indicator(chart, inst, 5, 1);
+    const timeline = bars(200);
+    indicator.initialize();
+    indicator.update(inst, timeline);
+
+    const hovered = indicator.valuesAt(timeline[100]!.time);
+    expect(hovered[0]?.value).toBeTypeOf("number");
+    expect(hovered[0]?.value).not.toBe(indicator.latestValues()[0]?.value);
   });
 
   it("keeps inherited FX precision for ATR panes", () => {

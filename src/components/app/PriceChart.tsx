@@ -88,7 +88,7 @@ import {
   type IndCategory,
   type IndicatorInstance,
 } from "@/lib/chart/indicator-defs";
-import { Indicator } from "@/lib/chart/indicator-runtime";
+import { Indicator, indicatorColorForTheme } from "@/lib/chart/indicator-runtime";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import {
   chartHistoryKey,
@@ -241,6 +241,14 @@ export function formatIndicatorValue(value: number | null, precision: number, co
   if (value == null || !Number.isFinite(value)) return "—";
   if (compact || Math.abs(value) >= 100_000) return formatVolume(value);
   return value.toFixed(Math.max(0, Math.min(8, precision)));
+}
+
+function paneIndicatorLabel(instance: IndicatorInstance): string {
+  const source = typeof instance.inputs.source === "string" ? instance.inputs.source : null;
+  if (instance.kind === "macd") {
+    return `MACD ${source ?? "close"} ${instance.inputs.fast} ${instance.inputs.slow} ${instance.inputs.signal}`;
+  }
+  return `${indicatorLabel(instance)}${source ? ` · ${source}` : ""}`;
 }
 
 interface PriceChartProps {
@@ -4572,7 +4580,7 @@ export default function PriceChart({
           const def = getDef(inst.kind);
           if (!def) return null;
           const runtime = ownIndicatorsRef.current.get(inst.id);
-          const values = runtime?.latestValues() ?? [];
+          const values = runtime?.valuesAt(legend ? Math.floor(legend.at / 1000) : null) ?? [];
           const indicatorPrecision = inst.precision ?? precision;
           const compactValues = inst.kind === "volume" || inst.kind === "obv";
           const collapsed = collapsedIndicatorPanes.has(inst.id);
@@ -4587,15 +4595,15 @@ export default function PriceChart({
               style={{ top: layout.top + 5, minHeight: 28, fontSize: Math.max(11, overlayFont - 2) }}
             >
               <span className={`shrink-0 font-semibold ${inst.visible ? "text-[var(--chart-text)]" : "text-[var(--chart-muted)] line-through"}`}>
-                {indicatorLabel(inst)}
+                {paneIndicatorLabel(inst)}
               </span>
               {!collapsed && inst.visible && values.length > 0 && (
                 <span className="flex min-w-0 items-center gap-2 overflow-hidden font-mono text-[0.92em] text-[var(--chart-text)]">
                   {values.map((value) => (
                     <span key={value.key} className="inline-flex shrink-0 items-center gap-1" title={`${value.label}: ${formatIndicatorValue(value.value, indicatorPrecision, compactValues)}`}>
-                      <i className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: value.color }} aria-hidden />
-                      <span className="text-[var(--chart-muted)]">{value.label}</span>
-                      <b className="font-semibold text-[var(--chart-text)]">{formatIndicatorValue(value.value, indicatorPrecision, compactValues)}</b>
+                      <b className="font-semibold" style={{ color: indicatorColorForTheme(value.color, theme, 4.5) }}>
+                        {formatIndicatorValue(value.value, indicatorPrecision, compactValues)}
+                      </b>
                     </span>
                   ))}
                 </span>

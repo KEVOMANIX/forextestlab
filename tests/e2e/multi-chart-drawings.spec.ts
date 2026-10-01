@@ -895,8 +895,10 @@ test("every own-pane indicator gets a readable live header in its own pane", asy
   const headers = page.getByTestId("indicator-pane-header");
   await expect(headers).toHaveCount(3);
   await expect(headers.nth(0)).toContainText("Volume");
-  await expect(headers.nth(1)).toContainText("Histogram");
-  await expect(headers.nth(1)).toContainText("Signal");
+  await expect(headers.nth(1)).toContainText("MACD close 12 26 9");
+  await expect(headers.nth(1).locator('[title^="MACD:"]')).toHaveCount(1);
+  await expect(headers.nth(1).locator('[title^="Signal:"]')).toHaveCount(1);
+  await expect(headers.nth(1).locator('[title^="Histogram:"]')).toHaveCount(1);
   await expect(headers.nth(2)).toContainText(/ATR 14.*0\.\d{5}/);
 
   const boxes = await Promise.all([0, 1, 2].map((index) => headers.nth(index).boundingBox()));

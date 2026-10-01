@@ -105,11 +105,11 @@ function contrast(foreground: Rgba, background: Rgba): number {
 }
 
 /** Preserve a plot's hue while ensuring it remains visible on either chart theme. */
-export function indicatorColorForTheme(color: string, theme: ThemeName): string {
+export function indicatorColorForTheme(color: string, theme: ThemeName, minimumContrast = 3): string {
   const parsed = parseColor(color);
   if (!parsed) return color;
   const background = parseColor(theme === "light" ? "#f7faf8" : "#14231e")!;
-  if (contrast(parsed, background) >= 3) return color;
+  if (contrast(parsed, background) >= minimumContrast) return color;
   const target = theme === "light" ? 0 : 255;
   for (let amount = 0.12; amount <= 1; amount += 0.08) {
     const adjusted: Rgba = {
@@ -118,7 +118,7 @@ export function indicatorColorForTheme(color: string, theme: ThemeName): string 
       b: Math.round(parsed.b + (target - parsed.b) * amount),
       a: 1,
     };
-    if (contrast(adjusted, background) >= 3) {
+    if (contrast(adjusted, background) >= minimumContrast) {
       return `#${[adjusted.r, adjusted.g, adjusted.b].map((part) => part.toString(16).padStart(2, "0")).join("")}`;
     }
   }
@@ -196,25 +196,35 @@ export class Indicator {
     return null;
   }
 
-  /** Latest plotted values, with the user's current plot colours, for pane headers. */
-  latestValues(): IndicatorValue[] {
+  /** Values at a hovered candle, or the latest plotted values without a time. */
+  valuesAt(timeSeconds: number | null = null): IndicatorValue[] {
     if (!this.result) return [];
-    return this.def.plots.flatMap<IndicatorValue>((plot) => {
+    // Line values read before histograms, matching the order traders see in
+    // TradingView-style legends (MACD, Signal, then Histogram).
+    const plots = [...this.def.plots].sort((first, second) =>
+      Number(first.kind === "histogram") - Number(second.kind === "histogram"),
+    );
+    return plots.flatMap<IndicatorValue>((plot) => {
       const style = this.inst.style[plot.key];
       if (style?.visible === false) return [];
-      const entries = plot.kind === "histogram"
-        ? (this.result?.histograms?.[plot.key] ?? [])
-        : (this.result?.lines?.[plot.key] ?? []);
-      for (let index = entries.length - 1; index >= 0; index -= 1) {
-        const entry = entries[index];
-        const value = typeof entry === "object" && entry != null ? entry.value : entry;
-        if (value == null) continue;
-        const barColor = typeof entry === "object" && entry != null ? entry.color : undefined;
+      const points = this.drawn.get(plot.key) ?? [];
+      if (timeSeconds != null) {
+        const point = points.find((entry) => Number(entry.time) === timeSeconds);
         return [{
           key: plot.key,
           label: plot.label,
-          color: indicatorColorForTheme(barColor ?? style?.color ?? plot.defaultColor, this.theme),
-          value,
+          color: indicatorColorForTheme(point?.color ?? style?.color ?? plot.defaultColor, this.theme),
+          value: point?.value ?? null,
+        }];
+      }
+      for (let index = points.length - 1; index >= 0; index -= 1) {
+        const point = points[index];
+        if (point?.value == null) continue;
+        return [{
+          key: plot.key,
+          label: plot.label,
+          color: indicatorColorForTheme(point.color ?? style?.color ?? plot.defaultColor, this.theme),
+          value: point.value,
         }];
       }
       return [{
@@ -224,6 +234,10 @@ export class Indicator {
         value: null,
       }];
     });
+  }
+
+  latestValues(): IndicatorValue[] {
+    return this.valuesAt();
   }
 
   /** Create one series per plot (+ oscillator guide lines). */
@@ -236,8 +250,8 @@ export class Indicator {
     for (const plot of this.def.plots) {
       const series: AnySeries =
         plot.kind === "histogram"
-          ? this.chart.addSeries(HistogramSeries, { priceFormat, priceLineVisible: false, lastValueVisible: false }, this.paneIndex)
-          : this.chart.addSeries(LineSeries, { priceFormat, priceLineVisible: false, lastValueVisible: false }, this.paneIndex);
+          ? this.chart.addSeries(HistogramSeries, { priceFormat, priceLineVisible: false, lastValueVisible: true }, this.paneIndex)
+          : this.chart.addSeries(LineSeries, { priceFormat, priceLineVisible: false, lastValueVisible: true }, this.paneIndex);
       this.series.set(plot.key, series);
     }
     // Guide lines (overbought / oversold / zero) on the first plot's series.
@@ -396,13 +410,14 @@ export class Indicator {
       if (this.styleKeys.get(plot.key) === key) continue;
       this.styleKeys.set(plot.key, key);
       if (plot.kind === "histogram") {
-        (series as ISeriesApi<"Histogram">).applyOptions({ color, visible });
+        (series as ISeriesApi<"Histogram">).applyOptions({ color, visible, lastValueVisible: visible });
       } else {
         (series as ISeriesApi<"Line">).applyOptions({
           color,
           lineWidth: clampWidth(s.lineWidth),
           lineStyle: LINE_STYLE_MAP[s.lineStyle],
           visible,
+          lastValueVisible: visible,
         });
       }
     }

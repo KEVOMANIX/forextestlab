@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CLICK_SLOP_PX,
+  TOUCH_CLICK_SLOP_PX,
   canStraighten,
   releaseEndsDrawing,
   straighten,
@@ -25,6 +26,12 @@ describe("telling a click from a drag", () => {
 
   it("tolerates the hand-shake that turns a click into a one-pixel drag", () => {
     expect(releaseEndsDrawing(3)).toBe(false);
+  });
+
+  it("allows natural finger drift to remain a tap", () => {
+    expect(releaseEndsDrawing(CLICK_SLOP_PX + 2, "touch")).toBe(false);
+    expect(releaseEndsDrawing(TOUCH_CLICK_SLOP_PX, "touch")).toBe(false);
+    expect(releaseEndsDrawing(TOUCH_CLICK_SLOP_PX + 1, "touch")).toBe(true);
   });
 });
 

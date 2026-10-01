@@ -2,6 +2,8 @@ import type { ToolKind } from "@/lib/chart/drawing/types";
 
 /** How far the pointer may travel and still count as a click, not a drag. */
 export const CLICK_SLOP_PX = 4;
+/** Finger taps wander more than mouse clicks even when the user is stationary. */
+export const TOUCH_CLICK_SLOP_PX = 14;
 
 /**
  * Tools whose second point is the far end of a straight line, and so can be
@@ -65,6 +67,6 @@ export function straighten(
  * first used to work, so clicking once left a zero-length drawing that could
  * only be rescued by finding its handle.
  */
-export function releaseEndsDrawing(travelledPx: number): boolean {
-  return travelledPx > CLICK_SLOP_PX;
+export function releaseEndsDrawing(travelledPx: number, pointerType = "mouse"): boolean {
+  return travelledPx > (pointerType === "touch" ? TOUCH_CLICK_SLOP_PX : CLICK_SLOP_PX);
 }

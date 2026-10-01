@@ -56,6 +56,8 @@ function creationMode(kind: ToolKind): CreateMode {
 
 /** Minimum pixel travel before a stream stroke samples another point. */
 const STREAM_MIN_SAMPLE_PX = 4;
+/** Prevent an ordinary finger tap from nudging a selected drawing. */
+const TOUCH_DRAG_START_PX = 8;
 
 interface EngineEnv {
   tool: ToolKind | null;
@@ -81,6 +83,8 @@ interface DragState {
   startPx: { x: number; y: number };
   origin: Point[];
   originBounds?: { x: number; y: number; w: number; h: number };
+  pointerType: string;
+  travelled: number;
 }
 
 type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -93,6 +97,8 @@ interface CreateState {
   startPx: { x: number; y: number };
   /** Furthest the pointer has travelled from that press, in pixels. */
   travelled: number;
+  /** Touch taps need a wider click tolerance than a mouse or pen. */
+  pointerType: string;
 }
 
 export interface ContextMenuRequest {
@@ -146,6 +152,8 @@ export class DrawingEngine {
 
   /** The chart's own root element — where we listen for drawing input. */
   private chartEl: HTMLElement;
+  private readonly originalTouchAction: string;
+  private activePointerId: number | null = null;
   /** True while the chart's native pan/zoom is suspended for a drawing gesture. */
   private frozen = false;
   /** Ctrl/Cmd held → temporarily invert magnet (off↔strong), like TradingView. */
@@ -165,6 +173,11 @@ export class DrawingEngine {
     this.sceneCtx = this.scene.getContext("2d")!;
     this.overlayCtx = this.overlay.getContext("2d")!;
     this.chartEl = chart.chartElement();
+    this.originalTouchAction = this.chartEl.style.touchAction;
+    // Keep the browser from converting a drawing gesture into page scrolling
+    // and dispatching pointercancel. The chart still receives the gesture and
+    // handles its own one-finger pan and two-finger scale when no drawing owns it.
+    this.chartEl.style.touchAction = "none";
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -544,6 +557,7 @@ export class DrawingEngine {
 
   destroy(): void {
     this.unfreezeChart();
+    this.chartEl.style.touchAction = this.originalTouchAction;
     this.ro.disconnect();
     cancelAnimationFrame(this.frame);
     this.chartEl.removeEventListener("pointerdown", this.onPointerDown, true);
@@ -596,12 +610,24 @@ export class DrawingEngine {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
-  private hitObject(x: number, y: number): DrawingObject | null {
+  private hitObject(x: number, y: number, coarse = false): DrawingObject | null {
     // Top-most first (descending zIndex).
     const sorted = [...this.objects].sort((a, b) => b.zIndex - a.zIndex);
+    const radius = coarse ? 12 : 0;
+    const probes = radius === 0
+      ? [{ x, y }]
+      : [
+          { x, y },
+          { x: x - radius, y }, { x: x + radius, y },
+          { x, y: y - radius }, { x, y: y + radius },
+          { x: x - radius * 0.7, y: y - radius * 0.7 },
+          { x: x + radius * 0.7, y: y - radius * 0.7 },
+          { x: x - radius * 0.7, y: y + radius * 0.7 },
+          { x: x + radius * 0.7, y: y + radius * 0.7 },
+        ];
     for (const o of sorted) {
       if (!o.visibleOn(this.env.timeframe)) continue;
-      if (o.hitTest(x, y, this.mapper)) return o;
+      if (probes.some((probe) => o.hitTest(probe.x, probe.y, this.mapper))) return o;
     }
     return null;
   }
@@ -610,18 +636,19 @@ export class DrawingEngine {
     o: DrawingObject,
     x: number,
     y: number,
+    extraTolerance = 0,
   ): { kind: "anchor"; index: number } | { kind: "resize"; handle: ResizeHandle } | null {
     if (this.hasNoHandles(o)) return null;
     if (!this.usesOnlyResizeHandles(o)) {
       for (const a of o.anchors(this.mapper)) {
-        if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
+        if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3 + extraTolerance) {
           return { kind: "anchor", index: a.index };
         }
       }
     }
     if (!this.usesOnlyAnchorHandles(o)) {
       for (const a of this.resizeHandles(o)) {
-        if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3) {
+        if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3 + extraTolerance) {
           return { kind: "resize", handle: a.handle };
         }
       }
@@ -733,17 +760,25 @@ export class DrawingEngine {
   // ---- interaction ----
 
   private onPointerDown = (e: PointerEvent): void => {
-    if (e.button === 2) return; // context menu handled separately
+    if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if (this.activePointerId != null && this.activePointerId !== e.pointerId) return;
     const px = this.localPx(e);
     this.lastMovePx = px;
     this.shiftHeld = e.shiftKey;
     this.ctrlHeld = e.ctrlKey || e.metaKey;
     if (px.x < 0 || px.y < 0 || px.x > this.mapper.width || px.y > this.mapper.height) return;
+    const touchLike = e.pointerType === "touch";
+    const ownPointer = () => {
+      e.preventDefault();
+      this.activePointerId = e.pointerId;
+      try { this.chartEl.setPointerCapture(e.pointerId); } catch { /* Window listeners remain the fallback. */ }
+    };
 
     if (this.env.tool) {
       // Drawing gesture: suspend the chart's own pan/zoom while we place points.
+      ownPointer();
       this.freezeChart();
-      this.beginCreateOrAdvance(px);
+      this.beginCreateOrAdvance(px, e.pointerType);
       return;
     }
     if (!this.env.selectionEnabled) {
@@ -754,8 +789,9 @@ export class DrawingEngine {
     // moves the object rather than panning; empty clicks leave the chart free.
     const sel = this.objects.find((d) => d.id === this.selectedId) ?? null;
     if (sel && !this.isLocked(sel)) {
-      const handle = this.anchorAt(sel, px.x, px.y);
+      const handle = this.anchorAt(sel, px.x, px.y, touchLike ? 10 : 0);
       if (handle) {
+        ownPointer();
         this.freezeChart();
         this.drag = {
           id: sel.id,
@@ -765,29 +801,33 @@ export class DrawingEngine {
           startPx: px,
           origin: sel.points.map((p) => ({ ...p })),
           originBounds: sel.bbox(this.mapper) ?? undefined,
+          pointerType: e.pointerType,
+          travelled: 0,
         };
         return;
       }
     }
-    const hit = this.hitObject(px.x, px.y);
+    const hit = this.hitObject(px.x, px.y, touchLike);
     if (hit) {
       this.select(hit.id);
       if (!this.isLocked(hit)) {
+        ownPointer();
         this.freezeChart();
         this.drag = hit.kind === "anchoredText" || hit.kind === "callout"
-          ? { id: hit.id, kind: "anchor", index: 1, startPx: px, origin: hit.points.map((p) => ({ ...p })) }
-          : { id: hit.id, kind: "move", index: -1, startPx: px, origin: hit.points.map((p) => ({ ...p })) };
+          ? { id: hit.id, kind: "anchor", index: 1, startPx: px, origin: hit.points.map((p) => ({ ...p })), pointerType: e.pointerType, travelled: 0 }
+          : { id: hit.id, kind: "move", index: -1, startPx: px, origin: hit.points.map((p) => ({ ...p })), pointerType: e.pointerType, travelled: 0 };
       }
     } else {
       this.select(null);
     }
   };
 
-  private beginCreateOrAdvance(px: { x: number; y: number }): void {
+  private beginCreateOrAdvance(px: { x: number; y: number }, pointerType: string): void {
     const kind = this.env.tool!;
     const point = this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? { time: 0, price: 0 });
 
     if (this.create) {
+      this.create.pointerType = pointerType;
       // click-mode: commit floating anchor and advance
       this.updateCreate(px);
       this.create.placed += 1;
@@ -820,7 +860,7 @@ export class DrawingEngine {
       if (TOOLS_NEEDING_TEXT.has(kind)) this.onRequestTextEdit?.({ id: obj.id, x: px.x, y: px.y });
       return;
     }
-    this.create = { obj, mode, placed: 1, startPx: px, travelled: 0 };
+    this.create = { obj, mode, placed: 1, startPx: px, travelled: 0, pointerType };
     this.sceneDirty = true;
     this.overlayDirty = true;
   }
@@ -930,6 +970,8 @@ export class DrawingEngine {
   }
 
   private onWindowMove = (e: PointerEvent): void => {
+    if (this.activePointerId != null && e.pointerId !== this.activePointerId) return;
+    if (this.activePointerId == null && e.pointerType === "touch") return;
     const px = this.localPx(e);
     this.shiftHeld = e.shiftKey;
     this.lastMovePx = px;
@@ -994,6 +1036,11 @@ export class DrawingEngine {
 
   private updateDrag(px: { x: number; y: number }): void {
     if (!this.drag) return;
+    this.drag.travelled = Math.max(
+      this.drag.travelled,
+      Math.hypot(px.x - this.drag.startPx.x, px.y - this.drag.startPx.y),
+    );
+    if (this.drag.pointerType === "touch" && this.drag.travelled <= TOUCH_DRAG_START_PX) return;
     const o = this.objects.find((d) => d.id === this.drag!.id);
     if (!o) return;
     if (this.drag.kind === "move") {
@@ -1057,27 +1104,47 @@ export class DrawingEngine {
     return { time: nt, price: np ?? p.price };
   }
 
-  private onWindowUp = (): void => {
+  private onWindowUp = (e: PointerEvent): void => {
+    if (this.activePointerId != null && e.pointerId !== this.activePointerId) return;
+    // Touch hardware often reports the release a few pixels beyond the final
+    // move event. Persist the actual lift point instead of leaving the anchor
+    // visibly behind the finger.
+    if (this.activePointerId === e.pointerId) {
+      const px = this.localPx(e);
+      this.lastMovePx = px;
+      if (this.create) this.updateCreate(px);
+      else if (this.drag) this.updateDrag(px);
+    }
+    const releasePointer = () => {
+      if (this.activePointerId != null) {
+        try { this.chartEl.releasePointerCapture(this.activePointerId); } catch { /* Capture may already be gone. */ }
+      }
+      this.activePointerId = null;
+    };
     if (this.create) {
       // A freehand stroke is always press-drag-release; there is no second
       // click that would mean anything.
       if (this.create.mode === "stream") {
         this.finalizeCreate();
+        releasePointer();
         return;
       }
       if (this.create.mode === "drag") {
-        if (releaseEndsDrawing(this.create.travelled)) this.finalizeCreate();
+        if (releaseEndsDrawing(this.create.travelled, this.create.pointerType)) this.finalizeCreate();
         // A press that never moved is a click: leave the drawing live and
         // tracking the cursor until the second click places its far end.
         else this.create.mode = "click";
+        releasePointer();
         return;
       }
       // click mode advances on pointerdown, not up
+      releasePointer();
       return;
     }
     if (this.drag) {
       const o = this.objects.find((d) => d.id === this.drag!.id);
-      if (o) {
+      const moved = this.drag.travelled > (this.drag.pointerType === "touch" ? TOUCH_DRAG_START_PX : 0);
+      if (o && moved) {
         // commit: push a snapshot of the pre-drag state
         this.history.push(this.objects.map((d) => (d.id === o.id ? { ...d.serialize(), points: this.drag!.origin } : d.serialize())));
         if (this.history.length > 100) this.history.shift();
@@ -1088,8 +1155,9 @@ export class DrawingEngine {
       this.unfreezeChart();
       this.overlayDirty = true;
       this.emitSelection();
-      this.onDrawingsChange?.();
+      if (moved) this.onDrawingsChange?.();
     }
+    releasePointer();
   };
 
   private onDoubleClick = (e: MouseEvent): void => {

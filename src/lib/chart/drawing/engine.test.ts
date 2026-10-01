@@ -15,7 +15,7 @@ function editing(kind: ToolKind = "trend", index = 1) {
     setShift: (held: boolean) => void;
     shiftHeld: boolean;
     lastMovePx: Pixel;
-    drag: { id: string; kind: string; index: number; origin: Point[]; startPx: Pixel };
+    drag: { id: string; kind: string; index: number; origin: Point[]; startPx: Pixel; pointerType: string; travelled: number };
   };
   const snapPrice = vi.fn((p: Point) => ({ ...p, price: p.price + 5 }));
   Object.assign(engine, {
@@ -34,6 +34,8 @@ function editing(kind: ToolKind = "trend", index = 1) {
       id: drawing.id, kind: "anchor", index,
       origin: drawing.points.map((p) => ({ ...p })),
       startPx: { x: drawing.points[index]!.time, y: drawing.points[index]!.price },
+      pointerType: "mouse",
+      travelled: 0,
     },
     lastMovePx: index === 1 ? { x: 300, y: 112 } : { x: 100, y: 100 },
   });
@@ -73,5 +75,17 @@ describe("Shift while editing a selected line", () => {
     const { engine, drawing } = editing("rectangle");
     engine.setShift(true);
     expect(drawing.points[1]).toEqual({ time: 300, price: 117 });
+  });
+});
+
+describe("touch drawing edits", () => {
+  it("selects without nudging a drawing during normal finger drift", () => {
+    const { engine, drawing } = editing("trend");
+    engine.drag.pointerType = "touch";
+    const before = drawing.points.map((point) => ({ ...point }));
+    engine.updateDrag({ x: 305, y: 115 });
+    expect(drawing.points).toEqual(before);
+    engine.updateDrag({ x: 320, y: 132 });
+    expect(drawing.points[1]).not.toEqual(before[1]);
   });
 });

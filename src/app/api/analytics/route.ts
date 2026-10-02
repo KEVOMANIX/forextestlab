@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/supabase/server";
-import { isProductEventName, normalizeAnalyticsPath, recordProductEvent } from "@/lib/product-analytics";
+import { isProductEventName, normalizeAnalyticsPath, recordBacktestActivityMinute, recordProductEvent } from "@/lib/product-analytics";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,10 @@ export async function POST(request: Request) {
   const path = normalizeAnalyticsPath(typeof body.path === "string" ? body.path : null);
   const anonymousId = typeof body.anonymousId === "string" && /^[a-f0-9-]{36}$/i.test(body.anonymousId) ? body.anonymousId : null;
   const user = await getCurrentUser();
-  await recordProductEvent({ name: body.name, path, userId: user?.id, anonymousId });
+  if (body.name === "backtest_activity" && user?.id) {
+    await recordBacktestActivityMinute({ userId: user.id, path });
+  } else {
+    await recordProductEvent({ name: body.name, path, userId: user?.id, anonymousId });
+  }
   return NextResponse.json({ ok: true });
 }

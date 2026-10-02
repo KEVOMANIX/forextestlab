@@ -220,11 +220,14 @@ export default async function AppHome() {
   const now = new Date();
   const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(now);
   const weekdayIndex = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(weekdayName);
-  const monday = new Date(now.getTime() - Math.max(0, weekdayIndex) * 24 * 60 * 60_000);
-  const replayMinutesByDay = Array.from({ length: 7 }, (_, index) => {
-    const dayKey = todayKey.format(new Date(monday.getTime() + index * 24 * 60 * 60_000));
+  const currentDayKey = todayKey.format(now);
+  const currentDay = new Date(`${currentDayKey}T00:00:00.000Z`);
+  const monday = new Date(currentDay.getTime() - Math.max(0, weekdayIndex) * 24 * 60 * 60_000);
+  const practiceMinutesByDay = Array.from({ length: 7 }, (_, index) => {
+    const dayKey = new Date(monday.getTime() + index * 24 * 60 * 60_000).toISOString().slice(0, 10);
     return activityEvents.filter((event) => todayKey.format(event.createdAt) === dayKey).length;
   });
+  const practiceMinutes = practiceMinutesByDay.reduce((total, minutes) => total + minutes, 0);
   const cursor = new Date();
   if (!activityDays.has(todayKey.format(cursor))) cursor.setUTCDate(cursor.getUTCDate() - 1);
   let streakDays = 0;
@@ -249,8 +252,8 @@ export default async function AppHome() {
       }))}
       displayName={displayName}
       metrics={{
-        replayMinutes: activityEvents.length,
-        replayMinutesByDay,
+        practiceMinutes,
+        practiceMinutesByDay,
         currentWeekdayIndex: Math.max(0, weekdayIndex),
         streakDays,
         closedTradesThisWeek,

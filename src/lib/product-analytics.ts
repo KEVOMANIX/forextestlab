@@ -48,6 +48,39 @@ export async function recordProductEvent(input: {
   });
 }
 
+/** Record at most one visible practice heartbeat for a user in each UTC minute. */
+export async function recordBacktestActivityMinute(input: {
+  userId: string;
+  path?: string | null;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const minuteStart = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+  const bucketKey = `practice:${input.userId}:${minuteStart.toISOString()}`;
+  return prisma.$transaction(async (transaction) => {
+    // Serialize this user-minute so simultaneous tabs cannot both pass the
+    // existence check. The lock lives only for this short transaction.
+    await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${bucketKey}))`;
+    const existing = await transaction.productEvent.findFirst({
+      where: {
+        userId: input.userId,
+        name: "backtest_activity",
+        createdAt: { gte: minuteStart },
+      },
+      select: { id: true },
+    });
+    if (existing) return false;
+    await transaction.productEvent.create({
+      data: {
+        name: "backtest_activity",
+        userId: input.userId,
+        path: normalizeAnalyticsPath(input.path),
+      },
+    });
+    return true;
+  });
+}
+
 export async function recordProductEventOncePerUser(input: {
   name: ProductEventName;
   userId: string;

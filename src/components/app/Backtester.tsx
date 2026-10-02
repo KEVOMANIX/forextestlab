@@ -500,11 +500,20 @@ export function Backtester({
 
   // The dashboard records practice in whole active minutes. We only send a
   // heartbeat while this signed-in workspace is visible, so an abandoned tab
-  // cannot inflate a trader's practice time or streak.
+  // cannot inflate a trader's practice time or streak. The shared minute key
+  // also stops two chart tabs from counting the same user-minute twice.
   useEffect(() => {
     if (bt.phase !== "active" || !state?.sessionId || state.anonymous) return;
     const recordMinute = () => {
       if (document.visibilityState !== "visible") return;
+      const minuteBucket = Math.floor(Date.now() / 60_000);
+      const minuteKey = "forextestlab:practice-minute";
+      try {
+        if (window.localStorage.getItem(minuteKey) === String(minuteBucket)) return;
+        window.localStorage.setItem(minuteKey, String(minuteBucket));
+      } catch {
+        // The server performs the same deduplication when storage is blocked.
+      }
       void fetch("/api/analytics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

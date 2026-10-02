@@ -35,8 +35,8 @@ export interface DashboardSession {
 }
 
 export interface DashboardPracticeMetrics {
-  replayMinutes: number;
-  replayMinutesByDay: number[];
+  practiceMinutes: number;
+  practiceMinutesByDay: number[];
   currentWeekdayIndex: number;
   streakDays: number;
   closedTradesThisWeek: number;
@@ -66,7 +66,7 @@ function sessionProgress(session: DashboardSession): number {
   return replayDayPercent({ startTime: Number(session.startTime), endTime: Number(session.endTime), currentTime });
 }
 
-function formatReplayTime(minutes: number): string {
+function formatPracticeTime(minutes: number): string {
   if (!minutes) return "0m";
   const hours = Math.floor(minutes / 60);
   return hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
@@ -98,8 +98,8 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
     };
   });
 
-  const replayDays = metrics.replayMinutesByDay.length === 7 ? metrics.replayMinutesByDay : [0, 0, 0, 0, 0, 0, 0];
-  const maxReplayMinutes = Math.max(1, ...replayDays);
+  const practiceDays = metrics.practiceMinutesByDay.length === 7 ? metrics.practiceMinutesByDay : [0, 0, 0, 0, 0, 0, 0];
+  const maxPracticeMinutes = Math.max(1, ...practiceDays);
   const recentOutcomeSlots: Array<"win" | "loss" | "flat" | null> = [
     ...Array.from({ length: Math.max(0, 30 - metrics.recentOutcomes.length) }, () => null),
     ...metrics.recentOutcomes.slice(-30),
@@ -127,9 +127,9 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
             <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Practice activity</p><h2 id="practice-this-week" className="mt-1.5 text-xl font-semibold">This week</h2></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_.82fr_.82fr] xl:grid-rows-[8.75rem_8.5rem]">
               <article className="relative overflow-hidden rounded-2xl border border-brand-400/25 bg-[radial-gradient(circle_at_82%_12%,rgba(69,214,168,.16),transparent_35%),var(--app-panel)] p-5 shadow-card sm:col-span-2 xl:col-span-1 xl:row-span-2">
-                <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Replay time</p><p className="mt-4 font-mono text-4xl font-semibold leading-none tracking-tight text-[var(--app-text)]">{formatReplayTime(metrics.replayMinutes)}</p></div><span className="grid h-10 w-10 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><Clock3 size={18} aria-hidden /></span></div>
-                <div className="mt-7 flex h-16 items-end gap-2" role="img" aria-label={`Replay activity from Monday to Sunday: ${replayDays.join(", ")} minutes`}>
-                  {replayDays.map((minutes, index) => <span key={index} className={`min-h-2 flex-1 rounded-t-md ${index === metrics.currentWeekdayIndex ? "bg-gradient-to-t from-brand-500 to-brand-200" : "bg-brand-400/20"}`} style={{ height: `${Math.max(12, (minutes / maxReplayMinutes) * 100)}%` }} title={`${minutes} minutes`} />)}
+                <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Practice time</p><p className="mt-4 font-mono text-4xl font-semibold leading-none tracking-tight text-[var(--app-text)]">{formatPracticeTime(metrics.practiceMinutes)}</p></div><span className="grid h-10 w-10 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><Clock3 size={18} aria-hidden /></span></div>
+                <div className="mt-7 flex h-16 items-end gap-2" role="img" aria-label={`Practice activity from Monday to Sunday: ${practiceDays.join(", ")} minutes`}>
+                  {practiceDays.map((minutes, index) => <span key={index} className={`min-h-2 flex-1 rounded-t-md ${index === metrics.currentWeekdayIndex ? "bg-gradient-to-t from-brand-500 to-brand-200" : "bg-brand-400/20"}`} style={{ height: `${Math.max(12, (minutes / maxPracticeMinutes) * 100)}%` }} title={`${minutes} minutes`} />)}
                 </div>
                 <div className="mt-2 flex justify-between font-mono text-[9px] font-semibold uppercase app-muted"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
               </article>
@@ -145,7 +145,7 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
                     <div className="flex items-center gap-2.5 font-mono"><span className="text-lg font-semibold text-profit">{metrics.winningTrades}</span><span className="text-[9px] font-semibold uppercase tracking-[0.1em] app-muted">W</span><span className="h-5 w-px bg-[var(--app-border)]" /><span className="text-lg font-semibold text-loss">{metrics.losingTrades}</span><span className="text-[9px] font-semibold uppercase tracking-[0.1em] app-muted">L</span><Target size={17} className="ml-1 text-brand-300" aria-hidden /></div>
                   </div>
                   <div className="mt-4 grid h-8 shrink-0 items-end gap-1" style={{ gridTemplateColumns: "repeat(30, minmax(0, 1fr))" }} role="img" aria-label={`Last ${metrics.winRateSampleSize} closed trades: ${metrics.winningTrades} wins and ${metrics.losingTrades} losses`}>
-                    {recentOutcomeSlots.map((outcome, index) => <span key={index} className="block min-w-0 rounded-sm" style={{ height: outcome === "win" ? "100%" : outcome === "loss" ? "58%" : outcome === "flat" ? "35%" : "22%", backgroundColor: outcome === "win" ? "rgb(var(--trade-profit-rgb))" : outcome === "loss" ? "rgb(var(--trade-loss-rgb))" : outcome === "flat" ? "var(--app-muted)" : "var(--app-panel-2)" }} title={outcome ? `${outcome[0]!.toUpperCase()}${outcome.slice(1)}` : "No trade"} />)}
+                    {recentOutcomeSlots.map((outcome, index) => <span key={index} className="block min-w-0 rounded-sm" style={{ height: outcome === "win" ? "100%" : outcome === "loss" ? "58%" : outcome === "flat" ? "35%" : "100%", backgroundColor: outcome === "win" ? "rgb(var(--trade-profit-rgb))" : outcome === "loss" ? "rgb(var(--trade-loss-rgb))" : outcome === "flat" ? "var(--app-muted)" : "transparent" }} title={outcome ? `${outcome[0]!.toUpperCase()}${outcome.slice(1)}` : "No trade"} />)}
                   </div>
                   <div className="mt-2 flex shrink-0 justify-between text-[9px] font-semibold uppercase tracking-[0.11em] app-muted"><span>Oldest</span><span>{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "No closed trades"}</span><span>Latest</span></div>
                 </div>

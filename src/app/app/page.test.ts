@@ -16,7 +16,10 @@ describe("dashboard practice overview", () => {
     db.metadata
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ sessionId: "session", closedTrades: BigInt(4), winningTrades: BigInt(3) }]);
-    db.activity.mockResolvedValue([]);
+    db.activity.mockResolvedValue([
+      { createdAt: new Date() },
+      { createdAt: new Date(Date.now() - 30 * 24 * 60 * 60_000) },
+    ]);
     db.trades.mockResolvedValue([{ pnl: "10" }, { pnl: "-5" }, { pnl: "2" }]);
     db.tradeCount.mockResolvedValue(2);
 
@@ -24,7 +27,7 @@ describe("dashboard practice overview", () => {
 
     expect(page.props).toEqual(expect.objectContaining({
       sessions: [expect.objectContaining({ id: "session", name: "EURUSD backtest", sessionWinRate: { closedTrades: 4, winRate: 75 } })],
-      metrics: expect.objectContaining({ replayMinutes: 0, closedTradesThisWeek: 2, winRate: (2 / 3) * 100, winRateSampleSize: 3 }),
+      metrics: expect.objectContaining({ practiceMinutes: 1, closedTradesThisWeek: 2, winRate: (2 / 3) * 100, winRateSampleSize: 3 }),
     }));
     expect(db.activity).toHaveBeenCalledOnce();
     expect(db.trades).toHaveBeenCalledOnce();

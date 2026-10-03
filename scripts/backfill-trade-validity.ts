@@ -84,6 +84,7 @@ async function main() {
 
   let updated = 0;
   let unmatched = 0;
+  const staleTradeIds: string[] = [];
   const unmatchedRows: Array<{
     sessionId: string;
     tradeId: string;
@@ -114,17 +115,21 @@ async function main() {
       const validity = snapshotByFingerprint.get(key)?.shift();
       if (!validity) {
         unmatched += 1;
+        const nearbySnapshotTrades = (state.closedTrades ?? [])
+          .filter((snapshotTrade) =>
+            snapshotTrade.entryTime === Number(trade.entryTime) ||
+            snapshotTrade.exitTime === Number(trade.exitTime),
+          );
+        // A projected row with neither timestamp in the authoritative state is
+        // residue from an older engine state and must not enter aggregates.
+        if (nearbySnapshotTrades.length === 0) staleTradeIds.push(trade.id);
         if (unmatchedRows.length < 20) {
           unmatchedRows.push({
             sessionId: session.id,
             tradeId: trade.id,
             fingerprint: key,
             snapshotTradeCount: state.closedTrades?.length ?? 0,
-            nearbySnapshotTrades: (state.closedTrades ?? [])
-              .filter((snapshotTrade) =>
-                snapshotTrade.entryTime === Number(trade.entryTime) ||
-                snapshotTrade.exitTime === Number(trade.exitTime),
-              )
+            nearbySnapshotTrades: nearbySnapshotTrades
               .slice(0, 5)
               .map((snapshotTrade) => `${fingerprint(snapshotTrade)}|${snapshotTrade.journal?.validity ?? "valid"}`),
           });
@@ -147,7 +152,16 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify({ sessions: sessions.length, updated, unmatched, unmatchedRows }));
+  const removedStale = staleTradeIds.length
+    ? (await prisma.simulatedTrade.deleteMany({ where: { id: { in: staleTradeIds } } })).count
+    : 0;
+  console.log(JSON.stringify({
+    sessions: sessions.length,
+    updated,
+    unmatched,
+    removedStale,
+    unmatchedRows,
+  }));
 }
 
 main()

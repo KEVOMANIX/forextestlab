@@ -33,7 +33,7 @@ export default function FAQPage() {
     <PageShell>
       <section className="border-b border-white/10 py-12 sm:py-16">
         <div className="container-page grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-end">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Answers and support</p><h1 className="mt-4 text-balance text-4xl font-bold tracking-[-0.04em] text-white sm:text-5xl">What would you like to know?</h1><p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">Product, account, and risk information in one place.</p></div>
+          <div><h1 className="text-balance text-4xl font-bold tracking-[-0.04em] text-white sm:text-5xl">What would you like to know?</h1><p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">Product, account, and risk information in one place.</p></div>
           <div className="border-l border-white/10 pl-5"><Mail size={18} className="text-brand-300" /><p className="mt-3 text-sm font-semibold text-white">Need a specific answer?</p><p className="mt-1 text-sm leading-6 text-slate-400">Contact support and include the session name when your question concerns a replay.</p><Link href="/support" className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">Open support <ArrowRight size={14} /></Link></div>
         </div>
       </section>

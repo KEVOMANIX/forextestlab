@@ -117,10 +117,7 @@ export function Hero() {
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">
         <div className="mx-auto max-w-[1240px]">
           <div className="text-center">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-300 animate-fade-up">
-              Forex backtesting &amp; market replay
-            </p>
-            <h1 className="mx-auto mt-6 max-w-6xl text-balance text-5xl font-bold leading-[0.98] tracking-[-0.05em] text-white animate-fade-up sm:text-6xl lg:text-[5rem]">
+            <h1 className="mx-auto max-w-6xl text-balance text-5xl font-bold leading-[0.98] tracking-[-0.05em] text-white animate-fade-up sm:text-6xl lg:text-[5rem]">
               Build a trading process you can{" "}
               <span className="text-brand-200">
                 actually measure.

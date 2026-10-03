@@ -3,7 +3,6 @@ import {
   BookOpenCheck,
   CircleHelp,
   Headphones,
-  LifeBuoy,
   Mail,
   MessageCircleQuestion,
 } from "lucide-react";
@@ -37,8 +36,7 @@ export function SupportSection() {
         <div className="mx-auto max-w-6xl">
           <div className="grid gap-10 lg:grid-cols-[.86fr_1.14fr] lg:items-start lg:gap-16">
             <div className="lg:sticky lg:top-24">
-              <p className="eyebrow w-fit"><LifeBuoy size={14} aria-hidden /> Support desk</p>
-              <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+              <h1 className="text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
                 Help when you need it.
               </h1>
               <p className="mt-5 max-w-lg text-base leading-7 text-slate-400 sm:text-lg">

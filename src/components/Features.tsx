@@ -73,7 +73,6 @@ export function Features() {
   return (
     <Section
       id="features"
-      eyebrow="Features"
       title="Everything you need to test a forex strategy"
       centered
     >

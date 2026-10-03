@@ -27,8 +27,7 @@ export default function MarketsPage() {
       <div className="container-page relative">
         <div className="mb-8 flex flex-col justify-between gap-5 border-b border-white/10 pb-8 lg:flex-row lg:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[.18em] text-brand-300">Market atlas</p>
-            <h1 className="mt-3 text-4xl font-bold leading-none tracking-[-.04em] text-white sm:text-5xl">Explore the archive.</h1>
+            <h1 className="text-4xl font-bold leading-none tracking-[-.04em] text-white sm:text-5xl">Explore the archive.</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             <span className="rounded-full border border-white/10 bg-surface-900/80 px-3 py-2">38 instruments</span>

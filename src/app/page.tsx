@@ -24,8 +24,7 @@ export default function HomePage() {
         <section className="border-t border-white/10 py-16 sm:py-20">
           <div className="container-page">
             <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Explore ForexTestLab</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight text-white">Go directly to what you need.</h2>
+              <h2 className="text-3xl font-bold tracking-tight text-white">Go directly to what you need.</h2>
               <p className="mt-3 text-base leading-7 text-slate-400">Product details now have dedicated pages, so you can browse without moving through one long landing page.</p>
             </div>
             <div className="mt-9 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 md:grid-cols-3">

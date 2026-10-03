@@ -39,7 +39,7 @@ const FAQS = [
 
 export function FAQ() {
   return (
-    <Section id="faq" eyebrow="FAQ" title="Frequently asked questions" centered>
+    <Section id="faq" title="Frequently asked questions" centered>
       <div className="mx-auto max-w-3xl space-y-3">
         {FAQS.map((item) => (
           <details key={item.q} className="group rounded-xl border border-white/10 bg-surface-800/40 open:bg-surface-800/70">

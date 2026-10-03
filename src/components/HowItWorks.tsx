@@ -27,7 +27,6 @@ export function HowItWorks() {
   return (
     <Section
       id="how-it-works"
-      eyebrow="How It Works"
       title="A structured testing loop"
       description="ForexTestLab is designed around a simple, repeatable four-step workflow."
       centered

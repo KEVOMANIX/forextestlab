@@ -10,7 +10,6 @@ const VIEWS = [
   {
     id: "replay",
     label: "Replay",
-    eyebrow: "Make decisions candle by candle",
     title: "A focused trading workspace",
     description:
       "Move through historical price action, place positions instantly, adjust chart context, and control replay without losing your place.",
@@ -25,7 +24,6 @@ const VIEWS = [
   {
     id: "dashboard",
     label: "Dashboard",
-    eyebrow: "Return to the work that matters",
     title: "Every session stays organised",
     description:
       "Resume active tests, switch between strategies, and see progress and account performance from one clean dashboard.",
@@ -40,7 +38,6 @@ const VIEWS = [
   {
     id: "analytics",
     label: "Analytics",
-    eyebrow: "Turn execution into evidence",
     title: "Review more than net profit",
     description:
       "Study equity, drawdown, expectancy, timing, day-of-week performance, trading sessions, and the sequence behind your results.",
@@ -79,8 +76,7 @@ export function ProductPreview() {
 
       <div className="grid items-end gap-8 lg:grid-cols-[minmax(270px,.38fr)_minmax(0,1fr)] xl:-mx-16">
         <div className="lg:pb-8">
-          <p className="eyebrow">The real workspace</p>
-          <h2 className="mt-5 text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h2 className="text-balance text-3xl font-bold tracking-tight text-white sm:text-4xl">
             From first candle to final review.
           </h2>
           <p className="mt-4 text-base leading-7 text-slate-400">
@@ -124,10 +120,7 @@ export function ProductPreview() {
           </div>
 
           <div key={active.id} className="showcase-copy mt-7 border-l border-brand-400/40 pl-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">
-              {active.eyebrow}
-            </p>
-            <h3 className="mt-2 text-xl font-semibold text-white">{active.title}</h3>
+            <h3 className="text-xl font-semibold text-white">{active.title}</h3>
             <p className="mt-3 text-sm leading-6 text-slate-400">{active.description}</p>
             <p className="mt-4 font-mono text-[11px] leading-5 text-slate-500">
               {active.detail}

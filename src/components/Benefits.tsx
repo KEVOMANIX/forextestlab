@@ -52,7 +52,6 @@ export function Benefits() {
   return (
     <Section
       id="benefits"
-      eyebrow="Benefits"
       title="How ForexTestLab may help your process"
       description="ForexTestLab is a practice and analysis tool. It cannot make trading profitable — its aim is to support disciplined, well-documented strategy testing."
       centered

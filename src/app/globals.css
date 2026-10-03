@@ -53,10 +53,6 @@
     @apply btn border border-white/15 bg-white/5 text-slate-100 hover:border-white/25 hover:bg-white/10;
   }
 
-  .eyebrow {
-    @apply inline-flex items-center gap-2 rounded-full border border-brand-400/30 bg-brand-400/10 px-3 py-1 text-xs font-medium uppercase tracking-widest text-brand-200;
-  }
-
   .card {
     @apply rounded-2xl border border-white/10 bg-surface-800/60 p-6 shadow-card backdrop-blur;
   }

@@ -15,7 +15,6 @@ export function PricingSection() {
   return (
     <Section
       id="pricing"
-      eyebrow={checkoutEnabled ? "Simple pricing" : "Early access"}
       title={checkoutEnabled ? "Choose a plan that grows with your testing." : "Explore the full workspace, free for now."}
       description={checkoutEnabled ? "Country-localized monthly and yearly totals with secure Paddle checkout." : "We are refining ForexTestLab before launch, so payment is not required."}
       className="bg-surface-900/45"

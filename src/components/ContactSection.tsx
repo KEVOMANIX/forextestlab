@@ -21,8 +21,7 @@ export function ContactSection({
       <div className="container-page">
         <div className="mx-auto max-w-5xl">
           <div className="max-w-2xl">
-            <p className="eyebrow">Contact</p>
-            <Heading className="mt-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <Heading className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Get in touch
             </Heading>
             <p className="mt-4 text-base leading-relaxed text-slate-400">

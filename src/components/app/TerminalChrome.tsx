@@ -135,13 +135,7 @@ export function TerminalTopBar({
       aria-label="Trading header"
       className="relative flex h-11 shrink-0 items-center gap-1.5 border-b app-border bg-[var(--app-panel)] px-1.5 shadow-[0_1px_0_rgba(255,255,255,0.03)]"
     >
-      <button
-        type="button"
-        onClick={() => navigate("/app")}
-        aria-label="Back to dashboard"
-        title="Dashboard"
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-md hover:bg-[var(--app-panel-2)]"
-      >
+      <span className="grid h-8 w-8 shrink-0 place-items-center" aria-hidden>
         <Image
           src={theme === "light" ? logoMarkLight : logoMark}
           alt=""
@@ -149,7 +143,7 @@ export function TerminalTopBar({
           className="h-6 w-6 object-contain"
           priority
         />
-      </button>
+      </span>
 
       <span className="h-6 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
 
@@ -182,9 +176,6 @@ export function TerminalTopBar({
             <p className="px-2.5 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">
               Session
             </p>
-            <button type="button" role="menuitem" onClick={() => navigate("/app")} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-[var(--app-panel-2)]">
-              <LayoutDashboard size={15} className="app-muted" aria-hidden /> Dashboard
-            </button>
             <button type="button" role="menuitem" onClick={() => navigate("/app/history")} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-[var(--app-panel-2)]">
               <BookOpenText size={15} className="app-muted" aria-hidden /> Sessions
             </button>

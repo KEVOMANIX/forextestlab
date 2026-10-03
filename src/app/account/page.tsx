@@ -9,7 +9,6 @@ import {
   CreditCard,
   Crown,
   KeyRound,
-  LayoutDashboard,
   Mail,
   ShieldCheck,
 } from "lucide-react";
@@ -17,7 +16,6 @@ import {
 import { AccountActions } from "@/components/account/AccountActions";
 import { ProfileDetailsForm } from "@/components/account/ProfileDetailsForm";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
-import { BackLink } from "@/components/app/BackLink";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -57,9 +55,7 @@ export default async function AccountPage() {
     <main id="main" className="relative min-h-[calc(100dvh-3.5rem)] overflow-hidden px-4 py-8 sm:py-10">
       <div aria-hidden className="pointer-events-none absolute left-1/2 top-0 h-80 w-[54rem] -translate-x-1/2 rounded-full bg-brand-500/[0.07] blur-3xl" />
       <div className="relative mx-auto max-w-6xl">
-        <BackLink label="Back to dashboard" fallback="/app" />
-
-        <section className="mt-6 overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)]">
+        <section className="overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)]">
           <div className="relative px-5 py-7 sm:px-8 sm:py-9">
             <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-400/70 to-transparent" />
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -84,10 +80,6 @@ export default async function AccountPage() {
                   </p>
                 </div>
               </div>
-              <Link href="/app" className="btn-primary h-11 shrink-0 px-5 py-2.5 text-xs">
-                <LayoutDashboard size={16} aria-hidden />
-                Open workspace
-              </Link>
             </div>
           </div>
 

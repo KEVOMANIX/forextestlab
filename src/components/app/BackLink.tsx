@@ -5,7 +5,7 @@ import { ArrowLeft } from "lucide-react";
 
 export function BackLink({
   fallback = "/app",
-  label = "Back to dashboard",
+  label = "Go back",
   className = "",
 }: {
   fallback?: string;

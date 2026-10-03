@@ -462,8 +462,8 @@ export function AnalyticsDesignPrototype({
   return (
     <TradeFocusProvider value={tradeFocus}>
     <div className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-      {showReturn && <div className="flex flex-wrap items-center justify-between gap-3">
-        {showReturn && (onClose ? <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button> : <Link href="/app" className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Back to dashboard</Link>)}
+      {showReturn && onClose && <div className="flex flex-wrap items-center justify-between gap-3">
+        <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button>
       </div>}
 
       {!demo && notice}

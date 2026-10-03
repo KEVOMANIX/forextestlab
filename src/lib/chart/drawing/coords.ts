@@ -85,16 +85,13 @@ export class CoordinateMapper {
 
   timeToX(time: number): number | null {
     if (!time) return null;
-    // Invert the chart's visible UTC axis first. Lightweight Charts can resolve
-    // coordinate -> time for a fine timestamp displayed inside a coarse candle
-    // while time -> coordinate incorrectly clamps that same timestamp to x=0.
-    // Binary inversion uses the direction that remains authoritative and also
-    // follows non-uniform session gaps such as the weekend closure.
-    const visibleX = this.visibleTimeToX(time);
-    if (visibleX != null) return visibleX;
     // Let the chart resolve real data times first. Its logical timeline can
     // contain context/history series that are not present in the replay-only
     // candle array, so a locally reconstructed index can drift as bars replay.
+    // This must run before visible-axis inversion: when the chart is panned
+    // away from a drawing, coordinateToTime at the viewport edges can clamp to
+    // the drawing's anchor times. Treating those clamped values as the actual
+    // edges stretches a small box across the full pane.
     const scale = this.chart.timeScale();
     const c = scale.timeToCoordinate(time as UTCTimestamp);
     if (typeof c === "number") {
@@ -105,6 +102,11 @@ export class CoordinateMapper {
       // lower-timeframe anchors otherwise need interpolation below.
       if (typeof resolved === "number" && Math.abs(resolved - time) <= 1) return c;
     }
+    // A fine timestamp can sit inside a visible coarse candle even though
+    // timeToCoordinate clamps it. Binary inversion uses coordinate -> time,
+    // which remains authoritative for that in-between timestamp.
+    const visibleX = this.visibleTimeToX(time);
+    if (visibleX != null) return visibleX;
     // A point created on a finer timeframe may sit between two bars after the
     // chart is changed to a coarser timeframe. Interpolate between coordinates
     // supplied by the chart itself. Rebuilding an x coordinate solely from the

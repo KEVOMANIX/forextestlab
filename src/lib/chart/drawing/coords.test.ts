@@ -172,6 +172,34 @@ describe("CoordinateMapper", () => {
     expect(mapper.timeToX(3_600)).toBeCloseTo(25, 1);
   });
 
+  it("keeps off-screen anchors at their chart coordinates when viewport edge times are clamped", () => {
+    const timeScale = {
+      timeToCoordinate: (time: Time) => time === 100 ? 800 : time === 200 ? 820 : null,
+      logicalToCoordinate: (logical: number) => logical,
+      // A pan to older history makes the library report the later drawing
+      // anchors at the viewport edges even though their real coordinates are
+      // beyond the right edge.
+      coordinateToTime: (x: number) => x <= 0 || x === 800 ? 100 : x >= 500 || x === 820 ? 200 : 150,
+      coordinateToLogical: (x: number) => x,
+      getVisibleLogicalRange: () => ({ from: 0, to: 500 }),
+      width: () => 500,
+    };
+    const chart = { timeScale: () => timeScale } as unknown as IChartApi;
+    const series = {
+      priceToCoordinate: (price: number) => price,
+      coordinateToPrice: (coordinate: number) => coordinate,
+    } as unknown as ISeriesApi<SeriesType>;
+    const mapper = new CoordinateMapper(chart, series);
+    mapper.width = 500;
+    mapper.setCandles([
+      { time: 100, open: 1, high: 1, low: 1, close: 1 },
+      { time: 200, open: 1, high: 1, low: 1, close: 1 },
+    ]);
+
+    expect(mapper.timeToX(100)).toBe(800);
+    expect(mapper.timeToX(200)).toBe(820);
+  });
+
   it("adds the chart logical origin when higher-timeframe context shifts the timeline", () => {
     const timeScale = {
       // The middle monthly candle has not been attached to the price series,

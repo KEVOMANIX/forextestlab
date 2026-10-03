@@ -192,26 +192,34 @@ export function TradeJournalEditor({
     return () => window.removeEventListener("beforeunload", warn);
   }, [saveState]);
 
+  const selectTrade = useCallback(
+    async (journalId: string) => {
+      if (journalId === selectedJournalId) return;
+      if (!anonymous && selectedJournalId && draft && JSON.stringify(draft) !== savedHash.current) {
+        await persist(selectedJournalId, draft);
+      }
+      setSelectedId(journalId);
+      setReviewStep(0);
+    },
+    [anonymous, draft, persist, selectedJournalId],
+  );
+
   const step = useCallback(
     (delta: number) => {
       if (!selected) return;
       const index = visible.findIndex((record) => record.journalId === selected.journalId);
       const next = visible[(index === -1 ? 0 : index) + delta];
-      if (next) {
-        setSelectedId(next.journalId);
-        setReviewStep(0);
-      }
+      if (next) void selectTrade(next.journalId);
     },
-    [selected, visible],
+    [selectTrade, selected, visible],
   );
 
   const nextUnwritten = useCallback(() => {
     const target = records.find((record) => !isJournaled(record.journal));
     if (!target) return;
-    setSelectedId(target.journalId);
+    void selectTrade(target.journalId);
     setMode("edit");
-    setReviewStep(0);
-  }, [records]);
+  }, [records, selectTrade]);
 
   const closeEditor = useCallback(async () => {
     if (!anonymous && selectedJournalId && draft && JSON.stringify(draft) !== savedHash.current) {
@@ -250,7 +258,6 @@ export function TradeJournalEditor({
     reader.onload = () => patch({ attachments: [...draft.attachments, { id: crypto.randomUUID(), name: file.name.slice(0, 120), type: file.type, dataUrl: String(reader.result) }] });
     reader.readAsDataURL(file);
   };
-  const position = visible.findIndex((record) => record.journalId === selected.journalId);
   const reviewRecords: ReviewRecord[] = records.map((record) => ({
     journalId: record.journalId,
     number: numberOf(record.journalId),
@@ -326,8 +333,44 @@ export function TradeJournalEditor({
           }}
         />
       ) : (
-        <div className="min-h-[520px] p-4 sm:p-6">
-          <div className="mx-auto max-w-4xl">
+        <div className="min-h-[520px] p-3 sm:p-4">
+          <div className="mx-auto grid max-w-[1240px] gap-4 xl:grid-cols-[15rem_minmax(0,1fr)] xl:items-start">
+            <aside className="overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] xl:sticky xl:top-3">
+              <div className="flex items-center justify-between border-b app-border px-3.5 py-3">
+                <div>
+                  <p className="text-xs font-semibold">Trades</p>
+                  <p className="mt-0.5 text-[10px] app-muted">Select a trade to review</p>
+                </div>
+                <span className="font-mono text-[10px] app-muted">{records.length}</span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto p-2 xl:block xl:max-h-[calc(100vh-15rem)] xl:space-y-1 xl:overflow-y-auto">
+                {reviewRecords.map((record) => {
+                  const active = record.journalId === selected.journalId;
+                  const reviewed = isJournaled(record.journal);
+                  const pnl = record.pnl === null ? null : Number(record.pnl);
+                  return (
+                    <button
+                      key={record.journalId}
+                      type="button"
+                      onClick={() => void selectTrade(record.journalId)}
+                      aria-current={active ? "true" : undefined}
+                      className={`min-w-48 rounded-xl border px-3 py-2.5 text-left transition-colors xl:w-full xl:min-w-0 ${active ? "border-brand-400/55 bg-brand-400/[0.1]" : "border-transparent hover:border-[var(--app-border-color)] hover:bg-[var(--app-panel-2)]/55"}`}
+                    >
+                      <span className="flex items-center justify-between gap-3">
+                        <span className={`text-[11px] font-semibold ${active ? "text-brand-300" : "text-[var(--app-text)]"}`}>Trade {record.number}</span>
+                        <span className={`h-1.5 w-1.5 rounded-full ${reviewed ? "bg-brand-400" : "bg-[var(--app-muted)] opacity-45"}`} title={reviewed ? "Reviewed" : "Not reviewed"} />
+                      </span>
+                      <span className="mt-1 flex items-center justify-between gap-3 text-[10px] app-muted">
+                        <span>{record.symbol ?? "Market"} · {record.direction === "long" ? "Long" : "Short"}</span>
+                        <span className={`font-mono font-semibold ${pnl === null ? "app-muted" : pnl >= 0 ? "text-profit" : "text-loss"}`}>{pnl === null ? "Open" : `${pnl >= 0 ? "+" : "−"}$${Math.abs(pnl).toFixed(2)}`}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            <div className="min-w-0 max-w-4xl">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Trade {numberOf(selected.journalId)} · {selectedSymbol}</p>
@@ -336,11 +379,6 @@ export function TradeJournalEditor({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" onClick={() => setChartOpen(true)} disabled={!selectedReview || (!sessionId && !selected.journal.beforeEntrySnapshot && !selected.journal.afterExitSnapshot)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-400/30 bg-brand-400/[0.07] px-3 text-[11px] font-semibold text-brand-300 hover:bg-brand-400/[0.13] disabled:cursor-not-allowed disabled:opacity-40"><CandlestickChart size={13} /> Interactive chart</button>
-                <div className="flex h-9 items-center gap-1 rounded-lg border app-border px-1 text-[11px] app-muted">
-                  <button type="button" onClick={() => step(-1)} disabled={position <= 0} aria-label="Previous trade" className="rounded-md p-1.5 hover:bg-[var(--app-panel-2)] disabled:opacity-30"><ChevronLeft size={13} /></button>
-                  <span className="min-w-12 text-center font-mono">{position + 1} / {visible.length}</span>
-                  <button type="button" onClick={() => step(1)} disabled={position >= visible.length - 1} aria-label="Next trade" className="rounded-md p-1.5 hover:bg-[var(--app-panel-2)] disabled:opacity-30"><ChevronRight size={13} /></button>
-                </div>
               </div>
             </div>
 
@@ -412,6 +450,7 @@ export function TradeJournalEditor({
                 {reviewStep < reviewSteps.length - 1 ? <button type="button" onClick={() => setReviewStep((current) => Math.min(reviewSteps.length - 1, current + 1))} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-500 px-4 text-xs font-semibold text-surface-950 hover:bg-brand-400">Continue to {reviewSteps[reviewStep + 1]} <ChevronRight size={13} /></button> : <button type="button" onClick={() => setMode("review")} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-500 px-4 text-xs font-semibold text-surface-950 hover:bg-brand-400">Finish review <Check size={13} /></button>}
               </div>
             </section>
+            </div>
           </div>
         </div>
       )}

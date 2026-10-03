@@ -84,6 +84,7 @@ async function main() {
 
   let updated = 0;
   let unmatched = 0;
+  const unmatchedRows: Array<{ sessionId: string; tradeId: string; fingerprint: string }> = [];
   for (const session of sessions) {
     const state = await readState(session.stateJson, session.stateObjectKey);
     const snapshotByFingerprint = new Map<string, TradeValidity[]>();
@@ -107,6 +108,9 @@ async function main() {
       const validity = snapshotByFingerprint.get(key)?.shift();
       if (!validity) {
         unmatched += 1;
+        if (unmatchedRows.length < 20) {
+          unmatchedRows.push({ sessionId: session.id, tradeId: trade.id, fingerprint: key });
+        }
         continue;
       }
       idsByValidity.get(validity)!.push(trade.id);
@@ -125,7 +129,7 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify({ sessions: sessions.length, updated, unmatched }));
+  console.log(JSON.stringify({ sessions: sessions.length, updated, unmatched, unmatchedRows }));
 }
 
 main()

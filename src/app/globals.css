@@ -447,6 +447,55 @@
   .scroll-x-thin::-webkit-scrollbar {
     display: none;
   }
+
+  /* A short highlight continuously traces the analytics session selector.
+     The card itself never moves, so the control remains easy to click. */
+  .session-attention-orbit {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: var(--app-panel-2);
+    box-shadow: 0 0 0 1px var(--app-border);
+    transition: box-shadow 180ms ease;
+  }
+
+  .session-attention-orbit::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    inset: -180%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg 306deg,
+      rgb(var(--app-accent-rgb) / 0.18) 318deg,
+      rgb(var(--app-accent-rgb) / 1) 340deg,
+      transparent 358deg 360deg
+    );
+    animation: session-attention-orbit 3.4s linear infinite;
+    pointer-events: none;
+  }
+
+  .session-attention-orbit::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    inset: 1px;
+    border-radius: calc(0.75rem - 1px);
+    background: var(--app-panel-2);
+    pointer-events: none;
+  }
+
+  .session-attention-orbit:hover {
+    box-shadow:
+      0 0 0 1px rgb(var(--app-accent-rgb) / 0.5),
+      0 8px 28px -18px rgb(var(--app-accent-rgb) / 0.7);
+  }
+}
+
+@keyframes session-attention-orbit {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 /* Respect users who prefer reduced motion. */

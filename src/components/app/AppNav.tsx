@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, Sun } from "lucide-react";
+import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, ShieldCheck, Sun } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -21,6 +21,7 @@ const ACCOUNT: NavItem[] = [
   { label: "Account", href: "/account", icon: CircleUserRound },
   { label: "Billing", href: "/account/billing", icon: CreditCard },
 ];
+const ADMIN: NavItem = { label: "Admin console", href: "/admin", icon: ShieldCheck };
 
 function initials(displayName: string | null): string {
   if (!displayName) return "FT";
@@ -38,7 +39,7 @@ function DesktopLink({ item, pathname }: { item: NavItem; pathname: string }) {
   return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}</Link>;
 }
 
-export function AppNav({ signedIn, displayName }: { signedIn: boolean; displayName: string | null; admin?: boolean }) {
+export function AppNav({ signedIn, displayName, admin = false }: { signedIn: boolean; displayName: string | null; admin?: boolean }) {
   const { theme, toggle } = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
@@ -59,6 +60,7 @@ export function AppNav({ signedIn, displayName }: { signedIn: boolean; displayNa
       <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-3 py-5">
         <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div>
         <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
+        {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
         <div className="mt-7"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link></div></div>
       </nav>
       <div className="border-t app-border p-3"><Link href={signedIn ? "/account" : "/sign-in"} className="flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition-colors hover:bg-[var(--app-panel-2)]"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-400/15 text-xs font-bold text-brand-200">{signedIn ? initials(displayName) : <LogIn size={16} aria-hidden />}</span><span className="min-w-0"><span className="block truncate text-xs font-semibold">{signedIn ? displayName ?? "ForexTestLab trader" : "Sign in"}</span></span></Link>{signedIn && <button type="button" onClick={signOut} disabled={signingOut} className="mt-1 flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-xs font-medium app-muted transition-colors hover:bg-loss/[0.06] hover:text-loss disabled:opacity-50">{signingOut ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogOut size={15} aria-hidden />}Sign out</button>}</div>

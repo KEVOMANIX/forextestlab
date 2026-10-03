@@ -38,10 +38,10 @@ export function AnalyticsSessionPicker({ sessions, selectedId }: { sessions: Ana
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="group flex max-w-full items-center gap-3 rounded-xl px-1 py-1 text-left transition-colors hover:bg-white/[0.035]" aria-haspopup="dialog" aria-expanded={open} aria-label="Search and select an analytics session">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><BarChart3 size={15} aria-hidden /></span>
-        <span className="min-w-0"><span className="block text-[9px] font-semibold uppercase tracking-[0.16em] app-muted">Selected session</span><span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">{selected.name}</span></span>
-        <ChevronDown size={16} className="shrink-0 app-muted transition-colors group-hover:text-brand-300" aria-hidden />
+      <button type="button" onClick={() => setOpen(true)} className="session-attention-orbit group flex max-w-full items-center gap-3 rounded-xl px-3 py-2 text-left" aria-haspopup="dialog" aria-expanded={open} aria-label="Search and select an analytics session">
+        <span className="relative z-[2] grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-400/12 text-brand-300"><BarChart3 size={15} aria-hidden /></span>
+        <span className="relative z-[2] min-w-0"><span className="block text-[9px] font-semibold uppercase tracking-[0.16em] app-muted">Selected session</span><span className="mt-0.5 block truncate text-base font-semibold sm:text-lg">{selected.name}</span></span>
+        <ChevronDown size={16} className="relative z-[2] shrink-0 app-muted transition-colors group-hover:text-brand-300" aria-hidden />
       </button>
 
       {open && <div className="fixed inset-0 z-[90] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>

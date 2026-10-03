@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { loadSession } from "@/lib/backtest/session-store";
+import { loadReplaySafeReviewCandles } from "@/lib/backtest/trade-review-chart";
 import { getMarketDataProvider } from "@/lib/market-data";
 import { isTimeframe, TIMEFRAME_MS } from "@/lib/market-data/types";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -29,6 +30,13 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const entryTime = Math.min(...records.map((record) => record.entryTime));
   const exitTime = trades.length ? Math.max(...trades.map((trade) => trade.exitTime)) : session.ctx.candles[session.ctx.state.visibleIndex]?.timestamp ?? entryTime;
   const step = TIMEFRAME_MS[timeframe];
-  const candles = await getMarketDataProvider().getCandles({ symbol, timeframe, startTime: Math.max(0, entryTime - step * 120), endTime: exitTime + step * 80, limit: 3000 });
+  const candles = await loadReplaySafeReviewCandles({
+    provider: getMarketDataProvider(),
+    symbol,
+    timeframe,
+    startTime: Math.max(0, entryTime - step * 120),
+    cutoffTime: exitTime,
+    limit: 3000,
+  });
   return NextResponse.json({ ok: true, symbol, timeframe, candles });
 }

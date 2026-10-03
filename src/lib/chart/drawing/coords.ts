@@ -12,6 +12,8 @@
 
 import type { IChartApi, ISeriesApi, Logical, SeriesType, Time, UTCTimestamp } from "lightweight-charts";
 
+import { candleBucketStart } from "@/lib/market-data/aggregation";
+import { nextTimeframeTimestamp, TIMEFRAMES, type Timeframe } from "@/lib/market-data/types";
 import type { MagnetMode, Point } from "./types";
 
 export interface Candle {
@@ -43,6 +45,7 @@ export class CoordinateMapper {
    * anchor on the bar the trader aimed at.
    */
   private futureTimes: number[] = [];
+  private timeframe: Timeframe | null = null;
 
   constructor(
     private chart: IChartApi,
@@ -52,6 +55,12 @@ export class CoordinateMapper {
   setCandles(candles: Candle[]): void {
     this.candles = candles;
     this.refreshBarSecs();
+  }
+
+  setTimeframe(timeframe: string): void {
+    this.timeframe = TIMEFRAMES.includes(timeframe as Timeframe)
+      ? timeframe as Timeframe
+      : null;
   }
 
   /** The chart's forward runway, in seconds, ascending and after the last candle. */
@@ -93,15 +102,15 @@ export class CoordinateMapper {
     // the drawing's anchor times. Treating those clamped values as the actual
     // edges stretches a small box across the full pane.
     const scale = this.chart.timeScale();
-    const c = scale.timeToCoordinate(time as UTCTimestamp);
-    if (typeof c === "number") {
-      const resolved = scale.coordinateToTime(c) as Time | null | undefined;
-      // Lightweight Charts may return the left edge (0) for a timestamp that
-      // does not exist on the newly selected coarse series. Treat a coordinate
-      // as authoritative only when it round-trips to the requested UTC time;
-      // lower-timeframe anchors otherwise need interpolation below.
-      if (typeof resolved === "number" && Math.abs(resolved - time) <= 1) return c;
-    }
+    const exact = this.ownedCoordinate(time);
+    if (exact != null) return exact;
+
+    // A saved fine-timeframe point is normally absent from a coarser chart's
+    // time scale. Place it fractionally inside its current timeframe bucket.
+    // This does not depend on the viewport and never accepts the spurious x=0
+    // that Lightweight Charts can return for an unknown timestamp.
+    const bucket = this.timeframeBucketCoordinate(time);
+    if (bucket != null) return bucket;
     // A point created on a finer timeframe may sit between two bars after the
     // chart is changed to a coarser timeframe. Interpolate between coordinates
     // supplied by the chart itself. Rebuilding an x coordinate solely from the
@@ -109,9 +118,9 @@ export class CoordinateMapper {
     // context and whitespace series on the shared time scale.
     const bracket = this.bracketTime(time);
     if (bracket) {
-      const x0 = scale.timeToCoordinate(bracket.before.time as UTCTimestamp);
-      const x1 = scale.timeToCoordinate(bracket.after.time as UTCTimestamp);
-      if (typeof x0 === "number" && typeof x1 === "number") {
+      const x0 = this.ownedCoordinate(bracket.before.time);
+      const x1 = this.ownedCoordinate(bracket.after.time);
+      if (x0 != null && x1 != null) {
         const span = bracket.after.time - bracket.before.time;
         const fraction = span > 0 ? (time - bracket.before.time) / span : 0;
         return x0 + (x1 - x0) * fraction;
@@ -125,6 +134,51 @@ export class CoordinateMapper {
     if (logical != null) {
       const x = scale.logicalToCoordinate(logical as Logical);
       if (typeof x === "number") return x;
+    }
+    return null;
+  }
+
+  /** Return a coordinate only when the chart owns the requested timestamp. */
+  private ownedCoordinate(time: number): number | null {
+    const scale = this.chart.timeScale();
+    const x = scale.timeToCoordinate(time as UTCTimestamp);
+    if (typeof x !== "number") return null;
+    const resolved = scale.coordinateToTime(x) as Time | null | undefined;
+    // Some chart states cannot invert an otherwise valid off-screen data
+    // coordinate. A concrete, different timestamp proves clamping; null does
+    // not, so retain the chart-owned forward coordinate in that case.
+    if (typeof resolved !== "number") return x;
+    return Math.abs(resolved - time) <= 1 ? x : null;
+  }
+
+  /** Project an arbitrary timestamp into the logical slot of its display bar. */
+  private timeframeBucketCoordinate(time: number): number | null {
+    const timeframe = this.timeframe;
+    if (!timeframe) return null;
+    const start = candleBucketStart(time * 1_000, timeframe) / 1_000;
+    const end = nextTimeframeTimestamp(start * 1_000, timeframe) / 1_000;
+    if (!(end > start) || time < start || time > end) return null;
+    const fraction = (time - start) / (end - start);
+    const scale = this.chart.timeScale();
+
+    const startX = this.ownedCoordinate(start);
+    if (startX != null) {
+      const logical = scale.coordinateToLogical(startX);
+      if (logical != null) {
+        const x = scale.logicalToCoordinate((Number(logical) + fraction) as Logical);
+        if (typeof x === "number") return x;
+      }
+    }
+
+    // A partial first bar may not have its opening boundary loaded. The next
+    // owned boundary still identifies the same logical slot.
+    const endX = this.ownedCoordinate(end);
+    if (endX != null) {
+      const logical = scale.coordinateToLogical(endX);
+      if (logical != null) {
+        const x = scale.logicalToCoordinate((Number(logical) - (1 - fraction)) as Logical);
+        if (typeof x === "number") return x;
+      }
     }
     return null;
   }
@@ -296,8 +350,8 @@ export class CoordinateMapper {
   /** Logical index of a chart-owned timestamp, including context-series offset. */
   private logicalAtTime(time: number): number | null {
     const scale = this.chart.timeScale();
-    const x = scale.timeToCoordinate(time as UTCTimestamp);
-    if (typeof x !== "number") return null;
+    const x = this.ownedCoordinate(time);
+    if (x == null) return null;
     const logical = scale.coordinateToLogical(x);
     return logical == null ? null : Number(logical);
   }

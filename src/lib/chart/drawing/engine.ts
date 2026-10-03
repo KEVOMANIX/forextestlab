@@ -305,6 +305,7 @@ export class DrawingEngine {
     // forcing an immediate scene repaint here races the chart and produces an
     // alternating old/new frame. View-signature changes repaint the scene once
     // the chart's time/price scales have settled.
+    if (env.timeframe !== undefined) this.mapper.setTimeframe(env.timeframe);
     if (env.candles) this.mapper.setCandles(env.candles);
     if (env.futureTimes) this.mapper.setFutureTimes(env.futureTimes);
     if (env.tool !== undefined && env.tool !== prevTool) {

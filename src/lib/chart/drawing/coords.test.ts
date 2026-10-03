@@ -6,6 +6,8 @@ import type {
   Time,
 } from "lightweight-charts";
 
+import { candleBucketStart } from "@/lib/market-data/aggregation";
+import { nextTimeframeTimestamp, type Timeframe } from "@/lib/market-data/types";
 import { CoordinateMapper } from "./coords";
 
 describe("CoordinateMapper", () => {
@@ -254,6 +256,72 @@ describe("CoordinateMapper", () => {
     // 250 is halfway between local bars 1 and 2. They sit at logical 11 and 12
     // because the shared chart timeline begins at logical 10.
     expect(mapper.timeToX(250)).toBe(115);
+  });
+
+  it("does not stretch a 1m rectangle to the left edge after switching to 15m", () => {
+    const minute = 60;
+    const start = Date.UTC(2020, 7, 17, 20, 44) / 1_000;
+    const end = Date.UTC(2020, 7, 17, 22, 10) / 1_000;
+    const firstBucket = Date.UTC(2020, 7, 17, 20, 30) / 1_000;
+    const logicalOrigin = 500;
+    const owned = new Map<number, number>();
+    for (let i = 0; i < 9; i++) owned.set(firstBucket + i * 15 * minute, logicalOrigin + i);
+    const timeScale = {
+      // This is the production failure: unknown fine timestamps are clamped
+      // to the far-left coordinate instead of returning null.
+      timeToCoordinate: (time: Time) => owned.has(Number(time)) ? owned.get(Number(time))! * 12 : 0,
+      coordinateToTime: (x: number) => {
+        for (const [time, logical] of owned) if (logical * 12 === x) return time;
+        return firstBucket - 86_400;
+      },
+      coordinateToLogical: (x: number) => x / 12,
+      logicalToCoordinate: (logical: number) => logical * 12,
+    };
+    const chart = { timeScale: () => timeScale } as unknown as IChartApi;
+    const series = {
+      priceToCoordinate: (price: number) => price,
+      coordinateToPrice: (coordinate: number) => coordinate,
+    } as unknown as ISeriesApi<SeriesType>;
+    const mapper = new CoordinateMapper(chart, series);
+    mapper.setTimeframe("15m");
+    mapper.setCandles([...owned.keys()].map((time) => ({ time, open: 1, high: 1, low: 1, close: 1 })));
+
+    const x0 = mapper.timeToX(start)!;
+    const x1 = mapper.timeToX(end)!;
+    expect(x0).toBeCloseTo((logicalOrigin + 14 / 15) * 12, 5);
+    expect(x1).toBeCloseTo((logicalOrigin + 6 + 10 / 15) * 12, 5);
+    expect(x0).toBeGreaterThan(0);
+    expect(x1 - x0).toBeCloseTo((86 / 15) * 12, 5);
+  });
+
+  it("projects fine anchors inside their bar on every supported higher timeframe", () => {
+    const higher: Timeframe[] = ["3m", "5m", "10m", "15m", "30m", "45m", "1h", "2h", "4h", "6h", "12h", "1d", "1w", "1M", "3M", "4M", "6M", "1yr"];
+    const sampleMs = Date.UTC(2020, 7, 17, 20, 44, 30);
+
+    for (const timeframe of higher) {
+      const start = candleBucketStart(sampleMs, timeframe) / 1_000;
+      const end = nextTimeframeTimestamp(start * 1_000, timeframe) / 1_000;
+      const anchor = start + (end - start) * 0.4;
+      const timeScale = {
+        timeToCoordinate: (time: Time) => Number(time) === start ? 6_000 : Number(time) === end ? 6_012 : 0,
+        coordinateToTime: (x: number) => x === 6_000 ? start : x === 6_012 ? end : start - 60,
+        coordinateToLogical: (x: number) => x / 12,
+        logicalToCoordinate: (logical: number) => logical * 12,
+      };
+      const chart = { timeScale: () => timeScale } as unknown as IChartApi;
+      const series = {
+        priceToCoordinate: (price: number) => price,
+        coordinateToPrice: (coordinate: number) => coordinate,
+      } as unknown as ISeriesApi<SeriesType>;
+      const mapper = new CoordinateMapper(chart, series);
+      mapper.setTimeframe(timeframe);
+      mapper.setCandles([
+        { time: start, open: 1, high: 1, low: 1, close: 1 },
+        { time: end, open: 1, high: 1, low: 1, close: 1 },
+      ]);
+
+      expect(mapper.timeToX(anchor), timeframe).toBeCloseTo(6_004.8, 5);
+    }
   });
 
   describe("the forward runway", () => {

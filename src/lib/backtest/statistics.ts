@@ -8,6 +8,7 @@
  */
 
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
+import { analyticsTrades } from "@/lib/analytics/trade-scope";
 import { Decimal, d, money } from "@/lib/decimal";
 
 const NOT_AVAILABLE = "Not available";
@@ -41,7 +42,18 @@ export function computeStatistics(params: {
   trades: ClosedTrade[];
   equityCurve: EquityPoint[];
 }): PerformanceStats {
-  const { startingBalance, endingBalance, trades, equityCurve } = params;
+  const { startingBalance } = params;
+  const trades = analyticsTrades(params.trades);
+  const excludedExperimentalTrades = trades.length !== params.trades.length;
+  // A saved account balance includes every simulated execution. Once an
+  // experimental trade is removed from performance analysis, derive the
+  // comparable balance from the remaining realised P/L as well.
+  const endingBalance = excludedExperimentalTrades
+    ? trades.reduce((balance, trade) => balance.plus(trade.pnl), d(startingBalance)).toFixed(2)
+    : params.endingBalance;
+  // The persisted curve also contains experimental P/L and cannot be safely
+  // disentangled point-by-point. Do not publish a misleading drawdown.
+  const equityCurve = excludedExperimentalTrades ? [] : params.equityCurve;
 
   const totalTrades = trades.length;
 

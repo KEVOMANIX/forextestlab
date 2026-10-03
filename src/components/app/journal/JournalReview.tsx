@@ -50,10 +50,11 @@ export function JournalReview({ sessionId, records, onEdit }: { sessionId?: stri
   const adherence = ruleAdherence(journals);
   const confidence = averageConfidence(journals);
   const written = records.filter((record) => isJournaled(record.journal));
-  const strategies = breakdown(records, (record) => record.journal.strategy ? [record.journal.strategy] : record.journal.setupTags);
-  const mistakes = breakdown(records, (record) => record.journal.mistakeTags);
-  const goodLosses = records.filter((record) => Number(record.pnl ?? 0) < 0 && ["A", "B"].includes(record.journal.grade ?? "")).length;
-  const badWins = records.filter((record) => Number(record.pnl ?? 0) > 0 && ["C", "D"].includes(record.journal.grade ?? "")).length;
+  const performanceRecords = records.filter((record) => record.journal.validity !== "experimental");
+  const strategies = breakdown(performanceRecords, (record) => record.journal.strategy ? [record.journal.strategy] : record.journal.setupTags);
+  const mistakes = breakdown(performanceRecords, (record) => record.journal.mistakeTags);
+  const goodLosses = performanceRecords.filter((record) => Number(record.pnl ?? 0) < 0 && ["A", "B"].includes(record.journal.grade ?? "")).length;
+  const badWins = performanceRecords.filter((record) => Number(record.pnl ?? 0) > 0 && ["C", "D"].includes(record.journal.grade ?? "")).length;
   const [chartRecord, setChartRecord] = useState<ReviewRecord | null>(null);
   const processMessage = badWins > goodLosses
     ? `${badWins} winning trade${badWins === 1 ? "" : "s"} broke the process, compared with ${goodLosses} well-executed loss${goodLosses === 1 ? "" : "es"}.`

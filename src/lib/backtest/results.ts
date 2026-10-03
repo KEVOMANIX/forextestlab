@@ -173,6 +173,13 @@ export async function getSessionResults(
     : [];
   const metadata = new Map(metadataRows.map((item) => [item.id, item]));
   const reviewSessions = reviewRows.map((session) => {
+    const trades = session.trades
+      .filter((trade) => trade.validity !== "experimental")
+      .map(toClosedTrade);
+    const endingBalance = trades.reduce(
+      (balance, trade) => balance.plus(trade.pnl),
+      new Decimal(fundedTotal(session)),
+    ).toFixed(2);
     return {
       sessionId: session.id,
       name: metadata.get(session.id)?.name?.trim() || `${session.symbol} backtest`,
@@ -182,17 +189,26 @@ export async function getSessionResults(
       parentSessionId: session.parentSessionId,
       branchRootId: session.branchRootId,
       startingBalance: fundedTotal(session),
-      endingBalance: session.balance,
-      trades: session.trades.map(toClosedTrade),
+      endingBalance,
+      trades,
     };
   });
   const branchComparison = familyRows.map((family) => {
-    const trades = family.trades.map(toClosedTrade);
+    const trades = family.trades
+      .filter((trade) => trade.validity !== "experimental")
+      .map(toClosedTrade);
+    const hasExperimentalTrades = trades.length !== family.trades.length;
+    const scopedBalance = trades.reduce(
+      (balance, trade) => balance.plus(trade.pnl),
+      new Decimal(fundedTotal(family)),
+    ).toFixed(2);
     const familyStats = computeStatistics({
       startingBalance: fundedTotal(family),
-      endingBalance: family.balance,
+      endingBalance: scopedBalance,
       trades,
-      equityCurve: family.equitySnapshots.map(toEquityPoint),
+      equityCurve: hasExperimentalTrades
+        ? []
+        : family.equitySnapshots.map(toEquityPoint),
     });
     return {
       sessionId: family.id,
@@ -202,7 +218,7 @@ export async function getSessionResults(
       branchPointTime: family.branchPointTime ? Number(family.branchPointTime) : null,
       status: family.status,
       trades: trades.length,
-      balance: family.balance,
+      balance: scopedBalance,
       netPnl: familyStats.netProfit,
       winRate: familyStats.winRate,
     };

@@ -152,7 +152,10 @@ export default async function AppHome() {
       select: { createdAt: true },
     }),
     prisma.simulatedTrade.findMany({
-      where: { session: { userId: user.id, anonymous: false } },
+      where: {
+        session: { userId: user.id, anonymous: false },
+        validity: { not: "experimental" },
+      },
       orderBy: { createdAt: "desc" },
       take: 30,
       select: { pnl: true },
@@ -160,6 +163,7 @@ export default async function AppHome() {
     prisma.simulatedTrade.count({
       where: {
         session: { userId: user.id, anonymous: false },
+        validity: { not: "experimental" },
         createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) },
       },
     }),
@@ -192,6 +196,7 @@ export default async function AppHome() {
                COUNT(*) FILTER (WHERE "pnl"::numeric > 0)::bigint AS "winningTrades"
         FROM "SimulatedTrade"
         WHERE "sessionId" IN (${Prisma.join(sessionRows.map((session) => session.id))})
+          AND "validity" <> 'experimental'
         GROUP BY "sessionId"
       `)
     : [];

@@ -31,6 +31,12 @@ describe("dashboard practice overview", () => {
     }));
     expect(db.activity).toHaveBeenCalledOnce();
     expect(db.trades).toHaveBeenCalledOnce();
+    expect(db.trades).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ validity: { not: "experimental" } }),
+    }));
+    expect(db.tradeCount).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ validity: { not: "experimental" } }),
+    }));
     expect(db.metadata).toHaveBeenCalledTimes(2);
   });
 });

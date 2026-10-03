@@ -536,10 +536,14 @@ model SimulatedTrade {
   pips              String
   exitReason        String
   intrabarAmbiguous Boolean         @default(false)
+  /// Journal classification copied from the engine snapshot so every
+  /// aggregate can consistently exclude experimental trades.
+  validity          String          @default("valid")
   notes             String?
   createdAt         DateTime        @default(now())
 
   @@index([sessionId])
+  @@index([sessionId, validity])
 }
 
 /// One economic calendar release — a single publication of a single indicator.

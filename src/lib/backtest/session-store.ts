@@ -862,7 +862,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
 /** Persist the engine state and refresh relational projections. */
 export async function persistSession(
   session: LoadedSession,
-  options: { resetProjections?: boolean } = {},
+  options: { resetProjections?: boolean; syncTradeValidity?: boolean } = {},
 ): Promise<void> {
   const { state } = session.ctx;
   const currentCandle = currentCandleOf(session.ctx);
@@ -942,7 +942,32 @@ export async function persistSession(
         pips: t.pips,
         exitReason: t.exitReason,
         intrabarAmbiguous: t.intrabarAmbiguous,
+        validity: t.journal?.validity ?? "valid",
       })),
+    });
+  }
+
+  // Journal classification can change long after a trade was projected. Keep
+  // existing rows aligned by their immutable execution fingerprint so saved
+  // dashboard, branch and portfolio metrics update on the same journal save.
+  if (!options.syncTradeValidity) return;
+  for (const validity of ["valid", "invalid", "experimental"] as const) {
+    const trades = state.closedTrades.filter((trade) => (trade.journal?.validity ?? "valid") === validity);
+    if (trades.length === 0) continue;
+    await prisma.simulatedTrade.updateMany({
+      where: {
+        sessionId: session.id,
+        OR: trades.map((trade) => ({
+          entryTime: BigInt(trade.entryTime),
+          exitTime: BigInt(trade.exitTime),
+          entryIndex: trade.entryIndex,
+          exitIndex: trade.exitIndex,
+          direction: trade.direction,
+          lots: trade.lots,
+          pnl: trade.pnl,
+        })),
+      },
+      data: { validity },
     });
   }
 }

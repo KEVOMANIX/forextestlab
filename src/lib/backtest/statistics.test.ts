@@ -25,6 +25,7 @@ function makeTrade(overrides: TradeOverrides): ClosedTrade {
     pips: overrides.pips ?? "0",
     exitReason: overrides.exitReason ?? "manual",
     intrabarAmbiguous: overrides.intrabarAmbiguous ?? false,
+    journal: overrides.journal,
   };
 }
 
@@ -140,6 +141,32 @@ describe("computeStatistics", () => {
     expect(stats.averageLoss).toBe("Not available");
     expect(stats.largestLoss).toBe("Not available");
     expect(stats.winRate).toBe("100.0");
+  });
+
+  it("excludes experimental trades from every performance metric", () => {
+    const includedWin = makeTrade({ id: "included", pnl: "100" });
+    const experimentalLoss = makeTrade({
+      id: "experiment",
+      pnl: "-900",
+      journal: { validity: "experimental" } as ClosedTrade["journal"],
+    });
+
+    const stats = computeStatistics({
+      startingBalance: "10000",
+      endingBalance: "9200",
+      trades: [includedWin, experimentalLoss],
+      equityCurve: [makeEquityPoint(0, "10000"), makeEquityPoint(1, "9200")],
+    });
+
+    expect(stats.totalTrades).toBe(1);
+    expect(stats.winningTrades).toBe(1);
+    expect(stats.losingTrades).toBe(0);
+    expect(stats.winRate).toBe("100.0");
+    expect(stats.grossProfit).toBe("100.00");
+    expect(stats.grossLoss).toBe("0.00");
+    expect(stats.endingBalance).toBe("10100.00");
+    expect(stats.netProfit).toBe("100.00");
+    expect(stats.maxDrawdown).toBe("Not available");
   });
 
   it("counts the longest consecutive win and loss streaks", () => {

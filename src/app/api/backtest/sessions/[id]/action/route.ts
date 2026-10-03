@@ -299,7 +299,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   }
 
   await Promise.all([
-    persistSession(session, { resetProjections: action.type === "restart" }),
+    persistSession(session, {
+      resetProjections: action.type === "restart",
+      syncTradeValidity: action.type === "update-journal",
+    }),
     orderProjection,
   ]);
   if (action.type === "end") {

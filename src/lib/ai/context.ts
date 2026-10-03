@@ -251,19 +251,28 @@ export function buildPortfolioContext(sessions: PortfolioContextSession[]): stri
   const parsed: PortfolioSession[] = sessions
     .map((session) => {
       if (session.archived) return null;
-      const trades = session.trades.map(toClosedTrade);
+      const trades = session.trades
+        .filter((trade) => trade.validity !== "experimental")
+        .map(toClosedTrade);
+      const hasExperimentalTrades = trades.length !== session.trades.length;
       // Everything the trader put in. Measured against the opening balance
       // alone, a blown account rescued with demo funds reads to the model as a
       // winning session, and every conclusion drawn from it inherits that.
       const funded = new Decimal(session.startingBalance).plus(
         session.depositedFunds ?? 0,
       );
-      const net = new Decimal(session.balance).minus(funded);
+      const net = trades.reduce(
+        (sum, trade) => sum.plus(trade.pnl),
+        new Decimal(0),
+      );
+      const scopedBalance = funded.plus(net);
       const stats = computeStatistics({
         startingBalance: funded.toFixed(2),
-        endingBalance: session.balance,
+        endingBalance: scopedBalance.toFixed(2),
         trades,
-        equityCurve: session.equitySnapshots.map(toEquityPoint),
+        equityCurve: hasExperimentalTrades
+          ? []
+          : session.equitySnapshots.map(toEquityPoint),
       });
       const symbols = session.symbols.length ? session.symbols : [session.symbol];
       return {

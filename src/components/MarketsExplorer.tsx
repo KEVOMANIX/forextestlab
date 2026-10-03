@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BarChart3, CalendarRange, Check, Coins, Database, Search } from "lucide-react";
+import { ArrowRight, BarChart3, Check, Coins, Search } from "lucide-react";
 
 import { CurrencyFlag, hasCurrencyFlag } from "@/components/app/CurrencyFlag";
 import { fetchSymbols } from "@/lib/backtest/client";
@@ -72,7 +72,7 @@ function MarketCard({ market, selected, onSelect }: { market: MarketSymbol; sele
     </div>
 
     <div className="mt-4 flex items-center justify-between rounded-lg border border-white/[.07] bg-surface-950/35 px-3 py-2.5">
-      <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.12em] text-slate-500"><CalendarRange size={13} className="text-brand-300" aria-hidden />Archive</span>
+      <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-slate-500">Archive</span>
       <span className="font-mono text-xs font-semibold text-slate-300">{market.availableFromYear && market.availableThroughYear ? `${market.availableFromYear} → ${market.availableThroughYear}` : "Checking availability"}</span>
     </div>
     {selected && <span className="absolute right-4 top-[4.35rem] grid h-6 w-6 place-items-center rounded-full bg-brand-400 text-surface-950"><Check size={13} strokeWidth={3} aria-hidden /></span>}
@@ -153,12 +153,12 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
           </div>
 
           <div className="mt-5 flex items-center justify-between rounded-xl border border-white/10 bg-surface-950/45 p-4">
-            <span className="flex items-center gap-2 text-xs font-semibold text-slate-400"><CalendarRange size={15} className="text-brand-300" aria-hidden />Archive period</span>
+            <span className="text-xs font-semibold text-slate-400">Archive period</span>
             <span className="font-mono text-sm font-bold text-slate-100">{activeMarket.availableFromYear && activeMarket.availableThroughYear ? `${activeMarket.availableFromYear} → ${activeMarket.availableThroughYear}` : "Checking"}</span>
           </div>
 
           <dl className="mt-5 divide-y divide-white/10 border-y border-white/10">
-            <div className="flex items-center justify-between gap-4 py-3.5"><dt className="flex items-center gap-2 text-sm text-slate-500"><Database size={15} className="text-brand-300" aria-hidden />Source</dt><dd className="text-sm font-semibold text-brand-200">Dukascopy</dd></div>
+            <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Source</dt><dd className="text-sm font-semibold text-brand-200">Dukascopy</dd></div>
             <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Base timeframe</dt><dd className="font-mono text-sm font-semibold text-slate-200">1 minute</dd></div>
             <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Asset class</dt><dd className="text-sm font-semibold text-slate-200">{categoryFor(activeMarket)}</dd></div>
           </dl>

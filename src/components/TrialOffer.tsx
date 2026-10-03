@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarRange, Check, MonitorSmartphone } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export function TrialOffer({
@@ -39,9 +39,9 @@ export function TrialOffer({
         </div>
         <div className={hero ? "" : "shrink-0"}>
           <ul className={`mb-5 grid gap-3 text-sm text-slate-300 ${hero ? "" : "sm:grid-cols-2 lg:grid-cols-1"}`}>
-            <li className="flex items-center gap-3"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-400/10"><CalendarRange size={14} className="text-brand-300" aria-hidden /></span><span>{hero ? "One month of historical data per session" : "One month of market data"}</span></li>
-            <li className="flex items-center gap-3"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-400/10"><MonitorSmartphone size={14} className="text-brand-300" aria-hidden /></span><span>{hero ? "Up to three sessions on each device" : "Three sessions per device"}</span></li>
-            <li className="flex items-center gap-3"><span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-400/10"><Check size={14} className="text-brand-300" aria-hidden /></span><span>{hero ? "Launch directly into EUR/USD replay" : "Instant EUR/USD replay"}</span></li>
+            <li>{hero ? "One month of historical data per session" : "One month of market data"}</li>
+            <li>{hero ? "Up to three sessions on each device" : "Three sessions per device"}</li>
+            <li>{hero ? "Launch directly into EUR/USD replay" : "Instant EUR/USD replay"}</li>
           </ul>
           <Link href={href} className={`btn-primary w-full px-5 shadow-glow ${hero ? "py-3.5" : "py-3"}`}>
             Start free trial

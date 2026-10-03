@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { BarChart3, Gauge, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Section } from "@/components/Section";
@@ -19,7 +18,6 @@ const VIEWS = [
     height: 880,
     imageIncludesChrome: false,
     alt: "ForexTestLab market replay terminal",
-    icon: Play,
   },
   {
     id: "dashboard",
@@ -33,7 +31,6 @@ const VIEWS = [
     height: 940,
     imageIncludesChrome: false,
     alt: "ForexTestLab session dashboard",
-    icon: Gauge,
   },
   {
     id: "analytics",
@@ -47,7 +44,6 @@ const VIEWS = [
     height: 940,
     imageIncludesChrome: false,
     alt: "ForexTestLab session analytics",
-    icon: BarChart3,
   },
 ] as const;
 
@@ -89,32 +85,20 @@ export function ProductPreview() {
             role="tablist"
             aria-label="ForexTestLab product views"
           >
-            {VIEWS.map(({ id, label, icon: Icon }) => (
+            {VIEWS.map(({ id, label }) => (
               <button
                 key={id}
                 type="button"
                 role="tab"
                 aria-selected={activeId === id}
                 onClick={() => setActiveId(id)}
-                className={`group flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
+                className={`group rounded-xl border px-4 py-3 text-left text-sm font-semibold transition-all ${
                   activeId === id
                     ? "border-brand-400/35 bg-brand-400/[0.09] text-white shadow-card"
                     : "border-transparent text-slate-500 hover:border-white/[0.08] hover:bg-white/[0.025] hover:text-slate-300"
                 }`}
               >
-                <span
-                  className={`grid h-9 w-9 place-items-center rounded-lg ${
-                    activeId === id
-                      ? "bg-brand-500 text-surface-950"
-                      : "border border-white/[0.08] bg-surface-800"
-                  }`}
-                >
-                  <Icon size={16} aria-hidden />
-                </span>
-                <span className="text-sm font-semibold">{label}</span>
-                {activeId === id && (
-                  <span className="ml-auto h-1.5 w-1.5 rounded-full bg-brand-300" />
-                )}
+                {label}
               </button>
             ))}
           </div>

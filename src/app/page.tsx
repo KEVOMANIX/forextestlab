@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BarChart3, CandlestickChart, ListChecks } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { Footer } from "@/components/Footer";
 import { Hero } from "@/components/Hero";
@@ -8,9 +8,9 @@ import { ProductPreview } from "@/components/ProductPreview";
 import { WelcomeOfferBanner } from "@/components/WelcomeOffer";
 
 const EXPLORE = [
-  { href: "/features", icon: BarChart3, title: "Explore the workspace", text: "See the replay, execution, journal, and analytics tools." },
-  { href: "/markets", icon: CandlestickChart, title: "Explore the markets", text: "Search available instruments and inspect their replay history." },
-  { href: "/pricing", icon: ListChecks, title: "Choose your access", text: "Compare trial access and available workspace plans." },
+  { href: "/features", title: "Explore the workspace", text: "See the replay, execution, journal, and analytics tools." },
+  { href: "/markets", title: "Explore the markets", text: "Search available instruments and inspect their replay history." },
+  { href: "/pricing", title: "Choose your access", text: "Compare trial access and available workspace plans." },
 ] as const;
 
 export default function HomePage() {
@@ -28,10 +28,9 @@ export default function HomePage() {
               <p className="mt-3 text-base leading-7 text-slate-400">Product details now have dedicated pages, so you can browse without moving through one long landing page.</p>
             </div>
             <div className="mt-9 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 md:grid-cols-3">
-              {EXPLORE.map(({ href, icon: Icon, title, text }) => (
+              {EXPLORE.map(({ href, title, text }) => (
                 <Link key={href} href={href} className="group bg-surface-950 p-6 transition-colors hover:bg-surface-900/80 sm:p-7">
-                  <Icon size={20} className="text-brand-300" aria-hidden />
-                  <h3 className="mt-5 flex items-center justify-between gap-4 font-semibold text-white">{title}<ArrowRight size={16} className="shrink-0 text-slate-500 transition-transform group-hover:translate-x-1 group-hover:text-brand-300" aria-hidden /></h3>
+                  <h3 className="flex items-center justify-between gap-4 font-semibold text-white">{title}<ArrowRight size={16} className="shrink-0 text-slate-500 transition-transform group-hover:translate-x-1 group-hover:text-brand-300" aria-hidden /></h3>
                   <p className="mt-2 text-sm leading-6 text-slate-400">{text}</p>
                 </Link>
               ))}

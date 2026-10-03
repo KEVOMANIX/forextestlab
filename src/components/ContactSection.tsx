@@ -1,5 +1,3 @@
-import { LifeBuoy, Mail } from "lucide-react";
-
 import { ContactForm } from "@/components/ContactForm";
 import { siteConfig } from "@/lib/site";
 
@@ -34,9 +32,8 @@ export function ContactSection({
             <div className="space-y-4">
               <a
                 href={`mailto:${siteConfig.emails.hello}`}
-                className="flex items-start gap-3 rounded-xl border border-white/10 bg-surface-800/40 p-4 transition-colors hover:border-white/20"
+                className="block rounded-xl border border-white/10 bg-surface-800/40 p-4 transition-colors hover:border-white/20"
               >
-                <Mail size={20} className="mt-0.5 text-brand-300" aria-hidden />
                 <span>
                   <span className="block text-sm font-semibold text-white">
                     General enquiries
@@ -48,13 +45,8 @@ export function ContactSection({
               </a>
               <a
                 href={`mailto:${siteConfig.emails.support}`}
-                className="flex items-start gap-3 rounded-xl border border-white/10 bg-surface-800/40 p-4 transition-colors hover:border-white/20"
+                className="block rounded-xl border border-white/10 bg-surface-800/40 p-4 transition-colors hover:border-white/20"
               >
-                <LifeBuoy
-                  size={20}
-                  className="mt-0.5 text-brand-300"
-                  aria-hidden
-                />
                 <span>
                   <span className="block text-sm font-semibold text-white">
                     Support

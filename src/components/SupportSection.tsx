@@ -1,28 +1,18 @@
-import {
-  ArrowRight,
-  BookOpenCheck,
-  CircleHelp,
-  Headphones,
-  Mail,
-  MessageCircleQuestion,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { ContactForm } from "@/components/ContactForm";
 import { siteConfig } from "@/lib/site";
 
 const topics = [
   {
-    icon: BookOpenCheck,
     title: "Replay and sessions",
     text: "Questions about starting, resuming, extending, or deleting a session?",
   },
   {
-    icon: CircleHelp,
     title: "Account and billing",
     text: "Need help with your plan, checkout, renewal, or account access?",
   },
   {
-    icon: MessageCircleQuestion,
     title: "Something not working",
     text: "Tell us what happened and include the page or session where you saw it.",
   },
@@ -43,23 +33,21 @@ export function SupportSection() {
                 Send a message to the ForexTestLab team. We’ll review your request and reply by email, usually within one business day.
               </p>
 
-              <div className="mt-8 flex items-center gap-3 rounded-2xl border border-brand-400/20 bg-brand-400/[0.07] p-4">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-400/15 text-brand-300"><Headphones size={19} aria-hidden /></span>
+              <div className="mt-8 rounded-2xl border border-brand-400/20 bg-brand-400/[0.07] p-4">
                 {/* This page offers two channels at once — the form below and
                     the floating chat — so say plainly which one does what. */}
                 <div><p className="text-sm font-semibold text-white">Two ways to reach us</p><p className="mt-1 text-xs text-slate-400">Use the form for a reply by email, or the Help button for a live chat. Both are monitored during business hours.</p></div>
               </div>
 
-              <a href={`mailto:${siteConfig.emails.support}`} className="mt-5 flex items-center gap-3 text-sm text-brand-300 transition-colors hover:text-brand-200">
-                <Mail size={17} aria-hidden /> {siteConfig.emails.support} <ArrowRight size={15} aria-hidden />
+              <a href={`mailto:${siteConfig.emails.support}`} className="mt-5 flex items-center gap-2 text-sm text-brand-300 transition-colors hover:text-brand-200">
+                {siteConfig.emails.support} <ArrowRight size={15} aria-hidden />
               </a>
 
               <div className="mt-10 border-t border-white/10 pt-7">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Common topics</p>
                 <div className="mt-4 space-y-3">
-                  {topics.map(({ icon: Icon, title, text }) => (
-                    <div key={title} className="flex gap-3 rounded-xl border border-white/10 bg-surface-900/55 p-3.5">
-                      <Icon size={17} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
+                  {topics.map(({ title, text }) => (
+                    <div key={title} className="rounded-xl border border-white/10 bg-surface-900/55 p-3.5">
                       <div><p className="text-sm font-semibold text-white">{title}</p><p className="mt-1 text-xs leading-5 text-slate-500">{text}</p></div>
                     </div>
                   ))}

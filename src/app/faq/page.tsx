@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, HelpCircle, Mail, Plus } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 
 import { PageShell } from "@/components/PageShell";
 
@@ -34,13 +34,13 @@ export default function FAQPage() {
       <section className="border-b border-white/10 py-12 sm:py-16">
         <div className="container-page grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-end">
           <div><h1 className="text-balance text-4xl font-bold tracking-[-0.04em] text-white sm:text-5xl">What would you like to know?</h1><p className="mt-4 max-w-2xl text-base leading-7 text-slate-400">Product, account, and risk information in one place.</p></div>
-          <div className="border-l border-white/10 pl-5"><Mail size={18} className="text-brand-300" /><p className="mt-3 text-sm font-semibold text-white">Need a specific answer?</p><p className="mt-1 text-sm leading-6 text-slate-400">Contact support and include the session name when your question concerns a replay.</p><Link href="/support" className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">Open support <ArrowRight size={14} /></Link></div>
+          <div className="border-l border-white/10 pl-5"><p className="text-sm font-semibold text-white">Need a specific answer?</p><p className="mt-1 text-sm leading-6 text-slate-400">Contact support and include the session name when your question concerns a replay.</p><Link href="/support" className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">Open support <ArrowRight size={14} /></Link></div>
         </div>
       </section>
 
       <section className="py-14 sm:py-20">
         <div className="container-page grid gap-10 lg:grid-cols-[15rem_1fr] lg:gap-16">
-          <aside className="lg:sticky lg:top-28 lg:self-start"><span className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-surface-900 text-brand-300"><HelpCircle size={19} /></span><h2 className="mt-4 text-lg font-semibold text-white">Browse by topic</h2><nav className="mt-4 space-y-1" aria-label="FAQ topics">{GROUPS.map((group) => <a key={group.title} href={`#${group.title.toLowerCase().replaceAll(" ", "-")}`} className="block border-l border-white/10 py-1.5 pl-3 text-sm text-slate-400 hover:border-brand-300 hover:text-white">{group.title}</a>)}</nav></aside>
+          <aside className="lg:sticky lg:top-28 lg:self-start"><h2 className="text-lg font-semibold text-white">Browse by topic</h2><nav className="mt-4 space-y-1" aria-label="FAQ topics">{GROUPS.map((group) => <a key={group.title} href={`#${group.title.toLowerCase().replaceAll(" ", "-")}`} className="block border-l border-white/10 py-1.5 pl-3 text-sm text-slate-400 hover:border-brand-300 hover:text-white">{group.title}</a>)}</nav></aside>
           <div className="space-y-12">
             {GROUPS.map((group) => <section key={group.title} id={group.title.toLowerCase().replaceAll(" ", "-")} className="scroll-mt-28"><h2 className="border-b border-white/10 pb-4 text-xl font-semibold text-white">{group.title}</h2><div className="divide-y divide-white/10">{group.items.map(([question, answer]) => <details key={question} className="group"><summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 font-medium text-white marker:content-none">{question}<Plus size={17} className="shrink-0 text-brand-300 transition-transform group-open:rotate-45" /></summary><p className="max-w-3xl pb-5 pr-10 text-sm leading-6 text-slate-400">{answer}</p></details>)}</div></section>)}
           </div>

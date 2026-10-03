@@ -1,13 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Check,
-  Clock3,
-  LogIn,
-  Play,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { ProductDemoVideo } from "@/components/ProductDemoVideo";
@@ -93,9 +86,9 @@ function ScreenFrame({
 }
 
 const PROOF_POINTS = [
-  { icon: Play, label: "Historical replay" },
-  { icon: Clock3, label: "New York time" },
-  { icon: ShieldCheck, label: "Private auto-save" },
+  "Historical replay",
+  "New York time",
+  "Private auto-save",
 ];
 
 export function Hero() {
@@ -136,13 +129,7 @@ export function Hero() {
               <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-5">
                 {["Replay without future candles", "Execute simulated trades", "Review session analytics"].map(
                   (item) => (
-                    <span
-                      key={item}
-                      className="flex items-center gap-2 text-xs font-medium text-slate-400"
-                    >
-                      <Check size={13} className="text-brand-300" aria-hidden />
-                      {item}
-                    </span>
+                    <span key={item} className="text-xs font-medium text-slate-400">{item}</span>
                   ),
                 )}
               </div>
@@ -171,9 +158,8 @@ export function Hero() {
                 Already have an account?{" "}
                 <Link
                   href="/sign-in?next=%2Faccount%2Fcontinue"
-                  className="inline-flex items-center gap-1 font-semibold text-brand-300 transition-colors hover:text-brand-200"
+                  className="font-semibold text-brand-300 transition-colors hover:text-brand-200"
                 >
-                  <LogIn size={12} aria-hidden />
                   Sign in to your workspace
                 </Link>
               </p>
@@ -227,14 +213,13 @@ export function Hero() {
             />
 
             <div className="absolute -bottom-5 left-1/2 hidden -translate-x-1/2 items-center gap-1.5 rounded-xl border border-white/[0.11] bg-surface-900/95 p-1.5 shadow-2xl backdrop-blur sm:flex">
-              {PROOF_POINTS.map(({ icon: Icon, label }, index) => (
+              {PROOF_POINTS.map((label, index) => (
                 <div
                   key={label}
                   className={`flex items-center gap-2 px-3 py-2 text-[11px] font-semibold text-slate-300 ${
                     index > 0 ? "border-l border-white/[0.08]" : ""
                   }`}
                 >
-                  <Icon size={13} className="text-brand-300" aria-hidden />
                   {label}
                 </div>
               ))}

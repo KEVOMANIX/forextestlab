@@ -200,6 +200,36 @@ describe("CoordinateMapper", () => {
     expect(mapper.timeToX(200)).toBe(820);
   });
 
+  it("keeps fine-timeframe anchors stable while panning on every coarser timeframe", () => {
+    for (const interval of [300, 900, 3_600, 14_400, 86_400, 604_800, 2_592_000]) {
+      const firstAnchor = interval + 60;
+      const secondAnchor = interval + 120;
+      const timeScale = {
+        timeToCoordinate: (time: Time) => time === 0 ? 100 : time === interval ? 200 : null,
+        logicalToCoordinate: (logical: number) => logical * 100,
+        // This mimics the unstable edge answers seen after panning left. They
+        // must not be used to position either fine-timeframe anchor.
+        coordinateToTime: (x: number) => x <= 0 ? firstAnchor : x >= 500 ? secondAnchor : null,
+        coordinateToLogical: (x: number) => x / 100,
+      };
+      const chart = { timeScale: () => timeScale } as unknown as IChartApi;
+      const series = {
+        priceToCoordinate: (price: number) => price,
+        coordinateToPrice: (coordinate: number) => coordinate,
+      } as unknown as ISeriesApi<SeriesType>;
+      const mapper = new CoordinateMapper(chart, series);
+      mapper.width = 500;
+      mapper.setCandles([
+        { time: 0, open: 1, high: 1, low: 1, close: 1 },
+        { time: interval, open: 1, high: 1, low: 1, close: 1 },
+      ]);
+      mapper.setFutureTimes([interval * 2, interval * 3]);
+
+      expect(mapper.timeToX(firstAnchor)).toBeCloseTo(200 + 60 / interval * 100, 3);
+      expect(mapper.timeToX(secondAnchor)).toBeCloseTo(200 + 120 / interval * 100, 3);
+    }
+  });
+
   it("adds the chart logical origin when higher-timeframe context shifts the timeline", () => {
     const timeScale = {
       // The middle monthly candle has not been attached to the price series,

@@ -102,11 +102,6 @@ export class CoordinateMapper {
       // lower-timeframe anchors otherwise need interpolation below.
       if (typeof resolved === "number" && Math.abs(resolved - time) <= 1) return c;
     }
-    // A fine timestamp can sit inside a visible coarse candle even though
-    // timeToCoordinate clamps it. Binary inversion uses coordinate -> time,
-    // which remains authoritative for that in-between timestamp.
-    const visibleX = this.visibleTimeToX(time);
-    if (visibleX != null) return visibleX;
     // A point created on a finer timeframe may sit between two bars after the
     // chart is changed to a coarser timeframe. Interpolate between coordinates
     // supplied by the chart itself. Rebuilding an x coordinate solely from the
@@ -122,64 +117,16 @@ export class CoordinateMapper {
         return x0 + (x1 - x0) * fraction;
       }
     }
-    // Fall back to logical extrapolation only for empty future/past space.
+    // Fine-timeframe anchors inside the currently forming last candle have no
+    // later real candle to bracket them. Project them through the chart's
+    // logical timeline and published runway. Unlike coordinateToTime at the
+    // viewport edges, this mapping remains stable while the user pans.
     const logical = this.timeToLogical(time);
     if (logical != null) {
       const x = scale.logicalToCoordinate(logical as Logical);
       if (typeof x === "number") return x;
     }
     return null;
-  }
-
-  /** Invert the monotonic visible time axis without assuming uniform calendar gaps. */
-  private visibleTimeToX(time: number): number | null {
-    if (this.width <= 0) return null;
-    const scale = this.chart.timeScale();
-    const leftTime = scale.coordinateToTime(0);
-    const rightTime = scale.coordinateToTime(this.width);
-    if (
-      typeof leftTime !== "number" || typeof rightTime !== "number" ||
-      leftTime >= rightTime || time < leftTime || time > rightTime
-    ) {
-      return null;
-    }
-    if (time === leftTime) return 0;
-    if (time === rightTime) return this.width;
-
-    let lowX = 0;
-    let highX = this.width;
-    let lowTime = leftTime;
-    let highTime = rightTime;
-    for (let iteration = 0; iteration < 24; iteration += 1) {
-      const midX = (lowX + highX) / 2;
-      const midTime = scale.coordinateToTime(midX);
-      if (typeof midTime !== "number") return null;
-      if (midTime < time) {
-        lowX = midX;
-        lowTime = midTime;
-      } else {
-        highX = midX;
-        highTime = midTime;
-      }
-    }
-    const span = highTime - lowTime;
-    if (span <= 0) return (lowX + highX) / 2;
-    const fraction = (time - lowTime) / span;
-    // coordinateToTime is stepwise on a coarse series: after the binary search
-    // low/high collapse onto the boundary between two bar slots. Recover both
-    // bar centres from that half-logical boundary, then place the fine anchor
-    // proportionally inside the coarse interval. Interpolating the collapsed
-    // pixel bounds would put every lower-timeframe point on the same edge.
-    if (highX - lowX < 0.01 && span > 1) {
-      const logicalRange = scale.getVisibleLogicalRange();
-      const logicalSpan = logicalRange ? Number(logicalRange.to) - Number(logicalRange.from) : 0;
-      if (logicalSpan > 0) {
-        const barSpacing = scale.width() / logicalSpan;
-        const boundaryX = (lowX + highX) / 2;
-        return boundaryX - barSpacing / 2 + fraction * barSpacing;
-      }
-    }
-    return lowX + (highX - lowX) * fraction;
   }
 
   priceToY(price: number): number | null {

@@ -452,6 +452,7 @@ const DEFAULT_RIGHT_OFFSET = 4;
  * like the replay toolbox's: the bar is a single shared control, not a per-pane one.
  */
 const FAV_BAR_POSITION_KEY = "forextestlab:favorites-bar-position";
+type FavoriteBarPosition = { x: number; y: number; dock?: "top" | "bottom" };
 const LIVE_CANDLE_POSITION = 0.75;
 /**
  * How far right of the plot the live candle may be parked while replay runs.
@@ -1244,7 +1245,7 @@ export default function PriceChart({
    * the crosshair is drawn and what the pointer looks like.
    */
   const [cursorMode, setCursorMode] = useState<CursorModeName>("cross");
-  const [favBarPos, setFavBarPos] = useState<{ x: number; y: number } | null>(null);
+  const [favBarPos, setFavBarPos] = useState<FavoriteBarPosition | null>(null);
   const favDragRef = useRef<{
     sx: number;
     sy: number;
@@ -3470,7 +3471,7 @@ export default function PriceChart({
    * than per pane: the bar is one shared control, so focusing another chart must
    * not teleport it back to the top of the screen.
    */
-  function saveFavBarPosition(position: { x: number; y: number }) {
+  function saveFavBarPosition(position: FavoriteBarPosition) {
     try {
       window.localStorage.setItem(FAV_BAR_POSITION_KEY, JSON.stringify(position));
     } catch {
@@ -3488,11 +3489,11 @@ export default function PriceChart({
     try {
       const raw = window.localStorage.getItem(FAV_BAR_POSITION_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { x: number; y: number };
-      if (typeof parsed?.x !== "number" || typeof parsed?.y !== "number") return;
+      const parsed = JSON.parse(raw) as FavoriteBarPosition;
+      if (!Number.isFinite(parsed?.x) || !Number.isFinite(parsed?.y)) return;
       // Clamp on the next frame, once the bar has been laid out in its host: a
       // position saved on a wide monitor must not strand it off a narrow one.
-      requestAnimationFrame(() => setFavBarPos(clampFavBar(parsed.x, parsed.y)));
+      requestAnimationFrame(() => setFavBarPos(clampFavBar(parsed.x, parsed.y, parsed.dock)));
     } catch {
       // A malformed entry just leaves the bar at its default.
     }
@@ -3505,18 +3506,31 @@ export default function PriceChart({
    * of existence, with no way back to it. The bar is fixed to the viewport, so
    * the window itself is the only boundary that matters.
    */
-  function clampFavBar(x: number, y: number): { x: number; y: number } {
+  function clampFavBar(x: number, y: number, dock?: "top" | "bottom"): FavoriteBarPosition {
     const bar = favBarRef.current;
     if (!bar || typeof window === "undefined") return { x, y };
-    const edge = 8;
+    const edge = 4;
+    const bottom = Math.max(edge, window.innerHeight - bar.offsetHeight - edge);
     return {
       x: Math.min(Math.max(edge, x), Math.max(edge, window.innerWidth - bar.offsetWidth - edge)),
-      y: Math.min(Math.max(edge, y), Math.max(edge, window.innerHeight - bar.offsetHeight - edge)),
+      y: dock === "top" ? edge : dock === "bottom" ? bottom : Math.min(Math.max(edge, y), bottom),
+      ...(dock === "top" || dock === "bottom" ? { dock } : {}),
     };
   }
 
+  useEffect(() => {
+    if (!showRail) return;
+    const fit = () => setFavBarPos((position) => position
+      ? clampFavBar(position.x, position.y, position.dock) : position);
+    const observer = new ResizeObserver(fit);
+    if (favBarRef.current) observer.observe(favBarRef.current);
+    window.addEventListener("resize", fit);
+    return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
+  }, [showRail, favorites]);
+
   // Drag the favorites bar from anywhere on it (buttons still click if no drag).
   function startFavDrag(e: React.PointerEvent<HTMLDivElement>) {
+    if (e.button !== 0 || !e.isPrimary) return;
     const bar = e.currentTarget;
     const barBox = bar.getBoundingClientRect();
     favDragRef.current = { sx: e.clientX, sy: e.clientY, bx: barBox.left, by: barBox.top, moved: false, at: null };
@@ -3538,14 +3552,22 @@ export default function PriceChart({
     const onUp = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       const drop = favDragRef.current?.moved ? favDragRef.current.at : null;
       favDragRef.current = null;
-      if (drop) saveFavBarPosition(drop);
+      if (drop) {
+        const bottom = window.innerHeight - bar.offsetHeight - 4;
+        const dock = drop.y <= 48 ? "top" : drop.y >= bottom - 48 ? "bottom" : undefined;
+        const position = clampFavBar(drop.x, drop.y, dock);
+        setFavBarPos(position);
+        saveFavBarPosition(position);
+      }
       // Clear after the click has fired so a real click still selects the tool.
       window.setTimeout(() => { favMovedRef.current = false; }, 0);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
   }
 
   function addIndicator(kind: string) {
@@ -4000,13 +4022,13 @@ export default function PriceChart({
       // candles showed straight through the toolbox that was meant to be
       // sitting on top of them, and the muted handle and button hovers went
       // with it. The class carries the palette across the portal.
-      className={`app-theme-surface pointer-events-auto fixed z-[70] flex cursor-move touch-none items-center gap-1 rounded-md border border-white/15 bg-[var(--app-panel-solid)] px-1.5 py-1 shadow-lg shadow-black/50 ${theme === "light" ? "light" : ""}`}
-      style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 8, transform: "translateX(-50%)" }}
+      className={`app-theme-surface pointer-events-auto fixed z-[70] flex max-w-[calc(100vw-8px)] cursor-move touch-none items-center gap-0.5 overflow-x-auto rounded-md border app-border bg-[var(--app-panel-solid)] px-1 py-0.5 shadow-md [&_button]:h-7 [&_button]:min-w-7 [&_button]:shrink-0 ${theme === "light" ? "light" : ""}`}
+      style={favBarPos ? { left: favBarPos.x, top: favBarPos.y } : { left: "50%", top: 4, transform: "translateX(-50%)" }}
       role="toolbar"
       aria-label="Favorite tools (drag to move)"
       onPointerDown={startFavDrag}
     >
-      <span className="select-none px-0.5 text-xs leading-none app-muted" aria-hidden>⋮⋮</span>
+      <span className="shrink-0 select-none px-1 text-xs leading-none app-muted" title="Drag to move. Drop near the top or bottom to dock." aria-hidden>⋮⋮</span>
       {DRAW_GROUPS.flatMap((g) => g.tools).filter((t) => favorites.has(t)).map((t) => {
         const Icon = DRAWING_TOOL_ICONS[t];
         return (

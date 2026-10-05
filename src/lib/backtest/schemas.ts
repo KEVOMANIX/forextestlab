@@ -87,6 +87,7 @@ export const extendSessionSchema = z.object({
 /** The routine buffer-refill call — no `endTime`, just how much the caller already has. */
 export const extendBufferSchema = z.object({
   count: z.number().int().min(0).optional(),
+  jump: z.boolean().optional(),
 });
 
 const nullablePrice = z.union([positiveNumericString, z.null()]);

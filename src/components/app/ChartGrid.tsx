@@ -43,7 +43,7 @@ export type GridLayout = string;
 export interface ChartCell {
   id: string;
   symbol: string;
-  /** Null until the user picks one; the cell then falls back to the session timeframe. */
+  /** Unset legacy cells default to 15m, or their coarser source timeframe. */
   timeframe: Timeframe | null;
 }
 
@@ -187,10 +187,6 @@ interface ChartGridProps {
     before: number,
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading?: boolean;
-  /** A "Go to"/calendar jump is fast-forwarding the session's own replay. */
-  jumping?: boolean;
-  /** Human-readable destination selected in the Go To panel. */
-  jumpLabel?: string | null;
   error?: string | null;
   storageKey: string;
   headerSlot?: HTMLElement | null;
@@ -243,8 +239,6 @@ export default function ChartGrid({
   onTakeProfitChange,
   onLoadHistory,
   loading = false,
-  jumping = false,
-  jumpLabel = null,
   error = null,
   storageKey,
   headerSlot = null,
@@ -265,7 +259,7 @@ export default function ChartGrid({
   const compact = useCompactViewport();
   const [layout, setLayout] = useState<GridLayout>("1");
   const [cells, setCells] = useState<ChartCell[]>([
-    { id: "cell-1", symbol: sessionSymbol, timeframe: null },
+    { id: "cell-1", symbol: sessionSymbol, timeframe: TIMEFRAME_MS[state.config.timeframe] <= TIMEFRAME_MS["15m"] ? "15m" : state.config.timeframe },
   ]);
   const [focusedId, setFocusedId] = useState("cell-1");
   const [restored, setRestored] = useState(false);
@@ -458,7 +452,7 @@ export default function ChartGrid({
   );
 
   useEffect(() => {
-    onFocusedTimeframeChange(focused.timeframe ?? state.config.timeframe);
+    onFocusedTimeframeChange(focused.timeframe ?? (TIMEFRAME_MS[state.config.timeframe] <= TIMEFRAME_MS["15m"] ? "15m" : state.config.timeframe));
   }, [focused.id, focused.timeframe, onFocusedTimeframeChange, state.config.timeframe]);
 
   // Dismiss the layout menu the same way the top bar's menus behave.
@@ -642,8 +636,6 @@ export default function ChartGrid({
                 onTakeProfitChange={onTakeProfitChange}
                 onLoadHistory={onLoadHistory}
                 loading={loading}
-                jumping={jumping && isFocused}
-                jumpLabel={jumpLabel}
                 error={error}
                 storageKey={storageKey}
                 workspace={workspace}
@@ -723,8 +715,6 @@ interface ChartCellViewProps {
     before: number,
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading: boolean;
-  jumping: boolean;
-  jumpLabel: string | null;
   error: string | null;
   storageKey: string;
   onFocus: () => void;
@@ -772,8 +762,6 @@ function ChartCellView({
   onTakeProfitChange,
   onLoadHistory,
   loading,
-  jumping,
-  jumpLabel,
   error,
   storageKey,
   onFocus,
@@ -900,12 +888,10 @@ function ChartCellView({
         onTakeProfitChange={tradable && showControls ? onTakeProfitChange : noop}
         onLoadHistory={loadHistory}
         loading={isSession ? loading : pairLoading && !pair}
-        jumping={jumping}
-        jumpLabel={jumpLabel}
         error={isSession ? error : null}
         storageKey={`${storageKey}:${cell.symbol}`}
         viewKey={`${storageKey}:${cell.id}:${cell.symbol}`}
-        initialTimeframe={cell.timeframe ?? undefined}
+        initialTimeframe={cell.timeframe ?? (TIMEFRAME_MS[state.config.timeframe] <= TIMEFRAME_MS["15m"] ? "15m" : state.config.timeframe)}
         onDisplayTimeframeChange={onTimeframeChange}
         headerSlot={headerSlot}
         actionsSlot={actionsSlot}

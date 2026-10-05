@@ -39,6 +39,7 @@ import {
   placeOrder as placeLocalOrder,
   publicSessionState,
   revealNext,
+  fastForwardIdleTo,
   stepBackTo as stepBackLocalTo,
 } from "@/lib/backtest/replay-engine";
 import type { GoToTarget } from "@/lib/backtest/goto";
@@ -63,12 +64,12 @@ export type Phase = "setup" | "loading" | "active";
  * is what the caller needs to tell the trader.
  */
 export interface JumpOutcome {
-  reason: "target" | "end-of-data" | "limit" | "behind" | "unavailable";
+  reason: "target" | "end-of-data" | "limit" | "behind" | "unavailable" | "cancelled";
   candles: number;
 }
 
 /**
- * A jump reveals candles one at a time, so its cost is bounded twice: by candles
+ * A jump processes active trades candle by candle, so cost is bounded twice: by candles
  * (a month of 1-minute data is roughly 30,000) and by chunk fetches, which are
  * network round-trips and rate limited server-side.
  */
@@ -135,6 +136,7 @@ interface BacktesterState {
    * spinner without lighting up for a step or a restart.
    */
   jumping: boolean;
+  jumpProgress?: { phase: "loading" | "processing" | "stopping"; time: number; percent?: number };
 }
 
 const initial: BacktesterState = {
@@ -259,7 +261,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
     [],
   );
 
-  const startReplayExtension = useCallback(() => {
+  const cancelJumpRef = useRef(false);
+  const startReplayExtension = useCallback((jump = false) => {
     const engine = localEngineRef.current;
     const id = sessionIdRef.current;
     if (!engine || !id) return null;
@@ -273,7 +276,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     // Prisma connection configured for each serverless function.
     const request = actionQueueRef.current
       .then(() =>
-        retryReplayChunk(() => extendReplay(id, tokenRef.current, engine.candles.length)),
+        retryReplayChunk(() => extendReplay(id, tokenRef.current, engine.candles.length, jump)),
       )
       .then(async (extension) => {
         if (
@@ -1169,9 +1172,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
    * The engine is driven directly rather than through `stepRef` because a jump
    * has to stop on an exact candle: `stepRef` reveals a whole batch before it
    * returns and would routinely overshoot the bar the trader asked for. Every
-   * candle in between is still revealed one at a time, so stops, targets and
-   * pending orders fill exactly as they would have during playback — a jump is a
-   * fast-forward, never a teleport.
+   * candle with active orders is still processed, so stops, targets and
+   * pending orders fill as during playback. Flat accounts can advance directly
+   * to loaded time destinations with a single equivalent accounting update.
    *
    * Only the final state is published. Publishing each candle would put tens of
    * thousands of React renders in front of a jump that should take a moment.
@@ -1181,6 +1184,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
       const engine = localEngineRef.current;
       if (!engine) return { reason: "unavailable", candles: 0 };
       const startCandle = engine.candles[engine.state.visibleIndex];
+      if (target.kind === "time" && startCandle?.timestamp === target.timestamp) {
+        return { reason: "target", candles: 0 };
+      }
       if (
         target.kind === "time" &&
         startCandle &&
@@ -1199,16 +1205,24 @@ export function useBacktester(resumeSessionId: string | null = null) {
       engine.state.status = "paused";
       engineGenerationRef.current += 1;
       deferReplaySeriesPublishRef.current = true;
-      patch({ busy: true, jumping: true, error: null });
+      cancelJumpRef.current = false;
+      patch({ busy: true, jumping: true, jumpProgress: { phase: "processing", time: startCandle?.timestamp ?? 0 }, error: null });
 
       const generation = engineGenerationRef.current;
       const startIndex = engine.state.visibleIndex;
       const closedAtStart = engine.state.closedTrades.length;
       let extensions = 0;
       let reason: JumpOutcome["reason"] = "limit";
+      const progress = (phase: "loading" | "processing") => {
+        const time = engine.candles[engine.state.visibleIndex]?.timestamp ?? 0;
+        const start = startCandle?.timestamp ?? time;
+        patch({ jumpProgress: { phase, time, percent: target.kind === "time" && target.timestamp > start
+          ? Math.min(99, Math.max(0, Math.floor(100 * (time - start) / (target.timestamp - start)))) : undefined } });
+      };
 
       try {
         while (engine.state.visibleIndex - startIndex < JUMP_MAX_CANDLES) {
+          if (cancelJumpRef.current) { reason = "cancelled"; break; }
           // A later action — another jump, a rewind, a restart — has taken the
           // cursor. Stop rather than layering this jump's advance on top of it.
           if (engineGenerationRef.current !== generation) break;
@@ -1222,8 +1236,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
             }
             if (!sessionIdRef.current || extensions >= JUMP_MAX_EXTENSIONS) break;
             extensions += 1;
+            progress("loading");
             const request =
-              replayExtendPromiseRef.current ?? startReplayExtension();
+              replayExtendPromiseRef.current ?? startReplayExtension(true);
             if (!request) break;
             const extension = await request;
             if (!extension.ok) break;
@@ -1232,6 +1247,27 @@ export function useBacktester(resumeSessionId: string | null = null) {
               break;
             }
             continue;
+          }
+
+          // A time destination in a flat account needs only a binary search and
+          // one accounting update. Active orders/challenges take the full path.
+          if (target.kind === "time" && engine.state.openPositions.length === 0 &&
+              !engine.state.pendingOrders.some((order) => order.status === "pending") &&
+              !engine.state.config.propFirm) {
+            let low = engine.state.visibleIndex + 1;
+            let high = engine.candles.length - 1;
+            while (low < high) {
+              const mid = Math.floor((low + high) / 2);
+              if (engine.candles[mid]!.timestamp < target.timestamp) low = mid + 1;
+              else high = mid;
+            }
+            const index = Math.min(low, startIndex + JUMP_MAX_CANDLES);
+            if (fastForwardIdleTo(engine, index)) {
+              if (engine.candles[index]!.timestamp >= target.timestamp) { reason = "target"; break; }
+              progress("processing");
+              await new Promise((resolve) => window.setTimeout(resolve, 0));
+              continue;
+            }
           }
 
           if (!revealNext(engine)) {
@@ -1244,6 +1280,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
             break;
           }
           if ((engine.state.visibleIndex - startIndex) % JUMP_YIELD_EVERY === 0) {
+            progress("processing");
             // Keep the loader animated and the tab responsive, but do not
             // publish intermediate positions. The chart stays stable until the
             // destination is ready, then receives one atomic jump below.
@@ -1269,6 +1306,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
           lastCandles: [],
           busy: false,
           jumping: false,
+          jumpProgress: undefined,
           endOfData: reason === "end-of-data" ? true : prev.endOfData,
         }));
         void checkpoint("paused");
@@ -1829,6 +1867,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
       stepNext,
       stepPrev,
       jumpTo,
+      cancelJump: () => {
+        cancelJumpRef.current = true;
+        setS((prev) => ({ ...prev, jumpProgress: prev.jumpProgress ? { ...prev.jumpProgress, phase: "stopping" } : undefined }));
+      },
       restart,
       endSession,
       extendSessionData,

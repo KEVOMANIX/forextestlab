@@ -15,6 +15,7 @@ import {
   placeOrder,
   restart,
   revealNext,
+  fastForwardIdleTo,
   setStatus,
   stepBack,
   stepBackTo,
@@ -65,6 +66,44 @@ const FLAT = [
 ];
 
 describe("replay indexing", () => {
+  it("fast-forwards an idle account with exactly the same final accounting", () => {
+    const candles = Array.from({ length: 30_001 }, (_, i) => c(i * 60_000, "1.1", "1.2", "1.0", "1.15"));
+    const ordinary = ctx(candles);
+    const fast = structuredClone(ordinary);
+    const started = performance.now();
+    for (let i = 1; i < candles.length; i++) revealNext(ordinary);
+    const sequentialMs = performance.now() - started;
+    const fastStarted = performance.now();
+    expect(fastForwardIdleTo(fast, candles.length - 1)).toBe(true);
+    const fastMs = performance.now() - fastStarted;
+    expect(fast.state).toEqual(ordinary.state);
+    console.log(`30,000-candle idle jump: sequential ${sequentialMs.toFixed(1)}ms, fast ${fastMs.toFixed(1)}ms`);
+  });
+
+  it("refuses the shortcut with an open position or pending order", () => {
+    const active = ctx(FLAT);
+    placeOrder(active, { direction: "long", sizingMode: "fixed-lots", lots: "0.1" });
+    expect(fastForwardIdleTo(active, 2)).toBe(false);
+    expect(active.state.visibleIndex).toBe(0);
+    const pending = ctx(FLAT);
+    placeOrder(pending, { direction: "long", orderType: "limit", entryPrice: "1.09", sizingMode: "fixed-lots", lots: "0.1" });
+    expect(fastForwardIdleTo(pending, 2)).toBe(false);
+  });
+
+  it("does not shortcut a finished session or go beyond loaded candles", () => {
+    const e = ctx(FLAT);
+    expect(fastForwardIdleTo(e, 999)).toBe(true);
+    expect(e.state.visibleIndex).toBe(2);
+    e.state.status = "finished";
+    e.state.visibleIndex = 0;
+    expect(fastForwardIdleTo(e, 2)).toBe(false);
+  });
+
+  it("keeps challenge checks on the per-candle path", () => {
+    const e = ctx(FLAT, cfg({ propFirm: PROP_FIRM_PRESETS["ftmo-phase-1"] }));
+    expect(fastForwardIdleTo(e, 2)).toBe(false);
+    expect(e.state.visibleIndex).toBe(0);
+  });
   it("starts at the initial visible candle and advances one at a time", () => {
     const e = ctx(FLAT);
     expect(e.state.visibleIndex).toBe(0);

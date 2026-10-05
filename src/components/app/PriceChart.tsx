@@ -292,13 +292,6 @@ interface PriceChartProps {
     before: number,
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading?: boolean;
-  /**
-   * A "Go to"/calendar jump is fast-forwarding this session. Unlike `loading`,
-   * this leaves the current chart visible and adds a compact progress card.
-   */
-  jumping?: boolean;
-  /** Human-readable destination selected in the Go To panel. */
-  jumpLabel?: string | null;
   error?: string | null;
   /**
    * Identifies the *instrument*: drawings are stored under it, so the same
@@ -992,8 +985,6 @@ export default function PriceChart({
   onTakeProfitChange,
   onLoadHistory,
   loading = false,
-  jumping = false,
-  jumpLabel = null,
   error = null,
   storageKey,
   viewKey,
@@ -5068,25 +5059,6 @@ export default function PriceChart({
                 )}
               </div>
             </div>
-          </div>
-        )}
-
-        {jumping && (
-          <div
-            className="pointer-events-none absolute right-3 top-1/2 z-30 flex min-w-[12rem] -translate-y-1/2 items-center gap-3 rounded-xl border border-brand-400/25 bg-[var(--app-panel-solid)]/95 px-3.5 py-3 shadow-xl backdrop-blur"
-            data-testid="chart-jump-indicator"
-            role="status"
-            aria-live="polite"
-          >
-            <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
-            <span className="min-w-0">
-              <span className="block text-xs font-semibold text-[var(--app-text)]">
-                Loading chart data
-              </span>
-              <span className="mt-0.5 block max-w-48 truncate text-[10px] app-muted">
-                Jumping to {jumpLabel ?? "selected destination"}&hellip;
-              </span>
-            </span>
           </div>
         )}
 

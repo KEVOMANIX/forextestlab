@@ -39,6 +39,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   try {
     let requestedEndTime: number | null = null;
     let clientCandleCount = session.ctx.candles.length;
+    let jump = false;
     const rawBody = await request.text();
     if (rawBody) {
       let body: unknown;
@@ -64,6 +65,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           );
         }
         if (parsed.data.count != null) clientCandleCount = parsed.data.count;
+        jump = parsed.data.jump ?? false;
       } else {
         const parsed = extendSessionSchema.safeParse(body);
         if (!parsed.success) {
@@ -114,7 +116,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     if (requestedEndTime !== null) {
       session.ctx.state.config.endTime = requestedEndTime;
     }
-    const page = await extendReplaySeries(session, clientCandleCount);
+    const page = await extendReplaySeries(session, clientCandleCount, jump);
     if (requestedEndTime !== null && page.candles.length === 0) {
       session.ctx.state.config.endTime = previousEndTime;
       return NextResponse.json(

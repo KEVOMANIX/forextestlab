@@ -191,6 +191,7 @@ export async function extendReplay(
   sessionId: string,
   token: string | null,
   count: number,
+  jump = false,
 ): Promise<ReplayExtensionOk | ApiErr> {
   try {
     const res = await fetch(`/api/backtest/sessions/${sessionId}/extend`, {
@@ -199,7 +200,7 @@ export async function extendReplay(
         "Content-Type": "application/json",
         ...(token ? { "x-session-token": token } : {}),
       },
-      body: JSON.stringify({ count }),
+      body: JSON.stringify({ count, jump }),
     });
     return parse<ReplayExtensionOk>(res) as Promise<ReplayExtensionOk | ApiErr>;
   } catch {

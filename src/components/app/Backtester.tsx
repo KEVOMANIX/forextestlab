@@ -56,6 +56,7 @@ import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
 import { SymbolPickerModal } from "./SymbolPickerModal";
 import { GoToModal } from "./GoToModal";
+import { JumpStatus } from "./JumpStatus";
 import { EconomicCalendarPanel } from "./EconomicCalendarPanel";
 import { TimeZonePicker } from "./TimeZonePicker";
 import type { GoToTarget } from "@/lib/backtest/goto";
@@ -1021,19 +1022,21 @@ export function Backtester({
       void actions
         .jumpTo(target)
         .then((outcome) => {
+          if (outcome.reason === "cancelled") {
+            notify({ id: "go-to", title: "Navigation stopped", detail: "The replay is paused at the last processed candle.", tone: "closed" }, 4_000);
+            return;
+          }
           if (outcome.reason === "target") {
             notify(
               {
                 id: "go-to",
-                title: `Jumped to ${label}`,
-                detail: `${outcome.candles.toLocaleString()} ${
-                  outcome.candles === 1 ? "candle" : "candles"
-                } replayed.`,
+                title: label,
+                detail: "Replay paused here.",
                 tone: "closed",
                 actionLabel: "Undo jump",
                 onAction: () => undoJump(previousTimestamp),
               },
-              10_000,
+              4_000,
             );
             return;
           }
@@ -1176,6 +1179,7 @@ export function Backtester({
               <CalendarClock size={15} aria-hidden />
               <span className="hidden sm:inline">Go to</span>
             </button>
+            <JumpStatus active={bt.jumping} destination={jumpDestinationLabel} phase={bt.jumpProgress?.phase} percent={bt.jumpProgress?.percent} onCancel={actions.cancelJump} />
             <button
               data-tour="new-order"
               type="button"
@@ -1260,8 +1264,6 @@ export function Backtester({
             onStopLossChange={changeStop}
             onTakeProfitChange={changeTarget}
             onLoadHistory={actions.loadHistory}
-            jumping={bt.jumping}
-            jumpLabel={jumpDestinationLabel}
             theme={theme}
             storageKey={String(state.sessionId)}
             focusedSymbol={activeSymbol}

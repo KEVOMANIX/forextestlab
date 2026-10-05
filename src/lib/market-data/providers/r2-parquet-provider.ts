@@ -431,8 +431,9 @@ export class R2ParquetProvider implements MarketDataProvider {
       : request.limit * (TIMEFRAME_MS[request.timeframe] / TIMEFRAME_MS["1m"]);
     // Read chronological batches and stop as soon as the requested output
     // limit can be satisfied. Promise.all preserves the input month order.
-    for (let index = 0; index < months.length; index += MONTH_READ_CONCURRENCY) {
-      const batch = months.slice(index, index + MONTH_READ_CONCURRENCY);
+    const batchSize = Number.isFinite(baseCandlesNeeded) && !aggregatePerMonth ? 1 : MONTH_READ_CONCURRENCY;
+    for (let index = 0; index < months.length; index += batchSize) {
+      const batch = months.slice(index, index + batchSize);
       const decoded = await Promise.all(batch.map((month) => readMonth(config, month)));
       for (const candles of decoded) {
         const selected = candles.filter(

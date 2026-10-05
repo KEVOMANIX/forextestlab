@@ -534,8 +534,10 @@ export async function loadResumeSessionSnapshot(
 export async function extendReplaySeries(
   session: LoadedSession,
   clientCandleCount: number,
+  jump = false,
 ): Promise<{ candles: Candle[]; hasMore: boolean }> {
   const { ctx } = session;
+  const pageSize = jump ? MAX_BUFFER_CANDLES : MAX_SESSION_CANDLES;
 
   if (clientCandleCount < ctx.candles.length) {
     const page = ctx.candles.slice(clientCandleCount, clientCandleCount + MAX_BUFFER_CANDLES);
@@ -555,6 +557,7 @@ export async function extendReplaySeries(
     ctx.state.config.timeframe,
     nextTimeframeTimestamp(last.timestamp, ctx.state.config.timeframe),
     ctx.state.config.endTime,
+    pageSize,
   );
   const candles = next.filter((candle) => candle.timestamp > last.timestamp);
   if (candles.length === 0) return { candles: [], hasMore: false };
@@ -572,7 +575,7 @@ export async function extendReplaySeries(
     hasMore: Boolean(
       newest &&
       newest.timestamp < ctx.state.config.endTime &&
-      candles.length >= MAX_SESSION_CANDLES
+      candles.length >= pageSize
     ),
   };
 }

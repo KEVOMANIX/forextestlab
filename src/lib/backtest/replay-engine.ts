@@ -842,6 +842,21 @@ export function revealNext(ctx: EngineContext): boolean {
   return true;
 }
 
+/** Skip a flat, inactive stretch without repeating identical accounting.
+ * Orders and challenge accounts must still process every candle.
+ */
+export function fastForwardIdleTo(ctx: EngineContext, targetIndex: number): boolean {
+  const { state } = ctx;
+  if (state.config.propFirm || state.propFirm || state.accountBlown ||
+      state.status === "finished" || !(Number(state.balance) > 0) ||
+      state.openPositions.length || state.pendingOrders.some((order) => order.status === "pending")) return false;
+  const target = Math.min(Math.floor(targetIndex), state.totalCandles - 1, ctx.candles.length - 1);
+  if (!Number.isFinite(target) || target <= state.visibleIndex) return false;
+  state.visibleIndex = target;
+  recomputeEquity(ctx, true);
+  return true;
+}
+
 /** First candle available to the replay's previous-candle control. */
 export function replayRewindFloor(state: SessionState): number {
   void state;

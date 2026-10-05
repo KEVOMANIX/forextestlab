@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { adjacentHistory } from "./adjacent-history";
 import type { Candle } from "@/lib/market-data/types";
-const candle = (date: string): Candle => ({ timestamp: Date.parse(date), open: "1", high: "1", low: "1", close: "1" });
+const candle = (date: string): Candle => ({ timestamp: Date.parse(date), open: "1", high: "1", low: "1", close: "1", source: "test" });
 describe("cached history adjacency", () => {
   it("does not join December directly to June and leaves June as the pagination boundary", () => {
     const december = candle("2024-12-20T12:00:00Z");

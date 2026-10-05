@@ -13,7 +13,7 @@ describe("persistent login middleware", () => {
   });
   it("passes rotated tokens to both server rendering and the browser", async () => {
     mocks.getUser.mockImplementation(async () => {
-      const { cookies } = mocks.create.mock.calls[0][2];
+      const { cookies } = mocks.create.mock.calls[0]![2];
       cookies.setAll([{ name: "sb-test-auth-token.0", value: "rotated", options: { path: "/", maxAge: 34560000, sameSite: "lax" } }]);
       return { data: { user: { id: "user" } } };
     });
@@ -36,7 +36,7 @@ describe("persistent login middleware", () => {
   });
   it("writes auth cookie removal when a session is revoked", async () => {
     mocks.getUser.mockImplementation(async () => {
-      mocks.create.mock.calls[0][2].cookies.setAll([{ name: "sb-test-auth-token", value: "", options: { maxAge: 0 } }]);
+      mocks.create.mock.calls[0]![2].cookies.setAll([{ name: "sb-test-auth-token", value: "", options: { maxAge: 0 } }]);
       return { data: { user: null } };
     });
     const response = await middleware(new NextRequest("https://forextestlab.com/account", { headers: { cookie: "sb-test-auth-token=revoked" } }));

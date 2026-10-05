@@ -4561,18 +4561,16 @@ export default function PriceChart({
             {indicators.some((indicator) => getDef(indicator.kind)?.pane !== "own") && (
               <div className="pointer-events-auto flex flex-col items-start gap-0.5">
                 {indicators.filter((indicator) => getDef(indicator.kind)?.pane !== "own").map((inst) => {
-                  const color = inst.style[getDef(inst.kind)?.plots[0]?.key ?? ""]?.color ?? "#60a5fa";
                   return (
-                    <div key={inst.id} className="group relative flex items-center gap-1.5 rounded-md border app-border bg-[var(--app-panel)]/85 px-2 py-0.5 text-[0.92em] shadow backdrop-blur">
-                      <span className="h-2 w-2 rounded-full" style={{ background: color, opacity: inst.visible ? 1 : 0.3 }} />
-                      <span className={`font-medium ${inst.visible ? "" : "text-[var(--chart-muted)] line-through"}`}>{indicatorLabel(inst)}</span>
-                      <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
+                    <div key={inst.id} className="group relative flex min-h-6 items-center gap-1.5 px-2 py-0.5 text-[0.92em]">
+                      <span className={`font-medium ${inst.visible ? "text-[var(--chart-text)]" : "text-[var(--chart-muted)] line-through"}`}>{indicatorLabel(inst)}</span>
+                      <button type="button" aria-label={inst.visible ? "Hide" : "Show"} onClick={() => updateIndicator(inst.id, { visible: !inst.visible })} className="ml-0.5 text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                         {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
                       </button>
-                      <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100">
+                      <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                         <Settings2 size={12} />
                       </button>
-                      <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100">
+                      <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                         <Trash2 size={12} />
                       </button>
                     </div>

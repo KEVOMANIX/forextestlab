@@ -107,7 +107,8 @@ export function OrderTicket({
     "risk-percent" | "fixed-lots"
   >("fixed-lots");
   const [riskPercent, setRiskPercent] = useState("1");
-  const [exitsOpen, setExitsOpen] = useState(true);
+  const [exitsOpen, setExitsOpen] = useState(false);
+  const initializedLimitRef = useRef<string | null>(null);
   const [orderType, setOrderType] = useState<OrderType>("market");
   const [expiryMinutes, setExpiryMinutes] = useState("0");
   const [panelOpen, setPanelOpen] = useState(false);
@@ -150,6 +151,27 @@ export function OrderTicket({
     metrics?.valid && Number(state.equity) > 0
       ? Math.min(100, (Number(metrics.margin) / Number(state.equity)) * 100)
       : 0;
+
+  // Initialize once per limit planner/direction, never when a user disables an
+  // exit or edits its price. Chart-picked entries use the same defaults.
+  useEffect(() => {
+    if (!panelOpen || orderType !== "limit" || !tradePlan) {
+      initializedLimitRef.current = null;
+      return;
+    }
+    const key = `${tradePlan.direction}:${activationRequest?.id ?? 0}`;
+    if (initializedLimitRef.current === key) return;
+    initializedLimitRef.current = key;
+    setExitsOpen(false);
+    const entry = Number(tradePlan.entryPrice);
+    const sign = tradePlan.direction === "long" ? 1 : -1;
+    if (!tradePlan.stopLoss) {
+      onPlanChange("stopLoss", (entry - sign * pip * 20).toFixed(precision));
+    }
+    if (!tradePlan.takeProfit) {
+      onPlanChange("takeProfit", (entry + sign * pip * 40).toFixed(precision));
+    }
+  }, [activationRequest?.id, onPlanChange, orderType, panelOpen, pip, precision, tradePlan]);
 
   useEffect(() => {
     onOpenChange?.(panelOpen);
@@ -247,6 +269,7 @@ export function OrderTicket({
 
   const openPlanner = useCallback((direction: TradeDirection) => {
     onDirectionChange(direction);
+    setExitsOpen(false);
     setPanelPosition(null);
     setPanelOpen(true);
   }, [onDirectionChange]);
@@ -599,7 +622,14 @@ export function OrderTicket({
                     className="flex w-full items-center justify-between text-left text-xs font-semibold"
                     aria-expanded={exitsOpen}
                   >
-                    Exits
+                    <span>Exits</span>
+                    {!exitsOpen && (
+                      <span className="ml-auto mr-2 text-[10px] font-normal text-[var(--ticket-muted)]">
+                        {tradePlan.takeProfit ? `TP ${metrics?.targetPips ?? "—"}p` : "TP off"}
+                        {" · "}
+                        {tradePlan.stopLoss ? `SL ${metrics?.stopPips ?? "—"}p` : "SL off"}
+                      </span>
+                    )}
                     {exitsOpen ? (
                       <ChevronUp size={14} />
                     ) : (

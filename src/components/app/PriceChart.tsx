@@ -91,6 +91,7 @@ import {
   publishChartHistory,
   subscribeChartHistory,
 } from "@/lib/chart/history-cache";
+import { adjacentHistory } from "@/lib/chart/adjacent-history";
 import { currenciesForSymbol } from "@/lib/economic-calendar/types";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { modalIsOpen } from "@/lib/ui/use-modal-behavior";
@@ -1320,11 +1321,14 @@ export default function PriceChart({
         ) continue;
         byTime.set(candle.timestamp, candle);
       }
-      const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
+      const sorted = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
+      const replayStart = rawCandlesRef.current[0]?.timestamp;
+      const merged = replayStart === undefined ? [] : adjacentHistory(sorted, replayStart, subscribedTimeframe);
+      const discardedIslands = merged.length < sorted.filter((candle) => replayStart !== undefined && candle.timestamp < replayStart).length;
       historyCandlesRef.current = merged;
       historyTimeframeRef.current = subscribedTimeframe;
-      historyHasMoreRef.current = snapshot.hasMore;
-      setHasOlderHistory(snapshot.hasMore);
+      historyHasMoreRef.current = snapshot.hasMore || discardedIslands;
+      setHasOlderHistory(snapshot.hasMore || discardedIslands);
       drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
       if (contextSeriesRef.current) {
         applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));

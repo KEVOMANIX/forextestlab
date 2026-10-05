@@ -4352,12 +4352,12 @@ export default function PriceChart({
         )}
 
         {/*
-          Chart legend: two rows in the top-left corner.
+          Chart legend in the top-left corner.
 
           Row one is the chart's identity and its dealing prices — instrument
           (which opens the symbol picker), display timeframe, and the quote strip
-          rendered inline so it reads as one bar rather than a second panel. Row
-          two is the bar under the crosshair.
+          rendered inline so it reads as one bar rather than a second panel.
+          The crosshair readout sits beside it, wrapping on narrow charts.
 
           The rows are a flow column inside a chart-sized overlay, not absolutely
           placed at hand-computed offsets, so adding or removing a row cannot
@@ -4395,6 +4395,7 @@ export default function PriceChart({
               candles out from under the drawing layer. On a narrow pane the quote
               strip drops to its own line instead.
             */}
+            <div className="flex max-w-full flex-wrap items-center gap-2" data-testid="chart-legend-row">
             <div
               className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1 rounded-lg border app-border bg-[var(--app-panel-solid)]/95 p-1 shadow-lg"
               data-testid="chart-legend"
@@ -4503,7 +4504,8 @@ export default function PriceChart({
             */}
             {(legend || indicators.length > 0) && (
               <div
-                className="pointer-events-none flex items-center gap-2 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-0.5 font-mono text-[0.78em] shadow"
+                data-testid="chart-ohlc"
+                className="pointer-events-none flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md border app-border bg-[var(--app-panel-solid)]/95 px-2 py-0.5 font-mono text-[0.78em] shadow [&>span]:whitespace-nowrap"
                 style={{ visibility: legend ? "visible" : "hidden" }}
               >
                 {legend ? (
@@ -4555,6 +4557,8 @@ export default function PriceChart({
                 )}
               </div>
             )}
+
+            </div>
 
             {/* Price overlays stay below OHLC; own-pane studies are labelled in
                 the pane that contains their plots. */}

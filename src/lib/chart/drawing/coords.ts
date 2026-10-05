@@ -101,7 +101,6 @@ export class CoordinateMapper {
     // away from a drawing, coordinateToTime at the viewport edges can clamp to
     // the drawing's anchor times. Treating those clamped values as the actual
     // edges stretches a small box across the full pane.
-    const scale = this.chart.timeScale();
     const exact = this.ownedCoordinate(time);
     if (exact != null) return exact;
 
@@ -132,7 +131,7 @@ export class CoordinateMapper {
     // viewport edges, this mapping remains stable while the user pans.
     const logical = this.timeToLogical(time);
     if (logical != null) {
-      const x = scale.logicalToCoordinate(logical as Logical);
+      const x = this.logicalToX(logical);
       if (typeof x === "number") return x;
     }
     return null;
@@ -165,7 +164,7 @@ export class CoordinateMapper {
     if (startX != null) {
       const logical = scale.coordinateToLogical(startX);
       if (logical != null) {
-        const x = scale.logicalToCoordinate((Number(logical) + fraction) as Logical);
+        const x = this.logicalToX(Number(logical) + fraction);
         if (typeof x === "number") return x;
       }
     }
@@ -176,11 +175,27 @@ export class CoordinateMapper {
     if (endX != null) {
       const logical = scale.coordinateToLogical(endX);
       if (logical != null) {
-        const x = scale.logicalToCoordinate((Number(logical) - (1 - fraction)) as Logical);
+        const x = this.logicalToX(Number(logical) - (1 - fraction));
         if (typeof x === "number") return x;
       }
     }
     return null;
+  }
+
+  /** Lightweight Charts 5.2 returns 0 for non-integer logical indexes.
+   * Interpolate pixels between integer slots ourselves so finer-timeframe
+   * anchors keep their fractional position instead of collapsing to x=0. */
+  private logicalToX(logical: number): number | null {
+    if (!Number.isFinite(logical)) return null;
+    const scale = this.chart.timeScale();
+    const left = Math.floor(logical);
+    const x0 = scale.logicalToCoordinate(left as Logical);
+    if (x0 == null || !Number.isFinite(x0)) return null;
+    const fraction = logical - left;
+    if (fraction === 0) return x0;
+    const x1 = scale.logicalToCoordinate((left + 1) as Logical);
+    if (x1 == null || !Number.isFinite(x1)) return null;
+    return x0 + (x1 - x0) * fraction;
   }
 
   priceToY(price: number): number | null {

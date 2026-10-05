@@ -275,7 +275,7 @@ describe("CoordinateMapper", () => {
         return firstBucket - 86_400;
       },
       coordinateToLogical: (x: number) => x / 12,
-      logicalToCoordinate: (logical: number) => logical * 12,
+      logicalToCoordinate: (logical: number) => Number.isInteger(logical) ? logical * 12 : 0,
     };
     const chart = { timeScale: () => timeScale } as unknown as IChartApi;
     const series = {
@@ -306,7 +306,7 @@ describe("CoordinateMapper", () => {
         timeToCoordinate: (time: Time) => Number(time) === start ? 6_000 : Number(time) === end ? 6_012 : 0,
         coordinateToTime: (x: number) => x === 6_000 ? start : x === 6_012 ? end : start - 60,
         coordinateToLogical: (x: number) => x / 12,
-        logicalToCoordinate: (logical: number) => logical * 12,
+        logicalToCoordinate: (logical: number) => Number.isInteger(logical) ? logical * 12 : 0,
       };
       const chart = { timeScale: () => timeScale } as unknown as IChartApi;
       const series = {

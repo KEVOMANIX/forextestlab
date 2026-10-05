@@ -724,8 +724,8 @@ function SessionHoursRow({
   onChange,
 }: {
   session: TradingSessionDefinition;
-  override?: { openMinutes: number; closeMinutes: number };
-  onChange: (value: { openMinutes: number; closeMinutes: number } | null) => void;
+  override?: { openMinutes: number; closeMinutes: number; zone?: string };
+  onChange: (value: { openMinutes: number; closeMinutes: number; zone?: string } | null) => void;
 }) {
   const open = override?.openMinutes ?? session.openMinutes;
   const close = override?.closeMinutes ?? session.closeMinutes;
@@ -733,7 +733,7 @@ function SessionHoursRow({
     <div className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5">
       <span className="min-w-0">
         <span className="block text-[13px]">{session.label}</span>
-        <span className="mt-0.5 block text-[11px] opacity-55">{session.zone}</span>
+        <span className="mt-0.5 block text-[11px] opacity-55">{override?.zone ?? session.zone}</span>
       </span>
       <span className="flex shrink-0 items-center gap-1">
         <input
@@ -742,7 +742,7 @@ function SessionHoursRow({
           value={minutesToClock(open)}
           onChange={(event) => {
             const minutes = clockToMinutes(event.target.value);
-            if (minutes != null) onChange({ openMinutes: minutes, closeMinutes: close });
+            if (minutes != null) onChange({ ...override, openMinutes: minutes, closeMinutes: close });
           }}
           className="w-[5.5rem] rounded border border-current/25 bg-transparent px-1.5 py-1 text-[12px] font-mono outline-none focus:border-brand-400"
         />
@@ -753,7 +753,7 @@ function SessionHoursRow({
           value={minutesToClock(close)}
           onChange={(event) => {
             const minutes = clockToMinutes(event.target.value);
-            if (minutes != null) onChange({ openMinutes: open, closeMinutes: minutes });
+            if (minutes != null) onChange({ ...override, openMinutes: open, closeMinutes: minutes });
           }}
           className="w-[5.5rem] rounded border border-current/25 bg-transparent px-1.5 py-1 text-[12px] font-mono outline-none focus:border-brand-400"
         />

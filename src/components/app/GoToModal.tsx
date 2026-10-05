@@ -1,17 +1,17 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ArrowDownToLine,
   ArrowUpToLine,
   Clock,
   Hourglass,
-  Loader2,
   Settings2,
   X,
 } from "lucide-react";
 
 import {
+  minutesToClock,
   nextCalendarBoundary,
   nextSessionEdge,
   previousCalendarBoundary,
@@ -29,13 +29,13 @@ import {
   type SessionHourOverrides,
   type TradingSessionDefinition,
 } from "@/lib/backtest/goto";
-import { formatInZone, resolveZone } from "@/lib/chart/timezones";
+import { formatInZone, resolveZone, TIME_ZONES } from "@/lib/chart/timezones";
 import type { Candle } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 
 /** Panel width on desktop — matches the old dialog's `max-w-[44rem]`. */
-const PANEL_WIDTH_REM = 44;
+const PANEL_WIDTH_REM = 40;
 
 const CALENDAR_UNITS: { unit: CalendarUnit; ahead: string; behind: string }[] = [
   { unit: "day", ahead: "Next day", behind: "Previous day" },
@@ -43,32 +43,7 @@ const CALENDAR_UNITS: { unit: CalendarUnit; ahead: string; behind: string }[] = 
   { unit: "month", ahead: "Next month", behind: "Previous month" },
 ];
 
-/**
- * "Go to" — jump the replay to a moment or a price, ahead of it or behind it.
- *
- * Three columns, because there are three ways a trader says where they want to
- * be: a clock time, a session, or a price. An Ahead/Behind toggle switches the
- * Time and Sessions columns between the next occurrence and the last one — the
- * Prices column stays put either way, since a level is always read out of data
- * already revealed and then arrived at by running forward, regardless of which
- * tab is selected. Behind is bounded by what has ever loaded, not by what the
- * trader has watched go by — rewinding past an entry silently undoes the trade,
- * so there is no separate "already seen" line to enforce.
- *
- * It is kept deliberately narrow. It opens over the chart the trader is deciding
- * from, so a dialog wide enough to be roomy is a dialog covering the reason they
- * opened it. Anything with two natural ends — a session's open and close, a
- * range's high and low — is one row with two buttons rather than two rows, which
- * halves the height and reads as the pair it is.
- *
- * Anchored under the "Go to" button rather than centred behind a dimming
- * backdrop, so the chart stays visible while it's open — including the jump's
- * own progress once a destination is picked. There is no darkened scrim: a
- * transparent click-away layer dismisses it instead.
- *
- * Destinations that cannot be satisfied are disabled rather than hidden, so the
- * panel does not change shape between sessions, with the reason in the tooltip.
- */
+/** Sidebar navigation with explicit destination selection and editable session hours. */
 
 interface GoToModalProps {
   open: boolean;
@@ -102,7 +77,7 @@ interface GoToModalProps {
    * Opens the time-zone setting. Every clock time here is read in the chart's
    * zone, so it is the one preference that changes what this dialog says.
    */
-  onOpenZoneSettings: () => void;
+  onSessionHoursChange: (hours: SessionHourOverrides) => void;
 }
 
 interface EdgeButton {
@@ -117,14 +92,7 @@ interface EdgeButton {
 }
 
 function Column({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="flex min-w-0 flex-col rounded-lg border app-border">
-      <h3 className="border-b app-border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] app-muted">
-        {title}
-      </h3>
-      <div className="flex min-h-0 flex-1 flex-col p-1">{children}</div>
-    </section>
-  );
+  return <section aria-label={title} className="flex min-w-0 flex-col gap-2">{children}</section>;
 }
 
 /** A single destination: a label, the value it resolves to, one click. */
@@ -147,18 +115,18 @@ function Row({
       disabled={disabled}
       title={title ?? detail ?? label}
       onClick={onSelect}
-      className="flex w-full items-center justify-between gap-2 rounded px-1.5 py-1 text-left text-[11px] transition-colors hover:bg-[var(--app-panel-2)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
+      className="flex w-full items-center justify-between gap-2 rounded px-1.5 py-1 text-left text-sm transition-colors hover:bg-[var(--app-panel-2)] disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent"
     >
       <span className="min-w-0 truncate">{label}</span>
       {detail && (
-        <span className="shrink-0 font-mono text-[10px] app-muted">{detail}</span>
+        <span className="shrink-0 font-mono text-xs app-muted">{detail}</span>
       )}
     </button>
   );
 }
 
 function Edge({
-  icon: Icon,
+  icon,
   label,
   target,
   detail,
@@ -173,9 +141,9 @@ function Edge({
       aria-label={`Go to ${label}`}
       title={unavailable ?? (detail ? `${label} — ${detail}` : label)}
       onClick={() => target && onSelect(target, label)}
-      className="grid h-6 w-6 shrink-0 place-items-center rounded border app-border transition-colors hover:border-brand-400/50 hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-[var(--app-border)]"
+      className="min-h-9 min-w-14 shrink-0 rounded-md border app-border px-2 text-xs transition-colors hover:bg-[var(--app-panel-2)] disabled:cursor-not-allowed disabled:opacity-30"
     >
-      <Icon size={12} aria-hidden />
+      {icon === Clock ? "Open" : icon === Hourglass ? "Close" : icon === ArrowUpToLine ? "High" : "Low"}
     </button>
   );
 }
@@ -197,10 +165,10 @@ function PairRow({
   second: EdgeButton;
 }) {
   return (
-    <div className="flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-[var(--app-panel-2)]">
+    <div className="flex items-center gap-2 rounded px-1.5 py-3 hover:bg-[var(--app-panel-2)]">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[11px]">{label}</p>
-        {hint && <p className="truncate font-mono text-[9px] app-muted">{hint}</p>}
+        <p className="truncate text-sm">{label}</p>
+        {hint && <p className="truncate font-mono text-xs app-muted">{hint}</p>}
       </div>
       <Edge {...first} />
       <Edge {...second} />
@@ -224,7 +192,7 @@ export function GoToModal({
   canWaitForClose,
   busy,
   onJump,
-  onOpenZoneSettings,
+  onSessionHoursChange,
 }: GoToModalProps) {
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const dialogRef = useModalBehavior<HTMLElement>({
@@ -235,8 +203,12 @@ export function GoToModal({
   const compact = useCompactViewport();
   const [direction, setDirection] = useState<"ahead" | "behind">("ahead");
   const [expanded, setExpanded] = useState<"date" | "price" | null>(null);
+  const [tab, setTab] = useState<"time" | "sessions" | "prices" | "settings">("sessions");
+  const [selection, setSelection] = useState<{ target: GoToTarget; label: string } | null>(null);
+  const [hoursDraft, setHoursDraft] = useState<SessionHourOverrides>({});
   const [dateDraft, setDateDraft] = useState("");
   const [priceDraft, setPriceDraft] = useState("");
+  useEffect(() => { if (open) { setSelection(null); setTab("sessions"); } }, [open]);
 
   /**
    * The earliest moment this session has ever loaded — the floor a "Behind"
@@ -340,7 +312,7 @@ export function GoToModal({
   if (!open) return null;
 
   /** Selection returns to the chart immediately; its right-edge loader reports progress. */
-  const jump = (target: GoToTarget, label: string) => onJump(target, label);
+  const jump = (target: GoToTarget, label: string) => setSelection({ target, label });
 
   const submitDate = () => {
     if (!dateDraft) return;
@@ -392,7 +364,7 @@ export function GoToModal({
           ? Math.max(16, Math.min(anchor.left, window.innerWidth - PANEL_WIDTH_REM * 16 - 16))
           : "50%",
         top: anchor
-          ? Math.min(anchor.bottom + 8, window.innerHeight - 120)
+          ? Math.min(anchor.bottom + 8, Math.max(16, window.innerHeight - 560))
           : "4rem",
         transform: anchor ? undefined : "translateX(-50%)",
         width: `min(${PANEL_WIDTH_REM}rem, calc(100vw - 2rem))`,
@@ -414,29 +386,26 @@ export function GoToModal({
         aria-labelledby="go-to-title"
         data-testid="go-to-modal"
         style={panelStyle}
-        className="fixed z-[130] flex max-h-[min(32rem,88dvh)] flex-col overflow-hidden rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none"
+        className="fixed z-[130] flex max-h-[min(38rem,88dvh)] flex-col overflow-hidden rounded-xl border app-border bg-[var(--app-panel-solid)] shadow-2xl outline-none"
       >
         <header className="flex shrink-0 items-center justify-between gap-3 px-3 py-2">
           <div className="min-w-0">
             <h2 id="go-to-title" className="text-sm font-semibold tracking-tight">
               Go to …
             </h2>
-            <p className="truncate text-[10px] app-muted">
-              {direction === "ahead"
-                ? "Runs the replay forward, filling stops and orders on the way."
-                : "Rewinds the replay — any trade opened past the target is undone."}{" "}
-              Now at {clock(currentTime)}.
+            <p className="truncate text-xs app-muted">
+              Replay at {clock(currentTime)} · {timeZone}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
-              onClick={onOpenZoneSettings}
-              aria-label="Change the chart's time zone"
+              onClick={() => { setHoursDraft(sessionHours); setTab("settings"); setSelection(null); }}
+              aria-label="Session settings"
               title="Times are read in the chart's zone — change it"
-              className="grid h-7 w-7 place-items-center rounded-md app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+              className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs app-muted hover:bg-[var(--app-panel-2)]"
             >
-              <Settings2 size={14} aria-hidden />
+              <Settings2 size={14} aria-hidden /> Settings
             </button>
             <button
               ref={closeRef}
@@ -450,31 +419,32 @@ export function GoToModal({
           </div>
         </header>
 
-        {/*
-          Only Time and Sessions actually change shape between the two — a
-          price is always read from what has already been revealed and then
-          arrived at by running forward, so the Prices column looks the same
-          either way and is left off this toggle's effect.
-        */}
-        <div className="flex shrink-0 gap-1 px-3 pb-2" role="group" aria-label="Direction">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto sm:flex-row">
+          <nav aria-label="Go to destinations" className="flex shrink-0 gap-1 border-b app-border bg-[var(--app-panel-2)] p-3 sm:w-36 sm:flex-col sm:border-b-0 sm:border-r">
+            {([['sessions', 'Sessions'], ['time', 'Date & time'], ['prices', 'Price levels']] as const).map(([key, label]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => { setTab(key); setSelection(null); }} className={`rounded-md px-3 py-2 text-left text-sm ${tab === key ? 'bg-[var(--app-panel-solid)] font-semibold' : 'app-muted'}`}>{label}</button>)}
+          </nav>
+          <div className="min-w-0 flex-1 p-4">
+        <div style={{ display: tab === "settings" || tab === "prices" ? "none" : undefined }} className="mb-3 flex shrink-0 gap-1" role="group" aria-label="Direction">
           {(["ahead", "behind"] as const).map((value) => (
             <button
               key={value}
               type="button"
               aria-pressed={direction === value}
-              onClick={() => setDirection(value)}
-              className={`flex-1 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${
+              onClick={() => { setDirection(value); setSelection(null); }}
+              className={`flex-1 rounded-md px-2 py-1 text-sm font-semibold transition-colors ${
                 direction === value
                   ? "bg-brand-500 text-surface-950"
                   : "app-muted hover:bg-[var(--app-panel-2)]"
               }`}
             >
-              {value === "ahead" ? "Ahead" : "Behind"}
+              {value === "ahead" ? "Forward" : "Backward"}
             </button>
           ))}
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto px-3 pb-3 sm:grid-cols-3">
+        <div className="min-h-[260px]">
+          {direction === "behind" && tab !== "prices" && tab !== "settings" && <p className="mb-3 text-xs app-muted">Rewinding undoes trades opened after the destination.</p>}
+          <div hidden={tab !== "time"}>
           <Column title="Time">
             {calendar.map((entry) => (
               <Row
@@ -498,7 +468,7 @@ export function GoToModal({
               type="button"
               onClick={() => setExpanded(expanded === "date" ? null : "date")}
               aria-expanded={expanded === "date"}
-              className={`rounded px-1.5 py-1 text-left text-[11px] transition-colors ${
+              className={`rounded px-1.5 py-1 text-left text-sm transition-colors ${
                 expanded === "date"
                   ? "bg-brand-400/10 text-brand-300"
                   : "hover:bg-[var(--app-panel-2)]"
@@ -521,26 +491,26 @@ export function GoToModal({
                       submitDate();
                     }
                   }}
-                  className="w-full rounded border app-border bg-transparent px-1.5 py-1 font-mono text-[10px] outline-none focus:border-brand-400"
+                  className="w-full rounded border app-border bg-transparent px-1.5 py-1 font-mono text-xs outline-none focus:border-brand-400"
                 />
                 <button
                   type="button"
                   disabled={!dateDraft || busy}
                   onClick={submitDate}
-                  className="rounded bg-brand-500 px-2 py-1 text-[10px] font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
+                  className="rounded bg-brand-500 px-2 py-1 text-xs font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
                 >
-                  Go
+                  Use this date
                 </button>
               </div>
             )}
 
             {/* Notable days, when this session happens to contain one. */}
-            <div className="mt-auto border-t app-border pt-1">
-              <p className="px-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] app-muted">
+            <div hidden={moments.length === 0} className="mt-4 border-t app-border pt-2">
+              <p className="px-1.5 text-xs font-semibold uppercase tracking-[0.14em] app-muted">
                 Historical moments
               </p>
               {moments.length === 0 ? (
-                <p className="px-1.5 pt-0.5 text-[9px] leading-3 app-muted">
+                <p className="px-1.5 pt-0.5 text-xs leading-3 app-muted">
                   {direction === "ahead"
                     ? "None inside this session, ahead of the replay."
                     : "None inside this session, behind the replay."}
@@ -560,6 +530,8 @@ export function GoToModal({
             </div>
           </Column>
 
+          </div>
+          <div hidden={tab !== "sessions"}>
           <Column title="Sessions">
             {sessions.map((session) => (
               <SessionRow
@@ -574,11 +546,14 @@ export function GoToModal({
                 onSelect={jump}
               />
             ))}
-            <p className="mt-auto px-1.5 pt-1 text-[9px] leading-3 app-muted">
-              Left button arrives at the open, right button at the close.
+            <p className="mt-auto px-1.5 pt-1 text-xs leading-3 app-muted">
+              Hours follow each session’s time zone. Change them in Settings.
             </p>
           </Column>
 
+          </div>
+          <div hidden={tab !== "prices"}>
+          <p className="mb-3 text-xs app-muted">Move forward until price reaches a level.</p>
           <Column title="Prices">
             {ranges.map((entry) => (
               <PairRow
@@ -610,7 +585,7 @@ export function GoToModal({
               type="button"
               onClick={() => setExpanded(expanded === "price" ? null : "price")}
               aria-expanded={expanded === "price"}
-              className={`rounded px-1.5 py-1 text-left text-[11px] transition-colors ${
+              className={`rounded px-1.5 py-1 text-left text-sm transition-colors ${
                 expanded === "price"
                   ? "bg-brand-400/10 text-brand-300"
                   : "hover:bg-[var(--app-panel-2)]"
@@ -635,7 +610,7 @@ export function GoToModal({
                       submitPrice();
                     }
                   }}
-                  className="w-full rounded border app-border bg-transparent px-1.5 py-1 font-mono text-[10px] outline-none focus:border-brand-400"
+                  className="w-full rounded border app-border bg-transparent px-1.5 py-1 font-mono text-xs outline-none focus:border-brand-400"
                 />
                 {/* Round numbers as a shortcut rather than a section of their
                     own: they are just prices, and anyone who wants one is
@@ -648,7 +623,7 @@ export function GoToModal({
                         type="button"
                         title="Round number"
                         onClick={() => setPriceDraft(price(level))}
-                        className="rounded bg-[var(--app-panel-2)] px-1.5 py-0.5 font-mono text-[10px] app-muted hover:text-[var(--app-text)]"
+                        className="rounded bg-[var(--app-panel-2)] px-1.5 py-0.5 font-mono text-xs app-muted hover:text-[var(--app-text)]"
                       >
                         {price(level)}
                       </button>
@@ -659,24 +634,23 @@ export function GoToModal({
                   type="button"
                   disabled={!priceDraft || busy}
                   onClick={submitPrice}
-                  className="rounded bg-brand-500 px-2 py-1 text-[10px] font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
+                  className="rounded bg-brand-500 px-2 py-1 text-xs font-semibold text-surface-950 transition-colors hover:bg-brand-400 disabled:opacity-40"
                 >
-                  Go
+                  Use this price
                 </button>
               </div>
             )}
           </Column>
+          </div>
+          {tab === "settings" && <div><h3 className="mb-1 text-sm font-semibold">Session settings</h3><p className="mb-3 text-xs app-muted">Set the local hours and time zone for each session.</p>{tradingSessionsWithOverrides(hoursDraft).map(session => <div key={session.id} className="border-b app-border py-3"><div className="mb-2 text-sm font-medium">{session.label}</div><div className="grid grid-cols-2 gap-2">{([['openMinutes', 'Open'], ['closeMinutes', 'Close']] as const).map(([key, label]) => <label key={key} className="text-xs app-muted">{label}<input type="time" aria-label={`${session.label} ${label}`} value={minutesToClock(session[key])} onChange={event => { if (!event.target.value) return; const [h = 0, m = 0] = event.target.value.split(':').map(Number); setHoursDraft(previous => ({ ...previous, [session.id]: { openMinutes: session.openMinutes, closeMinutes: session.closeMinutes, zone: session.zone, [key]: h * 60 + m } })); }} className="mt-1 block w-full rounded-md border app-border bg-[var(--app-panel-2)] p-2 text-sm" /></label>)}</div><label className="mt-2 block text-xs app-muted">Time zone<select aria-label={`${session.label} time zone`} value={session.zone} onChange={event => setHoursDraft(previous => ({ ...previous, [session.id]: { openMinutes: session.openMinutes, closeMinutes: session.closeMinutes, zone: event.target.value } }))} className="mt-1 block w-full rounded-md border app-border bg-[var(--app-panel-solid)] p-2 text-sm">{TIME_ZONES.map(zone => <option key={zone.id} value={zone.id}>{zone.label} · {zone.id}</option>)}</select></label></div>)}<button type="button" onClick={() => setHoursDraft({})} className="mt-3 text-xs underline app-muted">Restore default sessions</button></div>}
         </div>
 
-        {busy && (
-          <p
-            role="status"
-            className="flex shrink-0 items-center gap-1.5 border-t app-border px-3 py-1.5 text-[10px] app-muted"
-          >
-            <Loader2 size={11} className="animate-spin" aria-hidden /> Running the
-            replay forward…
-          </p>
-        )}
+        </div>
+        </div>
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t app-border bg-[var(--app-panel-2)] px-4 py-3">
+          <p className="min-w-0 text-xs app-muted" role="status">{tab === "settings" ? "Session hours are saved with your chart preferences." : selection ? `${selection.label}${selection.target.kind === "time" ? ` · ${clock(selection.target.timestamp)}` : ""}` : "Choose a destination"}</p>
+          {tab === "settings" ? <button type="button" onClick={() => { onSessionHoursChange(hoursDraft); setTab("sessions"); }} className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-surface-950">Save settings</button> : <button type="button" disabled={!selection || busy} onClick={() => { if (selection) { onJump(selection.target, selection.label); setSelection(null); } }} className="rounded-md bg-brand-500 px-4 py-2 text-sm font-semibold text-surface-950 disabled:opacity-40">Go to selection</button>}
+        </footer>
       </section>
     </>
   );

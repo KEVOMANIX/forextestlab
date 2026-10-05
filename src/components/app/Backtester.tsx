@@ -1493,10 +1493,7 @@ export function Backtester({
         }
         busy={bt.busy}
         onJump={runJump}
-        onOpenZoneSettings={() => {
-          closeGoTo();
-          openSettings("display");
-        }}
+        onSessionHoursChange={(sessionHours) => workspace.updateSettings({ sessionHours })}
       />
       <SymbolPickerModal
         open={symbolPickerOpen}

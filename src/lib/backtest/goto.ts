@@ -89,7 +89,7 @@ export function tradingSession(id: string): TradingSessionDefinition | null {
 
 /** A trader's own open/close hours for a named session, keyed by session id. */
 export type SessionHourOverrides = Partial<
-  Record<string, { openMinutes: number; closeMinutes: number }>
+  Record<string, { openMinutes: number; closeMinutes: number; zone?: string }>
 >;
 
 /** Minutes past midnight as "HH:MM", for showing (and editing) a session's hours. */
@@ -114,9 +114,11 @@ export function tradingSessionsWithOverrides(
     if (!override) return session;
     // The hint always reads "HH:MM–HH:MM <city>" — keep the city, replace the
     // hours, so a customised session never claims hours it no longer keeps.
-    const city = session.hint.replace(/^[\d:]+–[\d:]+\s*/, "");
+    const zone = override.zone || session.zone;
+    const city = zone.split("/").pop()?.replace(/_/g, " ") ?? zone;
     return {
       ...session,
+      zone,
       openMinutes: override.openMinutes,
       closeMinutes: override.closeMinutes,
       hint: `${minutesToClock(override.openMinutes)}–${minutesToClock(override.closeMinutes)} ${city}`,

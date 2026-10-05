@@ -1330,10 +1330,14 @@ export default function PriceChart({
       historyHasMoreRef.current = snapshot.hasMore;
       setHasOlderHistory(snapshot.hasMore);
       drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
-      drawingEngineRef.current?.setEnv({ candles: drawingCandlesRef.current });
       if (contextSeriesRef.current) {
         applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
       }
+      drawingEngineRef.current?.setEnv({
+        timeframe: displayTimeframeRef.current,
+        candles: drawingCandlesRef.current,
+      });
+      drawingEngineRef.current?.onViewChanged();
       // Indicator runtimes are separate series. Updating only the muted price
       // context left them calculated from the old, shorter timeline until the
       // next replay candle arrived.
@@ -1387,12 +1391,14 @@ export default function PriceChart({
       historyCandlesRef.current = merged;
       historyTimeframeRef.current = requestedTimeframe;
       drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
-      drawingEngineRef.current?.setEnv({
-        candles: drawingCandlesRef.current,
-      });
       historyHasMoreRef.current = page.hasMore;
       setHasOlderHistory(page.hasMore);
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
+      drawingEngineRef.current?.setEnv({
+        timeframe: displayTimeframeRef.current,
+        candles: drawingCandlesRef.current,
+      });
+      drawingEngineRef.current?.onViewChanged();
       // Recalculate every indicator immediately with the newly loaded prefix.
       // This removes the false blank lead-in caused by calculating MACD/ATR
       // before their warm-up candles had arrived.
@@ -1757,13 +1763,6 @@ export default function PriceChart({
         sameSessionTimeline(previous, sessionTimeline) ? previous : sessionTimeline
       ));
     }
-    if (drawingsActiveRef.current) {
-      drawingCandlesRef.current = timeline;
-      drawingEngineRef.current?.setEnv({
-        candles: drawingCandlesRef.current,
-        futureTimes: futureTimesRef.current,
-      });
-    }
     const renderedDisplay =
       chartTypeRef.current === "heikin" ? heikinAshi(display) : display;
 
@@ -1797,6 +1796,20 @@ export default function PriceChart({
       }
     } else {
       applyData(series, chartTypeRef.current, display);
+    }
+    // Publish the drawing timeline only after the price series owns the same
+    // timeframe timestamps. Doing this before setData made a timeframe switch
+    // paint 15m anchors against the outgoing 1m axis; the failed paint cleared
+    // the canvas and could remain blank when the logical viewport itself did
+    // not change enough to trigger another frame.
+    if (drawingsActiveRef.current) {
+      drawingCandlesRef.current = timeline;
+      drawingEngineRef.current?.setEnv({
+        timeframe: displayTimeframeRef.current,
+        candles: drawingCandlesRef.current,
+        futureTimes: futureTimesRef.current,
+      });
+      drawingEngineRef.current?.onViewChanged();
     }
     syncLivePriceLine();
     syncIndicators(timeline);

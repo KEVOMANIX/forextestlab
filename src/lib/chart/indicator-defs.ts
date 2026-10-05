@@ -50,18 +50,19 @@ import {
   type PriceSource,
 } from "./indicators";
 
-export type IndCategory = "trend" | "momentum" | "volatility" | "volume";
+export type IndCategory = "custom" | "trend" | "momentum" | "volatility" | "volume";
 export type IndPane = "price" | "own";
 export type LineStyleName = "solid" | "dashed" | "dotted";
 
 export const CATEGORY_LABELS: Record<IndCategory, string> = {
+  custom: "Custom indicators",
   trend: "Trend",
   momentum: "Momentum",
   volatility: "Volatility",
   volume: "Volume",
 };
 
-export const CATEGORY_ORDER: IndCategory[] = ["trend", "momentum", "volatility", "volume"];
+export const CATEGORY_ORDER: IndCategory[] = ["custom", "trend", "momentum", "volatility", "volume"];
 
 export const SOURCE_OPTIONS: { value: PriceSource; label: string }[] = [
   { value: "close", label: "Close" },
@@ -696,7 +697,7 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
     kind: "sessions",
     name: "Market Sessions",
     description: "Configurable session boxes and session-start lines. Shown on intraday charts up to one hour.",
-    category: "trend",
+    category: "custom",
     pane: "price",
     render: "overlay",
     inputs: [

@@ -322,6 +322,7 @@ interface PriceChartProps {
    * Start an order from a price picked off the chart — the right-click menu's
    * "Buy/Sell at 1.08661". Opens the ticket with that entry already filled in.
    */
+  onPositionToolOrder?: (drawing: DrawingJSON) => void;
   onPlanAtPrice?: (
     direction: "long" | "short",
     entryPrice: string,
@@ -994,6 +995,7 @@ export default function PriceChart({
   symbolLabel,
   onSelectInstrument,
   referenceOnly = false,
+  onPositionToolOrder,
   onPlanAtPrice,
   settings,
   onSettingsChange,
@@ -4232,6 +4234,7 @@ export default function PriceChart({
         )}
 
         <DrawingLayer
+          onPositionToolOrder={referenceOnly ? undefined : onPositionToolOrder}
           chart={chartApi}
           series={priceSeries}
           timeZone={settings.timeZone}

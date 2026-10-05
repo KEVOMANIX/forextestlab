@@ -169,6 +169,7 @@ interface ChartGridProps {
   positionDirection: "long" | "short" | null;
   tradePlan: TradePlan | null;
   /** Start an order from a price picked off a chart's right-click menu. */
+  onPositionToolOrder?: (drawing: DrawingJSON) => void;
   onPlanAtPrice?: (
     direction: "long" | "short",
     entryPrice: string,
@@ -232,6 +233,7 @@ export default function ChartGrid({
   takeProfit,
   positionDirection,
   tradePlan,
+  onPositionToolOrder,
   onPlanAtPrice,
   onTradePlanChange,
   theme,
@@ -629,6 +631,7 @@ export default function ChartGrid({
                 takeProfit={takeProfit}
                 positionDirection={positionDirection}
                 tradePlan={tradePlan}
+                onPositionToolOrder={onPositionToolOrder}
                 onPlanAtPrice={onPlanAtPrice}
                 onTradePlanChange={onTradePlanChange}
                 theme={theme}
@@ -697,6 +700,7 @@ interface ChartCellViewProps {
   positionDirection: "long" | "short" | null;
   tradePlan: TradePlan | null;
   /** Start an order from a price picked off a chart's right-click menu. */
+  onPositionToolOrder?: (drawing: DrawingJSON) => void;
   onPlanAtPrice?: (
     direction: "long" | "short",
     entryPrice: string,
@@ -755,6 +759,7 @@ function ChartCellView({
   takeProfit,
   positionDirection,
   tradePlan,
+  onPositionToolOrder,
   onPlanAtPrice,
   onTradePlanChange,
   theme,
@@ -906,6 +911,7 @@ function ChartCellView({
         axisCorner={axisCorner}
         symbolLabel={cell.symbol}
         referenceOnly={!tradable}
+        onPositionToolOrder={tradable ? onPositionToolOrder : undefined}
         onPlanAtPrice={tradable ? onPlanAtPrice : undefined}
         onSelectInstrument={onSelectInstrument}
         settings={workspace.settings}

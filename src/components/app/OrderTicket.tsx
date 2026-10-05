@@ -70,6 +70,7 @@ interface OrderTicketProps {
     orderType?: OrderType;
     /** The top-bar New order command always opens the planner. */
     openPlanner?: boolean;
+    riskPercent?: string;
   } | null;
   onActivationHandled?: (id: number) => void;
   onOpenChange?: (open: boolean) => void;
@@ -306,6 +307,7 @@ export function OrderTicket({
     }
     handledActivationRef.current = activationRequest.id;
     const requested = activationRequest.orderType;
+    if (activationRequest.riskPercent) { setSizingMode("risk-percent"); setRiskPercent(activationRequest.riskPercent); }
     if (activationRequest.openPlanner || (requested && requested !== "market")) {
       // Set directly rather than through `selectOrderType`, which derives an
       // entry price ten pips off the market — the whole point here is the price

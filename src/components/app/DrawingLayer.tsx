@@ -67,6 +67,7 @@ interface Props {
   onDrawingsChange?: (drawings: DrawingJSON[]) => void;
   engineRef?: React.MutableRefObject<DrawingEngine | null>;
   storageKey?: string;
+  onPositionToolOrder?: (drawing: DrawingJSON) => void;
 }
 
 export function DrawingLayer({
@@ -91,6 +92,7 @@ export function DrawingLayer({
   onDrawingsChange,
   engineRef,
   storageKey,
+  onPositionToolOrder,
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const engineInstance = useRef<DrawingEngine | null>(null);
@@ -413,6 +415,7 @@ export function DrawingLayer({
             <span className="sr-only">{selection.style.lineStyle}</span>
           </button>
           <span className="mx-0.5 h-5 w-px bg-[var(--app-border)]" aria-hidden />
+          {onPositionToolOrder && (selection.kind === "long" || selection.kind === "short") && <button type="button" onClick={() => { const drawing = eng()?.getSelected(); if (drawing) onPositionToolOrder(drawing); }} className="shrink-0 rounded bg-brand-500 px-3 py-1.5 text-xs font-semibold text-surface-950">Place order</button>}
           <button type="button" aria-label={selection.locked ? "Unlock drawing" : "Lock drawing"} onClick={() => eng()?.toggleLock()} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
             {selection.locked ? <LockOpen size={15} /> : <Lock size={15} />}
           </button>

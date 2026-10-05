@@ -1,5 +1,8 @@
 "use client";
 
+import { drawingOrderDraft } from "@/lib/backtest/drawing-order";
+import type { DrawingJSON } from "@/lib/chart/drawing/types";
+
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Plus, Settings } from "lucide-react";
@@ -219,6 +222,7 @@ export function Backtester({
     orderType?: OrderType;
     /** New order opens the ticket instead of submitting a one-click trade. */
     openPlanner?: boolean;
+    riskPercent?: string;
   } | null>(null);
   const orderTicketActivationIdRef = useRef(0);
   const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
@@ -939,6 +943,15 @@ export function Backtester({
       openPlanner,
     });
   };
+  const orderFromDrawing = (drawing: DrawingJSON) => {
+    try {
+      const draft = drawingOrderDraft(drawing, activeTradingState ?? state);
+      setTradePlan(draft.plan);
+      orderTicketActivationIdRef.current += 1;
+      setOrderTicketActivation({ id: orderTicketActivationIdRef.current, direction: draft.plan.direction, orderType: draft.orderType, openPlanner: true, riskPercent: draft.riskPercent });
+      if (draft.orderType === "market") notify({ id: "drawing-order", title: "Review market order", detail: "Entry uses the current executable price. Review the recalculated risk before confirming.", tone: "closed" }, 5000);
+    } catch (error) { notify({ id: "drawing-order", title: "Adjust position tool", detail: error instanceof Error ? error.message : "Could not prepare this drawing.", tone: "closed" }, 5000); }
+  };
   const openPositionEditor = (positionId: string) => {
     holdReplayFor("position-editor");
     setSelectedPositionId(positionId);
@@ -1259,6 +1272,7 @@ export function Backtester({
             takeProfit={chartTarget ? Number(chartTarget) : null}
             positionDirection={position?.direction ?? null}
             tradePlan={tradePlan}
+            onPositionToolOrder={orderFromDrawing}
             onPlanAtPrice={planAtPrice}
             onTradePlanChange={changeTradePlan}
             onStopLossChange={changeStop}

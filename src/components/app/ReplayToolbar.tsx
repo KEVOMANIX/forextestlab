@@ -45,6 +45,8 @@ interface ReplayToolbarProps {
   onLotsChange: (lots: string) => void;
 }
 
+type ToolbarPosition = { x: number; y: number; dock?: "top" | "bottom" };
+
 function ControlBtn({
   label,
   onClick,
@@ -123,7 +125,9 @@ export function ReplayToolbar({
     offsetY: number;
   } | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [position, setPosition] = useState<ToolbarPosition | null>(null);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const menusAbove = compact || position?.dock === "bottom" || (position != null && position.y > viewportHeight / 2);
   const [menuOpen, setMenuOpen] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const finished = state.status === "finished";
@@ -170,8 +174,10 @@ export function ReplayToolbar({
     try {
       const saved = window.localStorage.getItem("forextestlab:replay-position");
       if (saved) {
-        const parsed = JSON.parse(saved) as { x: number; y: number };
-        requestAnimationFrame(() => setPosition(clampPosition(parsed.x, parsed.y)));
+        const parsed = JSON.parse(saved) as ToolbarPosition;
+        if (Number.isFinite(parsed?.x) && Number.isFinite(parsed?.y)) {
+          requestAnimationFrame(() => setPosition(clampPosition(parsed.x, parsed.y, parsed.dock)));
+        }
       }
     } catch {
       // Keep the centred default.
@@ -180,8 +186,10 @@ export function ReplayToolbar({
   }, [compact]);
   useEffect(() => {
     if (compact) return;
-    if (position) window.localStorage.setItem("forextestlab:replay-position", JSON.stringify(position));
-    else window.localStorage.removeItem("forextestlab:replay-position");
+    try {
+      if (position) window.localStorage.setItem("forextestlab:replay-position", JSON.stringify(position));
+      else window.localStorage.removeItem("forextestlab:replay-position");
+    } catch { /* Position persistence is optional. */ }
   }, [compact, position]);
 
   /**
@@ -190,19 +198,18 @@ export function ReplayToolbar({
    * toolbar, or a side panel instead of being clipped at the chart area's own
    * `overflow: hidden` edge.
    */
-  function clampPosition(x: number, y: number) {
+  function clampPosition(x: number, y: number, dock?: "top" | "bottom"): ToolbarPosition {
     const toolbox = toolboxRef.current;
     if (!toolbox) return { x, y };
-    const padding = 10;
+    const padding = 4;
+    const bottom = Math.max(padding, window.innerHeight - toolbox.offsetHeight - padding);
     return {
       x: Math.min(
         Math.max(padding, x),
         Math.max(padding, window.innerWidth - toolbox.offsetWidth - padding),
       ),
-      y: Math.min(
-        Math.max(padding, y),
-        Math.max(padding, window.innerHeight - toolbox.offsetHeight - padding),
-      ),
+      y: dock === "top" ? padding : dock === "bottom" ? bottom : Math.min(Math.max(padding, y), bottom),
+      ...(dock === "top" || dock === "bottom" ? { dock } : {}),
     };
   }
 
@@ -234,6 +241,12 @@ export function ReplayToolbar({
     };
     const end = (endEvent: PointerEvent) => {
       if (dragRef.current?.pointerId !== endEvent.pointerId) return;
+      setPosition((current) => {
+        if (!current) return current;
+        const bottom = window.innerHeight - toolbox.offsetHeight - 4;
+        const dock = current.y <= 48 ? "top" : current.y >= bottom - 48 ? "bottom" : undefined;
+        return clampPosition(current.x, current.y, dock);
+      });
       dragRef.current = null;
       dragCleanupRef.current?.();
       dragCleanupRef.current = null;
@@ -251,10 +264,12 @@ export function ReplayToolbar({
 
   useEffect(() => {
     const keepInBounds = () => {
+      setViewportHeight(window.innerHeight);
       setPosition((current) =>
-        current ? clampPosition(current.x, current.y) : current,
+        current ? clampPosition(current.x, current.y, current.dock) : current,
       );
     };
+    keepInBounds();
     window.addEventListener("resize", keepInBounds);
     return () => {
       window.removeEventListener("resize", keepInBounds);
@@ -285,7 +300,7 @@ export function ReplayToolbar({
       // Above every piece of chart chrome (rails, legends, order lines all sit
       // at z-30/z-40) so a grid layout cannot slice the toolbox in half with the
       // neighbouring cell's drawing rail. Still below menus and dialogs.
-      className={`fixed z-[45] rounded-lg border app-border bg-[var(--app-panel-solid)] p-1.5 shadow-2xl shadow-black/40 ${
+      className={`fixed z-[45] rounded-md border app-border bg-[var(--app-panel-solid)] px-1 py-0.5 shadow-md ${
         compact
           ? "w-[calc(100%-1.5rem)] max-w-[360px]"
           : "w-fit max-w-[calc(100%-1.5rem)] touch-none cursor-move"
@@ -306,6 +321,7 @@ export function ReplayToolbar({
         {!compact && (
           <span
             data-testid="replay-toolbox-handle"
+            title="Drag to move. Drop near the top or bottom to dock."
             aria-hidden
             className="inline-flex h-7 w-5 shrink-0 items-center justify-center app-muted"
           >
@@ -362,7 +378,7 @@ export function ReplayToolbar({
             <ChevronDown size={12} aria-hidden className={`text-brand-300 ${speedMenuOpen ? "rotate-180" : ""}`} />
           </button>
           {speedMenuOpen && (
-            <div role="menu" aria-label="Replay speed" className="absolute left-0 top-9 z-[70] w-24 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl">
+            <div role="menu" aria-label="Replay speed" className={`absolute left-0 ${menusAbove ? "bottom-9" : "top-9"} z-[70] max-h-[min(60vh,320px)] overflow-y-auto w-24 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl`}>
               {availableSpeeds.map((speed) => (
                 <button
                   key={speed}
@@ -424,7 +440,7 @@ export function ReplayToolbar({
             accountCurrency={state.config.accountCurrency}
             equity={state.equity}
             align="right"
-            placement={compact ? "above" : "below"}
+            placement={menusAbove ? "above" : "below"}
           />
         </div>
         <div className="relative shrink-0">
@@ -440,7 +456,7 @@ export function ReplayToolbar({
             <Ellipsis size={16} aria-hidden />
           </button>
           {menuOpen && (
-            <div role="menu" className="absolute right-0 top-9 z-[70] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl">
+            <div role="menu" className={`absolute right-0 ${menusAbove ? "bottom-9" : "top-9"} z-[70] w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl`}>
               <button type="button" role="menuitem" disabled={busy} onClick={() => { setMenuOpen(false); onRestart(); }} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs hover:bg-[var(--app-panel-2)] disabled:opacity-40">
                 <RotateCcw size={15} aria-hidden /> Restart session
               </button>

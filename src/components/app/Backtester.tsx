@@ -1486,6 +1486,7 @@ export function Backtester({
         visibleIndex={state.visibleIndex}
         timeZone={workspace.settings.timeZone}
         endTime={state.config.endTime}
+        theme={theme}
         sessionHours={workspace.settings.sessionHours}
         canWaitForClose={
           state.openPositions.length > 0 ||

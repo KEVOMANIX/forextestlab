@@ -29,7 +29,8 @@ import {
   type SessionHourOverrides,
   type TradingSessionDefinition,
 } from "@/lib/backtest/goto";
-import { formatInZone, resolveZone, TIME_ZONES } from "@/lib/chart/timezones";
+import { formatInZone, resolveZone } from "@/lib/chart/timezones";
+import { TimeZonePicker } from "./TimeZonePicker";
 import type { Candle } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
@@ -46,6 +47,7 @@ const CALENDAR_UNITS: { unit: CalendarUnit; ahead: string; behind: string }[] = 
 /** Sidebar navigation with explicit destination selection and editable session hours. */
 
 interface GoToModalProps {
+  theme?: "dark" | "light";
   open: boolean;
   onClose: () => void;
   /**
@@ -178,6 +180,7 @@ function PairRow({
 
 export function GoToModal({
   open,
+  theme = "dark",
   onClose,
   anchor,
   currentTime,
@@ -391,15 +394,17 @@ export function GoToModal({
         <header className="flex shrink-0 items-center justify-between gap-3 px-3 py-2">
           <div className="min-w-0">
             <h2 id="go-to-title" className="text-sm font-semibold tracking-tight">
-              Go to …
+              {tab === "settings" ? "Session settings" : "Go to"}
             </h2>
             <p className="truncate text-xs app-muted">
-              Replay at {clock(currentTime)} · {timeZone}
+              {tab === "settings" ? "Set your session hours and time zones." : `Replay at ${clock(currentTime)} · ${timeZone}`}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
+              hidden={tab === "settings"}
+              style={{ display: tab === "settings" ? "none" : undefined }}
               onClick={() => { setHoursDraft(sessionHours); setTab("settings"); setSelection(null); }}
               aria-label="Session settings"
               title="Times are read in the chart's zone — change it"
@@ -420,7 +425,7 @@ export function GoToModal({
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto sm:flex-row">
-          <nav aria-label="Go to destinations" className="flex shrink-0 gap-1 border-b app-border bg-[var(--app-panel-2)] p-3 sm:w-36 sm:flex-col sm:border-b-0 sm:border-r">
+          <nav style={{ display: tab === "settings" ? "none" : undefined }} aria-label="Go to destinations" className="flex shrink-0 gap-1 border-b app-border bg-[var(--app-panel-2)] p-3 sm:w-36 sm:flex-col sm:border-b-0 sm:border-r">
             {([['sessions', 'Sessions'], ['time', 'Date & time'], ['prices', 'Price levels']] as const).map(([key, label]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => { setTab(key); setSelection(null); }} className={`rounded-md px-3 py-2 text-left text-sm ${tab === key ? 'bg-[var(--app-panel-solid)] font-semibold' : 'app-muted'}`}>{label}</button>)}
           </nav>
           <div className="min-w-0 flex-1 p-4">
@@ -642,7 +647,7 @@ export function GoToModal({
             )}
           </Column>
           </div>
-          {tab === "settings" && <div><h3 className="mb-1 text-sm font-semibold">Session settings</h3><p className="mb-3 text-xs app-muted">Set the local hours and time zone for each session.</p>{tradingSessionsWithOverrides(hoursDraft).map(session => <div key={session.id} className="border-b app-border py-3"><div className="mb-2 text-sm font-medium">{session.label}</div><div className="grid grid-cols-2 gap-2">{([['openMinutes', 'Open'], ['closeMinutes', 'Close']] as const).map(([key, label]) => <label key={key} className="text-xs app-muted">{label}<input type="time" aria-label={`${session.label} ${label}`} value={minutesToClock(session[key])} onChange={event => { if (!event.target.value) return; const [h = 0, m = 0] = event.target.value.split(':').map(Number); setHoursDraft(previous => ({ ...previous, [session.id]: { openMinutes: session.openMinutes, closeMinutes: session.closeMinutes, zone: session.zone, [key]: h * 60 + m } })); }} className="mt-1 block w-full rounded-md border app-border bg-[var(--app-panel-2)] p-2 text-sm" /></label>)}</div><label className="mt-2 block text-xs app-muted">Time zone<select aria-label={`${session.label} time zone`} value={session.zone} onChange={event => setHoursDraft(previous => ({ ...previous, [session.id]: { openMinutes: session.openMinutes, closeMinutes: session.closeMinutes, zone: event.target.value } }))} className="mt-1 block w-full rounded-md border app-border bg-[var(--app-panel-solid)] p-2 text-sm">{TIME_ZONES.map(zone => <option key={zone.id} value={zone.id}>{zone.label} · {zone.id}</option>)}</select></label></div>)}<button type="button" onClick={() => setHoursDraft({})} className="mt-3 text-xs underline app-muted">Restore default sessions</button></div>}
+          {tab === "settings" && <div>{tradingSessionsWithOverrides(hoursDraft).map(session => <div key={session.id} className="border-b app-border py-3"><div className="mb-2 text-sm font-medium">{session.label}</div><div className="grid grid-cols-2 gap-2">{([['openMinutes', 'Open'], ['closeMinutes', 'Close']] as const).map(([key, label]) => <label key={key} className="text-xs app-muted">{label}<input type="time" aria-label={`${session.label} ${label}`} value={minutesToClock(session[key])} onChange={event => { if (!event.target.value) return; const [h = 0, m = 0] = event.target.value.split(':').map(Number); setHoursDraft(previous => ({ ...previous, [session.id]: { openMinutes: session.openMinutes, closeMinutes: session.closeMinutes, zone: session.zone, [key]: h * 60 + m } })); }} className="mt-1 block w-full rounded-md border app-border bg-[var(--app-panel-2)] p-2 text-sm" /></label>)}</div><div className="mt-2 text-xs app-muted"><span className="mb-1 block">Time zone</span><TimeZonePicker fieldLabel={`${session.label} time zone`} zone={session.zone} at={currentTime} theme={theme} onChange={zone => setHoursDraft(previous => ({ ...previous, [session.id]: { openMinutes: session.openMinutes, closeMinutes: session.closeMinutes, zone } }))} /></div></div>)}<button type="button" onClick={() => setHoursDraft({})} className="mt-3 text-xs underline app-muted">Restore default sessions</button></div>}
         </div>
 
         </div>

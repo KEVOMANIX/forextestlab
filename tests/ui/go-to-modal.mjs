@@ -14,7 +14,10 @@ try {
  await page.addScriptTag({content:bundle.outputFiles[0].text});
  await page.getByRole('button',{name:'Session settings',exact:true}).click();
  await page.getByLabel('London Open',{exact:true}).fill('07:30');
- await page.getByLabel('London time zone',{exact:true}).selectOption('Africa/Nairobi');
+ assert.equal(await page.getByRole('navigation',{name:'Go to destinations'}).isVisible(),false);
+ await page.getByRole('button',{name:'London time zone',exact:true}).click();
+ await page.getByRole('textbox',{name:'Search time zones'}).fill('Nairobi');
+ await page.getByRole('option',{name:/Nairobi/}).click();
  await page.getByRole('button',{name:'Save settings',exact:true}).click();
  assert.deepEqual(await page.evaluate(()=>window.saved.london),{openMinutes:450,closeMinutes:990,zone:'Africa/Nairobi'});
  await page.getByRole('button',{name:'Go to London open',exact:true}).click();

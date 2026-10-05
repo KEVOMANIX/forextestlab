@@ -23,7 +23,9 @@ export function TimeZonePicker({
   at,
   theme,
   onChange,
+  fieldLabel,
 }: {
+  fieldLabel?: string;
   zone: string;
   /**
    * The moment being replayed, which is what the offsets are resolved against.
@@ -109,10 +111,10 @@ export function TimeZonePicker({
         ref={buttonRef}
         type="button"
         data-testid="chart-timezone"
-        aria-label={`Chart time zone: ${offset}`}
+        aria-label={fieldLabel ?? `Chart time zone: ${offset}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title="Change the time zone every chart is read in"
+        title={fieldLabel ?? "Change the time zone every chart is read in"}
         onClick={() => {
           const box = buttonRef.current?.getBoundingClientRect();
           // Anchored by its right edge: this sits at the right end of the axis,
@@ -127,13 +129,13 @@ export function TimeZonePicker({
         // through. The offset carries it alone: an icon or a chevron would push
         // it out of the scale's column and onto the time axis, where it would
         // clip the tick labels and the crosshair's date tooltip.
-        className={`flex h-[26px] w-full items-center justify-center overflow-hidden whitespace-nowrap px-1 font-mono text-[10px] font-semibold transition-colors ${
+        className={`${fieldLabel ? "rounded-md border app-border min-h-10 " : ""}flex h-[26px] w-full items-center justify-center overflow-hidden whitespace-nowrap px-1 font-mono text-[10px] font-semibold transition-colors ${
           open
             ? "text-[var(--app-accent-text)]"
             : "text-[var(--app-text)] hover:text-[var(--app-accent-text)]"
         }`}
       >
-        {offset}
+        {fieldLabel ? `${offset} · ${allOptions.find(option => option.id === zone)?.label ?? zone}` : offset}
       </button>
 
       {open && anchor &&
@@ -141,8 +143,8 @@ export function TimeZonePicker({
           <div
             ref={panelRef}
             role="listbox"
-            aria-label="Chart time zone"
-            className={`app-theme-surface fixed z-[70] flex flex-col rounded-lg border py-1 text-xs shadow-2xl ${theme === "light" ? "light" : ""}`}
+            aria-label={fieldLabel ?? "Chart time zone"}
+            className={`app-theme-surface fixed z-[140] flex flex-col rounded-lg border py-1 text-xs shadow-2xl ${theme === "light" ? "light" : ""}`}
             // Portaled outside `.app-shell`, so the scoped theme variables do
             // not reach it and the colours have to be explicit.
             style={{
@@ -199,7 +201,7 @@ export function TimeZonePicker({
             })}
             </div>
           </div>,
-          document.body,
+          (fieldLabel ? buttonRef.current?.closest<HTMLElement>('[role="dialog"]') : null) ?? document.body,
         )}
     </>
   );

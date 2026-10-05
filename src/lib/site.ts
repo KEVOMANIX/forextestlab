@@ -30,17 +30,17 @@ export const mainNav = [
   { label: "Features", href: "/features" },
   { label: "Markets", href: "/markets" },
   { label: "Pricing", href: "/pricing" },
+  { label: "Learn", href: "/learn" },
   { label: "FAQ", href: "/faq" },
 ] as const;
 
 export const footerNav = {
   product: [
-    { label: "Home", href: "/" },
     { label: "Features", href: "/features" },
     { label: "Markets", href: "/markets" },
-    { label: "Product Preview", href: "/#product-preview" },
     { label: "Pricing", href: "/pricing" },
-    { label: "Start Backtesting", href: "/app/backtest" },
+    { label: "Learn", href: "/learn" },
+    { label: "Start free trial", href: TRIAL_SIGN_UP_PATH },
   ],
   company: [
     { label: "Support", href: "/support" },

@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { AppFooter } from "@/components/app/AppFooter";
 import { AppNav } from "@/components/app/AppNav";
 import { AppThemeProvider } from "@/components/app/ThemeContext";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { isAdminUser } from "@/lib/admin";
+
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function AccountLayout({
   children,

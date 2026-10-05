@@ -17,7 +17,7 @@ const GROUPS = [
     ["Can I simulate trades?", "Yes. You can place simulated market and pending orders, manage position size, stops, and targets, and then review the result."],
   ] },
   { title: "Access and accounts", items: [
-    ["What is included in the free trial?", "A new user can create trial sessions and experience the core replay workflow before choosing paid access."],
+    ["What is included in the free trial?", "The trial includes three sessions per device, with up to 31 calendar days of historical market data per session, plus the journal and core analytics. No payment is required to start. The 31 days describe the historical testing window."],
     ["Will my sessions be saved?", "Signed-in sessions are private and saved to your account so you can resume and review them later."],
     ["Where can I get help?", "Use the support page or in-app help button. Include the affected session and what you expected to happen when reporting a problem."],
   ] },

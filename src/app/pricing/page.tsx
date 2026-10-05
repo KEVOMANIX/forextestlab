@@ -15,8 +15,8 @@ export const metadata: Metadata = {
 };
 
 const freeFeatures = [
-  "Three backtesting sessions",
-  "One month of market data per session",
+  "Three trial sessions per device",
+  "Up to 31 calendar days of historical data per session",
   "Trading journal",
   "Core performance analytics",
 ];

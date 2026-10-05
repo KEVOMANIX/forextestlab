@@ -10,7 +10,7 @@ import { WelcomeOfferBanner } from "@/components/WelcomeOffer";
 const EXPLORE = [
   { href: "/features", title: "Explore the workspace", text: "See the replay, execution, journal, and analytics tools." },
   { href: "/markets", title: "Explore the markets", text: "Search available instruments and inspect their replay history." },
-  { href: "/pricing", title: "Choose your access", text: "Compare trial access and available workspace plans." },
+  { href: "/learn", title: "Learn the workflow", text: "Follow practical guides to replay, journaling, and performance review." },
 ] as const;
 
 export default function HomePage() {
@@ -24,8 +24,8 @@ export default function HomePage() {
         <section className="border-t border-white/10 py-16 sm:py-20">
           <div className="container-page">
             <div className="max-w-2xl">
-              <h2 className="text-3xl font-bold tracking-tight text-white">Go directly to what you need.</h2>
-              <p className="mt-3 text-base leading-7 text-slate-400">Product details now have dedicated pages, so you can browse without moving through one long landing page.</p>
+              <h2 className="text-3xl font-bold tracking-tight text-white">Build a repeatable testing routine.</h2>
+              <p className="mt-3 text-base leading-7 text-slate-400">Choose a market, practise your decisions, and use your journal and results to review the test.</p>
             </div>
             <div className="mt-9 grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 md:grid-cols-3">
               {EXPLORE.map(({ href, title, text }) => (

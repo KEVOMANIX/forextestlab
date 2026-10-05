@@ -152,7 +152,7 @@ export function Hero() {
               </Link>
             </div>
               <p className="mt-3 text-center text-xs text-slate-500 lg:text-right">
-                Three one-month trial sessions · No payment required
+                3 sessions per device · Up to 31 historical days each · No payment required
               </p>
               <p className="mt-2 text-center text-xs text-slate-400 lg:text-right">
                 Already have an account?{" "}

@@ -1,17 +1,15 @@
 import type { MetadataRoute } from "next";
 
+import { learnArticles } from "@/lib/learn";
 import { siteConfig } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
 
   const routes = [
     { path: "/", priority: 1, changeFrequency: "weekly" as const },
-    { path: "/app", priority: 0.9, changeFrequency: "weekly" as const },
-    { path: "/app/backtest", priority: 0.9, changeFrequency: "weekly" as const },
-    { path: "/app/history", priority: 0.4, changeFrequency: "weekly" as const },
     { path: "/features", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/markets", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/learn", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/faq", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/contact", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/support", priority: 0.7, changeFrequency: "monthly" as const },
@@ -26,10 +24,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 
-  return routes.map((route) => ({
+  return [...routes.map((route) => ({
     url: `${siteConfig.url}${route.path}`,
-    lastModified: now,
     changeFrequency: route.changeFrequency,
     priority: route.priority,
-  }));
+  })), ...learnArticles.map(article => ({ url: `${siteConfig.url}/learn/${article.slug}`, lastModified: new Date(`${article.updated}T12:00:00Z`), changeFrequency: "monthly" as const, priority: 0.7 }))];
 }

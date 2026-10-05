@@ -11,6 +11,7 @@ import { isAdminUser } from "@/lib/admin";
 
 export const metadata: Metadata = {
   title: "Backtester",
+  robots: { index: false, follow: false },
   description:
     "Run simulated forex backtests with historical market replay, execution tools, and performance reporting.",
   alternates: { canonical: "/app" },

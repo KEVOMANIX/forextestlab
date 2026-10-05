@@ -880,7 +880,7 @@ test("the layout controls stay legible in both themes", async ({ page }) => {
 test("every own-pane indicator gets a readable live header in its own pane", async ({ page }) => {
   const addIndicator = async (name: string) => {
     await page.getByRole("button", { name: "Indicators", exact: true }).click();
-    const search = page.getByPlaceholder("Search indicators…");
+    const search = page.getByRole("textbox", { name: "Search indicators" });
     await search.fill(name);
     await page.getByRole("button", { name: `${name} pane`, exact: true }).click();
     const dialog = page.getByRole("dialog", { name: `${name} settings` });

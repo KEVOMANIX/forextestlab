@@ -78,14 +78,10 @@ import { plannedRiskReward } from "@/lib/backtest/trade-journal";
 import { heikinAshi, type OHLCV } from "@/lib/chart/indicators";
 import { TOOL_LABELS, type DrawingJSON, type MagnetMode, type ToolKind } from "@/lib/chart/drawing/types";
 import {
-  CATEGORY_LABELS,
-  CATEGORY_ORDER,
-  defsByCategory,
   getDef,
   hydrateInstance,
   indicatorLabel,
   makeInstance,
-  type IndCategory,
   type IndicatorInstance,
 } from "@/lib/chart/indicator-defs";
 import { Indicator, indicatorColorForTheme } from "@/lib/chart/indicator-runtime";
@@ -113,6 +109,7 @@ import {
 } from "./ChartSettingsMenu";
 import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
+import { IndicatorPicker } from "./IndicatorPicker";
 import { EconomicEventLayer } from "./EconomicEventLayer";
 import { useCalendarEvents } from "./useCalendarEvents";
 import {
@@ -1237,9 +1234,7 @@ export default function PriceChart({
       return currentSessions.length > 0 ? [...incoming, ...currentSessions] : incoming;
     });
   }, [layoutSync]);
-  const [indicatorSearch, setIndicatorSearch] = useState("");
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
-  const [openCats, setOpenCats] = useState<Set<IndCategory>>(() => new Set(CATEGORY_ORDER));
   const [anchorPick, setAnchorPick] = useState<{ id: string; key: string } | null>(null);
   const [drawTool, setDrawTool] = useState<DrawTool>(null);
   /**
@@ -3558,7 +3553,6 @@ export default function PriceChart({
     if (!inst) return;
     commitIndicators((prev) => [...prev, inst]);
     setMenu(null);
-    setIndicatorSearch("");
     const anchorInput = getDef(kind)?.inputs.find((i) => i.type === "anchor");
     if (anchorInput) setAnchorPick({ id: inst.id, key: anchorInput.key }); // click chart to anchor
     else setIndicatorEditing(inst.id); // open settings so the user sets it themselves
@@ -3578,15 +3572,6 @@ export default function PriceChart({
     const { id, key } = anchorPick;
     commitIndicators((prev) => prev.map((i) => (i.id === id ? { ...i, inputs: { ...i.inputs, [key]: time } } : i)));
     setAnchorPick(null);
-  }
-
-  function toggleCategory(cat: IndCategory) {
-    setOpenCats((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
   }
 
   function updateIndicator(id: string, patch: Partial<IndicatorInstance>) {
@@ -3910,59 +3895,15 @@ export default function PriceChart({
         <button
           type="button"
           aria-label="Indicators"
+          aria-haspopup="dialog"
+          aria-expanded={menu === "indicators"}
           onClick={() => setMenu(menu === "indicators" ? null : "indicators")}
           className={`inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors ${menu === "indicators" || indicators.length > 0 ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
         >
           <Activity size={15} />
           <span className="hidden sm:inline">Indicators</span>
         </button>
-        {menu === "indicators" && (
-          <div className="absolute left-0 top-9 z-[55] w-72 rounded-lg border app-border bg-[var(--app-panel-solid)] p-2 shadow-xl">
-            <input
-              autoFocus
-              value={indicatorSearch}
-              onChange={(e) => setIndicatorSearch(e.target.value)}
-              placeholder="Search indicators…"
-              className="mb-2 w-full rounded-md border app-border bg-transparent px-2 py-1.5 text-xs outline-none focus:border-brand-400"
-            />
-            <div className="max-h-72 overflow-y-auto">
-              {(() => {
-                const q = indicatorSearch.trim().toLowerCase();
-                return CATEGORY_ORDER.map((cat) => {
-                  const defs = defsByCategory(cat).filter((d) => !q || d.name.toLowerCase().includes(q));
-                  if (defs.length === 0) return null;
-                  const open = q !== "" || openCats.has(cat);
-                  return (
-                    <div key={cat} className="mb-0.5">
-                      <button
-                        type="button"
-                        onClick={() => toggleCategory(cat)}
-                        className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wide app-muted hover:bg-[var(--app-panel-2)]"
-                      >
-                        <span>{CATEGORY_LABELS[cat]}</span>
-                        <span className="text-[9px]">{open ? "▾" : "▸"}</span>
-                      </button>
-                      {open &&
-                        defs.map((def) => (
-                          <button
-                            key={def.kind}
-                            type="button"
-                            onClick={() => addIndicator(def.kind)}
-                            title={def.description}
-                            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-[var(--app-panel-2)]"
-                          >
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: def.plots[0]?.defaultColor ?? "#60a5fa" }} />
-                            <span className="truncate">{def.name}</span>
-                            {def.pane === "own" && <span className="ml-auto shrink-0 text-[9px] app-muted">pane</span>}
-                          </button>
-                        ))}
-                    </div>
-                  );
-                });
-              })()}
-            </div>
-          </div>
-        )}
+        {menu === "indicators" && <IndicatorPicker theme={theme} onClose={() => setMenu(null)} onSelect={addIndicator} />}
       </div>
 
     </div>

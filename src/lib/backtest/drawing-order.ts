@@ -1,4 +1,5 @@
 import type { DrawingJSON } from "@/lib/chart/drawing/types";
+import { d } from "@/lib/decimal";
 import { estimatedMarketEntry, type TradePlan } from "./trade-plan";
 import type { OrderType, PublicSessionState } from "./types";
 
@@ -12,7 +13,11 @@ export function drawingOrderDraft(drawing: DrawingJSON, state: PublicSessionStat
   const market = Number(state.currentPrice);
   if (state.status === "finished" || !Number.isFinite(market) || market <= 0) throw new Error("This chart is not ready to trade.");
   const precision = state.config.pricePrecision;
-  const atMarket = Math.abs(entry.price - market) < 10 ** -precision / 2;
+  // One instrument pip, inclusive. Decimal comparison keeps boundary prices
+  // stable (binary floating point can put an exact pip just outside the band).
+  const pip = Number(state.config.pipSize);
+  const tolerance = Number.isFinite(pip) && pip > 0 ? pip : 10 ** -precision;
+  const atMarket = d(entry.price).minus(state.currentPrice!).abs().lte(tolerance);
   const orderType: OrderType = atMarket ? "market" : (entry.price - market) * sign < 0 ? "limit" : "stop";
   const entryPrice = atMarket ? estimatedMarketEntry(state, drawing.kind) : entry.price.toFixed(precision);
   const plan = { direction: drawing.kind, entryPrice: entryPrice ?? entry.price.toFixed(precision), stopLoss: stop.price.toFixed(precision), takeProfit: target.price.toFixed(precision) };

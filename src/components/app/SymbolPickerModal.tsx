@@ -400,11 +400,6 @@ export function SymbolPickerModal({
                     >
                       {symbol}
                     </span>
-                    {symbol === tradedSymbol && (
-                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--app-accent-text)]" style={{ background: "var(--app-accent-wash)" }}>
-                        Trading
-                      </span>
-                    )}
                     {isActive && (
                       <Check size={14} className="shrink-0 text-[var(--app-accent-text)]" aria-hidden />
                     )}

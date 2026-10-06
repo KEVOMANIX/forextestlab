@@ -84,7 +84,7 @@ export function PageLoader({ message = "Loading…", progress }: { message?: str
         </div>
         <p className="mt-3 text-xs font-medium text-slate-400">{message}</p></>}
 
-        <div className="mt-6 w-full border-t border-white/10 pt-5" aria-hidden="true">
+        {progress === undefined && <div className="mt-6 w-full border-t border-white/10 pt-5" aria-hidden="true">
           <blockquote
             key={quoteIndex}
             className="page-loader-quote min-h-10 text-sm font-medium leading-5 text-slate-300"
@@ -94,7 +94,7 @@ export function PageLoader({ message = "Loading…", progress }: { message?: str
           <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-300/70">
             Market mindset
           </p>
-        </div>
+        </div>}
       </div>
     </main>
   );

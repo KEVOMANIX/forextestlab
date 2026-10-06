@@ -146,7 +146,6 @@ function readStoredLayout(storageKey: string): StoredLayout | null {
 interface ChartGridProps {
   /** Fires once every initially visible pane has painted its chart canvas. */
   onReady?: () => void;
-  onProgress?: (value: number) => void;
   state: PublicSessionState;
   /**
    * The session symbol's whole series. Cells reveal it against the replay clock
@@ -217,7 +216,6 @@ interface ChartGridProps {
 
 export default function ChartGrid({
   onReady,
-  onProgress,
   state,
   sessionSeries,
   sessionContextCandles,
@@ -328,12 +326,6 @@ export default function ChartGrid({
     return next;
   }, [cells, layout, focusedId, sessionSymbol, storageKey]);
   const visibleIdentity = visibleCells.map((cell) => `${cell.id}:${cell.symbol}`).join("|");
-  const [paneProgress, setPaneProgress] = useState<Record<string, number>>({});
-  useEffect(() => {
-    if (!restored || !visibleCells.length) return;
-    const total = visibleCells.reduce((sum, cell) => sum + (paneProgress[`${cell.id}:${cell.symbol}`] ?? 0), 0);
-    onProgress?.(total / visibleCells.length);
-  }, [restored, visibleCells, paneProgress, onProgress]);
 
   useEffect(() => setReadyCells(new Set()), [visibleIdentity]);
   useEffect(() => {
@@ -614,10 +606,6 @@ export default function ChartGrid({
               }`}
             >
               <ChartCellView
-                onProgress={(value) => setPaneProgress((current) => {
-                  const key = `${cell.id}:${cell.symbol}`;
-                  return current[key] === value ? current : { ...current, [key]: value };
-                })}
                 onReady={() => setReadyCells((current) => {
                   const key = `${cell.id}:${cell.symbol}`;
                   if (current.has(key)) return current;
@@ -693,7 +681,6 @@ export default function ChartGrid({
 
 interface ChartCellViewProps {
   onReady: () => void;
-  onProgress: (value: number) => void;
   cell: ChartCell;
   state: PublicSessionState;
   isSession: boolean;
@@ -754,7 +741,6 @@ interface ChartCellViewProps {
 
 function ChartCellView({
   onReady,
-  onProgress,
   cell,
   state,
   isSession,
@@ -874,7 +860,6 @@ function ChartCellView({
   return (
       <PriceChart
         onReady={onReady}
-        onProgress={onProgress}
         key={`${cell.id}-${cell.symbol}`}
         onFocus={onFocus}
         initialCandles={reveal.initialCandles}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LoadingProgress } from "@/components/LoadingProgress";
 import { createPortal, flushSync } from "react-dom";
 import {
   Activity,
@@ -253,7 +252,6 @@ function paneIndicatorLabel(instance: IndicatorInstance): string {
 interface PriceChartProps {
   /** Fires after the canvas and its initial price series have been created. */
   onReady?: () => void;
-  onProgress?: (value: number) => void;
   initialCandles: Candle[];
   contextCandles: Candle[];
   lastCandle: Candle | null;
@@ -958,7 +956,6 @@ function ToolButton({
 
 export default function PriceChart({
   onReady,
-  onProgress,
   initialCandles,
   contextCandles,
   lastCandle,
@@ -1019,8 +1016,6 @@ export default function PriceChart({
   axisCorner = null,
 }: PriceChartProps) {
   const onReadyRef = useRef(onReady);
-  const onProgressRef = useRef(onProgress);
-  onProgressRef.current = onProgress;
   onReadyRef.current = onReady;
   // Drawings belong to the instrument; the rest of the view belongs to the cell.
   const viewStorageKey = viewKey ?? storageKey;
@@ -1145,7 +1140,6 @@ export default function PriceChart({
     contextCandles.length === 0 || (initialTimeframe ?? baseTimeframe) !== baseTimeframe,
   );
   const [initialCanvasPainted, setInitialCanvasPainted] = useState(false);
-  const [historyPrepared, setHistoryPrepared] = useState(false);
   const readySentRef = useRef(false);
   /** Invalidates history responses started for a timeframe the cell has left. */
   const historyRequestRef = useRef(0);
@@ -1362,7 +1356,6 @@ export default function PriceChart({
       return;
     }
     historyLoadingRef.current = true;
-    if (replace) setHistoryPrepared(false);
     setOlderHistoryError(false);
     if (replace) setHistoryLoading(true);
     else {
@@ -1393,7 +1386,6 @@ export default function PriceChart({
       // This removes the false blank lead-in caused by calculating MACD/ATR
       // before their warm-up candles had arrived.
       scheduleRender(true);
-      if (replace) setHistoryPrepared(true);
       if (storageKey) {
         await publishChartHistory(
           chartHistoryKey(storageKey, requestedTimeframe),
@@ -4049,9 +4041,6 @@ export default function PriceChart({
     !historyLoading &&
     chartApi != null &&
     priceSeries != null;
-  // These are completed preparation stages, not downloaded-byte percentages.
-  const chartProgress = loading ? 10 : !initialCanvasPainted ? 25 : initialHistoryPending || historyLoading ? historyPrepared ? 90 : 45 : 100;
-  useEffect(() => { onProgressRef.current?.(chartProgress); }, [chartProgress]);
 
   const drawingRail = (
     <div className={`flex w-14 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r app-border bg-[var(--app-panel)] py-1 ${railSlot ? "h-full" : "absolute bottom-0 left-0 top-0 z-30"}`} role="toolbar" aria-label="Drawing tools">
@@ -5071,9 +5060,9 @@ export default function PriceChart({
 
         {(loading || historyLoading || initialHistoryPending || !initialCanvasPainted) && (
           <div role="status" aria-label="Loading chart" className="absolute inset-0 z-30 grid place-items-center bg-[var(--app-bg)]">
-            <div className="w-64 max-w-[80%]">
-              <p className="mb-5 text-sm font-semibold text-[var(--app-text)]">Preparing chart</p>
-              <LoadingProgress value={chartProgress} label={loading ? "Loading market data" : !initialCanvasPainted ? "Preparing canvas" : historyPrepared ? "Finishing chart view" : `Loading ${displayTimeframe} history`} />
+            <div className="flex flex-col items-center gap-3">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
+              <span className="app-muted text-sm">{loading ? "Loading market…" : `Loading ${displayTimeframe} chart history…`}</span>
             </div>
           </div>
         )}

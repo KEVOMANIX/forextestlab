@@ -1342,31 +1342,21 @@ export default function PriceChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayTimeframe, storageKey]);
 
-  /**
-   * Stop covering the chart after 8s, so a slow provider cannot leave the plot
-   * behind a spinner forever.
-   *
-   * This only hides the overlay. It must not clear `historyLoadingRef`, which is
-   * the single-flight guard: the client aborts a history fetch at 12s, so
-   * releasing the guard at 8s opens a window where a second request starts while
-   * the first is still running, and whichever resolves last overwrites
-   * `historyCandlesRef` — dropping pages and re-rendering the context series
-   * repeatedly. Only `loadHistoryPage` releases the guard, in its `finally`.
-   */
-  useEffect(() => {
-    if (!historyLoading) return;
-    const timeout = window.setTimeout(() => setHistoryLoading(false), 8_000);
-    return () => window.clearTimeout(timeout);
-  }, [historyLoading, displayTimeframe]);
-
   async function loadHistoryPage(replace: boolean) {
     if (historyLoadingRef.current || (!replace && !historyHasMoreRef.current)) return;
     const requestedTimeframe = displayTimeframeRef.current;
     const requestId = ++historyRequestRef.current;
     const firstReplayTime = rawCandlesRef.current[0]?.timestamp;
     const earliest = historyCandlesRef.current[0]?.timestamp ?? firstReplayTime;
-    if (!earliest) return;
+    if (!earliest) {
+      if (!loading) {
+        setHistoryLoading(false);
+        setInitialHistoryPending(false);
+      }
+      return;
+    }
     historyLoadingRef.current = true;
+    setOlderHistoryError(false);
     if (replace) setHistoryLoading(true);
     else {
       setOlderHistoryLoading(true);
@@ -1419,11 +1409,16 @@ export default function PriceChart({
           resetLatestViewport();
         }
       }
-    } catch (error) {
-      if (replace) throw error;
-      if (requestId === historyRequestRef.current) setOlderHistoryError(true);
+    } catch {
+      if (requestId === historyRequestRef.current) {
+        setOlderHistoryError(true);
+        setLeftHistoryBoundaryVisible(true);
+      }
     } finally {
       if (requestId === historyRequestRef.current) {
+        // Keep the cover through the scheduled series/viewport update and paint.
+        if (replace) await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        if (requestId !== historyRequestRef.current) return;
         historyLoadingRef.current = false;
         if (replace) {
           setHistoryLoading(false);
@@ -2492,17 +2487,15 @@ export default function PriceChart({
   }, []);
 
   useEffect(() => {
-    if (!initialCanvasPainted || readySentRef.current) return;
-    // The replay candles are enough to use the chart. Historical context is an
-    // enhancement and may be slow on a cold object-store request, so it must
-    // continue behind the chart instead of holding the workspace loader open.
+    if (!initialCanvasPainted || initialHistoryPending || loading || historyLoading || readySentRef.current) return;
+    // Reveal the workspace only after the initial timeframe history is painted.
     const frame = requestAnimationFrame(() => {
       if (readySentRef.current) return;
       readySentRef.current = true;
       onReadyRef.current?.();
     });
     return () => cancelAnimationFrame(frame);
-  }, [initialCanvasPainted]);
+  }, [initialCanvasPainted, initialHistoryPending, loading, historyLoading]);
 
   // Rebuild the price series when the chart type changes.
   useEffect(() => {
@@ -5012,7 +5005,7 @@ export default function PriceChart({
           </div>
         )}
 
-        {leftHistoryBoundaryVisible && !loading && !historyLoading && (
+        {leftHistoryBoundaryVisible && chartReadyForTools && (
           <div
             className="pointer-events-none absolute inset-y-0 left-0 z-30 flex w-[var(--history-overlay-width)] items-center justify-center overflow-hidden border-r border-brand-400/10 bg-[var(--app-panel)]/50 px-4 backdrop-blur-[1px]"
             data-testid="older-history-overlay"
@@ -5065,8 +5058,8 @@ export default function PriceChart({
           </div>
         )}
 
-        {(loading || historyLoading) && (
-          <div className="absolute inset-0 z-30 grid place-items-center bg-[var(--app-bg)]">
+        {(loading || historyLoading || initialHistoryPending || !initialCanvasPainted) && (
+          <div role="status" aria-label="Loading chart" className="absolute inset-0 z-30 grid place-items-center bg-[var(--app-bg)]">
             <div className="flex flex-col items-center gap-3">
               <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
               <span className="app-muted text-sm">{loading ? "Loading market…" : `Loading ${displayTimeframe} chart history…`}</span>
@@ -5078,7 +5071,7 @@ export default function PriceChart({
             <span className="max-w-xs text-center text-sm text-loss">{error}</span>
           </div>
         )}
-        {!loading && !historyLoading && !error && initialCandles.length === 0 && (
+        {chartReadyForTools && !error && initialCandles.length === 0 && (
           <div className="absolute inset-0 grid place-items-center">
             <span className="app-muted text-sm">No candles to display.</span>
           </div>

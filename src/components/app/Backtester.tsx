@@ -185,6 +185,8 @@ export function Backtester({
     ? `${state.sessionId}:${bt.resetNonce}:${workspace.revision}`
     : null;
   const [readyChartIdentity, setReadyChartIdentity] = useState<string | null>(null);
+  const [chartLoadingProgress, setChartLoadingProgress] = useState(0);
+  useEffect(() => { setChartLoadingProgress(0); }, [chartLoadIdentity]);
   const markChartReady = useCallback(() => {
     if (chartLoadIdentity) setReadyChartIdentity(chartLoadIdentity);
   }, [chartLoadIdentity]);
@@ -872,7 +874,7 @@ export function Backtester({
   }, [actions.closeAllPositions, holdReplayFor, state?.openPositions.length]);
 
   if (bt.phase === "loading") {
-    return <PageLoader message="Loading market data…" />;
+    return <PageLoader progress={5} message="Loading market data" />;
   }
 
   if (bt.phase === "setup" || !state) {
@@ -1250,6 +1252,7 @@ export function Backtester({
         <div className="relative min-w-0 flex-1 overflow-hidden">
           <ChartGrid
             onReady={markChartReady}
+            onProgress={setChartLoadingProgress}
             key={`${state.sessionId}-${bt.resetNonce}-${workspace.revision}`}
             state={state}
             sessionSeries={bt.replayCandles}
@@ -1459,7 +1462,8 @@ export function Backtester({
       />}
       <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
       {(!workspace.ready || readyChartIdentity !== chartLoadIdentity) && (
-        <PageLoader message="Preparing chart and candles…" />
+        <PageLoader progress={workspace.ready ? Math.min(99, 20 + chartLoadingProgress * 0.8) : 10}
+          message={!workspace.ready ? "Restoring workspace" : chartLoadingProgress < 45 ? "Preparing chart panes" : chartLoadingProgress < 90 ? "Loading chart history" : "Finishing chart view"} />
       )}
       <PositionEditorModal
         state={state}

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { LoadingProgress } from "./LoadingProgress";
 
 import logoMark from "../../public/logo-mark.png";
 
@@ -25,7 +26,7 @@ const MARKET_QUOTES = [
   "One disciplined setup is worth more than a hundred forced trades.",
 ] as const;
 
-export function PageLoader({ message = "Loading…" }: { message?: string }) {
+export function PageLoader({ message = "Loading…", progress }: { message?: string; progress?: number }) {
   const [quoteIndex, setQuoteIndex] = useState(0);
 
   useEffect(() => {
@@ -66,7 +67,7 @@ export function PageLoader({ message = "Loading…" }: { message?: string }) {
           ForexTestLab
         </p>
 
-        <div className="mt-6 flex h-10 items-center justify-center gap-2" aria-hidden="true">
+        {progress === undefined && <div className="mt-6 flex h-10 items-center justify-center gap-2" aria-hidden="true">
           {bars.map((bar, index) => (
             <span
               key={index}
@@ -76,14 +77,14 @@ export function PageLoader({ message = "Loading…" }: { message?: string }) {
               <span className="absolute left-1/2 top-[-5px] h-[calc(100%+10px)] w-px -translate-x-1/2 bg-current opacity-70" />
             </span>
           ))}
-        </div>
+        </div>}
 
-        <div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-white/10">
+        {progress !== undefined ? <div className="mt-6 w-full"><LoadingProgress value={progress} label={message} /></div> : <><div className="mt-6 h-1 w-full overflow-hidden rounded-full bg-white/10">
           <div className="page-loader-progress h-full w-2/5 rounded-full bg-gradient-to-r from-brand-500 via-brand-300 to-accent-400" />
         </div>
-        <p className="mt-3 text-xs font-medium text-slate-400">{message}</p>
+        <p className="mt-3 text-xs font-medium text-slate-400">{message}</p></>}
 
-        <div className="mt-6 w-full border-t border-white/10 pt-5" aria-hidden="true">
+        {progress === undefined && <div className="mt-6 w-full border-t border-white/10 pt-5" aria-hidden="true">
           <blockquote
             key={quoteIndex}
             className="page-loader-quote min-h-10 text-sm font-medium leading-5 text-slate-300"
@@ -93,7 +94,7 @@ export function PageLoader({ message = "Loading…" }: { message?: string }) {
           <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-brand-300/70">
             Market mindset
           </p>
-        </div>
+        </div>}
       </div>
     </main>
   );

@@ -1819,10 +1819,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
           before,
         );
         if (!result.ok) {
-          // A failed history page leaves the visible candles untouched and can
-          // be retried without covering the trading workspace with an error.
-          console.warn("Chart history page failed to load:", result.error);
-          return { candles: [], hasMore: false };
+          // Reject failures so the pane preserves its current history and
+          // offers retry. An empty successful page would be cached as the end
+          // of available history, leaving just a handful of replay candles.
+          throw new Error(result.error);
         }
         return { candles: result.candles, hasMore: result.hasMore };
       })();

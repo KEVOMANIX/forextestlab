@@ -1411,6 +1411,8 @@ export default function PriceChart({
       }
     } catch {
       if (requestId === historyRequestRef.current) {
+        historyHasMoreRef.current = true;
+        setHasOlderHistory(true);
         setOlderHistoryError(true);
         setLeftHistoryBoundaryVisible(true);
       }
@@ -5009,6 +5011,7 @@ export default function PriceChart({
           <div
             className="pointer-events-none absolute inset-y-0 left-0 z-30 flex w-[var(--history-overlay-width)] items-center justify-center overflow-hidden border-r border-brand-400/10 bg-[var(--app-panel)]/50 px-4 backdrop-blur-[1px]"
             data-testid="older-history-overlay"
+            style={olderHistoryError ? { width: "min(100%, 320px)" } : undefined}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-[var(--app-bg)]/85 via-[var(--app-panel)]/55 to-brand-400/[0.025]" />
             <div className="pointer-events-auto relative w-60 overflow-hidden rounded-xl border border-[var(--app-border)] bg-[var(--app-panel-solid)]/95 shadow-2xl backdrop-blur-md">
@@ -5023,8 +5026,10 @@ export default function PriceChart({
                   <span className="min-w-0">
                     <span className="block text-xs font-semibold text-[var(--app-text)]">
                       {olderHistoryLoading
-                        ? "Loading older candles"
-                        : hasOlderHistory
+                      ? "Loading older candles"
+                      : olderHistoryError
+                        ? "History could not be loaded"
+                      : hasOlderHistory
                           ? "Need more chart history?"
                           : "Start of available data"}
                     </span>
@@ -5049,7 +5054,7 @@ export default function PriceChart({
                     {olderHistoryLoading ? (
                       <><LoaderCircle size={14} className="animate-spin" aria-hidden /> Loading…</>
                     ) : (
-                      <><History size={14} aria-hidden /> Load more data</>
+                      <><History size={14} aria-hidden /> {olderHistoryError ? "Retry loading history" : "Load more data"}</>
                     )}
                   </button>
                 )}

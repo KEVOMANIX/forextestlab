@@ -94,10 +94,10 @@ describe("formatCrosshairLabel", () => {
 describe("which day a daily bar claims to be", () => {
   // The bug a trader reported: on the 4h chart they were on Tuesday's 07:00
   // candle, and zooming out to daily the chart was still showing Monday.
-  const nov5 = Date.UTC(2019, 10, 5); // a Tuesday, and the bucket's own start
+  const nov5 = Date.UTC(2019, 10, 4, 22); // Tuesday opens Monday at 17:00 NY
   const day = TIMEFRAME_MS["1d"];
 
-  it("names the daily bar by its UTC date, west of UTC too", () => {
+  it("names the daily bar by its closing trading date in every zone", () => {
     // New York is the default zone, and 00:00 UTC there is 19:00 the evening
     // before — which is how Tuesday's candle came to be labelled Monday.
     expect(formatCrosshairLabel(nov5, "exchange", day)).toContain("Nov 05");
@@ -128,7 +128,7 @@ describe("which day a daily bar claims to be", () => {
   });
 
   it("survives the summer offset as well as the winter one", () => {
-    const jul5 = Date.UTC(2019, 6, 5); // New York on UTC-4 here, not UTC-5
+    const jul5 = Date.UTC(2019, 6, 4, 21); // Friday opens Thursday at 17:00 NY
     expect(formatTickMark(jul5, TICK_DAY_OF_MONTH, "exchange", "1d")).toBe("Jul 05");
   });
 });

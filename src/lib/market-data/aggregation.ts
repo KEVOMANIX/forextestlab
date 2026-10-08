@@ -2,10 +2,12 @@
  * Timeframe aggregation for candle data.
  *
  * Aggregates finer-timeframe candles into a coarser timeframe using UTC-aligned
- * buckets. Prices are decimal STRINGS; all numeric comparison and summation is
+ * buckets (daily forex bars close at 17:00 New York). Prices are decimal STRINGS;
+ * all numeric comparison and summation is
  * performed with decimal.js to avoid floating-point error.
  */
 
+import { forexDailyStart, isForexDailyTradingDay } from "./forex-day";
 import { Decimal, d } from "@/lib/decimal";
 import type { Candle, Timeframe } from "@/lib/market-data/types";
 import {
@@ -19,6 +21,7 @@ export function candleBucketStart(
   timestampMs: number,
   timeframe: Timeframe,
 ): number {
+  if (timeframe === "1d") return forexDailyStart(timestampMs);
   const date = new Date(timestampMs);
   if (timeframe === "1w") {
     const daysSinceMonday = (date.getUTCDay() + 6) % 7;
@@ -49,7 +52,8 @@ interface Ohlc {
  * none present); bid*_/_ask* aggregated the same way (open=first, high=max,
  * low=min, close=last) only when present on all candles in a bucket, else
  * omit; source = "aggregated"; UTC boundaries; deterministic; no duplicate
- * output candles; output sorted ascending by timestamp.
+ * output candles; output sorted ascending by timestamp. Daily timestamps are
+ * actual session opens; Sunday evening is part of Monday, with DST respected.
  *
  * Throws when source candles cannot be grouped cleanly on the target's UTC or
  * calendar boundaries.
@@ -58,7 +62,11 @@ export function aggregateCandles(
   base: Candle[],
   from: Timeframe,
   to: Timeframe,
+  dailyAlignment: "forex" | "utc" = "forex",
 ): Candle[] {
+  if (to === "1d" && dailyAlignment === "forex" && from !== "1d" && TIMEFRAME_MS["1h"] % TIMEFRAME_MS[from] !== 0) {
+    throw new Error(`Cannot aggregate ${from} across the New York daily close; use finer candles.`);
+  }
   if (!canAggregateTimeframes(from, to)) {
     throw new Error(
       `Cannot aggregate from "${from}" to "${to}": their candle boundaries are incompatible.`,
@@ -74,7 +82,10 @@ export function aggregateCandles(
   const buckets = new Map<number, Candle[]>();
   const order: number[] = [];
   for (const candle of sorted) {
-    const start = candleBucketStart(candle.timestamp, to);
+    const start = to === "1d" && dailyAlignment === "utc"
+      ? Math.floor(candle.timestamp / TIMEFRAME_MS["1d"]) * TIMEFRAME_MS["1d"]
+      : candleBucketStart(candle.timestamp, to);
+    if (to === "1d" && dailyAlignment === "forex" && !isForexDailyTradingDay(start)) continue;
     const existing = buckets.get(start);
     if (existing) {
       existing.push(candle);

@@ -1,3 +1,4 @@
+import { forexDailyLabelDate } from "../market-data/forex-day";
 import { UTC_ZONE, formatInZone } from "./timezones";
 import { isCalendarTimeframe, TIMEFRAME_MS, type Timeframe } from "../market-data/types";
 
@@ -37,20 +38,12 @@ const CROSSHAIR_TIME: Intl.DateTimeFormatOptions = {
   hour12: false,
 };
 
-/**
- * Which zone a bar of this timeframe should be labelled in.
- *
- * Candles are bucketed on UTC boundaries — a daily bar opens at 00:00 UTC —
- * but the labels were rendered in whatever zone the trader had chosen. West of
- * UTC that pushed the daily bar's own timestamp back into the previous
- * evening, so New York, the default, named Tuesday's daily candle "Mon Nov 04"
- * while the 4h and 1h candles inside it correctly said Tuesday. Weekly was
- * worse: a Monday bucket displayed as Sunday.
- *
- * From a day up, the bar has no meaningful time of day, so it is named by the
- * UTC date that defines it and reads the same in every zone. Intraday bars keep
- * the trader's zone, where the clock is the whole point.
- */
+/** Daily bars use their New York closing date; higher calendar bars retain
+ * their UTC date. Intraday clocks follow the trader's selected timezone. */
+export function barLabelTimestamp(at: number, timeframeMs: number): number {
+  return timeframeMs === TIMEFRAME_MS["1d"] ? forexDailyLabelDate(at) : at;
+}
+
 export function barLabelZone(timeframeMs: number, zone: string): string {
   return timeframeMs >= TIMEFRAME_MS["1d"] ? UTC_ZONE : zone;
 }
@@ -67,6 +60,7 @@ export function formatCrosshairLabel(
   zone: string,
   timeframeMs: number,
 ): string {
+  at = barLabelTimestamp(at, timeframeMs);
   const labelZone = barLabelZone(timeframeMs, zone);
   const date = formatInZone(at, labelZone, CROSSHAIR_DATE);
   if (timeframeMs >= TIMEFRAME_MS["1d"]) return date;
@@ -91,6 +85,7 @@ export function formatTickMark(
   zone: string,
   timeframe: Timeframe,
 ): string {
+  at = barLabelTimestamp(at, TIMEFRAME_MS[timeframe]);
   const labelZone = barLabelZone(TIMEFRAME_MS[timeframe], zone);
   if (timeframe === "1yr") return formatInZone(at, labelZone, YEAR);
   if (isCalendarTimeframe(timeframe)) {

@@ -336,7 +336,7 @@ export async function syncMarketDataToR2(
       const merged = mergeCandles(existing, incoming);
       rollupUpdates = mergeCandles(
         rollupUpdates,
-        aggregateCandles(merged, "1m", "1d"),
+        aggregateCandles(merged, "1m", "1d", "utc"),
       );
       const parquet = await encodeParquet(merged);
       const verified = await decodeParquet(parquet);

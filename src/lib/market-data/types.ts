@@ -1,3 +1,4 @@
+import { isForexDailyTradingDay, nextForexDailyBoundary } from "./forex-day";
 /**
  * Provider-independent market-data types.
  *
@@ -107,8 +108,9 @@ export function canAggregateTimeframes(from: Timeframe, to: Timeframe): boolean 
   return TIMEFRAME_MS[to] > TIMEFRAME_MS[from] && TIMEFRAME_MS[to] % TIMEFRAME_MS[from] === 0;
 }
 
-/** Move by whole candle boundaries, respecting real UTC months and years. */
+/** Move by candle boundaries, respecting New York daily closes and UTC calendar periods. */
 export function nextTimeframeTimestamp(timestampMs: number, timeframe: Timeframe, count = 1): number {
+  if (timeframe === "1d") return nextForexDailyBoundary(timestampMs, count);
   const calendarMonths = calendarMonthsForTimeframe(timeframe);
   if (calendarMonths !== null) {
     const date = new Date(timestampMs);
@@ -126,12 +128,13 @@ export function nextTimeframeTimestamp(timestampMs: number, timeframe: Timeframe
  *
  * Intraday markets reopen Sunday evening. Because candles are UTC-aligned, the
  * first valid boundary is the bucket containing 21:00 UTC (for example 20:00
- * on 4h, 18:00 on 6h). Daily and higher charts use Monday-Friday boundaries.
- * This intentionally models the stable weekly closure rather than a broker's
- * DST-sensitive exact open minute.
+ * on 4h, 18:00 on 6h). Daily bars use New York-close Monday-Friday trading
+ * dates, whose actual opening instant may be Sunday evening.
+ * Intraday boundaries model the stable weekly closure; daily closes include DST.
  */
 export function isForexSessionTimestamp(timestampMs: number, timeframe: Timeframe): boolean {
   if (timeframe === "1w" || isCalendarTimeframe(timeframe)) return true;
+  if (timeframe === "1d") return isForexDailyTradingDay(timestampMs);
   const date = new Date(timestampMs);
   const day = date.getUTCDay();
   if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) return day >= 1 && day <= 5;

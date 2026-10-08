@@ -9,6 +9,7 @@ import {
 import { decompress as decompressZstd } from "fzstd";
 import { parquetReadObjects, type Compressors } from "hyparquet";
 
+import { forexDailyStart, nextForexDailyBoundary } from "@/lib/market-data/forex-day";
 import { aggregateCandles } from "@/lib/market-data/aggregation";
 import { getSymbolDefinition, SYMBOL_DEFINITIONS } from "@/lib/market-data/symbols";
 import type {
@@ -313,8 +314,12 @@ export function completedRollupCandles(
   timeframe: CandleRequest["timeframe"],
   endTime: number,
 ): Candle[] {
+  // This helper serves the legacy UTC daily rollup used by calendar charts.
+  // New York-close daily charts use replaySafeForexDailyFragments below.
   return candles.filter(
-    (candle) => nextTimeframeTimestamp(candle.timestamp, timeframe) <= endTime + 1,
+    (candle) => (timeframe === "1d"
+      ? candle.timestamp + TIMEFRAME_MS["1d"]
+      : nextTimeframeTimestamp(candle.timestamp, timeframe)) <= endTime + 1,
   );
 }
 
@@ -364,6 +369,30 @@ function overlaps(month: StoredMonth, startTime: number, endTime: number): boole
   return monthStart <= endTime && monthEnd >= startTime;
 }
 
+// Small daily summaries keep repeat daily-chart requests fast without retaining
+// years of decoded minute data. Stored UTC rollups cannot supply these OHLCs.
+const forexDailyCache = new Map<string, { expiresAt: number; candles: Candle[] }>();
+
+export function replaySafeForexDailyFragments(daily: Candle[], minutes: Candle[], startTime: number, endTime: number): Candle[] {
+  const completed = daily.filter(c => c.timestamp >= startTime && nextForexDailyBoundary(c.timestamp) <= endTime + 1);
+  const currentStart = forexDailyStart(endTime);
+  const partial = nextForexDailyBoundary(currentStart) <= endTime + 1 ? []
+    : aggregateCandles(minutes.filter(c => c.timestamp >= Math.max(startTime, currentStart) && c.timestamp <= endTime), "1m", "1d");
+  return [...completed, ...partial];
+}
+
+async function readForexDailyMonth(config: R2Config, month: StoredMonth, startTime: number, endTime: number): Promise<Candle[]> {
+  let cached = forexDailyCache.get(month.key);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    cached = { expiresAt: Date.now() + CANDLE_CACHE_TTL_MS, candles: aggregateCandles(await readMonth(config, month), "1m", "1d") };
+    forexDailyCache.set(month.key, cached);
+    if (forexDailyCache.size > 240) forexDailyCache.delete(forexDailyCache.keys().next().value!);
+  }
+  const currentStart = forexDailyStart(endTime);
+  const needsPartial = currentStart >= startTime && nextForexDailyBoundary(currentStart) > endTime + 1 && cached.candles.some(c => c.timestamp === currentStart);
+  return replaySafeForexDailyFragments(cached.candles, needsPartial ? await readMonth(config, month) : [], startTime, endTime);
+}
+
 export class R2ParquetProvider implements MarketDataProvider {
   async getAvailableSymbols(): Promise<MarketSymbol[]> {
     const config = r2Config();
@@ -406,7 +435,10 @@ export class R2ParquetProvider implements MarketDataProvider {
   async getCandles(request: CandleRequest): Promise<Candle[]> {
     if (!getSymbolDefinition(request.symbol) || request.endTime < request.startTime) return [];
     const config = r2Config();
-    if (TIMEFRAME_MS[request.timeframe] >= TIMEFRAME_MS["1d"]) {
+    // Legacy stored daily rollups are UTC-aligned and cannot be split into
+    // New York-close bars without their minute data. Keep them for higher
+    // calendar charts, but build daily charts from the original minute rows.
+    if (TIMEFRAME_MS[request.timeframe] > TIMEFRAME_MS["1d"]) {
       const daily = await readDailyRollup(config, request.symbol);
       if (daily) {
         const selected = daily.filter(
@@ -418,10 +450,22 @@ export class R2ParquetProvider implements MarketDataProvider {
         }
       }
     }
+    const readStart = request.timeframe === "1d" ? forexDailyStart(request.startTime) : request.startTime;
     const months = ((await loadManifest(config)).get(request.symbol) ?? []).filter((month) =>
-      overlaps(month, request.startTime, request.endTime),
+      overlaps(month, readStart, request.endTime),
     );
     if (months.length === 0) return [];
+
+    if (request.timeframe === "1d") {
+      const fragments: Candle[] = [];
+      // Decode one month at a time to bound memory on a cold, long history page.
+      for (const month of months) {
+        fragments.push(...await readForexDailyMonth(config, month, readStart, request.endTime));
+      }
+      // Join a New York trading day split between two monthly source objects.
+      const daily = aggregateCandles(fragments, "1d", "1d");
+      return request.limit === undefined ? daily : daily.slice(0, request.limit);
+    }
 
     const raw: Candle[] = [];
     const aggregatePerMonth = TIMEFRAME_MS[request.timeframe] >= TIMEFRAME_MS["1d"];
@@ -438,7 +482,7 @@ export class R2ParquetProvider implements MarketDataProvider {
       for (const candles of decoded) {
         const selected = candles.filter(
           (candle) =>
-            candle.timestamp >= request.startTime && candle.timestamp <= request.endTime,
+            candle.timestamp >= readStart && candle.timestamp <= request.endTime,
         );
         if (aggregatePerMonth) {
           // A five-year monthly-chart page can span millions of minute rows.

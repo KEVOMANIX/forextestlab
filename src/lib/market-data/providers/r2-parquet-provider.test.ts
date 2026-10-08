@@ -4,10 +4,26 @@ import {
   completedRollupCandles,
   parquetRowsToCandles,
   replaySafeDailyRollup,
+  replaySafeForexDailyFragments,
 } from "./r2-parquet-provider";
 
 const OHLC = { open: 1, high: 2, low: 0.5, close: 1.5 };
 const INSTANT_MS = Date.parse("2024-01-15T10:30:00Z");
+
+describe("New York daily summaries", () => {
+  it("rebuilds the current day from revealed minutes instead of its cached full OHLC", () => {
+    const start = Date.parse("2025-08-03T21:00:00Z");
+    const make = (timestamp: number, high: number) => parquetRowsToCandles([{ timestamp, ...OHLC, high }])[0]!;
+    const cutoff = start + 60_000;
+    const result = replaySafeForexDailyFragments([make(start, 999)], [make(start, 2), make(cutoff, 3), make(cutoff + 60_000, 999)], start, cutoff);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.high).toBe("3");
+    expect(result[0]?.timestamp).toBe(start);
+    expect(replaySafeForexDailyFragments([make(start, 999)], [], start, Date.parse("2025-08-04T21:00:00Z") - 1)[0]?.high).toBe("999");
+    // A closed cached day must not be counted again as a partial day.
+    expect(replaySafeForexDailyFragments([make(start, 999)], [make(start, 2)], start, Date.parse("2025-08-04T21:00:00Z") - 1)).toHaveLength(1);
+  });
+});
 
 describe("parquetRowsToCandles timestamp conversion", () => {
   it.each([

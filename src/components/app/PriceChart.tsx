@@ -61,7 +61,7 @@ import {
 
 import { formatInZone, resolveZone } from "@/lib/chart/timezones";
 import { zoneParts, zoneWallClockToUtc } from "@/lib/backtest/goto";
-import { barLabelZone, formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
+import { barLabelTimestamp, barLabelZone, formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
   TIMEFRAMES,
@@ -4515,7 +4515,7 @@ export default function PriceChart({
                   <>
                     <span className="text-[var(--chart-muted)]">
                       {formatInZone(
-                        legend.at,
+                        barLabelTimestamp(legend.at, TIMEFRAME_MS[displayTimeframe]),
                         barLabelZone(TIMEFRAME_MS[displayTimeframe], settings.timeZone),
                         TIMEFRAME_MS[displayTimeframe] >= TIMEFRAME_MS["1d"]
                           ? LEGEND_DATE_ONLY

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
 import { fetchChartData } from "@/lib/chart/fetch-data";
 import { X } from "lucide-react";
 import { AXIS_FONT_SIZES, PRICE_AXIS_TICK_DENSITY } from "@/lib/chart/axis-layout";
@@ -64,7 +66,7 @@ export function TradeReviewChartModal({ sessionId, record, onClose }: { sessionI
       </header>
       {sessionId && <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b app-border px-4 py-2" role="group" aria-label="Review chart controls">{REVIEW_TIMEFRAMES.map((value) => <button key={value} type="button" onClick={() => setTimeframe(value)} aria-pressed={timeframe === value} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${timeframe === value ? "bg-brand-500 text-surface-950" : "app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"}`}>{value}</button>)}<span className="mx-2 h-5 w-px shrink-0 bg-white/10" /><button type="button" onClick={() => setShowTradeLevels((visible) => !visible)} disabled={timeframe === "1d"} aria-pressed={timeframe !== "1d" && showTradeLevels} title={timeframe === "1d" ? "Trade level lines are hidden on the daily timeframe" : "Show or hide entry, stop, target, and exit lines"} className={`shrink-0 rounded-md border app-border px-3 py-1.5 text-xs font-semibold ${timeframe !== "1d" && showTradeLevels ? "bg-white/[0.08] text-[var(--app-text)]" : "app-muted"} disabled:cursor-not-allowed disabled:opacity-45`}>Trade levels {timeframe !== "1d" && showTradeLevels ? "on" : "off"}</button></div>}
       <div className="min-h-0 flex-1 overflow-auto p-3 sm:p-5">
-        {sessionId ? <InteractiveReviewChart key={`${timeframe}-${theme}`} theme={theme} candles={marketCandles ?? []} record={record} loading={loading} error={error} showTradeLevels={showTradeLevels && timeframe !== "1d"} /> : candles.length ? <div className="min-w-[760px] overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/45"><svg viewBox={`0 0 ${width} ${height}`} className="h-[min(62vh,650px)] w-full" role="img" aria-label="Candlestick chart with original position and actual exit">
+        {sessionId ? <InteractiveReviewChart key={`${timeframe}-${theme}`} theme={theme} timeframe={timeframe} candles={marketCandles ?? []} record={record} loading={loading} error={error} showTradeLevels={showTradeLevels && timeframe !== "1d"} /> : candles.length ? <div className="min-w-[760px] overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/45"><svg viewBox={`0 0 ${width} ${height}`} className="h-[min(62vh,650px)] w-full" role="img" aria-label="Candlestick chart with original position and actual exit">
           {[0.2, 0.4, 0.6, 0.8].map((ratio) => <line key={ratio} x1="0" x2={plotRight} y1={height * ratio} y2={height * ratio} stroke="rgba(148,163,184,.10)" />)}
           {stopY !== null && <rect x={tradeX1} y={Math.min(entryY, stopY)} width={Math.max(3, tradeX2 - tradeX1)} height={Math.abs(stopY - entryY)} fill="rgba(240,91,103,.13)" />}
           {targetY !== null && <rect x={tradeX1} y={Math.min(entryY, targetY)} width={Math.max(3, tradeX2 - tradeX1)} height={Math.abs(targetY - entryY)} fill="rgba(34,197,94,.13)" />}
@@ -84,7 +86,7 @@ export function TradeReviewChartModal({ sessionId, record, onClose }: { sessionI
   </div>;
 }
 
-function InteractiveReviewChart({ candles, record, loading, error, showTradeLevels, theme }: { candles: Candle[]; record: ReviewRecord; loading: boolean; error: string | null; showTradeLevels: boolean; theme: "dark" | "light" }) {
+function InteractiveReviewChart({ candles, record, loading, error, showTradeLevels, theme, timeframe }: { timeframe: Timeframe; candles: Candle[]; record: ReviewRecord; loading: boolean; error: string | null; showTradeLevels: boolean; theme: "dark" | "light" }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const riskRef = useRef<HTMLDivElement | null>(null);
   const rewardRef = useRef<HTMLDivElement | null>(null);
@@ -97,13 +99,13 @@ function InteractiveReviewChart({ candles, record, loading, error, showTradeLeve
     const storageKey = container.closest<HTMLElement>("[data-review-session]")?.dataset.reviewSession ?? "";
     try { saved = JSON.parse(window.localStorage.getItem(`forextestlab:chart-settings:${storageKey}`) ?? "{}"); } catch { /* use defaults */ }
     const up = saved.upColor ?? "#22c55e"; const down = saved.downColor ?? "#f05b67"; const background = saved.background && saved.background !== "auto" ? saved.background : theme === "light" ? "#f7faf8" : "#14231e"; const grid = saved.grid !== false ? theme === "light" ? "rgba(16,35,28,.08)" : "rgba(170,200,188,.08)" : "transparent";
-    const crosshairTime = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+    const timeMs = (time: Time) => typeof time === "number" ? time * 1000 : typeof time === "string" ? Date.parse(`${time}T00:00:00Z`) : Date.UTC(time.year, time.month - 1, time.day);
     const chartBorder = theme === "light" ? "rgba(16,35,28,.16)" : "rgba(170,200,188,.18)";
-    const chart = createChart(container, { autoSize: true, layout: { background: { type: ColorType.Solid, color: background }, textColor: theme === "light" ? "#52675f" : "#aac8bc", fontFamily: "inherit", fontSize: saved.chartTextSize === "large" ? AXIS_FONT_SIZES.large : saved.chartTextSize === "small" ? AXIS_FONT_SIZES.small : AXIS_FONT_SIZES.medium }, grid: { vertLines: { color: grid }, horzLines: { color: grid } }, rightPriceScale: { borderColor: chartBorder, tickMarkDensity: PRICE_AXIS_TICK_DENSITY, ticksVisible: true, scaleMargins: { top: .12, bottom: .08 } }, timeScale: { borderColor: chartBorder, tickMarkMaxCharacterLength: 6, borderVisible: true, ticksVisible: true, timeVisible: true, secondsVisible: false, barSpacing: 10, rightOffset: 4, minBarSpacing: 2 }, localization: { timeFormatter: (time: Time) => crosshairTime.format(new Date(typeof time === "number" ? time * 1000 : typeof time === "string" ? `${time}T00:00:00Z` : Date.UTC(time.year, time.month - 1, time.day))) }, crosshair: { mode: CrosshairMode.Normal }, handleScroll: true, handleScale: true });
+    const chart = createChart(container, { autoSize: true, layout: { background: { type: ColorType.Solid, color: background }, textColor: theme === "light" ? "#52675f" : "#aac8bc", fontFamily: "inherit", fontSize: saved.chartTextSize === "large" ? AXIS_FONT_SIZES.large : saved.chartTextSize === "small" ? AXIS_FONT_SIZES.small : AXIS_FONT_SIZES.medium }, grid: { vertLines: { color: grid }, horzLines: { color: grid } }, rightPriceScale: { borderColor: chartBorder, tickMarkDensity: PRICE_AXIS_TICK_DENSITY, ticksVisible: true, scaleMargins: { top: .12, bottom: .08 } }, timeScale: { borderColor: chartBorder, tickMarkMaxCharacterLength: timeframeTickMarkMaxCharacters(timeframe), tickMarkFormatter: (time: Time, type: number) => formatTickMark(timeMs(time), type, "America/New_York", timeframe), borderVisible: true, ticksVisible: true, timeVisible: timeframe !== "1d", secondsVisible: false, barSpacing: 10, rightOffset: 4, minBarSpacing: 2 }, localization: { timeFormatter: (time: Time) => formatCrosshairLabel(timeMs(time), "America/New_York", TIMEFRAME_MS[timeframe]) }, crosshair: { mode: CrosshairMode.Normal }, handleScroll: true, handleScale: true });
     const series = chart.addSeries(CandlestickSeries, { upColor: up, downColor: down, wickUpColor: up, wickDownColor: down, borderVisible: false });
     chartRef.current = chart; seriesRef.current = series;
     return () => { chart.remove(); chartRef.current = null; seriesRef.current = null; };
-  }, [theme]);
+  }, [theme, timeframe]);
   useEffect(() => {
     const chart = chartRef.current; const series = seriesRef.current;
     if (!chart || !series || !candles.length) return;

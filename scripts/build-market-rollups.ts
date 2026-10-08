@@ -62,7 +62,7 @@ async function main() {
         compressors: { ZSTD: (input) => decompressZstd(input) },
         columns: COLUMNS,
       });
-      daily = mergeCandles(daily, aggregateCandles(rowsToCandles(rows), "1m", "1d"));
+      daily = mergeCandles(daily, aggregateCandles(rowsToCandles(rows), "1m", "1d", "utc"));
     }
     if (!daily.length) {
       console.warn(`${symbol}: no valid candles; skipped.`);

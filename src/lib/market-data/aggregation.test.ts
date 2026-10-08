@@ -24,8 +24,8 @@ describe("forex session timestamps", () => {
   });
 
   it("daily candles continue from Friday to Monday", () => {
-    const friday = Date.UTC(2025, 7, 1);
-    expect(nextForexTimeframeTimestamp(friday, "1d")).toBe(Date.UTC(2025, 7, 4));
+    const friday = Date.UTC(2025, 6, 31, 21);
+    expect(nextForexTimeframeTimestamp(friday, "1d")).toBe(Date.UTC(2025, 7, 3, 21));
   });
 
   it("walks backward across the closure too", () => {
@@ -81,8 +81,8 @@ describe("aggregation provenance", () => {
 });
 
 describe("candleBucketStart", () => {
-  it("floors fixed intraday and daily timeframes to UTC-aligned starts", () => {
-    const fixed = TIMEFRAMES.filter((tf) => tf !== "1w" && !isCalendarTimeframe(tf));
+  it("floors fixed intraday timeframes to UTC-aligned starts", () => {
+    const fixed = TIMEFRAMES.filter((tf) => tf !== "1w" && tf !== "1d" && !isCalendarTimeframe(tf));
     for (const tf of fixed) {
       const size = TIMEFRAME_MS[tf];
       // A timestamp partway through the second bucket of the day.
@@ -288,12 +288,13 @@ describe("aggregateCandles - larger single-bucket aggregations", () => {
   });
 
   it("aggregates 1h -> 1d (24 candles)", () => {
-    const base = genIntCandles(24, HOUR);
+    const start = Date.UTC(2023, 11, 31, 22);
+    const base = genIntCandles(24, HOUR).map(c => ({ ...c, timestamp: c.timestamp - DAY + start }));
     const out = aggregateCandles(base, "1h", "1d");
     expect(out).toHaveLength(1);
     const c = out[0];
     if (!c) throw new Error("missing candle");
-    expect(c.timestamp).toBe(DAY);
+    expect(c.timestamp).toBe(start);
     expect(c.open).toBe("500");
     expect(c.close).toBe("623");
     expect(c.high).toBe("1023");
@@ -303,12 +304,13 @@ describe("aggregateCandles - larger single-bucket aggregations", () => {
 
   it("aggregates 5m -> 1d (288 candles)", () => {
     const step = TIMEFRAME_MS["5m"];
-    const base = genIntCandles(288, step);
+    const start = Date.UTC(2023, 11, 31, 22);
+    const base = genIntCandles(288, step).map(c => ({ ...c, timestamp: c.timestamp - DAY + start }));
     const out = aggregateCandles(base, "5m", "1d");
     expect(out).toHaveLength(1);
     const c = out[0];
     if (!c) throw new Error("missing candle");
-    expect(c.timestamp).toBe(DAY);
+    expect(c.timestamp).toBe(start);
     expect(c.open).toBe("500");
     expect(c.close).toBe("887");
     expect(c.high).toBe("1287");
@@ -463,7 +465,8 @@ describe("aggregateCandles - invalid timeframe pairs", () => {
   });
 
   it("does not throw for valid coarser targets", () => {
-    expect(() => aggregateCandles([], "4h", "1d")).not.toThrow(); // 24 / 4 = 6
+    expect(() => aggregateCandles([], "4h", "1d")).toThrow(); // 4h bars cross the NY close
+    expect(() => aggregateCandles([], "4h", "1d", "utc")).not.toThrow();
     expect(() => aggregateCandles([], "1m", "1d")).not.toThrow();
     expect(() => aggregateCandles([], "1h", "1h")).not.toThrow();
     expect(() => aggregateCandles([], "1m", "1yr")).not.toThrow();

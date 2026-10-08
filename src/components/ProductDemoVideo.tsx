@@ -10,7 +10,7 @@ export function ProductDemoVideo({
   priority = false,
   mobileZoom = false,
 }: {
-  webm: string;
+  webm?: string;
   mp4: string;
   poster: string;
   alt: string;
@@ -35,7 +35,7 @@ export function ProductDemoVideo({
         poster={poster}
         aria-label={alt}
       >
-        <source src={webm} type="video/webm" />
+        {webm && <source src={webm} type="video/webm" />}
         <source src={mp4} type="video/mp4" />
       </video>
       <Image

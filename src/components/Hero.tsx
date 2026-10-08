@@ -32,7 +32,7 @@ function ScreenFrame({
   mobileZoom?: boolean;
   width?: number;
   height?: number;
-  video?: { webm: string; mp4: string; poster: string };
+  video?: { webm?: string; mp4: string; poster: string };
 }) {
   return (
     <div
@@ -207,12 +207,11 @@ export function Hero() {
               priority
               imageIncludesChrome
               mobileZoom
-              width={1905}
-              height={945}
+              width={1906}
+              height={946}
               video={{
-                webm: "/product/market-replay-demo.webm",
-                mp4: "/product/market-replay-demo.mp4",
-                poster: "/product/market-replay-20261008.webp",
+                mp4: "/product/market-replay-20261008.mp4",
+                poster: "/product/market-replay-video-20261008.webp",
               }}
             />
 

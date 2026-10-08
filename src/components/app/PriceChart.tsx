@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AXIS_FONT_SIZES, PRICE_AXIS_TICK_DENSITY } from "@/lib/chart/axis-layout";
 import { createPortal, flushSync } from "react-dom";
 import {
   Activity,
@@ -415,26 +416,11 @@ const PALETTES: Record<"dark" | "light", Palette> = {
 };
 
 /**
- * Axis type size, in px, per `chartTextSize` preference.
- *
- * "medium" is the default and is deliberately a step above the charting
- * library's own default of 12: these labels are read at a glance, from further
- * back than form copy, and often over a busy plot.
- */
-const AXIS_FONT_SIZES: Record<ChartTextSize, number> = {
-  small: 14,
-  medium: 16,
-  large: 18,
-};
-
-/**
  * Base size for the HTML overlays (legend, OHLC readout, indicator chips).
- *
- * One px under the axis so the chrome never shouts louder than the scale, and
- * the single number every overlay sizes itself against in `em`.
+ * Keep these readable independently of the compact scale labels.
  */
 function overlayFontSize(size: ChartTextSize): number {
-  return AXIS_FONT_SIZES[size] - 1;
+  return { small: 13, medium: 15, large: 17 }[size];
 }
 
 const BULL = "#22c55e";
@@ -2216,6 +2202,8 @@ export default function PriceChart({
       grid: { vertLines: { color: palette.grid }, horzLines: { color: palette.grid } },
       rightPriceScale: {
         borderColor: palette.border,
+        tickMarkDensity: PRICE_AXIS_TICK_DENSITY,
+        ticksVisible: true,
         entireTextOnly: true,
         scaleMargins: { top: 0.12, bottom: 0.08 },
       },
@@ -2568,7 +2556,7 @@ export default function PriceChart({
         },
       },
       grid: { vertLines: { color: gridVisible ? palette.grid : "transparent" }, horzLines: { color: gridVisible ? palette.grid : "transparent" } },
-      rightPriceScale: { borderColor: palette.border, entireTextOnly: true },
+      rightPriceScale: { borderColor: palette.border, entireTextOnly: true, tickMarkDensity: PRICE_AXIS_TICK_DENSITY, ticksVisible: true },
       timeScale: { borderColor: palette.border },
       crosshair: {
         mode: drawTool != null

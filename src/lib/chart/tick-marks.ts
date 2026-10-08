@@ -117,11 +117,12 @@ export function formatTickMark(
 }
 
 /**
- * Lightweight Charts otherwise reserves eight characters per label. Matching
- * the reservation to the labels actually used lets it place more useful ticks.
+ * Lightweight Charts estimates character width conservatively. These compact
+ * reservations still fit our 24-hour/date labels at the axis font sizes and
+ * leave enough room for more ticks.
  */
 export function timeframeTickMarkMaxCharacters(timeframe: Timeframe): number {
   if (isCalendarTimeframe(timeframe)) return 4;
-  if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) return 6;
-  return 5;
+  if (TIMEFRAME_MS[timeframe] >= TIMEFRAME_MS["1d"]) return 5;
+  return 4;
 }

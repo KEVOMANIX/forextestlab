@@ -59,9 +59,9 @@ describe("formatTickMark", () => {
   });
 
   it("reserves less axis width for shorter timeframe labels", () => {
-    expect(timeframeTickMarkMaxCharacters("1m")).toBe(5);
-    expect(timeframeTickMarkMaxCharacters("12h")).toBe(5);
-    expect(timeframeTickMarkMaxCharacters("1d")).toBe(6);
+    expect(timeframeTickMarkMaxCharacters("1m")).toBe(4);
+    expect(timeframeTickMarkMaxCharacters("12h")).toBe(4);
+    expect(timeframeTickMarkMaxCharacters("1d")).toBe(5);
     expect(timeframeTickMarkMaxCharacters("1M")).toBe(4);
     expect(timeframeTickMarkMaxCharacters("3M")).toBe(4);
     expect(timeframeTickMarkMaxCharacters("4M")).toBe(4);

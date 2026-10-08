@@ -46,7 +46,7 @@ export interface CalendarQuery {
  * A hard ceiling. The visible window on a monthly chart is twenty years, which
  * is six figures' worth of releases; the axis has room for a few dozen badges.
  */
-export const MAX_CALENDAR_EVENTS = 1500;
+export const MAX_CALENDAR_EVENTS = 10_000;
 
 /**
  * Cloudflare does not cache this JSON route by default, even when the response

@@ -10,6 +10,7 @@ import {
   type MarketSymbol,
   type Timeframe,
 } from "@/lib/market-data/types";
+import { fetchChartData } from "@/lib/chart/fetch-data";
 import type { PropFirmRules } from "./prop-firm";
 import type { PublicSessionState, ReplaySpeed } from "./types";
 import type { ActionInput } from "./schemas";
@@ -317,16 +318,14 @@ export async function getPairChart(
   after?: number,
   at?: number,
 ): Promise<({ ok: true } & PairChartData) | ApiErr> {
-  const res = await fetch(
-    `/api/backtest/sessions/${sessionId}/pair?symbol=${encodeURIComponent(symbol)}${full ? "&full=1" : ""}${after == null ? "" : `&after=${after}`}${at == null ? "" : `&at=${at}`}`,
-    {
-      cache: "no-store",
-      headers: token ? { "x-session-token": token } : undefined,
-    },
-  );
-  return parse<{ ok: true } & PairChartData>(res) as Promise<
-    ({ ok: true } & PairChartData) | ApiErr
-  >;
+  try {
+    return await fetchChartData<({ ok: true } & PairChartData) | ApiErr>(
+      `/api/backtest/sessions/${sessionId}/pair?symbol=${encodeURIComponent(symbol)}${full ? "&full=1" : ""}${after == null ? "" : `&after=${after}`}${at == null ? "" : `&at=${at}`}`,
+      { headers: token ? { "x-session-token": token } : undefined },
+    );
+  } catch {
+    return { ok: false, error: "Chart data could not be loaded after retrying. Please try again." };
+  }
 }
 
 /** Widen a running session's chartable symbols. Returns the new symbol list. */
@@ -360,31 +359,16 @@ export async function getChartHistory(
   before: number,
 ): Promise<({ ok: true } & ChartHistoryPage) | ApiErr> {
   const query = new URLSearchParams({ symbol, timeframe, before: String(before) });
-  const controller = new AbortController();
-  /*
-   * A restored multi-chart workspace can ask R2 for several independently
-   * aggregated history windows at once.  The data is valid, but a cold cache
-   * can take longer than the short request timeout that is appropriate for a
-   * normal replay action.  Aborting it used to make a pane accept an empty
-   * context page and render only its first revealed candle.
-   */
-  const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
-    const res = await fetch(`/api/backtest/sessions/${sessionId}/context?${query}`, {
-      cache: "no-store",
-      headers: token ? { "x-session-token": token } : undefined,
-      signal: controller.signal,
-    });
-    return parse<{ ok: true } & ChartHistoryPage>(res) as Promise<
-      ({ ok: true } & ChartHistoryPage) | ApiErr
-    >;
+    return await fetchChartData<({ ok: true } & ChartHistoryPage) | ApiErr>(
+      `/api/backtest/sessions/${sessionId}/context?${query}`,
+      { headers: token ? { "x-session-token": token } : undefined },
+    );
   } catch {
     return {
       ok: false,
-      error: "Chart history took too long to load. The visible replay data is still available.",
+      error: "Chart history could not be loaded after retrying. The visible replay data is still available.",
     };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

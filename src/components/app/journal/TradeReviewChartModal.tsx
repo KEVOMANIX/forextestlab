@@ -1,5 +1,6 @@
 "use client";
 
+import { fetchChartData } from "@/lib/chart/fetch-data";
 import { X } from "lucide-react";
 import { AXIS_FONT_SIZES, PRICE_AXIS_TICK_DENSITY } from "@/lib/chart/axis-layout";
 import { CandlestickSeries, ColorType, CrosshairMode, LineStyle, createChart, createSeriesMarkers, type IChartApi, type ISeriesApi, type Time, type UTCTimestamp } from "lightweight-charts";
@@ -24,8 +25,8 @@ export function TradeReviewChartModal({ sessionId, record, onClose }: { sessionI
     if (!sessionId) return;
     const controller = new AbortController();
     setMarketCandles(null); setLoading(true); setError(null);
-    fetch(`/api/backtest/sessions/${encodeURIComponent(sessionId)}/trade-chart?journalId=${encodeURIComponent(record.journalId)}&timeframe=${timeframe}`, { signal: controller.signal })
-      .then(async (response) => { const data = await response.json() as { ok: boolean; candles?: Candle[]; error?: string }; if (!response.ok || !data.ok) throw new Error(data.error ?? "Chart data could not be loaded."); setMarketCandles(data.candles ?? []); })
+    fetchChartData<{ ok: boolean; candles?: Candle[]; error?: string }>(`/api/backtest/sessions/${encodeURIComponent(sessionId)}/trade-chart?journalId=${encodeURIComponent(record.journalId)}&timeframe=${timeframe}`, { signal: controller.signal })
+      .then((data) => { if (!data.ok) throw new Error(data.error ?? "Chart data could not be loaded."); setMarketCandles(data.candles ?? []); })
       .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Chart data could not be loaded."); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();

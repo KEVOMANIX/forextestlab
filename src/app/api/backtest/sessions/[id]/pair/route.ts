@@ -34,6 +34,15 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const after = afterParam == null ? undefined : Number(afterParam);
   const clockParam = query.get("at");
   const clock = clockParam == null ? undefined : Number(clockParam);
+  const allowed = session.ctx.state.config.symbols?.length
+    ? session.ctx.state.config.symbols
+    : [session.ctx.state.config.symbol];
+  if (!allowed.includes(symbol)) {
+    return NextResponse.json({ ok: false, error: "This pair is not part of the session." }, { status: 422 });
+  }
+  if (!getSymbolDefinition(symbol)) {
+    return NextResponse.json({ ok: false, error: "Unknown currency pair." }, { status: 422 });
+  }
   try {
     const pair = await visiblePairCandles(
       session,
@@ -46,7 +55,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Pair unavailable." },
-      { status: 400 },
+      { status: 503 },
     );
   }
 }

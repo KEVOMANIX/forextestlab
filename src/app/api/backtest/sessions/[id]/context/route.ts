@@ -25,13 +25,19 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   if (!isTimeframe(timeframe) || !Number.isFinite(before)) {
     return NextResponse.json({ ok: false, error: "Invalid history request." }, { status: 422 });
   }
+  const allowed = session.ctx.state.config.symbols?.length
+    ? session.ctx.state.config.symbols
+    : [session.ctx.state.config.symbol];
+  if (!allowed.includes(symbol)) {
+    return NextResponse.json({ ok: false, error: "This pair is not part of the session." }, { status: 422 });
+  }
   try {
     const page = await getChartContextPage(session, symbol, timeframe, before);
     return NextResponse.json({ ok: true, timeframe, ...page });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "History could not be loaded." },
-      { status: 400 },
+      { status: 503 },
     );
   }
 }

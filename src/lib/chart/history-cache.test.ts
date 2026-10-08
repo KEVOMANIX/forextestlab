@@ -19,6 +19,23 @@ describe("shared chart history cache", () => {
     expect(chartHistoryKey("session-1:EURUSD", "1M")).toBe("v2:session-1:EURUSD:1M");
   });
 
+  it("never merges UTC-midnight daily cache rows into New York-close history", async () => {
+    const storage = `migration-${Date.now()}:EURUSD`;
+    const legacyKey = `v2:${storage}:1d`;
+    const currentKey = chartHistoryKey(storage, "1d");
+    expect(currentKey).not.toBe(legacyKey);
+    const midnight = candle(Date.parse("2025-08-04T00:00:00Z"));
+    const nyOpen = candle(Date.parse("2025-08-03T21:00:00Z"));
+    await publishChartHistory(legacyKey, [midnight], true);
+    const listener = vi.fn();
+    const stop = subscribeChartHistory(currentKey, listener);
+    await publishChartHistory(currentKey, [nyOpen], true);
+    expect(listener).toHaveBeenLastCalledWith({ candles: [nyOpen], hasMore: true });
+    await publishChartHistory(legacyKey, [midnight], false);
+    expect(listener).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
   it("merges pages and updates every matching chart subscriber", async () => {
     const key = chartHistoryKey(`session-${Date.now()}:EURUSD`, "1d");
     const firstChart = vi.fn();

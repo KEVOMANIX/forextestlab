@@ -62,6 +62,7 @@ import {
 import { formatInZone, resolveZone } from "@/lib/chart/timezones";
 import { zoneParts, zoneWallClockToUtc } from "@/lib/backtest/goto";
 import { barLabelTimestamp, barLabelZone, formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
+import { historyBeforeReplay, mergeOpeningHistoryBucket } from "@/lib/chart/opening-history";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
   TIMEFRAMES,
@@ -492,23 +493,6 @@ function joinTimeline(history: Candle[], replay: OHLCV[]): OHLCV[] {
   const boundary = replay[0]?.time;
   const prefix = history.map(toOHLCV);
   return (boundary == null ? prefix : prefix.filter((candle) => candle.time < boundary)).concat(replay);
-}
-
-/** Join the safely revealed pre-session part of an open week/month. */
-function mergeOpeningHistoryBucket(history: Candle[], replay: OHLCV[]): OHLCV[] {
-  const first = replay[0];
-  const prior = history.at(-1);
-  if (!first || !prior || Math.floor(prior.timestamp / 1000) !== first.time) return replay;
-  const volume = prior.volume === undefined && first.volume === undefined
-    ? undefined
-    : Number(prior.volume ?? 0) + (first.volume ?? 0);
-  return [{
-    ...first,
-    open: Number(prior.open),
-    high: Math.max(Number(prior.high), first.high),
-    low: Math.min(Number(prior.low), first.low),
-    volume,
-  }, ...replay.slice(1)];
 }
 
 /** Colour options for a price series of the given type. */
@@ -1120,6 +1104,9 @@ export default function PriceChart({
    */
   const resetViewIdentityRef = useRef<string | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
+  // Keep the trusted pre-replay fragment even when shared-cache safety checks
+  // discard a still-open daily bucket. It is valid only for this replay start.
+  const openingHistoryRef = useRef<{ candle: Candle; replayStart: number; timeframe: Timeframe } | null>(null);
   const historyTimeframeRef = useRef<Timeframe>(initialTimeframe ?? baseTimeframe);
   const historyLoadingRef = useRef(false);
   const [initialHistoryPending, setInitialHistoryPending] = useState(
@@ -1310,7 +1297,7 @@ export default function PriceChart({
       setHasOlderHistory(snapshot.hasMore || discardedIslands);
       drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
       if (contextSeriesRef.current) {
-        applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
+        renderContextSeries();
       }
       drawingEngineRef.current?.setEnv({
         timeframe: displayTimeframeRef.current,
@@ -1353,6 +1340,11 @@ export default function PriceChart({
       // Timeframe buttons can be clicked again while this request is in flight.
       // Never apply 15m history to a chart that has already moved to 1h/4h.
       if (requestId !== historyRequestRef.current || requestedTimeframe !== displayTimeframeRef.current) return;
+      if (replace && firstReplayTime !== undefined && requestedTimeframe === "1d") {
+        const bucket = candleBucketStart(firstReplayTime, requestedTimeframe);
+        const candle = page.candles.find(c => c.timestamp === bucket);
+        openingHistoryRef.current = candle ? { candle, replayStart: firstReplayTime, timeframe: requestedTimeframe } : null;
+      }
       const existing = replace ? [] : historyCandlesRef.current;
       const byTime = new Map<number, Candle>();
       for (const candle of [...page.candles, ...existing]) byTime.set(candle.timestamp, candle);
@@ -1362,7 +1354,7 @@ export default function PriceChart({
       drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
       historyHasMoreRef.current = page.hasMore;
       setHasOlderHistory(page.hasMore);
-      if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, merged.map(toOHLCV));
+      renderContextSeries();
       drawingEngineRef.current?.setEnv({
         timeframe: displayTimeframeRef.current,
         candles: drawingCandlesRef.current,
@@ -1703,16 +1695,26 @@ export default function PriceChart({
     }
   }
 
+  function renderContextSeries() {
+    if (!contextSeriesRef.current) return;
+    applyData(contextSeriesRef.current, chartTypeRef.current,
+      historyBeforeReplay(historyCandlesRef.current, displayRef.current).map(toOHLCV));
+  }
+
   function renderMain(force = false) {
     const startedAt = performance.now();
     const series = seriesRef.current;
     if (!series) return;
     const replayDisplay = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
-    const display = TIMEFRAME_MS[displayTimeframeRef.current] > TIMEFRAME_MS["1d"]
-      ? mergeOpeningHistoryBucket(historyCandlesRef.current, replayDisplay)
+    const opening = openingHistoryRef.current;
+    const openingHistory = opening && opening.timeframe === displayTimeframeRef.current && opening.replayStart === rawCandlesRef.current[0]?.timestamp
+      ? [opening.candle] : historyCandlesRef.current;
+    const display = TIMEFRAME_MS[displayTimeframeRef.current] >= TIMEFRAME_MS["1d"]
+      ? mergeOpeningHistoryBucket(openingHistory, replayDisplay)
       : replayDisplay;
     const previous = displayRef.current;
     displayRef.current = display;
+    if (force || previous[0]?.time !== display[0]?.time) renderContextSeries();
     syncFutureTimeScale(display.at(-1)?.time);
     /*
      * Indicators are calculated over the loaded history as well as the revealed
@@ -2175,7 +2177,7 @@ export default function PriceChart({
     if (!chart) return;
     const palette = PALETTES[theme];
     const context = addPriceSeries(chart, type, palette, precision, true);
-    applyData(context, type, historyCandlesRef.current.map(toOHLCV));
+    applyData(context, type, historyBeforeReplay(historyCandlesRef.current, displayRef.current).map(toOHLCV));
     contextSeriesRef.current = context;
     const main = addPriceSeries(chart, type, palette, precision, false);
     seriesRef.current = main;
@@ -2824,7 +2826,7 @@ export default function PriceChart({
       historyCandlesRef.current = contextCandles;
       historyTimeframeRef.current = displayTimeframe;
       historyHasMoreRef.current = true;
-      if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, contextCandles.map(toOHLCV));
+      renderContextSeries();
       setHistoryLoading(false);
       setInitialHistoryPending(false);
     } else {

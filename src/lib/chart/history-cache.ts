@@ -19,6 +19,9 @@ export function chartHistoryKey(
   storageKey: string,
   timeframe: Timeframe,
 ): string {
+  // UTC-midnight daily bars and New York-close bars have different timestamps.
+  // Merging both cache generations produces two candles for one trading day.
+  if (timeframe === "1d") return `v3-ny-close:${storageKey}:${timeframe}`;
   // v2 discards pages written before replay-safe partial week/month rollups.
   return `v2:${storageKey}:${timeframe}`;
 }

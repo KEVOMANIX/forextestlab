@@ -173,9 +173,11 @@ export function Hero() {
             className="absolute -left-[4%] top-[14%] hidden w-[46%] lg:block"
           >
             <ScreenFrame
-              src="/product/session-dashboard-20260814.webp"
+              src="/product/session-dashboard-20261008.webp"
               alt=""
               label="Session dashboard"
+              width={1470}
+              height={735}
               className="dimension-stage-left opacity-60"
             />
           </div>
@@ -184,9 +186,11 @@ export function Hero() {
             className="absolute -right-[4%] top-[14%] hidden w-[46%] lg:block"
           >
             <ScreenFrame
-              src="/product/session-analytics-20260814.webp"
+              src="/product/session-analytics-20261008.webp"
               alt=""
               label="Session analytics"
+              width={1470}
+              height={765}
               className="dimension-stage-right opacity-60"
             />
           </div>
@@ -197,18 +201,18 @@ export function Hero() {
               className="absolute -inset-10 -z-10 rounded-[3rem] bg-brand-400/[0.12] blur-[70px]"
             />
             <ScreenFrame
-              src="/product/market-replay-20260814-v2.webp"
+              src="/product/market-replay-20261008.webp"
               alt="ForexTestLab historical market replay terminal with candlestick chart, positions, execution controls, and session metrics"
               label="Market replay terminal"
               priority
               imageIncludesChrome
               mobileZoom
-              width={1786}
-              height={880}
+              width={1905}
+              height={945}
               video={{
                 webm: "/product/market-replay-demo.webm",
                 mp4: "/product/market-replay-demo.mp4",
-                poster: "/product/market-replay-demo-poster.jpg",
+                poster: "/product/market-replay-20261008.webp",
               }}
             />
 

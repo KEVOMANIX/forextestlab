@@ -9,6 +9,7 @@
  */
 
 import "server-only";
+import { historyCutoff } from "./history-cutoff";
 
 import { randomUUID } from "node:crypto";
 
@@ -419,7 +420,14 @@ export async function getChartContextPage(
   // The context endpoint is read-only but still must not reveal future replay
   // candles. Requests inside the revealed range can page normally; later
   // requests are clamped to the current replay clock.
-  const safeBefore = Math.min(before, replayClock + 1);
+  // Idle replay checkpoints update the row clock without rewriting the large
+  // state snapshot or invalidating the cached engine. Read that authoritative
+  // clock here, including rewinds, instead of paging beside a stale snapshot.
+  const checkpoint = await prisma.backtestSession.findUnique({
+    where: { id: session.id },
+    select: { visibleTime: true },
+  });
+  const safeBefore = historyCutoff(before, replayClock, checkpoint?.visibleTime);
   const earliestAvailable = await earliestAvailableTime(
     symbol,
     timeframe,

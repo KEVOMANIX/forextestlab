@@ -417,15 +417,13 @@ export function OrderTicket({
             onClick={() => activateQuote("long")}
           />
         </div>
-        {!compactQuote && (
-          <LotSizePopover
-            lots={lots}
-            onLots={setLots}
-            summary={sizeSummary}
-            accountCurrency={state.config.accountCurrency}
-            equity={state.equity}
-          />
-        )}
+        <LotSizePopover
+          lots={lots}
+          onLots={setLots}
+          summary={sizeSummary}
+          accountCurrency={state.config.accountCurrency}
+          equity={state.equity}
+        />
       </div>
     );
   }

@@ -1322,10 +1322,9 @@ export default function PriceChart({
     const firstReplayTime = rawCandlesRef.current[0]?.timestamp;
     const earliest = historyCandlesRef.current[0]?.timestamp ?? firstReplayTime;
     if (!earliest) {
-      if (!loading) {
-        setHistoryLoading(false);
-        setInitialHistoryPending(false);
-      }
+      // ChartGrid reveals its initial slice after this chart mounts. No anchor
+      // yet means wait for that slice, not that opening history has completed.
+      // The initialCandles effect retries once the anchor is available.
       return;
     }
     historyLoadingRef.current = true;
@@ -1335,6 +1334,7 @@ export default function PriceChart({
       setOlderHistoryLoading(true);
       setOlderHistoryError(false);
     }
+    let completed = false;
     try {
       const page = await onLoadHistory(requestedTimeframe, replace ? firstReplayTime ?? earliest : earliest);
       // Timeframe buttons can be clicked again while this request is in flight.
@@ -1365,11 +1365,13 @@ export default function PriceChart({
       // before their warm-up candles had arrived.
       scheduleRender(true);
       if (storageKey) {
-        await publishChartHistory(
+        // Browser persistence is optional; a blocked IndexedDB operation must
+        // never hold the chart's loading cover after its series is ready.
+        void publishChartHistory(
           chartHistoryKey(storageKey, requestedTimeframe),
           page.candles,
           page.hasMore,
-        );
+        ).catch(() => {});
       }
       if (!replace && page.candles.length > 0) setLeftHistoryBoundaryVisible(false);
       requestAnimationFrame(updateViewportDiagnostics);
@@ -1387,6 +1389,7 @@ export default function PriceChart({
           resetLatestViewport();
         }
       }
+      completed = true;
     } catch {
       if (requestId === historyRequestRef.current) {
         historyHasMoreRef.current = true;
@@ -1402,7 +1405,7 @@ export default function PriceChart({
         historyLoadingRef.current = false;
         if (replace) {
           setHistoryLoading(false);
-          setInitialHistoryPending(false);
+          setInitialHistoryPending(!completed);
         }
         else setOlderHistoryLoading(false);
       }
@@ -2479,15 +2482,16 @@ export default function PriceChart({
   }, []);
 
   useEffect(() => {
-    if (!initialCanvasPainted || initialHistoryPending || loading || historyLoading || readySentRef.current) return;
-    // Reveal the workspace only after the initial timeframe history is painted.
+    if (!initialCanvasPainted || (initialHistoryPending && !olderHistoryError) || loading || historyLoading || readySentRef.current) return;
+    // Reveal completed history or its retry panel. Otherwise the parent's
+    // full-page loader would hide the chart's actionable error forever.
     const frame = requestAnimationFrame(() => {
       if (readySentRef.current) return;
       readySentRef.current = true;
       onReadyRef.current?.();
     });
     return () => cancelAnimationFrame(frame);
-  }, [initialCanvasPainted, initialHistoryPending, loading, historyLoading]);
+  }, [initialCanvasPainted, initialHistoryPending, olderHistoryError, loading, historyLoading]);
 
   // Rebuild the price series when the chart type changes.
   useEffect(() => {
@@ -5056,8 +5060,19 @@ export default function PriceChart({
         {(loading || historyLoading || initialHistoryPending || !initialCanvasPainted) && (
           <div role="status" aria-label="Loading chart" className="absolute inset-0 z-30 grid place-items-center bg-[var(--app-bg)]">
             <div className="flex flex-col items-center gap-3">
-              <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
-              <span className="app-muted text-sm">{loading ? "Loading market…" : `Loading ${displayTimeframe} chart history…`}</span>
+              {initialHistoryPending && olderHistoryError && !historyLoading && !loading ? (
+                <>
+                  <span className="app-muted text-sm">Chart history could not be loaded.</span>
+                  <button type="button" onClick={() => void loadHistoryPage(true)} className="rounded-lg bg-brand-400 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-brand-300">
+                    Retry loading chart
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
+                  <span className="app-muted text-sm">{loading ? "Loading market…" : `Loading ${displayTimeframe} chart history…`}</span>
+                </>
+              )}
             </div>
           </div>
         )}

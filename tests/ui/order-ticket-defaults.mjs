@@ -17,7 +17,7 @@ function App(){const [plan,setPlan]=React.useState(null);const [request,setReque
 window.plan=plan;return <>
 <button onClick={()=>{setPlan({direction:'short',entryPrice:'1.10200',stopLoss:'',takeProfit:''});setRequest({id:Date.now(),direction:'short',orderType:'limit',openPlanner:true})}}>Chart limit</button>
 <button onClick={()=>{const drawing={kind:'long',points:[{price:1.1},{price:1.098},{price:1.104}],style:{...defaultStyle('long'),risk:1.5,riskMode:'percent'}};const draft=drawingOrderDraft(drawing,state);setPlan(draft.plan);setOneClick(true);setRequest({id:Date.now(),direction:'long',orderType:draft.orderType,openPlanner:true,riskPercent:draft.riskPercent});}}>Position tool</button>
-<OrderTicket state={state} tradePlan={plan} busy={false} lots="0.10" oneClickTrading={oneClick}
+<OrderTicket compactQuote state={state} tradePlan={plan} busy={false} lots="0.10" oneClickTrading={oneClick}
 onLotsChange={()=>{}} onTemplateChange={()=>{}} onPlaceOrder={order=>window.order=order}
 onClearPlan={()=>setPlan(null)} activationRequest={request}
 onDirectionChange={direction=>setPlan(current=>current?.direction===direction?current:{direction,entryPrice:'1.10000',stopLoss:'',takeProfit:''})}
@@ -31,6 +31,11 @@ try {
   await page.setContent('<div id="root" class="app-theme-surface" style="position:relative;height:900px"></div>');
   await page.addStyleTag({content:css.css});
   await page.addScriptTag({content:bundle.outputFiles[0].text});
+  const quote = page.getByRole('button',{name:/^Buy .* lot at/});
+  await quote.hover();
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-testid="quick-lot-size"]')).opacity==='1');
+  await page.getByRole('textbox',{name:'Order size in lots'}).hover();
+  assert.equal(await page.getByRole('textbox',{name:'Order size in lots'}).isVisible(),true);
   await page.getByRole('button',{name:/^Buy .* lot at/}).click();
   await page.getByRole('tab',{name:'limit',exact:true}).click();
   await page.waitForFunction(()=>window.plan?.stopLoss==='1.09700'&&window.plan?.takeProfit==='1.10300');

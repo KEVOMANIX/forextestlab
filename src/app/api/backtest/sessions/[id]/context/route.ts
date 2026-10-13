@@ -22,7 +22,8 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const symbol = url.searchParams.get("symbol") ?? session.ctx.state.config.symbol;
   const timeframe = url.searchParams.get("timeframe");
   const before = Number(url.searchParams.get("before") ?? session.ctx.state.config.startTime);
-  if (!isTimeframe(timeframe) || !Number.isFinite(before)) {
+  const count = Number(url.searchParams.get("count") ?? 3000);
+  if (!isTimeframe(timeframe) || !Number.isFinite(before) || !Number.isFinite(count)) {
     return NextResponse.json({ ok: false, error: "Invalid history request." }, { status: 422 });
   }
   const allowed = session.ctx.state.config.symbols?.length
@@ -32,7 +33,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     return NextResponse.json({ ok: false, error: "This pair is not part of the session." }, { status: 422 });
   }
   try {
-    const page = await getChartContextPage(session, symbol, timeframe, before);
+    const page = await getChartContextPage(session, symbol, timeframe, before, count);
     return NextResponse.json({ ok: true, timeframe, ...page });
   } catch (error) {
     return NextResponse.json(

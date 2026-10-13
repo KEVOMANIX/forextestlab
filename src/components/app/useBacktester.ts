@@ -487,14 +487,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }));
     };
 
-    void restore().catch(() => {
-      if (cancelled) return;
-      setS({
-        ...initial,
-        phase: "setup",
-        error: "Your saved session couldn’t be loaded. Refresh to retry; your saved progress has not been changed.",
-      });
-    });
+    void restore();
     return () => {
       cancelled = true;
     };

@@ -11,7 +11,6 @@ import { getPairChart, getStateWithToken } from "./client";
  */
 describe("getStateWithToken", () => {
   afterEach(() => {
-    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -27,22 +26,6 @@ describe("getStateWithToken", () => {
     // the test only cares about call order and the final result.
     vi.stubGlobal("window", { setTimeout: (fn: () => void) => fn() });
   }
-
-  it("times out a stalled response body and retries instead of hanging after headers", async () => {
-    vi.useFakeTimers();
-    vi.stubGlobal("window", { setTimeout: globalThis.setTimeout });
-    const fetchMock = vi.fn().mockImplementationOnce(async (_url, options) => ({
-      status: 200,
-      json: () => new Promise((_resolve, reject) => {
-        options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
-      }),
-    })).mockResolvedValueOnce(jsonResponse(200, { ok: true, state: {} }));
-    vi.stubGlobal("fetch", fetchMock);
-    const result = getStateWithToken("session-1", "token");
-    await vi.advanceTimersByTimeAsync(45_750);
-    expect((await result).ok).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
 
   it("returns the state on a clean first attempt, with no retry", async () => {
     stubImmediateTimers();

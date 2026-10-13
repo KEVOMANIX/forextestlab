@@ -23,9 +23,6 @@ import { nextTimeframeTimestamp, TIMEFRAME_MS } from "@/lib/market-data/types";
 
 const MANIFEST_TTL_MS = 5 * 60_000;
 const CANDLE_CACHE_TTL_MS = 15 * 60_000;
-// Retain only bounds, not decoded endpoint months. Concurrent chart panes
-// share this lookup instead of repeatedly decoding the first and last month.
-const rangeCache = new Map<string, { expiresAt: number; value: Promise<DataRange[]> }>();
 // A month of one-minute candles expands dramatically after Parquet decoding.
 // Keep only the hottest month to leave memory for concurrent app requests;
 // R2 remains durable and another month is decoded on demand.
@@ -424,24 +421,15 @@ export class R2ParquetProvider implements MarketDataProvider {
     const last = months[months.length - 1];
     if (!first || !last) return [];
 
-    const key = `${config.prefix}:${symbol}:${first.key}:${last.key}`;
-    const cached = rangeCache.get(key);
-    if (cached && cached.expiresAt > Date.now()) return cached.value;
-    const value = (async () => {
-      const firstCandles = await readMonth(config, first);
-      const startTime = firstCandles[0]?.timestamp;
-      const lastCandles = first.key === last.key ? firstCandles : await readMonth(config, last);
-      const endTime = lastCandles.at(-1)?.timestamp;
-      return startTime !== undefined && endTime !== undefined ? [{ startTime, endTime }] : [];
-    })();
-    rangeCache.set(key, { expiresAt: Date.now() + MANIFEST_TTL_MS, value });
-    while (rangeCache.size > SYMBOL_DEFINITIONS.length * 2) rangeCache.delete(rangeCache.keys().next().value!);
-    try {
-      return await value;
-    } catch (error) {
-      if (rangeCache.get(key)?.value === value) rangeCache.delete(key);
-      throw error;
-    }
+    const [firstCandles, lastCandles] = await Promise.all([
+      readMonth(config, first),
+      first.key === last.key ? readMonth(config, first) : readMonth(config, last),
+    ]);
+    const startTime = firstCandles[0]?.timestamp;
+    const endTime = lastCandles[lastCandles.length - 1]?.timestamp;
+    return startTime !== undefined && endTime !== undefined
+      ? [{ startTime, endTime }]
+      : [];
   }
 
   async getCandles(request: CandleRequest): Promise<Candle[]> {

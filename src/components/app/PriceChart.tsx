@@ -1322,14 +1322,14 @@ export default function PriceChart({
     const firstReplayTime = rawCandlesRef.current[0]?.timestamp;
     const earliest = historyCandlesRef.current[0]?.timestamp ?? firstReplayTime;
     if (!earliest) {
-      // ChartGrid reveals its initial slice in an effect after this child
-      // mounts. No anchor yet means "wait for candles", not "history loaded".
-      // Keep pending so the arriving slice starts the initial request.
+      if (!loading) {
+        setHistoryLoading(false);
+        setInitialHistoryPending(false);
+      }
       return;
     }
     historyLoadingRef.current = true;
     setOlderHistoryError(false);
-    let completed = false;
     if (replace) setHistoryLoading(true);
     else {
       setOlderHistoryLoading(true);
@@ -1387,7 +1387,6 @@ export default function PriceChart({
           resetLatestViewport();
         }
       }
-      completed = true;
     } catch {
       if (requestId === historyRequestRef.current) {
         historyHasMoreRef.current = true;
@@ -1403,9 +1402,7 @@ export default function PriceChart({
         historyLoadingRef.current = false;
         if (replace) {
           setHistoryLoading(false);
-          // A failed request is not a ready chart. Keep the opaque cover and
-          // offer retry rather than exposing a handful of opening candles.
-          setInitialHistoryPending(!completed);
+          setInitialHistoryPending(false);
         }
         else setOlderHistoryLoading(false);
       }
@@ -2482,16 +2479,15 @@ export default function PriceChart({
   }, []);
 
   useEffect(() => {
-    if (!initialCanvasPainted || (initialHistoryPending && !olderHistoryError) || loading || historyLoading || readySentRef.current) return;
-    // Reveal only a painted chart or its opaque retry panel. The workspace
-    // loader must release on failure so that retry remains accessible.
+    if (!initialCanvasPainted || initialHistoryPending || loading || historyLoading || readySentRef.current) return;
+    // Reveal the workspace only after the initial timeframe history is painted.
     const frame = requestAnimationFrame(() => {
       if (readySentRef.current) return;
       readySentRef.current = true;
       onReadyRef.current?.();
     });
     return () => cancelAnimationFrame(frame);
-  }, [initialCanvasPainted, initialHistoryPending, loading, historyLoading, olderHistoryError]);
+  }, [initialCanvasPainted, initialHistoryPending, loading, historyLoading]);
 
   // Rebuild the price series when the chart type changes.
   useEffect(() => {
@@ -5060,17 +5056,8 @@ export default function PriceChart({
         {(loading || historyLoading || initialHistoryPending || !initialCanvasPainted) && (
           <div role="status" aria-label="Loading chart" className="absolute inset-0 z-30 grid place-items-center bg-[var(--app-bg)]">
             <div className="flex flex-col items-center gap-3">
-              {olderHistoryError && !historyLoading && !loading ? (
-                <>
-                  <span className="app-muted text-sm">Chart history couldn’t load. Please retry.</span>
-                  <button type="button" onClick={() => void loadHistoryPage(true)} className="rounded-lg bg-brand-400 px-4 py-2 text-sm font-semibold text-slate-950">Retry loading chart</button>
-                </>
-              ) : (
-                <>
-                  <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
-                  <span className="app-muted text-sm">{loading ? "Loading market…" : `Loading ${displayTimeframe} chart history…`}</span>
-                </>
-              )}
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400" aria-hidden />
+              <span className="app-muted text-sm">{loading ? "Loading market…" : `Loading ${displayTimeframe} chart history…`}</span>
             </div>
           </div>
         )}

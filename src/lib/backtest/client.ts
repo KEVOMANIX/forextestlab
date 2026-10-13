@@ -360,8 +360,7 @@ export async function getChartHistory(
   timeframe: Timeframe,
   before: number,
 ): Promise<({ ok: true } & ChartHistoryPage) | ApiErr> {
-  // A screenful plus indicator warm-up. Older pages remain available on demand.
-  const query = new URLSearchParams({ symbol, timeframe, before: String(before), count: "600" });
+  const query = new URLSearchParams({ symbol, timeframe, before: String(before) });
   try {
     return await fetchChartData<({ ok: true } & ChartHistoryPage) | ApiErr>(
       `/api/backtest/sessions/${sessionId}/context?${query}`,

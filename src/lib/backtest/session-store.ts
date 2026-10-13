@@ -339,7 +339,6 @@ async function fetchChartContext(
   timeframe: Timeframe,
   before: number,
   earliestAvailable: number,
-  count = MAX_CONTEXT_CANDLES,
 ): Promise<Candle[]> {
   // `before` may be inside a long-running session when a resumed chart asks
   // for history adjacent to its current window. Capping every request at the
@@ -354,7 +353,7 @@ async function fetchChartContext(
     ? MAX_HIGHER_CONTEXT_WINDOW_MS
     : MAX_CONTEXT_WINDOW_MS;
   const windowMs = Math.min(
-    Math.max(7 * TIMEFRAME_MS["1d"], TIMEFRAME_MS[timeframe] * count * 3),
+    TIMEFRAME_MS[timeframe] * MAX_CONTEXT_CANDLES * 3,
     maximumWindow,
   );
   const candles = await getMarketDataProvider().getCandles({
@@ -363,7 +362,7 @@ async function fetchChartContext(
     startTime: Math.max(earliestAvailable, endTime - windowMs),
     endTime,
   });
-  return candles.slice(-count);
+  return candles.slice(-MAX_CONTEXT_CANDLES);
 }
 
 async function earliestAvailableTime(
@@ -410,7 +409,6 @@ export async function getChartContextPage(
   symbol: string,
   timeframe: Timeframe,
   before: number,
-  count = MAX_CONTEXT_CANDLES,
 ): Promise<{ candles: Candle[]; hasMore: boolean }> {
   const allowed = session.ctx.state.config.symbols?.length
     ? session.ctx.state.config.symbols
@@ -440,7 +438,6 @@ export async function getChartContextPage(
     timeframe,
     safeBefore,
     earliestAvailable,
-    Math.max(300, Math.min(MAX_CONTEXT_CANDLES, Math.floor(count))),
   );
   return {
     candles,

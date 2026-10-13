@@ -36,29 +36,16 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     return NextResponse.json({ ok: false, error: "Saved session state is invalid." }, { status: 500 });
   }
 
-  // Stream the already-serialised state instead of parsing, deep-cloning and
-  // serialising it again inside the Worker. The browser-side replay engine
-  // performs the compatibility normalisation after JSON.parse.
+  // This is one JSON document, not a progressive feed. Send a complete body
+  // with a known length so proxies can delimit it, without reparsing the state.
   const publicFields = `,"visibleIndex":${session.visibleIndex},"status":${JSON.stringify(session.status)},"currentPrice":${JSON.stringify(current?.close ?? null)},"currentTime":${JSON.stringify(current?.timestamp ?? null)},"anonymous":${JSON.stringify(session.anonymous)}`;
   const candlesJson = JSON.stringify(session.candles);
   const notesJson = JSON.stringify(session.notes);
-  const encoder = new TextEncoder();
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(encoder.encode('{"ok":true,"state":'));
-      controller.enqueue(encoder.encode(persistedState.slice(0, closingBrace)));
-      controller.enqueue(encoder.encode(publicFields));
-      controller.enqueue(encoder.encode('},"replayCandles":'));
-      controller.enqueue(encoder.encode(candlesJson));
-      controller.enqueue(encoder.encode(',"notes":'));
-      controller.enqueue(encoder.encode(notesJson));
-      controller.enqueue(encoder.encode("}"));
-      controller.close();
-    },
-  });
+  const body = Buffer.from(`{"ok":true,"state":${persistedState.slice(0, closingBrace)}${publicFields}},"replayCandles":${candlesJson},"notes":${notesJson}}`);
   return new Response(body, {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
+      "Content-Length": String(body.byteLength),
       "Cache-Control": "private, no-store",
     },
   });

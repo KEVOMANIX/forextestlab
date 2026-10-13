@@ -875,6 +875,23 @@ export function Backtester({
     return <PageLoader message="Loading market data…" />;
   }
 
+  if (resumeSessionId && !state && bt.error) {
+    const needsSignIn = bt.error === "Unauthorised.";
+    return (
+      <div className="grid min-h-[60vh] place-items-center px-4">
+        <section role="alert" className="w-full max-w-md rounded-xl border app-border bg-[var(--app-panel)] p-6 text-center">
+          <h1 className="text-lg font-semibold">{needsSignIn ? "Sign in to open this session" : "Session couldn’t load"}</h1>
+          <p className="app-muted mt-2 text-sm">{needsSignIn ? "Sign in with the account that owns this session." : bt.error}</p>
+          {needsSignIn ? (
+            <a className="mt-5 inline-flex rounded-lg bg-brand-400 px-4 py-2 font-semibold text-slate-950" href={`/sign-in?next=${encodeURIComponent(`/app/backtest?session=${resumeSessionId}`)}`}>Sign in</a>
+          ) : (
+            <button type="button" onClick={() => window.location.reload()} className="mt-5 rounded-lg bg-brand-400 px-4 py-2 font-semibold text-slate-950">Retry loading session</button>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   if (bt.phase === "setup" || !state) {
     if (bt.busy) return <PageLoader message="Preparing your backtest…" />;
     return (

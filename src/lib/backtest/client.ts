@@ -250,24 +250,26 @@ export async function getStateWithToken(
   sessionId: string,
   token: string | null,
 ): Promise<StateOk | ApiErr> {
-  // Bound the wait for response headers, where an unavailable data provider
-  // can otherwise strand the page forever. Once headers arrive, do not abort
-  // a valid (and potentially large) candle payload while the browser parses it.
+  // Keep the deadline through body download. Streamed responses can deliver
+  // headers immediately and then stall; clearing the timer at headers leaves
+  // the market-data loader waiting forever.
   const attempt = async () => {
     const controller = new AbortController();
     const timer = globalThis.setTimeout(() => controller.abort(), RESUME_REQUEST_TIMEOUT_MS);
     try {
-      return await fetch(`/api/backtest/sessions/${sessionId}`, {
+      const response = await fetch(`/api/backtest/sessions/${sessionId}`, {
         cache: "no-store",
         headers: token ? { "x-session-token": token } : undefined,
         signal: controller.signal,
       });
+      const payload = await response.json() as ResumeStatePayload | ApiErr;
+      return { status: response.status, payload };
     } finally {
       globalThis.clearTimeout(timer);
     }
   };
 
-  let res: Response | null = null;
+  let res: { status: number; payload: ResumeStatePayload | ApiErr } | null = null;
   try {
     res = await attempt();
   } catch {
@@ -296,7 +298,7 @@ export async function getStateWithToken(
   if (!res) {
     return { ok: false, error: "Could not reach the server. Check your connection and try again." };
   }
-  const payload = await parse<ResumeStatePayload>(res);
+  const payload = res.payload;
   if (!payload.ok) return payload;
   const replayCandles = payload.replayCandles ?? payload.candles ?? [];
   return {

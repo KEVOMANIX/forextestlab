@@ -1291,7 +1291,7 @@ export default function PriceChart({
       }
       const sorted = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
       const replayStart = rawCandlesRef.current[0]?.timestamp;
-      const merged = replayStart === undefined ? [] : adjacentHistory(sorted, replayStart, subscribedTimeframe);
+      const merged = replayStart === undefined ? [] : adjacentHistory(sorted, replayStart, subscribedTimeframe, historyCandlesRef.current);
       const discardedIslands = merged.length < sorted.filter((candle) => replayStart !== undefined && candle.timestamp < replayStart).length;
       historyCandlesRef.current = merged;
       historyTimeframeRef.current = subscribedTimeframe;

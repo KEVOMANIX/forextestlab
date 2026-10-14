@@ -3,6 +3,12 @@ import { adjacentHistory } from "./adjacent-history";
 import type { Candle } from "@/lib/market-data/types";
 const candle = (date: string): Candle => ({ timestamp: Date.parse(date), open: "1", high: "1", low: "1", close: "1", source: "test" });
 describe("cached history adjacency", () => {
+  it("keeps a fetched page across a real source outage while rejecting unrelated cached islands", () => {
+    const stale = candle("2025-01-01");
+    const fetched = [candle("2026-07-16T21:00Z"), candle("2026-07-28T21:00Z")];
+    const future = candle("2026-08-02T21:00Z");
+    expect(adjacentHistory([stale, ...fetched, future], Date.parse("2026-07-29T21:00Z"), "1d", [...fetched, future])).toEqual(fetched);
+  });
   it("does not join December directly to June and leaves June as the pagination boundary", () => {
     const december = candle("2024-12-20T12:00:00Z");
     const june = candle("2025-06-02T12:00:00Z");

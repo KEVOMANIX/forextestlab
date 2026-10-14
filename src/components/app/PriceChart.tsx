@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isEmptyForexWeekendCandle } from "@/lib/market-data/empty-weekend";
 import { AXIS_FONT_SIZES, PRICE_AXIS_TICK_DENSITY } from "@/lib/chart/axis-layout";
 import { createPortal, flushSync } from "react-dom";
 import {
@@ -1277,6 +1278,7 @@ export default function PriceChart({
       const replayClock = rawCandlesRef.current.at(-1)?.timestamp;
       const byTime = new Map<number, Candle>();
       for (const candle of [...snapshot.candles, ...historyCandlesRef.current]) {
+        if (isEmptyForexWeekendCandle(symbolLabel, candle)) continue;
         // Older browser caches may contain a full daily/weekly candle produced
         // before completed-period filtering was introduced. Keep it out until
         // the replay clock has actually passed that candle's closing boundary.
@@ -1336,7 +1338,8 @@ export default function PriceChart({
     }
     let completed = false;
     try {
-      const page = await onLoadHistory(requestedTimeframe, replace ? firstReplayTime ?? earliest : earliest);
+      const response = await onLoadHistory(requestedTimeframe, replace ? firstReplayTime ?? earliest : earliest);
+      const page = { ...response, candles: response.candles.filter(candle => !isEmptyForexWeekendCandle(symbolLabel, candle)) };
       // Timeframe buttons can be clicked again while this request is in flight.
       // Never apply 15m history to a chart that has already moved to 1h/4h.
       if (requestId !== historyRequestRef.current || requestedTimeframe !== displayTimeframeRef.current) return;
@@ -1411,6 +1414,22 @@ export default function PriceChart({
       }
     }
   }
+  function refreshHistoryAfterWindowChange(previousStart: number | undefined) {
+    const nextStart = rawCandlesRef.current[0]?.timestamp;
+    if (previousStart === undefined || nextStart === undefined || previousStart === nextStart) return;
+    // A rewind or replaced replay buffer can move its first minute by weeks.
+    // History fetched beside the previous window no longer reaches this one.
+    // Invalidate pending responses as well as the already-painted prefix.
+    historyRequestRef.current += 1;
+    historyLoadingRef.current = false;
+    historyCandlesRef.current = [];
+    openingHistoryRef.current = null;
+    setOlderHistoryLoading(false);
+    setInitialHistoryPending(true);
+    renderContextSeries();
+    void loadHistoryPage(true);
+  }
+
   const availableTimeframes = TIMEFRAMES.filter((timeframe) =>
     canAggregateTimeframes(baseTimeframe, timeframe),
   );
@@ -1526,7 +1545,10 @@ export default function PriceChart({
    * the cache whenever the underlying series is replaced or rewound.
    */
   function aggregatedForDisplay(raw: Candle[], timeframe: Timeframe): Candle[] {
-    if (timeframe === baseTimeframe) return raw;
+    // Saved sessions can predate source cleanup. Filter only the chart input;
+    // retaining the replay array preserves saved indexes and trade records.
+    const valid = (candle: Candle) => !isEmptyForexWeekendCandle(symbolLabel, candle);
+    if (timeframe === baseTimeframe) return raw.filter(valid);
     const startedAt = performance.now();
     const last = raw[raw.length - 1];
     if (!last) return [];
@@ -1550,13 +1572,13 @@ export default function PriceChart({
     while (tailStart > 0 && (raw[tailStart - 1]?.timestamp ?? 0) >= lastBucket) tailStart -= 1;
     if (tailStart > cache.stableCount) {
       cache.stable = cache.stable.concat(
-        aggregateCandles(raw.slice(cache.stableCount, tailStart), baseTimeframe, timeframe),
+        aggregateCandles(raw.slice(cache.stableCount, tailStart).filter(valid), baseTimeframe, timeframe),
       );
       cache.stableCount = tailStart;
       cache.anchorTime = raw[tailStart - 1]?.timestamp ?? 0;
     }
     const result = cache.stable.concat(
-      aggregateCandles(raw.slice(tailStart), baseTimeframe, timeframe),
+      aggregateCandles(raw.slice(tailStart).filter(valid), baseTimeframe, timeframe),
     );
     recordReplayMetric(
       "candle-aggregation",
@@ -2741,7 +2763,9 @@ export default function PriceChart({
       const lastTime = raw[raw.length - 1]?.timestamp ?? -Infinity;
       if (currentTime < lastTime) {
         const cursor = firstIndexAfter(source, currentTime);
+        const previousStart = raw[0]?.timestamp;
         rawCandlesRef.current = source.slice(Math.max(0, cursor - 10_000), cursor);
+        refreshHistoryAfterWindowChange(previousStart);
         currentPriceRef.current = Number(
           rawCandlesRef.current.at(-1)?.close ?? 0,
         );
@@ -2768,7 +2792,9 @@ export default function PriceChart({
   useEffect(() => {
     if (syncedInitialCandlesRef.current === initialCandles) return;
     syncedInitialCandlesRef.current = initialCandles;
+    const previousStart = rawCandlesRef.current[0]?.timestamp;
     rawCandlesRef.current = [...initialCandles];
+    refreshHistoryAfterWindowChange(previousStart);
     dataGenerationRef.current += 1;
     const scale = chartRef.current?.timeScale();
     const viewIdentity = `${viewStorageKey ?? "chart"}:${symbolLabel}`;

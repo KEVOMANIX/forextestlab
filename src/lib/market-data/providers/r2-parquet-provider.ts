@@ -1,4 +1,5 @@
 import "server-only";
+import { isEmptyForexWeekendCandle } from "../empty-weekend";
 
 import {
   GetObjectCommand,
@@ -285,7 +286,7 @@ async function readMonth(config: R2Config, stored: StoredMonth): Promise<Candle[
       compressors: PARQUET_COMPRESSORS,
       columns: COLUMNS,
     });
-    const candles = parquetRowsToCandles(rows);
+    const candles = parquetRowsToCandles(rows).filter(candle => !isEmptyForexWeekendCandle(stored.symbol, candle));
     if (candles.length === 0) {
       throw new Error(`No valid candles were found in ${stored.key}.`);
     }

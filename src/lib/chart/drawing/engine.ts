@@ -649,6 +649,14 @@ export class DrawingEngine {
         }
       }
     }
+    if (o.kind === "long" || o.kind === "short") {
+      const right = o.anchors(this.mapper).find((anchor) => anchor.index === 3);
+      const bounds = o.bbox(this.mapper);
+      // The vertical far edge is a width grip too. Grabbing between its level
+      // handles must not fall through to translating the entire position.
+      if (right && bounds && Math.abs(x - right.x) <= SELECTION_HANDLE + 3 + extraTolerance &&
+          y >= bounds.y && y <= bounds.y + bounds.h) return { kind: "anchor", index: 3 };
+    }
     if (!this.usesOnlyAnchorHandles(o)) {
       for (const a of this.resizeHandles(o)) {
         if (Math.hypot(a.x - x, a.y - y) <= SELECTION_HANDLE + 3 + extraTolerance) {
@@ -816,7 +824,12 @@ export class DrawingEngine {
       if (!this.isLocked(hit)) {
         ownPointer();
         this.freezeChart();
-        this.drag = hit.kind === "anchoredText" || hit.kind === "callout"
+        const positionHandle = hit.kind === "long" || hit.kind === "short"
+          ? this.anchorAt(hit, px.x, px.y, touchLike ? 10 : 0)
+          : null;
+        this.drag = positionHandle?.kind === "anchor"
+          ? { id: hit.id, kind: "anchor", index: positionHandle.index, startPx: px, origin: hit.points.map((p) => ({ ...p })), pointerType: e.pointerType, travelled: 0 }
+          : hit.kind === "anchoredText" || hit.kind === "callout"
           ? { id: hit.id, kind: "anchor", index: 1, startPx: px, origin: hit.points.map((p) => ({ ...p })), pointerType: e.pointerType, travelled: 0 }
           : { id: hit.id, kind: "move", index: -1, startPx: px, origin: hit.points.map((p) => ({ ...p })), pointerType: e.pointerType, travelled: 0 };
       }
@@ -1025,12 +1038,17 @@ export class DrawingEngine {
       };
       this.chartEl.style.cursor = selectedHandle.kind === "resize"
         ? resizeCursor[selectedHandle.handle]
+        : (selected?.kind === "long" || selected?.kind === "short") && selectedHandle.index === 3
+        ? "ew-resize"
         : "crosshair";
       return;
     }
     const hit = this.hitObject(px.x, px.y);
     const id = hit?.id ?? null;
-    this.chartEl.style.cursor = id ? "move" : "";
+    const widthHandle = hit && !this.isLocked(hit) && (hit.kind === "long" || hit.kind === "short")
+      ? this.anchorAt(hit, px.x, px.y)
+      : null;
+    this.chartEl.style.cursor = widthHandle?.kind === "anchor" && widthHandle.index === 3 ? "ew-resize" : id ? "move" : "";
     if (id !== this.hoverId) {
       this.hoverId = id;
       this.overlayDirty = true;
@@ -1054,7 +1072,10 @@ export class DrawingEngine {
       // Editing either endpoint uses the opposite endpoint as the fixed pivot.
       // Keep the raw pointer position so releasing Shift restores free movement.
       const held = this.straightenPx(o.kind, px, this.drag.origin[1 - this.drag.index]);
-      const fallback = this.drag.origin[this.drag.index]!;
+      const pointIndex = (o.kind === "long" || o.kind === "short") && this.drag.index >= 3
+        ? this.drag.index === 4 ? 1 : 2
+        : this.drag.index;
+      const fallback = this.drag.origin[pointIndex]!;
       const point = held
         ? this.mapper.pixelToPoint(held.x, held.y) ?? fallback
         : this.snap(this.mapper.pixelToPoint(px.x, px.y) ?? fallback);

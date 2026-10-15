@@ -96,10 +96,15 @@ describe("position tool level dragging", () => {
     }
   });
 
-  it("moves only the dragged level's price", () => {
-    const object = createObject(position());
-    object.setAnchor(3, { time: 300, price: 1.105 });
-    expect(object.points.map((point) => point.price)).toEqual([1.105, 1.09, 1.12]);
+  it.each(["long", "short"] as const)("widens a %s position without moving its entry or price levels", (kind) => {
+    const saved = { ...position(), kind };
+    const object = createObject(saved);
+    object.setAnchor(3, { time: 420, price: 1.105 });
+    expect(object.points).toEqual([saved.points[0], saved.points[1], { ...saved.points[2], time: 420 }]);
+    object.setAnchor(3, { time: 50, price: 1.2 });
+    expect(object.points[0]).toEqual(saved.points[0]);
+    expect(object.points.map(point => point.price)).toEqual(saved.points.map(point => point.price));
+    expect(object.points[2]!.time).toBe(100);
   });
 
   it("moves only the target when the target is dragged", () => {

@@ -846,15 +846,7 @@ class PositionTool extends DrawingObject {
   topLabelHeight(): number {
     return this.style.showLabels === false ? 0 : 10 + 4 + 6 + 3;
   }
-  /**
-   * One handle per level: the entry on the box's left edge, the stop and the
-   * target centred on their own lines.
-   *
-   * The base implementation puts a handle at each point's own (time, price),
-   * which for a position stacks the stop's handle underneath the entry's — both
-   * points share a time — leaving the stop unreachable. Centring the stop and
-   * target handles also matches where a trader reaches for those lines.
-   */
+  /** Level grips at both ends, with a width-only grip at the right of entry. */
   anchors(mapper: CoordinateMapper): { x: number; y: number; index: number }[] {
     const entry = this.points[0]!;
     const stop = this.points[1]!;
@@ -867,15 +859,14 @@ class PositionTool extends DrawingObject {
     if (xE == null || xT == null || yE == null || yS == null || yT == null) return [];
     const left = Math.min(xE, xT);
     const right = Math.max(xE, xT);
-    const cx = left + (right - left) / 2;
     /*
-      Both ends of every level, and the entry in the middle too.
+      Both ends of every level. The right entry grip adjusts width only.
 
       Three handles meant each level could only be grabbed in one place — and
       the stop's sat dead centre, underneath its own chip, so the chip took the
       pointer instead of the handle. Ends are always clear of the centred chips,
       and reaching for whichever end of a line is nearer is how a trader drags
-      it. Each index still addresses one level; `setAnchor` maps them back.
+      it. `setAnchor` separates the width grip from the price-level grips.
     */
     return [
       { x: left, y: yE, index: 0 },
@@ -887,16 +878,18 @@ class PositionTool extends DrawingObject {
     ];
   }
   /**
-   * Dragging a level moves that level and nothing else.
-   *
-   * The stop carries no time of its own — it is drawn across the same span as
-   * the entry — so a stop drag keeps its stored time and takes only the price.
-   * Dragging the entry or the target does move the box edge it owns, which is
-   * how those two handles double as the position's width.
+   * The far entry grip changes width only. Other grips adjust their own price
+   * level and box edge; the entry stays fixed when editing stop or target.
    */
   setAnchor(index: number, p: Point): void {
+    if (index === 3) {
+      // Extending the position's duration must never change the planned entry
+      // or risk, even when the pointer drifts vertically or magnet snaps price.
+      this.points[2] = { ...this.points[2]!, time: Math.max(this.points[0]!.time, p.time) };
+      return;
+    }
     /*
-      Each handle owns one level's price, and the side it sits on owns a box
+      Each remaining handle owns one level's price, and its side owns a box
       edge: the entry carries the left edge, the target the right.
 
       So a right-hand grip drags the box's right edge while moving its own

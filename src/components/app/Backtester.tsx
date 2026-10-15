@@ -620,7 +620,7 @@ export function Backtester({
         else actions.play();
       } else if (matches(workspace.settings.shortcuts.stepForward)) {
         event.preventDefault();
-        actions.stepNext();
+        actions.stepNext(focusedChartTimeframe ?? state?.config.timeframe);
       } else if (matches(workspace.settings.shortcuts.stepBack)) {
         event.preventDefault();
         actions.stepPrev(focusedChartTimeframe ?? state?.config.timeframe);
@@ -1365,7 +1365,7 @@ export function Backtester({
             busy={bt.busy}
             onPlay={actions.play}
             onPause={actions.pause}
-            onNext={actions.stepNext}
+            onNext={() => actions.stepNext(focusedChartTimeframe ?? state.config.timeframe)}
             onPrev={() => actions.stepPrev(focusedChartTimeframe ?? state.config.timeframe)}
             onRestart={restart}
             onEnd={endSession}

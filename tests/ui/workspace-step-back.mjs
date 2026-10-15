@@ -25,9 +25,10 @@ const start=Date.UTC(2025,0,7,10);
 const candles=Array.from({length:2000},(_,i)=>({timestamp:start+i*60000,open:'1.1',high:'1.2',low:'1',close:String(1.1+i/10000),source:'aggregated'}));
 const config={symbol:'EURUSD',symbols:['EURUSD'],baseCurrency:'EUR',quoteCurrency:'USD',timeframe:'1m',startTime:start,endTime:start+2000*60000,startingBalance:'10000',accountCurrency:'USD',spreadPips:'0',commissionPerLot:'0',slippagePips:'0',executionPolicy:'conservative',pipSize:'0.0001',pricePrecision:5,initialVisibleCount:1009};
 const engine={candles,state:createSessionState('test',config,candles.length,candles,'test',false)};
-window.requests=[];
+window.requests=[];window.checkpoints=[];
 window.completed=0;
 window.fetch=async(url,options)=>{
+ if(String(url).endsWith('/checkpoint')){window.checkpoints.push(JSON.parse(options.body));return new Response(JSON.stringify({ok:true,savedAt:Date.now()}));}
  if(String(url).endsWith('/action')) {
   window.requests.push(JSON.parse(options.body));
   await new Promise(resolve=>setTimeout(resolve,100));
@@ -38,7 +39,7 @@ window.fetch=async(url,options)=>{
 function App(){const bt=useBacktester('test');const[tf,setTf]=React.useState('15m');window.bt=bt;window.activeTf=tf;
 return <>
 {bt.state && <div style={{height:650,width:1200}}><ChartGrid state={bt.state} sessionSeries={bt.replayCandles} sessionContextCandles={empty} pairs={{}} pairLoadingSymbols={empty} onNeedSymbol={noop} markers={empty} positions={empty} pendingOrders={empty} activePositionId={null} stopLoss={null} takeProfit={null} tradePlan={null} onTradePlanChange={noop} theme="dark" onStopLossChange={noop} onTakeProfitChange={noop} onLoadHistory={async(symbol,tf,before)=>({candles:[{...candles[0],timestamp:before-86400000}],hasMore:false})} storageKey="test" focusedSymbol="EURUSD" onFocusedSymbolChange={noop} workspace={workspace} onOpenSymbolPicker={noop} onFocusedTimeframeChange={setTf} onOpenSettings={noop}/></div>}
-{bt.state && <ReplayToolbar state={bt.state} busy={bt.busy} onPlay={()=>bt.actions.play()} onPause={()=>bt.actions.pause()} onNext={()=>{}} onPrev={()=>bt.actions.stepPrev(tf)} onRestart={()=>{}} onEnd={()=>{}} onSpeed={()=>{}} onBuy={()=>{}} onSell={()=>{}} canTrade={false} maxReplaySpeed={60} lots="0.1" onLotsChange={()=>{}}/>}</>}
+{bt.state && <ReplayToolbar state={bt.state} busy={bt.busy} onPlay={()=>bt.actions.play()} onPause={()=>bt.actions.pause()} onNext={()=>bt.actions.stepNext(tf)} onPrev={()=>bt.actions.stepPrev(tf)} onRestart={()=>{}} onEnd={()=>{}} onSpeed={()=>{}} onBuy={()=>{}} onSell={()=>{}} canTrade={false} maxReplaySpeed={60} lots="0.1" onLotsChange={()=>{}}/>}</>}
 createRoot(document.getElementById('root')).render(<App/>);
 ` }, bundle: true, write: false, platform: 'browser', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' } });
 const browser = await chromium.launch();
@@ -78,8 +79,22 @@ try {
   await page.waitForFunction(()=>window.completed===3);
   assert.equal(await page.evaluate(()=>window.bt.state.visibleIndex),959);
   assert.deepEqual(await page.evaluate(()=>window.requests.map(x=>x.targetIndex)),[1004,989,959]);
+  const next=page.getByRole('button',{name:'Next candle',exact:true});
+  await next.click();
+  await page.waitForFunction(()=>window.bt.state.visibleIndex===1019);
+  await next.click();
+  await page.waitForFunction(()=>window.bt.state.visibleIndex===1079);
+  assert.equal(await page.evaluate(()=>window.bt.state.status),'paused');
+  // Return focus/timeframe to 15m and verify forward stepping follows it too.
+  if(multi) await first.locator('[data-axis-timeframe]').click({position:{x:250,y:250}});
+  else await first.getByRole('button',{name:'Display 15m candles',exact:true}).click();
+  await page.waitForFunction(()=>window.activeTf==='15m');
+  await next.click();
+  await page.waitForFunction(()=>window.bt.state.visibleIndex===1094);
+  await next.click();
+  await page.waitForFunction(()=>window.bt.state.visibleIndex===1109);
   assert.deepEqual(errors,[]);
-  console.log((multi?'Two-pane':'Single-pane')+' workspace: restored display timeframe, consecutive back presses, and timeframe/focus changes passed.');
+  console.log((multi?'Two-pane':'Single-pane')+' workspace: restored display timeframe, consecutive back presses, forward steps, and timeframe/focus changes passed.');
   await page.close();
   }
 } finally { await browser.close(); }

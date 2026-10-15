@@ -45,6 +45,7 @@ import {
 import type { GoToTarget } from "@/lib/backtest/goto";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import { previousCandleIndex } from "@/lib/backtest/previous-candle";
+import { nextCandleTarget } from "@/lib/backtest/next-candle";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
@@ -213,7 +214,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayStepRef = useRef<ReplayStepMinutes>(1);
   const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
-  const stepRef = useRef<(batchSize?: number) => Promise<void>>(async () => {});
+  const stepRef = useRef<(batchSize?: number, displayTimeframe?: Timeframe) => Promise<void>>(async () => {});
+  const manualStepPendingRef = useRef(false);
   const replayFrameRef = useRef<number | null>(null);
   const replayLastFrameRef = useRef<number | null>(null);
   const replayAccumulatorRef = useRef(0);
@@ -670,7 +672,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   // Playback is browser-local for smooth ticks. Keep an adaptive reservoir in
   // front of the replay cursor so normal R2/server latency never reaches the
   // playback boundary.
-  stepRef.current = useCallback(async (batchSize = 1) => {
+  stepRef.current = useCallback(async (batchSize = 1, displayTimeframe?: Timeframe) => {
     const engineStartedAt = performance.now();
     const engine = localEngineRef.current;
     if (!engine) return;
@@ -678,6 +680,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
     // a jump/restart/step-back bumps this before the loop below finishes, this
     // step has been superseded and must not touch the engine again.
     const generation = engineGenerationRef.current;
+    const startIndex = engine.state.visibleIndex;
+    let manualTarget = displayTimeframe
+      ? nextCandleTarget(engine.candles, startIndex, displayTimeframe, engine.state.config.symbol)
+      : null;
+    let targetSource = engine.candles;
     const stepCount = Math.max(
       1,
       Math.round(
@@ -690,7 +697,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     let superseded = false;
     let blown = false;
 
-    for (let index = 0; index < stepCount; index += 1) {
+    for (let index = 0; manualTarget || index < stepCount; index += 1) {
       // A jump or similar action may have taken the cursor over mid-loop —
       // most likely while the `await request` a few lines down was pending,
       // since that is the one point per iteration this step yields control.
@@ -702,6 +709,17 @@ export function useBacktester(resumeSessionId: string | null = null) {
         superseded = true;
         break;
       }
+      if (displayTimeframe && targetSource !== engine.candles) {
+        targetSource = engine.candles;
+        manualTarget = nextCandleTarget(targetSource, startIndex, displayTimeframe, engine.state.config.symbol);
+      }
+      if (manualTarget?.complete && engine.state.visibleIndex >= manualTarget.index) break;
+      // A flat account can reach the same close without pricing every minute.
+      // Orders and challenge accounts always take the normal revealNext path.
+      if (manualTarget && fastForwardIdleTo(engine, manualTarget.index)) {
+        advancedCandles.push(engine.candles[engine.state.visibleIndex]!);
+        continue;
+      }
       const lastLoaded = engine.candles[engine.candles.length - 1];
       const loadedRemaining =
         engine.state.totalCandles - 1 - engine.state.visibleIndex;
@@ -711,7 +729,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         replayFetchLatencyRef.current,
       );
       if (
-        loadedRemaining <= bufferTarget &&
+        !manualTarget && loadedRemaining <= bufferTarget &&
         lastLoaded &&
         lastLoaded.timestamp < engine.state.config.endTime &&
         replayExtendPromiseRef.current === null
@@ -741,8 +759,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
           replayExtendPromiseRef.current ?? startReplayExtension();
         if (!request) break;
         const extension = await request;
+        if (engineGenerationRef.current !== generation) { superseded = true; break; }
 
         if (!extension.ok) {
+          if (manualTarget) {
+            patch({ error: extension.error || "Could not load the next candle. Please try again." });
+            break;
+          }
           // A transient network/R2 failure must not turn into a terminal replay
           // error. Leave playback running and retain the unprocessed market-time
           // debt; the next frame starts another background attempt.
@@ -759,6 +782,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
           wantsReplayRunningRef.current = false;
           engine.state.status = "paused";
           break;
+        }
+        if (manualTarget && extension.candles.length === 0) {
+          patch({ error: "The next candle is not available yet. Please try again." });
+          break;
+        }
+        if (displayTimeframe) {
+          manualTarget = nextCandleTarget(engine.candles, startIndex, displayTimeframe, engine.state.config.symbol);
+          if (manualTarget.complete && engine.state.visibleIndex >= manualTarget.index) break;
         }
       }
 
@@ -777,13 +808,16 @@ export function useBacktester(resumeSessionId: string | null = null) {
         wantsReplayRunningRef.current = false;
         break;
       }
+      if (manualTarget && index % 2000 === 1999) {
+        await new Promise(resolve => window.setTimeout(resolve, 0));
+      }
     }
 
     // Whatever superseded this step already owns the cursor, has already
     // published its own position, and is the only one of the two that should
     // be resuming playback status. Publishing this step's now-stale position
     // on top of that is exactly the race that produced the ordering crash.
-    if (superseded) return;
+    if (superseded || engineGenerationRef.current !== generation) return;
 
     if (
       wantsReplayRunningRef.current &&
@@ -807,6 +841,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     }
     const now = performance.now();
     const shouldPublishUi =
+      Boolean(manualTarget) ||
       finished ||
       blown ||
       now - lastUiPublishRef.current >= 100;
@@ -843,7 +878,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         { background: true, showBusy: false, preserveLocalState: true },
       );
     }
-  }, [runAction, s.state?.anonymous, startReplayExtension]);
+  }, [patch, runAction, s.state?.anonymous, startReplayExtension]);
 
   const status = s.state?.status;
 
@@ -989,6 +1024,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     if (localEngineRef.current?.state.accountBlown ?? s.state?.accountBlown) {
       return Promise.resolve();
     }
+    if (manualStepPendingRef.current) engineGenerationRef.current += 1;
     wantsReplayRunningRef.current = true;
     setS((prev) =>
       prev.state
@@ -1018,12 +1054,23 @@ export function useBacktester(resumeSessionId: string | null = null) {
     return checkpoint("paused");
   }, [checkpoint, stopLocalScheduler]);
   const stepNext = useCallback(
-    async () => {
-      if (s.endOfData) return;
-      await stepRef.current();
-      await checkpoint("paused");
+    async (displayTimeframe?: Timeframe) => {
+      const engine = localEngineRef.current;
+      if (!engine || s.endOfData || manualStepPendingRef.current) return;
+      if (engine.state.status === "finished" || engine.state.accountBlown) return;
+      wantsReplayRunningRef.current = false;
+      stopLocalScheduler();
+      engine.state.status = "paused";
+      const generation = ++engineGenerationRef.current;
+      manualStepPendingRef.current = true;
+      try {
+        await stepRef.current(1, displayTimeframe ?? engine.state.config.timeframe);
+        if (engineGenerationRef.current === generation) void checkpoint("paused");
+      } finally {
+        manualStepPendingRef.current = false;
+      }
     },
-    [checkpoint, s.endOfData],
+    [checkpoint, s.endOfData, stopLocalScheduler],
   );
   const stepPrev = useCallback((displayTimeframe?: Timeframe) => {
     const engine = localEngineRef.current;
@@ -1065,6 +1112,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       state: publicSessionState(engine, prev.state?.anonymous ?? false),
       lastCandle: candle,
       lastCandles: [],
+      endOfData: false,
     }));
     // The interaction is complete locally. Persist the exact target in the
     // background so network latency never blocks or animates the chart.

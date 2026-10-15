@@ -590,7 +590,10 @@ export default function ChartGrid({
                 }
           }
         >
-        {visibleCells.map((cell, index) => {
+        {/* Restore the layout before mounting charts. Otherwise a chart can
+            report its actual 15m view, then have that report overwritten by a
+            stale saved 4h cell while its own displayed timeframe stays 15m. */}
+        {restored && visibleCells.map((cell, index) => {
           const isSession = cell.symbol === sessionSymbol;
           const isFocused = cell.id === focused.id;
           const pair = isSession ? null : pairs[cell.symbol] ?? null;

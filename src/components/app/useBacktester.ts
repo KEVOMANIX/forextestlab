@@ -44,7 +44,7 @@ import {
 } from "@/lib/backtest/replay-engine";
 import type { GoToTarget } from "@/lib/backtest/goto";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
-import { candleBucketStart } from "@/lib/market-data/aggregation";
+import { previousCandleIndex } from "@/lib/backtest/previous-candle";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
@@ -1038,35 +1038,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
     engine.state.status = "paused";
     engineGenerationRef.current += 1;
     const timeframe = displayTimeframe ?? engine.state.config.timeframe;
-    const currentCandle = engine.candles[engine.state.visibleIndex];
-    if (!currentCandle) return;
-
-    // Find the candle immediately before the current displayed bucket, then
-    // walk to that bucket's first base candle. Weekend/session gaps therefore
-    // jump to the real previous bar rather than an empty clock interval.
-    const currentBucket = candleBucketStart(currentCandle.timestamp, timeframe);
-    let targetIndex = engine.state.visibleIndex - 1;
-    while (
-      targetIndex >= 0 &&
-      candleBucketStart(engine.candles[targetIndex]!.timestamp, timeframe) >=
-        currentBucket
-    ) {
-      targetIndex -= 1;
-    }
-    if (targetIndex < 0) return;
-    const previousBucket = candleBucketStart(
-      engine.candles[targetIndex]!.timestamp,
+    const targetIndex = previousCandleIndex(
+      engine.candles,
+      engine.state.visibleIndex,
       timeframe,
+      engine.state.config.symbol,
     );
-    while (
-      targetIndex > 0 &&
-      candleBucketStart(
-        engine.candles[targetIndex - 1]!.timestamp,
-        timeframe,
-      ) === previousBucket
-    ) {
-      targetIndex -= 1;
-    }
+    if (targetIndex === null) return;
 
     const rollbackState = s.state ?? undefined;
     if (!stepBackLocalTo(engine, targetIndex)) return;

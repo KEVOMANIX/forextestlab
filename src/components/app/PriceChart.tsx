@@ -1008,6 +1008,7 @@ export default function PriceChart({
   const futureTimesRef = useRef<number[]>([]);
   const renderRafRef = useRef<number | null>(null);
   const forceRenderRef = useRef(false);
+  const preserveRenderViewportRef = useRef(false);
   const lineCoordRafRef = useRef<number | null>(null);
   const overlayProjectionRafRef = useRef<number | null>(null);
   const priceScaleDragRef = useRef(false);
@@ -1726,10 +1727,13 @@ export default function PriceChart({
       historyBeforeReplay(historyCandlesRef.current, displayRef.current).map(toOHLCV));
   }
 
-  function renderMain(force = false) {
+  function renderMain(force = false, preserveViewport = false) {
     const startedAt = performance.now();
     const series = seriesRef.current;
     if (!series) return;
+    const preservedRange = preserveViewport
+      ? chartRef.current?.timeScale().getVisibleLogicalRange()
+      : null;
     const replayDisplay = displayOHLCV(aggregatedForDisplay(rawCandlesRef.current, displayTimeframeRef.current));
     const opening = openingHistoryRef.current;
     const openingHistory = opening && opening.timeframe === displayTimeframeRef.current && opening.replayStart === rawCandlesRef.current[0]?.timestamp
@@ -1824,7 +1828,11 @@ export default function PriceChart({
     }
     // New data must not issue viewport commands after the user has detached.
     // This keeps an active pan/zoom gesture responsive while replay continues.
-    if (followLatestRef.current) keepLatestPriceVisible();
+    if (preservedRange) {
+      chartRef.current?.timeScale().setVisibleLogicalRange(preservedRange);
+    } else if (!preserveViewport && followLatestRef.current) {
+      keepLatestPriceVisible();
+    }
     scheduleLineCoordinates();
     recordReplayMetric(
       "chart-update",
@@ -1839,14 +1847,17 @@ export default function PriceChart({
    * tick re-aggregates history + re-feeds the series + recomputes indicators,
    * saturating the main thread and making pan/zoom stutter.
    */
-  function scheduleRender(force = false) {
+  function scheduleRender(force = false, preserveViewport = false) {
     forceRenderRef.current ||= force;
+    preserveRenderViewportRef.current ||= preserveViewport;
     if (renderRafRef.current != null) return;
     renderRafRef.current = requestAnimationFrame(() => {
       renderRafRef.current = null;
       const shouldForce = forceRenderRef.current;
       forceRenderRef.current = false;
-      renderMain(shouldForce);
+      const shouldPreserveViewport = preserveRenderViewportRef.current;
+      preserveRenderViewportRef.current = false;
+      renderMain(shouldForce, shouldPreserveViewport);
     });
   }
 
@@ -2762,15 +2773,23 @@ export default function PriceChart({
       const raw = rawCandlesRef.current;
       const lastTime = raw[raw.length - 1]?.timestamp ?? -Infinity;
       if (currentTime < lastTime) {
-        const cursor = firstIndexAfter(source, currentTime);
-        const previousStart = raw[0]?.timestamp;
-        rawCandlesRef.current = source.slice(Math.max(0, cursor - 10_000), cursor);
-        refreshHistoryAfterWindowChange(previousStart);
+        const withinLoadedWindow = raw.length > 0 && currentTime >= raw[0]!.timestamp;
+        if (withinLoadedWindow) {
+          // Keep the existing left edge and its adjacent history. Re-slicing a
+          // rolling 10,000-bar window on every back press moves that edge and
+          // needlessly triggers the full loading cover and viewport reset.
+          raw.length = firstIndexAfter(raw, currentTime);
+        } else {
+          const cursor = firstIndexAfter(source, currentTime);
+          const previousStart = raw[0]?.timestamp;
+          rawCandlesRef.current = source.slice(Math.max(0, cursor - 10_000), cursor);
+          refreshHistoryAfterWindowChange(previousStart);
+        }
         currentPriceRef.current = Number(
           rawCandlesRef.current.at(-1)?.close ?? 0,
         );
         dataGenerationRef.current += 1;
-        scheduleRender(true);
+        scheduleRender(true, withinLoadedWindow);
         return;
       }
       let cursor = lastTime === -Infinity ? 0 : firstIndexAfter(source, lastTime);

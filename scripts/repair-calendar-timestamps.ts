@@ -80,7 +80,7 @@ async function main(){
     let count=0;
     for(let i=0;i<changes.length;i+=250){
       const batch=changes.slice(i,i+250);
-      const values=batch.map(c=>Prisma.sql`(${c.id},${BigInt(c.before)},${BigInt(c.after)})`);
+      const values=batch.map(c=>Prisma.sql`(${c.id},${BigInt(c.before)}::bigint,${BigInt(c.after)}::bigint)`);
       const n=await tx.$executeRaw(Prisma.sql`UPDATE "EconomicEvent" AS e SET "timestamp"=v.new_timestamp,"updatedAt"=NOW() FROM (VALUES ${Prisma.join(values)}) AS v(id,old_timestamp,new_timestamp) WHERE e.id=v.id AND e."timestamp"=v.old_timestamp`);
       if(n!==batch.length)throw Error('Calendar changed during the repair; transaction rolled back.');
       count+=n;
@@ -90,6 +90,7 @@ async function main(){
   console.log(JSON.stringify({updated,backup}));
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>prisma.$disconnect());
+
 
 
 

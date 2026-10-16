@@ -21,6 +21,7 @@ describe("calendar history loading", () => {
       const to = Number(params.get("to"));
       ranges.push([from, to]);
       expect(params.get("currencies")).toBe("EUR,USD");
+      expect(params.get("timing")).toBe("2");
       return Response.json({ ok: true, truncated: from === 0 && to === 100,
         events: [{ id: String(from), timestamp: from }] });
     }));

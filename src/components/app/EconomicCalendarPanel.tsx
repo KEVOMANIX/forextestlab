@@ -108,6 +108,7 @@ export function EconomicCalendarPanel({
         importance: minImportance,
         currencies: currencyKey,
         order: "time",
+        timing: "2",
       });
       if (after != null) params.set("after", String(after));
       const response = await fetch(`/api/calendar/events?${params}`, {

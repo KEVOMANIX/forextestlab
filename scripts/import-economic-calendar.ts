@@ -95,7 +95,7 @@ async function main() {
         ? "as given"
         : report.timezoneSource === "detected"
           ? "detected from the file"
-          : "fallback — see the warning above"
+          : "recorded in the export header"
     })`,
   );
   console.log(`Rows read:       ${report.rowsRead}`);

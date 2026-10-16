@@ -23,7 +23,8 @@ import {
   parseExportHeader,
   type ExportHeader,
 } from "./mt5-csv";
-import { parseZoneSpec, zoneOffsetMinutesAt, type ZoneSpec } from "./timezone";
+import { zoneOffsetMinutesAt, type ZoneSpec } from "./timezone";
+import { resolveCalendarImportZone, type CalendarImportZone } from "./import-zone";
 import { detectServerZone, type ExportRow, type ZoneDetection } from "./detect-zone";
 import type { EconomicEventRecord } from "./types";
 
@@ -46,7 +47,7 @@ export interface CalendarImportReport {
   /** The zone actually used, whether given or detected. */
   timezone: string;
   /** How that zone was arrived at. */
-  timezoneSource: "given" | "detected" | "fallback";
+  timezoneSource: CalendarImportZone["timezoneSource"];
   detection: ZoneDetection | null;
   rowsRead: number;
   rowsWritten: number;
@@ -193,25 +194,7 @@ export async function importEconomicCalendar(
       })
     : null;
 
-  let timezone: string;
-  let timezoneSource: CalendarImportReport["timezoneSource"];
-  if (options.timezone != null && options.timezone !== "") {
-    timezone = options.timezone;
-    timezoneSource = "given";
-  } else if (detection?.confident && detection.best) {
-    timezone = detection.best.timezone;
-    timezoneSource = "detected";
-  } else {
-    timezone = "UTC";
-    timezoneSource = "fallback";
-  }
-
-  const zone = parseZoneSpec(timezone);
-  if (!zone) {
-    throw new Error(
-      `Unrecognised --timezone "${timezone}". Use an IANA zone name such as Europe/Kyiv, or a fixed offset such as +02:00.`,
-    );
-  }
+  const { timezone, timezoneSource, zone } = resolveCalendarImportZone(options.timezone, header, detection);
   const source = options.source ?? "mt5";
   const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
 
@@ -258,15 +241,9 @@ export async function importEconomicCalendar(
       );
     }
   }
-  if (timezoneSource === "fallback" && detection && !detection.confident) {
+  if (timezoneSource === "header") {
     report.warnings.push(
-      detection.anchor == null
-        ? "Could not work out the server's zone: no release in this file recurs on both " +
-          "sides of a daylight-saving change. Times were read as UTC — pass --timezone " +
-          "with your broker's server zone if that is wrong."
-        : `Could not settle on the server's zone from this file (best guess ` +
-          `${detection.best?.timezone} at ${Math.round((detection.best?.score ?? 0) * 100)}% ` +
-          `agreement). Times were read as UTC.`,
+      `Using the export's recorded UTC offset ${timezone}; this short export does not establish a seasonal timezone.`,
     );
   }
 

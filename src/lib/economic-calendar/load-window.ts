@@ -22,6 +22,8 @@ export async function loadCalendarWindow(
     return { ok: true, events: [...left.events, ...right.events] };
   }
   const params = new URLSearchParams(filters);
+  // New query identity bypasses responses cached before the timestamp repair.
+  params.set("timing", "2");
   params.set("from", String(Math.floor(from)));
   params.set("to", String(Math.ceil(to)));
   const data = await fetchChartData<{ ok?: boolean; events?: CalendarEvent[]; truncated?: boolean }>(

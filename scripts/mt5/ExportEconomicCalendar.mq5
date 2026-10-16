@@ -299,10 +299,10 @@ void OnStart()
       return;
      }
 
-   // The offset is only a sanity check for the importer: it is what the server
-   // was doing at export time, which says nothing about DST on an event's own
-   // date. Hence --timezone.
-   const long offsetMinutes = (long)(TimeTradeServer() - TimeGMT()) / 60;
+   // Calendar history can be reported in the terminal's current server offset.
+   // Record that offset for short exports whose release schedules alone cannot
+   // establish a timezone. The importer validates longer histories separately.
+   const long offsetMinutes = (long)MathRound((double)(TimeTradeServer() - TimeGMT()) / 60.0);
    WriteLine(handle, StringFormat(
                 "# forextestlab-calendar v1 server=%s server_gmt_offset_minutes=%I64d exported_utc=%s",
                 AccountInfoString(ACCOUNT_SERVER),

@@ -1,13 +1,10 @@
 /**
  * Wall-clock-to-UTC conversion for imported calendar timestamps.
  *
- * MetaTrader reports calendar times in the *trade server's* timezone, and most
- * brokers run EET with summer time. A fixed offset therefore gets every event on
- * the far side of a DST boundary an hour wrong — which for a news release is the
- * difference between marking the candle that moved and the one before it. So a
- * named IANA zone is converted per timestamp, with the rule in force on that
- * date, and a fixed offset is accepted only because some servers really are
- * fixed.
+ * Calendar exports can report their entire history in the offset recorded at
+ * export, while other files use a seasonal server clock. The importer selects
+ * the verified basis. Named IANA zones apply each date's own daylight-saving
+ * rules; export offsets are applied consistently to that export's wall clocks.
  */
 
 export interface WallClock {

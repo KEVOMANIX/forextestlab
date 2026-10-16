@@ -26,7 +26,8 @@ async function main() {
   const stateFile = path.resolve(
     readFlag("state-file") || "data/.forextestlab-calendar.sha256",
   );
-  const currentHash = await sha256(file);
+  // Reprocess an unchanged export once after fixing timezone interpretation.
+  const currentHash = `calendar-zone-v2:${await sha256(file)}`;
   const previousHash = await readFile(stateFile, "utf8").catch(() => "");
   if (previousHash.trim() === currentHash) {
     console.log("Economic calendar export is unchanged; nothing to import.");
@@ -40,6 +41,8 @@ async function main() {
   if (report.rowsRead === 0 || report.rowsWritten === 0) {
     throw new Error("Refusing to accept an empty economic-calendar export.");
   }
+  for (const warning of report.warnings) console.warn(warning);
+  console.log(`Calendar timezone: ${report.timezone} (${report.timezoneSource}).`);
 
   await mkdir(path.dirname(stateFile), { recursive: true });
   const temporary = `${stateFile}.${process.pid}.tmp`;

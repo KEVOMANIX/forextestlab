@@ -5,6 +5,51 @@ export interface ChartHistorySnapshot {
   hasMore: boolean;
 }
 
+/** Complete responses only: merged browser history alone does not prove that
+ * the page beside a particular replay window has actually finished loading. */
+export class ChartHistoryPageCache {
+  private pages = new Map<string, { snapshot: ChartHistorySnapshot; expiresAt: number }>();
+  private candleCount = 0;
+
+  constructor(
+    private readonly maxPages = 12,
+    private readonly maxCandles = 24_000,
+    private readonly ttlMs = 5 * 60_000,
+  ) {}
+
+  private remove(key: string): void {
+    const entry = this.pages.get(key);
+    if (entry) this.candleCount -= entry.snapshot.candles.length;
+    this.pages.delete(key);
+  }
+
+  get(source: string, before: number): ChartHistorySnapshot | null {
+    const key = JSON.stringify([source, before]);
+    const entry = this.pages.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) {
+      this.remove(key);
+      return null;
+    }
+    this.pages.delete(key);
+    this.pages.set(key, entry);
+    return entry.snapshot;
+  }
+
+  set(source: string, before: number, snapshot: ChartHistorySnapshot): void {
+    const key = JSON.stringify([source, before]);
+    this.remove(key);
+    // An empty response must not trap a chart with no candles after a provider
+    // outage. Large scrollbacks use the ordinary path rather than growing RAM.
+    if (!snapshot.candles.length || snapshot.candles.length > this.maxCandles) return;
+    this.pages.set(key, { snapshot, expiresAt: Date.now() + this.ttlMs });
+    this.candleCount += snapshot.candles.length;
+    while (this.pages.size > this.maxPages || this.candleCount > this.maxCandles) {
+      this.remove(this.pages.keys().next().value!);
+    }
+  }
+}
+
 type Listener = (snapshot: ChartHistorySnapshot) => void;
 
 const DB_NAME = "forextestlab-chart-history";

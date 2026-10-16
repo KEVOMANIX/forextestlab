@@ -91,6 +91,7 @@ import { Indicator, indicatorColorForTheme } from "@/lib/chart/indicator-runtime
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import {
   chartHistoryKey,
+  ChartHistoryPageCache,
   publishChartHistory,
   subscribeChartHistory,
 } from "@/lib/chart/history-cache";
@@ -1111,6 +1112,8 @@ export default function PriceChart({
    */
   const resetViewIdentityRef = useRef<string | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
+  const historyPagesRef = useRef<ChartHistoryPageCache | null>(null);
+  if (historyPagesRef.current === null) historyPagesRef.current = new ChartHistoryPageCache();
   // Keep the trusted pre-replay fragment even when shared-cache safety checks
   // discard a still-open daily bucket. It is valid only for this replay start.
   const openingHistoryRef = useRef<{ candle: Candle; replayStart: number; timeframe: Timeframe } | null>(null);
@@ -1328,6 +1331,7 @@ export default function PriceChart({
   async function loadHistoryPage(replace: boolean) {
     if (historyLoadingRef.current || (!replace && !historyHasMoreRef.current)) return;
     const requestedTimeframe = displayTimeframeRef.current;
+    const pageSource = chartHistoryKey(`${storageKey ?? replaySessionId ?? "chart"}:${symbolLabel}`, requestedTimeframe);
     const requestId = ++historyRequestRef.current;
     const firstReplayTime = rawCandlesRef.current[0]?.timestamp;
     const earliest = historyCandlesRef.current[0]?.timestamp ?? firstReplayTime;
@@ -1346,8 +1350,13 @@ export default function PriceChart({
     }
     let completed = false;
     try {
-      const response = await onLoadHistory(requestedTimeframe, replace ? firstReplayTime ?? earliest : earliest);
+      const before = replace ? firstReplayTime ?? earliest : earliest;
+      const cachedPage = historyPagesRef.current!.get(pageSource, before);
+      const response = cachedPage ?? await onLoadHistory(requestedTimeframe, before);
       const page = { ...response, candles: response.candles.filter(candle => !isEmptyForexWeekendCandle(symbolLabel, candle)) };
+      // A superseded request can still warm its exact page for a later switch,
+      // but the generation check below remains in charge of what gets painted.
+      if (!cachedPage) historyPagesRef.current!.set(pageSource, before, page);
       // Timeframe buttons can be clicked again while this request is in flight.
       // Never apply 15m history to a chart that has already moved to 1h/4h.
       if (requestId !== historyRequestRef.current || requestedTimeframe !== displayTimeframeRef.current) return;
@@ -1364,6 +1373,10 @@ export default function PriceChart({
       historyTimeframeRef.current = requestedTimeframe;
       drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
       historyHasMoreRef.current = page.hasMore;
+      // Retain older pages fetched by scrolling when returning to this view.
+      if (!cachedPage && firstReplayTime !== undefined) {
+        historyPagesRef.current!.set(pageSource, firstReplayTime, { candles: merged, hasMore: page.hasMore });
+      }
       setHasOlderHistory(page.hasMore);
       renderContextSeries();
       drawingEngineRef.current?.setEnv({

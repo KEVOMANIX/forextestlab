@@ -242,7 +242,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const lastActionRef = useRef<Parameters<typeof sendAction>[2] | null>(null);
   const localEngineRef = useRef<EngineContext | null>(null);
   /** Symbols with a pair fetch in flight, so duplicate cells share one request. */
-  const pairRequestsRef = useRef<Set<string>>(new Set());
+  const pairRequestsRef = useRef<Map<string, Promise<void>>>(new Map());
+  /** Required trade data is independent of which charts happen to be mounted. */
+  const tradingPairDataRef = useRef<(engine: EngineContext) => Promise<boolean> | null>(() => null);
   /** Matching layout cells must share one R2 history request. */
   const historyRequestsRef = useRef(
     new Map<string, Promise<{ candles: Candle[]; hasMore: boolean }>>(),
@@ -254,6 +256,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
         state: engineStateFromPublic(state),
         candles,
       };
+      // A resume response sends a bounded candle buffer. Its saved/server
+      // count can describe a much longer series; local execution must stop
+      // and extend at the last candle actually downloaded.
+      engine.state.totalCandles = candles.length;
       localEngineRef.current = engine;
       // The server just handed this book over, so it already agrees with it.
       // Seeding avoids forcing a replay on the first checkpoint of every load.
@@ -578,8 +584,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
         if (!res.ok) {
           succeeded = false;
           if (res.state && !opts.preserveLocalState) localEngineRef.current = {
-            state: engineStateFromPublic(res.state),
+            state: {
+              ...engineStateFromPublic(res.state),
+              totalCandles: localEngineRef.current?.candles.length ?? 0,
+            },
             candles: localEngineRef.current?.candles ?? [],
+            pairCandles: localEngineRef.current?.pairCandles,
           };
           setS((prev) => ({
             ...prev,
@@ -594,6 +604,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         // "next" — a round-trip per candle that local playback always outran.
         // Their full series is now loaded once and revealed on the replay clock.
         const responseEngineState = engineStateFromPublic(res.state);
+        if (localEngineRef.current) responseEngineState.totalCandles = localEngineRef.current.candles.length;
         const normalizedResponseState = publicSessionState(
           {
             state: responseEngineState,
@@ -680,6 +691,17 @@ export function useBacktester(resumeSessionId: string | null = null) {
     // a jump/restart/step-back bumps this before the loop below finishes, this
     // step has been superseded and must not touch the engine again.
     const generation = engineGenerationRef.current;
+    const pairData = tradingPairDataRef.current(engine);
+    if (pairData) {
+      const ready = await pairData;
+      if (engineGenerationRef.current !== generation || localEngineRef.current !== engine) return;
+      if (!ready) {
+        wantsReplayRunningRef.current = false;
+        engine.state.status = "paused";
+        patch({ state: publicSessionState(engine, s.state?.anonymous ?? false), error: "Replay paused: price data for an open trade could not be loaded. Please retry before continuing." });
+        return;
+      }
+    }
     const startIndex = engine.state.visibleIndex;
     let manualTarget = displayTimeframe
       ? nextCandleTarget(engine.candles, startIndex, displayTimeframe, engine.state.config.symbol)
@@ -722,7 +744,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
       const lastLoaded = engine.candles[engine.candles.length - 1];
       const loadedRemaining =
-        engine.state.totalCandles - 1 - engine.state.visibleIndex;
+        engine.candles.length - 1 - engine.state.visibleIndex;
       const bufferTarget = replayBufferTargetCandles(
         engine.state.speed,
         engine.state.config.timeframe,
@@ -737,7 +759,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         startReplayExtension();
       }
       const atLoadedBoundary =
-        engine.state.visibleIndex >= engine.state.totalCandles - 1;
+        engine.state.visibleIndex >= engine.candles.length - 1;
       if (
         atLoadedBoundary &&
         lastLoaded &&
@@ -1037,6 +1059,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   }, [checkpoint, s.endOfData, s.state?.accountBlown, startLocalScheduler]);
   const pause = useCallback(() => {
     wantsReplayRunningRef.current = false;
+    engineGenerationRef.current += 1;
     // Stop the local timer immediately. The server pause command is serialized
     // behind any candle request that is already in flight.
     const engine = localEngineRef.current;
@@ -1254,13 +1277,24 @@ export function useBacktester(resumeSessionId: string | null = null) {
       };
 
       try {
+        const pairData = tradingPairDataRef.current(engine);
+        if (pairData) {
+          const ready = await pairData;
+          if (engineGenerationRef.current !== generation || localEngineRef.current !== engine) {
+            return { reason: "cancelled", candles: 0 };
+          }
+          if (!ready) {
+            patch({ error: "Replay paused: price data for an open trade could not be loaded. Please retry before continuing." });
+            return { reason: "unavailable", candles: 0 };
+          }
+        }
         while (engine.state.visibleIndex - startIndex < JUMP_MAX_CANDLES) {
           if (cancelJumpRef.current) { reason = "cancelled"; break; }
           // A later action — another jump, a rewind, a restart — has taken the
           // cursor. Stop rather than layering this jump's advance on top of it.
           if (engineGenerationRef.current !== generation) break;
           const lastLoaded = engine.candles[engine.candles.length - 1];
-          if (engine.state.visibleIndex >= engine.state.totalCandles - 1) {
+          if (engine.state.visibleIndex >= engine.candles.length - 1) {
             // Out of loaded candles: fetch the next chunk, then re-test the
             // boundary rather than assuming the fetch produced one.
             if (!lastLoaded || lastLoaded.timestamp >= engine.state.config.endTime) {
@@ -1742,48 +1776,73 @@ export function useBacktester(resumeSessionId: string | null = null) {
     );
   }, [runAction]);
   /**
-   * Load a non-session symbol's full series once, so a chart cell showing it can
-   * advance on the local replay clock. Concurrent callers (several cells asking
-   * for the same pair on the same frame) share the one in-flight request.
+   * Load a secondary symbol's buffered series for charts and trade execution.
+   * Concurrent callers share one request and can wait for the same data.
    */
   const ensurePair = useCallback(
     async (symbol: string) => {
       const id = sessionIdRef.current;
       if (!id || !symbol) return;
-      if (symbol === s.state?.config.symbol) return;
-      if (s.pairs[symbol] || pairRequestsRef.current.has(symbol)) return;
-      pairRequestsRef.current.add(symbol);
-      setS((prev) => ({
-        ...prev,
-        error: null,
-        pairLoadingSymbols: prev.pairLoadingSymbols.includes(symbol)
-          ? prev.pairLoadingSymbols
-          : [...prev.pairLoadingSymbols, symbol],
-      }));
       const engine = localEngineRef.current;
-      const replayClock = engine?.candles[engine.state.visibleIndex]?.timestamp;
-      const pair = await getPairChart(
-        id,
-        tokenRef.current,
-        symbol,
-        true,
-        undefined,
-        replayClock,
-      );
-      pairRequestsRef.current.delete(symbol);
-      if (pair.ok && localEngineRef.current) {
-        localEngineRef.current.pairCandles ??= {};
-        localEngineRef.current.pairCandles[symbol] = pair.candles;
+      if (!engine || engine.state.sessionId !== id || symbol === engine.state.config.symbol) return;
+      if (s.sessionId === id && s.pairs[symbol]?.candles.length) {
+        engine.pairCandles ??= {};
+        if (!engine.pairCandles[symbol]?.length) engine.pairCandles[symbol] = s.pairs[symbol].candles;
+        return;
       }
-      setS((prev) => ({
-        ...prev,
-        error: pair.ok ? prev.error : pair.error,
-        pairs: pair.ok ? { ...prev.pairs, [symbol]: pair } : prev.pairs,
-        pairLoadingSymbols: prev.pairLoadingSymbols.filter((item) => item !== symbol),
-      }));
+      const key = `${id}:${symbol}`;
+      const pending = pairRequestsRef.current.get(key);
+      if (pending) return pending;
+      const request = (async () => {
+        setS((prev) => ({
+          ...prev,
+          error: null,
+          pairLoadingSymbols: prev.pairLoadingSymbols.includes(symbol)
+            ? prev.pairLoadingSymbols
+            : [...prev.pairLoadingSymbols, symbol],
+        }));
+        const replayClock = engine?.candles[engine.state.visibleIndex]?.timestamp;
+        const pair = await getPairChart(
+          id,
+          tokenRef.current,
+          symbol,
+          true,
+          undefined,
+          replayClock,
+        );
+        if (sessionIdRef.current !== id || localEngineRef.current !== engine) return;
+        if (pair.ok && engine) {
+          engine.pairCandles ??= {};
+          engine.pairCandles[symbol] = pair.candles;
+        }
+        setS((prev) => ({
+          ...prev,
+          error: pair.ok ? prev.error : pair.error,
+          pairs: pair.ok ? { ...prev.pairs, [symbol]: pair } : prev.pairs,
+          pairLoadingSymbols: prev.pairLoadingSymbols.filter((item) => item !== symbol),
+        }));
+      })();
+      pairRequestsRef.current.set(key, request);
+      try {
+        await request;
+      } finally {
+        if (pairRequestsRef.current.get(key) === request) pairRequestsRef.current.delete(key);
+      }
     },
-    [s.pairs, s.state?.config.symbol],
+    [s.pairs, s.sessionId],
   );
+
+  tradingPairDataRef.current = (engine) => {
+    const symbols = new Set([
+      ...engine.state.openPositions.map((position) => position.symbol ?? engine.state.config.symbol),
+      ...engine.state.pendingOrders.filter((order) => order.status === "pending")
+        .map((order) => order.symbol ?? engine.state.config.symbol),
+    ]);
+    const missing = [...symbols].filter((symbol) => symbol !== engine.state.config.symbol && !engine.pairCandles?.[symbol]?.length);
+    if (!missing.length) return null;
+    return Promise.all(missing.map(ensurePair)).then(() => localEngineRef.current === engine &&
+      missing.every((symbol) => Boolean(engine.pairCandles?.[symbol]?.length))).catch(() => false);
+  };
 
   const switchPair = useCallback(
     async (symbol: string) => {

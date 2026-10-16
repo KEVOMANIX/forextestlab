@@ -38,7 +38,7 @@ async function main(){
     const periodClock=parseWallClock(row.record.period_server??'');
     const timing=parsed.ok?parsed.record:clock&&row.record.value_id?{
       timestamp:wallClockToUtc(clock,zone),period:periodClock?wallClockToUtc(periodClock,zone):null,
-      seriesId:row.record.event_id||null,currency:row.record.currency,
+      seriesId:row.record.event_id||null,currency:row.record.currency??'',
     }:null;
     if(!timing)continue;
     source.add({...timing,externalId:row.record.value_id!});
@@ -90,5 +90,6 @@ async function main(){
   console.log(JSON.stringify({updated,backup}));
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>prisma.$disconnect());
+
 
 

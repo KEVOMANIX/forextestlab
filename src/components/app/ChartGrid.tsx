@@ -7,7 +7,7 @@ import type { PairChartData } from "@/lib/backtest/client";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
 import type { OpenPosition, OrderType, PendingOrder, PublicSessionState } from "@/lib/backtest/types";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
-import type { DrawingJSON } from "@/lib/chart/drawing/types";
+import type { DrawingJSON, ToolKind } from "@/lib/chart/drawing/types";
 import type { IndicatorInstance } from "@/lib/chart/indicator-defs";
 
 import { useCompactViewport } from "@/lib/ui/use-media-query";
@@ -269,6 +269,9 @@ export default function ChartGrid({
   const [readyCells, setReadyCells] = useState<Set<string>>(new Set());
   const [layoutSync, setLayoutSync] = useState<LayoutSyncSnapshot | null>(null);
   const [linkedLayout, setLinkedLayout] = useState(false);
+  // Arm every pane before its first pointer-down; a focus change must not
+  // require a second click or leave the chosen tool behind on another chart.
+  const [drawingTool, setDrawingTool] = useState<ToolKind | null>(null);
 
   useEffect(() => {
     const saved = readStoredLayout(storageKey);
@@ -655,6 +658,8 @@ export default function ChartGrid({
                 showControls={isFocused}
                 railSlot={railHost}
                 showRail={isFocused}
+                drawingTool={drawingTool}
+                onDrawingToolChange={setDrawingTool}
                 canSyncLayout={multi}
                 onSyncToLayout={(snapshot) => syncLayoutFromCell(cell.id, snapshot)}
                 linkedLayout={linkedLayout}
@@ -731,6 +736,8 @@ interface ChartCellViewProps {
   showControls: boolean;
   railSlot: HTMLElement | null;
   showRail: boolean;
+  drawingTool: ToolKind | null;
+  onDrawingToolChange: (tool: ToolKind | null) => void;
   canSyncLayout: boolean;
   onSyncToLayout: ((snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[]; allowEmpty?: boolean }) => void) | undefined;
   linkedLayout: boolean;
@@ -779,6 +786,8 @@ function ChartCellView({
   showControls,
   railSlot,
   showRail,
+  drawingTool,
+  onDrawingToolChange,
   canSyncLayout,
   onSyncToLayout,
   linkedLayout,
@@ -906,6 +915,8 @@ function ChartCellView({
         showControls={showControls}
         railSlot={railSlot}
         showRail={showRail}
+        drawingTool={drawingTool}
+        onDrawingToolChange={onDrawingToolChange}
         canSyncLayout={canSyncLayout}
         onSyncToLayout={onSyncToLayout}
         linkedLayout={linkedLayout}

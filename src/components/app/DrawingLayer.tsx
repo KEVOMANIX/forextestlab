@@ -39,6 +39,7 @@ interface Props {
   chart: IChartApi | null;
   series: ISeriesApi<SeriesType> | null;
   tool: ToolKind | null;
+  keyboardEnabled?: boolean;
   selectionEnabled?: boolean;
   magnet: MagnetMode;
   precision: number;
@@ -74,6 +75,7 @@ export function DrawingLayer({
   chart,
   series,
   tool,
+  keyboardEnabled = true,
   selectionEnabled = true,
   magnet,
   precision,
@@ -100,6 +102,8 @@ export function DrawingLayer({
   const sourceRef = useRef(`drawing-layer-${Math.random().toString(36).slice(2)}`);
   const onDrawingsChangeRef = useRef(onDrawingsChange);
   onDrawingsChangeRef.current = onDrawingsChange;
+  const onToolConsumedRef = useRef(onToolConsumed);
+  onToolConsumedRef.current = onToolConsumed;
   const candlesRef = useRef(candles);
   candlesRef.current = candles;
   const futureTimesRef = useRef(futureTimes);
@@ -181,7 +185,7 @@ export function DrawingLayer({
       setTextDraft("");
       setTextEdit({ ...req, kind: drawing.kind, style: drawing.style });
     };
-    engine.onToolConsumed = () => onToolConsumed();
+    engine.onToolConsumed = () => onToolConsumedRef.current();
     engine.onSelectionChange = (json) => {
       setSelection(json);
       setToolbarPosition(json ? engine.getSelectionToolbarPosition() : null);
@@ -202,10 +206,12 @@ export function DrawingLayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart, series, storageKey]);
 
-  // Push environment on every relevant change.
+  // Also initialize replacement engines after a chart/series rebuild, even
+  // when the tool and all other environment values stayed the same.
   useEffect(() => {
     engineInstance.current?.setEnv({
       tool,
+      keyboardEnabled,
       selectionEnabled,
       magnet,
       precision,
@@ -218,7 +224,7 @@ export function DrawingLayer({
       futureTimes: futureTimesRef.current,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, theme, account, candles, futureTimes]);
+  }, [tool, keyboardEnabled, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, theme, account, candles, futureTimes, chart, series, storageKey]);
 
   // Re-render objects when the chart view moves.
   useEffect(() => {

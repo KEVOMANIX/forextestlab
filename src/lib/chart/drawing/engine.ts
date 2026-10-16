@@ -61,6 +61,7 @@ const TOUCH_DRAG_START_PX = 8;
 
 interface EngineEnv {
   tool: ToolKind | null;
+  keyboardEnabled?: boolean;
   selectionEnabled: boolean;
   magnet: MagnetMode;
   candles: Candle[];
@@ -1221,6 +1222,7 @@ export class DrawingEngine {
   };
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    if (this.env.keyboardEnabled === false) return;
     this.ctrlHeld = e.ctrlKey || e.metaKey;
     this.setShift(e.shiftKey);
     const el = document.activeElement;
@@ -1233,6 +1235,7 @@ export class DrawingEngine {
         this.onToolConsumed?.();
       } else {
         this.select(null);
+        if (this.env.tool) this.onToolConsumed?.();
       }
     } else if ((e.key === "Delete" || e.key === "Backspace") && this.selectedId && !this.env.tool) {
       e.preventDefault();

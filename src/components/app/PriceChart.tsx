@@ -363,6 +363,9 @@ interface PriceChartProps {
    */
   railSlot?: HTMLElement | null;
   showRail?: boolean;
+  /** Workspace tool selection: placement starts in whichever pane is clicked. */
+  drawingTool?: DrawTool;
+  onDrawingToolChange?: (tool: DrawTool) => void;
   /** Lets the focused pane copy its studies and drawings to the other panes. */
   canSyncLayout?: boolean;
   onSyncToLayout?: (snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[]; allowEmpty?: boolean }) => void;
@@ -979,6 +982,8 @@ export default function PriceChart({
   showControls = true,
   railSlot = null,
   showRail = true,
+  drawingTool,
+  onDrawingToolChange,
   canSyncLayout = false,
   onSyncToLayout,
   linkedLayout = false,
@@ -1206,7 +1211,9 @@ export default function PriceChart({
   }, [layoutSync]);
   const [indicatorEditing, setIndicatorEditing] = useState<string | null>(null);
   const [anchorPick, setAnchorPick] = useState<{ id: string; key: string } | null>(null);
-  const [drawTool, setDrawTool] = useState<DrawTool>(null);
+  const [localDrawTool, setLocalDrawTool] = useState<DrawTool>(null);
+  const drawTool = drawingTool === undefined ? localDrawTool : drawingTool;
+  const setDrawTool = onDrawingToolChange ?? setLocalDrawTool;
   /**
    * Cross by default. Reading a price off a level is the thing a trader does
    * constantly on a replay chart, and it is what every charting platform opens
@@ -4274,6 +4281,7 @@ export default function PriceChart({
           timeZone={settings.timeZone}
           theme={theme}
           tool={drawTool}
+          keyboardEnabled={showControls}
           // Drawings are selectable and draggable in both cursor modes. Gating
           // selection on the pointer mode made every drawing inert under the
           // crosshair, which is the mode the chart now opens in — and the mode a

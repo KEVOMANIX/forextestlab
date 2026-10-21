@@ -51,7 +51,7 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `f173b39`, Challenges page and challenge separation (verified 2026-10-21) |
+| Current deployed app revision | `b3069c8`, dashboard Performance section (verified 2026-10-21) |
 | Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
 The original workstation already has working Git credentials for the GitHub
@@ -603,6 +603,12 @@ The visual system deliberately separates product identity from trading results:
 - Palette definitions live in `tailwind.config.ts`; do not use the brand colour
   to represent positive P/L or bullish candles.
 
+- The dashboard (`src/app/app/page.tsx`, `SignedInDashboard.tsx`) reads top to
+  bottom: greeting and named Continue button, the running-challenge strip,
+  Performance over the last 100 practice trades (`practicePerformance()` in
+  `src/lib/backtest/practice-performance.ts`: KPI tiles, cumulative P/L with
+  the largest drawdown, winners against losers), This week, then sessions.
+  Every figure excludes challenges.
 - Deployment host: AWS Lightsail behind Cloudflare; Vercel is not used.
 - On 2026-10-21 the instance was replaced by a 4 GB instance created from a
   snapshot of the 2 GB one. The static IP `52.34.239.239` moved to the new

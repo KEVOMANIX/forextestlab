@@ -15,8 +15,8 @@ import {
 } from "@/components/app/SignedInDashboard";
 import { ensureUserProfile } from "@/lib/auth";
 import { loadActiveChallengeCard } from "@/lib/backtest/challenge-queries";
+import { practicePerformance } from "@/lib/backtest/practice-performance";
 import { prisma } from "@/lib/db";
-import { Decimal } from "@/lib/decimal";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -28,6 +28,11 @@ export const metadata: Metadata = {
     "Review private forex backtesting sessions, trading performance, and recent strategy-testing activity.",
   robots: { index: false, follow: false },
 };
+
+/** Trades behind the Performance section's figures and cumulative curve. */
+const PERFORMANCE_TRADES = 100;
+/** The most recent of those, drawn one bar per trade. */
+const RESULTS_STRIP_TRADES = 30;
 
 interface SessionMetadataRow {
   id: string;
@@ -162,7 +167,7 @@ export default async function AppHome() {
         validity: { not: "experimental" },
       },
       orderBy: { createdAt: "desc" },
-      take: 30,
+      take: PERFORMANCE_TRADES,
       select: { pnl: true },
     }),
     prisma.simulatedTrade.count({
@@ -246,16 +251,11 @@ export default async function AppHome() {
     streakDays += 1;
     cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
-  const wins = recentTrades.filter((trade) => Number(trade.pnl) > 0).length;
-  const losses = recentTrades.filter((trade) => Number(trade.pnl) < 0).length;
-  // Oldest first, so the dashboard strip reads left to right like a chart.
-  const recentPnls = recentTrades.map((trade) => new Decimal(trade.pnl)).reverse();
-  const grossProfit = recentPnls
-    .filter((pnl) => pnl.greaterThan(0))
-    .reduce((total, pnl) => total.plus(pnl), new Decimal(0));
-  const grossLoss = recentPnls
-    .filter((pnl) => pnl.lessThan(0))
-    .reduce((total, pnl) => total.plus(pnl.abs()), new Decimal(0));
+  // Oldest first, so the strip and the cumulative curve read left to right.
+  const orderedPnls = recentTrades.map((trade) => trade.pnl).reverse();
+  const stripPnls = orderedPnls.slice(-RESULTS_STRIP_TRADES);
+  const wins = stripPnls.filter((pnl) => Number(pnl) > 0).length;
+  const losses = stripPnls.filter((pnl) => Number(pnl) < 0).length;
 
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&
@@ -271,6 +271,7 @@ export default async function AppHome() {
       }))}
       displayName={displayName}
       activeChallenge={activeChallenge}
+      performance={practicePerformance(orderedPnls)}
       metrics={{
         practiceMinutes,
         practiceMinutesByDay,
@@ -278,13 +279,11 @@ export default async function AppHome() {
         currentWeekdayIndex: Math.max(0, weekdayIndex),
         streakDays,
         closedTradesThisWeek,
-        winRate: recentTrades.length ? (wins / recentTrades.length) * 100 : null,
-        winRateSampleSize: recentTrades.length,
+        winRate: stripPnls.length ? (wins / stripPnls.length) * 100 : null,
+        winRateSampleSize: stripPnls.length,
         winningTrades: wins,
         losingTrades: losses,
-        recentTradePnls: recentPnls.map((pnl) => pnl.toNumber()),
-        recentNetPnl: grossProfit.minus(grossLoss).toFixed(2),
-        recentProfitFactor: grossLoss.isZero() ? null : grossProfit.dividedBy(grossLoss).toNumber(),
+        recentTradePnls: stripPnls.map(Number),
       }}
     />
   );

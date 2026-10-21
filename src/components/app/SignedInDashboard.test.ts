@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
+import { practicePerformance } from "@/lib/backtest/practice-performance";
+
 import { SignedInDashboard, type DashboardPracticeMetrics, type DashboardSession } from "./SignedInDashboard";
 
 const metrics: DashboardPracticeMetrics = {
@@ -18,8 +20,6 @@ const metrics: DashboardPracticeMetrics = {
   winningTrades: 2,
   losingTrades: 1,
   recentTradePnls: [2, -5, 10],
-  recentNetPnl: "7.00",
-  recentProfitFactor: 2.4,
 };
 
 function session(overrides: Partial<DashboardSession>): DashboardSession {
@@ -82,11 +82,24 @@ describe("SignedInDashboard", () => {
     expect(html).not.toMatch(/text-profit">\$0\.00</);
   });
 
-  it("reports recent net P/L and profit factor alongside the win rate", () => {
-    const html = render([session({})]);
+  it("leads with net P/L, expectancy, profit factor and drawdown beside the win rate", () => {
+    const html = renderToStaticMarkup(createElement(SignedInDashboard, {
+      sessions: [session({})],
+      displayName: "Kelvin",
+      metrics,
+      performance: practicePerformance(["2", "-5", "10"]),
+    }));
+    expect(html).toContain("Last 3 practice trades");
     expect(html).toContain("+$7.00");
+    expect(html).toContain("+$2.33");
     expect(html).toContain("2.40");
+    expect(html).toContain("Cumulative P/L");
+    expect(html).toContain("Max drawdown");
     expect(html).toContain("Bar height = trade P/L");
+  });
+
+  it("leaves the Performance section out before the first practice trade", () => {
+    expect(render([session({})])).not.toContain("Cumulative P/L");
   });
 
   it("shows a running challenge as a strip that links to the Challenges page", () => {

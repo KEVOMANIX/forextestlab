@@ -35,11 +35,11 @@ describe("dashboard practice overview", () => {
         winRateSampleSize: 3,
         // Trades arrive newest first; the strip reads oldest to latest.
         recentTradePnls: [2, -5, 10],
-        recentNetPnl: "7.00",
-        recentProfitFactor: 2.4,
         weekStart: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       }),
+      performance: expect.objectContaining({ tradeCount: 3, netPnl: "7.00", profitFactor: 2.4, curve: [0, 2, -3, 7] }),
     }));
+    expect(db.trades).toHaveBeenCalledWith(expect.objectContaining({ take: 100 }));
     expect(db.activity).toHaveBeenCalledOnce();
     expect(db.trades).toHaveBeenCalledOnce();
     // Challenges have their own page; the dashboard's sessions and trade

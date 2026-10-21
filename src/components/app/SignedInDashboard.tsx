@@ -4,7 +4,9 @@ import Link from "next/link";
 import { Clock3, Flame, ListChecks, Play } from "lucide-react";
 import { ChallengeStrip } from "@/components/app/ChallengeStrip";
 import { DashboardSessionsTable, type DashboardSessionRow } from "@/components/app/DashboardSessionsTable";
+import { PerformanceOverview } from "@/components/app/PerformanceOverview";
 import type { ChallengeCard } from "@/lib/backtest/challenge-record";
+import type { PracticePerformance } from "@/lib/backtest/practice-performance";
 import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
 import { formatNewYorkDate } from "@/lib/date-time";
 import { Decimal } from "@/lib/decimal";
@@ -50,9 +52,6 @@ export interface DashboardPracticeMetrics {
   losingTrades: number;
   /** P/L of the most recent closed trades, oldest first. */
   recentTradePnls: number[];
-  recentNetPnl: string;
-  /** Gross profit over gross loss; null when there are no losing trades. */
-  recentProfitFactor: number | null;
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -62,10 +61,6 @@ function formatMoney(value: Decimal): string {
   const sign = value.isZero() ? "" : value.isNegative() ? "−" : "+";
   const [whole, fraction] = value.abs().toFixed(2).split(".");
   return `${sign}$${whole!.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${fraction}`;
-}
-
-function pnlTone(value: number): string {
-  return value > 0 ? "text-profit" : value < 0 ? "text-loss" : "app-muted";
 }
 
 function sessionFunded(session: DashboardSession): Decimal {
@@ -120,12 +115,14 @@ function formatWeekRange(weekStart: string): string {
     : `${start.getUTCDate()} ${month(start)} – ${end.getUTCDate()} ${month(end)}`;
 }
 
-export function SignedInDashboard({ sessions, displayName, metrics, activeChallenge = null }: {
+export function SignedInDashboard({ sessions, displayName, metrics, activeChallenge = null, performance = null }: {
   sessions: DashboardSession[];
   displayName: string;
   metrics: DashboardPracticeMetrics;
   /** A running prop-firm challenge; challenges are otherwise kept off this page. */
   activeChallenge?: ChallengeCard | null;
+  /** Headline figures over recent practice trades; null before the first one. */
+  performance?: PracticePerformance | null;
 }) {
   const now = new Date();
   const visibleSessions = sessions.filter((session) => !session.archived);
@@ -165,7 +162,6 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
     ...Array.from({ length: Math.max(0, 30 - recentPnls.length) }, () => null),
     ...recentPnls,
   ];
-  const recentNet = new Decimal(metrics.recentNetPnl || 0);
   return (
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
       <header id="dashboard-overview" className="flex flex-col justify-between gap-5 border-b app-border pb-6 lg:flex-row lg:items-end">
@@ -195,6 +191,7 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
         </section>
       ) : (
         <>
+          {performance && <PerformanceOverview performance={performance} />}
           <section className="mt-7" aria-labelledby="practice-this-week">
             <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Practice activity</p><h2 id="practice-this-week" className="mt-1.5 text-xl font-semibold">This week{weekRange && <span className="font-medium app-muted"> · {weekRange}</span>}</h2></div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_.82fr_.82fr] xl:grid-rows-[8.75rem_11.25rem]">
@@ -228,13 +225,11 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
                 <div className="flex h-full flex-col justify-center">
                   <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2">
                     <div><p className="text-xs font-semibold app-muted">{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "Recent results"}</p><div className="mt-2 flex items-baseline gap-2"><p className="font-mono text-2xl font-semibold leading-none text-[var(--app-text)]">{metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`}</p><span className="text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">win rate</span></div></div>
-                    <dl className="flex gap-5">
-                      <div><dt className="text-[11px] font-semibold uppercase tracking-[0.08em] app-muted">Net P/L</dt><dd className={`mt-1 font-mono text-sm font-semibold ${metrics.winRateSampleSize ? pnlTone(recentNet.toNumber()) : "app-muted"}`}>{metrics.winRateSampleSize ? formatMoney(recentNet) : "—"}</dd></div>
-                      <div><dt className="text-[11px] font-semibold uppercase tracking-[0.08em] app-muted">Profit factor</dt><dd className="mt-1 font-mono text-sm font-semibold text-[var(--app-text)]">{metrics.recentProfitFactor === null ? "—" : metrics.recentProfitFactor.toFixed(2)}</dd></div>
+                    <dl>
                       <div><dt className="text-[11px] font-semibold uppercase tracking-[0.08em] app-muted">W / L</dt><dd className="mt-1 font-mono text-sm font-semibold"><span className="text-profit">{metrics.winningTrades}</span><span className="app-muted"> / </span><span className="text-loss">{metrics.losingTrades}</span></dd></div>
                     </dl>
                   </div>
-                  <div className="relative mt-3 grid h-14 shrink-0 gap-1" style={{ gridTemplateColumns: "repeat(30, minmax(0, 1fr))" }} role="img" aria-label={metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} closed trades, oldest to latest: ${metrics.winningTrades} wins and ${metrics.losingTrades} losses, net ${formatMoney(recentNet)}. Bar height shows each trade's P/L.` : "No closed trades yet"}>
+                  <div className="relative mt-3 grid h-14 shrink-0 gap-1" style={{ gridTemplateColumns: "repeat(30, minmax(0, 1fr))" }} role="img" aria-label={metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} closed trades, oldest to latest: ${metrics.winningTrades} wins and ${metrics.losingTrades} losses. Bar height shows each trade's P/L.` : "No closed trades yet"}>
                     <span aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-[var(--app-border)]" />
                     {recentSlots.map((pnl, index) => {
                       const share = pnl === null || !maxAbsPnl ? 0 : Math.abs(pnl) / maxAbsPnl;

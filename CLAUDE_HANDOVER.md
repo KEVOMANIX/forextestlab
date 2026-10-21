@@ -370,6 +370,31 @@ Two rules matter when changing anything that reads a balance:
    with it, and un-blows the account. A challenge account cannot be topped up at
    all: a prop firm does not refund a failed evaluation.
 
+## Prop-firm challenges are kept apart from practice
+
+A challenge is a session whose `config.propFirm` is set. Its rule state is
+mirrored onto the session row so lists and statistics never read snapshots:
+
+- `challengeStatus` (`active` | `passed` | `breached`; **null on an ordinary
+  backtest**), `challengeBreach`, `challengeDayKey`, `challengeDayStartEquity`
+  and `challengeTradingDays`. Session creation and `persistSession` write them
+  through `challengeColumns()` in `src/lib/backtest/challenge-record.ts`; set
+  them nowhere else.
+- `challengeStatus: null` is the practice filter. The dashboard's session list,
+  last-30-trades figures and weekly trade count use it. Practice time and the
+  streak still count challenge time.
+- `/app/challenges` (`challenge-queries.ts`, `ChallengesView.tsx`) shows the
+  running challenge as three gauges from `propFirmProgress`, computed from the
+  row alone. Cursor-only checkpoints skip the engine save, which the client
+  does only when no position or order exists, so a replay day that differs from
+  `challengeDayKey` is treated as opening at the stored equity.
+- The dashboard shows a strip for a running challenge. History has
+  All/Practice/Challenges views and a Challenge tag; the Analytics picker tags
+  challenges. `/app/backtest?mode=challenge` opens setup in challenge mode.
+- Migration `202610210001_challenge_columns` marks every challenge from its
+  compact config and fills runtime fields from inline snapshots. Sessions whose
+  snapshot is in R2 need `npm run challenges:backfill` once after it.
+
 ## Replay progress is measured in days
 
 `totalCandles` counts the candles **loaded so far**, not the session's range —

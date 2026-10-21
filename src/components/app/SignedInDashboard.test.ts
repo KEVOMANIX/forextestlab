@@ -89,6 +89,29 @@ describe("SignedInDashboard", () => {
     expect(html).toContain("Bar height = trade P/L");
   });
 
+  it("shows a running challenge as a strip that links to the Challenges page", () => {
+    const html = renderToStaticMarkup(createElement(SignedInDashboard, {
+      sessions: [session({})],
+      displayName: "Kelvin",
+      metrics,
+      activeChallenge: {
+        id: "jun", name: "GBP/USD · Jun 2024", phase: 1, accountLabel: "$10K", dayLabel: "Day 10 of 30",
+        equity: "10436.20", profit: "436.20", profitPercent: 4.362, targetPercent: 10, targetEquity: "11000.00",
+        targetProgress: 0.4362, toTarget: "563.80", dailyPercent: 5, dailyAllowance: "500.00", dailyRemaining: "379.60",
+        dailyUsedRatio: 0.2408, totalPercent: 10, totalFloor: "9000.00", totalRemaining: "1436.20", totalUsedRatio: 0,
+        tradingDays: 6, resetZone: "Europe/Prague",
+      },
+    }));
+    expect(html).toContain("Challenge · Phase 1");
+    expect(html).toContain("43.6%");
+    expect(html).toContain("$379.60");
+    expect(html).toContain('href="/app/challenges"');
+  });
+
+  it("shows no challenge strip when no challenge is running", () => {
+    expect(render([session({})])).not.toContain("Challenge · Phase");
+  });
+
   it("labels the week and lists each session's trade count without brand-coloured win rates", () => {
     const html = render([session({})]);
     expect(html).toContain("19–25 Oct");

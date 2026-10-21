@@ -69,7 +69,7 @@ export default async function AnalyticsHubPage({
     where: { userId: user.id, anonymous: false },
     orderBy: { updatedAt: "desc" },
     take: 50,
-    select: { id: true, symbol: true, timeframe: true, status: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, startingBalance: true, depositedFunds: true, balance: true, updatedAt: true },
+    select: { id: true, symbol: true, timeframe: true, status: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, startingBalance: true, depositedFunds: true, balance: true, updatedAt: true, challengeStatus: true },
   });
   const metadataRows = sessions.length
     ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
@@ -128,7 +128,7 @@ export default async function AnalyticsHubPage({
   ) : null;
 
   const sessionSelector = selected ? (
-    <AnalyticsSessionPicker sessions={choices.map((session) => { const pnl = sessionPnl(session); return { id: session.id, name: session.name, symbols: session.symbols, status: session.status, updatedAt: lastSavedLabel(session.updatedAt), pnl: pnl.value, positive: pnl.positive }; })} selectedId={selected.id} />
+    <AnalyticsSessionPicker sessions={choices.map((session) => { const pnl = sessionPnl(session); return { id: session.id, name: session.name, symbols: session.symbols, status: session.status, updatedAt: lastSavedLabel(session.updatedAt), pnl: pnl.value, positive: pnl.positive, challenge: session.challengeStatus !== null }; })} selectedId={selected.id} />
   ) : null;
 
   if (!selected || !results) {

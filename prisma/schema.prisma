@@ -475,6 +475,16 @@ model BacktestSession {
   dataSource         String
   demoData           Boolean           @default(false)
   notes              String?
+  /// Prop-firm challenge state mirrored from the snapshot on every save, so
+  /// lists and statistics can separate challenges without reading snapshots.
+  /// Null on an ordinary backtest: "active" | "passed" | "breached".
+  challengeStatus         String?
+  /// Rule a breached challenge failed: "daily-loss" | "total-loss".
+  challengeBreach         String?
+  /// Firm-zone trading day that challengeDayStartEquity belongs to.
+  challengeDayKey         String?
+  challengeDayStartEquity String?
+  challengeTradingDays    Int?
   /// Serialised engine SessionState — the authoritative source for stepping.
   /// Relational trade/equity rows below are queryable projections of it.
     stateJson          String            @default("{}")
@@ -497,6 +507,7 @@ model BacktestSession {
 
   @@index([createdAt])
   @@index([userId, createdAt])
+  @@index([userId, challengeStatus])
   @@index([trialDeviceId, createdAt])
   @@index([anonymous, anonymousExpiresAt])
   @@index([parentSessionId])

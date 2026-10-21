@@ -24,11 +24,14 @@ const Backtester = dynamic(
 export function BacktesterClient({
   resumeSessionId,
   initialMarket,
+  initialChallenge = false,
   entitlements,
   autoStartTrial,
 }: {
   resumeSessionId: string | null;
   initialMarket: string | null;
+  /** Open the setup with challenge mode selected (from "Start a challenge"). */
+  initialChallenge?: boolean;
   entitlements: PlanEntitlements;
   autoStartTrial: boolean;
 }) {
@@ -37,6 +40,7 @@ export function BacktesterClient({
       <Backtester
         resumeSessionId={resumeSessionId}
         initialMarket={initialMarket}
+        initialChallenge={initialChallenge}
         entitlements={entitlements}
         autoStartTrial={autoStartTrial}
       />

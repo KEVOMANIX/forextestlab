@@ -35,7 +35,7 @@ const DEMO_ENTITLEMENTS: PlanEntitlements = {
 
 export default async function BacktestPage(
   props: {
-    searchParams: Promise<{ session?: string; trial?: string; market?: string }>;
+    searchParams: Promise<{ session?: string; trial?: string; market?: string; mode?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -55,6 +55,7 @@ export default async function BacktestPage(
     <BacktesterClient
       resumeSessionId={resumeSessionId}
       initialMarket={typeof searchParams.market === "string" ? searchParams.market : null}
+      initialChallenge={searchParams.mode === "challenge"}
       entitlements={entitlements}
       autoStartTrial={
         !resumeSessionId &&

@@ -137,11 +137,13 @@ const ChartGrid = dynamic(() => import("./ChartGrid"), {
 export function Backtester({
   resumeSessionId = null,
   initialMarket = null,
+  initialChallenge = false,
   entitlements,
   autoStartTrial = false,
 }: {
   resumeSessionId?: string | null;
   initialMarket?: string | null;
+  initialChallenge?: boolean;
   entitlements: PlanEntitlements;
   autoStartTrial?: boolean;
 }) {
@@ -906,6 +908,7 @@ export function Backtester({
         ) : (
           <SessionSetup
             initialMarket={initialMarket}
+            initialChallenge={initialChallenge}
             onStart={actions.startSession}
             busy={bt.busy}
             error={bt.error}

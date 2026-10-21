@@ -30,6 +30,7 @@ import {
   publicSessionState,
 } from "./replay-engine";
 import type { PropFirmRules } from "./prop-firm";
+import { challengeColumns } from "./challenge-record";
 import { buildSessionConfig } from "./session-config";
 import type {
   EngineContext,
@@ -716,6 +717,7 @@ export async function createSession(
       maxEquity: state.maxEquity,
       maxDrawdown: state.maxDrawdown,
       maxDrawdownPercent: state.maxDrawdownPercent,
+      ...challengeColumns(state),
       accountCurrency: config.accountCurrency,
       spreadPips: config.spreadPips,
       commissionPerLot: config.commissionPerLot,
@@ -903,6 +905,8 @@ export async function persistSession(
       maxEquity: state.maxEquity,
       maxDrawdown: state.maxDrawdown,
       maxDrawdownPercent: state.maxDrawdownPercent,
+      // Mirrored so lists can separate challenges without reading snapshots.
+      ...challengeColumns(state),
       notes: session.notes,
       stateJson: snapshot.stateJson,
       stateObjectKey: snapshot.stateObjectKey,

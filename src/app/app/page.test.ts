@@ -7,6 +7,7 @@ vi.mock("@/lib/db", () => ({ prisma: { backtestSession: db, productEvent: { find
 vi.mock("@/lib/auth", () => ({ ensureUserProfile: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ getCurrentUser: async () => ({ id: "owner", email: "owner@example.com", user_metadata: {} }) }));
 vi.mock("@/components/app/SignedInDashboard", () => ({ SignedInDashboard: dashboard }));
+vi.mock("@/lib/backtest/challenge-queries", () => ({ loadActiveChallengeCard: vi.fn(async () => null) }));
 
 import AppHome from "./page";
 
@@ -41,6 +42,17 @@ describe("dashboard practice overview", () => {
     }));
     expect(db.activity).toHaveBeenCalledOnce();
     expect(db.trades).toHaveBeenCalledOnce();
+    // Challenges have their own page; the dashboard's sessions and trade
+    // statistics are practice only.
+    expect(db.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ challengeStatus: null }),
+    }));
+    expect(db.trades).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ session: expect.objectContaining({ challengeStatus: null }) }),
+    }));
+    expect(db.tradeCount).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ session: expect.objectContaining({ challengeStatus: null }) }),
+    }));
     expect(db.trades).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ validity: { not: "experimental" } }),
     }));

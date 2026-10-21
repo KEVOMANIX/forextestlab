@@ -14,6 +14,7 @@ import {
   type DashboardSession,
 } from "@/components/app/SignedInDashboard";
 import { ensureUserProfile } from "@/lib/auth";
+import { loadActiveChallengeCard } from "@/lib/backtest/challenge-queries";
 import { prisma } from "@/lib/db";
 import { Decimal } from "@/lib/decimal";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
@@ -121,9 +122,12 @@ export default async function AppHome() {
   if (!user) return <SignedOutDashboard />;
 
   await ensureUserProfile(user);
-  const [sessionRows, activityEvents, recentTrades, closedTradesThisWeek] = await Promise.all([
+  // Challenges are practised under different rules and have their own page, so
+  // the dashboard's sessions and trade statistics cover practice only.
+  const practice = { userId: user.id, anonymous: false, challengeStatus: null };
+  const [sessionRows, activityEvents, recentTrades, closedTradesThisWeek, activeChallenge] = await Promise.all([
     prisma.backtestSession.findMany({
-      where: { userId: user.id, anonymous: false },
+      where: practice,
       orderBy: { updatedAt: "desc" },
       take: 100,
       select: {
@@ -154,7 +158,7 @@ export default async function AppHome() {
     }),
     prisma.simulatedTrade.findMany({
       where: {
-        session: { userId: user.id, anonymous: false },
+        session: practice,
         validity: { not: "experimental" },
       },
       orderBy: { createdAt: "desc" },
@@ -163,11 +167,12 @@ export default async function AppHome() {
     }),
     prisma.simulatedTrade.count({
       where: {
-        session: { userId: user.id, anonymous: false },
+        session: practice,
         validity: { not: "experimental" },
         createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60_000) },
       },
     }),
+    loadActiveChallengeCard(user.id),
   ]);
 
   // A full engine state can be several megabytes. The old dashboard selected
@@ -265,6 +270,7 @@ export default async function AppHome() {
         sessionWinRate: sessionWinRates.get(session.id) ?? { closedTrades: 0, winRate: null },
       }))}
       displayName={displayName}
+      activeChallenge={activeChallenge}
       metrics={{
         practiceMinutes,
         practiceMinutesByDay,

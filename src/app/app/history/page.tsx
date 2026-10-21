@@ -45,11 +45,24 @@ function replayProgress(session: { startTime: bigint; endTime: bigint; visibleTi
   });
 }
 
-export default async function HistoryPage() {
+const VIEWS = [
+  { id: "all", label: "All" },
+  { id: "practice", label: "Practice" },
+  { id: "challenges", label: "Challenges" },
+] as const;
+type HistoryView = (typeof VIEWS)[number]["id"];
+
+export default async function HistoryPage(props: { searchParams?: Promise<{ view?: string }> }) {
   const user = await requireUser("/app/history");
   await ensureUserProfile(user);
+  const requested = (await props.searchParams)?.view;
+  const view: HistoryView = requested === "practice" || requested === "challenges" ? requested : "all";
   const sessions = await prisma.backtestSession.findMany({
-    where: { userId: user.id, anonymous: false },
+    where: {
+      userId: user.id,
+      anonymous: false,
+      ...(view === "practice" ? { challengeStatus: null } : view === "challenges" ? { challengeStatus: { not: null } } : {}),
+    },
     orderBy: { updatedAt: "desc" },
     take: 25,
     select: {
@@ -65,6 +78,7 @@ export default async function HistoryPage() {
       depositedFunds: true,
       balance: true,
       updatedAt: true,
+      challengeStatus: true,
       _count: { select: { trades: true } },
     },
   });
@@ -82,7 +96,22 @@ export default async function HistoryPage() {
         <p className="text-xs app-muted">{sessions.length} session{sessions.length === 1 ? "" : "s"}</p>
       </header>
 
-      {sessions.length === 0 ? (
+      <nav aria-label="Session type" className="mt-5 inline-flex rounded-lg border app-border bg-[var(--app-bg)]/45 p-1">
+        {VIEWS.map((option) => (
+          <Link
+            key={option.id}
+            href={option.id === "all" ? "/app/history" : `/app/history?view=${option.id}`}
+            aria-current={view === option.id ? "page" : undefined}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${view === option.id ? "bg-white/[0.08] text-[var(--app-text)]" : "app-muted hover:text-[var(--app-text)]"}`}
+          >
+            {option.label}
+          </Link>
+        ))}
+      </nav>
+
+      {sessions.length === 0 && view !== "all" ? (
+        <p className="mt-5 rounded-2xl border border-dashed app-border p-8 text-center text-sm app-muted">No {view === "challenges" ? "challenge" : "practice"} sessions yet.</p>
+      ) : sessions.length === 0 ? (
         <section className="mt-7 grid min-h-64 place-items-center rounded-2xl border border-dashed app-border bg-[var(--app-panel)]/45 p-8 text-center">
           <div>
             <span className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><Rows3 size={19} aria-hidden /></span>
@@ -120,7 +149,7 @@ export default async function HistoryPage() {
                     <div className="flex min-w-0 items-center gap-3 xl:w-[26rem] xl:shrink-0">
                       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-brand-400/25 bg-brand-400/[0.08] font-mono text-[11px] font-bold text-brand-200">{formatSymbol(session.symbol).slice(0, 3)}</span>
                       <div className="min-w-0">
-                        <h3 className="truncate text-sm font-semibold">{sessionLabel}</h3>
+                        <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold"><span className="truncate">{sessionLabel}</span>{session.challengeStatus && <span className="shrink-0 rounded-full border border-brand-400/50 px-2 py-0.5 text-[11px] font-semibold text-brand-300">Challenge</span>}</h3>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] app-muted"><span>{session.timeframe}</span><span aria-hidden>•</span><span>{formatNewYorkDate(session.updatedAt.getTime(), { month: "short", day: "numeric" })}</span></div>
                       </div>
                     </div>

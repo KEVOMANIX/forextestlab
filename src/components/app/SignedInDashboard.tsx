@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { Clock3, Flame, ListChecks, Play } from "lucide-react";
+import { ChallengeStrip } from "@/components/app/ChallengeStrip";
 import { DashboardSessionsTable, type DashboardSessionRow } from "@/components/app/DashboardSessionsTable";
+import type { ChallengeCard } from "@/lib/backtest/challenge-record";
 import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
 import { formatNewYorkDate } from "@/lib/date-time";
 import { Decimal } from "@/lib/decimal";
@@ -118,10 +120,12 @@ function formatWeekRange(weekStart: string): string {
     : `${start.getUTCDate()} ${month(start)} – ${end.getUTCDate()} ${month(end)}`;
 }
 
-export function SignedInDashboard({ sessions, displayName, metrics }: {
+export function SignedInDashboard({ sessions, displayName, metrics, activeChallenge = null }: {
   sessions: DashboardSession[];
   displayName: string;
   metrics: DashboardPracticeMetrics;
+  /** A running prop-firm challenge; challenges are otherwise kept off this page. */
+  activeChallenge?: ChallengeCard | null;
 }) {
   const now = new Date();
   const visibleSessions = sessions.filter((session) => !session.archived);
@@ -179,6 +183,8 @@ export function SignedInDashboard({ sessions, displayName, metrics }: {
           </Link>
         )}
       </header>
+
+      {activeChallenge && <ChallengeStrip challenge={activeChallenge} />}
 
       {visibleSessions.length === 0 ? (
         <section className="mt-7 rounded-2xl border border-brand-400/25 bg-brand-400/[0.06] p-6 shadow-card sm:p-8">

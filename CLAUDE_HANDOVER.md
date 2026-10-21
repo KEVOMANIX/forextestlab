@@ -51,7 +51,7 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `b3069c8`, dashboard Performance section (verified 2026-10-21) |
+| Current deployed app revision | `82cff7b`, Challenges next-step card (verified 2026-10-21) |
 | Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
 The original workstation already has working Git credentials for the GitHub
@@ -398,7 +398,11 @@ mirrored onto the session row so lists and statistics never read snapshots:
   `challengeDayKey` is treated as opening at the stored equity.
 - The dashboard shows a strip for a running challenge. History has
   All/Practice/Challenges views and a Challenge tag; the Analytics picker tags
-  challenges. `/app/backtest?mode=challenge` opens setup in challenge mode.
+  challenges. `/app/backtest?mode=challenge` opens setup in challenge mode;
+  `&phase=2&market=GBPUSD&size=10000` also preselect the phase, market and
+  account size (`challengeStartHref` / `parseChallengeStart`). With nothing
+  running, the page offers the next step from the latest attempt
+  (`nextChallengeStep`): Start Phase 2, Try again, or both phases passed.
 - Migration `202610210001_challenge_columns` marks every challenge from its
   compact config and fills runtime fields from inline snapshots. Sessions whose
   snapshot is in R2 need `npm run challenges:backfill` once after it.

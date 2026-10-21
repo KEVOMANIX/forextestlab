@@ -52,9 +52,14 @@ working-tree changes and never use git reset --hard.
 | DNS/CDN | Cloudflare; registrar is Namecheap |
 | Local bulk-data project | `E:\desktop\dukascopy-market-data` |
 
-GitHub authentication is already configured locally and on the server. Normal
-development and deployment do not require creating or revealing a GitHub token.
-Vercel is not the production host.
+GitHub authentication is already configured on the original workstation and on
+the server. Normal development and deployment do not require creating or
+revealing a GitHub token. Vercel is not the production host.
+
+A second workstation is also in use: repository `C:\Users\kelvi\forextestlab`,
+SSH key `C:\Users\kelvi\.ssh\LightsailDefaultKey-us-west-2.pem`. The paths in
+this file are the original workstation's; see **Workstations** in
+`CLAUDE_HANDOVER.md` for the second workstation's full path map.
 
 Never trust a hard-coded revision in a handover. Compare the three live states:
 

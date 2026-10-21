@@ -1,6 +1,6 @@
 # ForexTestLab operational handover
 
-Last updated: 2026-09-21 (Africa/Nairobi)
+Last updated: 2026-10-21 (Africa/Nairobi)
 
 This document lets another coding agent continue local development, deploy to
 AWS Lightsail, operate the data jobs, and diagnose production without asking the
@@ -51,10 +51,46 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `209464a` |
+| Current deployed app revision | `8ea5a51` (verified 2026-10-21) |
+| Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
-The machine already has working Git credentials for the GitHub remote. Do not
-create or expose a new GitHub token unless the existing credential manager stops working.
+The original workstation already has working Git credentials for the GitHub
+remote. Do not create or expose a new GitHub token unless the existing credential
+manager stops working.
+
+## Workstations
+
+Two Windows computers work on the same `aws-lightsail` branch. Commands in this
+handover use the original workstation's paths; on the second workstation,
+substitute the paths below.
+
+Scripts under `scripts\windows\` are in Git, so both workstations have them.
+Their defaults point at the original workstation's `E:\` paths on purpose; leave
+those defaults unchanged. On the second workstation:
+
+- `sync-economic-calendar.ps1` runs with
+  `-SshKey C:\Users\kelvi\.ssh\LightsailDefaultKey-us-west-2.pem`; FBS MT5 is
+  installed at the same default path.
+- `sync-market-data.ps1` runs with
+  `-DownloaderRoot C:\Users\kelvi\forextestlab\dukascopy-market-data`.
+- `run-market-data-backfill.ps1` hard-codes its `E:\` pipeline and `.env` paths
+  with no parameter, so it runs only on the original workstation.
+- The `install-*-task.ps1` scripts resolve paths relative to themselves; see the
+  scheduled-task row below before running them there.
+
+| Item | Original workstation | Second workstation (`KEVOMANIX`, user `kelvi`) |
+|---|---|---|
+| Local repository | `E:\desktop\forextestlab` | `C:\Users\kelvi\forextestlab` |
+| Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` | `C:\Users\kelvi\.ssh\LightsailDefaultKey-us-west-2.pem` (ACL: read-only for `kelvi`) |
+| SSH shortcut | Full `ssh -i ... ubuntu@52.34.239.239` form | `ssh forextestlab` (alias in `C:\Users\kelvi\.ssh\config`). Quote remote commands in single quotes so PowerShell does not expand `$(...)` locally. |
+| Local application environment | `E:\desktop\forextestlab\.env` | `C:\Users\kelvi\forextestlab\.env` (copied from the original workstation; not in Git) |
+| Dukascopy bulk-data pipeline | `E:\desktop\dukascopy-market-data` | `C:\Users\kelvi\forextestlab\dukascopy-market-data`, inside the repository folder but excluded through `.git/info/exclude` (local only, so its `market_data` and `logs` are never staged) |
+| Pipeline Python | `.validation-venv-py310` in the pipeline folder | Same name and location, built locally from Python 3.10.11 and `requirements.txt` |
+| FBS MetaTrader 5 | `C:\Program Files\FBS MetaTrader 5\terminal64.exe` | Installed at the same path |
+| Scheduled tasks `ForexTestLab Market Data` and `ForexTestLab Economic Calendar` | Installed and authoritative | Not installed; installing them here too would run each refresh and upload twice |
+| Tooling | Existing setup | Git, GitHub CLI, Node.js 24 LTS, and Python 3.10 installed with `winget` |
+| GitHub push access | Credential manager | `gh auth login`, then `gh auth setup-git` |
+| Commit identity | Configured | Use the same name and email as existing commits (`git log -1 --format='%an <%ae>'`) |
 
 ## Connect to Lightsail
 
@@ -130,7 +166,8 @@ and configure the same project’s Auth URL settings for:
 
 ## Standard implementation and deployment workflow
 
-Run locally:
+Paths below are the original workstation's; see [Workstations](#workstations)
+for the second workstation's equivalents. Run locally:
 
 ```powershell
 cd E:\desktop\forextestlab
@@ -303,8 +340,9 @@ explicit SDK-operation instrumentation. The production host currently has no
 Cloudflare analytics token, and Nginx cannot see the provider's S3 operations.
 
 Before increasing the monthly cache, measure Parquet object sizes and Lightsail
-memory. The server has about 2 GB RAM plus 2 GB swap, so a larger cache should be
-bounded by bytes or per-symbol recency rather than made unlimited.
+memory. The server has 4 GB RAM plus 2 GB swap (upgraded from 2 GB on
+2026-10-21), so a larger cache is now feasible but should still be bounded by
+bytes or per-symbol recency rather than made unlimited.
 
 ## Account funding and blown accounts
 
@@ -533,9 +571,17 @@ The visual system deliberately separates product identity from trading results:
   to represent positive P/L or bullish candles.
 
 - Deployment host: AWS Lightsail behind Cloudflare; Vercel is not used.
-- Production branch and server were deployed and verified at revision `209464a`
-  on 2026-09-09. The service was active and `/api/version` returned HTTP 200 on
-  both localhost and the Cloudflare URL.
+- On 2026-10-21 the instance was replaced by a 4 GB instance created from a
+  snapshot of the 2 GB one. The static IP `52.34.239.239` moved to the new
+  instance, so DNS, Nginx, TLS, and `.env` were unchanged. The old instance was
+  stopped and is pending deletion. Verified on the new instance: revision
+  `8ea5a51` with a clean tree, `forextestlab` and `nginx` active, the calendar
+  import, monitor, and database-backup timers scheduled, the market-data timer
+  still disabled, and `/api/version` plus all 38 symbols served through both
+  the origin and Cloudflare. The only failed unit was Ubuntu's unrelated
+  `fwupd-refresh.service`.
+- New SSH host keys came with the new instance. A workstation that connected
+  before the move clears the stale entry with `ssh-keygen -R 52.34.239.239`.
 - An account that reaches zero equity is flattened, marked blown, and prompts
   for demo funds; see the account-funding section above before touching any
   balance or profit figure.

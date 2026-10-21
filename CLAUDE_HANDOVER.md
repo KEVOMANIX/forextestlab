@@ -51,7 +51,7 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `594d904`, dashboard redesign step 1 (verified 2026-10-21) |
+| Current deployed app revision | `f173b39`, Challenges page and challenge separation (verified 2026-10-21) |
 | Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
 The original workstation already has working Git credentials for the GitHub
@@ -208,6 +208,14 @@ curl.exe -sS --max-time 30 -D - "https://forextestlab.com/api/version?fresh=$(Ge
 ```
 
 Expected: HTTP 200, service `active`, and `{"version":"1.0.0"}`.
+
+A long deploy can outlive the SSH session. If the connection drops, the remote
+chain keeps running, but its first write to the dead session fails; under
+`set -e`/`pipefail` that stops it after the build and before the restart. The
+old process then serves a replaced `.next`. Check
+`systemctl show forextestlab -p ActiveEnterTimestamp` against
+`.next/BUILD_ID`'s time, and restart if the service is older. For long builds,
+run the chain detached (`nohup bash -c '…' > ~/deploy.log 2>&1 &`) and poll the log.
 
 Do not use `prisma migrate dev` against production.
 

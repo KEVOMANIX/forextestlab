@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
-import { practicePerformance } from "@/lib/backtest/practice-performance";
+import { aggregatesFromPnls, describePerformance } from "@/lib/backtest/practice-performance";
 
 import { SignedInDashboard, type DashboardPracticeMetrics, type DashboardSession } from "./SignedInDashboard";
 
@@ -15,12 +15,11 @@ const metrics: DashboardPracticeMetrics = {
   currentWeekdayIndex: 2,
   streakDays: 1,
   closedTradesThisWeek: 3,
-  winRate: (2 / 3) * 100,
-  winRateSampleSize: 3,
-  winningTrades: 2,
-  losingTrades: 1,
-  recentTradePnls: [2, -5, 10],
 };
+
+function results(pnls: Array<string | number>) {
+  return describePerformance("all", aggregatesFromPnls(pnls)!);
+}
 
 function session(overrides: Partial<DashboardSession>): DashboardSession {
   return {
@@ -82,24 +81,49 @@ describe("SignedInDashboard", () => {
     expect(html).not.toMatch(/text-profit">\$0\.00</);
   });
 
-  it("leads with net P/L, expectancy, profit factor and drawdown beside the win rate", () => {
-    const html = renderToStaticMarkup(createElement(SignedInDashboard, {
-      sessions: [session({})],
-      displayName: "Kelvin",
-      metrics,
-      performance: practicePerformance(["2", "-5", "10"]),
-    }));
-    expect(html).toContain("Last 3 practice trades");
-    expect(html).toContain("+$7.00");
-    expect(html).toContain("+$2.33");
-    expect(html).toContain("2.40");
+  it("names the results plainly and says each figure once", () => {
+    const pnls = Array.from({ length: 24 }, (_, index) => (index % 3 === 0 ? "-10" : "25"));
+    const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: results(pnls) }));
+    expect(html).toContain("Your practice results");
+    expect(html).toContain("24 trades · challenges not included");
+    expect(html).toContain("Avg per trade");
+    expect(html).not.toContain("Expectancy");
     expect(html).toContain("Cumulative P/L");
     expect(html).toContain("Max drawdown");
-    expect(html).toContain("Bar height = trade P/L");
+    // Net P/L (16 wins of 25, 8 losses of 10) is shown once, in the figures, not
+    // again in the chart header. (The chart's screen-reader label may name it.)
+    expect(html.match(/>\+\$320\.00</g)).toHaveLength(1);
+    expect(html).not.toContain("Bar height = trade P/L");
+    expect(html).not.toContain("Last 30 trades");
   });
 
-  it("leaves the Performance section out before the first practice trade", () => {
-    expect(render([session({})])).not.toContain("Cumulative P/L");
+  it("anchors the drawdown marker to the plot, behind an opacity-only fade", () => {
+    const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: results(["50", "-20", "-40", "30"]) }));
+    // A transform-based animation on the marker's wrapper would become its
+    // containing block and push the dot below the chart.
+    expect(html).toMatch(/<div class="animate-fade-in motion-reduce:animate-none"[^>]*><span aria-hidden="true" class="absolute h-2\.5/);
+  });
+
+  it("compares the win rate with the break-even its win and loss sizes imply", () => {
+    // Wins of 75 against losses of 15: break-even at 17%, winning 33%.
+    const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: results(["-10", "-20", "75"]) }));
+    expect(html).toContain("17 points above");
+    expect(html).toContain("17%</strong> break-even");
+    expect(html).toContain("3 trades · early days, these settle after about 30");
+  });
+
+  it("offers 30 days, 90 days and all time, marking the current period", () => {
+    const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: results(["5"]), period: "90d" }));
+    expect(html).toContain('href="/app?period=30d"');
+    expect(html).toMatch(/<a aria-current="true"[^>]*href="\/app\?period=90d"/);
+    expect(html).toContain("All time");
+  });
+
+  it("explains an empty period and still shows this week", () => {
+    const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: null, period: "30d" }));
+    expect(html).toContain("No practice trades in the last 30 days");
+    expect(html).not.toContain("Cumulative P/L");
+    expect(html).toContain("Practice trades");
   });
 
   it("shows a running challenge as a strip that links to the Challenges page", () => {

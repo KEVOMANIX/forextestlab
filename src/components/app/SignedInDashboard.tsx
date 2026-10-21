@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Clock3, Flame, ListChecks, Play } from "lucide-react";
+import { ListChecks, Play } from "lucide-react";
 import { ChallengeStrip } from "@/components/app/ChallengeStrip";
 import { DashboardSessionsTable, type DashboardSessionRow } from "@/components/app/DashboardSessionsTable";
 import { PerformanceOverview } from "@/components/app/PerformanceOverview";
 import type { ChallengeCard } from "@/lib/backtest/challenge-record";
-import type { PracticePerformance } from "@/lib/backtest/practice-performance";
+import type { PerformancePeriod, PracticePerformance } from "@/lib/backtest/practice-performance";
 import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
 import { formatNewYorkDate } from "@/lib/date-time";
 import { Decimal } from "@/lib/decimal";
@@ -46,15 +46,8 @@ export interface DashboardPracticeMetrics {
   currentWeekdayIndex: number;
   streakDays: number;
   closedTradesThisWeek: number;
-  winRate: number | null;
-  winRateSampleSize: number;
-  winningTrades: number;
-  losingTrades: number;
-  /** P/L of the most recent closed trades, oldest first. */
-  recentTradePnls: number[];
 }
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_MS = 24 * 60 * 60_000;
 
 function formatMoney(value: Decimal): string {
@@ -98,31 +91,15 @@ function updatedLabel(updatedAt: Date, now: Date): string {
   return formatNewYorkDate(updatedAt, { day: "numeric", month: "short" });
 }
 
-function formatPracticeTime(minutes: number): string {
-  if (!minutes) return "0m";
-  const hours = Math.floor(minutes / 60);
-  return hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
-}
-
-/** "19–25 Oct", or "28 Sep – 4 Oct" when the week spans two months. */
-function formatWeekRange(weekStart: string): string {
-  const start = new Date(`${weekStart}T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime())) return "";
-  const end = new Date(start.getTime() + 6 * DAY_MS);
-  const month = (value: Date) => new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(value);
-  return month(start) === month(end)
-    ? `${start.getUTCDate()}–${end.getUTCDate()} ${month(end)}`
-    : `${start.getUTCDate()} ${month(start)} – ${end.getUTCDate()} ${month(end)}`;
-}
-
-export function SignedInDashboard({ sessions, displayName, metrics, activeChallenge = null, performance = null }: {
+export function SignedInDashboard({ sessions, displayName, metrics, activeChallenge = null, performance = null, period = "all" }: {
   sessions: DashboardSession[];
   displayName: string;
   metrics: DashboardPracticeMetrics;
   /** A running prop-firm challenge; challenges are otherwise kept off this page. */
   activeChallenge?: ChallengeCard | null;
-  /** Headline figures over recent practice trades; null before the first one. */
+  /** Practice results for `period`; null when it holds no practice trades. */
   performance?: PracticePerformance | null;
+  period?: PerformancePeriod;
 }) {
   const now = new Date();
   const visibleSessions = sessions.filter((session) => !session.archived);
@@ -152,16 +129,6 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
   const latestRow = latestSession ? sessionRows.find((row) => row.id === latestSession.id) ?? null : null;
   const continueVerb = latestRow?.status === "Completed" ? "Open" : latestRow?.notStarted ? "Start" : "Continue";
 
-  const practiceDays = metrics.practiceMinutesByDay.length === 7 ? metrics.practiceMinutesByDay : [0, 0, 0, 0, 0, 0, 0];
-  const maxPracticeMinutes = Math.max(1, ...practiceDays);
-  const weekRange = formatWeekRange(metrics.weekStart);
-
-  const recentPnls = metrics.recentTradePnls.slice(-30);
-  const maxAbsPnl = Math.max(0, ...recentPnls.map((pnl) => Math.abs(pnl)));
-  const recentSlots: Array<number | null> = [
-    ...Array.from({ length: Math.max(0, 30 - recentPnls.length) }, () => null),
-    ...recentPnls,
-  ];
   return (
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
       <header id="dashboard-overview" className="flex flex-col justify-between gap-5 border-b app-border pb-6 lg:flex-row lg:items-end">
@@ -191,63 +158,7 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
         </section>
       ) : (
         <>
-          {performance && <PerformanceOverview performance={performance} />}
-          <section className="mt-7" aria-labelledby="practice-this-week">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Practice activity</p><h2 id="practice-this-week" className="mt-1.5 text-xl font-semibold">This week{weekRange && <span className="font-medium app-muted"> · {weekRange}</span>}</h2></div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_.82fr_.82fr] xl:grid-rows-[8.75rem_11.25rem]">
-              <article className="relative flex flex-col overflow-hidden rounded-2xl border border-brand-400/25 bg-[radial-gradient(circle_at_82%_12%,rgba(69,214,168,.16),transparent_35%),var(--app-panel)] p-5 shadow-card sm:col-span-2 xl:col-span-1 xl:row-span-2">
-                <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Practice time</p><p className="mt-4 font-mono text-4xl font-semibold leading-none tracking-tight text-[var(--app-text)]">{formatPracticeTime(metrics.practiceMinutes)}</p></div><span className="grid h-10 w-10 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><Clock3 size={18} aria-hidden /></span></div>
-                <div className="mt-5 flex min-h-[8rem] flex-1 gap-2" role="img" aria-label={`Practice minutes from Monday to Sunday: ${practiceDays.map((minutes, index) => index > metrics.currentWeekdayIndex ? "upcoming" : minutes).join(", ")}`}>
-                  {practiceDays.map((minutes, index) => {
-                    const upcoming = index > metrics.currentWeekdayIndex;
-                    const today = index === metrics.currentWeekdayIndex;
-                    return (
-                      <div key={index} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-                        <span className={`h-4 font-mono text-[11px] ${minutes ? "font-semibold text-[var(--app-text)]" : "app-muted"}`}>{upcoming ? "" : formatPracticeTime(minutes)}</span>
-                        <div className="relative w-full flex-1" title={upcoming ? "Upcoming" : `${minutes} minutes`}>
-                          <span
-                            className={`absolute inset-x-0 bottom-0 rounded-t-md ${minutes ? "bg-brand-500" : upcoming ? "bg-[var(--app-panel-2)]" : "bg-[var(--app-border)]"}`}
-                            style={{ height: minutes ? `${Math.max(8, (minutes / maxPracticeMinutes) * 100)}%` : "3px" }}
-                          />
-                        </div>
-                        <span className={`text-[11px] font-semibold uppercase ${today ? "text-brand-300" : "app-muted"}`} aria-current={today ? "date" : undefined}>{WEEKDAYS[index]}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </article>
-
-              <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Current streak</p><p className="mt-5 font-mono text-[1.65rem] font-semibold leading-none tracking-tight text-[var(--app-text)]">{metrics.streakDays} day{metrics.streakDays === 1 ? "" : "s"}</p><p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">Consecutive</p></div><span className="grid h-9 w-9 place-items-center rounded-lg border app-border bg-exit/10 text-exit"><Flame size={17} aria-hidden /></span></div></article>
-
-              <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold app-muted">Closed trades</p><p className="mt-5 font-mono text-[1.65rem] font-semibold leading-none tracking-tight text-[var(--app-text)]">{metrics.closedTradesThisWeek}</p><p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">This week</p></div><span className="grid h-9 w-9 place-items-center rounded-lg border app-border bg-brand-400/10 text-brand-300"><ListChecks size={17} aria-hidden /></span></div></article>
-
-              <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card sm:col-span-2 xl:col-span-2">
-                <div className="flex h-full flex-col justify-center">
-                  <div className="flex flex-wrap items-start justify-between gap-x-5 gap-y-2">
-                    <div><p className="text-xs font-semibold app-muted">{metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} trades` : "Recent results"}</p><div className="mt-2 flex items-baseline gap-2"><p className="font-mono text-2xl font-semibold leading-none text-[var(--app-text)]">{metrics.winRate === null ? "—" : `${metrics.winRate.toFixed(0)}%`}</p><span className="text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">win rate</span></div></div>
-                    <dl>
-                      <div><dt className="text-[11px] font-semibold uppercase tracking-[0.08em] app-muted">W / L</dt><dd className="mt-1 font-mono text-sm font-semibold"><span className="text-profit">{metrics.winningTrades}</span><span className="app-muted"> / </span><span className="text-loss">{metrics.losingTrades}</span></dd></div>
-                    </dl>
-                  </div>
-                  <div className="relative mt-3 grid h-14 shrink-0 gap-1" style={{ gridTemplateColumns: "repeat(30, minmax(0, 1fr))" }} role="img" aria-label={metrics.winRateSampleSize ? `Last ${metrics.winRateSampleSize} closed trades, oldest to latest: ${metrics.winningTrades} wins and ${metrics.losingTrades} losses. Bar height shows each trade's P/L.` : "No closed trades yet"}>
-                    <span aria-hidden className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-[var(--app-border)]" />
-                    {recentSlots.map((pnl, index) => {
-                      const share = pnl === null || !maxAbsPnl ? 0 : Math.abs(pnl) / maxAbsPnl;
-                      const height = `${Math.max(4, share * 50)}%`;
-                      return (
-                        <span key={index} className="relative block min-w-0" title={pnl === null ? "No trade" : formatMoney(new Decimal(pnl))}>
-                          {pnl !== null && pnl > 0 && <span className="absolute inset-x-0 bottom-1/2 rounded-t-sm bg-profit" style={{ height }} />}
-                          {pnl !== null && pnl < 0 && <span className="absolute inset-x-0 top-1/2 rounded-b-sm bg-loss" style={{ height }} />}
-                          {pnl === 0 && <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-[var(--app-muted)]" />}
-                        </span>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-2 flex shrink-0 justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.1em] app-muted"><span>Oldest</span><span>{metrics.winRateSampleSize ? "Bar height = trade P/L" : "No closed trades"}</span><span>Latest</span></div>
-                </div>
-              </article>
-            </div>
-          </section>
+          <PerformanceOverview performance={performance} period={period} week={metrics} />
           <section className="mt-8" aria-labelledby="recent-sessions">
             <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Sessions</p><h2 id="recent-sessions" className="mt-1.5 text-xl font-semibold">Recently updated</h2></div><Link href="/app/history" className="text-sm font-semibold text-brand-300 transition-colors hover:text-brand-200">View all sessions</Link></div>
             <DashboardSessionsTable sessions={sessionRows} />

@@ -131,6 +131,22 @@ const config: Config = {
           "70%": { transform: "scale(1.15)", opacity: "1" },
           "100%": { transform: "scale(1)", opacity: "1" },
         },
+        // Dashboard performance: the curve sweeps in left to right and the
+        // winners/losers bars grow to length. Both sit behind motion-reduce.
+        "reveal-x": {
+          "0%": { clipPath: "inset(0 100% 0 0)" },
+          "100%": { clipPath: "inset(0 0 0 0)" },
+        },
+        "grow-x": {
+          "0%": { transform: "scaleX(0)" },
+          "100%": { transform: "scaleX(1)" },
+        },
+        // Opacity only. A transform would make the animated element the
+        // containing block of absolutely positioned children and move them.
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.6s ease-out both",
@@ -144,6 +160,9 @@ const config: Config = {
         "panel-in": "panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both",
         "message-in": "message-in 0.25s ease-out both",
         "badge-pop": "badge-pop 0.35s cubic-bezier(0.22, 1.4, 0.36, 1) both",
+        "reveal-x": "reveal-x 1.1s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "grow-x": "grow-x 0.9s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "fade-in": "fade-in 0.5s ease-out both",
       },
     },
   },

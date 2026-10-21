@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { Prisma } from "@/generated/prisma/client";
 import {
@@ -15,7 +16,8 @@ import {
 } from "@/components/app/SignedInDashboard";
 import { ensureUserProfile } from "@/lib/auth";
 import { loadActiveChallengeCard } from "@/lib/backtest/challenge-queries";
-import { practicePerformance } from "@/lib/backtest/practice-performance";
+import { PERFORMANCE_PERIOD_COOKIE, parsePerformancePeriod } from "@/lib/backtest/practice-performance";
+import { loadPracticePerformance } from "@/lib/backtest/practice-performance-query";
 import { prisma } from "@/lib/db";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -28,11 +30,6 @@ export const metadata: Metadata = {
     "Review private forex backtesting sessions, trading performance, and recent strategy-testing activity.",
   robots: { index: false, follow: false },
 };
-
-/** Trades behind the Performance section's figures and cumulative curve. */
-const PERFORMANCE_TRADES = 100;
-/** The most recent of those, drawn one bar per trade. */
-const RESULTS_STRIP_TRADES = 30;
 
 interface SessionMetadataRow {
   id: string;
@@ -122,15 +119,20 @@ function SignedOutDashboard() {
   );
 }
 
-export default async function AppHome() {
+export default async function AppHome(props: { searchParams?: Promise<{ period?: string }> } = {}) {
   const user = await getCurrentUser();
   if (!user) return <SignedOutDashboard />;
 
   await ensureUserProfile(user);
+  // The link's period wins; otherwise the trader's last choice; otherwise all time.
+  const period =
+    parsePerformancePeriod((await props.searchParams)?.period) ??
+    parsePerformancePeriod((await cookies()).get(PERFORMANCE_PERIOD_COOKIE)?.value) ??
+    "all";
   // Challenges are practised under different rules and have their own page, so
   // the dashboard's sessions and trade statistics cover practice only.
   const practice = { userId: user.id, anonymous: false, challengeStatus: null };
-  const [sessionRows, activityEvents, recentTrades, closedTradesThisWeek, activeChallenge] = await Promise.all([
+  const [sessionRows, activityEvents, performance, closedTradesThisWeek, activeChallenge] = await Promise.all([
     prisma.backtestSession.findMany({
       where: practice,
       orderBy: { updatedAt: "desc" },
@@ -161,15 +163,7 @@ export default async function AppHome() {
       },
       select: { createdAt: true },
     }),
-    prisma.simulatedTrade.findMany({
-      where: {
-        session: practice,
-        validity: { not: "experimental" },
-      },
-      orderBy: { createdAt: "desc" },
-      take: PERFORMANCE_TRADES,
-      select: { pnl: true },
-    }),
+    loadPracticePerformance(user.id, period),
     prisma.simulatedTrade.count({
       where: {
         session: practice,
@@ -251,12 +245,6 @@ export default async function AppHome() {
     streakDays += 1;
     cursor.setUTCDate(cursor.getUTCDate() - 1);
   }
-  // Oldest first, so the strip and the cumulative curve read left to right.
-  const orderedPnls = recentTrades.map((trade) => trade.pnl).reverse();
-  const stripPnls = orderedPnls.slice(-RESULTS_STRIP_TRADES);
-  const wins = stripPnls.filter((pnl) => Number(pnl) > 0).length;
-  const losses = stripPnls.filter((pnl) => Number(pnl) < 0).length;
-
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&
     user.user_metadata.display_name.trim()
@@ -271,7 +259,8 @@ export default async function AppHome() {
       }))}
       displayName={displayName}
       activeChallenge={activeChallenge}
-      performance={practicePerformance(orderedPnls)}
+      performance={performance}
+      period={period}
       metrics={{
         practiceMinutes,
         practiceMinutesByDay,
@@ -279,11 +268,6 @@ export default async function AppHome() {
         currentWeekdayIndex: Math.max(0, weekdayIndex),
         streakDays,
         closedTradesThisWeek,
-        winRate: stripPnls.length ? (wins / stripPnls.length) * 100 : null,
-        winRateSampleSize: stripPnls.length,
-        winningTrades: wins,
-        losingTrades: losses,
-        recentTradePnls: stripPnls.map(Number),
       }}
     />
   );

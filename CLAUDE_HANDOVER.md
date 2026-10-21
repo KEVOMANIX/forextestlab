@@ -51,7 +51,7 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `82cff7b`, Challenges next-step card (verified 2026-10-21) |
+| Current deployed app revision | `d35fd31`, dashboard "Your practice results" (verified 2026-10-21) |
 | Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
 The original workstation already has working Git credentials for the GitHub
@@ -609,10 +609,18 @@ The visual system deliberately separates product identity from trading results:
 
 - The dashboard (`src/app/app/page.tsx`, `SignedInDashboard.tsx`) reads top to
   bottom: greeting and named Continue button, the running-challenge strip,
-  Performance over the last 100 practice trades (`practicePerformance()` in
-  `src/lib/backtest/practice-performance.ts`: KPI tiles, cumulative P/L with
-  the largest drawdown, winners against losers), This week, then sessions.
-  Every figure excludes challenges.
+  "Your practice results" (`PerformanceOverview.tsx`), then sessions. Results
+  cover 30 days, 90 days or all time (`?period=`, remembered in the
+  `ftl_performance_period` cookie; default all time) and exclude challenges
+  and experimental trades. `loadPracticePerformance()` in
+  `practice-performance-query.ts` computes them in PostgreSQL: totals, plus a
+  cumulative curve sampled to about 200 points that always keeps the last
+  trade and the drawdown trough, so egress does not grow with history.
+  `describePerformance()` derives the rest. Each figure is shown once.
+- Dashboard motion (`reveal-x`, `grow-x`, `fade-in` in `tailwind.config.ts`)
+  sits behind `motion-reduce:`. Animate absolutely positioned chart markers
+  with opacity only: a transform turns the animated wrapper into their
+  containing block and moves them off the plot.
 - Deployment host: AWS Lightsail behind Cloudflare; Vercel is not used.
 - On 2026-10-21 the instance was replaced by a 4 GB instance created from a
   snapshot of the 2 GB one. The static IP `52.34.239.239` moved to the new

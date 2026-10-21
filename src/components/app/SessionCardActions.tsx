@@ -25,6 +25,7 @@ export function SessionCardActions({
   compact = false,
   command = false,
   sessionName = "",
+  resumeLabel = "Resume",
 }: {
   sessionId: string;
   status: string;
@@ -33,6 +34,8 @@ export function SessionCardActions({
   compact?: boolean;
   command?: boolean;
   sessionName?: string;
+  /** "Start" for a session that has never been played. */
+  resumeLabel?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -46,6 +49,9 @@ export function SessionCardActions({
     closeOnEscape: !busy,
   });
   const finished = status === "finished";
+  // Outlined rather than filled: a list of sessions should not put a solid
+  // primary button on every row and drown out the page's main action.
+  const rowActionClass = "inline-flex items-center gap-2 rounded-lg border border-brand-400/60 px-3 py-2 text-xs font-semibold text-brand-300 transition-colors hover:bg-brand-400/10";
 
   async function setArchived(value: boolean) {
     setBusy(true);
@@ -115,15 +121,15 @@ export function SessionCardActions({
       {!finished && (
         <Link
           href={`/app/backtest?session=${encodeURIComponent(sessionId)}`}
-          className={command ? "inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm transition-colors hover:bg-brand-400" : "btn-primary px-3 py-2 text-xs"}
+          className={command ? "inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm transition-colors hover:bg-brand-400" : rowActionClass}
         >
-          <Play size={14} aria-hidden /> Resume
+          <Play size={14} aria-hidden /> {resumeLabel}
         </Link>
       )}
       {showAnalytics && (
         <Link
           href={`/app/analytics?session=${encodeURIComponent(sessionId)}`}
-          className={command ? `inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${finished ? "border-brand-400/40 bg-brand-500 text-surface-950 shadow-sm hover:bg-brand-400" : "app-border bg-[var(--app-panel-2)] text-[var(--app-text)] hover:border-brand-400/35 hover:text-brand-300"}` : `${finished ? "btn-primary" : "btn-secondary"} px-3 py-2 text-xs`}
+          className={command ? `inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${finished ? "border-brand-400/40 bg-brand-500 text-surface-950 shadow-sm hover:bg-brand-400" : "app-border bg-[var(--app-panel-2)] text-[var(--app-text)] hover:border-brand-400/35 hover:text-brand-300"}` : finished ? rowActionClass : "btn-secondary px-3 py-2 text-xs"}
         >
           <BarChart3 size={14} aria-hidden /> Analytics
         </Link>

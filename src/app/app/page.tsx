@@ -15,6 +15,7 @@ import {
 } from "@/components/app/SignedInDashboard";
 import { ensureUserProfile } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { Decimal } from "@/lib/decimal";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -242,6 +243,14 @@ export default async function AppHome() {
   }
   const wins = recentTrades.filter((trade) => Number(trade.pnl) > 0).length;
   const losses = recentTrades.filter((trade) => Number(trade.pnl) < 0).length;
+  // Oldest first, so the dashboard strip reads left to right like a chart.
+  const recentPnls = recentTrades.map((trade) => new Decimal(trade.pnl)).reverse();
+  const grossProfit = recentPnls
+    .filter((pnl) => pnl.greaterThan(0))
+    .reduce((total, pnl) => total.plus(pnl), new Decimal(0));
+  const grossLoss = recentPnls
+    .filter((pnl) => pnl.lessThan(0))
+    .reduce((total, pnl) => total.plus(pnl.abs()), new Decimal(0));
 
   const displayName =
     typeof user.user_metadata?.display_name === "string" &&
@@ -259,6 +268,7 @@ export default async function AppHome() {
       metrics={{
         practiceMinutes,
         practiceMinutesByDay,
+        weekStart: monday.toISOString().slice(0, 10),
         currentWeekdayIndex: Math.max(0, weekdayIndex),
         streakDays,
         closedTradesThisWeek,
@@ -266,9 +276,9 @@ export default async function AppHome() {
         winRateSampleSize: recentTrades.length,
         winningTrades: wins,
         losingTrades: losses,
-        recentOutcomes: recentTrades
-          .map((trade): "win" | "loss" | "flat" => Number(trade.pnl) > 0 ? "win" : Number(trade.pnl) < 0 ? "loss" : "flat")
-          .reverse(),
+        recentTradePnls: recentPnls.map((pnl) => pnl.toNumber()),
+        recentNetPnl: grossProfit.minus(grossLoss).toFixed(2),
+        recentProfitFactor: grossLoss.isZero() ? null : grossProfit.dividedBy(grossLoss).toNumber(),
       }}
     />
   );

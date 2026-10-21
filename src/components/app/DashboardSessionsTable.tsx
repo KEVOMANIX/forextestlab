@@ -10,13 +10,17 @@ export interface DashboardSessionRow {
   id: string;
   name: string;
   symbols: string;
+  pairs: string[];
   dateRange: string;
   status: "Active" | "Completed";
+  /** Never played: the primary action reads "Start" rather than "Resume". */
+  notStarted: boolean;
   updatedAt: number;
   updatedLabel: string;
   pnl: number;
   pnlLabel: string;
   progress: number;
+  progressLabel: string;
   winRate: number | null;
   closedTrades: number;
   archived: boolean;
@@ -24,6 +28,40 @@ export interface DashboardSessionRow {
 
 type StatusFilter = "all" | "active" | "completed";
 type SortMode = "recent" | "pnl" | "progress";
+
+const COLUMNS = "grid-cols-[minmax(16rem,1.8fr)_10rem_6.5rem_7rem_6rem_13.5rem]";
+
+function pnlTone(value: number): string {
+  return value > 0 ? "text-profit" : value < 0 ? "text-loss" : "app-muted";
+}
+
+function tradeCountLabel(count: number): string {
+  return count ? `${count.toLocaleString("en-US")} trade${count === 1 ? "" : "s"}` : "No trades";
+}
+
+function SessionDetails({ session }: { session: DashboardSessionRow }) {
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <span className="text-xs app-muted">{session.dateRange}</span>
+      {session.pairs.map((pair) => (
+        <span key={pair} className="rounded-md border app-border px-1.5 py-0.5 font-mono text-[11px] leading-none app-muted">{pair}</span>
+      ))}
+    </div>
+  );
+}
+
+function SessionProgress({ session }: { session: DashboardSessionRow }) {
+  const tone = session.status === "Completed" ? "font-semibold text-brand-300" : session.notStarted ? "app-muted" : "font-semibold text-[var(--app-text)]";
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className={tone}>{session.progressLabel}</span>
+        {session.status === "Active" && !session.notStarted && <span className="font-mono app-muted">{session.progress.toFixed(0)}%</span>}
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--app-panel-2)]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${session.progress}%` }} /></div>
+    </div>
+  );
+}
 
 export function DashboardSessionsTable({
   sessions,
@@ -73,6 +111,7 @@ export function DashboardSessionsTable({
                 key={option}
                 type="button"
                 onClick={() => setStatus(option)}
+                aria-pressed={status === option}
                 className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
                   status === option
                     ? "bg-white/[0.08] text-[var(--app-text)]"
@@ -108,30 +147,30 @@ export function DashboardSessionsTable({
       ) : (
         <>
           <div className="hidden overflow-x-auto lg:block">
-            <div className="min-w-[55rem]">
-            <div className="grid grid-cols-[minmax(18rem,1.8fr)_8rem_6rem_7rem_14rem] items-center gap-5 border-b app-border bg-[var(--app-bg)]/30 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.13em] app-muted">
+            <div className="min-w-[62rem]">
+            <div className={`grid ${COLUMNS} items-center gap-5 border-b app-border bg-[var(--app-bg)]/30 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.13em] app-muted`}>
               <span>Session</span>
               <span>Progress</span>
               <span className="text-right">Win rate</span>
               <span className="text-right">Net P/L</span>
+              <span>Updated</span>
               <span className="text-right">Actions</span>
             </div>
             <div className="divide-y app-border">
               {displayed.map((session) => (
-                <article key={session.id} className="group grid grid-cols-[minmax(18rem,1.8fr)_8rem_6rem_7rem_14rem] items-center gap-5 bg-[var(--app-panel)] px-5 py-4 transition-colors hover:bg-brand-400/[0.055] focus-within:bg-brand-400/[0.055]">
+                <article key={session.id} className={`group grid ${COLUMNS} items-center gap-5 bg-[var(--app-panel)] px-5 py-4 transition-colors hover:bg-brand-400/[0.055] focus-within:bg-brand-400/[0.055]`}>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/app?session=${encodeURIComponent(session.id)}`} className="truncate font-semibold transition-colors group-hover:text-brand-300">{session.name}</Link>
-                    </div>
-                    <p className="mt-1 truncate font-mono text-[11px] app-muted">{session.symbols}</p>
+                    <Link href={`/app?session=${encodeURIComponent(session.id)}`} className="block truncate font-semibold transition-colors group-hover:text-brand-300">{session.name}</Link>
+                    <SessionDetails session={session} />
                   </div>
-                  <div>
-                    <p className="text-right font-mono text-sm font-semibold text-[var(--app-text)]">{session.progress.toFixed(0)}%</p>
-                    <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${session.progress}%` }} /></div>
+                  <SessionProgress session={session} />
+                  <div className="text-right">
+                    <p className={`font-mono text-sm font-semibold ${session.winRate === null ? "app-muted" : "text-[var(--app-text)]"}`}>{session.winRate === null ? "—" : `${session.winRate.toFixed(0)}%`}</p>
+                    <p className="mt-0.5 text-[11px] app-muted">{tradeCountLabel(session.closedTrades)}</p>
                   </div>
-                  <div className="text-right"><p className={`font-mono text-sm font-semibold ${session.winRate === null ? "app-muted" : "text-brand-300"}`}>{session.winRate === null ? "—" : `${session.winRate.toFixed(0)}%`}</p></div>
-                  <p className={`text-right font-mono text-sm font-semibold ${session.pnl >= 0 ? "text-profit" : "text-loss"}`}>{session.pnlLabel}</p>
-                  <div className="justify-self-end"><SessionCardActions sessionId={session.id} sessionName={session.name} status={session.status === "Completed" ? "finished" : "paused"} archived={session.archived} compact /></div>
+                  <p className={`text-right font-mono text-sm font-semibold ${pnlTone(session.pnl)}`}>{session.pnlLabel}</p>
+                  <p className="text-xs app-muted">{session.updatedLabel}</p>
+                  <div className="justify-self-end"><SessionCardActions sessionId={session.id} sessionName={session.name} status={session.status === "Completed" ? "finished" : "paused"} archived={session.archived} resumeLabel={session.notStarted ? "Start" : "Resume"} compact /></div>
                 </article>
               ))}
             </div>
@@ -141,7 +180,7 @@ export function DashboardSessionsTable({
           <div className="divide-y app-border lg:hidden">
             {displayed.map((session) => (
               <article key={session.id} className="bg-[var(--app-panel)] p-4">
-                <div className="min-w-0">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Link
                       href={`/app?session=${encodeURIComponent(session.id)}`}
@@ -149,25 +188,14 @@ export function DashboardSessionsTable({
                     >
                       {session.name}
                     </Link>
-                    <p className="mt-1 truncate font-mono text-xs app-muted">{session.symbols}</p>
+                    <SessionDetails session={session} />
                   </div>
+                  <span className="shrink-0 text-xs app-muted">{session.updatedLabel}</span>
                 </div>
                 <div className="mt-4 grid grid-cols-[1fr_auto_auto] items-end gap-4">
-                  <div>
-                    <div className="mb-2 flex items-center justify-end text-[11px] app-muted"><span>{session.progress.toFixed(0)}%</span></div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
-                      <div
-                        className="h-full rounded-full bg-brand-500"
-                        style={{ width: `${session.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="text-right"><p className={`font-mono text-sm font-semibold ${session.winRate === null ? "app-muted" : "text-brand-300"}`}>{session.winRate === null ? "—" : `${session.winRate.toFixed(0)}%`}</p><p className="mt-0.5 text-[10px] app-muted">Win rate</p></div>
-                  <p
-                    className={`font-mono text-sm font-semibold ${
-                      session.pnl >= 0 ? "text-profit" : "text-loss"
-                    }`}
-                  >
+                  <SessionProgress session={session} />
+                  <div className="text-right"><p className={`font-mono text-sm font-semibold ${session.winRate === null ? "app-muted" : "text-[var(--app-text)]"}`}>{session.winRate === null ? "—" : `${session.winRate.toFixed(0)}%`}</p><p className="mt-0.5 text-[11px] app-muted">{tradeCountLabel(session.closedTrades)}</p></div>
+                  <p className={`font-mono text-sm font-semibold ${pnlTone(session.pnl)}`}>
                     {session.pnlLabel}
                   </p>
                 </div>
@@ -177,6 +205,7 @@ export function DashboardSessionsTable({
                     sessionName={session.name}
                     status={session.status === "Completed" ? "finished" : "paused"}
                     archived={session.archived}
+                    resumeLabel={session.notStarted ? "Start" : "Resume"}
                     compact
                   />
                 </div>

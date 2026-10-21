@@ -27,7 +27,17 @@ describe("dashboard practice overview", () => {
 
     expect(page.props).toEqual(expect.objectContaining({
       sessions: [expect.objectContaining({ id: "session", name: "EURUSD backtest", sessionWinRate: { closedTrades: 4, winRate: 75 } })],
-      metrics: expect.objectContaining({ practiceMinutes: 1, closedTradesThisWeek: 2, winRate: (2 / 3) * 100, winRateSampleSize: 3 }),
+      metrics: expect.objectContaining({
+        practiceMinutes: 1,
+        closedTradesThisWeek: 2,
+        winRate: (2 / 3) * 100,
+        winRateSampleSize: 3,
+        // Trades arrive newest first; the strip reads oldest to latest.
+        recentTradePnls: [2, -5, 10],
+        recentNetPnl: "7.00",
+        recentProfitFactor: 2.4,
+        weekStart: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      }),
     }));
     expect(db.activity).toHaveBeenCalledOnce();
     expect(db.trades).toHaveBeenCalledOnce();

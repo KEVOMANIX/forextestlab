@@ -52,6 +52,7 @@ import { AccountBlownModal } from "./AccountBlownModal";
 import { depositedFunds } from "@/lib/backtest/replay-engine";
 import { replayDayLabel } from "@/lib/backtest/replay-progress";
 import { TrialSessionLauncher } from "./TrialSessionLauncher";
+import type { ChallengeStart } from "@/lib/backtest/challenge-record";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { propFirmGuardMessage, tradingGuardMessage } from "@/lib/backtest/trade-guards";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
@@ -137,13 +138,13 @@ const ChartGrid = dynamic(() => import("./ChartGrid"), {
 export function Backtester({
   resumeSessionId = null,
   initialMarket = null,
-  initialChallenge = false,
+  initialChallenge = null,
   entitlements,
   autoStartTrial = false,
 }: {
   resumeSessionId?: string | null;
   initialMarket?: string | null;
-  initialChallenge?: boolean;
+  initialChallenge?: ChallengeStart | null;
   entitlements: PlanEntitlements;
   autoStartTrial?: boolean;
 }) {

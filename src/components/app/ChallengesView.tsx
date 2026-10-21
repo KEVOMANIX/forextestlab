@@ -1,20 +1,25 @@
 import Link from "next/link";
-import { BarChart3, Play, Plus, Trophy } from "lucide-react";
+import { BarChart3, Check, Play, Plus, RotateCcw, Trophy } from "lucide-react";
 
 import {
   BREACH_SHORT_LABELS,
+  challengeStartHref,
   formatSignedPercent,
   formatUsd,
+  nextChallengeStep,
   zoneCity,
   type ChallengeCard,
+  type ChallengeNextStep,
   type ChallengeResult,
+  type ChallengeSummary,
 } from "@/lib/backtest/challenge-record";
-import type { ChallengeDay, ChallengesOverview } from "@/lib/backtest/challenge-queries";
+import type { ChallengeAttempt, ChallengeDay, ChallengesOverview } from "@/lib/backtest/challenge-queries";
 import type { PropFirmBreachRule } from "@/lib/backtest/prop-firm";
 
-const START_CHALLENGE_HREF = "/app/backtest?mode=challenge";
 const RING_RADIUS = 62;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
+const PRIMARY = "inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-bold text-surface-950 transition-colors hover:bg-brand-400";
+const SECONDARY = "inline-flex min-h-11 items-center gap-2 rounded-xl border app-border px-4 text-sm font-semibold transition-colors hover:border-brand-400/40 hover:text-brand-300";
 
 function tone(value: number): string {
   return value > 0 ? "text-profit" : value < 0 ? "text-loss" : "app-muted";
@@ -23,6 +28,10 @@ function tone(value: number): string {
 /** Amber while there is room; red once most of a loss allowance is spent. */
 function usedColour(ratio: number): string {
   return ratio >= 0.8 ? "rgb(var(--trade-loss-rgb))" : "rgb(var(--trade-exit-rgb))";
+}
+
+function breachLabel(breach: string | null): string {
+  return BREACH_SHORT_LABELS[breach as PropFirmBreachRule] ?? "Rule broken";
 }
 
 function Gauge({ ratio, colour, value, caption, label, title, description }: {
@@ -66,8 +75,8 @@ function ActiveChallenge({ challenge }: { challenge: ChallengeCard }) {
           <p className="mt-1.5 text-sm"><span className="font-mono font-semibold">{formatUsd(challenge.equity)}</span><span className="app-muted"> · </span><span className={`font-mono font-semibold ${tone(challenge.profitPercent)}`}>{formatSignedPercent(challenge.profitPercent)}</span></p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href={`/app/backtest?session=${encodeURIComponent(challenge.id)}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-bold text-surface-950 transition-colors hover:bg-brand-400"><Play size={14} fill="currentColor" aria-hidden />Continue</Link>
-          <Link href={`/app/analytics?session=${encodeURIComponent(challenge.id)}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl border app-border px-4 text-sm font-semibold transition-colors hover:border-brand-400/40 hover:text-brand-300"><BarChart3 size={15} aria-hidden />Analytics</Link>
+          <Link href={`/app/backtest?session=${encodeURIComponent(challenge.id)}`} className={PRIMARY}><Play size={14} fill="currentColor" aria-hidden />Continue</Link>
+          <Link href={`/app/analytics?session=${encodeURIComponent(challenge.id)}`} className={SECONDARY}><BarChart3 size={15} aria-hidden />Analytics</Link>
         </div>
       </div>
       <div className="mt-6 grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
@@ -98,6 +107,63 @@ function ActiveChallenge({ challenge }: { challenge: ChallengeCard }) {
           title={`Floor ${formatUsd(challenge.totalFloor)}.`}
           description={`Maximum loss ${Math.round(challenge.totalUsedRatio * 100)}% used, ${formatUsd(challenge.totalRemaining)} above the floor`}
         />
+      </div>
+    </section>
+  );
+}
+
+type StepState = "done" | "next" | "locked";
+
+function PhaseStep({ state, number, label }: { state: StepState; number: string; label: string }) {
+  const node = state === "done"
+    ? "bg-profit/15 text-profit"
+    : state === "next" ? "border-2 border-brand-400 text-brand-300" : "border app-border app-muted";
+  return (
+    <li className="flex flex-col items-center gap-1.5" aria-current={state === "next" ? "step" : undefined}>
+      <span className={`grid h-9 w-9 place-items-center rounded-full text-sm font-bold ${node}`}>{state === "done" ? <Check size={16} strokeWidth={3} aria-label="Done" /> : number}</span>
+      <span className={`text-xs font-semibold ${state === "locked" ? "app-muted" : ""}`}>{label}</span>
+    </li>
+  );
+}
+
+function PhaseSteps({ stage }: { stage: "phase-2" | "funded" }) {
+  const funded = stage === "funded";
+  const connector = (done: boolean) => <li aria-hidden className={`mb-5 h-0.5 w-10 rounded-full ${done ? "bg-profit" : "bg-[var(--app-border)]"}`} />;
+  return (
+    <ol aria-label="Challenge phases" className="flex items-center gap-2">
+      <PhaseStep state="done" number="1" label="Challenge" />
+      {connector(true)}
+      <PhaseStep state={funded ? "done" : "next"} number="2" label="Verification" />
+      {connector(funded)}
+      <PhaseStep state={funded ? "done" : "locked"} number="★" label="Passed" />
+    </ol>
+  );
+}
+
+/** What to do when nothing is running: the next phase, or another try. */
+function NextStep({ step }: { step: ChallengeNextStep<ChallengeAttempt> }) {
+  const { attempt } = step;
+  const review = <Link href={`/app/analytics?session=${encodeURIComponent(attempt.id)}`} className={SECONDARY}><BarChart3 size={15} aria-hidden />Review</Link>;
+  const retry = step.kind === "retry";
+  const badge = retry
+    ? <ResultBadge result={attempt.result} label={attempt.result === "failed" ? `Failed · ${breachLabel(attempt.breach)}` : "Ended before the target"} />
+    : <ResultBadge result="passed" label={step.kind === "phase-2" ? "Phase 1 passed" : "Both phases passed"} />;
+  return (
+    <section aria-label="Next step" className={`flex flex-wrap items-center justify-between gap-x-8 gap-y-5 rounded-2xl border bg-[var(--app-panel)] p-5 shadow-card sm:p-6 ${retry ? "app-border" : "border-brand-400/50"}`}>
+      <div className="min-w-0">
+        {badge}
+        <h2 className="mt-2.5 truncate text-xl font-semibold">{attempt.name}</h2>
+        <p className="mt-1 text-sm app-muted">
+          {retry
+            ? <>Phase {attempt.phase} · {attempt.accountLabel} · {attempt.tradingDays} trading day{attempt.tradingDays === 1 ? "" : "s"}</>
+            : <><span className={`font-mono font-semibold ${tone(attempt.profitPercent)}`}>{formatSignedPercent(attempt.profitPercent)}</span> in {attempt.tradingDays} trading day{attempt.tradingDays === 1 ? "" : "s"}</>}
+        </p>
+      </div>
+      {!retry && <PhaseSteps stage={step.kind} />}
+      <div className="flex flex-wrap gap-2">
+        {step.kind === "phase-2" && <Link href={challengeStartHref({ phase: 2, symbol: attempt.symbol, accountSize: attempt.accountSize })} className={PRIMARY}><Play size={14} fill="currentColor" aria-hidden />Start Phase 2</Link>}
+        {retry && <Link href={challengeStartHref({ phase: attempt.phase, symbol: attempt.symbol, accountSize: attempt.accountSize })} className={PRIMARY}><RotateCcw size={15} aria-hidden />Try again</Link>}
+        {review}
       </div>
     </section>
   );
@@ -141,22 +207,31 @@ function ResultBadge({ result, label }: { result: ChallengeResult; label?: strin
   return <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${style.className}`}><span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />{label ?? style.label}</span>;
 }
 
-function SummaryTile({ label, value, title }: { label: string; value: string; title?: string }) {
+/** One compact row; figures with nothing to say yet are left out. */
+function RecordStrip({ summary }: { summary: ChallengeSummary }) {
+  const items: Array<{ label: string; value: string; title?: string }> = [
+    { label: "Attempts", value: String(summary.attempts) },
+    { label: "Passed", value: String(summary.passed) },
+  ];
+  if (summary.passRate !== null) items.push({ label: "Pass rate", value: `${Math.round(summary.passRate)}%` });
+  if (summary.daysToPass[1] !== null) items.push({ label: "Phase 1 pass time", value: `${summary.daysToPass[1]} days`, title: "Average trading days to pass Phase 1" });
+  if (summary.daysToPass[2] !== null) items.push({ label: "Phase 2 pass time", value: `${summary.daysToPass[2]} days`, title: "Average trading days to pass Phase 2" });
+  if (summary.topFailure) items.push({ label: "Top failure", value: BREACH_SHORT_LABELS[summary.topFailure.rule], title: `${summary.topFailure.count} of ${summary.failed} failed attempts` });
   return (
-    <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-card" title={title}>
-      <p className="text-xs font-semibold app-muted">{label}</p>
-      <p className="mt-2.5 font-mono text-2xl font-semibold leading-none text-[var(--app-text)]">{value}</p>
-    </article>
+    <dl aria-label="Your record" className="flex flex-wrap gap-x-10 gap-y-3 rounded-2xl border app-border bg-[var(--app-panel)] px-5 py-4 shadow-card">
+      {items.map((item) => (
+        <div key={item.label} title={item.title}>
+          <dt className="text-xs font-semibold app-muted">{item.label}</dt>
+          <dd className="mt-1 font-mono text-lg font-semibold text-[var(--app-text)]">{item.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
-}
-
-function StartButton() {
-  return <Link href={START_CHALLENGE_HREF} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand-400/60 px-4 text-sm font-semibold text-brand-300 transition-colors hover:bg-brand-400/10"><Plus size={16} aria-hidden />Start a challenge</Link>;
 }
 
 export function ChallengesView({ overview }: { overview: ChallengesOverview }) {
   const { active, days, attempts, summary } = overview;
-  const daysToPass = `${summary.daysToPass[1] ?? "—"} / ${summary.daysToPass[2] ?? "—"}`;
+  const next = active ? null : nextChallengeStep(attempts);
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 sm:py-7">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -164,7 +239,7 @@ export function ChallengesView({ overview }: { overview: ChallengesOverview }) {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Prop firm</p>
           <h1 className="mt-1.5 text-3xl font-bold tracking-tight">Challenges</h1>
         </div>
-        <StartButton />
+        <Link href={challengeStartHref()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand-400/60 px-4 text-sm font-semibold text-brand-300 transition-colors hover:bg-brand-400/10"><Plus size={16} aria-hidden />Start a challenge</Link>
       </header>
 
       {attempts.length === 0 ? (
@@ -172,40 +247,27 @@ export function ChallengesView({ overview }: { overview: ChallengesOverview }) {
           <span className="grid h-11 w-11 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><Trophy size={20} aria-hidden /></span>
           <h2 className="mt-5 text-2xl font-bold tracking-tight">No challenges yet</h2>
           <p className="mt-2 max-w-xl text-sm leading-6 app-muted">Practise under prop-firm rules: a profit target, a daily loss limit and a maximum loss. Challenges stay out of your practice numbers.</p>
-          <Link href={START_CHALLENGE_HREF} className="btn-primary mt-6">Start a challenge <Play size={14} fill="currentColor" aria-hidden /></Link>
+          <Link href={challengeStartHref()} className="btn-primary mt-6">Start a challenge <Play size={14} fill="currentColor" aria-hidden /></Link>
         </section>
       ) : (
         <div className="mt-6 flex flex-col gap-5">
-          {active ? <ActiveChallenge challenge={active} /> : (
-            <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border app-border bg-[var(--app-panel)] p-5 shadow-card">
-              <p className="font-semibold">No challenge running</p>
-              <StartButton />
+          {active && <ActiveChallenge challenge={active} />}
+          {next && <NextStep step={next} />}
+
+          {active && days.length > 0 && (
+            <section aria-labelledby="daily-heading" className="rounded-2xl border app-border bg-[var(--app-panel)] p-5 shadow-card">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="daily-heading" className="font-semibold">Daily P/L</h2>
+                {Number(active.dailyAllowance) > 0 && <span className="inline-flex items-center gap-2 text-xs font-semibold text-loss" title={`The most you can lose in one day. Resets at midnight, ${zoneCity(active.resetZone)} time.`}><span className="w-5 border-t-2 border-dashed border-loss" aria-hidden />Limit {formatUsd(-Number(active.dailyAllowance))}</span>}
+              </div>
+              <DailyLimitChart days={days} allowance={active.dailyAllowance} />
             </section>
           )}
 
-          <div className="flex flex-wrap gap-4">
-            {active && days.length > 0 && (
-              <section aria-labelledby="daily-heading" className="min-w-0 flex-[1.6_1_32rem] rounded-2xl border app-border bg-[var(--app-panel)] p-5 shadow-card">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 id="daily-heading" className="font-semibold">Daily P/L</h2>
-                  {Number(active.dailyAllowance) > 0 && <span className="inline-flex items-center gap-2 text-xs font-semibold text-loss" title={`The most you can lose in one day. Resets at midnight, ${zoneCity(active.resetZone)} time.`}><span className="w-5 border-t-2 border-dashed border-loss" aria-hidden />Limit {formatUsd(-Number(active.dailyAllowance))}</span>}
-                </div>
-                <DailyLimitChart days={days} allowance={active.dailyAllowance} />
-              </section>
-            )}
-            <section aria-label="Your record" className="grid min-w-0 flex-[1_1_18rem] grid-cols-2 gap-3 self-start">
-              <SummaryTile label="Attempts" value={String(summary.attempts)} />
-              <SummaryTile label="Pass rate" value={summary.passRate === null ? "—" : `${Math.round(summary.passRate)}%`} />
-              <SummaryTile label="Days to pass" value={daysToPass} title="Average trading days to pass Phase 1 / Phase 2" />
-              <SummaryTile label="Top failure" value={summary.topFailure ? BREACH_SHORT_LABELS[summary.topFailure.rule] : "None"} title={summary.topFailure ? `${summary.topFailure.count} of ${summary.failed} failed attempts` : undefined} />
-            </section>
-          </div>
+          <RecordStrip summary={summary} />
 
           <section aria-labelledby="attempts-heading">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 id="attempts-heading" className="text-xl font-semibold">All attempts</h2>
-              <p className="text-sm app-muted">{summary.attempts} attempt{summary.attempts === 1 ? "" : "s"} · {summary.passed} passed</p>
-            </div>
+            <h2 id="attempts-heading" className="text-xl font-semibold">All attempts</h2>
             <div className="mt-3 overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-card">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[46rem] border-collapse text-sm">
@@ -216,20 +278,20 @@ export function ChallengesView({ overview }: { overview: ChallengesOverview }) {
                       <th scope="col" className="border-b app-border px-5 py-3 text-right">Account</th>
                       <th scope="col" className="border-b app-border px-5 py-3">Result</th>
                       <th scope="col" className="border-b app-border px-5 py-3">Outcome</th>
-                      <th scope="col" className="border-b app-border px-5 py-3 text-right">Days</th>
+                      <th scope="col" className="border-b app-border px-5 py-3 text-right">Trading days</th>
                       <th scope="col" className="border-b app-border px-5 py-3"><span className="sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y app-border">
                     {attempts.map((attempt) => (
                       <tr key={attempt.id}>
-                        <td className="px-5 py-3.5 font-semibold">{attempt.name}</td>
-                        <td className="px-5 py-3.5">{attempt.phase}</td>
+                        <td className="px-5 py-3.5"><span className="block font-semibold">{attempt.name}</span><span className="mt-0.5 block text-xs app-muted">{attempt.dateRange}</span></td>
+                        <td className="px-5 py-3.5">{attempt.phase} · {attempt.phase === 1 ? "Challenge" : "Verification"}</td>
                         <td className="px-5 py-3.5 text-right font-mono">{attempt.accountLabel}</td>
                         <td className="px-5 py-3.5"><ResultBadge result={attempt.result} /></td>
                         <td className="px-5 py-3.5">{attempt.result === "failed"
-                          ? BREACH_SHORT_LABELS[attempt.breach as PropFirmBreachRule] ?? "Rule broken"
-                          : <span className={`font-mono font-semibold ${tone(attempt.profitPercent)}`}>{formatSignedPercent(attempt.profitPercent)}</span>}</td>
+                          ? breachLabel(attempt.breach)
+                          : <><span className={`font-mono font-semibold ${tone(attempt.profitPercent)}`}>{formatSignedPercent(attempt.profitPercent)}</span><span className="font-mono app-muted"> / {attempt.targetPercent}%</span></>}</td>
                         <td className="px-5 py-3.5 text-right font-mono">{attempt.tradingDays}</td>
                         <td className="px-5 py-3.5 text-right">
                           {attempt.result === "in-progress"

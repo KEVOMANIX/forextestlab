@@ -12,6 +12,7 @@
 import { d } from "@/lib/decimal";
 
 import {
+  PROP_FIRM_ACCOUNT_SIZES,
   propFirmDayKey,
   propFirmProgress,
   type PropFirmBreachRule,
@@ -253,6 +254,52 @@ export function summarizeChallenges(attempts: Array<{
     daysToPass: { 1: averageDays(1), 2: averageDays(2) },
     topFailure: topRule ? { rule: topRule, count: topCount! } : null,
   };
+}
+
+/** How the setup screen should open when it is reached from a challenge link. */
+export interface ChallengeStart {
+  phase: 1 | 2;
+  /** One of PROP_FIRM_ACCOUNT_SIZES, or null for the default. */
+  accountSize: string | null;
+}
+
+/** Setup link that opens with a challenge already chosen: phase, market and size. */
+export function challengeStartHref(start: { phase?: 1 | 2; symbol?: string; accountSize?: string } = {}): string {
+  const params = new URLSearchParams({ mode: "challenge" });
+  if (start.phase === 2) params.set("phase", "2");
+  if (start.symbol) params.set("market", start.symbol);
+  if (start.accountSize) params.set("size", start.accountSize);
+  return `/app/backtest?${params}`;
+}
+
+export function parseChallengeStart(params: { mode?: string; phase?: string; size?: string }): ChallengeStart | null {
+  if (params.mode !== "challenge") return null;
+  const sizes: readonly string[] = PROP_FIRM_ACCOUNT_SIZES;
+  return {
+    phase: params.phase === "2" ? 2 : 1,
+    accountSize: params.size && sizes.includes(params.size) ? params.size : null,
+  };
+}
+
+export type ChallengeNextStep<Attempt> =
+  /** Phase 1 passed: Verification is next, on the same market and size. */
+  | { kind: "phase-2"; attempt: Attempt }
+  /** Both phases passed. */
+  | { kind: "funded"; attempt: Attempt }
+  /** The latest attempt failed or ran out of data: try it again. */
+  | { kind: "retry"; attempt: Attempt };
+
+/**
+ * What to offer when no challenge is running, from the most recent attempt.
+ * `attempts` is newest first. Null while one is running, or before the first.
+ */
+export function nextChallengeStep<Attempt extends { result: ChallengeResult; phase: 1 | 2 }>(
+  attempts: Attempt[],
+): ChallengeNextStep<Attempt> | null {
+  const latest = attempts[0];
+  if (!latest || attempts.some((attempt) => attempt.result === "in-progress")) return null;
+  if (latest.result === "passed") return { kind: latest.phase === 1 ? "phase-2" : "funded", attempt: latest };
+  return { kind: "retry", attempt: latest };
 }
 
 export const BREACH_SHORT_LABELS: Record<PropFirmBreachRule, string> = {

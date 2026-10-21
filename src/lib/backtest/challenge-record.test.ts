@@ -6,8 +6,11 @@ import {
   challengeColumns,
   challengeProgress,
   challengeResult,
+  challengeStartHref,
   formatUsd,
+  nextChallengeStep,
   parseChallengeRules,
+  parseChallengeStart,
   summarizeChallenges,
   type ChallengeRow,
 } from "./challenge-record";
@@ -124,6 +127,34 @@ describe("challenge results and summary", () => {
 
   it("has no pass rate before any attempt is decided", () => {
     expect(summarizeChallenges([{ result: "in-progress", breach: null, phase: 1, tradingDays: 0 }]).passRate).toBeNull();
+  });
+});
+
+describe("next step and setup links", () => {
+  const passedPhase1 = { result: "passed" as const, phase: 1 as const };
+
+  it("offers Phase 2 after a Phase 1 pass, and nothing while a challenge runs", () => {
+    expect(nextChallengeStep([passedPhase1])).toEqual({ kind: "phase-2", attempt: passedPhase1 });
+    expect(nextChallengeStep([{ result: "in-progress" as const, phase: 2 as const }, passedPhase1])).toBeNull();
+    expect(nextChallengeStep([])).toBeNull();
+  });
+
+  it("calls both phases passed funded, and anything else a retry", () => {
+    expect(nextChallengeStep([{ result: "passed" as const, phase: 2 as const }])?.kind).toBe("funded");
+    expect(nextChallengeStep([{ result: "failed" as const, phase: 1 as const }])?.kind).toBe("retry");
+    expect(nextChallengeStep([{ result: "ended" as const, phase: 2 as const }])?.kind).toBe("retry");
+  });
+
+  it("round-trips a challenge through the setup link", () => {
+    const href = challengeStartHref({ phase: 2, symbol: "GBPUSD", accountSize: "25000" });
+    expect(href).toBe("/app/backtest?mode=challenge&phase=2&market=GBPUSD&size=25000");
+    const params = Object.fromEntries(new URL(href, "https://example.com").searchParams);
+    expect(parseChallengeStart(params)).toEqual({ phase: 2, accountSize: "25000" });
+  });
+
+  it("ignores links that are not challenges and sizes no preset offers", () => {
+    expect(parseChallengeStart({})).toBeNull();
+    expect(parseChallengeStart({ mode: "challenge", size: "12345" })).toEqual({ phase: 1, accountSize: null });
   });
 });
 

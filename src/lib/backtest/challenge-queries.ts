@@ -1,6 +1,7 @@
 import "server-only";
 
 import { Prisma } from "@/generated/prisma/client";
+import { formatNewYorkDate } from "@/lib/date-time";
 import { prisma } from "@/lib/db";
 import { Decimal } from "@/lib/decimal";
 import { formatSymbol } from "@/lib/market-data/symbols";
@@ -118,8 +119,14 @@ export interface ChallengeAttempt {
   id: string;
   name: string;
   pairs: string[];
+  /** Primary market, as setup links expect it ("GBPUSD"). */
+  symbol: string;
+  dateRange: string;
   phase: 1 | 2;
+  /** Starting balance in whole dollars, for setup links ("10000"). */
+  accountSize: string;
   accountLabel: string;
+  targetPercent: number;
   result: ChallengeResult;
   breach: string | null;
   profitPercent: number;
@@ -179,8 +186,12 @@ export async function loadChallengesOverview(userId: string): Promise<Challenges
       id: session.id,
       name,
       pairs,
+      symbol: session.symbol,
+      dateRange: `${formatNewYorkDate(Number(session.startTime), { day: "numeric", month: "short" })} – ${formatNewYorkDate(Number(session.endTime), { day: "numeric", month: "short", year: "numeric" })}`,
       phase: rules.phase,
+      accountSize: start.toFixed(0),
       accountLabel: accountSizeLabel(session.startingBalance),
+      targetPercent: rules.profitTargetPercent,
       result,
       breach: session.challengeBreach,
       profitPercent: start.isZero() ? 0 : new Decimal(session.equity).minus(start).dividedBy(start).times(100).toNumber(),

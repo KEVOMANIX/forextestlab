@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 import { BacktesterClient } from "@/components/app/BacktesterClient";
 import { ensureUserProfile } from "@/lib/auth";
+import { parseChallengeStart } from "@/lib/backtest/challenge-record";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -35,7 +36,7 @@ const DEMO_ENTITLEMENTS: PlanEntitlements = {
 
 export default async function BacktestPage(
   props: {
-    searchParams: Promise<{ session?: string; trial?: string; market?: string; mode?: string }>;
+    searchParams: Promise<{ session?: string; trial?: string; market?: string; mode?: string; phase?: string; size?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -55,7 +56,7 @@ export default async function BacktestPage(
     <BacktesterClient
       resumeSessionId={resumeSessionId}
       initialMarket={typeof searchParams.market === "string" ? searchParams.market : null}
-      initialChallenge={searchParams.mode === "challenge"}
+      initialChallenge={parseChallengeStart(searchParams)}
       entitlements={entitlements}
       autoStartTrial={
         !resumeSessionId &&

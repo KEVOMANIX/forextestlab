@@ -25,6 +25,7 @@ import {
   fetchSymbols,
   type CreateSessionBody,
 } from "@/lib/backtest/client";
+import type { ChallengeStart } from "@/lib/backtest/challenge-record";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import {
   PROP_FIRM_ACCOUNT_SIZES,
@@ -37,8 +38,8 @@ import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 interface SessionSetupProps {
   initialMarket?: string | null;
-  /** Start with a Phase 1 challenge selected rather than free practice. */
-  initialChallenge?: boolean;
+  /** Start with this challenge chosen rather than free practice. */
+  initialChallenge?: ChallengeStart | null;
   onStart: (body: CreateSessionBody) => void;
   busy: boolean;
   error: string | null;
@@ -446,7 +447,7 @@ function SessionDatePicker({
   );
 }
 
-export function SessionSetup({ initialMarket, initialChallenge = false, onStart, busy, error, entitlements }: SessionSetupProps) {
+export function SessionSetup({ initialMarket, initialChallenge = null, onStart, busy, error, entitlements }: SessionSetupProps) {
   const [name, setName] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
@@ -464,10 +465,12 @@ export function SessionSetup({ initialMarket, initialChallenge = false, onStart,
   const [loadingRange, setLoadingRange] = useState(false);
   /** Null = free practice. Otherwise the challenge phase being attempted. */
   const [challengePreset, setChallengePreset] =
-    useState<"ftmo-phase-1" | "ftmo-phase-2" | null>(initialChallenge ? "ftmo-phase-1" : null);
+    useState<"ftmo-phase-1" | "ftmo-phase-2" | null>(
+      initialChallenge ? (initialChallenge.phase === 2 ? "ftmo-phase-2" : "ftmo-phase-1") : null,
+    );
   // Free practice may use any positive starting balance. Challenge presets
   // reuse this value and constrain it to the supported account-size buttons.
-  const [accountSize, setAccountSize] = useState<string>("10000");
+  const [accountSize, setAccountSize] = useState<string>(initialChallenge?.accountSize ?? "10000");
 
   useEffect(() => {
     let active = true;

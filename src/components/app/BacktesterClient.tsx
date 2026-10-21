@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 
 import { PageLoader } from "@/components/PageLoader";
 import { SupportTerminalAlert } from "@/components/support/SupportTerminalAlert";
+import type { ChallengeStart } from "@/lib/backtest/challenge-record";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 
 /**
@@ -24,14 +25,14 @@ const Backtester = dynamic(
 export function BacktesterClient({
   resumeSessionId,
   initialMarket,
-  initialChallenge = false,
+  initialChallenge = null,
   entitlements,
   autoStartTrial,
 }: {
   resumeSessionId: string | null;
   initialMarket: string | null;
-  /** Open the setup with challenge mode selected (from "Start a challenge"). */
-  initialChallenge?: boolean;
+  /** Open the setup with a challenge chosen (from the Challenges page). */
+  initialChallenge?: ChallengeStart | null;
   entitlements: PlanEntitlements;
   autoStartTrial: boolean;
 }) {

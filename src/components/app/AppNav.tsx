@@ -9,14 +9,14 @@ import { Logo } from "@/components/Logo";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useAppTheme } from "./ThemeContext";
 
-type NavItem = { label: string; href: string; icon: typeof LayoutDashboard };
+type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; badge?: string };
 
 const WORKSPACE: NavItem[] = [
   { label: "Dashboard", href: "/app", icon: LayoutDashboard },
   { label: "New backtest", href: "/app/backtest", icon: Plus },
   { label: "Sessions", href: "/app/history", icon: BookOpenText },
   { label: "Analytics", href: "/app/analytics", icon: BarChart3 },
-  { label: "Challenges", href: "/app/challenges", icon: Trophy },
+  { label: "Challenges", href: "/app/challenges", icon: Trophy, badge: "New" },
 ];
 const ACCOUNT: NavItem[] = [
   { label: "Account", href: "/account", icon: CircleUserRound },
@@ -37,7 +37,7 @@ function isActive(pathname: string, href: string): boolean {
 function DesktopLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const Icon = item.icon;
   const active = isActive(pathname, item.href);
-  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}</Link>;
+  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{item.badge && <span className="ml-auto rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-surface-950">{item.badge}</span>}</Link>;
 }
 
 export function AppNav({ signedIn, displayName, admin = false }: { signedIn: boolean; displayName: string | null; admin?: boolean }) {

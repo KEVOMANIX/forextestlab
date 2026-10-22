@@ -51,7 +51,7 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `87af169`, email threading, failure records and quieter monitor alerts (verified 2026-10-22) |
+| Current deployed app revision | `9557ed1`, faster support workspace, no self-mail tickets (verified 2026-10-22) |
 | Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
 The original workstation already has working Git credentials for the GitHub
@@ -642,6 +642,15 @@ The visual system deliberately separates product identity from trading results:
     agent sees a warning, and the operations `email` check turns degraded.
   - The `email` check also asks Resend whether the key works and the
     `RESEND_FROM_EMAIL` domain is verified.
+  - Notices for the team (monitor alerts, contact-form copies) go to
+    `RESEND_INBOUND_FORWARD_TO`, never to the support address: that address
+    feeds the support inbox. The webhook ignores mail from the site's own
+    `RESEND_FROM_EMAIL`, which once filed alerts as tickets.
+- Support workspace (`/support-team`): every action re-renders the page on the
+  server, so keep its reads in `Promise.all`, not `prisma.$transaction` (a
+  transaction runs them one by one: ~270 ms vs ~25 ms). Customer emails from
+  agent actions go out in `after()`; a failure is posted as an internal note.
+  Form buttons use `SubmitButton` from `controls.tsx` to show progress.
   - Monitor alerts (`src/lib/operations/alerting.ts`): failed alerts at once
     and every 6 hours; degraded only after 12 hours, then daily; "recovered"
     only for an incident that alerted. The state file is

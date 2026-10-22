@@ -294,6 +294,20 @@ The domain registrar is Namecheap, but authoritative nameservers point to
 Cloudflare. Cloudflare DNS uses proxied records for the apex and `www`, with the
 origin at `52.34.239.239`. Email MX/TXT records must remain DNS-only.
 
+Email DNS (2026-10-23): Resend (us-east-1) signs with the single
+`resend._domainkey` TXT record and uses `send.forextestlab.com` (MX + SPF
+`include:amazonses.com`) as its return path. The apex SPF is `v=spf1 ~all`:
+Zoho and Namecheap Private Email are retired. DMARC is `p=none`. The apex MX
+points at Resend inbound. Resend also lists an unused eu-west-1 copy of the
+domain ("not started"); its DKIM record was removed from DNS.
+
+Cloudflare DNS can be changed through the API with the account's **Global API
+Key** (sent as `X-Auth-Key` with `X-Auth-Email` set to the Cloudflare login),
+kept on workstation 2 at `C:\Users\kelvi\OneDrive\Documents\Cloudfare key.txt`.
+It controls the whole account: never print it, and prefer a scoped
+"Edit zone DNS" token if one is created. The zone ID is
+`f506f6cb422fb6253ceab9310ecae68f`.
+
 ## Cloudflare R2 market data
 
 Production reads private monthly Parquet objects through the R2 S3-compatible API.

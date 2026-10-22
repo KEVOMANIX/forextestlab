@@ -21,7 +21,7 @@ type EmailAction = {
   href: string;
 };
 
-type BrandEmailOptions = {
+export type BrandEmailOptions = {
   preheader: string;
   eyebrow: string;
   title: string;
@@ -120,7 +120,12 @@ function replyAddress(value: string | { address: string }): string {
   return typeof value === "string" ? value : value.address;
 }
 
-function renderBrandEmail({
+/**
+ * The house email layout. Every message the site sends uses it, and
+ * `scripts/export-auth-email-templates.ts` uses it to produce the Supabase Auth
+ * templates, so account emails match support mail.
+ */
+export function renderBrandEmail({
   preheader,
   eyebrow,
   title,

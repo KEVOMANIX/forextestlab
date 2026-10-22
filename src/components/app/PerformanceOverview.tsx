@@ -4,9 +4,11 @@ import Link from "next/link";
 import { Clock3, Flame, ListChecks, Scale, Target, TrendingDown, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 
 import {
+  EARLY_DAYS_TRADES,
   PERFORMANCE_PERIOD_COOKIE,
   PERFORMANCE_PERIODS,
   PERIOD_LABELS,
+  performanceVerdict,
   type PerformancePeriod,
   type PracticePerformance,
 } from "@/lib/backtest/practice-performance";
@@ -22,8 +24,7 @@ export interface WeekSummary {
   closedTradesThisWeek: number;
 }
 
-/** Below this many trades the figures are mostly luck; say so. */
-const EARLY_DAYS_TRADES = 20;
+const PERIOD_TITLES: Record<PerformancePeriod, string> = { "30d": "Last 30 days", "90d": "Last 90 days", all: "All time" };
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 const CHART_WIDTH = 600;
 const CHART_HEIGHT = 230;
@@ -89,6 +90,21 @@ function PeriodSwitch({ period }: { period: PerformancePeriod }) {
       ))}
     </nav>
   );
+}
+
+/** The key word of the verdict, underlined as it draws in. */
+function Marked({ tone = "", children }: { tone?: string; children: React.ReactNode }) {
+  return <span className={`bg-[linear-gradient(currentColor,currentColor)] bg-[length:100%_2px] bg-left-bottom bg-no-repeat pb-0.5 animate-underline-in motion-reduce:animate-none ${tone}`}>{children}</span>;
+}
+
+function Verdict({ performance, period }: { performance: PracticePerformance | null; period: PerformancePeriod }) {
+  if (!performance) return <>{period === "all" ? "No practice trades yet" : `No practice trades in the last ${PERIOD_LABELS[period]}`}</>;
+  switch (performanceVerdict(performance)) {
+    case "early": return <Marked tone="text-[var(--app-warn-text)]">Too early to call</Marked>;
+    case "profitable": return <>You&apos;re <Marked tone="text-profit">profitable</Marked></>;
+    case "down": return <>You&apos;re <Marked tone="text-loss">down</Marked> so far</>;
+    case "even": return <Marked>Around break-even</Marked>;
+  }
 }
 
 function Stat({ icon: Icon, iconTone, label, value, valueTone, detail, title, index }: {
@@ -244,19 +260,21 @@ export function PerformanceOverview({ performance, period, week }: {
   period: PerformancePeriod;
   week: WeekSummary;
 }) {
-  const count = performance?.tradeCount ?? 0;
-  const meta = !count
-    ? period === "all" ? "No practice trades yet" : `No practice trades in the last ${PERIOD_LABELS[period]}`
-    : count < EARLY_DAYS_TRADES
-      ? `${count} trade${count === 1 ? "" : "s"} · early days, these settle after about 30`
-      : `${count.toLocaleString("en-US")} trades · challenges not included`;
   return (
-    <section className="mt-7" aria-labelledby="practice-performance">
+    <section className="mt-7" aria-labelledby="practice-performance-period practice-performance">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Performance</p>
-          <h2 id="practice-performance" className="mt-1.5 text-xl font-semibold">Your practice results</h2>
-          <p className="mt-1 text-sm app-muted">{meta}</p>
+          <p id="practice-performance-period" className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">
+            <span aria-hidden="true" className="relative flex h-1.5 w-1.5">
+              <span className="absolute inset-0 animate-ping rounded-full bg-[var(--app-accent)] [animation-duration:2s] motion-reduce:animate-none" />
+              <span className="relative h-1.5 w-1.5 rounded-full bg-[var(--app-accent)]" />
+            </span>
+            Practice results · {PERIOD_TITLES[period]}
+          </p>
+          <h2 id="practice-performance" className="mt-1.5 text-2xl font-bold tracking-tight">
+            <Verdict performance={performance} period={period} />
+          </h2>
+          {performance && performance.tradeCount < EARLY_DAYS_TRADES && <p className="mt-1 text-sm app-muted">These figures settle after about {EARLY_DAYS_TRADES} trades.</p>}
         </div>
         <PeriodSwitch period={period} />
       </div>

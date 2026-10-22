@@ -81,18 +81,20 @@ describe("SignedInDashboard", () => {
     expect(html).not.toMatch(/text-profit">\$0\.00</);
   });
 
-  it("names the results plainly and says each figure once", () => {
-    const pnls = Array.from({ length: 24 }, (_, index) => (index % 3 === 0 ? "-10" : "25"));
+  it("says how practice is going in words and gives each figure once", () => {
+    const pnls = Array.from({ length: 36 }, (_, index) => (index % 3 === 0 ? "-10" : "25"));
     const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: results(pnls) }));
-    expect(html).toContain("Your practice results");
-    expect(html).toContain("24 trades · challenges not included");
+    expect(html).toContain("Practice results · All time");
+    expect(html).toMatch(/You&#x27;re <span class="[^"]*text-profit">profitable<\/span>/);
+    expect(html).not.toContain("36 trades");
+    expect(html).not.toContain("challenges not included");
     expect(html).toContain("Avg per trade");
     expect(html).not.toContain("Expectancy");
     expect(html).toContain("Cumulative P/L");
     expect(html).toContain("Max drawdown");
-    // Net P/L (16 wins of 25, 8 losses of 10) is shown once, in the figures, not
+    // Net P/L (24 wins of 25, 12 losses of 10) is shown once, in the figures, not
     // again in the chart header. (The chart's screen-reader label may name it.)
-    expect(html.match(/>\+\$320\.00</g)).toHaveLength(1);
+    expect(html.match(/>\+\$480\.00</g)).toHaveLength(1);
     expect(html).not.toContain("Bar height = trade P/L");
     expect(html).not.toContain("Last 30 trades");
   });
@@ -109,7 +111,8 @@ describe("SignedInDashboard", () => {
     const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: results(["-10", "-20", "75"]) }));
     expect(html).toContain("17 points above");
     expect(html).toContain("17%</strong> break-even");
-    expect(html).toContain("3 trades · early days, these settle after about 30");
+    expect(html).toMatch(/<span class="[^"]*text-\[var\(--app-warn-text\)\]">Too early to call<\/span>/);
+    expect(html).toContain("These figures settle after about 30 trades.");
   });
 
   it("offers 30 days, 90 days and all time, marking the current period", () => {

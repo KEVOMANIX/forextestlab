@@ -609,7 +609,10 @@ The visual system deliberately separates product identity from trading results:
 
 - The dashboard (`src/app/app/page.tsx`, `SignedInDashboard.tsx`) reads top to
   bottom: greeting and named Continue button, the running-challenge strip,
-  "Your practice results" (`PerformanceOverview.tsx`), then sessions. Results
+  practice results (`PerformanceOverview.tsx`), then sessions. The results
+  heading is a verdict from `performanceVerdict()`: "Too early to call" under
+  `EARLY_DAYS_TRADES` (30), then profitable, down, or break-even (profit
+  factor within 0.95–1.05). It shows no trade count. Results
   cover 30 days, 90 days or all time (`?period=`, remembered in the
   `ftl_performance_period` cookie; default all time) and exclude challenges
   and experimental trades. `loadPracticePerformance()` in
@@ -617,7 +620,7 @@ The visual system deliberately separates product identity from trading results:
   cumulative curve sampled to about 200 points that always keeps the last
   trade and the drawdown trough, so egress does not grow with history.
   `describePerformance()` derives the rest. Each figure is shown once.
-- Dashboard motion (`reveal-x`, `grow-x`, `fade-in` in `tailwind.config.ts`)
+- Dashboard motion (`reveal-x`, `grow-x`, `fade-in`, `underline-in` in `tailwind.config.ts`)
   sits behind `motion-reduce:`. Animate absolutely positioned chart markers
   with opacity only: a transform turns the animated wrapper into their
   containing block and moves them off the plot.

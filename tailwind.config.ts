@@ -147,6 +147,11 @@ const config: Config = {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
         },
+        // The dashboard verdict's underline draws in from the left.
+        "underline-in": {
+          "0%": { backgroundSize: "0% 2px" },
+          "100%": { backgroundSize: "100% 2px" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.6s ease-out both",
@@ -163,6 +168,7 @@ const config: Config = {
         "reveal-x": "reveal-x 1.1s cubic-bezier(0.22, 1, 0.36, 1) both",
         "grow-x": "grow-x 0.9s cubic-bezier(0.22, 1, 0.36, 1) both",
         "fade-in": "fade-in 0.5s ease-out both",
+        "underline-in": "underline-in 0.9s 0.35s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },

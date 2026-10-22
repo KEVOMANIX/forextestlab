@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { aggregatesFromPnls, describePerformance, parsePerformancePeriod, periodStart } from "./practice-performance";
+import { aggregatesFromPnls, describePerformance, parsePerformancePeriod, performanceVerdict, periodStart } from "./practice-performance";
 
 describe("aggregatesFromPnls", () => {
   it("has nothing to say about no trades", () => {
@@ -42,6 +42,31 @@ describe("describePerformance", () => {
     expect(result.winLossRatio).toBeNull();
     expect(result.breakEvenWinRate).toBeNull();
     expect(result.troughN).toBeNull();
+  });
+});
+
+describe("performanceVerdict", () => {
+  const verdictOf = (pnls: number[]) => performanceVerdict(describePerformance("all", aggregatesFromPnls(pnls)!));
+  const repeat = (count: number, win: number, loss: number) => Array.from({ length: count }, (_, index) => (index % 2 ? loss : win));
+
+  it("gives no verdict before 30 trades, however good they look", () => {
+    expect(verdictOf(repeat(29, 100, -10))).toBe("early");
+    expect(verdictOf(repeat(30, 100, -10))).toBe("profitable");
+  });
+
+  it("calls money lost over money won down", () => {
+    expect(verdictOf(repeat(30, 10, -100))).toBe("down");
+  });
+
+  it("calls money won within 5% of money lost break-even", () => {
+    // 15 wins of 104 against 15 losses of 100: a profit factor of 1.04.
+    expect(verdictOf(repeat(30, 104, -100))).toBe("even");
+    expect(verdictOf(repeat(30, 96, -100))).toBe("even");
+    expect(verdictOf(repeat(30, 0, 0))).toBe("even");
+  });
+
+  it("calls a run without a losing trade profitable", () => {
+    expect(verdictOf(repeat(30, 20, 5))).toBe("profitable");
   });
 });
 

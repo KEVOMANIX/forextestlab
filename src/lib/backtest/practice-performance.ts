@@ -13,6 +13,8 @@ export type PerformancePeriod = (typeof PERFORMANCE_PERIODS)[number];
 /** Remembers the trader's last choice between visits. */
 export const PERFORMANCE_PERIOD_COOKIE = "ftl_performance_period";
 export const PERIOD_LABELS: Record<PerformancePeriod, string> = { "30d": "30 days", "90d": "90 days", all: "All time" };
+/** Below this many trades the figures are mostly luck, so no verdict is given. */
+export const EARLY_DAYS_TRADES = 30;
 
 export function parsePerformancePeriod(value: string | null | undefined): PerformancePeriod | null {
   return (PERFORMANCE_PERIODS as readonly string[]).includes(value ?? "") ? (value as PerformancePeriod) : null;
@@ -77,6 +79,21 @@ export function describePerformance(period: PerformancePeriod, aggregates: Perfo
     winLossRatio,
     breakEvenWinRate: winLossRatio === null ? null : 100 / (1 + winLossRatio),
   };
+}
+
+export type PerformanceVerdict = "early" | "profitable" | "down" | "even";
+
+/**
+ * How the period went, in one word. Money won within 5% of money lost counts
+ * as break-even, so a few dollars either way is not called a result.
+ */
+export function performanceVerdict(performance: Pick<PracticePerformance, "tradeCount" | "netPnl" | "profitFactor">): PerformanceVerdict {
+  if (performance.tradeCount < EARLY_DAYS_TRADES) return "early";
+  // No profit factor means no losing trade: profitable unless nothing was won either.
+  const factor = performance.profitFactor ?? (Number(performance.netPnl) > 0 ? Infinity : 1);
+  if (factor >= 1.05) return "profitable";
+  if (factor <= 0.95) return "down";
+  return "even";
 }
 
 /**

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/db";
+import { recordEmailFailure } from "@/lib/email-failures";
+import { asMessageIdHeader } from "@/lib/support-email-threading";
 import {
   sendDirectSupportEmail,
   sendSupportEmailReply,
@@ -103,6 +105,13 @@ export async function replyToConversation(
       },
     });
     if (!conversation) return null;
+    const lastCustomerMessage = conversation.channel === "email"
+      ? await tx.supportMessage.findFirst({
+          where: { conversationId, senderType: "customer", clientMessageId: { not: null } },
+          orderBy: { createdAt: "desc" },
+          select: { clientMessageId: true },
+        })
+      : null;
     await tx.supportMessage.create({
       data: {
         conversationId,
@@ -135,9 +144,10 @@ export async function replyToConversation(
         lastCustomerNotificationAt: shouldNotify ? now : undefined,
       },
     });
-    return { ...conversation, shouldNotify };
+    return { ...conversation, shouldNotify, inReplyTo: asMessageIdHeader(lastCustomerMessage?.clientMessageId) };
   });
   publishSupportConversationChanged(conversationId);
+  let emailFailed = false;
   if (recipient?.customerEmail && recipient.shouldNotify) {
     try {
       if (recipient.channel === "email") {
@@ -146,6 +156,7 @@ export async function replyToConversation(
           name: recipient.customerName ?? "Customer",
           subject: recipient.subject,
           body,
+          inReplyTo: recipient.inReplyTo,
         });
       } else {
         await sendSupportMessageNotification({
@@ -156,12 +167,15 @@ export async function replyToConversation(
         });
       }
     } catch (error) {
-      console.error("Support reply email notification failed:", error);
+      emailFailed = true;
+      await recordEmailFailure("support_conversation", conversationId, error);
     }
   }
   await audit(actor, "support.reply_sent", conversationId);
   refresh(conversationId);
-  return { ok: true };
+  return emailFailed
+    ? { ok: true, message: "Reply saved, but the email to the customer could not be sent. Try again later or contact them another way." }
+    : { ok: true };
 }
 
 export async function addInternalNote(
@@ -478,7 +492,9 @@ export async function startOutboundConversation(
   } catch (error) {
     // The thread is already delivered in the widget; a failed email must not
     // undo it or leave the agent thinking nothing was sent.
-    console.error("Outbound support notification failed:", error);
+    await recordEmailFailure("support_conversation", conversation.id, error);
+    refresh(conversation.id);
+    return { ok: true, conversationId: conversation.id, message: "Message saved, but the email telling the customer about it could not be sent." };
   }
 
   refresh(conversation.id);
@@ -509,10 +525,10 @@ export async function sendSupportEmail(
       body,
     });
   } catch (error) {
-    console.error("Direct support email failed:", error);
+    await recordEmailFailure("support_direct", null, error);
     return {
       ok: false,
-      message: "The email could not be sent. Check SMTP settings.",
+      message: "The email could not be sent. Check the email status on the operations page.",
     };
   }
   await audit(

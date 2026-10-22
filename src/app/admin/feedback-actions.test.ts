@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/admin", () => ({ requireAdmin: mocks.auth }));
 vi.mock("@/lib/contact-email", () => ({ sendFeedbackEmail: mocks.send, feedbackEmailContent: vi.fn() }));
+vi.mock("@/lib/email-failures", () => ({ recordEmailFailure: vi.fn() }));
 vi.mock("@/lib/db", () => ({ prisma: { feedbackCampaign: mocks.campaign, feedbackRecipient: mocks.recipient, feedbackEmailOptOut: mocks.optOut } }));
 import { sendFeedbackBatch } from "./feedback-actions";
 

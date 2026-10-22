@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { sendContactEmail, sendContactReceipt } from "@/lib/contact-email";
 import { prisma } from "@/lib/db";
+import { recordEmailFailure } from "@/lib/email-failures";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { publishSupportConversationChanged } from "@/lib/support-realtime";
 import {
@@ -242,12 +243,11 @@ export async function POST(request: Request) {
       consent: true as const,
     };
     publishSupportConversationChanged(conversation.id);
-    try {
-      await sendContactEmail(submission);
-      await sendContactReceipt(submission);
-    } catch (error) {
-      console.error("Failed to deliver support notification:", error);
-    }
+    // The conversation is saved; the customer should not wait on two emails.
+    after(() => Promise.all([
+      sendContactEmail(submission).catch((error) => recordEmailFailure("support_conversation", conversation.id, error)),
+      sendContactReceipt(submission).catch((error) => recordEmailFailure("support_conversation", conversation.id, error)),
+    ]));
     return NextResponse.json(
       {
         ok: true,

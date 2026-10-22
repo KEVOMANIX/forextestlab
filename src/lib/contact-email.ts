@@ -413,11 +413,18 @@ export async function sendSupportEmailReply({
   name,
   subject,
   body,
+  inReplyTo,
 }: {
   email: string;
   name: string;
   subject: string;
   body: string;
+  /**
+   * The customer's latest Message-ID, in header form. Naming it makes their
+   * mail client thread our answer, and their next reply references it, which is
+   * how the inbound webhook finds this conversation again.
+   */
+  inReplyTo?: string | null;
 }): Promise<void> {
   const config = getSmtpConfig();
   const emailSubject = /^re\s*:/i.test(subject) ? subject : `Re: ${subject}`;
@@ -428,6 +435,7 @@ export async function sendSupportEmailReply({
     to: email,
     replyTo: config.to,
     subject: emailSubject,
+    ...(inReplyTo ? { headers: { "In-Reply-To": inReplyTo, References: inReplyTo } } : {}),
     text: [
       `Hi ${name},`,
       "",

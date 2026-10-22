@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/admin";
 import { prisma } from "@/lib/db";
 import { feedbackDraftSchema, feedbackRecipients } from "@/lib/feedback-email";
 import { feedbackEmailContent, sendFeedbackEmail } from "@/lib/contact-email";
+import { recordEmailFailure } from "@/lib/email-failures";
 
 const path = "/admin/emails";
 
@@ -86,7 +87,8 @@ export async function sendFeedbackBatch(id: string) {
       try {
         await sendFeedbackEmail({ ...recipient, subject: campaign.subject, body: campaign.body });
         await prisma.feedbackRecipient.update({ where: { id: recipient.id }, data: { status: "sent", sentAt: new Date() } });
-      } catch {
+      } catch (error) {
+        await recordEmailFailure("feedback", id, error);
         // A network error can occur after acceptance. Never retry automatically.
         await prisma.feedbackRecipient.update({ where: { id: recipient.id }, data: { status: "unconfirmed" } });
         await prisma.feedbackCampaign.updateMany({ where: { id, status: "sending" }, data: { status: "paused" } });

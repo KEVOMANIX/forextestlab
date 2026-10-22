@@ -626,6 +626,26 @@ The visual system deliberately separates product identity from trading results:
   sits behind `motion-reduce:`. Animate absolutely positioned chart markers
   with opacity only: a transform turns the animated wrapper into their
   containing block and moves them off the plot.
+- Email (`src/lib/contact-email.ts`) sends through Resend whenever
+  `RESEND_API_KEY` is set; the `SMTP_*` settings on the server are an unused
+  fallback. Sign-up and password-reset mail comes from Supabase Auth, not this
+  code. Rules:
+  - Inbound mail (`/api/webhooks/resend`) joins an open email conversation by
+    the In-Reply-To/References Message-IDs first, then by subject without
+    `Re:`/`Fwd:` prefixes (`support-email-threading.ts`). Email replies set
+    In-Reply-To to the customer's last Message-ID so the next answer links back.
+  - The copy to `RESEND_INBOUND_FORWARD_TO` is sent once, after the message is
+    stored, and says to answer in `/support-team`, never from that mailbox.
+  - Sends after a saved record (contact form, widget receipts) run in
+    `after()` and never report failure to the visitor. Every failed send is
+    recorded with `recordEmailFailure()` as an `email.failed` audit event; the
+    agent sees a warning, and the operations `email` check turns degraded.
+  - The `email` check also asks Resend whether the key works and the
+    `RESEND_FROM_EMAIL` domain is verified.
+  - Monitor alerts (`src/lib/operations/alerting.ts`): failed alerts at once
+    and every 6 hours; degraded only after 12 hours, then daily; "recovered"
+    only for an incident that alerted. The state file is
+    `data/.operations-monitor.json`.
 - Deployment host: AWS Lightsail behind Cloudflare; Vercel is not used.
 - On 2026-10-21 the instance was replaced by a 4 GB instance created from a
   snapshot of the 2 GB one. The static IP `52.34.239.239` moved to the new

@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { sendContactEmail } from "@/lib/contact-email";
 import { prisma } from "@/lib/db";
+import { recordEmailFailure } from "@/lib/email-failures";
 import type { ApiResult } from "@/lib/types";
 import { validateContact } from "@/lib/validation";
 
@@ -73,26 +74,20 @@ export async function POST(request: Request): Promise<NextResponse<ApiResult>> {
     return contact;
   });
 
-  try {
-    await sendContactEmail(result.data);
-    await prisma.contactMessage.update({
-      where: { id: enquiry.id },
-      data: { deliveryStatus: "delivered" },
-    });
-  } catch (error) {
-    await prisma.contactMessage.update({
-      where: { id: enquiry.id },
-      data: { deliveryStatus: "failed" },
-    });
-    console.error("Failed to deliver contact submission:", error);
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Something went wrong on our side. Please try again later.",
-      },
-      { status: 500 },
-    );
-  }
+  // The enquiry is already in the support inbox, so the visitor has reached us
+  // whether or not the copy to the team's mailbox goes out. Telling them it
+  // failed only made them send it again. A failed copy is recorded instead,
+  // and the operations email check counts it.
+  after(async () => {
+    let deliveryStatus = "delivered";
+    try {
+      await sendContactEmail(result.data);
+    } catch (error) {
+      deliveryStatus = "failed";
+      await recordEmailFailure("contact_message", enquiry.id, error);
+    }
+    await prisma.contactMessage.update({ where: { id: enquiry.id }, data: { deliveryStatus } });
+  });
 
   return NextResponse.json(
     {

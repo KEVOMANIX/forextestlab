@@ -5,15 +5,13 @@ import path from "node:path";
 
 import { sendOperationalAlert } from "../src/lib/contact-email";
 import { prisma } from "../src/lib/db";
-import { collectOperationsSnapshot, type HealthStatus } from "../src/lib/operations/health";
+import { decideAlert, parseMonitorState, type MonitorState } from "../src/lib/operations/alerting";
+import { collectOperationsSnapshot } from "../src/lib/operations/health";
 
 const statePath = path.resolve("data/.operations-monitor.json");
-const ALERT_REPEAT_MS = 6 * 60 * 60 * 1000;
 
-interface MonitorState { status: HealthStatus; lastAlertAt: string | null }
-
-async function readState(): Promise<MonitorState | null> {
-  return JSON.parse(await readFile(statePath, "utf8")) as MonitorState;
+async function readState(now: Date): Promise<MonitorState | null> {
+  return parseMonitorState(JSON.parse(await readFile(statePath, "utf8")), now);
 }
 
 async function saveState(state: MonitorState) {
@@ -42,30 +40,19 @@ async function main() {
     where: { createdAt: { lt: new Date(Date.now() - 180 * 86_400_000) } },
   });
 
-  const previous = await readState().catch(() => null);
-  const lastAlert = previous?.lastAlertAt ? new Date(previous.lastAlertAt).getTime() : 0;
-  const shouldAlert = snapshot.status !== "healthy" && (
-    previous?.status !== snapshot.status || Date.now() - lastAlert >= ALERT_REPEAT_MS
-  );
-  const recovered = snapshot.status === "healthy" && previous && previous.status !== "healthy";
+  const now = new Date();
+  const previous = await readState(now).catch(() => null);
+  const { send, next } = decideAlert(previous, snapshot.status, now);
 
-  if (shouldAlert || recovered) {
+  if (send) {
     const unhealthy = snapshot.checks.filter((check) => check.status !== "healthy");
-    const alertStatus: "failed" | "degraded" | "recovered" = recovered
-      ? "recovered"
-      : snapshot.status === "failed"
-        ? "failed"
-        : "degraded";
     await sendOperationalAlert({
-      status: alertStatus,
-      summary: recovered ? "Production services recovered" : `${unhealthy.length} production check${unhealthy.length === 1 ? "" : "s"} need attention`,
-      details: (recovered ? snapshot.checks : unhealthy).map((check) => `${check.component}: ${check.message}`),
+      status: send,
+      summary: send === "recovered" ? "Production services recovered" : `${unhealthy.length} production check${unhealthy.length === 1 ? "" : "s"} need attention`,
+      details: (send === "recovered" ? snapshot.checks : unhealthy).map((check) => `${check.component}: ${check.message}`),
     });
   }
-  await saveState({
-    status: snapshot.status,
-    lastAlertAt: shouldAlert || recovered ? new Date().toISOString() : previous?.lastAlertAt ?? null,
-  });
+  await saveState(next);
   console.log(`${snapshot.status}: ${snapshot.checks.map((check) => `${check.component}=${check.status}`).join(" ")}`);
 }
 

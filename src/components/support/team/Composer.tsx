@@ -15,7 +15,8 @@ import {
 import { Modal, PopoverMenu } from "./controls";
 
 type SavedReply = { id: string; title: string; body: string };
-type Result = { error: string; sent: number };
+/** `warning`: the reply was saved but something after it, like the email, failed. */
+type Result = { error: string; warning?: string; sent: number };
 
 /**
  * One composer for both destinations. The mode toggle only decides which
@@ -65,7 +66,7 @@ export function Composer({
             sent: previous.sent,
           };
         }
-        return { error: "", sent: previous.sent + 1 };
+        return { error: "", warning: result.message, sent: previous.sent + 1 };
       } catch (error) {
         return {
           error:
@@ -226,12 +227,16 @@ export function Composer({
           <div className="flex items-center justify-between gap-3 px-3 pb-3">
             <p
               className={`min-w-0 text-[11px] app-muted ${
-                state.error ? "leading-4" : "truncate"
+                state.error || state.warning ? "leading-4" : "truncate"
               }`}
             >
               {state.error ? (
                 <span role="alert" className="text-loss">
                   {state.error}
+                </span>
+              ) : state.warning ? (
+                <span role="alert" className="text-[var(--app-warn-text)]">
+                  {state.warning}
                 </span>
               ) : note ? (
                 "Only the support team sees internal notes"

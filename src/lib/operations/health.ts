@@ -3,8 +3,10 @@ import "server-only";
 import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { readFile, statfs } from "node:fs/promises";
 import os from "node:os";
+import { Resend } from "resend";
 
 import { prisma } from "@/lib/db";
+import { EMAIL_FAILURE_ACTION } from "@/lib/email-failures";
 import { SYMBOL_DEFINITIONS } from "@/lib/market-data/symbols";
 
 export type HealthStatus = "healthy" | "degraded" | "failed";
@@ -99,6 +101,27 @@ async function availableMemoryBytes(): Promise<number> {
   const contents = await readFile("/proc/meminfo", "utf8").catch(() => "");
   const availableKb = Number(contents.match(/^MemAvailable:\s+(\d+)\s+kB$/m)?.[1]);
   return Number.isFinite(availableKb) && availableKb > 0 ? availableKb * 1024 : os.freemem();
+}
+
+/**
+ * Whether Resend still accepts the key and the sending domain is verified. A
+ * revoked key or unverified domain fails every email silently otherwise, the
+ * monitor's own alerts included.
+ */
+async function emailSendingStatus(): Promise<{ status: HealthStatus; message: string }> {
+  const key = process.env.RESEND_API_KEY?.trim();
+  if (!key) return { status: "degraded", message: "Resend is not configured; email falls back to SMTP." };
+  const from = process.env.RESEND_FROM_EMAIL?.trim() ?? "";
+  const domain = from.match(/@([^\s>]+)/)?.[1]?.toLowerCase();
+  const result = await Promise.race([
+    new Resend(key).domains.list(),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Resend did not answer within 10 seconds.")), 10_000)),
+  ]);
+  if (result.error) return { status: "failed", message: `Resend refused the API key: ${result.error.message}` };
+  const match = result.data?.data.find((item) => item.name.toLowerCase() === domain);
+  if (!match) return { status: "failed", message: `The sending domain ${domain ?? "(unset)"} is not in Resend.` };
+  if (match.status !== "verified") return { status: "failed", message: `The sending domain ${match.name} is ${match.status} in Resend.` };
+  return { status: "healthy", message: `Resend is sending from ${match.name}.` };
 }
 
 export async function collectOperationsSnapshot(options: { checkWebsite?: boolean } = {}): Promise<OperationsSnapshot> {
@@ -210,6 +233,26 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
     } catch (error) {
       checks.push({ component: "r2-market-data", status: "failed", latencyMs: Date.now() - started, message: error instanceof Error ? error.message : "R2 check failed." });
       checks.push({ component: "database-backup", status: "failed", latencyMs: 0, message: "Backup inventory could not be read." });
+    }
+  }
+
+  {
+    const started = Date.now();
+    try {
+      const failures = await prisma.adminAuditEvent.count({
+        where: { action: EMAIL_FAILURE_ACTION, createdAt: { gte: new Date(Date.now() - 86_400_000) } },
+      });
+      const sending = await emailSendingStatus();
+      const status: HealthStatus = sending.status === "healthy" && failures ? "degraded" : sending.status;
+      checks.push({
+        component: "email",
+        status,
+        latencyMs: Date.now() - started,
+        message: failures ? `${sending.message} ${failures} email${failures === 1 ? "" : "s"} failed to send in the last 24 hours.` : sending.message,
+        metadata: { failuresLast24h: failures },
+      });
+    } catch (error) {
+      checks.push({ component: "email", status: "failed", latencyMs: Date.now() - started, message: error instanceof Error ? error.message : "Email check failed." });
     }
   }
 

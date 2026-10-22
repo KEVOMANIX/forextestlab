@@ -3,6 +3,8 @@ import { Resend } from "resend";
 import { Webhook } from "svix";
 
 import { prisma } from "@/lib/db";
+import { recordEmailFailure } from "@/lib/email-failures";
+import { baseSubject, messageIdVariants, referencedMessageIds, sameThreadSubject } from "@/lib/support-email-threading";
 import { publishSupportConversationChanged } from "@/lib/support-realtime";
 
 export const runtime = "nodejs";
@@ -78,18 +80,25 @@ function stripQuotedReply(value: string) {
   return cleaned.join("\n").trim();
 }
 
+/**
+ * A copy for the team's own mailbox, as a heads-up. Answers belong in the
+ * support inbox: a reply sent from a personal mailbox is never recorded, so the
+ * conversation would still look unanswered.
+ */
 async function forwardInboundEmail({
   resend,
   from,
   subject,
   text,
   html,
+  conversationId,
 }: {
   resend: Resend;
   from: string;
   subject: string;
   text: string;
   html?: string | null;
+  conversationId: string;
 }) {
   const forwardTo = process.env.RESEND_INBOUND_FORWARD_TO?.trim();
   if (!forwardTo) return;
@@ -99,18 +108,24 @@ async function forwardInboundEmail({
     throw new Error("RESEND_FROM_EMAIL is required when inbound forwarding is enabled.");
   }
 
+  const inbox = `${(process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://forextestlab.com").replace(/\/$/, "")}/support-team?conversation=${conversationId}`;
+  const notice = `Answer in the support inbox so the reply is tracked: ${inbox}`;
   const result = await resend.emails.send({
     from: forwardFrom,
     to: [forwardTo],
     replyTo: from,
     subject: `[ForexTestLab] ${subject}`,
     text: [
+      notice,
+      "",
       `Original sender: ${from}`,
       `Received at: ${new Date().toISOString()}`,
       "",
       text,
     ].join("\n"),
-    ...(html ? { html } : {}),
+    ...(html
+      ? { html: `<p style="margin:0 0 16px;padding:10px 14px;border-radius:8px;background:#fff7e0;font-family:Arial,sans-serif;font-size:14px">Answer in the <a href="${inbox}">support inbox</a> so the reply is tracked.</p>${html}` }
+      : {}),
   });
 
   if (result.error) {
@@ -129,13 +144,19 @@ export async function POST(request: Request) {
   }
 
   const raw = await request.text();
+  let event: ReceivedEvent;
   try {
-    const headers = {
+    event = new Webhook(secret).verify(raw, {
       "svix-id": request.headers.get("svix-id") ?? "",
       "svix-timestamp": request.headers.get("svix-timestamp") ?? "",
       "svix-signature": request.headers.get("svix-signature") ?? "",
-    };
-    const event = new Webhook(secret).verify(raw, headers) as ReceivedEvent;
+    }) as ReceivedEvent;
+  } catch {
+    // Unsigned or forged requests are noise, not failures worth a stack trace.
+    return NextResponse.json({ ok: false }, { status: 401 });
+  }
+
+  try {
     if (event.type !== "email.received" || !event.data?.email_id) {
       return NextResponse.json({ ok: true, ignored: true });
     }
@@ -167,14 +188,7 @@ export async function POST(request: Request) {
     const body = stripQuotedReply(
       email.text || plainText(email.html) || "(Email contained no readable text.)",
     ).slice(0, 20_000);
-
-    await forwardInboundEmail({
-      resend,
-      from,
-      subject,
-      text: body,
-      html: email.html,
-    });
+    const referenced = referencedMessageIds(email.headers);
 
     const profile = await prisma.userProfile.findUnique({
       where: { email: customerEmail },
@@ -186,22 +200,35 @@ export async function POST(request: Request) {
         where: { clientMessageId: messageId },
         select: { conversationId: true },
       });
-      if (duplicate) return { conversationId: duplicate.conversationId };
+      if (duplicate) return { conversationId: duplicate.conversationId, isNew: false };
 
-      const existing = await tx.supportConversation.findFirst({
-        where: {
-          channel: "email",
-          customerEmail,
-          subject,
-          status: { not: "closed" },
-        },
-        orderBy: { lastMessageAt: "desc" },
-        select: { id: true },
-      });
-      if (existing) {
+      const openEmailThread = {
+        channel: "email",
+        customerEmail: { equals: customerEmail, mode: "insensitive" as const },
+        status: { not: "closed" },
+      };
+      // The message this one answers is the surest link; then the subject
+      // without its "Re:" or "Fwd:" prefixes.
+      const answered = referenced.length
+        ? await tx.supportMessage.findFirst({
+            where: { clientMessageId: { in: messageIdVariants(referenced) }, conversation: openEmailThread },
+            orderBy: { createdAt: "desc" },
+            select: { conversationId: true },
+          })
+        : null;
+      const candidates = answered
+        ? []
+        : await tx.supportConversation.findMany({
+            where: openEmailThread,
+            orderBy: { lastMessageAt: "desc" },
+            take: 50,
+            select: { id: true, subject: true },
+          });
+      const existingId = answered?.conversationId ?? candidates.find((candidate) => sameThreadSubject(candidate.subject, subject))?.id;
+      if (existingId) {
         await tx.supportMessage.create({
           data: {
-            conversationId: existing.id,
+            conversationId: existingId,
             clientMessageId: messageId,
             senderType: "customer",
             senderName: senderName(from, customerEmail),
@@ -214,14 +241,14 @@ export async function POST(request: Request) {
           },
         });
         await tx.supportConversation.update({
-          where: { id: existing.id },
+          where: { id: existingId },
           data: {
             status: "waiting_support",
             lastMessageAt: new Date(),
             agentUnreadCount: { increment: 1 },
           },
         });
-        return { conversationId: existing.id };
+        return { conversationId: existingId, isNew: true };
       }
 
       const now = new Date();
@@ -230,7 +257,8 @@ export async function POST(request: Request) {
           userId: profile?.id,
           customerName: profile?.displayName ?? senderName(from, customerEmail),
           customerEmail,
-          subject,
+          // Stored without "Re:" so our answer's subject reads "Re: <subject>".
+          subject: baseSubject(subject),
           category,
           channel: "email",
           status: "open",
@@ -252,16 +280,23 @@ export async function POST(request: Request) {
         },
         select: { id: true },
       });
-      return { conversationId: conversation.id };
+      return { conversationId: conversation.id, isNew: true };
     });
 
     publishSupportConversationChanged(result.conversationId);
+    // Only after the message is stored, and only once: Resend retries a
+    // webhook it is unsure about, and each retry used to forward the email again.
+    // A failed forward is recorded, not retried, because the message is safe.
+    if (result.isNew) {
+      await forwardInboundEmail({ resend, from, subject, text: body, html: email.html, conversationId: result.conversationId })
+        .catch((error) => recordEmailFailure("inbound_forward", result.conversationId, error));
+    }
     return NextResponse.json({
       ok: true,
       conversationId: result.conversationId,
     });
   } catch (error) {
     console.error("Resend inbound webhook failed:", error);
-    return NextResponse.json({ ok: false }, { status: 400 });
+    return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

@@ -13,7 +13,7 @@ import {
   SUPPORT_PRIORITIES,
   SUPPORT_STATUSES,
 } from "@/lib/support";
-import { AutoSubmitSelect, CopyValue } from "./controls";
+import { AutoSubmitSelect, CopyValue, SubmitButton } from "./controls";
 import { initials } from "./format";
 
 const NOT_AVAILABLE = "Not available";
@@ -178,9 +178,9 @@ export function DetailsPanel({
                       </option>
                     ))}
                   </select>
-                  <button className="shrink-0 text-[11px] font-semibold text-brand-300">
+                  <SubmitButton className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-brand-300">
                     Save
-                  </button>
+                  </SubmitButton>
                 </span>
               </Labelled>
             </form>
@@ -198,9 +198,9 @@ export function DetailsPanel({
                     <option value="1440">Tomorrow</option>
                     <option value="10080">1 week</option>
                   </select>
-                  <button className="rounded-lg border app-border px-3 text-xs app-muted transition-colors hover:text-[var(--app-text)]">
+                  <SubmitButton className="flex items-center gap-1 rounded-lg border app-border px-3 text-xs app-muted transition-colors hover:text-[var(--app-text)]">
                     Snooze
-                  </button>
+                  </SubmitButton>
                 </span>
               </Labelled>
             </form>
@@ -232,12 +232,12 @@ export function DetailsPanel({
               placeholder="Add a tag"
               className="app-input min-w-0 flex-1 py-1.5 text-xs"
             />
-            <button
+            <SubmitButton
               aria-label="Add tag"
-              className="rounded-lg border app-border px-3 app-muted transition-colors hover:text-[var(--app-text)]"
+              className="flex items-center gap-1 rounded-lg border app-border px-3 app-muted transition-colors hover:text-[var(--app-text)]"
             >
               <TagIcon size={13} aria-hidden />
-            </button>
+            </SubmitButton>
           </form>
         )}
         {!conversation.tags.length && readOnly && (

@@ -107,8 +107,6 @@ export function NewConversation() {
       }
       close();
       setBusy(false);
-      // Saved, but the email about it failed: the agent must know before moving on.
-      if (result.message) window.alert(result.message);
       if (delivery === "chat" && result.conversationId) {
         router.push(`/support-team?conversation=${result.conversationId}`);
       }

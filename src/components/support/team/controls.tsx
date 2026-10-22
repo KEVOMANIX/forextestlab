@@ -1,7 +1,8 @@
 "use client";
 
-import { Check, ChevronDown, Copy, X } from "lucide-react";
+import { Check, ChevronDown, Copy, Loader2, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 
 /**
  * Small client primitives for the support workspace. Every one of them wraps a
@@ -29,6 +30,36 @@ function useDismiss(open: boolean, close: () => void) {
 }
 
 /**
+ * A form's submit button that shows it is working from the moment it is
+ * pressed. Each action re-renders the workspace on the server, and without
+ * this a click looked ignored until the new page arrived.
+ */
+export function SubmitButton({
+  children,
+  className = "",
+  name,
+  value,
+  ...rest
+}: Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "value" | "type" | "disabled"> & { value?: string }) {
+  const { pending, data } = useFormStatus();
+  // In a form with several buttons, only the pressed one spins.
+  const pressed = pending && (!name || data?.get(name) === value);
+  return (
+    <button
+      {...rest}
+      name={name}
+      value={value}
+      disabled={pending}
+      aria-busy={pressed}
+      className={`${className} disabled:cursor-wait ${pending && !pressed ? "opacity-60" : ""}`}
+    >
+      {pressed ? <Loader2 size={13} aria-hidden className="shrink-0 animate-spin" /> : null}
+      {children}
+    </button>
+  );
+}
+
+/**
  * A select that saves as soon as it changes, so status and priority need no
  * separate "Save" button sitting next to the conversation.
  */
@@ -47,15 +78,18 @@ export function AutoSubmitSelect({
   className?: string;
   dot?: string;
 }) {
+  const { pending } = useFormStatus();
   return (
     <span
-      className={`relative inline-flex items-center gap-1.5 rounded-lg border app-border bg-[var(--app-panel-2)] pl-2.5 pr-7 ${className}`}
+      aria-busy={pending}
+      className={`relative inline-flex items-center gap-1.5 rounded-lg border app-border bg-[var(--app-panel-2)] pl-2.5 pr-7 ${pending ? "animate-pulse cursor-wait" : ""} ${className}`}
     >
-      {dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />}
+      {pending ? <Loader2 size={12} aria-hidden className="shrink-0 animate-spin app-muted" /> : dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />}
       <select
         name={name}
         aria-label={label}
         defaultValue={defaultValue}
+        disabled={pending}
         onChange={(event) => event.currentTarget.form?.requestSubmit()}
         className="w-full appearance-none bg-transparent py-1.5 text-xs capitalize text-[var(--app-text)] focus:outline-none"
       >

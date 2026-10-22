@@ -177,6 +177,12 @@ export async function POST(request: Request) {
     const messageId = email.message_id || data.message_id || emailId;
     const from = email.from || data.from || "unknown@example.com";
     const customerEmail = address(from);
+    // Mail the site sent itself (alerts, notification copies) is not a
+    // customer writing in. Filing it made tickets from support@ to support@.
+    const ownAddress = process.env.RESEND_FROM_EMAIL?.trim();
+    if (ownAddress && customerEmail === address(ownAddress)) {
+      return NextResponse.json({ ok: true, ignored: true });
+    }
     const subject = (email.subject || data.subject || "Support request")
       .trim()
       .slice(0, 160);

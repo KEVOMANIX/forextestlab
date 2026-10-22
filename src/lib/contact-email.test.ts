@@ -93,6 +93,16 @@ describe("sendContactEmail", () => {
     expect(message?.html).toContain("Backtest. Analyze. Improve.");
   });
 
+  it("sends the team's copy to the team mailbox, not back into the support inbox", async () => {
+    process.env.RESEND_INBOUND_FORWARD_TO = "team@example.com";
+    try {
+      await sendContactEmail({ name: "Kelvin", email: "kelvin@example.com", subject: "Hi", message: "Hello", consent: true });
+      expect(sendMail.mock.calls[0]?.[0].to).toBe("team@example.com");
+    } finally {
+      delete process.env.RESEND_INBOUND_FORWARD_TO;
+    }
+  });
+
   it("sends a branded customer receipt with a support-inbox action", async () => {
     await sendContactReceipt({
       name: "Kelvin",

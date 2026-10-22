@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { recordEmailFailure } from "@/lib/email-failures";
@@ -147,35 +148,50 @@ export async function replyToConversation(
     return { ...conversation, shouldNotify, inReplyTo: asMessageIdHeader(lastCustomerMessage?.clientMessageId) };
   });
   publishSupportConversationChanged(conversationId);
-  let emailFailed = false;
   if (recipient?.customerEmail && recipient.shouldNotify) {
-    try {
-      if (recipient.channel === "email") {
-        await sendSupportEmailReply({
-          email: recipient.customerEmail,
-          name: recipient.customerName ?? "Customer",
-          subject: recipient.subject,
-          body,
-          inReplyTo: recipient.inReplyTo,
-        });
-      } else {
-        await sendSupportMessageNotification({
-          email: recipient.customerEmail,
-          name: recipient.customerName ?? "Customer",
-          subject: recipient.subject,
-          preview: body.slice(0, 300),
-        });
-      }
-    } catch (error) {
-      emailFailed = true;
-      await recordEmailFailure("support_conversation", conversationId, error);
-    }
+    const email = recipient.customerEmail;
+    // The reply is saved; the agent should not wait on the mail provider.
+    after(() =>
+      (recipient.channel === "email"
+        ? sendSupportEmailReply({
+            email,
+            name: recipient.customerName ?? "Customer",
+            subject: recipient.subject,
+            body,
+            inReplyTo: recipient.inReplyTo,
+          })
+        : sendSupportMessageNotification({
+            email,
+            name: recipient.customerName ?? "Customer",
+            subject: recipient.subject,
+            preview: body.slice(0, 300),
+          })
+      ).catch((error) => noteEmailFailure(conversationId, error)),
+    );
   }
   await audit(actor, "support.reply_sent", conversationId);
   refresh(conversationId);
-  return emailFailed
-    ? { ok: true, message: "Reply saved, but the email to the customer could not be sent. Try again later or contact them another way." }
-    : { ok: true };
+  return { ok: true };
+}
+
+/**
+ * A customer email that went out after the action had already answered is
+ * reported in the thread itself, where the agent will see it.
+ */
+async function noteEmailFailure(conversationId: string, error: unknown) {
+  await recordEmailFailure("support_conversation", conversationId, error);
+  await prisma.supportMessage.create({
+    data: {
+      conversationId,
+      senderType: "system",
+      senderName: "ForexTestLab",
+      kind: "note",
+      visibility: "internal",
+      body: "The email to the customer about the message above could not be sent. Try again later or contact them another way.",
+      deliveredAt: new Date(),
+    },
+  }).catch((noteError) => console.error("Could not add the email failure note:", noteError));
+  publishSupportConversationChanged(conversationId);
 }
 
 export async function addInternalNote(
@@ -480,22 +496,18 @@ export async function startOutboundConversation(
   });
   publishSupportConversationChanged(conversation.id);
 
-  try {
-    await sendSupportMessageNotification({
+  // The thread is already delivered in the widget; a failed email must not
+  // undo it. It is reported in the thread instead.
+  after(() =>
+    sendSupportMessageNotification({
       email: profile.email,
       name: profile.displayName ?? "Customer",
       subject,
       preview: body.slice(0, 300),
       // Nobody wrote in, so this cannot announce itself as a reply.
       firstContact: true,
-    });
-  } catch (error) {
-    // The thread is already delivered in the widget; a failed email must not
-    // undo it or leave the agent thinking nothing was sent.
-    await recordEmailFailure("support_conversation", conversation.id, error);
-    refresh(conversation.id);
-    return { ok: true, conversationId: conversation.id, message: "Message saved, but the email telling the customer about it could not be sent." };
-  }
+    }).catch((error) => noteEmailFailure(conversation.id, error)),
+  );
 
   refresh(conversation.id);
   return { ok: true, conversationId: conversation.id };

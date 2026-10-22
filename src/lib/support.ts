@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { isAdminUser } from "@/lib/admin";
 import { prisma } from "@/lib/db";
@@ -83,7 +84,8 @@ function agentName(user: {
   return String(value).trim().slice(0, 120);
 }
 
-export async function currentSupportAgent() {
+/** Cached per request: the workspace layout and page both ask. */
+export const currentSupportAgent = cache(async () => {
   const user = await getCurrentUser();
   if (!user) return null;
   const existing = await prisma.supportAgent.findUnique({
@@ -108,7 +110,7 @@ export async function currentSupportAgent() {
     },
   });
   return { user, agent };
-}
+});
 
 export async function requireSupportAgent(nextPath = "/support-team") {
   const user = await getCurrentUser();

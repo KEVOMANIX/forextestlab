@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { assignConversation, snoozeConversation, updateConversation } from "@/app/support-team/actions";
 import { SUPPORT_PRIORITIES, SUPPORT_STATUSES } from "@/lib/support";
-import { AutoSubmitSelect, DetailsDrawer, PopoverMenu } from "./controls";
+import { AutoSubmitSelect, DetailsDrawer, PopoverMenu, SubmitButton } from "./controls";
 import { initials, priorityTone, statusTone } from "./format";
 
 export function ConversationHeader({
@@ -83,9 +83,9 @@ export function ConversationHeader({
             <form action={assignConversation}>
               <input type="hidden" name="conversationId" value={conversation.id} />
               <input type="hidden" name="agentId" value="self" />
-              <button className="inline-flex items-center gap-1.5 rounded-lg border app-border px-2.5 py-1.5 text-xs font-medium app-muted transition-colors hover:text-[var(--app-text)]">
+              <SubmitButton className="inline-flex items-center gap-1.5 rounded-lg border app-border px-2.5 py-1.5 text-xs font-medium app-muted transition-colors hover:text-[var(--app-text)]">
                 <UserPlus size={13} aria-hidden /> Join
-              </button>
+              </SubmitButton>
             </form>
           )
         )}
@@ -94,12 +94,12 @@ export function ConversationHeader({
           <form action={assignConversation}>
             <input type="hidden" name="conversationId" value={conversation.id} />
             <input type="hidden" name="agentId" value="self" />
-            <button
+            <SubmitButton
               title={`Reassign this conversation from ${conversation.assignedAgentName} to you`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300/30 px-2.5 py-1.5 text-xs font-medium text-amber-200 transition-colors hover:bg-amber-300/10"
             >
               <UserPlus size={13} aria-hidden /> Take over
-            </button>
+            </SubmitButton>
           </form>
         )}
 
@@ -133,9 +133,9 @@ export function ConversationHeader({
           <form action={updateConversation}>
             <input type="hidden" name="conversationId" value={conversation.id} />
             <input type="hidden" name="status" value="resolved" />
-            <button className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-semibold text-surface-950 transition-colors hover:bg-brand-400">
+            <SubmitButton className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-semibold text-surface-950 transition-colors hover:bg-brand-400">
               <CheckCircle2 size={14} aria-hidden /> Resolve
-            </button>
+            </SubmitButton>
           </form>
         )}
 
@@ -162,25 +162,25 @@ export function ConversationHeader({
                   ["1440", "Tomorrow"],
                   ["10080", "Next week"],
                 ].map(([minutes, label]) => (
-                  <button
+                  <SubmitButton
                     key={minutes}
                     name="minutes"
                     value={minutes}
-                    className="block w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/[0.05]"
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/[0.05]"
                   >
                     {label}
-                  </button>
+                  </SubmitButton>
                 ))}
               </form>
               <form action={updateConversation} className="mt-1 border-t app-border pt-1">
                 <input type="hidden" name="conversationId" value={conversation.id} />
-                <button
+                <SubmitButton
                   name="status"
                   value={finished ? "open" : "closed"}
-                  className="block w-full rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/[0.05]"
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-white/[0.05]"
                 >
                   {finished ? "Reopen conversation" : "Close conversation"}
-                </button>
+                </SubmitButton>
               </form>
             </>
           )}

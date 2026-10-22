@@ -62,6 +62,45 @@ function parseContext(value: string | null) {
   }
 }
 
+function loadConversation(id: string) {
+  return prisma.supportConversation.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      userId: true,
+      subject: true,
+      status: true,
+      priority: true,
+      category: true,
+      channel: true,
+      createdAt: true,
+      customerName: true,
+      customerEmail: true,
+      assignedAgentId: true,
+      assignedAgentName: true,
+      satisfactionScore: true,
+      linkedSessionId: true,
+      contextJson: true,
+      tags: { select: { tag: { select: { id: true, name: true } } } },
+      messages: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          senderType: true,
+          senderName: true,
+          visibility: true,
+          body: true,
+          createdAt: true,
+          deletedAt: true,
+          // Never select attachment `data` here: the bytes belong to the
+          // download route, not to every inbox render.
+          attachments: { select: { id: true, fileName: true, size: true } },
+        },
+      },
+    },
+  });
+}
+
 export default async function SupportTeamPage(props: {
   searchParams?: Promise<{
     queue?: string;
@@ -97,18 +136,26 @@ export default async function SupportTeamPage(props: {
       }
     : base;
 
+  // In parallel, not in a $transaction: a transaction runs its queries one by
+  // one on a single connection, which cost ~270 ms of the render on every
+  // click. Ten independent reads do not need one snapshot. The selected
+  // conversation loads alongside them whenever the URL names it.
+  const selectedFromUrl = searchParams?.conversation ?? null;
   const [
-    conversations,
-    queueCount,
-    waitingCount,
-    mineCount,
-    snoozedCount,
-    resolvedCount,
-    allCount,
-    agents,
-    savedReplies,
-    unreadTotal,
-  ] = await prisma.$transaction([
+    [
+      conversations,
+      queueCount,
+      waitingCount,
+      mineCount,
+      snoozedCount,
+      resolvedCount,
+      allCount,
+      agents,
+      savedReplies,
+      unreadTotal,
+    ],
+    preloaded,
+  ] = await Promise.all([Promise.all([
       prisma.supportConversation.findMany({
         where,
         orderBy: orderFor(sort),
@@ -153,7 +200,7 @@ export default async function SupportTeamPage(props: {
       // Total unread customer messages: the notification chime watches this
       // number across the poller's re-renders.
       prisma.supportConversation.aggregate({ _sum: { agentUnreadCount: true } }),
-    ]);
+    ]), selectedFromUrl ? loadConversation(selectedFromUrl) : null]);
 
   const queueCounts = {
     waiting: waitingCount,
@@ -163,45 +210,8 @@ export default async function SupportTeamPage(props: {
     all: allCount,
   };
 
-  const selectedId = searchParams?.conversation ?? conversations[0]?.id ?? null;
-  const selected = selectedId
-    ? await prisma.supportConversation.findUnique({
-        where: { id: selectedId },
-        select: {
-          id: true,
-          userId: true,
-          subject: true,
-          status: true,
-          priority: true,
-          category: true,
-          channel: true,
-          createdAt: true,
-          customerName: true,
-          customerEmail: true,
-          assignedAgentId: true,
-          assignedAgentName: true,
-          satisfactionScore: true,
-          linkedSessionId: true,
-          contextJson: true,
-          tags: { select: { tag: { select: { id: true, name: true } } } },
-          messages: {
-            orderBy: { createdAt: "asc" },
-            select: {
-              id: true,
-              senderType: true,
-              senderName: true,
-              visibility: true,
-              body: true,
-              createdAt: true,
-              deletedAt: true,
-              // Never select attachment `data` here: the bytes belong to the
-              // download route, not to every inbox render.
-              attachments: { select: { id: true, fileName: true, size: true } },
-            },
-          },
-        },
-      })
-    : null;
+  const selectedId = selectedFromUrl ?? conversations[0]?.id ?? null;
+  const selected = selectedFromUrl ? preloaded : selectedId ? await loadConversation(selectedId) : null;
 
   const customer = selected?.userId
     ? await prisma.userProfile.findUnique({

@@ -70,6 +70,16 @@ function getSmtpConfig(): SmtpConfig {
   };
 }
 
+/**
+ * Where notices for the team go: the human mailbox inbound mail is forwarded
+ * to, not the support address. The support address feeds the support inbox,
+ * so mail sent there by the site itself (alerts, contact-form copies) came back
+ * as customer tickets from support@.
+ */
+function teamMailbox(config: SmtpConfig): string {
+  return process.env.RESEND_INBOUND_FORWARD_TO?.trim() || config.to;
+}
+
 function smtpTransport(config: SmtpConfig): Transporter {
   return nodemailer.createTransport({
     host: config.host,
@@ -248,7 +258,7 @@ export async function sendContactEmail(
 
   await deliver(config, {
     from: sender("ForexTestLab Contact", config.from),
-    to: config.to,
+    to: teamMailbox(config),
     replyTo: { name: submission.name, address: submission.email },
     subject: `[ForexTestLab] ${submission.subject}`,
     text: [
@@ -527,7 +537,7 @@ export async function sendOperationalAlert({
     .join("");
   await deliver(config, {
     from: sender("ForexTestLab Monitor", config.from),
-    to: process.env.OPERATIONS_ALERT_EMAIL?.trim() || config.to,
+    to: process.env.OPERATIONS_ALERT_EMAIL?.trim() || teamMailbox(config),
     replyTo: config.to,
     subject: `[ForexTestLab ${status.toUpperCase()}] ${summary}`,
     text: [summary, "", ...details, "", `${siteUrl()}/admin/operations`].join(

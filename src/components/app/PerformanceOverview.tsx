@@ -98,7 +98,7 @@ function Marked({ tone = "", children }: { tone?: string; children: React.ReactN
 }
 
 function Verdict({ performance, period }: { performance: PracticePerformance | null; period: PerformancePeriod }) {
-  if (!performance) return <>{period === "all" ? "No practice trades yet" : `No practice trades in the last ${PERIOD_LABELS[period]}`}</>;
+  if (!performance) return <>{period === "all" ? "No backtest trades yet" : `No backtest trades in the last ${PERIOD_LABELS[period]}`}</>;
   switch (performanceVerdict(performance)) {
     case "early": return <Marked tone="text-[var(--app-warn-text)]">Too early to call</Marked>;
     case "profitable": return <>You&apos;re <Marked tone="text-profit">profitable</Marked></>;
@@ -167,7 +167,7 @@ function CumulativeChart({ performance }: { performance: PracticePerformance }) 
   const troughLeft = trough ? (trough.n / performance.tradeCount) * 100 : 0;
 
   return (
-    <div className="mt-3" role="img" aria-label={`Cumulative P/L over ${performance.tradeCount} practice trades, ending at ${formatMoney(performance.netPnl)}.${trough ? ` The largest drawdown was ${formatMoney(new Decimal(performance.maxDrawdown).negated())}.` : ""}`}>
+    <div className="mt-3" role="img" aria-label={`Cumulative P/L over ${performance.tradeCount} backtest trades, ending at ${formatMoney(performance.netPnl)}.${trough ? ` The largest drawdown was ${formatMoney(new Decimal(performance.maxDrawdown).negated())}.` : ""}`}>
       <div className="relative" style={{ height: CHART_HEIGHT }}>
         <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" className="block h-full w-full animate-reveal-x motion-reduce:animate-none" aria-hidden>
           {ticks.map((tick) => (
@@ -231,8 +231,8 @@ function WeekCard({ week }: { week: WeekSummary }) {
       <dl className="mt-3">
         <div className={row}>
           <Clock3 size={16} className="shrink-0 text-brand-300" aria-hidden />
-          <dt className="flex-1 text-sm">Practice</dt>
-          <dd className="flex h-6 items-end gap-[3px]" role="img" aria-label={`Practice minutes Monday to Sunday: ${days.map((minutes, index) => index > week.currentWeekdayIndex ? "upcoming" : minutes).join(", ")}`}>
+          <dt className="flex-1 text-sm">Time backtesting</dt>
+          <dd className="flex h-6 items-end gap-[3px]" role="img" aria-label={`Minutes backtesting, Monday to Sunday: ${days.map((minutes, index) => index > week.currentWeekdayIndex ? "upcoming" : minutes).join(", ")}`}>
             {days.map((minutes, index) => (
               <span key={index} title={`${WEEKDAYS[index]}: ${minutes} min`} className={`w-1.5 rounded-sm ${minutes ? "bg-brand-500" : index > week.currentWeekdayIndex ? "bg-[var(--app-panel-2)]" : "bg-[var(--app-border)]"} ${index === week.currentWeekdayIndex ? "ring-1 ring-brand-300 ring-offset-1 ring-offset-[var(--app-panel)]" : ""}`} style={{ height: minutes ? `${Math.max(25, (minutes / most) * 100)}%` : "3px" }} />
             ))}
@@ -246,7 +246,7 @@ function WeekCard({ week }: { week: WeekSummary }) {
         </div>
         <div className={row}>
           <ListChecks size={16} className="shrink-0 text-brand-300" aria-hidden />
-          <dt className="flex-1 text-sm">Practice trades</dt>
+          <dt className="flex-1 text-sm">Trades closed</dt>
           <dd className="font-mono text-sm font-semibold">{week.closedTradesThisWeek}</dd>
         </div>
       </dl>
@@ -269,7 +269,7 @@ export function PerformanceOverview({ performance, period, week }: {
               <span className="absolute inset-0 animate-ping rounded-full bg-[var(--app-accent)] [animation-duration:2s] motion-reduce:animate-none" />
               <span className="relative h-1.5 w-1.5 rounded-full bg-[var(--app-accent)]" />
             </span>
-            Practice results · {PERIOD_TITLES[period]}
+            Backtest results · {PERIOD_TITLES[period]}
           </p>
           <h2 id="practice-performance" className="mt-1.5 text-2xl font-bold tracking-tight">
             <Verdict performance={performance} period={period} />
@@ -288,7 +288,7 @@ export function PerformanceOverview({ performance, period, week }: {
           </article>
         ) : (
           <div className="grid min-h-40 min-w-0 flex-[1.8_1_30rem] place-items-center rounded-2xl border border-dashed app-border p-6 text-center text-sm app-muted">
-            {period === "all" ? "Close a practice trade and your results appear here." : "Try a longer period, or close a practice trade."}
+            {period === "all" ? "Close a backtest trade and your results appear here." : "Try a longer period, or close a backtest trade."}
           </div>
         )}
         <div className="flex min-w-0 flex-[1_1_18rem] flex-col gap-3">

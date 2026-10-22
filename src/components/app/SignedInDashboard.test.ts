@@ -81,10 +81,11 @@ describe("SignedInDashboard", () => {
     expect(html).not.toMatch(/text-profit">\$0\.00</);
   });
 
-  it("says how practice is going in words and gives each figure once", () => {
+  it("says how backtesting is going in words and gives each figure once", () => {
     const pnls = Array.from({ length: 36 }, (_, index) => (index % 3 === 0 ? "-10" : "25"));
     const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: results(pnls) }));
-    expect(html).toContain("Practice results · All time");
+    expect(html).toContain("Backtest results · All time");
+    expect(html).not.toMatch(/>[^<]*[Pp]ractice/);
     expect(html).toMatch(/You&#x27;re <span class="[^"]*text-profit">profitable<\/span>/);
     expect(html).not.toContain("36 trades");
     expect(html).not.toContain("challenges not included");
@@ -124,9 +125,9 @@ describe("SignedInDashboard", () => {
 
   it("explains an empty period and still shows this week", () => {
     const html = renderToStaticMarkup(createElement(SignedInDashboard, { sessions: [session({})], displayName: "Kelvin", metrics, performance: null, period: "30d" }));
-    expect(html).toContain("No practice trades in the last 30 days");
+    expect(html).toContain("No backtest trades in the last 30 days");
     expect(html).not.toContain("Cumulative P/L");
-    expect(html).toContain("Practice trades");
+    expect(html).toContain("Trades closed");
   });
 
   it("shows a running challenge as a strip that links to the Challenges page", () => {

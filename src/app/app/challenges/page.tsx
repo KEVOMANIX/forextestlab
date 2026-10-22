@@ -6,7 +6,7 @@ import { loadChallengesOverview } from "@/lib/backtest/challenge-queries";
 
 export const metadata: Metadata = {
   title: "Challenges",
-  description: "Prop-firm challenge practice: progress against the rules and every attempt.",
+  description: "Prop-firm challenges: progress against the rules and every attempt.",
   robots: { index: false, follow: false },
 };
 

@@ -47,7 +47,7 @@ function replayProgress(session: { startTime: bigint; endTime: bigint; visibleTi
 
 const VIEWS = [
   { id: "all", label: "All" },
-  { id: "practice", label: "Practice" },
+  { id: "practice", label: "Backtests" },
   { id: "challenges", label: "Challenges" },
 ] as const;
 type HistoryView = (typeof VIEWS)[number]["id"];
@@ -110,7 +110,7 @@ export default async function HistoryPage(props: { searchParams?: Promise<{ view
       </nav>
 
       {sessions.length === 0 && view !== "all" ? (
-        <p className="mt-5 rounded-2xl border border-dashed app-border p-8 text-center text-sm app-muted">No {view === "challenges" ? "challenge" : "practice"} sessions yet.</p>
+        <p className="mt-5 rounded-2xl border border-dashed app-border p-8 text-center text-sm app-muted">No {view === "challenges" ? "challenge" : "backtest"} sessions yet.</p>
       ) : sessions.length === 0 ? (
         <section className="mt-7 grid min-h-64 place-items-center rounded-2xl border border-dashed app-border bg-[var(--app-panel)]/45 p-8 text-center">
           <div>

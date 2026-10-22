@@ -133,7 +133,7 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
     <div className="dashboard-workspace mx-auto max-w-[1480px] px-4 py-6 sm:px-6 sm:py-7">
       <header id="dashboard-overview" className="flex flex-col justify-between gap-5 border-b app-border pb-6 lg:flex-row lg:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Practice overview</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Overview</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Welcome back, {displayName}</h1>
         </div>
         {latestRow && (

@@ -609,7 +609,9 @@ The visual system deliberately separates product identity from trading results:
 
 - The dashboard (`src/app/app/page.tsx`, `SignedInDashboard.tsx`) reads top to
   bottom: greeting and named Continue button, the running-challenge strip,
-  practice results (`PerformanceOverview.tsx`), then sessions. The results
+  "Backtest results" (`PerformanceOverview.tsx`), then sessions. App copy says
+  "backtest" for non-challenge work, never "practice" (code names and the
+  History `?view=practice` link keep the old word). The results
   heading is a verdict from `performanceVerdict()`: "Too early to call" under
   `EARLY_DAYS_TRADES` (30), then profitable, down, or break-even (profit
   factor within 0.95–1.05). It shows no trade count. Results

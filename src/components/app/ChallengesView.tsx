@@ -246,7 +246,7 @@ export function ChallengesView({ overview }: { overview: ChallengesOverview }) {
         <section className="mt-6 rounded-2xl border border-brand-400/25 bg-brand-400/[0.06] p-6 shadow-card sm:p-8">
           <span className="grid h-11 w-11 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><Trophy size={20} aria-hidden /></span>
           <h2 className="mt-5 text-2xl font-bold tracking-tight">No challenges yet</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 app-muted">Practise under prop-firm rules: a profit target, a daily loss limit and a maximum loss. Challenges stay out of your practice numbers.</p>
+          <p className="mt-2 max-w-xl text-sm leading-6 app-muted">Trade under prop-firm rules: a profit target, a daily loss limit and a maximum loss. Challenges stay out of your backtest results.</p>
           <Link href={challengeStartHref()} className="btn-primary mt-6">Start a challenge <Play size={14} fill="currentColor" aria-hidden /></Link>
         </section>
       ) : (

@@ -1,10 +1,13 @@
-import { Activity, Archive, Database, HardDrive, Server } from "lucide-react";
+import { Activity, Archive, Database, HardDrive, RefreshCw, Server } from "lucide-react";
 
 import { AdminPageHeader, AdminStat, AdminStatus, AdminTable, adminTd, adminTh } from "@/components/admin/AdminUI";
+import { SubmitButton } from "@/components/support/team/controls";
 import { requireAdmin } from "@/lib/admin";
 import { formatNewYorkDateTime } from "@/lib/date-time";
-import { collectOperationsSnapshot } from "@/lib/operations/health";
+import { latestOperationsSnapshot } from "@/lib/operations/snapshot-store";
 import { prisma } from "@/lib/db";
+
+import { checkOperationsNow } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +23,10 @@ function bytes(value: number | null): string {
 export default async function AdminOperationsPage() {
   await requireAdmin("/admin/operations");
   const [snapshot, history] = await Promise.all([
-    collectOperationsSnapshot(),
+    latestOperationsSnapshot(),
     prisma.operationalCheck.findMany({ orderBy: { checkedAt: "desc" }, take: 40 }),
   ]);
+  const checkedMinutesAgo = Math.max(0, Math.round((Date.now() - Date.parse(snapshot.checkedAt)) / 60_000));
   const currentPairs = snapshot.marketData.filter((item) => item.status === "healthy").length;
   const earliestMonth = snapshot.marketData.flatMap((item) => item.firstMonth ? [item.firstMonth] : []).sort()[0] ?? "Unavailable";
 
@@ -30,8 +34,17 @@ export default async function AdminOperationsPage() {
     <>
       <AdminPageHeader eyebrow="Reliability" title="Operations & usage" description="Live infrastructure checks, backup recency, data coverage, and free-tier capacity from the systems serving ForexTestLab." />
 
+      <form action={checkOperationsNow} className="mt-4 flex flex-wrap items-center gap-3 text-xs app-muted">
+        <span>
+          Checked {checkedMinutesAgo === 0 ? "just now" : `${checkedMinutesAgo} min ago`} · the monitor re-checks every 15 minutes
+        </span>
+        <SubmitButton className="inline-flex items-center gap-1.5 rounded-lg border app-border px-2.5 py-1.5 font-semibold text-[var(--app-text)] transition-colors hover:bg-white/[0.05]">
+          <RefreshCw size={13} aria-hidden /> Check now
+        </SubmitButton>
+      </form>
+
       <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminStat label="Overall health" value={snapshot.status} detail={`Checked ${new Date(snapshot.checkedAt).toLocaleTimeString()}`} icon={Activity} tone={snapshot.status === "healthy" ? "text-brand-300" : snapshot.status === "degraded" ? "text-amber-300" : "text-loss"} />
+        <AdminStat label="Overall health" value={snapshot.status} detail={`Checked ${formatNewYorkDateTime(new Date(snapshot.checkedAt))}`} icon={Activity} tone={snapshot.status === "healthy" ? "text-brand-300" : snapshot.status === "degraded" ? "text-amber-300" : "text-loss"} />
         <AdminStat label="Supabase database" value={bytes(snapshot.usage.databaseBytes)} detail="Current database size" icon={Database} />
         <AdminStat label="R2 storage" value={bytes(snapshot.usage.r2Bytes)} detail={`${snapshot.usage.r2Objects ?? 0} private objects`} icon={HardDrive} />
         <AdminStat label="Database backups" value={String(snapshot.usage.backupCount ?? 0)} detail={snapshot.usage.latestBackupAt ? `Latest ${formatNewYorkDateTime(new Date(snapshot.usage.latestBackupAt))}` : "No backup yet"} icon={Archive} />

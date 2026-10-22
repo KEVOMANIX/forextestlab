@@ -660,6 +660,15 @@ The visual system deliberately separates product identity from trading results:
     `RESEND_INBOUND_FORWARD_TO`, never to the support address: that address
     feeds the support inbox. The webhook ignores mail from the site's own
     `RESEND_FROM_EMAIL`, which once filed alerts as tickets.
+- Page speed rules (2026-10-23): never use `prisma.$transaction([...])` for
+  independent reads on a page (it runs them one by one, ~23 ms each); use
+  `Promise.all`. `ensureUserProfile()` is cached per request and writes only
+  when the profile is missing or changed. The middleware skips `/api/version`
+  (polled each minute by every app tab). `/admin/operations` shows the
+  monitor's stored snapshot (`data/.operations-snapshot.json`, written every
+  15 minutes by `operations:monitor`; refreshed live when older than 30
+  minutes or on "Check now"), because a fresh one lists all of R2 (~10 s).
+  The checks inside a snapshot run in parallel.
 - Support workspace (`/support-team`): every action re-renders the page on the
   server, so keep its reads in `Promise.all`, not `prisma.$transaction` (a
   transaction runs them one by one: ~270 ms vs ~25 ms). Customer emails from

@@ -57,21 +57,26 @@ export async function buildExitQualityReport(
   const provider = getMarketDataProvider();
   const tests: PlanTest[] = [];
 
-  for (const [symbol, group] of bySymbol) {
-    const earliest = Math.min(...group.map((trade) => trade.entryTime));
-    let candles: Candle[];
+  // Each instrument's history is a separate read from storage, so they are
+  // fetched side by side rather than one after another.
+  const candlesBySymbol = new Map(await Promise.all([...bySymbol].map(async ([symbol, group]) => {
     try {
-      candles = await provider.getCandles({
+      const candles = await provider.getCandles({
         symbol,
         timeframe: state.config.timeframe,
-        startTime: earliest,
+        startTime: Math.min(...group.map((trade) => trade.entryTime)),
         endTime: state.config.endTime,
       });
+      return [symbol, candles] as const;
     } catch {
       // Missing history for one instrument must not take the whole report
       // down; the others still have something to say.
-      continue;
+      return [symbol, [] as Candle[]] as const;
     }
+  })));
+
+  for (const [symbol, group] of bySymbol) {
+    const candles = candlesBySymbol.get(symbol) ?? [];
     if (!candles.length) continue;
 
     const symbolConfig = configForSymbol(state.config, symbol);

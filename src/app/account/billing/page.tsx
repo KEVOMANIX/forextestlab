@@ -18,12 +18,13 @@ function planName(value: string): string {
 export default async function BillingPage() {
   const checkoutEnabled = billingEnabled();
   const user = await requireUser("/account/billing");
-  await ensureUserProfile(user);
-  const profile = await prisma.userProfile.findUniqueOrThrow({ where: { id: user.id } });
-  const subscription = await prisma.billingSubscription.findFirst({
-    where: { userId: user.id, status: { in: ["active", "trialing", "past_due", "attention", "non-renewing"] } },
-    orderBy: { updatedAt: "desc" },
-  });
+  const [profile, subscription] = await Promise.all([
+    ensureUserProfile(user).then(() => prisma.userProfile.findUniqueOrThrow({ where: { id: user.id } })),
+    prisma.billingSubscription.findFirst({
+      where: { userId: user.id, status: { in: ["active", "trialing", "past_due", "attention", "non-renewing"] } },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
   const paidAccess = ["active", "attention", "non-renewing"].includes(profile.billingStatus) || Boolean(profile.proAccessUntil && profile.proAccessUntil > new Date());
   const active = checkoutEnabled ? paidAccess : true;
   const paddleSubscription = subscription?.provider === "paddle"

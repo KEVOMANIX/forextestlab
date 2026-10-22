@@ -28,7 +28,6 @@ export interface SessionResults {
   state: SessionState;
   stats: PerformanceStats;
   hasAmbiguousTrades: boolean;
-  reviewSessions: ReviewSession[];
   branchComparison: {
     sessionId: string;
     name: string;
@@ -41,19 +40,6 @@ export interface SessionResults {
     netPnl: string;
     winRate: string;
   }[];
-}
-
-export interface ReviewSession {
-  sessionId: string;
-  name: string;
-  symbol: string;
-  timeframe: string;
-  createdAt: string;
-  parentSessionId: string | null;
-  branchRootId: string | null;
-  startingBalance: string;
-  endingBalance: string;
-  trades: SessionState["closedTrades"];
 }
 
 interface SessionMetadataRow {
@@ -119,9 +105,11 @@ export async function getSessionResults(
   // Cross-session analytics used to load and parse every complete stateJson.
   // For established accounts that can be tens of megabytes. Relational
   // trade/equity projections carry everything needed for comparisons without
-  // transferring replay engine snapshots from PostgreSQL.
-  const [familyRows, reviewRows] = await Promise.all([
-    prisma.backtestSession.findMany({
+  // transferring replay engine snapshots from PostgreSQL. (A 60-session
+  // "review" set with every trade used to load here too; nothing read it.)
+  // The branch names live in the snapshot config; they are read alongside,
+  // with the same filter, rather than in a second round trip.
+  const [familyRows, metadataRows] = await Promise.all([prisma.backtestSession.findMany({
       where: {
         userId,
         anonymous: false,
@@ -142,57 +130,14 @@ export async function getSessionResults(
         equitySnapshots: { orderBy: { index: "asc" } },
       },
     }),
-    prisma.backtestSession.findMany({
-      where: { userId, anonymous: false },
-      orderBy: { updatedAt: "desc" },
-      take: 60,
-      select: {
-        id: true,
-        symbol: true,
-        timeframe: true,
-        createdAt: true,
-        parentSessionId: true,
-        branchRootId: true,
-        startingBalance: true,
-        depositedFunds: true,
-        balance: true,
-        trades: { orderBy: { exitTime: "asc" } },
-      },
-    }),
+    prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
+      SELECT "id", NULLIF("stateJson"::jsonb #>> '{config,name}', '') AS "name"
+      FROM "BacktestSession"
+      WHERE "userId" = ${userId} AND "anonymous" = false
+        AND ("id" = ${rootId} OR "branchRootId" = ${rootId})
+    `),
   ]);
-  const metadataIds = [...new Set([
-    ...familyRows.map((session) => session.id),
-    ...reviewRows.map((session) => session.id),
-  ])];
-  const metadataRows = metadataIds.length
-    ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
-        SELECT "id", NULLIF("stateJson"::jsonb #>> '{config,name}', '') AS "name"
-        FROM "BacktestSession"
-        WHERE "id" IN (${Prisma.join(metadataIds)})
-      `)
-    : [];
   const metadata = new Map(metadataRows.map((item) => [item.id, item]));
-  const reviewSessions = reviewRows.map((session) => {
-    const trades = session.trades
-      .filter((trade) => trade.validity !== "experimental")
-      .map(toClosedTrade);
-    const endingBalance = trades.reduce(
-      (balance, trade) => balance.plus(trade.pnl),
-      new Decimal(fundedTotal(session)),
-    ).toFixed(2);
-    return {
-      sessionId: session.id,
-      name: metadata.get(session.id)?.name?.trim() || `${session.symbol} backtest`,
-      symbol: session.symbol,
-      timeframe: session.timeframe,
-      createdAt: session.createdAt.toISOString(),
-      parentSessionId: session.parentSessionId,
-      branchRootId: session.branchRootId,
-      startingBalance: fundedTotal(session),
-      endingBalance,
-      trades,
-    };
-  });
   const branchComparison = familyRows.map((family) => {
     const trades = family.trades
       .filter((trade) => trade.validity !== "experimental")
@@ -239,7 +184,6 @@ export async function getSessionResults(
     state,
     stats,
     hasAmbiguousTrades: scopedTrades.some((t) => t.intrabarAmbiguous),
-    reviewSessions,
     branchComparison,
   };
 }

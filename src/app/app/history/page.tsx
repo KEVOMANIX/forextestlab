@@ -54,10 +54,10 @@ type HistoryView = (typeof VIEWS)[number]["id"];
 
 export default async function HistoryPage(props: { searchParams?: Promise<{ view?: string }> }) {
   const user = await requireUser("/app/history");
-  await ensureUserProfile(user);
+  const profileReady = ensureUserProfile(user);
   const requested = (await props.searchParams)?.view;
   const view: HistoryView = requested === "practice" || requested === "challenges" ? requested : "all";
-  const sessions = await prisma.backtestSession.findMany({
+  const [sessions] = await Promise.all([prisma.backtestSession.findMany({
     where: {
       userId: user.id,
       anonymous: false,
@@ -81,7 +81,7 @@ export default async function HistoryPage(props: { searchParams?: Promise<{ view
       challengeStatus: true,
       _count: { select: { trades: true } },
     },
-  });
+  }), profileReady]);
 
   const totalNet = sessions.reduce((sum, session) => sum.plus(netResult(session)), new Decimal(0));
   const totalTrades = sessions.reduce((sum, session) => sum + session._count.trades, 0);

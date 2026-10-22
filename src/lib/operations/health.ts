@@ -42,6 +42,8 @@ export interface OperationsSnapshot {
   }>;
 }
 
+const CHECK_ORDER = ["website", "database", "economic-calendar", "r2-market-data", "database-backup", "email", "lightsail"];
+
 function overall(checks: HealthCheckResult[]): HealthStatus {
   if (checks.some((check) => check.status === "failed")) return "failed";
   if (checks.some((check) => check.status === "degraded")) return "degraded";
@@ -135,7 +137,8 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
   let memoryUsedPercent: number | null = null;
   let marketData: OperationsSnapshot["marketData"] = [];
 
-  if (options.checkWebsite) {
+  const tasks: Array<Promise<void>> = [];
+  if (options.checkWebsite) tasks.push((async () => {
     const started = Date.now();
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || "https://forextestlab.com"}/api/version`, {
@@ -151,9 +154,9 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
     } catch (error) {
       checks.push({ component: "website", status: "failed", latencyMs: Date.now() - started, message: error instanceof Error ? error.message : "Website check failed." });
     }
-  }
+  })());
 
-  {
+  tasks.push((async () => {
     const started = Date.now();
     try {
       const rows = await prisma.$queryRaw<Array<{ bytes: bigint }>>`SELECT pg_database_size(current_database()) AS bytes`;
@@ -162,9 +165,9 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
     } catch (error) {
       checks.push({ component: "database", status: "failed", latencyMs: Date.now() - started, message: error instanceof Error ? error.message : "Database check failed." });
     }
-  }
+  })());
 
-  {
+  tasks.push((async () => {
     const started = Date.now();
     try {
       const latest = await prisma.economicEvent.aggregate({ _max: { updatedAt: true, timestamp: true }, _count: true });
@@ -182,9 +185,9 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
     } catch (error) {
       checks.push({ component: "economic-calendar", status: "failed", latencyMs: Date.now() - started, message: error instanceof Error ? error.message : "Calendar check failed." });
     }
-  }
+  })());
 
-  {
+  tasks.push((async () => {
     const started = Date.now();
     try {
       const { client, bucket, marketPrefix, backupPrefix } = r2Client();
@@ -234,9 +237,9 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
       checks.push({ component: "r2-market-data", status: "failed", latencyMs: Date.now() - started, message: error instanceof Error ? error.message : "R2 check failed." });
       checks.push({ component: "database-backup", status: "failed", latencyMs: 0, message: "Backup inventory could not be read." });
     }
-  }
+  })());
 
-  {
+  tasks.push((async () => {
     const started = Date.now();
     try {
       const failures = await prisma.adminAuditEvent.count({
@@ -254,9 +257,9 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
     } catch (error) {
       checks.push({ component: "email", status: "failed", latencyMs: Date.now() - started, message: error instanceof Error ? error.message : "Email check failed." });
     }
-  }
+  })());
 
-  {
+  tasks.push((async () => {
     const started = Date.now();
     try {
       const disk = await statfs(process.cwd());
@@ -275,7 +278,12 @@ export async function collectOperationsSnapshot(options: { checkWebsite?: boolea
     } catch (error) {
       checks.push({ component: "lightsail", status: "failed", latencyMs: Date.now() - started, message: error instanceof Error ? error.message : "Host check failed." });
     }
-  }
+  })());
+
+  // The checks are independent, so they run side by side: the snapshot takes
+  // as long as the slowest (listing R2), not the sum of all of them.
+  await Promise.all(tasks);
+  checks.sort((a, b) => CHECK_ORDER.indexOf(a.component) - CHECK_ORDER.indexOf(b.component));
 
   return {
     status: overall(checks),

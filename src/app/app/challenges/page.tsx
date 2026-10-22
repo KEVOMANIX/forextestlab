@@ -14,6 +14,6 @@ export const dynamic = "force-dynamic";
 
 export default async function ChallengesPage() {
   const user = await requireUser("/app/challenges");
-  await ensureUserProfile(user);
-  return <ChallengesView overview={await loadChallengesOverview(user.id)} />;
+  const [overview] = await Promise.all([loadChallengesOverview(user.id), ensureUserProfile(user)]);
+  return <ChallengesView overview={overview} />;
 }

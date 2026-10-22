@@ -28,7 +28,7 @@ export default async function AdminSessionsPage(props: { searchParams: Promise<{
   const searchParams = await props.searchParams;
   await requireAdmin("/admin/sessions");
   const q = searchParams.q?.trim().toUpperCase().slice(0, 20) ?? "";
-  const [sessions, active, completed, anonymous] = await prisma.$transaction([
+  const [sessions, active, completed, anonymous] = await Promise.all([
     prisma.backtestSession.findMany({
       where: q ? { OR: [{ symbol: { contains: q } }, { user: { email: { contains: q, mode: "insensitive" } } }] } : undefined,
       orderBy: { updatedAt: "desc" },

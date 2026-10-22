@@ -15,7 +15,7 @@ import { requireAdmin } from "@/lib/admin";
 
 export default async function AdminMarketDataPage() {
   await requireAdmin("/admin/market-data");
-  const [instruments, imports, failed, candles] = await prisma.$transaction([
+  const [instruments, imports, failed, candles] = await Promise.all([
     prisma.marketInstrument.findMany({ orderBy: { symbol: "asc" }, include: { _count: { select: { candles: true, sessions: true, imports: true } } } }),
     prisma.dataImport.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.dataImport.count({ where: { status: { not: "completed" } } }),

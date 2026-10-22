@@ -123,7 +123,8 @@ export default async function AppHome(props: { searchParams?: Promise<{ period?:
   const user = await getCurrentUser();
   if (!user) return <SignedOutDashboard />;
 
-  await ensureUserProfile(user);
+  // The reads below do not depend on it, so the profile check runs alongside.
+  const profileReady = ensureUserProfile(user);
   // The link's period wins; otherwise the trader's last choice; otherwise all time.
   const period =
     parsePerformancePeriod((await props.searchParams)?.period) ??
@@ -172,14 +173,17 @@ export default async function AppHome(props: { searchParams?: Promise<{ period?:
       },
     }),
     loadActiveChallengeCard(user.id),
+    profileReady,
   ]);
 
   // A full engine state can be several megabytes. The old dashboard selected
   // and parsed stateJson for as many as 100 sessions. PostgreSQL extracts the
   // three small pieces of dashboard metadata so Node never receives the large
   // JSON documents.
-  const metadataRows = sessionRows.length
-    ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
+  // Prisma.join rejects an empty list, so it is only built when there are rows.
+  const sessionIds = sessionRows.length ? Prisma.join(sessionRows.map((session) => session.id)) : null;
+  const [metadataRows, sessionWinRateRows] = sessionIds ? await Promise.all([
+    prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
         SELECT "id",
                NULLIF("stateJson"::jsonb #>> '{config,name}', '') AS "name",
                COALESCE(
@@ -191,20 +195,18 @@ export default async function AppHome(props: { searchParams?: Promise<{ period?:
                  false
                ) AS "archived"
         FROM "BacktestSession"
-        WHERE "id" IN (${Prisma.join(sessionRows.map((session) => session.id))})
-      `)
-    : [];
-  const sessionWinRateRows = sessionRows.length
-    ? await prisma.$queryRaw<SessionWinRateRow[]>(Prisma.sql`
+        WHERE "id" IN (${sessionIds})
+      `),
+    prisma.$queryRaw<SessionWinRateRow[]>(Prisma.sql`
         SELECT "sessionId",
                COUNT(*)::bigint AS "closedTrades",
                COUNT(*) FILTER (WHERE "pnl"::numeric > 0)::bigint AS "winningTrades"
         FROM "SimulatedTrade"
-        WHERE "sessionId" IN (${Prisma.join(sessionRows.map((session) => session.id))})
+        WHERE "sessionId" IN (${sessionIds})
           AND "validity" <> 'experimental'
         GROUP BY "sessionId"
-      `)
-    : [];
+      `),
+  ]) : [[], []];
   const metadata = new Map(metadataRows.map((row) => [row.id, row]));
   const sessionWinRates = new Map(sessionWinRateRows.map((row) => [
     row.sessionId,

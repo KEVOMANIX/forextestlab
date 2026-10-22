@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/admin";
 
 export default async function AdminEnquiriesPage() {
   await requireAdmin("/admin/enquiries");
-  const [messages, open, resolved, liveChats] = await prisma.$transaction([
+  const [messages, open, resolved, liveChats] = await Promise.all([
     prisma.contactMessage.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
     prisma.contactMessage.count({ where: { status: { not: "resolved" } } }),
     prisma.contactMessage.count({ where: { status: "resolved" } }),

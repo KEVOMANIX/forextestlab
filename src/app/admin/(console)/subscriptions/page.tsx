@@ -14,7 +14,7 @@ import { requireAdmin } from "@/lib/admin";
 
 export default async function AdminSubscriptionsPage() {
   await requireAdmin("/admin/subscriptions");
-  const [subscriptions, active, canceling] = await prisma.$transaction([
+  const [subscriptions, active, canceling] = await Promise.all([
     prisma.billingSubscription.findMany({ orderBy: { updatedAt: "desc" }, take: 150, include: { user: true } }),
     prisma.billingSubscription.count({ where: { status: "active" } }),
     prisma.billingSubscription.count({ where: { cancelAtPeriodEnd: true } }),

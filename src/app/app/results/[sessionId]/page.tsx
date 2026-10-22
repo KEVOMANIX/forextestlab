@@ -26,9 +26,11 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
   const params = await props.params;
   const searchParams = await props.searchParams;
   const user = await requireUser(`/app/results/${params.sessionId}`);
-  const results = await getSessionResults(params.sessionId, user.id);
+  const [results, entitlements] = await Promise.all([
+    getSessionResults(params.sessionId, user.id),
+    getUserEntitlements(user.id),
+  ]);
   if (!results) notFound();
-  const entitlements = await getUserEntitlements(user.id);
   // Only ever computed for a finished session: the candles it walks are the
   // ones a running replay has not revealed.
   const exitQuality = await buildExitQualityReport(results.state);

@@ -7,6 +7,7 @@ import { sendOperationalAlert } from "../src/lib/contact-email";
 import { prisma } from "../src/lib/db";
 import { decideAlert, parseMonitorState, type MonitorState } from "../src/lib/operations/alerting";
 import { collectOperationsSnapshot } from "../src/lib/operations/health";
+import { saveOperationsSnapshot } from "../src/lib/operations/snapshot-store";
 
 const statePath = path.resolve("data/.operations-monitor.json");
 
@@ -23,6 +24,8 @@ async function saveState(state: MonitorState) {
 
 async function main() {
   const snapshot = await collectOperationsSnapshot({ checkWebsite: true });
+  // The operations page shows this instead of listing R2 on every visit.
+  await saveOperationsSnapshot(snapshot).catch((error) => console.error("Could not store the operations snapshot:", error));
   await prisma.operationalCheck.createMany({
     data: snapshot.checks.map((check) => ({
       component: check.component,

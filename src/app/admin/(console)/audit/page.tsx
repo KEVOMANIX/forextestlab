@@ -13,7 +13,7 @@ import { requireAdmin } from "@/lib/admin";
 
 export default async function AdminAuditPage() {
   await requireAdmin("/admin/audit");
-  const [events, total] = await prisma.$transaction([
+  const [events, total] = await Promise.all([
     prisma.adminAuditEvent.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
     prisma.adminAuditEvent.count(),
   ]);

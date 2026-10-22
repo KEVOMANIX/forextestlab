@@ -41,6 +41,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // Refresh before authenticated pages/API handlers read their session.
-  // Static marketing pages and assets do not need auth middleware.
-  matcher: ["/app/:path*", "/account/:path*", "/admin/:path*", "/support-team/:path*", "/sign-in", "/sign-up", "/auth/:path*", "/api/:path*"],
+  // Static marketing pages and assets do not need auth middleware, and neither
+  // does /api/version: every open app tab polls it each minute, and each poll
+  // cost a Supabase Auth round trip.
+  matcher: ["/app/:path*", "/account/:path*", "/admin/:path*", "/support-team/:path*", "/sign-in", "/sign-up", "/auth/:path*", "/api/((?!version$).*)"],
 };

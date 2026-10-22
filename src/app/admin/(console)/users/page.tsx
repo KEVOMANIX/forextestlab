@@ -21,7 +21,9 @@ export default async function AdminUsersPage(
   const searchParams = await props.searchParams;
   await requireAdmin("/admin/users");
   const q = searchParams.q?.trim().slice(0, 120) ?? "";
-  const users = await prisma.userProfile.findMany({
+  // Support-team membership is account administration, so it lives here rather
+  // than beside an open customer conversation in /support-team.
+  const [users, supportAgents] = await Promise.all([prisma.userProfile.findMany({
     where: q
       ? {
           OR: [
@@ -35,14 +37,11 @@ export default async function AdminUsersPage(
     include: {
       _count: { select: { sessions: true, billingSubscriptions: true, billingPayments: true } },
     },
-  });
-  // Support-team membership is account administration, so it lives here rather
-  // than beside an open customer conversation in /support-team.
-  const supportAgents = await prisma.supportAgent.findMany({
+  }), prisma.supportAgent.findMany({
     where: { active: true },
     orderBy: { displayName: "asc" },
     select: { id: true, displayName: true, email: true, role: true },
-  });
+  })]);
 
   return (
     <>

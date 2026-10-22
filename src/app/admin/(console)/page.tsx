@@ -35,7 +35,7 @@ export default async function AdminOverviewPage() {
     failedImports,
     recentUsers,
     latestActivity,
-  ] = await prisma.$transaction([
+  ] = await Promise.all([
     prisma.userProfile.count(),
     prisma.userProfile.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
     prisma.billingSubscription.count({

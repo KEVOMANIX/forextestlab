@@ -334,16 +334,40 @@ the app process.
 
 ### R2 runtime request behaviour
 
-The R2 provider has two process-local caches:
+The R2 provider's process-local caches (changed 2026-10-23 after measuring):
 
-- Manifest TTL: 5 minutes
-- Monthly candle TTL: 15 minutes
-- Monthly candle cache capacity: currently **one object total**
-  (`MAX_CACHED_MONTHS = 1`)
+- Manifest: listed per symbol in parallel (~1 s instead of ~10 s for one
+  sequential listing of 9,000 objects), served stale-while-revalidate with a
+  5-minute refresh, and saved to `data/.r2-manifest.json` so a restart serves
+  the saved copy at once. Before this, the first market pick after any
+  5-minute idle waited ~11 s.
+- Available ranges: cached per symbol for an hour, keyed by its first and last
+  month objects (it decodes those two months to find the exact first and last
+  candle).
+- Monthly candle cache: 48 months (`MAX_CACHED_MONTHS`), ~5 MB each decoded
+  (measured), TTL 15 minutes. It held one month, so every pair switch
+  re-downloaded.
+- R2 candles no longer carry bid copies of the OHLC (execution only uses bid
+  fields when ask fields exist too, which this archive never has); responses
+  are ~37% smaller. Cloudflare already compresses API JSON to browsers (the
+  origin does not; nginx was left unchanged).
 
-The one-object capacity matters for multi-pair replay. Alternating between two
-symbols evicts the previous symbol's monthly Parquet object, so routine buffer
-extensions can download both monthly files again. Do not interpret Nginx API
+Chart rollups (`scripts/build-rollups-from-r2.ts`, `npm run data:build-r2-rollups`,
+timer `forextestlab-rollups.timer` daily 03:15 UTC, incremental last 2
+months; `-- --full` rebuilds all history):
+
+- `market_data_rollups/1h/<SYMBOL>/<YYYY>/<MM>.parquet`: complete hours.
+  1h/2h/4h/6h/12h charts read these and build only the stretch after the last
+  complete hour (the hour in progress, or hours since the last build) from
+  minutes. A month without a rollup falls back to minutes.
+- `market_data_rollups/1d-ny/<SYMBOL>.parquet`: complete 17:00 New York days.
+  The 1d chart reads it and builds the open day from minutes.
+- `market_data_rollups/1d/<SYMBOL>.parquet` (UTC days, from the Windows
+  `data:build-rollups`) still feeds weekly/calendar charts; it is not rebuilt
+  automatically.
+- Measured before rollups: 6 months of 1h took 2.4 s cold, 12 months of 1d
+  6.5 s cold. `r2-rollups.test.ts` proves rollup output equals building from
+  minutes and never passes the replay clock. Do not interpret Nginx API
 request counts as exact R2 billable operations: pair responses can come from the
 session's in-memory series, while one app request can read more than one monthly
 object at a month boundary.

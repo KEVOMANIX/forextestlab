@@ -1,4 +1,7 @@
 import "server-only";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+
 import { isEmptyForexWeekendCandle } from "../empty-weekend";
 
 import {
@@ -24,10 +27,11 @@ import { nextTimeframeTimestamp, TIMEFRAME_MS } from "@/lib/market-data/types";
 
 const MANIFEST_TTL_MS = 5 * 60_000;
 const CANDLE_CACHE_TTL_MS = 15 * 60_000;
-// A month of one-minute candles expands dramatically after Parquet decoding.
-// Keep only the hottest month to leave memory for concurrent app requests;
-// R2 remains durable and another month is decoded on demand.
-const MAX_CACHED_MONTHS = 1;
+// A decoded month of one-minute candles is about 5 MB (measured 2026-10-23:
+// ~175 bytes a candle once the duplicate bid fields were dropped). Holding one
+// month made every pair switch and chart jump download again; 48 months is
+// roughly 250 MB of the 4 GB instance. Least recently used months go first.
+const MAX_CACHED_MONTHS = 48;
 // Long-running one-minute sessions can span many years. Reading every monthly
 // object serially adds one full R2 round trip per month, making a cold resume
 // take tens of seconds. A small batch overlaps network/decode work while
@@ -218,16 +222,16 @@ export function parquetRowsToCandles(rows: Record<string, unknown>[]): Candle[] 
     const close = decimalString(row.close);
     if (!Number.isFinite(timestamp) || !open || !high || !low || !close) continue;
 
+    // No bid copies: the archive holds one price series, and execution only
+    // uses bid/ask fields when a candle carries both (it then derives the
+    // spread from the session's settings either way). The copies doubled
+    // every response and the decoded cache for nothing.
     const candle: Candle = {
       timestamp,
       open,
       high,
       low,
       close,
-      bidOpen: open,
-      bidHigh: high,
-      bidLow: low,
-      bidClose: close,
       source: "dukascopy-r2",
     };
     const volume = decimalString(row.volume);
@@ -237,33 +241,80 @@ export function parquetRowsToCandles(rows: Record<string, unknown>[]): Candle[] 
   return [...byTimestamp.values()].sort((a, b) => a.timestamp - b.timestamp);
 }
 
-async function loadManifest(config: R2Config): Promise<Map<string, StoredMonth[]>> {
-  if (manifestCache && manifestCache.expiresAt > Date.now()) {
-    return manifestCache.monthsBySymbol;
-  }
+const RANGE_CACHE_TTL_MS = 60 * 60_000;
+const rangeCache = new Map<string, { key: string; ranges: DataRange[]; expiresAt: number }>();
 
-  const monthsBySymbol = new Map<string, StoredMonth[]>();
+/** Lists one symbol's monthly objects. */
+async function listSymbolMonths(config: R2Config, symbol: string): Promise<StoredMonth[]> {
+  const months: StoredMonth[] = [];
   let cursor: string | undefined;
   do {
-    const page = await config.bucket.list({ prefix: `${config.prefix}/`, cursor });
-    const objects = page.objects;
-    const nextCursor = page.truncated ? page.cursor : undefined;
-    for (const object of objects) {
-      if (!object.key) continue;
-      const month = parseStoredMonth(object.key, config.prefix);
-      if (!month) continue;
-      const stored = monthsBySymbol.get(month.symbol) ?? [];
-      stored.push(month);
-      monthsBySymbol.set(month.symbol, stored);
+    const page = await config.bucket.list({ prefix: `${config.prefix}/${symbol}/`, cursor });
+    for (const object of page.objects) {
+      const month = object.key ? parseStoredMonth(object.key, config.prefix) : undefined;
+      if (month) months.push(month);
     }
-    cursor = nextCursor;
+    cursor = page.truncated ? page.cursor : undefined;
   } while (cursor);
+  return months.sort((a, b) => a.year - b.year || a.month - b.month);
+}
 
-  for (const months of monthsBySymbol.values()) {
-    months.sort((a, b) => a.year - b.year || a.month - b.month);
+/**
+ * Lists every symbol's months. Symbols are listed side by side: one sequential
+ * listing of the whole prefix took about ten seconds (9,000 objects, 1,000 a
+ * page, each page waiting on the last).
+ */
+async function fetchManifest(config: R2Config): Promise<Map<string, StoredMonth[]>> {
+  const entries = await Promise.all(
+    SYMBOL_DEFINITIONS.map(async ({ symbol }) => [symbol, await listSymbolMonths(config, symbol)] as const),
+  );
+  return new Map(entries.filter(([, months]) => months.length > 0));
+}
+
+/** The last manifest, kept on disk so a restart does not make a trader wait for a listing. */
+const manifestFile = () => path.resolve(process.env.R2_MANIFEST_CACHE_FILE?.trim() || "data/.r2-manifest.json");
+let manifestRefresh: Promise<Map<string, StoredMonth[]>> | undefined;
+
+async function readManifestFile(): Promise<Map<string, StoredMonth[]> | undefined> {
+  try {
+    const stored = JSON.parse(await readFile(manifestFile(), "utf8")) as Record<string, StoredMonth[]>;
+    return new Map(Object.entries(stored));
+  } catch {
+    return undefined;
   }
-  manifestCache = { expiresAt: Date.now() + MANIFEST_TTL_MS, monthsBySymbol };
-  return monthsBySymbol;
+}
+
+function refreshManifest(config: R2Config): Promise<Map<string, StoredMonth[]>> {
+  manifestRefresh ??= fetchManifest(config)
+    .then(async (monthsBySymbol) => {
+      manifestCache = { expiresAt: Date.now() + MANIFEST_TTL_MS, monthsBySymbol };
+      await mkdir(path.dirname(manifestFile()), { recursive: true }).catch(() => undefined);
+      await writeFile(manifestFile(), JSON.stringify(Object.fromEntries(monthsBySymbol))).catch(() => undefined);
+      return monthsBySymbol;
+    })
+    .finally(() => {
+      manifestRefresh = undefined;
+    });
+  return manifestRefresh;
+}
+
+/**
+ * Which months exist for each symbol. Served stale-while-revalidate: once a
+ * manifest is known (in memory, or from disk after a restart) every caller gets
+ * it at once, and an expired one is refreshed in the background. Only the very
+ * first start with no saved copy waits for a listing.
+ */
+async function loadManifest(config: R2Config): Promise<Map<string, StoredMonth[]>> {
+  if (!manifestCache) {
+    const saved = await readManifestFile();
+    // Saved copies start expired, so the first request also refreshes them.
+    if (saved?.size) manifestCache = { expiresAt: 0, monthsBySymbol: saved };
+  }
+  if (manifestCache) {
+    if (manifestCache.expiresAt <= Date.now()) void refreshManifest(config).catch(() => undefined);
+    return manifestCache.monthsBySymbol;
+  }
+  return refreshManifest(config);
 }
 
 async function readMonth(config: R2Config, stored: StoredMonth): Promise<Candle[]> {
@@ -339,8 +390,13 @@ export function replaySafeDailyRollup(
   return aggregateCandles(completedDays, "1d", timeframe);
 }
 
-async function readDailyRollup(config: R2Config, symbol: string): Promise<Candle[] | null> {
-  const key = `${config.prefix}_rollups/1d/${symbol}.parquet`;
+/**
+ * A whole-history daily rollup: `1d` is the legacy UTC-day file used by
+ * weekly and calendar charts; `1d-ny` closes each day at 17:00 New York, the
+ * app's daily bar (built by scripts/build-rollups-from-r2.ts).
+ */
+async function readDailyRollup(config: R2Config, symbol: string, folder: "1d" | "1d-ny" = "1d"): Promise<Candle[] | null> {
+  const key = `${config.prefix}_rollups/${folder}/${symbol}.parquet`;
   const cached = rollupCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.candles;
   const pending = (async () => {
@@ -362,6 +418,69 @@ async function readDailyRollup(config: R2Config, symbol: string): Promise<Candle
     rollupCache.delete(key);
     return null;
   }
+}
+
+const HOUR_MS = 60 * 60_000;
+/** Timeframes built from hourly candles: their buckets are whole UTC hours. */
+const HOURLY_FAMILY = new Set<CandleRequest["timeframe"]>(["1h", "2h", "4h", "6h", "12h"]);
+const hourlyRollupCache = new Map<string, { expiresAt: number; candles: Promise<Candle[]> }>();
+const MAX_CACHED_HOURLY_MONTHS = 600;
+
+/** One month of complete hourly candles, or null when no rollup exists for it. */
+async function readHourlyRollup(config: R2Config, month: StoredMonth): Promise<Candle[] | null> {
+  const key = `${config.prefix}_rollups/1h/${month.symbol}/${month.year}/${String(month.month).padStart(2, "0")}.parquet`;
+  let cached = hourlyRollupCache.get(key);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    const candles = (async () => {
+      const object = await config.bucket.get(key);
+      if (!object) return [];
+      const rows = await parquetReadObjects({ file: await object.arrayBuffer(), compressors: PARQUET_COMPRESSORS, columns: COLUMNS });
+      return parquetRowsToCandles(rows);
+    })();
+    cached = { expiresAt: Date.now() + CANDLE_CACHE_TTL_MS, candles };
+    hourlyRollupCache.delete(key);
+    hourlyRollupCache.set(key, cached);
+    while (hourlyRollupCache.size > MAX_CACHED_HOURLY_MONTHS) hourlyRollupCache.delete(hourlyRollupCache.keys().next().value!);
+  }
+  try {
+    const candles = await cached.candles;
+    return candles.length ? candles : null;
+  } catch {
+    hourlyRollupCache.delete(key);
+    return null;
+  }
+}
+
+/**
+ * Hourly candles for one month's part of [startTime, endTime]: complete hours
+ * from the rollup, and anything after the rollup's last complete hour (the
+ * hour in progress at `endTime`, or hours since the rollup was last built)
+ * from the minute archive, exactly as before. Hours are UTC-aligned and months
+ * start at UTC midnight, so no hour straddles two months.
+ */
+async function hourlyForMonth(config: R2Config, month: StoredMonth, startTime: number, endTime: number): Promise<Candle[]> {
+  const monthEnd = Date.UTC(month.year, month.month, 1) - 1;
+  const from = Math.max(startTime, Date.UTC(month.year, month.month - 1, 1));
+  const to = Math.min(endTime, monthEnd);
+  if (from > to) return [];
+  const rollup = await readHourlyRollup(config, month);
+  const bars: Candle[] = [];
+  let tailStart = from;
+  if (rollup) {
+    // From the hour containing `from` (earlier data is history, never the
+    // future), up to the last hour that has fully closed by `to`.
+    const firstHour = from - (from % HOUR_MS);
+    for (const bar of rollup) {
+      if (bar.timestamp >= firstHour && bar.timestamp + HOUR_MS <= to + 1) bars.push(bar);
+    }
+    const lastBar = bars[bars.length - 1];
+    if (lastBar) tailStart = lastBar.timestamp + HOUR_MS;
+  }
+  if (tailStart <= to) {
+    const minutes = (await readMonth(config, month)).filter((candle) => candle.timestamp >= tailStart && candle.timestamp <= to);
+    bars.push(...aggregateCandles(minutes, "1m", "1h"));
+  }
+  return bars;
 }
 
 function overlaps(month: StoredMonth, startTime: number, endTime: number): boolean {
@@ -422,15 +541,23 @@ export class R2ParquetProvider implements MarketDataProvider {
     const last = months[months.length - 1];
     if (!first || !last) return [];
 
+    // The exact first and last candle need the first and last months decoded.
+    // Remembered per pair of objects, so picking a market in setup does not
+    // download two months each time; a new month or a refreshed last month
+    // (its key is the same, so the entry also expires) recomputes it.
+    const cacheKey = `${first.key}|${last.key}`;
+    const cached = rangeCache.get(symbol);
+    if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) return cached.ranges;
+
     const [firstCandles, lastCandles] = await Promise.all([
       readMonth(config, first),
       first.key === last.key ? readMonth(config, first) : readMonth(config, last),
     ]);
     const startTime = firstCandles[0]?.timestamp;
     const endTime = lastCandles[lastCandles.length - 1]?.timestamp;
-    return startTime !== undefined && endTime !== undefined
-      ? [{ startTime, endTime }]
-      : [];
+    const ranges = startTime !== undefined && endTime !== undefined ? [{ startTime, endTime }] : [];
+    rangeCache.set(symbol, { key: cacheKey, ranges, expiresAt: Date.now() + RANGE_CACHE_TTL_MS });
+    return ranges;
   }
 
   async getCandles(request: CandleRequest): Promise<Candle[]> {
@@ -458,14 +585,43 @@ export class R2ParquetProvider implements MarketDataProvider {
     if (months.length === 0) return [];
 
     if (request.timeframe === "1d") {
+      // Complete days come from the 17:00 New York rollup when it exists; the
+      // day in progress, and days since the rollup was built, from minutes.
+      const rollup = await readDailyRollup(config, request.symbol, "1d-ny");
+      const fromRollup: Candle[] = [];
+      let minuteStart = readStart;
+      if (rollup) {
+        for (const day of rollup) {
+          if (day.timestamp >= readStart && nextForexDailyBoundary(day.timestamp) <= request.endTime + 1) fromRollup.push(day);
+        }
+        const lastDay = fromRollup[fromRollup.length - 1];
+        if (lastDay) minuteStart = nextForexDailyBoundary(lastDay.timestamp);
+      }
       const fragments: Candle[] = [];
-      // Decode one month at a time to bound memory on a cold, long history page.
-      for (const month of months) {
-        fragments.push(...await readForexDailyMonth(config, month, readStart, request.endTime));
+      if (minuteStart <= request.endTime) {
+        // Decode one month at a time to bound memory on a cold, long history page.
+        for (const month of months.filter((item) => overlaps(item, minuteStart, request.endTime))) {
+          fragments.push(...await readForexDailyMonth(config, month, minuteStart, request.endTime));
+        }
       }
       // Join a New York trading day split between two monthly source objects.
-      const daily = aggregateCandles(fragments, "1d", "1d");
+      const daily = [...fromRollup, ...aggregateCandles(fragments, "1d", "1d")];
       return request.limit === undefined ? daily : daily.slice(0, request.limit);
+    }
+
+    if (HOURLY_FAMILY.has(request.timeframe)) {
+      const hourlyNeeded = request.limit === undefined
+        ? Number.POSITIVE_INFINITY
+        : request.limit * (TIMEFRAME_MS[request.timeframe] / HOUR_MS);
+      const hourly: Candle[] = [];
+      for (let index = 0; index < months.length && hourly.length < hourlyNeeded; index += MONTH_READ_CONCURRENCY) {
+        const batch = months.slice(index, index + MONTH_READ_CONCURRENCY);
+        for (const bars of await Promise.all(batch.map((month) => hourlyForMonth(config, month, readStart, request.endTime)))) {
+          hourly.push(...bars);
+        }
+      }
+      const candles = request.timeframe === "1h" ? hourly : aggregateCandles(hourly, "1h", request.timeframe);
+      return request.limit === undefined ? candles : candles.slice(0, request.limit);
     }
 
     const raw: Candle[] = [];

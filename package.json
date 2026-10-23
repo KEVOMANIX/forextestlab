@@ -20,6 +20,7 @@
     "data:import": "tsx scripts/import-market-data.ts",
     "data:sync-r2": "tsx scripts/sync-market-data-r2.ts",
     "data:build-rollups": "tsx scripts/build-market-rollups.ts",
+    "data:build-r2-rollups": "tsx scripts/build-rollups-from-r2.ts",
     "calendar:import": "tsx scripts/import-economic-calendar.ts",
     "calendar:sync": "tsx scripts/sync-economic-calendar.ts",
     "operations:monitor": "tsx scripts/monitor-production.ts",

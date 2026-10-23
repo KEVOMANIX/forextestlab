@@ -1,0 +1,12 @@
+[Unit]
+Description=Rebuild ForexTestLab chart rollups daily, after the 04:00 Nairobi market-data refresh
+
+[Timer]
+# 03:15 UTC = 06:15 Nairobi, after the Windows task's 04:00 refresh and upload.
+OnCalendar=*-*-* 03:15:00 UTC
+RandomizedDelaySec=5m
+Persistent=true
+Unit=forextestlab-rollups.service
+
+[Install]
+WantedBy=timers.target

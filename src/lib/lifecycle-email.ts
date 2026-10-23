@@ -1,5 +1,6 @@
 import "server-only";
 
+import { PRO_PLAN_FEATURES } from "@/lib/billing/plan-copy";
 import type { BrandEmailOptions } from "@/lib/contact-email";
 
 /**
@@ -48,7 +49,7 @@ function rows(items: Array<[string, string]>): string {
   </table>`;
 }
 
-function checklist(items: string[]): string {
+function checklist(items: readonly string[]): string {
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">${items.map((item) => `<tr>
     <td valign="top" style="width:26px;padding:0 0 10px;font-family:Arial,sans-serif;font-size:15px;line-height:23px;font-weight:700;color:#079669">✓</td>
     <td style="padding:0 0 10px;font-family:Arial,sans-serif;font-size:15px;line-height:23px;color:#344a5a">${escape(item)}</td>
@@ -59,13 +60,7 @@ function note(text: string): string {
   return `<p style="margin:18px 0 0;font-family:Arial,sans-serif;font-size:13px;line-height:21px;color:#526574">${text}</p>`;
 }
 
-const PRO_FEATURES = [
-  "Unlimited saved sessions",
-  "Multi-pair backtests",
-  "Complete risk and timing analytics",
-  "Trade and analytics exports",
-  "All replay speeds and controls",
-];
+const PRO_FEATURES: readonly string[] = PRO_PLAN_FEATURES;
 
 export function welcomeEmail(name: string | null | undefined): LifecycleEmail {
   const steps: Array<[string, string]> = [
@@ -164,12 +159,93 @@ export function paymentFailedEmail(input: {
   };
 }
 
+/** Sent when Paddle reports a new trialing subscription. */
+export function trialStartedEmail(input: {
+  name: string | null | undefined;
+  planName: string;
+  trialEndsAt: Date | null;
+}): LifecycleEmail {
+  const end = input.trialEndsAt ? emailDate(input.trialEndsAt) : "the end of your 7-day trial";
+  return {
+    subject: "Your 7-day ForexTestLab Pro trial has started",
+    text: [
+      `Hi ${firstName(input.name)},`,
+      "",
+      `Your Pro trial is active until ${end}. Everything in Pro is unlocked:`,
+      ...PRO_FEATURES.map((feature) => `- ${feature}`),
+      "",
+      `On ${end} the card you added is charged for ${input.planName} unless you cancel before then. Cancel any time from Account → Billing: you keep Pro until the trial ends and are not charged.`,
+      `${siteUrl()}/account/billing`,
+    ].join("\n"),
+    options: {
+      preheader: `Pro is unlocked until ${end}.`,
+      eyebrow: "Pro trial",
+      title: "Your Pro trial has started",
+      intro: `Hi ${firstName(input.name)}, everything in Pro is unlocked for 7 days.`,
+      contentHtml: `${rows([["Plan after the trial", input.planName], ["Trial ends and first charge", end]])}<div style="height:22px"></div>${checklist(PRO_FEATURES)}${note(`Your card is charged automatically on ${escape(end)} unless you cancel before then. Cancel from Account → Billing: Pro stays until the trial ends and you are not charged.`)}`,
+      action: { label: "Open ForexTestLab", href: `${siteUrl()}/app` },
+      closing: "The ForexTestLab team",
+    },
+  };
+}
+
+/** A trial that ended without a paid plan: cancelled, or the first charge failed. */
+export function trialEndedEmail(input: { name: string | null | undefined; reason: "cancelled" | "unpaid" }): LifecycleEmail {
+  const unpaid = input.reason === "unpaid";
+  return {
+    subject: unpaid ? "We couldn't start your ForexTestLab Pro plan" : "Your ForexTestLab Pro trial has ended",
+    text: [
+      `Hi ${firstName(input.name)},`,
+      "",
+      unpaid
+        ? "Your Pro trial ended but the first payment didn't go through, so your account is back on Free."
+        : "Your Pro trial has ended and your account is back on Free.",
+      "Your sessions, trades and results are all still in your account.",
+      `To go Pro, choose a plan from Account → Billing: ${siteUrl()}/account/billing`,
+    ].join("\n"),
+    options: {
+      preheader: "Your sessions are all still in your account.",
+      eyebrow: unpaid ? "Payment problem" : "Trial ended",
+      title: unpaid ? "Your trial ended without a payment" : "Your Pro trial has ended",
+      intro: unpaid
+        ? "The first payment after your trial didn't go through, so your account is back on Free. This usually means an expired card or a bank decline."
+        : "Your account is back on Free. Thanks for trying Pro.",
+      contentHtml: checklist(["Your sessions, trades and results are kept", "Free: 3 new sessions a month on the major pairs", "Go Pro any time from Account → Billing"]),
+      action: { label: unpaid ? "Update payment and go Pro" : "See Pro plans", href: `${siteUrl()}/account/billing` },
+      closing: "The ForexTestLab team",
+    },
+  };
+}
+
 export function cancellationScheduledEmail(input: {
   name: string | null | undefined;
   planName: string;
   endsAt: Date | null;
+  /** Cancelled during the free trial: say plainly there will be no charge. */
+  trial?: boolean;
 }): LifecycleEmail {
   const end = input.endsAt ? emailDate(input.endsAt) : "the end of your billing period";
+  if (input.trial) {
+    return {
+      subject: "Your ForexTestLab Pro trial is cancelled",
+      text: [
+        `Hi ${firstName(input.name)},`,
+        "",
+        `Your Pro trial is cancelled and your card will not be charged. You keep full Pro access until ${end}; after that your account moves to Free and your sessions stay in your account.`,
+        "Changed your mind? Turn your plan back on from Account → Billing before then:",
+        `${siteUrl()}/account/billing`,
+      ].join("\n"),
+      options: {
+        preheader: `No charge. You keep Pro until ${end}.`,
+        eyebrow: "Trial cancelled",
+        title: "You won't be charged",
+        intro: `Your ${input.planName} trial is cancelled. You keep full Pro access until it ends, then your account moves to Free.`,
+        contentHtml: `${rows([["Pro access until", end], ["Charge", "None"]])}${note("Your sessions, trades and results stay in your account on Free.")}`,
+        action: { label: "Keep Pro after the trial", href: `${siteUrl()}/account/billing` },
+        closing: "The ForexTestLab team",
+      },
+    };
+  }
   return {
     subject: "Your ForexTestLab Pro won't renew",
     text: [

@@ -16,6 +16,7 @@ import {
 import { AccountActions } from "@/components/account/AccountActions";
 import { ProfileDetailsForm } from "@/components/account/ProfileDetailsForm";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
+import { isProPlan } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,8 @@ export default async function AccountPage() {
     where: { id: user.id },
     include: { _count: { select: { sessions: true } } },
   });
-  const hasPro = ["active", "attention", "non-renewing"].includes(profile.billingStatus) || Boolean(profile.proAccessUntil && profile.proAccessUntil > new Date());
+  // Same rule as the entitlements, including full access while billing is off.
+  const hasPro = isProPlan(profile);
   const displayName = profile.displayName || user.email?.split("@")[0] || "ForexTestLab trader";
   const currentPlan = hasPro ? planName(profile.billingPlan) : "Free";
   const joined = new Intl.DateTimeFormat("en-US", {

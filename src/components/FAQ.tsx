@@ -20,8 +20,8 @@ const FAQS = [
     a: "Yes. Sessions replay historical price data without revealing future candles.",
   },
   {
-    q: "What is included in the free trial?",
-    a: "You can create up to three trial sessions on each device. Each session opens EUR/USD on a randomly selected 31-day historical period.",
+    q: "What is included for free?",
+    a: "Three new sessions every calendar month on the seven major FX pairs, each covering up to 31 days of history, with no card required. Pro adds every market, the full history and more, and new members can try it free for 7 days.",
   },
   {
     q: "Can I simulate trades?",

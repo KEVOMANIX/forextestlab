@@ -119,10 +119,6 @@ export async function createSession(
   return parse<CreatedSession>(res) as Promise<CreatedSession | ApiErr>;
 }
 
-export async function createTrialSession(): Promise<CreatedSession | ApiErr> {
-  const res = await fetch("/api/backtest/trial", { method: "POST" });
-  return parse<CreatedSession>(res) as Promise<CreatedSession | ApiErr>;
-}
 
 export async function sendAction(
   sessionId: string,

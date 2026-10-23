@@ -119,7 +119,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         {
           ok: false,
           error:
-            "Trading more than one symbol in a session is part of Pro. Upgrade to add pairs.",
+            "Multi-pair replay is part of Pro. Upgrade or start a Pro trial to add pairs.",
         },
         { status: 403 },
       );

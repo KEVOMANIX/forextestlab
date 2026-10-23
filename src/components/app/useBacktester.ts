@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   addSessionPair,
   createSession,
-  createTrialSession,
   extendReplay,
   extendSessionRange,
   getPairChart,
@@ -524,19 +523,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [activateCreatedSession, patch],
   );
-  const startTrialSession = useCallback(async () => {
-    if (interactiveBusyRef.current) return false;
-    interactiveBusyRef.current = true;
-    patch({ busy: true, error: null, notice: null });
-    const res = await createTrialSession();
-    interactiveBusyRef.current = false;
-    if (!res.ok) {
-      patch({ busy: false, error: res.error });
-      return false;
-    }
-    activateCreatedSession(res);
-    return true;
-  }, [activateCreatedSession, patch]);
 
   const runAction = useCallback(
     async (
@@ -1953,7 +1939,6 @@ export function useBacktester(resumeSessionId: string | null = null) {
     replayStepMinutes,
     actions: {
       startSession,
-      startTrialSession,
       play,
       pause,
       stepNext,

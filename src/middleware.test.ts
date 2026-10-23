@@ -30,9 +30,9 @@ describe("persistent login middleware", () => {
     expect(mocks.create).not.toHaveBeenCalled();
     expect(response.cookies.getAll()).toEqual([]);
   });
-  it("retains the durable backtest device cookie", async () => {
+  it("no longer issues the device-trial cookie: the Free allowance is per account", async () => {
     const response = await middleware(new NextRequest("https://forextestlab.com/app/backtest/demo"));
-    expect(response.cookies.get("ftl_trial_device")?.maxAge).toBe(31536000);
+    expect(response.cookies.get("ftl_trial_device")).toBeUndefined();
   });
   it("writes auth cookie removal when a session is revoked", async () => {
     mocks.getUser.mockImplementation(async () => {

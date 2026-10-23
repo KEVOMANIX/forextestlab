@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { ensureUserProfile, requireUser } from "@/lib/auth";
-import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { getPublicRequestOrigin } from "@/lib/request-origin";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Where sign-in lands, and nothing more: it decides between the workspace and
- * pricing, then redirects.
+ * Where sign-in lands, and nothing more: it makes sure the profile exists,
+ * then redirects to the workspace.
  *
  * A route handler rather than a page, because a page cannot redirect without
  * being seen. The account layout streams its nav and footer as soon as the
@@ -20,11 +19,12 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const user = await requireUser("/account/continue");
   await ensureUserProfile(user);
-  const entitlements = await getUserEntitlements(user.id);
 
   return NextResponse.redirect(
     new URL(
-      entitlements.plan === "pro" ? "/app" : "/pricing?from=sign-in",
+      // Free is an ongoing plan, so every account lands in the workspace;
+      // upgrades are offered where a Pro feature is reached.
+      "/app",
       // Behind Cloudflare and Nginx, request.url is the loopback address the
       // proxy dialled; redirecting to that would send the browser to
       // 127.0.0.1. Same helper the OAuth callback uses.

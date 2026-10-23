@@ -74,12 +74,22 @@ export async function POST(request: Request) {
       }),
     ]);
 
+    // Cancelling during a trial cancels at the end of the current period,
+    // which during a trial is the trial itself: Pro until then, and no charge.
+    const trialEnd = current.status === "trialing" ? localSubscription.trialEndsAt ?? localSubscription.nextPaymentAt : null;
+    const trialEndLabel = trialEnd
+      ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(trialEnd)
+      : "the end of your trial";
     return NextResponse.json({
       ok: true,
       autoRenew: !cancelAtPeriodEnd,
       message: cancelAtPeriodEnd
-        ? "Automatic renewal is off. Your access continues until the end of this billing period."
-        : "Automatic renewal is on.",
+        ? current.status === "trialing"
+          ? `Your trial is cancelled and your card won't be charged. Pro stays until ${trialEndLabel}, then your account moves to Free.`
+          : "Automatic renewal is off. Your access continues until the end of this billing period."
+        : current.status === "trialing"
+          ? `Your plan is back on. Your card will be charged when the trial ends on ${trialEndLabel}.`
+          : "Automatic renewal is on.",
     });
   } catch (error) {
     console.error("Could not update Paddle renewal preference.", error);

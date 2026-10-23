@@ -21,7 +21,8 @@ export const siteConfig = {
   ogImage: "/og-image.png",
 } as const;
 
-export const TRIAL_START_PATH = "/app/backtest?trial=instant";
+/** Where a new account starts: the session setup, on the Free plan. */
+export const TRIAL_START_PATH = "/app/backtest";
 export const TRIAL_SIGN_UP_PATH = `/sign-up?next=${encodeURIComponent(TRIAL_START_PATH)}`;
 
 /** Primary marketing navigation. Each destination is independently addressable. */
@@ -40,7 +41,7 @@ export const footerNav = {
     { label: "Markets", href: "/markets" },
     { label: "Pricing", href: "/pricing" },
     { label: "Learn", href: "/learn" },
-    { label: "Start free trial", href: TRIAL_SIGN_UP_PATH },
+    { label: "Start free", href: TRIAL_SIGN_UP_PATH },
   ],
   company: [
     { label: "Support", href: "/support" },

@@ -4,7 +4,6 @@ import { ensureUserProfile } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createSession, loadSession, persistSession } from "@/lib/backtest/session-store";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { trialDeviceIdFromRequest } from "@/lib/trial-device";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,8 +39,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       commissionPerLot: config.commissionPerLot,
       slippagePips: config.slippagePips,
       executionPolicy: config.executionPolicy,
+      // The clone below carries the challenge rules, so they are checked here.
+      propFirm: config.propFirm,
       userId: user.id,
-      trialDeviceId: trialDeviceIdFromRequest(request),
     });
     branch.ctx.state = structuredClone(source.ctx.state);
     branch.ctx.state.sessionId = branch.id;

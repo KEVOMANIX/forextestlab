@@ -22,7 +22,7 @@ export function PricingSection() {
     >
       {checkoutEnabled ? <>
         <div className="mb-8 text-left"><TrialOffer compact href={TRIAL_SIGN_UP_PATH} /></div>
-        <LocalizedPricing compact showOffer={false} tiers={getPricingTiers()} clientToken={requiredPaddleClientToken()} environment={paddleBrowserEnvironment()} />
+        <LocalizedPricing compact tiers={getPricingTiers()} clientToken={requiredPaddleClientToken()} environment={paddleBrowserEnvironment()} />
         <div className="mt-6 text-center"><Link href="/pricing" className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">Compare all plan details <ArrowRight size={15} aria-hidden /></Link></div>
       </> : <PreLaunchAccessCard compact />}
     </Section>

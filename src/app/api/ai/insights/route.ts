@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   const entitlements = await getUserEntitlements(user.id);
   if (!entitlements.fullAnalytics) {
-    return bad("AI insights are included with Pro.", 403);
+    return bad("AI insights are part of Pro.", 403);
   }
 
   if (!geminiConfigured()) {

@@ -84,7 +84,7 @@ function SignedOutDashboard() {
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link href={TRIAL_SIGN_UP_PATH} className="btn-primary shadow-glow">
-              Start free trial <ArrowRight size={16} aria-hidden />
+              Start free <ArrowRight size={16} aria-hidden />
             </Link>
             <Link
               href="/sign-in?next=%2Faccount%2Fcontinue"

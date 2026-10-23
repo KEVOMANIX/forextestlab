@@ -19,6 +19,7 @@ import { describeSymbol, formatSymbol } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { CurrencyFlag, hasCurrencyFlag } from "./CurrencyFlag";
+import { ProLock } from "./ProLock";
 
 /**
  * Symbol picker for a session in progress.
@@ -507,17 +508,17 @@ export function SymbolPickerModal({
           ) : (
             <>
               <p className="flex min-w-0 items-center gap-2 text-xs">
-                <Lock size={14} className="shrink-0 app-muted" aria-hidden />
+                <ProLock feature="multiPair" label="Pro" />
                 <span className="truncate app-muted">
-                  Chart several symbols in one session with Pro.
+                  Replay and trade several markets in one session with Pro.
                 </span>
               </p>
               <Link
-                href="/pricing?from=symbol-picker"
+                href="/pricing?feature=multiPair"
                 className="btn-primary shrink-0 px-3.5 py-2 text-xs"
               >
                 <Crown size={14} aria-hidden />
-                Upgrade plan
+                See Pro
               </Link>
             </>
           )}

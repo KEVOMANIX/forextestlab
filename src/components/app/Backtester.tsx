@@ -51,7 +51,6 @@ import { EndOfDataModal } from "./EndOfDataModal";
 import { AccountBlownModal } from "./AccountBlownModal";
 import { depositedFunds } from "@/lib/backtest/replay-engine";
 import { replayDayLabel } from "@/lib/backtest/replay-progress";
-import { TrialSessionLauncher } from "./TrialSessionLauncher";
 import type { ChallengeStart } from "@/lib/backtest/challenge-record";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { propFirmGuardMessage, tradingGuardMessage } from "@/lib/backtest/trade-guards";
@@ -140,13 +139,11 @@ export function Backtester({
   initialMarket = null,
   initialChallenge = null,
   entitlements,
-  autoStartTrial = false,
 }: {
   resumeSessionId?: string | null;
   initialMarket?: string | null;
   initialChallenge?: ChallengeStart | null;
   entitlements: PlanEntitlements;
-  autoStartTrial?: boolean;
 }) {
   const renderStartedAt = performance.now();
   const router = useRouter();
@@ -203,18 +200,15 @@ export function Backtester({
     }
     return Array.from(currencies);
   }, [workspaceSymbols]);
-  const [trialSessionsRemaining, setTrialSessionsRemaining] = useState(
-    entitlements.trialSessionsRemaining,
-  );
-  const effectiveEntitlements = useMemo<PlanEntitlements>(
-    () => ({
-      ...entitlements,
-      trialSessionsRemaining,
-      freeSessionUsed:
-        entitlements.plan === "free" && trialSessionsRemaining === 0,
-    }),
-    [entitlements, trialSessionsRemaining],
-  );
+  // Free sessions started on this page since it loaded, so the monthly
+  // allowance shown in setup stays right without a reload.
+  const [freeSessionsStarted, setFreeSessionsStarted] = useState(0);
+  const effectiveEntitlements = useMemo<PlanEntitlements>(() => {
+    const monthly = entitlements.monthlySessions;
+    if (!monthly) return entitlements;
+    const used = Math.min(monthly.limit, monthly.used + freeSessionsStarted);
+    return { ...entitlements, monthlySessions: { ...monthly, used, remaining: monthly.limit - used } };
+  }, [entitlements, freeSessionsStarted]);
   const [tradePlan, setTradePlan] = useState<TradePlan | null>(null);
   const [focusedChartTimeframe, setFocusedChartTimeframe] =
     useState<Timeframe | null>(null);
@@ -236,7 +230,6 @@ export function Backtester({
   const [notifications, setNotifications] = useState<TradeNotification[]>([]);
   const notificationTimersRef = useRef<Set<number>>(new Set());
   const cancellationTimersRef = useRef<Map<string, number>>(new Map());
-  const autoTrialAttemptedRef = useRef(false);
   const notificationStateRef = useRef<{
     sessionId: string | null;
     openIds: Set<string>;
@@ -443,14 +436,11 @@ export function Backtester({
   const hasMeaningfulActivity = Boolean(
     state?.openPositions.length || state?.closedTrades.length || state?.pendingOrders.length,
   );
-  const launchTrial = useCallback(async () => {
-    const started = await actions.startTrialSession();
-    if (started && trialSessionsRemaining !== null) {
-      setTrialSessionsRemaining((current) =>
-        current === null ? null : Math.max(0, current - 1),
-      );
-    }
-  }, [actions, trialSessionsRemaining]);
+  const startSession = useCallback(async (body: Parameters<typeof actions.startSession>[0]) => {
+    const started = await actions.startSession(body);
+    if (started && entitlements.monthlySessions) setFreeSessionsStarted((count) => count + 1);
+    return started;
+  }, [actions, entitlements.monthlySessions]);
 
   /** Toasts expire on a timer, so every timer is tracked and cancelled on unmount. */
   const expireNotification = useCallback((id: string, timeout: number) => {
@@ -572,26 +562,6 @@ export function Backtester({
     }
     actions.placeOrder(symbolOrder);
   }, [actions, activeSymbol, activeTradingState, notify, workspace.settings]);
-
-  useEffect(() => {
-    if (
-      !autoStartTrial ||
-      autoTrialAttemptedRef.current ||
-      bt.phase !== "setup" ||
-      entitlements.plan !== "free" ||
-      (trialSessionsRemaining ?? 0) <= 0
-    ) {
-      return;
-    }
-    autoTrialAttemptedRef.current = true;
-    void launchTrial();
-  }, [
-    autoStartTrial,
-    bt.phase,
-    entitlements.plan,
-    launchTrial,
-    trialSessionsRemaining,
-  ]);
 
   useEffect(() => {
     if (bt.phase !== "active") return;
@@ -899,23 +869,14 @@ export function Backtester({
     if (bt.busy) return <PageLoader message="Preparing your backtest…" />;
     return (
       <div className="mx-auto max-w-[1600px] px-4 py-3">
-        {effectiveEntitlements.plan === "free" ? (
-          <TrialSessionLauncher
-            remaining={effectiveEntitlements.trialSessionsRemaining ?? 0}
-            busy={bt.busy}
-            error={bt.error}
-            onStart={() => void launchTrial()}
-          />
-        ) : (
-          <SessionSetup
-            initialMarket={initialMarket}
-            initialChallenge={initialChallenge}
-            onStart={actions.startSession}
-            busy={bt.busy}
-            error={bt.error}
-            entitlements={effectiveEntitlements}
-          />
-        )}
+        <SessionSetup
+          initialMarket={initialMarket}
+          initialChallenge={initialChallenge}
+          onStart={startSession}
+          busy={bt.busy}
+          error={bt.error}
+          entitlements={effectiveEntitlements}
+        />
       </div>
     );
   }

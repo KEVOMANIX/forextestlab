@@ -98,7 +98,7 @@ export function EndOfDataModal({
                   <Flag size={22} aria-hidden />
                 </span>
                 <span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-brand-300">
-                  Trial complete
+                  Free session complete
                 </span>
               </div>
 
@@ -106,19 +106,19 @@ export function EndOfDataModal({
                 id="trial-complete-title"
                 className="mt-5 text-2xl font-bold tracking-tight"
               >
-                You completed your EUR/USD trial
+                You reached the end of this session&apos;s 31 days
               </h2>
               <p className="mt-2 text-sm leading-6 app-muted">
-                Your trades and results are saved. Upgrade to continue building
-                your testing record with custom markets, dates, and deeper analytics.
+                Your trades and results are saved. Free sessions cover up to 31
+                days; Pro carries a session on through the full history.
               </p>
 
               <div className="mt-6 grid gap-2 sm:grid-cols-2">
                 {[
-                  "Create more saved sessions",
-                  "Choose markets and dates",
-                  "Unlock complete analytics",
-                  "Continue with more data",
+                  "Extend past 31 days",
+                  "All 38 markets",
+                  "Multi-pair replay",
+                  "Full analytics and AI insights",
                 ].map((feature) => (
                   <div
                     key={feature}
@@ -148,10 +148,10 @@ export function EndOfDataModal({
               Finish &amp; view analytics
             </button>
             <Link
-              href="/pricing?from=trial-complete"
+              href="/pricing?feature=history"
               className="btn-primary px-4 py-2.5"
             >
-              View upgrade plans
+              See Pro and the free trial
               <ArrowRight size={15} aria-hidden />
             </Link>
           </div>

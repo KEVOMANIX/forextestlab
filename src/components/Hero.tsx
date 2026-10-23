@@ -141,7 +141,7 @@ export function Hero() {
                 href={TRIAL_SIGN_UP_PATH}
                 className="btn-primary min-h-12 w-full px-6 shadow-glow sm:w-auto"
               >
-                Start free trial
+                Start free
                 <ArrowRight size={16} aria-hidden />
               </Link>
               <Link
@@ -152,7 +152,7 @@ export function Hero() {
               </Link>
             </div>
               <p className="mt-3 text-center text-xs text-slate-500 lg:text-right">
-                3 sessions per device · Up to 31 historical days each · No payment required
+                Free: 3 sessions a month on the major pairs · No card required · Pro free for 7 days
               </p>
               <p className="mt-2 text-center text-xs text-slate-400 lg:text-right">
                 Already have an account?{" "}

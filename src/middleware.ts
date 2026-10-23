@@ -3,7 +3,6 @@ import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export async function middleware(request: NextRequest) {
-  const trialCookieName = "ftl_trial_device";
   let response = NextResponse.next({ request });
   const authConfig = getSupabasePublicConfig();
   const hasAuthCookie = request.cookies.getAll().some(({ name }) =>
@@ -27,15 +26,8 @@ export async function middleware(request: NextRequest) {
     });
     await supabase.auth.getUser();
   }
-  if (request.nextUrl.pathname.startsWith("/app/backtest") && !request.cookies.get(trialCookieName)?.value) {
-    response.cookies.set(trialCookieName, crypto.randomUUID(), {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 365 * 24 * 60 * 60,
-    });
-  }
+  // The device-trial cookie (`ftl_trial_device`) is no longer issued: the Free
+  // allowance is counted per account. Existing cookies simply expire.
   return response;
 }
 

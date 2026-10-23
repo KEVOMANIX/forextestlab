@@ -9,9 +9,12 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 export function SubscriptionRenewalControls({
   autoRenew,
   nextPaymentLabel,
+  trial = false,
 }: {
   autoRenew: boolean;
   nextPaymentLabel: string | null;
+  /** The subscription is in its free trial: cancelling means no charge at all. */
+  trial?: boolean;
 }) {
   const router = useRouter();
   const [renewing, setRenewing] = useState(autoRenew);
@@ -59,13 +62,17 @@ export function SubscriptionRenewalControls({
             </span>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-semibold">Automatic renewal</h3>
+                <h3 className="text-sm font-semibold">{trial ? "Pro trial" : "Automatic renewal"}</h3>
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${renewing ? "bg-brand-400/10 text-brand-300" : "bg-amber-400/10 text-amber-300"}`}>
-                  {renewing ? "On" : "Off"}
+                  {trial ? (renewing ? "Active" : "Cancelled") : renewing ? "On" : "Off"}
                 </span>
               </div>
               <p className="mt-1 text-sm app-muted">
-                {renewing
+                {trial
+                  ? renewing
+                    ? `Your trial ends on ${nextPaymentLabel ?? "its seventh day"}, when your card is charged for your plan unless you cancel before then.`
+                    : `Cancelled: you won't be charged. Pro stays until ${nextPaymentLabel ?? "the trial ends"}, then your account moves to Free.`
+                  : renewing
                   ? nextPaymentLabel
                     ? `Your plan renews on ${nextPaymentLabel}.`
                     : "Your plan will renew automatically."
@@ -82,7 +89,7 @@ export function SubscriptionRenewalControls({
               onClick={() => setConfirmOpen(true)}
               disabled={busy}
             >
-              Cancel plan
+              {trial ? "Cancel trial" : "Cancel plan"}
             </button>
           ) : (
             <button
@@ -91,7 +98,7 @@ export function SubscriptionRenewalControls({
               onClick={() => changeRenewal("renew")}
               disabled={busy}
             >
-              {busy ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : <><CheckCircle2 size={14} /> Keep auto-renewal</>}
+              {busy ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : <><CheckCircle2 size={14} /> {trial ? "Keep Pro after the trial" : "Keep auto-renewal"}</>}
             </button>
           )}
         </div>
@@ -101,9 +108,11 @@ export function SubscriptionRenewalControls({
 
       <ConfirmModal
         open={confirmOpen}
-        title="Turn off automatic renewal?"
-        message={`Your plan will remain active${nextPaymentLabel ? ` until ${nextPaymentLabel}` : " until the end of the current billing period"}. You can turn renewal back on before then.`}
-        confirmLabel="Turn off renewal"
+        title={trial ? "Cancel your Pro trial?" : "Turn off automatic renewal?"}
+        message={trial
+          ? `Your card won't be charged. You keep Pro until ${nextPaymentLabel ?? "the trial ends"}, then your account moves to Free with all your sessions. You can turn your plan back on before then.`
+          : `Your plan will remain active${nextPaymentLabel ? ` until ${nextPaymentLabel}` : " until the end of the current billing period"}. You can turn renewal back on before then.`}
+        confirmLabel={trial ? "Cancel trial" : "Turn off renewal"}
         danger
         busy={busy}
         onCancel={() => setConfirmOpen(false)}

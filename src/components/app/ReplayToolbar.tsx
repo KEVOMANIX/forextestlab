@@ -25,6 +25,7 @@ import {
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { replayRewindFloor } from "@/lib/backtest/replay-engine";
 import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
+import { ProLock } from "./ProLock";
 
 interface ReplayToolbarProps {
   state: PublicSessionState;
@@ -155,6 +156,7 @@ export function ReplayToolbar({
           ask: (mid + (spreadPips * pipSize) / 2).toFixed(precision),
         };
   const availableSpeeds = REPLAY_SPEEDS.filter((speed) => speed <= maxReplaySpeed);
+  const lockedSpeeds = REPLAY_SPEEDS.filter((speed) => speed > maxReplaySpeed);
   const speedIndex = Math.max(0, availableSpeeds.indexOf(state.speed));
   const cadenceLabel = speedLabel(state.speed);
 
@@ -378,7 +380,7 @@ export function ReplayToolbar({
             <ChevronDown size={12} aria-hidden className={`text-brand-300 ${speedMenuOpen ? "rotate-180" : ""}`} />
           </button>
           {speedMenuOpen && (
-            <div role="menu" aria-label="Replay speed" className={`absolute left-0 ${menusAbove ? "bottom-9" : "top-9"} z-[70] max-h-[min(60vh,320px)] overflow-y-auto w-24 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl`}>
+            <div role="menu" aria-label="Replay speed" className={`absolute left-0 ${menusAbove ? "bottom-9" : "top-9"} z-[70] max-h-[min(60vh,320px)] overflow-y-auto ${lockedSpeeds.length ? "w-32" : "w-24"} rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-2xl`}>
               {availableSpeeds.map((speed) => (
                 <button
                   key={speed}
@@ -393,6 +395,16 @@ export function ReplayToolbar({
                   {speedLabel(speed)}
                 </button>
               ))}
+              {lockedSpeeds.length > 0 && (
+                <div className="mt-1 border-t app-border pt-1">
+                  {lockedSpeeds.map((speed) => (
+                    <span key={speed} role="menuitemradio" aria-checked={false} aria-disabled="true" className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs font-mono app-muted opacity-60">
+                      <span aria-hidden="true">🔒&nbsp;</span>{speedLabel(speed)}
+                    </span>
+                  ))}
+                  <div className="px-1 py-1"><ProLock feature="speed" label="Faster on Pro" /></div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -9,6 +9,7 @@ import { AnalyticsSessionPicker } from "@/components/app/AnalyticsSessionPicker"
 import { BranchComparison } from "@/components/app/BranchComparison";
 import { SessionFeedback } from "@/components/app/SessionFeedback";
 import { SessionTradeJournal } from "@/components/app/SessionTradeJournal";
+import { ProLock } from "@/components/app/ProLock";
 import { SESSION_SUGGESTED_QUESTIONS } from "@/lib/ai/context";
 import { requireUser } from "@/lib/auth";
 import { buildExitQualityReport } from "@/lib/backtest/exit-quality-server";
@@ -99,7 +100,8 @@ export default async function AnalyticsHubPage({
   const [results, entitlements] = selected
     ? await Promise.all([getSessionResults(selected.id, user.id), getUserEntitlements(user.id)])
     : [null, null];
-  const exitQuality = results ? await buildExitQualityReport(results.state) : null;
+  // Advanced reports are Pro: the analysis is only computed, and sent, for Pro.
+  const exitQuality = results && entitlements?.fullAnalytics ? await buildExitQualityReport(results.state) : null;
 
   const journal = results ? (
     <div className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)] p-4 sm:p-5">
@@ -110,8 +112,8 @@ export default async function AnalyticsHubPage({
     <AiInsightsPanel scope="session" sessionId={results.sessionId} suggestions={SESSION_SUGGESTED_QUESTIONS} title="Ask this session" subtitle="AI analysis grounded in this backtest" />
   ) : results ? (
     <div className="flex flex-col gap-3 rounded-2xl border border-brand-400/25 bg-brand-400/[0.07] p-5 sm:flex-row sm:items-center sm:justify-between">
-      <div><p className="font-semibold">Ask an analyst about this session</p><p className="mt-1 max-w-xl text-xs leading-5 app-muted">Pro adds an AI analyst grounded in this backtest.</p></div>
-      <Link href="/account/billing" className="btn-primary shrink-0 px-4 py-2 text-xs">View Pro plans</Link>
+      <div><p className="flex items-center gap-2 font-semibold">Ask an analyst about this session <ProLock feature="ai" /></p><p className="mt-1 max-w-xl text-xs leading-5 app-muted">Pro adds an AI analyst grounded in this backtest.</p></div>
+      <Link href="/pricing?feature=ai" className="btn-primary shrink-0 px-4 py-2 text-xs">See Pro and the free trial</Link>
     </div>
   ) : null;
   const reportFooter = results ? (

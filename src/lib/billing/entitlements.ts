@@ -3,17 +3,31 @@ import "server-only";
 import type { UserProfile } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
-import { TRIAL_SESSION_LIMIT } from "@/lib/trial-device";
 import { billingEnabled } from "./availability";
 import type { PlanEntitlements } from "./entitlement-types";
+import {
+  FREE_MAX_REPLAY_SPEED,
+  FREE_MONTHLY_SESSIONS,
+  FREE_SESSION_DAYS,
+  FREE_SESSION_MAX_MS,
+  FREE_SYMBOLS,
+  formatQuotaReset,
+  isFreeSymbol,
+  PRO_MAX_REPLAY_SPEED,
+  quotaMonth,
+  quotaResetsAt,
+} from "./plan-limits";
 
-export const FREE_SESSION_MAX_MS = 31 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000;
+export { FREE_SESSION_MAX_MS } from "./plan-limits";
 
-type BillingProfile = Pick<
-  UserProfile,
-  "billingStatus" | "proAccessUntil"
->;
+type BillingProfile = Pick<UserProfile, "billingStatus" | "proAccessUntil">;
 
+/**
+ * Pro comes from a live subscription (a Paddle trial is reported as "active"
+ * while trialing), a renewal still in its grace period ("attention"), a
+ * Paystack plan running out its paid term ("non-renewing"), or dated access
+ * from a pass or an admin grant.
+ */
 export function hasProAccess(profile: BillingProfile, now = new Date()): boolean {
   return (
     ["active", "attention", "non-renewing"].includes(profile.billingStatus) ||
@@ -21,52 +35,82 @@ export function hasProAccess(profile: BillingProfile, now = new Date()): boolean
   );
 }
 
+/** Whether an account is on Pro, including everyone while billing is switched off. */
+export function isProPlan(profile: BillingProfile, now = new Date()): boolean {
+  return !billingEnabled() || hasProAccess(profile, now);
+}
+
 export function planEntitlements(
   profile: BillingProfile,
-  trialSessionsUsed = 0,
+  options: { freeSessionsUsed?: number; trialEndsAt?: Date | null; now?: Date } = {},
 ): PlanEntitlements {
-  // During pre-launch, full access is available without a subscription. This
-  // lives at the entitlement boundary so API calls cannot retain trial limits.
-  const pro = !billingEnabled() || hasProAccess(profile);
-  const trialSessionsRemaining = pro
-    ? null
-    : Math.max(0, TRIAL_SESSION_LIMIT - trialSessionsUsed);
+  const now = options.now ?? new Date();
+  // Before launch, full access is available without a subscription. This lives
+  // at the entitlement boundary so API calls cannot keep Free limits.
+  const pro = isProPlan(profile, now);
+  if (pro) {
+    return {
+      plan: "pro",
+      trialEndsAt: billingEnabled() && options.trialEndsAt && options.trialEndsAt > now ? options.trialEndsAt.toISOString() : null,
+      monthlySessions: null,
+      allowedSymbols: null,
+      maxSessionDays: null,
+      maxPairsPerSession: null,
+      maxReplaySpeed: PRO_MAX_REPLAY_SPEED,
+      fullAnalytics: true,
+      exports: true,
+      propFirmChallenges: true,
+    };
+  }
+  const used = Math.max(0, options.freeSessionsUsed ?? 0);
   return {
-    plan: pro ? "pro" : "free",
-    maxSavedSessions: pro ? null : 3,
-    maxSessionDays: pro ? null : 31,
-    maxPairsPerSession: pro ? null : 1,
-    maxReplaySpeed: pro ? 7200 : 1200,
-    fullAnalytics: pro,
-    csvExports: pro,
-    trialSessionsRemaining,
-    freeSessionUsed: trialSessionsRemaining === 0,
+    plan: "free",
+    trialEndsAt: null,
+    monthlySessions: {
+      limit: FREE_MONTHLY_SESSIONS,
+      used,
+      remaining: Math.max(0, FREE_MONTHLY_SESSIONS - used),
+      resetsAt: quotaResetsAt(now).toISOString(),
+    },
+    allowedSymbols: FREE_SYMBOLS,
+    maxSessionDays: FREE_SESSION_DAYS,
+    maxPairsPerSession: 1,
+    maxReplaySpeed: FREE_MAX_REPLAY_SPEED,
+    fullAnalytics: false,
+    exports: false,
+    propFirmChallenges: false,
   };
 }
 
-export async function getUserEntitlements(
-  userId: string,
-  trialDeviceId?: string | null,
-): Promise<PlanEntitlements> {
-  const [profile, trialDevice] = await Promise.all([
+export async function getUserEntitlements(userId: string, now = new Date()): Promise<PlanEntitlements> {
+  const [profile, usage, trial] = await Promise.all([
     prisma.userProfile.findUnique({
       where: { id: userId },
-      select: {
-        billingStatus: true,
-        proAccessUntil: true,
-      },
+      select: { billingStatus: true, proAccessUntil: true },
     }),
-    trialDeviceId
-      ? prisma.trialDevice.findUnique({
-          where: { id: trialDeviceId },
-          select: { sessionsUsed: true },
-        })
-      : null,
+    prisma.freeSessionUsage.findUnique({
+      where: { userId_month: { userId, month: quotaMonth(now) } },
+      select: { used: true },
+    }),
+    prisma.billingSubscription.findFirst({
+      where: { userId, status: "trialing", trialEndsAt: { gt: now } },
+      orderBy: { trialEndsAt: "desc" },
+      select: { trialEndsAt: true },
+    }),
   ]);
   if (!profile) throw new Error("Account profile not found.");
-  return planEntitlements(profile, trialDevice?.sessionsUsed ?? 0);
+  return planEntitlements(profile, { freeSessionsUsed: usage?.used ?? 0, trialEndsAt: trial?.trialEndsAt, now });
 }
 
+/** The message for a Free account that has started its sessions for the month. */
+export function monthlyQuotaMessage(resetsAt: Date | string): string {
+  return `You've started your ${FREE_MONTHLY_SESSIONS} free sessions this month. More arrive on ${formatQuotaReset(resetsAt)}, or upgrade to Pro for unlimited sessions.`;
+}
+
+/**
+ * Server-side checks for a new session. The UI shows the same limits as locks,
+ * but these are the access control.
+ */
 export function assertSessionAllowed(
   entitlements: PlanEntitlements,
   input: {
@@ -76,22 +120,22 @@ export function assertSessionAllowed(
     propFirm?: unknown;
   },
 ): void {
-  // Challenge mode is a Pro feature, and the setup form is only shown to Pro
-  // accounts. Checked here too so the entitlement holds at the API, not merely
-  // in the UI that happens to call it.
-  if (input.propFirm && entitlements.plan === "free") {
-    throw new Error("Prop-firm challenge mode is available on Pro.");
+  if (input.propFirm && !entitlements.propFirmChallenges) {
+    throw new Error("Prop Firm Challenge mode is part of Pro. Upgrade or start a Pro trial to use it.");
   }
   if (
     entitlements.maxPairsPerSession !== null &&
     input.symbols.length > entitlements.maxPairsPerSession
   ) {
-    throw new Error("Trial sessions support one pair. Upgrade for multi-pair backtests.");
+    throw new Error("Free sessions replay one pair. Multi-pair replay is part of Pro.");
+  }
+  if (entitlements.allowedSymbols && !input.symbols.every(isFreeSymbol)) {
+    throw new Error("Free sessions use the major FX pairs. All 38 markets are part of Pro.");
   }
   if (
     entitlements.maxSessionDays !== null &&
     input.endTime - input.startTime > FREE_SESSION_MAX_MS
   ) {
-    throw new Error("A trial session can cover up to one month (31 days). Choose a shorter range or upgrade.");
+    throw new Error("Free sessions cover up to 31 days. Longer periods are part of Pro.");
   }
 }

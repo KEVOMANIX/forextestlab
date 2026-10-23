@@ -1,5 +1,6 @@
 import "server-only";
 
+import { FREE_PLAN_FEATURES } from "./plan-copy";
 import { configuredPaystackSecretKey, paystackMode } from "./paystack";
 
 export type PaidPlanKey = "pro_monthly_usd" | "pro_annual_usd";
@@ -39,17 +40,12 @@ export function getBillingCatalog(): BillingPlan[] {
   return [
     {
       key: "free",
-      name: "Trial",
-      description: "Experience the replay workflow before choosing a plan.",
+      name: "Free",
+      description: "Backtest the major pairs every month, with no card required.",
       amount: 0,
       currency: "KES",
       interval: "forever",
-      features: [
-        "Three trial sessions per device",
-        "EUR/USD with a random 31-day period",
-        "Core replay and order tools",
-        "Session summary analytics",
-      ],
+      features: [...FREE_PLAN_FEATURES],
     },
     {
       key: "pro_monthly_usd",

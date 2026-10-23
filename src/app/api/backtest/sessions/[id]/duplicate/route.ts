@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { ensureUserProfile } from "@/lib/auth";
 import { createSession, loadSession } from "@/lib/backtest/session-store";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { trialDeviceIdFromRequest } from "@/lib/trial-device";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +35,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       slippagePips: config.slippagePips,
       executionPolicy: config.executionPolicy,
       userId: user.id,
-      trialDeviceId: trialDeviceIdFromRequest(request),
     });
     return NextResponse.json({ ok: true, sessionId: duplicate.id }, { status: 201 });
   } catch (error) {

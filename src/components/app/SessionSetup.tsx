@@ -27,6 +27,8 @@ import {
 } from "@/lib/backtest/client";
 import type { ChallengeStart } from "@/lib/backtest/challenge-record";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
+import { formatQuotaReset } from "@/lib/billing/plan-limits";
+import { ProLock } from "./ProLock";
 import {
   PROP_FIRM_ACCOUNT_SIZES,
   PROP_FIRM_PRESETS,
@@ -75,6 +77,7 @@ function MarketPicker({
   loading,
   selected,
   singleSelect,
+  isLocked = () => false,
   onToggle,
   onReset,
 }: {
@@ -82,6 +85,8 @@ function MarketPicker({
   loading: boolean;
   selected: string[];
   singleSelect: boolean;
+  /** Markets outside the plan: listed so they can be discovered, but locked. */
+  isLocked?: (symbol: string) => boolean;
   onToggle: (symbol: string) => void;
   onReset: () => void;
 }) {
@@ -164,6 +169,13 @@ function MarketPicker({
           ))}
         </div>
       )}
+      {singleSelect && (
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] app-muted">
+          Free sessions replay one of the seven major pairs.
+          <ProLock feature="multiPair" label="Multi-pair" />
+          <ProLock feature="markets" label="All 38 markets" />
+        </p>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) closePicker(); }}>
@@ -198,6 +210,13 @@ function MarketPicker({
                   {visible.map((item) => {
                     const active = selected.includes(item.symbol);
                     const description = describeSymbol(item.symbol);
+                    if (isLocked(item.symbol)) {
+                      return <div key={item.symbol} className="flex items-center gap-3 rounded-lg border app-border px-3 py-2.5 opacity-80">
+                        <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center border app-border ${singleSelect ? "rounded-full" : "rounded-md"}`} />
+                        <span className="min-w-0 flex-1"><span className="block truncate font-mono text-sm font-semibold app-muted">{item.displayName}</span><span className="block truncate text-xs app-muted">{description}</span></span>
+                        <ProLock feature="markets" />
+                      </div>;
+                    }
                     return <label key={item.symbol} className={`group flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ${active ? "border-brand-400/60 bg-brand-400/10" : "app-border hover:bg-[var(--app-panel-2)]"}`}>
                       <input type={singleSelect ? "radio" : "checkbox"} name={singleSelect ? "session-pair" : undefined} className="sr-only" checked={active} onChange={() => { onToggle(item.symbol); if (!active) setQuery(""); if (singleSelect) closePicker(); }} />
                       <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center border ${singleSelect ? "rounded-full" : "rounded-md"} ${active ? "border-brand-400 bg-brand-500 text-surface-950" : "app-border"}`}>{active && <Check size={12} strokeWidth={3.5} />}</span>
@@ -466,8 +485,13 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
   /** Null = free practice. Otherwise the challenge phase being attempted. */
   const [challengePreset, setChallengePreset] =
     useState<"ftmo-phase-1" | "ftmo-phase-2" | null>(
-      initialChallenge ? (initialChallenge.phase === 2 ? "ftmo-phase-2" : "ftmo-phase-1") : null,
+      initialChallenge && entitlements.propFirmChallenges ? (initialChallenge.phase === 2 ? "ftmo-phase-2" : "ftmo-phase-1") : null,
     );
+  const allowedSymbols = entitlements.allowedSymbols;
+  const symbolLocked = useMemo(
+    () => (symbol: string) => Boolean(allowedSymbols && !allowedSymbols.includes(symbol)),
+    [allowedSymbols],
+  );
   // Free practice may use any positive starting balance. Challenge presets
   // reuse this value and constrain it to the supported account-size buttons.
   const [accountSize, setAccountSize] = useState<string>(initialChallenge?.accountSize ?? "10000");
@@ -478,7 +502,8 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
       .then((list) => {
         if (!active) return;
         setSymbols(list);
-        const firstEnabled = list.find((item) => item.enabled && item.symbol === initialMarket) ?? list.find((item) => item.enabled);
+        const usable = (item: MarketSymbol) => item.enabled && !symbolLocked(item.symbol);
+        const firstEnabled = list.find((item) => usable(item) && item.symbol === initialMarket) ?? list.find(usable);
         if (firstEnabled) setSelectedSymbols([firstEnabled.symbol]);
       })
       .catch(() => {
@@ -490,7 +515,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     return () => {
       active = false;
     };
-  }, [initialMarket]);
+  }, [initialMarket, symbolLocked]);
 
   useEffect(() => {
     if (selectedSymbols.length === 0) {
@@ -637,20 +662,22 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     setStart(toDateInput(first + offset * DAY_MS));
   }
 
-  if (entitlements.plan === "free" && entitlements.freeSessionUsed) {
+  const monthly = entitlements.monthlySessions;
+  if (monthly && monthly.remaining === 0) {
     return (
       <div className="panel mx-auto w-full max-w-2xl p-7 text-center sm:p-10">
         <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-brand-400/10 text-brand-300">
           <LockKeyhole size={22} aria-hidden />
         </span>
-        <h2 className="mt-5 text-2xl font-semibold">Your device trial is complete</h2>
+        <h2 className="mt-5 text-2xl font-semibold">You&apos;ve started this month&apos;s {monthly.limit} free sessions</h2>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed app-muted">
-          This device has used its three trial sessions. Upgrade for unlimited
-          sessions, longer test periods, and the complete workspace.
+          {monthly.limit} new sessions arrive on {formatQuotaReset(monthly.resetsAt)}. Your saved
+          sessions are still yours to open, replay and review. Pro has unlimited sessions,
+          and new members can try it free for 7 days.
         </p>
-        <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href="/account/billing" className="btn-primary">Upgrade to Pro</Link>
-          <Link href="/app/history" className="btn-secondary">View saved sessions</Link>
+        <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Link href="/pricing?feature=sessions" className="btn-primary">See Pro and the free trial</Link>
+          <Link href="/app/history" className="btn-secondary">Open saved sessions</Link>
         </div>
       </div>
     );
@@ -660,10 +687,12 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     <form onSubmit={handleStart} className="panel mx-auto w-full max-w-7xl overflow-visible lg:flex lg:h-[calc(100dvh-5.5rem)] lg:max-h-[48rem] lg:flex-col lg:overflow-hidden">
       <div className="flex shrink-0 flex-col gap-1 border-b app-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <h2 className="text-xl font-semibold tracking-tight">New backtest</h2>
-        <span className="w-fit text-xs font-medium app-muted">
-          {entitlements.plan === "free"
-            ? `Trial · ${entitlements.trialSessionsRemaining ?? 0} of 3 remaining`
-            : "Pro workspace"}
+        <span className="flex w-fit flex-wrap items-center gap-2 text-xs font-medium app-muted">
+          {monthly
+            ? <>Free · {monthly.remaining} of {monthly.limit} new sessions left this month · renews {formatQuotaReset(monthly.resetsAt)} <ProLock feature="sessions" label="Unlimited" /></>
+            : entitlements.trialEndsAt
+              ? `Pro trial · ends ${formatQuotaReset(entitlements.trialEndsAt)}`
+              : entitlements.plan === "free" ? "Free · sample data" : "Pro workspace"}
         </span>
       </div>
 
@@ -692,6 +721,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
             loading={loadingSymbols}
             selected={selectedSymbols}
             singleSelect={entitlements.maxPairsPerSession === 1}
+            isLocked={symbolLocked}
             onToggle={toggleSymbol}
             onReset={() => setSelectedSymbols([])}
           />
@@ -712,13 +742,27 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
                 selected={challengePreset === null}
                 onSelect={() => setChallengePreset(null)}
               />
-              <ModeCard
-                icon={Trophy}
-                title="Prop firm session"
-                info="Trade under prop-firm profit target and drawdown rules."
-                selected={challengePreset !== null}
-                onSelect={() => setChallengePreset((current) => current ?? "ftmo-phase-1")}
-              />
+              {entitlements.propFirmChallenges ? (
+                <ModeCard
+                  icon={Trophy}
+                  title="Prop firm session"
+                  info="Trade under prop-firm profit target and drawdown rules."
+                  selected={challengePreset !== null}
+                  onSelect={() => setChallengePreset((current) => current ?? "ftmo-phase-1")}
+                />
+              ) : (
+                <div className="relative min-w-0">
+                  <ModeCard
+                    icon={Trophy}
+                    title="Prop firm session"
+                    detail="Profit target and drawdown rules"
+                    selected={false}
+                    disabled
+                    onSelect={() => undefined}
+                  />
+                  <ProLock feature="challenge" className="absolute right-2 top-2" />
+                </div>
+              )}
             </div>
 
             {challengePreset && (
@@ -819,11 +863,11 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
                     type="button"
                     disabled={disabled}
                     aria-pressed={active}
-                    title={disabled ? `Your plan supports up to ${entitlements.maxSessionDays} days` : item.label}
+                    title={disabled ? `Free sessions cover up to ${entitlements.maxSessionDays} days` : item.label}
                     onClick={() => selectPeriod(item.days)}
-                    className={`rounded-md border px-2 py-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${active ? "border-brand-400/50 bg-[var(--app-panel-2)] text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+                    className={`rounded-md border px-2 py-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${active ? "border-brand-400/50 bg-[var(--app-panel-2)] text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
                   >
-                    {item.label}
+                    {disabled && <span aria-hidden="true">🔒 </span>}{item.label}
                   </button>
                 );
               })}
@@ -836,6 +880,12 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
                 Custom
               </button>
             </div>
+            {entitlements.maxSessionDays !== null && (
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] app-muted">
+                Free sessions cover up to {entitlements.maxSessionDays} days, from any point in history.
+                <ProLock feature="history" label="Longer periods" />
+              </p>
+            )}
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <SessionDatePicker

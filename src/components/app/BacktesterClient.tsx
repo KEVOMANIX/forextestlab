@@ -27,14 +27,12 @@ export function BacktesterClient({
   initialMarket,
   initialChallenge = null,
   entitlements,
-  autoStartTrial,
 }: {
   resumeSessionId: string | null;
   initialMarket: string | null;
   /** Open the setup with a challenge chosen (from the Challenges page). */
   initialChallenge?: ChallengeStart | null;
   entitlements: PlanEntitlements;
-  autoStartTrial: boolean;
 }) {
   return (
     <>
@@ -43,7 +41,6 @@ export function BacktesterClient({
         initialMarket={initialMarket}
         initialChallenge={initialChallenge}
         entitlements={entitlements}
-        autoStartTrial={autoStartTrial}
       />
       {/* The terminal hides the floating launcher, so support activity reaches
           the trader through this instead. */}

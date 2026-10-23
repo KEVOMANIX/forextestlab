@@ -121,6 +121,27 @@ export function cancelPaddleSubscription(id: string): Promise<PaddleSubscription
   });
 }
 
+/**
+ * A draft checkout for one price, created on the server so the server decides
+ * which price (trial or not) the customer is offered. Paddle.js opens it with
+ * `Checkout.open({ transactionId })`.
+ */
+export async function createPaddleCheckoutTransaction(input: {
+  priceId: string;
+  customerId?: string | null;
+  customData: Record<string, string>;
+}): Promise<{ id: string }> {
+  return paddleApiRequest<{ id: string }>("/transactions", {
+    method: "POST",
+    body: JSON.stringify({
+      items: [{ price_id: input.priceId, quantity: 1 }],
+      ...(input.customerId?.startsWith("ctm_") ? { customer_id: input.customerId } : {}),
+      custom_data: input.customData,
+      collection_mode: "automatic",
+    }),
+  });
+}
+
 /** Ends a subscription now, with no further charges: used when an account is deleted. */
 export function cancelPaddleSubscriptionNow(id: string): Promise<PaddleSubscription> {
   return paddleApiRequest(`/subscriptions/${encodeURIComponent(id)}/cancel`, {

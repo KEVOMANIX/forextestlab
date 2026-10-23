@@ -95,7 +95,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
               {
                 ok: false,
                 error:
-                  "Trial sessions can cover up to one month. Upgrade to extend this session further.",
+                  "Free sessions cover up to 31 days. Longer periods are part of Pro.",
               },
               { status: 403 },
             );

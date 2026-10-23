@@ -18,6 +18,7 @@ import { MAX_BUFFER_CANDLES } from "./replay-buffer";
 import {
   assertSessionAllowed,
   getUserEntitlements,
+  monthlyQuotaMessage,
   planEntitlements,
 } from "@/lib/billing/entitlements";
 import { getMarketDataProvider } from "@/lib/market-data";
@@ -38,7 +39,7 @@ import type {
   SessionState,
 } from "./types";
 import { normalizeReplaySpeed } from "./types";
-import { TRIAL_SESSION_LIMIT } from "@/lib/trial-device";
+import { FREE_MONTHLY_SESSIONS, quotaMonth, quotaResetsAt } from "@/lib/billing/plan-limits";
 import {
   prepareSessionSnapshot,
   readSessionCandleSnapshot,
@@ -100,8 +101,6 @@ export interface CreateSessionParams {
   executionPolicy?: "conservative" | "optimistic";
   propFirm?: PropFirmRules;
   userId?: string;
-  trialDeviceId?: string | null;
-  trialSession?: boolean;
 }
 
 export interface LoadedSession {
@@ -601,17 +600,12 @@ export async function createSession(
   if (!def) throw new Error(`Unknown symbol "${params.symbol}".`);
 
   if (params.userId) {
+    // Fail fast, before any market data is read; the transaction below repeats
+    // the checks and is what actually claims the monthly slot.
     const entitlements = await getUserEntitlements(params.userId);
     assertSessionAllowed(entitlements, params);
-    if (
-      entitlements.plan === "free" &&
-      (!params.trialSession ||
-        params.symbol !== "EURUSD" ||
-        params.symbols.length !== 1)
-    ) {
-      throw new Error(
-        "Trial sessions use EUR/USD and a randomly selected one-month period.",
-      );
+    if (entitlements.monthlySessions?.remaining === 0) {
+      throw new Error(monthlyQuotaMessage(entitlements.monthlySessions.resetsAt));
     }
   }
 
@@ -744,45 +738,20 @@ export async function createSession(
       const entitlements = planEntitlements(profile);
       assertSessionAllowed(entitlements, params);
       if (entitlements.plan === "free") {
-        if (
-          !params.trialSession ||
-          params.symbol !== "EURUSD" ||
-          params.symbols.length !== 1
-        ) {
-          throw new Error(
-            "Trial sessions use EUR/USD and a randomly selected one-month period.",
-          );
-        }
-        if (!params.trialDeviceId) {
-          throw new Error(
-            "Your trial device could not be verified. Refresh the page and try again.",
-          );
-        }
-        await tx.trialDevice.upsert({
-          where: { id: params.trialDeviceId },
-          create: { id: params.trialDeviceId },
+        // Claim one of the month's Free sessions atomically: the conditional
+        // increment cannot pass the limit however many requests race. Pro
+        // sessions, a Pro trial's included, never touch the counter.
+        const month = quotaMonth();
+        await tx.freeSessionUsage.upsert({
+          where: { userId_month: { userId: params.userId!, month } },
+          create: { userId: params.userId!, month },
           update: {},
         });
-        const claimed = await tx.trialDevice.updateMany({
-          where: {
-            id: params.trialDeviceId,
-            sessionsUsed: { lt: TRIAL_SESSION_LIMIT },
-          },
-          data: {
-            sessionsUsed: { increment: 1 },
-            lastUsedAt: new Date(),
-          },
+        const claimed = await tx.freeSessionUsage.updateMany({
+          where: { userId: params.userId!, month, used: { lt: FREE_MONTHLY_SESSIONS } },
+          data: { used: { increment: 1 } },
         });
-        if (claimed.count !== 1) {
-          throw new Error(
-            "This device has used its three trial sessions. Upgrade to continue with unlimited sessions.",
-          );
-        }
-        await tx.backtestSession.create({
-          data: { ...sessionData, trialDeviceId: params.trialDeviceId },
-          select: { id: true },
-        });
-        return;
+        if (claimed.count !== 1) throw new Error(monthlyQuotaMessage(quotaResetsAt()));
       }
       await tx.backtestSession.create({
         data: sessionData,

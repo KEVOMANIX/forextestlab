@@ -660,6 +660,36 @@ The visual system deliberately separates product identity from trading results:
     `RESEND_INBOUND_FORWARD_TO`, never to the support address: that address
     feeds the support inbox. The webhook ignores mail from the site's own
     `RESEND_FROM_EMAIL`, which once filed alerts as tickets.
+- Plans (prepared 2026-10-23, live only when `BILLING_ENABLED=true`; until
+  then `isProPlan()` gives every account Pro):
+  - Rules live in `src/lib/billing/plan-limits.ts` (limits), `plan-copy.ts`
+    (wording) and `entitlements.ts` (`planEntitlements`, `assertSessionAllowed`).
+  - Free: 3 new sessions per account per **UTC calendar month** (renews 00:00
+    UTC on the 1st), counted in `FreeSessionUsage` by an atomic conditional
+    increment inside `createSession`; deleting a session does not refund it.
+    Seven USD majors (`FREE_SYMBOLS`), ≤31 days from any start date, 1 pair,
+    speed ≤1200, no full analytics/AI/exports/challenges. Duplicates and
+    branches count as new sessions. There is no saved-session cap
+    (`maxSavedSessions` was never enforced and was removed). The old device
+    trial (`TrialDevice`, cookie `ftl_trial_device`, `/api/backtest/trial`) is
+    retired; the table is kept and the route answers 410.
+  - Server enforcement: `assertSessionAllowed` (create/duplicate/branch),
+    pair and extend routes, action route (speed; continuing a challenge needs
+    Pro), AI route, `/api/backtest/sessions/[id]/export` (CSV is built there),
+    and exit-quality reports are computed only for Pro. UI locks use
+    `ProLock` (`src/components/app/ProLock.tsx`) and are explanations only.
+  - Pro trial: Paddle is canonical (Paystack has no native trials and keeps
+    only its legacy webhook/manage paths). A 7-day card-required trial is a
+    separate Paddle price per interval: `PADDLE_<MODE>_PRO_<MONTH|YEAR>_TRIAL_PRICE_ID`.
+    `/api/billing/checkout` creates the Paddle transaction and picks the price
+    (`checkout.ts` `proTrialEligible`: one trial per account, never after a
+    subscription), so a trial cannot be claimed twice from the browser.
+    `subscriptionAccess()` in `paddle-service.ts` maps statuses: trialing = Pro
+    until `trialEndsAt` (no grace); active = Pro + 5-day grace; past_due after
+    a trial = Free; past_due on a paying plan = grace; canceled = Free.
+    Cancelling uses `effective_from: next_billing_period`, which during a trial
+    ends at the trial's end with no charge (verify in the Paddle sandbox).
+    Zero-total trial transactions are not recorded as payments.
 - Page speed rules (2026-10-23): never use `prisma.$transaction([...])` for
   independent reads on a page (it runs them one by one, ~23 ms each); use
   `Promise.all`. `ensureUserProfile()` is cached per request and writes only

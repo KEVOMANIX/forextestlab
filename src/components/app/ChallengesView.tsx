@@ -15,6 +15,7 @@ import {
 } from "@/lib/backtest/challenge-record";
 import type { ChallengeAttempt, ChallengeDay, ChallengesOverview } from "@/lib/backtest/challenge-queries";
 import type { PropFirmBreachRule } from "@/lib/backtest/prop-firm";
+import { ProLock } from "./ProLock";
 
 const RING_RADIUS = 62;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
@@ -229,25 +230,39 @@ function RecordStrip({ summary }: { summary: ChallengeSummary }) {
   );
 }
 
-export function ChallengesView({ overview }: { overview: ChallengesOverview }) {
+/**
+ * `locked`: the account is on Free. Past attempts stay listed and reviewable;
+ * starting or continuing a challenge is Pro (the server refuses it too).
+ */
+export function ChallengesView({ overview, locked = false }: { overview: ChallengesOverview; locked?: boolean }) {
   const { active, days, attempts, summary } = overview;
-  const next = active ? null : nextChallengeStep(attempts);
+  const next = active || locked ? null : nextChallengeStep(attempts);
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 sm:py-7">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Prop firm</p>
-          <h1 className="mt-1.5 text-3xl font-bold tracking-tight">Challenges</h1>
+          <h1 className="mt-1.5 flex items-center gap-3 text-3xl font-bold tracking-tight">Challenges {locked && <ProLock feature="challenge" />}</h1>
         </div>
-        <Link href={challengeStartHref()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand-400/60 px-4 text-sm font-semibold text-brand-300 transition-colors hover:bg-brand-400/10"><Plus size={16} aria-hidden />Start a challenge</Link>
+        {locked
+          ? <Link href="/pricing?feature=challenge" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-300/40 px-4 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-300/10"><span aria-hidden="true">🔒</span>Start a challenge with Pro</Link>
+          : <Link href={challengeStartHref()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand-400/60 px-4 text-sm font-semibold text-brand-300 transition-colors hover:bg-brand-400/10"><Plus size={16} aria-hidden />Start a challenge</Link>}
       </header>
+
+      {locked && attempts.length > 0 && (
+        <p className="mt-4 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] px-4 py-3 text-sm leading-6 app-muted">
+          Prop Firm Challenge mode is part of Pro. Your attempts and their results stay here to review; upgrade or start a Pro trial to carry on or start a new one.
+        </p>
+      )}
 
       {attempts.length === 0 ? (
         <section className="mt-6 rounded-2xl border border-brand-400/25 bg-brand-400/[0.06] p-6 shadow-card sm:p-8">
           <span className="grid h-11 w-11 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><Trophy size={20} aria-hidden /></span>
-          <h2 className="mt-5 text-2xl font-bold tracking-tight">No challenges yet</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 app-muted">Trade under prop-firm rules: a profit target, a daily loss limit and a maximum loss. Challenges stay out of your backtest results.</p>
-          <Link href={challengeStartHref()} className="btn-primary mt-6">Start a challenge <Play size={14} fill="currentColor" aria-hidden /></Link>
+          <h2 className="mt-5 flex items-center gap-3 text-2xl font-bold tracking-tight">No challenges yet {locked && <ProLock feature="challenge" />}</h2>
+          <p className="mt-2 max-w-xl text-sm leading-6 app-muted">Trade under prop-firm rules: a profit target, a daily loss limit and a maximum loss. Challenges stay out of your backtest results.{locked && " Challenge mode is part of Pro; new members can try it free for 7 days."}</p>
+          {locked
+            ? <Link href="/pricing?feature=challenge" className="btn-primary mt-6">See Pro and the free trial</Link>
+            : <Link href={challengeStartHref()} className="btn-primary mt-6">Start a challenge <Play size={14} fill="currentColor" aria-hidden /></Link>}
         </section>
       ) : (
         <div className="mt-6 flex flex-col gap-5">

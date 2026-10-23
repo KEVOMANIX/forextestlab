@@ -184,7 +184,7 @@ export function AuthForm({
         </h1>
         <p className="mt-1.5 text-[13px] leading-5 app-muted">
           {staffCopy ? staffCopy.description : mode === "sign-up"
-            ? "Start with three one-month trial sessions on this device."
+            ? "Free: three new sessions a month on the major pairs. No card required."
             : mode === "sign-in"
               ? "Access your private backtesting workspace."
               : mode === "forgot-password"

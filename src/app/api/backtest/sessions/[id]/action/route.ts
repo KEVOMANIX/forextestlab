@@ -113,6 +113,20 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   }
 
   const ctx = session.ctx;
+  // A challenge started on Pro stays readable after a downgrade, but carrying
+  // on with it is Pro, enforced here and not only by the locked UI.
+  if (
+    ctx.state.config.propFirm &&
+    session.userId &&
+    action.type !== "pause" &&
+    action.type !== "sync" &&
+    !(await getUserEntitlements(session.userId)).propFirmChallenges
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "Continuing a Prop Firm Challenge is part of Pro. Your attempt and its results are kept; upgrade or start a Pro trial to carry on." },
+      { status: 403 },
+    );
+  }
   await ensureSessionPairCandles(session);
   let newCandle: Candle | null = null;
   let opError: string | undefined;
@@ -165,7 +179,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
           ? (await getUserEntitlements(session.userId)).maxReplaySpeed
           : 1200)
       ) {
-        opError = "Upgrade to Pro to unlock the fastest replay speeds.";
+        opError = "Replay speeds above 20 minutes a second are part of Pro.";
       } else {
         setSpeed(ctx, action.speed);
       }

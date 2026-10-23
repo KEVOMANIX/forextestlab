@@ -49,6 +49,9 @@ model UserProfile {
   freeSessionUsedAt      DateTime?
   paystackCustomerCode   String?               @unique
   paddleCustomerId       String?               @unique
+  /// When this account first started a Pro trial. One trial per account:
+  /// checkout offers the trial price only while this is null.
+  proTrialStartedAt      DateTime?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime              @updatedAt
   workspaceJson          String?
@@ -56,8 +59,22 @@ model UserProfile {
   sessions               BacktestSession[]
   billingPayments        BillingPayment[]
   billingSubscriptions   BillingSubscription[]
+  freeSessionUsage       FreeSessionUsage[]
 
   @@index([createdAt])
+}
+
+/// New sessions started on the Free plan, per account per UTC calendar month
+/// (`month` is "YYYY-MM"). A counter rather than a count of session rows, so
+/// deleting a session does not hand the slot back.
+model FreeSessionUsage {
+  user      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  month     String
+  used      Int         @default(0)
+  updatedAt DateTime    @updatedAt
+
+  @@id([userId, month])
 }
 
 /// Contact-form enquiries retained for support follow-up in the admin console.
@@ -343,6 +360,9 @@ model BillingSubscription {
   status            String
   nextPaymentAt     DateTime?
   cancelAtPeriodEnd Boolean     @default(false)
+  /// End of the Pro trial while the provider reports the subscription as
+  /// trialing; Pro access lasts exactly until then, with no grace period.
+  trialEndsAt       DateTime?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 

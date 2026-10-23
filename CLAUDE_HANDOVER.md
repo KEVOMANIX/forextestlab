@@ -51,7 +51,7 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `6a27808`, cleaned favicon and home-screen icons in `public/icons/` (verified 2026-10-23) |
+| Current deployed app revision | `8d6f429`, Free plan, Pro locks, trial checkout (billing still off) and admin Free preview (verified 2026-10-23) |
 | Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
 The original workstation already has working Git credentials for the GitHub
@@ -690,6 +690,10 @@ The visual system deliberately separates product identity from trading results:
     Cancelling uses `effective_from: next_billing_period`, which during a trial
     ends at the trial's end with no charge (verify in the Paddle sandbox).
     Zero-total trial transactions are not recorded as payments.
+  - Admin "View as Free" (admin console banner) sets the `ftl_plan_preview`
+    cookie; `freePreviewActive()` (`plan-preview.ts`) then gives that admin
+    Free entitlements everywhere, server checks included, while billing stays
+    off for everyone else. The app shows an "Exit preview" banner.
 - Page speed rules (2026-10-23): never use `prisma.$transaction([...])` for
   independent reads on a page (it runs them one by one, ~23 ms each); use
   `Promise.all`. `ensureUserProfile()` is cached per request and writes only

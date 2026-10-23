@@ -5,6 +5,7 @@ import type { UserProfile } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { billingEnabled } from "./availability";
 import type { PlanEntitlements } from "./entitlement-types";
+import { freePreviewActive } from "./plan-preview";
 import {
   FREE_MAX_REPLAY_SPEED,
   FREE_MONTHLY_SESSIONS,
@@ -42,12 +43,13 @@ export function isProPlan(profile: BillingProfile, now = new Date()): boolean {
 
 export function planEntitlements(
   profile: BillingProfile,
-  options: { freeSessionsUsed?: number; trialEndsAt?: Date | null; now?: Date } = {},
+  options: { freeSessionsUsed?: number; trialEndsAt?: Date | null; now?: Date; previewFree?: boolean } = {},
 ): PlanEntitlements {
   const now = options.now ?? new Date();
   // Before launch, full access is available without a subscription. This lives
-  // at the entitlement boundary so API calls cannot keep Free limits.
-  const pro = isProPlan(profile, now);
+  // at the entitlement boundary so API calls cannot keep Free limits. An
+  // admin's "view as Free" preview overrides it for that admin only.
+  const pro = !options.previewFree && isProPlan(profile, now);
   if (pro) {
     return {
       plan: "pro",
@@ -65,6 +67,7 @@ export function planEntitlements(
   const used = Math.max(0, options.freeSessionsUsed ?? 0);
   return {
     plan: "free",
+    ...(options.previewFree ? { preview: true } : {}),
     trialEndsAt: null,
     monthlySessions: {
       limit: FREE_MONTHLY_SESSIONS,
@@ -83,7 +86,7 @@ export function planEntitlements(
 }
 
 export async function getUserEntitlements(userId: string, now = new Date()): Promise<PlanEntitlements> {
-  const [profile, usage, trial] = await Promise.all([
+  const [profile, usage, trial, previewFree] = await Promise.all([
     prisma.userProfile.findUnique({
       where: { id: userId },
       select: { billingStatus: true, proAccessUntil: true },
@@ -97,9 +100,10 @@ export async function getUserEntitlements(userId: string, now = new Date()): Pro
       orderBy: { trialEndsAt: "desc" },
       select: { trialEndsAt: true },
     }),
+    freePreviewActive(userId),
   ]);
   if (!profile) throw new Error("Account profile not found.");
-  return planEntitlements(profile, { freeSessionsUsed: usage?.used ?? 0, trialEndsAt: trial?.trialEndsAt, now });
+  return planEntitlements(profile, { freeSessionsUsed: usage?.used ?? 0, trialEndsAt: trial?.trialEndsAt, now, previewFree });
 }
 
 /** The message for a Free account that has started its sessions for the month. */

@@ -1,6 +1,8 @@
 /** What an account may do, decided on the server and passed to the UI. */
 export interface PlanEntitlements {
   plan: "free" | "pro";
+  /** An admin viewing the site as a Free account ("view as Free"). */
+  preview?: boolean;
   /** Set while Pro comes from a provider trial: when it ends (ISO). */
   trialEndsAt: string | null;
   /** Free's monthly allowance of new sessions; null on Pro (unlimited). */

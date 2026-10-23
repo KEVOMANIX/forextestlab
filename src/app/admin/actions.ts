@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { after } from "next/server";
+
+import { PLAN_PREVIEW_COOKIE } from "@/lib/billing/plan-preview";
 
 import { requireAdmin } from "@/lib/admin";
 import { billingEnabled } from "@/lib/billing/availability";
@@ -28,6 +32,21 @@ async function audit(
       metadataJson: metadata ? JSON.stringify(metadata) : null,
     },
   });
+}
+
+/**
+ * Admin "view as Free": treats this admin's account as Free across the app
+ * (limits, locks and server checks) without changing billing for anyone else.
+ */
+export async function setPlanPreview(formData: FormData) {
+  await requireAdmin("/admin");
+  const store = await cookies();
+  if (formData.get("mode") === "free") {
+    store.set(PLAN_PREVIEW_COOKIE, "free", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 7 * 24 * 60 * 60 });
+    redirect("/app/backtest");
+  }
+  store.delete(PLAN_PREVIEW_COOKIE);
+  redirect(String(formData.get("returnTo") ?? "").startsWith("/") ? String(formData.get("returnTo")) : "/app");
 }
 
 export async function grantManualAccess(formData: FormData) {

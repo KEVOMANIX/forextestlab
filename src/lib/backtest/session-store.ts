@@ -599,10 +599,13 @@ export async function createSession(
   const def = getSymbolDefinition(params.symbol);
   if (!def) throw new Error(`Unknown symbol "${params.symbol}".`);
 
+  // An admin previewing the Free plan is held to it on the server too.
+  let previewFree = false;
   if (params.userId) {
     // Fail fast, before any market data is read; the transaction below repeats
     // the checks and is what actually claims the monthly slot.
     const entitlements = await getUserEntitlements(params.userId);
+    previewFree = entitlements.preview === true;
     assertSessionAllowed(entitlements, params);
     if (entitlements.monthlySessions?.remaining === 0) {
       throw new Error(monthlyQuotaMessage(entitlements.monthlySessions.resetsAt));
@@ -735,7 +738,7 @@ export async function createSession(
       });
       if (!profile) throw new Error("Account profile not found.");
 
-      const entitlements = planEntitlements(profile);
+      const entitlements = planEntitlements(profile, { previewFree });
       assertSessionAllowed(entitlements, params);
       if (entitlements.plan === "free") {
         // Claim one of the month's Free sessions atomically: the conditional

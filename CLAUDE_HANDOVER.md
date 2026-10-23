@@ -51,7 +51,7 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `8d6f429`, Free plan, Pro locks, trial checkout (billing still off) and admin Free preview (verified 2026-10-23) |
+| Current deployed app revision | `d19fad8`, fast market data: parallel manifest, 48-month cache, hourly and New York daily rollups for all 38 symbols (full build 2026-10-23, 0 failures) |
 | Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
 The original workstation already has working Git credentials for the GitHub

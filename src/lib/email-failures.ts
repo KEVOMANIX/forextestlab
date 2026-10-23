@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db";
  */
 export const EMAIL_FAILURE_ACTION = "email.failed";
 
-export type EmailFailureKind = "contact_message" | "support_conversation" | "support_direct" | "feedback" | "inbound_forward";
+export type EmailFailureKind = "contact_message" | "support_conversation" | "support_direct" | "feedback" | "inbound_forward" | "lifecycle";
 
 export async function recordEmailFailure(kind: EmailFailureKind, targetId: string | null, error: unknown): Promise<void> {
   const message = (error instanceof Error ? error.message : String(error)).slice(0, 300);

@@ -119,6 +119,17 @@ export async function getSubscriptionManageLink(subscriptionCode: string): Promi
   return data.link;
 }
 
+/** Stops a subscription renewing: used when an account is deleted. */
+export async function disablePaystackSubscription(subscriptionCode: string): Promise<void> {
+  const subscription = await requestPaystack<{ email_token: string }>(
+    `/subscription/${encodeURIComponent(subscriptionCode)}`,
+  );
+  await requestPaystack("/subscription/disable", {
+    method: "POST",
+    body: JSON.stringify({ code: subscriptionCode, token: subscription.email_token }),
+  });
+}
+
 export function validPaystackSignature(rawBody: string, signature: string | null): boolean {
   if (!signature) return false;
   const actualBuffer = Buffer.from(signature, "utf8");

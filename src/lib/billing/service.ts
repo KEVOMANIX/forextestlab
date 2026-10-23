@@ -5,6 +5,13 @@ import { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
 import {
+  accessEndedEmail,
+  cancellationScheduledEmail,
+  paymentFailedEmail,
+  proActivatedEmail,
+} from "@/lib/lifecycle-email";
+import { sendLifecycleEmail } from "@/lib/lifecycle-send";
+import {
   checkoutProductReady,
   getCheckoutProduct,
   type CheckoutProductKey,
@@ -147,10 +154,11 @@ export async function recordSuccessfulTransaction(transaction: PaystackTransacti
 
   const paidAt = new Date(transaction.paid_at || transaction.paidAt || Date.now());
   const customerCode = transaction.customer?.customer_code;
-  await prisma.$transaction(async (tx) => {
+  const activated = await prisma.$transaction(async (tx) => {
     const fresh = await tx.billingPayment.findUnique({ where: { reference } });
-    if (!fresh || fresh.status === "success") return;
+    if (!fresh || fresh.status === "success") return null;
     const profile = await tx.userProfile.findUniqueOrThrow({ where: { id: fresh.userId } });
+    const alreadyPro = profile.billingStatus === "active" && Boolean(profile.proAccessUntil && profile.proAccessUntil > paidAt);
     const accessBase = product.recurring
       ? paidAt
       : profile.proAccessUntil && profile.proAccessUntil > paidAt
@@ -165,16 +173,30 @@ export async function recordSuccessfulTransaction(transaction: PaystackTransacti
         paidAt,
       },
     });
+    const accessUntil = addDays(accessBase, product.accessDays);
     await tx.userProfile.update({
       where: { id: fresh.userId },
       data: {
         billingPlan: product.key,
         billingStatus: "active",
-        proAccessUntil: addDays(accessBase, product.accessDays),
+        proAccessUntil: accessUntil,
         paystackCustomerCode: customerCode || undefined,
       },
     });
+    // A pass is confirmed every time; a subscription only when Pro starts,
+    // not on each renewal, which the provider's receipt already covers.
+    return !product.recurring || !alreadyPro
+      ? { email: profile.email, name: profile.displayName, accessUntil }
+      : null;
   });
+  if (activated) {
+    await sendLifecycleEmail(`pro:${reference}`, activated.email, proActivatedEmail({
+      name: activated.name,
+      planName: product.name,
+      until: product.recurring ? null : activated.accessUntil,
+      recurring: product.recurring,
+    }));
+  }
   return { status: "success", reference, message: "Your Pro access is active." };
 }
 
@@ -222,6 +244,8 @@ async function recordSubscription(data: SubscriptionEventData, statusOverride?: 
   if (!subscriptionCode || !planCode || !productKey || !user) return;
   const status = statusOverride || data.status || "active";
   const nextPaymentAt = data.next_payment_date ? new Date(data.next_payment_date) : null;
+  const planName = getCheckoutProduct(productKey).name;
+  const previous = await prisma.billingSubscription.findUnique({ where: { subscriptionCode }, select: { status: true } });
   await prisma.$transaction([
     prisma.billingSubscription.upsert({
       where: { subscriptionCode },
@@ -243,6 +267,18 @@ async function recordSubscription(data: SubscriptionEventData, statusOverride?: 
       },
     }),
   ]);
+
+  // Only on a change of status: Paystack repeats events, and the key stops repeats.
+  if (previous?.status === status) return;
+  if (status === "attention") {
+    await sendLifecycleEmail(`payment_failed:${subscriptionCode}:${new Date().toISOString().slice(0, 10)}`, user.email,
+      paymentFailedEmail({ name: user.displayName, planName, accessUntil: user.proAccessUntil }));
+  } else if (status === "non-renewing") {
+    await sendLifecycleEmail(`cancelled:${subscriptionCode}`, user.email,
+      cancellationScheduledEmail({ name: user.displayName, planName, endsAt: nextPaymentAt ?? user.proAccessUntil }));
+  } else if (status === "disabled" || status === "complete") {
+    await sendLifecycleEmail(`ended:${subscriptionCode}`, user.email, accessEndedEmail(user.displayName));
+  }
 }
 
 export async function processPaystackWebhook(rawBody: string, event: { event?: string; data?: unknown }): Promise<void> {

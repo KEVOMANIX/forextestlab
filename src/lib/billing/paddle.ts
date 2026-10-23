@@ -121,6 +121,14 @@ export function cancelPaddleSubscription(id: string): Promise<PaddleSubscription
   });
 }
 
+/** Ends a subscription now, with no further charges: used when an account is deleted. */
+export function cancelPaddleSubscriptionNow(id: string): Promise<PaddleSubscription> {
+  return paddleApiRequest(`/subscriptions/${encodeURIComponent(id)}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ effective_from: "immediately" }),
+  });
+}
+
 export function resumePaddleSubscriptionRenewal(id: string): Promise<PaddleSubscription> {
   return paddleApiRequest(`/subscriptions/${encodeURIComponent(id)}`, {
     method: "PATCH",

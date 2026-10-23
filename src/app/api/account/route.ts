@@ -1,6 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
+import { cancelPaddleSubscriptionNow } from "@/lib/billing/paddle";
+import { disablePaystackSubscription } from "@/lib/billing/paystack";
+import { sendOperationalAlert } from "@/lib/contact-email";
 import { prisma } from "@/lib/db";
+import { accountDeletedEmail } from "@/lib/lifecycle-email";
+import { accountName, sendLifecycleEmail } from "@/lib/lifecycle-send";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient, getCurrentUser } from "@/lib/supabase/server";
 
@@ -66,6 +71,43 @@ export async function DELETE() {
     );
   }
 
+  // A deleted account must stop being charged. Live subscriptions are cancelled
+  // first; a refusal does not block the deletion, but is recorded for the team
+  // (and the customer is told) so it can be cancelled by hand.
+  const [profile, subscriptions] = await Promise.all([
+    prisma.userProfile.findUnique({ where: { id: user.id }, select: { email: true, displayName: true } }),
+    prisma.billingSubscription.findMany({
+      where: { userId: user.id, status: { in: ["active", "trialing", "past_due", "attention", "non-renewing"] } },
+      select: { subscriptionCode: true, provider: true, status: true },
+    }),
+  ]);
+  const failures: string[] = [];
+  for (const subscription of subscriptions) {
+    try {
+      if (subscription.provider === "paddle") await cancelPaddleSubscriptionNow(subscription.subscriptionCode);
+      else if (subscription.status !== "non-renewing") await disablePaystackSubscription(subscription.subscriptionCode);
+    } catch (cancelError) {
+      failures.push(`${subscription.provider} ${subscription.subscriptionCode}: ${cancelError instanceof Error ? cancelError.message : "failed"}`);
+    }
+  }
+  if (failures.length) {
+    await prisma.adminAuditEvent.create({
+      data: {
+        actorUserId: "system",
+        actorEmail: "system",
+        action: "billing.cancel_on_delete_failed",
+        targetType: "user",
+        targetId: user.id,
+        metadataJson: JSON.stringify({ email: profile?.email ?? user.email, failures }),
+      },
+    });
+    after(() => sendOperationalAlert({
+      status: "failed",
+      summary: "Cancel a deleted customer's subscription by hand",
+      details: [`Account: ${profile?.email ?? user.email ?? user.id}`, ...failures],
+    }).catch((alertError) => console.error("Could not send the cancellation alert:", alertError)));
+  }
+
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
@@ -73,5 +115,10 @@ export async function DELETE() {
 
   // The database relation cascades sessions, orders, trades, and equity rows.
   await prisma.userProfile.deleteMany({ where: { id: user.id } });
+  const email = profile?.email ?? user.email;
+  after(() => sendLifecycleEmail(`account_deleted:${user.id}`, email, accountDeletedEmail(
+    profile?.displayName ?? accountName(user),
+    failures.length ? "failed" : subscriptions.length ? "cancelled" : "none",
+  )));
   return NextResponse.json({ ok: true });
 }

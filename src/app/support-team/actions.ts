@@ -5,6 +5,8 @@ import { after } from "next/server";
 
 import { prisma } from "@/lib/db";
 import { recordEmailFailure } from "@/lib/email-failures";
+import { supportTeamAddedEmail } from "@/lib/lifecycle-email";
+import { sendLifecycleEmail, sendResolvedEmail } from "@/lib/lifecycle-send";
 import { asMessageIdHeader } from "@/lib/support-email-threading";
 import {
   sendDirectSupportEmail,
@@ -269,8 +271,12 @@ export async function updateConversation(formData: FormData) {
     category as (typeof SUPPORT_CATEGORIES)[number],
   );
   const now = new Date();
-  await prisma.supportConversation.update({
+  const before = status === "resolved"
+    ? await prisma.supportConversation.findUnique({ where: { id: conversationId }, select: { status: true } })
+    : null;
+  const updated = await prisma.supportConversation.update({
     where: { id: conversationId },
+    select: { customerEmail: true, customerName: true, subject: true },
     data: {
       ...(validStatus ? { status } : {}),
       ...(validPriority ? { priority } : {}),
@@ -290,6 +296,10 @@ export async function updateConversation(formData: FormData) {
     priority: validPriority ? priority : undefined,
     category: validCategory ? category : undefined,
   });
+  // Only when it becomes resolved, not when an already resolved one is saved again.
+  if (status === "resolved" && before && before.status !== "resolved" && before.status !== "closed") {
+    after(() => sendResolvedEmail(conversationId, updated));
+  }
   publishSupportConversationChanged(conversationId);
   refresh(conversationId);
 }
@@ -365,6 +375,7 @@ export async function addSupportAgent(formData: FormData) {
   if (!email || !["agent", "supervisor", "viewer"].includes(role)) return;
   const profile = await prisma.userProfile.findUnique({ where: { email } });
   if (!profile) return;
+  const existing = await prisma.supportAgent.findUnique({ where: { userId: profile.id }, select: { role: true, active: true } });
   const created = await prisma.supportAgent.upsert({
     where: { userId: profile.id },
     create: {
@@ -386,6 +397,12 @@ export async function addSupportAgent(formData: FormData) {
       metadataJson: JSON.stringify({ email, role }),
     },
   });
+  // Tell them they have access and where it is; saving the same role again says nothing.
+  const changed = Boolean(existing?.active);
+  if (!changed || existing?.role !== role) {
+    after(() => sendLifecycleEmail(`support_team:${created.id}:${role}:${Date.now()}`, profile.email,
+      supportTeamAddedEmail({ name: profile.displayName, role, changed })));
+  }
   refresh();
 }
 

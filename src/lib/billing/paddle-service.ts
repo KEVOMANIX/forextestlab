@@ -3,6 +3,13 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
+import {
+  accessEndedEmail,
+  cancellationScheduledEmail,
+  paymentFailedEmail,
+  proActivatedEmail,
+} from "@/lib/lifecycle-email";
+import { sendLifecycleEmail } from "@/lib/lifecycle-send";
 import { paddleProductKeyFromPriceId } from "./tiers";
 import type { PaddleWebhookEvent } from "./paddle";
 
@@ -90,6 +97,10 @@ async function syncSubscription(data: PaddleData): Promise<void> {
   }
 
   if (!subscriptionId || !customerId || !priceId || !productKey || !user) return;
+  const previous = await prisma.billingSubscription.findUnique({
+    where: { subscriptionCode: subscriptionId },
+    select: { status: true, cancelAtPeriodEnd: true },
+  });
   await prisma.$transaction([
     prisma.billingSubscription.upsert({
       where: { subscriptionCode: subscriptionId },
@@ -115,6 +126,41 @@ async function syncSubscription(data: PaddleData): Promise<void> {
       },
     }),
   ]);
+  await sendSubscriptionEmails({ subscriptionId, productKey, user, previous, status: rawStatus, cancelAtPeriodEnd, nextPaymentAt });
+}
+
+/**
+ * Emails for a change in a Paddle subscription. Paddle re-sends and reorders
+ * subscription events, so only a real change of state sends anything, and each
+ * email is keyed so it goes once. Receipts are Paddle's own.
+ */
+async function sendSubscriptionEmails(input: {
+  subscriptionId: string;
+  productKey: string;
+  user: { email: string; displayName: string | null; proAccessUntil: Date | null };
+  previous: { status: string; cancelAtPeriodEnd: boolean } | null;
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  nextPaymentAt: Date | null;
+}): Promise<void> {
+  const { subscriptionId, user, previous, status } = input;
+  const planName = input.productKey.endsWith("_year") ? "Pro Annual" : "Pro Monthly";
+  const live = (value: string | undefined) => value === "active" || value === "trialing";
+  if (live(status) && !live(previous?.status) && previous?.status !== "past_due") {
+    await sendLifecycleEmail(`pro:${subscriptionId}`, user.email,
+      proActivatedEmail({ name: user.displayName, planName, until: input.nextPaymentAt, recurring: true }));
+  }
+  if (status === "past_due" && previous?.status !== "past_due") {
+    await sendLifecycleEmail(`payment_failed:${subscriptionId}:${new Date().toISOString().slice(0, 10)}`, user.email,
+      paymentFailedEmail({ name: user.displayName, planName, accessUntil: user.proAccessUntil }));
+  }
+  if (input.cancelAtPeriodEnd && !previous?.cancelAtPeriodEnd && status !== "canceled") {
+    await sendLifecycleEmail(`cancelled:${subscriptionId}:${input.nextPaymentAt?.toISOString().slice(0, 10) ?? "end"}`, user.email,
+      cancellationScheduledEmail({ name: user.displayName, planName, endsAt: input.nextPaymentAt }));
+  }
+  if (status === "canceled" && previous?.status !== "canceled") {
+    await sendLifecycleEmail(`ended:${subscriptionId}`, user.email, accessEndedEmail(user.displayName));
+  }
 }
 
 export async function claimPaddleSubscriptionForUser(userId: string, email: string): Promise<void> {

@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { sendOperationalAlert } from "../src/lib/contact-email";
+import { sendAccessEndingReminders } from "../src/lib/access-reminders";
 import { prisma } from "../src/lib/db";
 import { decideAlert, parseMonitorState, type MonitorState } from "../src/lib/operations/alerting";
 import { collectOperationsSnapshot } from "../src/lib/operations/health";
@@ -56,6 +57,12 @@ async function main() {
     });
   }
   await saveState(next);
+
+  const reminders = await sendAccessEndingReminders().catch((error) => {
+    console.error("Access reminders failed:", error);
+    return 0;
+  });
+  if (reminders) console.log(`Sent ${reminders} Pro access reminder${reminders === 1 ? "" : "s"}.`);
   console.log(`${snapshot.status}: ${snapshot.checks.map((check) => `${check.component}=${check.status}`).join(" ")}`);
 }
 

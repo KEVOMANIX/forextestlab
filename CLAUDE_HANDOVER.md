@@ -674,6 +674,22 @@ The visual system deliberately separates product identity from trading results:
   transaction runs them one by one: ~270 ms vs ~25 ms). Customer emails from
   agent actions go out in `after()`; a failure is posted as an internal note.
   Form buttons use `SubmitButton` from `controls.tsx` to show progress.
+  - Customer lifecycle emails (`src/lib/lifecycle-email.ts`, sent through
+    `sendLifecycleEmail()` in `lifecycle-send.ts`, which sends each key once
+    and records `email.lifecycle_sent` audit events): welcome (auth callback,
+    accounts under 2 days old), Pro activated / payment failed / cancelled /
+    Pro ended (Paddle `syncSubscription` and Paystack webhooks, on a change of
+    state only; receipts stay with the providers), access ending in 3 days
+    (`access-reminders.ts`, run by the monitor, only while `BILLING_ENABLED`),
+    access granted / revoked (admin users), support team added or role changed,
+    conversation resolved, password changed (`/api/account/password-changed`,
+    called by the password form) and account deleted. Deleting an account
+    first cancels live Paddle/Paystack subscriptions; a refusal is audited as
+    `billing.cancel_on_delete_failed` and alerts the team.
+  - Supabase sends sign-up, reset, email-change, magic-link, invite and
+    reauthentication mail through Resend SMTP (`noreply@forextestlab.com`),
+    with the branded templates in `docs/email-templates/supabase/` (regenerate
+    with `scripts/export-auth-email-templates.ts` and paste into Supabase).
   - Monitor alerts (`src/lib/operations/alerting.ts`): failed alerts at once
     and every 6 hours; degraded only after 12 hours, then daily; "recovered"
     only for an incident that alerted. The state file is

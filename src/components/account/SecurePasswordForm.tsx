@@ -84,6 +84,8 @@ export function SecurePasswordForm({ email }: { email: string }) {
       return;
     }
 
+    // The security notice; the change itself has already succeeded.
+    void fetch("/api/account/password-changed", { method: "POST" }).catch(() => undefined);
     const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
     setStage("complete");
     setMessage(

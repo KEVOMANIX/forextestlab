@@ -252,6 +252,31 @@ async function deliver(
   });
 }
 
+/** Any branded message to one customer, replies routed to support. */
+export async function sendBrandedEmail({
+  to,
+  subject,
+  text,
+  options,
+  fromLabel = "ForexTestLab",
+}: {
+  to: string;
+  subject: string;
+  text: string;
+  options: BrandEmailOptions;
+  fromLabel?: string;
+}): Promise<void> {
+  const config = getSmtpConfig();
+  await deliver(config, {
+    from: sender(fromLabel, config.from),
+    to,
+    replyTo: config.to,
+    subject,
+    text,
+    html: renderBrandEmail(options),
+  });
+}
+
 export async function sendContactEmail(
   submission: ContactSubmission,
 ): Promise<void> {

@@ -64,10 +64,19 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  // The logo mark, trimmed to the flask and without the stray line the original
+  // file carries. Light browser themes get the light version, whose glass is
+  // deepened so its edge holds on white. The home-screen icon sits on the brand
+  // green, because iOS turns a transparent icon background black.
   icons: {
-    icon: [{ url: "/logo-mark.png", type: "image/png", sizes: "256x256" }],
-    shortcut: [{ url: "/logo-mark.png" }],
-    apple: [{ url: "/logo-mark.png" }],
+    icon: [
+      { url: "/icons/favicon-32.png", type: "image/png", sizes: "32x32", media: "(prefers-color-scheme: dark)" },
+      { url: "/icons/favicon-48.png", type: "image/png", sizes: "48x48", media: "(prefers-color-scheme: dark)" },
+      { url: "/icons/favicon-light-32.png", type: "image/png", sizes: "32x32", media: "(prefers-color-scheme: light)" },
+      { url: "/icons/favicon-light-48.png", type: "image/png", sizes: "48x48", media: "(prefers-color-scheme: light)" },
+    ],
+    shortcut: [{ url: "/icons/favicon-light-32.png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
   },
   category: "finance",
 };

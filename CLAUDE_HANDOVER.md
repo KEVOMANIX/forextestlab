@@ -477,6 +477,9 @@ Expected behaviour:
   candle when positions, pending orders, or a challenge require accounting;
   an idle account uses the existing guarded fast-forward path. Manual next/back
   controls keep their existing timeframe behavior.
+  PriceChart rebuilds forward whitespace in the same render when new display
+  bars cross a gap; retaining the cached pre-jump placeholders would temporarily
+  leave empty logical slots between the close and reopening candles.
 - A newly added symbol loads at the current replay time, not the session start.
 - Every active symbol can receive simulated trades; secondary symbols are not
   reference-only charts.

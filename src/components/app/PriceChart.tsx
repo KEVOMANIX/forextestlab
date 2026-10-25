@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { isEmptyForexWeekendCandle } from "@/lib/market-data/empty-weekend";
 import { AXIS_FONT_SIZES, PRICE_AXIS_TICK_DENSITY } from "@/lib/chart/axis-layout";
+import { newDisplayCrossesGap } from "@/lib/chart/forward-scale";
 import { createPortal, flushSync } from "react-dom";
 import {
   Activity,
@@ -1764,7 +1765,8 @@ export default function PriceChart({
     const previous = displayRef.current;
     displayRef.current = display;
     if (force || previous[0]?.time !== display[0]?.time) renderContextSeries();
-    syncFutureTimeScale(display.at(-1)?.time);
+    syncFutureTimeScale(display.at(-1)?.time,
+      force || newDisplayCrossesGap(display, previous.at(-1)?.time, displayTimeframeRef.current));
     /*
      * Indicators are calculated over the loaded history as well as the revealed
      * candles, so a moving average continues through the bars on screen to the
@@ -1994,7 +1996,7 @@ export default function PriceChart({
     }
   }
 
-  function syncFutureTimeScale(latestTime?: number) {
+  function syncFutureTimeScale(latestTime?: number, force = false) {
     const series = futureTimeSeriesRef.current;
     const container = containerRef.current;
     if (!series || latestTime == null) return;
@@ -2014,7 +2016,7 @@ export default function PriceChart({
     // not occurred yet and looks like leaked replay data, so keep only a small
     // working margin there.
     if (
-      cached.timeframe === timeframe &&
+      !force && cached.timeframe === timeframe &&
       cached.through - latestSeconds >= stepSeconds * Math.max(2, Math.floor(futurePointCount / 2))
     ) {
       return;

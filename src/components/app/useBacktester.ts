@@ -45,6 +45,7 @@ import type { GoToTarget } from "@/lib/backtest/goto";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import { previousCandleIndex } from "@/lib/backtest/previous-candle";
 import { nextCandleTarget } from "@/lib/backtest/next-candle";
+import { focusedMarketResumeIndex } from "@/lib/backtest/focused-market-resume";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
@@ -218,6 +219,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayFrameRef = useRef<number | null>(null);
   const replayLastFrameRef = useRef<number | null>(null);
   const replayAccumulatorRef = useRef(0);
+  const focusedReplaySymbolRef = useRef<string | null>(null);
+  focusedReplaySymbolRef.current = s.activeSymbol;
   const replayFrameBusyRef = useRef(false);
   /**
    * Bumped by any action that takes exclusive control of the engine's cursor —
@@ -693,6 +696,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
       ? nextCandleTarget(engine.candles, startIndex, displayTimeframe, engine.state.config.symbol)
       : null;
     let targetSource = engine.candles;
+    const focusedMarket = focusedReplaySymbolRef.current ?? engine.state.config.symbol;
+    let marketResumeIndex: number | null = null;
     const stepCount = Math.max(
       1,
       Math.round(
@@ -704,8 +709,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
     let finished = false;
     let superseded = false;
     let blown = false;
+    let stoppedAtChallenge = false;
 
-    for (let index = 0; manualTarget || index < stepCount; index += 1) {
+    for (let index = 0; manualTarget || marketResumeIndex !== null || index < stepCount; index += 1) {
       // A jump or similar action may have taken the cursor over mid-loop —
       // most likely while the `await request` a few lines down was pending,
       // since that is the one point per iteration this step yields control.
@@ -717,16 +723,26 @@ export function useBacktester(resumeSessionId: string | null = null) {
         superseded = true;
         break;
       }
+      if (marketResumeIndex !== null && focusedMarket !==
+          (focusedReplaySymbolRef.current ?? engine.state.config.symbol)) break;
       if (displayTimeframe && targetSource !== engine.candles) {
         targetSource = engine.candles;
         manualTarget = nextCandleTarget(targetSource, startIndex, displayTimeframe, engine.state.config.symbol);
       }
       if (manualTarget?.complete && engine.state.visibleIndex >= manualTarget.index) break;
+      if (!displayTimeframe && marketResumeIndex === null) {
+        marketResumeIndex = focusedMarketResumeIndex(engine, focusedMarket);
+      }
+      if (marketResumeIndex !== null && engine.state.visibleIndex >= marketResumeIndex) break;
       // A flat account can reach the same close without pricing every minute.
       // Orders and challenge accounts always take the normal revealNext path.
       if (manualTarget && fastForwardIdleTo(engine, manualTarget.index)) {
         advancedCandles.push(engine.candles[engine.state.visibleIndex]!);
         continue;
+      }
+      if (marketResumeIndex !== null && fastForwardIdleTo(engine, marketResumeIndex)) {
+        advancedCandles.push(engine.candles[engine.state.visibleIndex]!);
+        break;
       }
       const lastLoaded = engine.candles[engine.candles.length - 1];
       const loadedRemaining =
@@ -816,7 +832,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
         wantsReplayRunningRef.current = false;
         break;
       }
-      if (manualTarget && index % 2000 === 1999) {
+      if (marketResumeIndex !== null && engine.state.status === "finished") {
+        stoppedAtChallenge = true;
+        wantsReplayRunningRef.current = false;
+        break;
+      }
+      if ((manualTarget || marketResumeIndex !== null) && index % 2000 === 1999) {
         await new Promise(resolve => window.setTimeout(resolve, 0));
       }
     }
@@ -849,9 +870,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
     }
     const now = performance.now();
     const shouldPublishUi =
-      Boolean(manualTarget) ||
+      Boolean(manualTarget) || marketResumeIndex !== null ||
       finished ||
       blown ||
+      stoppedAtChallenge ||
       now - lastUiPublishRef.current >= 100;
     if (shouldPublishUi) {
       lastUiPublishRef.current = now;
@@ -870,7 +892,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lastCandles: advancedCandles,
       }));
     }
-    if (finished || blown) {
+    if (finished || blown || stoppedAtChallenge) {
       if (replayFrameRef.current != null) cancelAnimationFrame(replayFrameRef.current);
       replayFrameRef.current = null;
       // A blown account has not run out of data; it stops on a candle the
@@ -881,7 +903,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
           type: "sync",
           targetIndex: engine.state.visibleIndex,
           status: "paused",
-          requiresReplay: blown,
+          requiresReplay: blown || stoppedAtChallenge,
         },
         { background: true, showBusy: false, preserveLocalState: true },
       );

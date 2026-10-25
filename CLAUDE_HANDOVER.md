@@ -470,6 +470,13 @@ Expected behaviour:
 
 - Every active symbol shares the primary symbol's replay clock.
 - Playing one chart advances all layouts together.
+- Autoplay skips empty intervals on the focused secondary market (including
+  US30 and NAS100) to its next downloaded candle. `focusedMarketResumeIndex`
+  selects the destination without guessing opening hours or treating an unloaded
+  tail as a closure. The shared clock still processes every intervening primary
+  candle when positions, pending orders, or a challenge require accounting;
+  an idle account uses the existing guarded fast-forward path. Manual next/back
+  controls keep their existing timeframe behavior.
 - A newly added symbol loads at the current replay time, not the session start.
 - Every active symbol can receive simulated trades; secondary symbols are not
   reference-only charts.

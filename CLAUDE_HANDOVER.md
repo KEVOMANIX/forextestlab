@@ -494,6 +494,9 @@ Expected behaviour:
   the same runway. On a secondary fetch failure, the old complete buffer remains
   visible and the extension is retried instead of publishing an incomplete set.
 - Server-side pair pagination continues until the primary tail is covered.
+  `fetchPairRunway` uses larger internal pages and no 100-page cutoff; the old
+  150,000-bar ceiling silently left secondary charts in June when a resumed
+  primary clock was in July. Public responses still clamp to the clock/buffer.
 - Chart viewport storage is symbol-specific, preventing one pair's saved view
   from displacing another pair.
 

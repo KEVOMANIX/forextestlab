@@ -157,6 +157,7 @@ interface ChartGridProps {
   pairs: Record<string, PairChartData>;
   pairLoadingSymbols: string[];
   onNeedSymbol: (symbol: string) => void;
+  onVisibleSymbolsChange?: (symbols: string[]) => void;
   markers: ChartMarker[];
   positions: OpenPosition[];
   pendingOrders: PendingOrder[];
@@ -222,6 +223,7 @@ export default function ChartGrid({
   pairs,
   pairLoadingSymbols,
   onNeedSymbol,
+  onVisibleSymbolsChange,
   markers,
   positions,
   pendingOrders,
@@ -348,6 +350,10 @@ export default function ChartGrid({
   }, [visibleCells, cells.length]);
 
   const focused = visibleCells.find((cell) => cell.id === focusedId) ?? visibleCells[0]!;
+  const visibleSymbolsKey = [...new Set(visibleCells.map(cell => cell.symbol))].sort().join(",");
+  useEffect(() => {
+    onVisibleSymbolsChange?.(visibleSymbolsKey.split(",").filter(Boolean));
+  }, [visibleSymbolsKey, onVisibleSymbolsChange]);
 
   /**
    * The focused cell's instrument and the top bar's pair picker are two views of

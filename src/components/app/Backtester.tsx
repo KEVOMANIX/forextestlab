@@ -1239,6 +1239,7 @@ export function Backtester({
             pairs={bt.pairs}
             pairLoadingSymbols={bt.pairLoadingSymbols}
             onNeedSymbol={actions.ensurePair}
+            onVisibleSymbolsChange={actions.setVisibleSymbols}
             markers={markers}
             positions={state.openPositions}
             pendingOrders={state.pendingOrders}

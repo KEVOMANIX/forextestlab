@@ -11,6 +11,7 @@
 import "server-only";
 import { historyCutoff } from "./history-cutoff";
 import { fetchPairRunway } from "./pair-runway";
+import { mergePairSeries } from "./pair-series";
 
 import { randomUUID } from "node:crypto";
 
@@ -301,11 +302,7 @@ export async function ensureSessionPairCandles(
         const additions = await fetchPairRunway(start, target, ctx.state.config.timeframe,
           (from, to, limit) => fetchSeries(symbol, ctx.state.config.timeframe, from, to, limit));
         if (additions.length) {
-          const merged = [...current, ...additions];
-          pairCandles[symbol] = merged.filter(
-            (candle, index) =>
-              index === 0 || candle.timestamp !== merged[index - 1]?.timestamp,
-          );
+          pairCandles[symbol] = mergePairSeries(pairCandles[symbol] ?? [], additions);
         } else if (!pairCandles[symbol]) {
           pairCandles[symbol] = [];
         }

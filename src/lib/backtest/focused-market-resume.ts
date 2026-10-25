@@ -30,7 +30,7 @@ export function unexpectedReplayGap(ctx: EngineContext, symbol: string, throughI
  * keeps trading. Only use downloaded candles; an unloaded tail is not a gap.
  * This chooses a target, never bypasses execution/accounting along the way.
  */
-export function focusedMarketResumeIndex(ctx: EngineContext, symbol: string): number | null {
+export function focusedMarketResumeIndex(ctx: EngineContext, symbol: string, visibleSymbols: readonly string[] = []): number | null {
   if (unexpectedReplayGap(ctx, symbol)) return null;
   if (symbol === ctx.state.config.symbol) return null;
   const current = ctx.candles[ctx.state.visibleIndex];
@@ -52,5 +52,20 @@ export function focusedMarketResumeIndex(ctx: EngineContext, symbol: string): nu
     if (ctx.candles[mid]!.timestamp < next.timestamp) low = mid + 1;
     else high = mid;
   }
-  return low < ctx.candles.length && !unexpectedReplayGap(ctx, symbol, low) ? low : null;
+  if (low >= ctx.candles.length || unexpectedReplayGap(ctx, symbol, low)) return null;
+  const resumeTime = ctx.candles[low]!.timestamp;
+  for (const other of new Set(visibleSymbols)) {
+    if (other === symbol) continue;
+    const series = other === ctx.state.config.symbol ? ctx.candles : ctx.pairCandles?.[other];
+    if (!series?.length) return null;
+    let left = 0, right = series.length;
+    while (left < right) {
+      const mid = (left + right) >>> 1;
+      if (series[mid]!.timestamp <= current.timestamp) left = mid + 1;
+      else right = mid;
+    }
+    // Loading/short buffers are unknown, rather than proof of a closure.
+    if (left === 0 || !series[left] || series[left]!.timestamp < resumeTime) return null;
+  }
+  return low;
 }

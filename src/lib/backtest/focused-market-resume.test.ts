@@ -23,6 +23,21 @@ function context(symbol = "USA30IDXUSD"): EngineContext {
 }
 
 describe("focused market closure replay", () => {
+  it("does not skip an open forex chart when a visible index is closed", () => {
+    const ctx=context();
+    expect(focusedMarketResumeIndex(ctx,"USA30IDXUSD",["EURUSD","USA30IDXUSD"])).toBeNull();
+  });
+  it("skips a shared closure for two indices without skipping another market's candles", () => {
+    const ctx=context();
+    ctx.pairCandles!.USATECHIDXUSD=structuredClone(ctx.pairCandles!.USA30IDXUSD!);
+    expect(focusedMarketResumeIndex(ctx,"USA30IDXUSD",["USA30IDXUSD","USATECHIDXUSD"])).toBe(106);
+    ctx.pairCandles!.USATECHIDXUSD!.splice(1,0,bar(start+10*minute));
+    expect(focusedMarketResumeIndex(ctx,"USA30IDXUSD",["USA30IDXUSD","USATECHIDXUSD"])).toBeNull();
+  });
+  it("does not skip while a second visible market is still loading", () => {
+    const ctx=context();
+    expect(focusedMarketResumeIndex(ctx,"USA30IDXUSD",["USA30IDXUSD","USATECHIDXUSD"])).toBeNull();
+  });
   it("pauses on the July 16 to July 29 primary data hole even when US30 has data", () => {
     const ctx = context();
     ctx.candles[1] = bar(Date.UTC(2026, 6, 29, 20, 59));

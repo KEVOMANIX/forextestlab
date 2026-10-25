@@ -46,6 +46,7 @@ import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/typ
 import { previousCandleIndex } from "@/lib/backtest/previous-candle";
 import { nextCandleTarget } from "@/lib/backtest/next-candle";
 import { focusedMarketResumeIndex, unexpectedReplayGap } from "@/lib/backtest/focused-market-resume";
+import { mergePairSeries } from "@/lib/backtest/pair-series";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
@@ -221,6 +222,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const replayAccumulatorRef = useRef(0);
   const focusedReplaySymbolRef = useRef<string | null>(null);
   focusedReplaySymbolRef.current = s.activeSymbol;
+  const visibleReplaySymbolsRef = useRef<string[]>([]);
+  const setVisibleSymbols = useCallback((symbols: string[]) => {
+    visibleReplaySymbolsRef.current = [...new Set(symbols)];
+  }, []);
   const replayFrameBusyRef = useRef(false);
   /**
    * Bumped by any action that takes exclusive control of the engine's cursor —
@@ -324,13 +329,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
                 extensionTail,
               );
               if (!result.ok) return { symbol, error: result.error };
-              const merged = [...existing, ...result.candles].filter(
-                (candle, index, all) =>
-                  index === 0 || candle.timestamp !== all[index - 1]?.timestamp,
-              );
-              return { symbol, result: { ...result, candles: merged } };
+              if (result.symbol !== symbol) return { symbol, error: `Unexpected market data returned for ${symbol}.` };
+              return { symbol, result };
             }),
           );
+          if (localEngineRef.current !== engine || sessionIdRef.current !== id) {
+            return { ok: false as const, error: "Replay request was superseded." };
+          }
           const failed = refreshedPairs.find((item) => "error" in item);
           if (failed && "error" in failed) {
             return {
@@ -344,6 +349,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
           );
           engine.pairCandles ??= {};
           for (const item of updates) {
+            item.result = { ...item.result, candles: mergePairSeries(engine.pairCandles[item.symbol] ?? [], item.result.candles) };
             engine.pairCandles[item.symbol] = item.result.candles;
           }
           // Publish the primary and every active secondary buffer together. A
@@ -730,7 +736,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
         manualTarget = nextCandleTarget(targetSource, startIndex, displayTimeframe, engine.state.config.symbol);
       }
       if (manualTarget?.complete && engine.state.visibleIndex >= manualTarget.index) break;
-      const missingData = unexpectedReplayGap(engine, focusedMarket, manualTarget?.index);
+      const gapSymbols = new Set([focusedMarket,
+        ...engine.state.openPositions.map(position => position.symbol ?? engine.state.config.symbol),
+        ...engine.state.pendingOrders.filter(order => order.status === "pending").map(order => order.symbol ?? engine.state.config.symbol)]);
+      const missingData = [...gapSymbols].map(symbol => unexpectedReplayGap(engine, symbol, manualTarget?.index)).find(Boolean);
       if (missingData) {
         wantsReplayRunningRef.current = false;
         engine.state.status = "paused";
@@ -739,7 +748,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         break;
       }
       if (!displayTimeframe && marketResumeIndex === null) {
-        marketResumeIndex = focusedMarketResumeIndex(engine, focusedMarket);
+        marketResumeIndex = focusedMarketResumeIndex(engine, focusedMarket, visibleReplaySymbolsRef.current);
       }
       if (marketResumeIndex !== null && engine.state.visibleIndex >= marketResumeIndex) break;
       // A flat account can reach the same close without pricing every minute.
@@ -1818,7 +1827,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
             : [...prev.pairLoadingSymbols, symbol],
         }));
         const replayClock = engine?.candles[engine.state.visibleIndex]?.timestamp;
-        const pair = await getPairChart(
+        let pair = await getPairChart(
           id,
           tokenRef.current,
           symbol,
@@ -1827,9 +1836,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
           replayClock,
         );
         if (sessionIdRef.current !== id || localEngineRef.current !== engine) return;
+        if (pair.ok && pair.symbol !== symbol) pair = { ok: false, error: `Unexpected market data returned for ${symbol}.` };
         if (pair.ok && engine) {
           engine.pairCandles ??= {};
-          engine.pairCandles[symbol] = pair.candles;
+          const candles = mergePairSeries(engine.pairCandles[symbol] ?? [], pair.candles);
+          pair = { ...pair, candles };
+          engine.pairCandles[symbol] = candles;
         }
         setS((prev) => ({
           ...prev,
@@ -2000,6 +2012,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       switchPair,
       addPair,
       ensurePair,
+      setVisibleSymbols,
       retrySave,
       loadHistory,
       newSession,

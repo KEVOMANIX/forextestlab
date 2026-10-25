@@ -497,6 +497,13 @@ Expected behaviour:
   `fetchPairRunway` uses larger internal pages and no 100-page cutoff; the old
   150,000-bar ceiling silently left secondary charts in June when a resumed
   primary clock was in July. Public responses still clamp to the clock/buffer.
+- Pair buffers use `mergePairSeries` at commit time, including on the server, so
+  late/short responses cannot replace a newer tail. Async extension publication
+  rechecks session/engine identity after all secondary fetches complete.
+- ChartGrid reports its visible symbols. Automatic closure skips are allowed
+  only when no other visible market has candles in the skipped interval; a
+  closed US30 pane must not fast-forward an open forex pane. Trades still use
+  their own symbol's candles while replay time and account equity stay shared.
 - Chart viewport storage is symbol-specific, preventing one pair's saved view
   from displacing another pair.
 

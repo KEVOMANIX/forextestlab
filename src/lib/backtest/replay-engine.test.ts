@@ -124,6 +124,37 @@ describe("replay indexing", () => {
 });
 
 describe("multi-symbol replay", () => {
+  it("keeps simultaneous forex, US30 and US100 stops and targets on their own prices", () => {
+    const engine=ctx([
+      c(0,"1.1","1.1001","1.0999","1.1"),
+      c(60000,"1.1","1.1001","1.0999","1.1"),
+    ],cfg({timeframe:"1m",symbols:["EURUSD","USA30IDXUSD","USATECHIDXUSD"]}));
+    engine.pairCandles={
+      USA30IDXUSD:[c(0,"42000","42010","41999","42000"),c(60000,"42000","42010","41900","41920")],
+      USATECHIDXUSD:[c(0,"20000","20001","19999","20000"),c(60000,"20000","20060","19999","20055")],
+    };
+    expect(placeOrder(engine,{symbol:"EURUSD",direction:"long",sizingMode:"fixed-lots",lots:"0.1",stopLoss:"1.0995"}).ok).toBe(true);
+    expect(placeOrder(engine,{symbol:"USA30IDXUSD",direction:"long",sizingMode:"fixed-lots",lots:"0.1",stopLoss:"41950"}).ok).toBe(true);
+    expect(placeOrder(engine,{symbol:"USATECHIDXUSD",direction:"long",sizingMode:"fixed-lots",lots:"0.1",takeProfit:"20050"}).ok).toBe(true);
+    revealNext(engine);
+    expect(engine.state.openPositions.map(p=>p.symbol)).toEqual(["EURUSD"]);
+    expect(engine.state.closedTrades.map(t=>[t.symbol,t.exitReason,Number(t.exitPrice)])).toEqual([
+      ["USA30IDXUSD","stop-loss",41950],["USATECHIDXUSD","take-profit",20050],
+    ]);
+  });
+  it("fills only the pending order whose own market traded through its entry", () => {
+    const engine=ctx([c(0,"1.1","1.1","1.1","1.1"),c(60000,"1.1","1.1","1.1","1.1")],cfg({timeframe:"1m",symbols:["EURUSD","USA30IDXUSD","USATECHIDXUSD"]}));
+    engine.pairCandles={
+      USA30IDXUSD:[c(0,"42000","42000","42000","42000"),c(60000,"42000","42000","41900","41900")],
+      USATECHIDXUSD:[c(0,"20000","20000","20000","20000"),c(60000,"20000","20000","20000","20000")],
+    };
+    for(const [symbol,entryPrice] of [["EURUSD","1.09"],["USA30IDXUSD","41950"],["USATECHIDXUSD","19900"]]) {
+      expect(placeOrder(engine,{symbol,entryPrice,orderType:"limit",direction:"long",sizingMode:"fixed-lots",lots:"0.1"}).ok).toBe(true);
+    }
+    revealNext(engine);
+    expect(engine.state.openPositions.map(p=>p.symbol)).toEqual(["USA30IDXUSD"]);
+    expect(engine.state.pendingOrders.filter(p=>p.status==="pending").map(p=>p.symbol)).toEqual(["EURUSD","USATECHIDXUSD"]);
+  });
   it("uses one replay clock while executing each pair on its own candles", () => {
     const primary = [
       c(0, "1.10000", "1.10100", "1.09900", "1.10000"),

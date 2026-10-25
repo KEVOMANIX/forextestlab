@@ -480,6 +480,13 @@ Expected behaviour:
   PriceChart rebuilds forward whitespace in the same render when new display
   bars cross a gap; retaining the cached pre-jump placeholders would temporarily
   leave empty logical slots between the close and reopening candles.
+  Gaps over four days (or twice the base timeframe for higher-frame sessions)
+  are treated as missing data and pause replay rather than auto-skipping weeks.
+  A source-data repair does not change existing immutable session candle copies:
+  `scripts/repair-session-candle-gap.ts` audits and, with a backup and the app
+  stopped, inserts verified missing bars and remaps saved indexes by timestamp.
+  It preserves trade prices/results and replay time. Rebuild affected chart
+  rollups with `data:build-r2-rollups -- --symbols=EURUSD --from-month=2026-07`.
 - A newly added symbol loads at the current replay time, not the session start.
 - Every active symbol can receive simulated trades; secondary symbols are not
   reference-only charts.

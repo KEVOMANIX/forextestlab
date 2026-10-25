@@ -107,8 +107,13 @@ async function buildSymbol(symbol: string, full: boolean): Promise<string> {
   const latest = months[months.length - 1]!;
   // Incremental runs rebuild the last two months: the current one grows every
   // day, and the forex day that opens a month starts in the previous one.
-  const fromId = full ? -Infinity : monthId(latest) - 1;
+  const requestedFrom = argument("from-month");
+  if (requestedFrom && !/^20\d{2}-(0[1-9]|1[0-2])$/.test(requestedFrom)) throw new Error("Use --from-month=YYYY-MM");
+  const fromId = full ? -Infinity : requestedFrom
+    ? Number(requestedFrom.slice(0, 4)) * 12 + Number(requestedFrom.slice(5)) - 1
+    : monthId(latest) - 1;
   const rebuild = months.filter((m) => monthId(m) >= fromId);
+  if (!rebuild.length) return `${symbol}: no months in the requested rebuild window.`;
 
   let lastMinute = 0;
   const dailyFragments = await mapLimited(rebuild, CONCURRENCY, async (month) => {

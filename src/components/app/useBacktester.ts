@@ -45,7 +45,7 @@ import type { GoToTarget } from "@/lib/backtest/goto";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import { previousCandleIndex } from "@/lib/backtest/previous-candle";
 import { nextCandleTarget } from "@/lib/backtest/next-candle";
-import { focusedMarketResumeIndex } from "@/lib/backtest/focused-market-resume";
+import { focusedMarketResumeIndex, unexpectedReplayGap } from "@/lib/backtest/focused-market-resume";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
@@ -730,6 +730,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
         manualTarget = nextCandleTarget(targetSource, startIndex, displayTimeframe, engine.state.config.symbol);
       }
       if (manualTarget?.complete && engine.state.visibleIndex >= manualTarget.index) break;
+      const missingData = unexpectedReplayGap(engine, focusedMarket, manualTarget?.index);
+      if (missingData) {
+        wantsReplayRunningRef.current = false;
+        engine.state.status = "paused";
+        patch({ state: publicSessionState(engine, s.state?.anonymous ?? false),
+          error: `Replay paused: ${missingData.symbol} has missing price data between ${new Date(missingData.from).toISOString().slice(0, 10)} and ${new Date(missingData.to).toISOString().slice(0, 10)}. Reload after the data is repaired; replay has not skipped this interval.` });
+        break;
+      }
       if (!displayTimeframe && marketResumeIndex === null) {
         marketResumeIndex = focusedMarketResumeIndex(engine, focusedMarket);
       }

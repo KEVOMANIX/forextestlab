@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Candle } from "@/lib/market-data/types";
 import type { EngineContext, SessionConfig } from "./types";
 import { createSessionState, fastForwardIdleTo, placeOrder, revealNext } from "./replay-engine";
-import { focusedMarketResumeIndex } from "./focused-market-resume";
+import { focusedMarketResumeIndex, unexpectedReplayGap } from "./focused-market-resume";
 
 const minute = 60_000;
 // October 1: 16:14 -> 18:00 New York (UTC-4).
@@ -23,6 +23,20 @@ function context(symbol = "USA30IDXUSD"): EngineContext {
 }
 
 describe("focused market closure replay", () => {
+  it("pauses on the July 16 to July 29 primary data hole even when US30 has data", () => {
+    const ctx = context();
+    ctx.candles[1] = bar(Date.UTC(2026, 6, 29, 20, 59));
+    ctx.candles[0] = bar(Date.UTC(2026, 6, 16, 22, 41));
+    expect(unexpectedReplayGap(ctx, "USA30IDXUSD")?.symbol).toBe("EURUSD");
+    expect(focusedMarketResumeIndex(ctx, "USA30IDXUSD")).toBeNull();
+    expect(ctx.state.visibleIndex).toBe(0);
+  });
+  it("never treats a multi-week secondary data hole as a scheduled closure", () => {
+    const ctx = context();
+    ctx.pairCandles!.USA30IDXUSD = [bar(start), bar(start + 13 * 86400000)];
+    expect(unexpectedReplayGap(ctx, "USA30IDXUSD")?.symbol).toBe("USA30IDXUSD");
+    expect(focusedMarketResumeIndex(ctx, "USA30IDXUSD")).toBeNull();
+  });
   it.each(["USA30IDXUSD", "USATECHIDXUSD"])("skips %s from 16:14 to its actual 18:00 reopening", symbol => {
     const ctx = context(symbol);
     const target = focusedMarketResumeIndex(ctx, symbol);

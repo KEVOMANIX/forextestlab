@@ -97,6 +97,7 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
       equityCurve={state.equityCurve}
       startingBalance={fundedBalance(state)}
       endingBalance={state.balance}
+      accountCurrency={state.config.accountCurrency}
       fullAccess={entitlements.fullAnalytics}
       journalContent={journal}
       exitQuality={exitQuality?.summary ?? null}

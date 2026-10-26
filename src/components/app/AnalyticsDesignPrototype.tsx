@@ -31,6 +31,7 @@ import { ReportTimeZone } from "@/components/app/ReportTimeZone";
 import { TradeFocusProvider } from "@/components/app/TradeFocusContext";
 import { TradesTable } from "@/components/app/TradesTable";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
+import { ExportAnalyticsPdfButton } from "./ExportAnalyticsPdfButton";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_PERIOD, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY } from "@/lib/analytics/demo-data";
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
@@ -53,7 +54,7 @@ const DEMO_ANALYTICS_SCOPED_TRADES = analyticsTrades(DEMO_ANALYTICS_TRADES);
 
 type ResultRow = { label: string; value: number; trades: number; rate?: number; winRate?: number; share?: number };
 
-interface AnalyticsModel {
+export interface AnalyticsModel {
   equity: number[];
   balance: number[];
   endingBalance: number;
@@ -118,6 +119,7 @@ export interface AnalyticsDesignPrototypeProps {
   equityCurve?: EquityPoint[];
   startingBalance?: string;
   endingBalance?: string;
+  accountCurrency?: string;
   fullAccess?: boolean;
   onClose?: () => void;
   journalContent?: ReactNode;
@@ -368,6 +370,7 @@ export function AnalyticsDesignPrototype({
   trades = [],
   equityCurve = [],
   startingBalance = "100000",
+  accountCurrency = "USD",
   endingBalance,
   fullAccess = true,
   onClose,
@@ -440,6 +443,7 @@ export function AnalyticsDesignPrototype({
   const samplePreviewButton = mode === "live" && !showDemoData ? <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex items-center gap-2 text-[11px] font-semibold text-brand-300 transition-colors hover:text-brand-200"><FlaskConical size={13} aria-hidden /> View sample report</button> : null;
   const headerActions = (
     <div className="flex flex-wrap items-center gap-2">
+      {!demo && fullAccess && <ExportAnalyticsPdfButton report={{ name: displayedSessionName, symbols, period: periodLabel, model, trades: scopedTrades, excludedTrades: trades.length - scopedTrades.length, realisedOnly: scopedEquityCurve.length < 2, currency: accountCurrency }} />}
       {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <span className="inline-flex h-9 items-center gap-2 px-3 text-xs font-semibold app-muted"><Download size={14} aria-hidden /> Export <ProLock feature="exports" /></span>}
       {!demo && (onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>)}
     </div>

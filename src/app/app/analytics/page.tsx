@@ -152,6 +152,7 @@ export default async function AnalyticsHubPage({
           equityCurve={results.state.equityCurve}
           startingBalance={fundedBalance(results.state)}
           endingBalance={results.state.balance}
+          accountCurrency={results.state.config.accountCurrency}
           fullAccess={Boolean(entitlements?.fullAnalytics)}
           journalContent={journal}
           exitQuality={exitQuality?.summary ?? null}

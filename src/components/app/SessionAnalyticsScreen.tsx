@@ -46,6 +46,7 @@ export function SessionAnalyticsScreen({
         // a rescue is not reported as profit.
         startingBalance={fundedBalance(state)}
         endingBalance={state.balance}
+        accountCurrency={state.config.accountCurrency}
         fullAccess={fullAccess}
         journalContent={(
           <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]">

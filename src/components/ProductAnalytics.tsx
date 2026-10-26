@@ -6,6 +6,8 @@ import { useEffect } from "react";
 import type { ProductEventName } from "@/lib/product-analytics";
 
 export function trackProductEvent(name: ProductEventName, path = window.location.pathname) {
+  // A report token grants access; never send it to analytics.
+  if (path.startsWith("/share/analytics/")) return;
   const key = "forextestlab:analytics-session";
   let anonymousId = window.sessionStorage.getItem(key);
   if (!anonymousId) {

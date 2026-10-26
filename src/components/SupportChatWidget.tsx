@@ -37,7 +37,7 @@ export function SupportChatWidget() {
   const [unread, setUnread] = useState(0);
   const openRef = useRef(open);
   openRef.current = open;
-  const hidden = isLauncherHidden(pathname);
+  const hidden = isLauncherHidden(pathname) || pathname.startsWith("/share/analytics/");
 
   useEffect(() => {
     if (hidden) return;

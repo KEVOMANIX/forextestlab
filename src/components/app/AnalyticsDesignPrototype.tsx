@@ -32,6 +32,7 @@ import { TradeFocusProvider } from "@/components/app/TradeFocusContext";
 import { TradesTable } from "@/components/app/TradesTable";
 import { ExportTradesButton } from "@/components/app/ExportTradesButton";
 import { ExportAnalyticsPdfButton } from "./ExportAnalyticsPdfButton";
+import { ShareAnalyticsButton } from "./ShareAnalyticsButton";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_PERIOD, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY } from "@/lib/analytics/demo-data";
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
@@ -105,6 +106,7 @@ export interface AnalyticsModel {
 }
 
 export interface AnalyticsDesignPrototypeProps {
+  readOnly?: boolean;
   mode?: "demo" | "live";
   initialDemo?: boolean;
   sessionId?: string;
@@ -357,6 +359,7 @@ function InteractiveDrawdownChart({ values, maxDrawdown, closedTrades }: { value
 }
 
 export function AnalyticsDesignPrototype({
+  readOnly = false,
   mode = "demo",
   initialDemo = false,
   sessionId,
@@ -441,12 +444,13 @@ export function AnalyticsDesignPrototype({
     [demo, focusTrade, scopedTrades.length],
   );
   const showingLiveSample = mode === "live" && showDemoData;
-  const samplePreviewButton = mode === "live" && !showDemoData ? <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex items-center gap-2 text-[11px] font-semibold text-brand-300 transition-colors hover:text-brand-200"><FlaskConical size={13} aria-hidden /> View sample report</button> : null;
+  const samplePreviewButton = mode === "live" && !readOnly && !showDemoData ? <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex items-center gap-2 text-[11px] font-semibold text-brand-300 transition-colors hover:text-brand-200"><FlaskConical size={13} aria-hidden /> View sample report</button> : null;
   const headerActions = (
     <div className="flex flex-wrap items-center gap-2">
+      {!demo && !readOnly && fullAccess && sessionId && <ShareAnalyticsButton key={sessionId} sessionId={sessionId} />}
       {!demo && fullAccess && <ExportAnalyticsPdfButton getElement={() => exportRef.current} name={displayedSessionName} tab={tab} />}
-      {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <span className="inline-flex h-9 items-center gap-2 px-3 text-xs font-semibold app-muted"><Download size={14} aria-hidden /> Export <ProLock feature="exports" /></span>}
-      {!demo && (onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>)}
+      {!readOnly && (demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <span className="inline-flex h-9 items-center gap-2 px-3 text-xs font-semibold app-muted"><Download size={14} aria-hidden /> Export <ProLock feature="exports" /></span>)}
+      {!demo && !readOnly && (onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>)}
     </div>
   );
   const sessionMetadata = (
@@ -477,7 +481,7 @@ export function AnalyticsDesignPrototype({
       {sessionSelector ? <header className="mt-4 border-b app-border pb-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>{!showingLiveSample && headerActions}</div>{showingLiveSample ? <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div><div className="hidden sm:block">{sessionMetadata}</div><button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-amber-200/20 text-amber-100 transition-colors hover:bg-amber-200/10" aria-label="Close sample report" title="Close sample report"><X size={16} aria-hidden /></button></div> : <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>}</header> : <header className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{headerActions}</header>}
 
       <nav className="flex overflow-x-auto border-b app-border" aria-label="Prototype report sections">
-        {TABS.filter((item) => item !== "analyst" || Boolean(aiPanel)).map((item) => item === "reports" && !fullAccess && !demo ? (
+        {TABS.filter((item) => (!readOnly || (item !== "journal" && item !== "analyst")) && (item !== "analyst" || Boolean(aiPanel))).map((item) => item === "reports" && !fullAccess && !demo ? (
           <span key={item} className="flex shrink-0 items-center gap-2 border-b-2 border-transparent px-4 py-3 text-xs font-semibold capitalize app-muted">{item} <ProLock feature="analytics" /></span>
         ) : (
           <button key={item} type="button" onClick={() => setTab(item)} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}</button>

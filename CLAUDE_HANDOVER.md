@@ -1,3 +1,9 @@
+## 2026-10-26 — Analytics share links
+- Added owner-managed Share dialog beside PDF export, public read-only Analytics snapshots (Overview, Trades, Reports), and 30-day expiry/revocation/token rotation.
+- Snapshot payload is an explicit allowlist; excludes session name, real IDs, notes, journals and experimental trades, rebuilding balance/equity scope as needed. No live replay access. Uses latest persisted state.
+- New additive AnalyticsShare table/migration; owner and exports entitlement checks; no analytics telemetry/support widget on token URLs.
+- Verified 8 privacy/API tests, TypeScript and browser fixture: consent, create, revoke and shared charts. No actual customer report published.
+
 # ForexTestLab operational handover
 
 Last updated: 2026-10-21 (Africa/Nairobi)

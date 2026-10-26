@@ -453,6 +453,7 @@ model DataImport {
 }
 
 model BacktestSession {
+  analyticsShare     AnalyticsShare?
   id                 String            @id @default(cuid())
   /// Opaque token used to authorise an anonymous demonstration session.
   token              String            @unique
@@ -532,6 +533,15 @@ model BacktestSession {
   @@index([anonymous, anonymousExpiresAt])
   @@index([parentSessionId])
   @@index([branchRootId])
+}
+
+model AnalyticsShare {
+  token        String          @id
+  sessionId    String          @unique
+  session      BacktestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  snapshotJson String
+  createdAt    DateTime        @default(now())
+  expiresAt    DateTime
 }
 
 model SimulatedOrder {

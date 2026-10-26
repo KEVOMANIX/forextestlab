@@ -1,5 +1,4 @@
 "use client";
-import { spreadReadout } from "@/lib/chart/price-format";
 
 import {
   useCallback,
@@ -132,7 +131,7 @@ export function OrderTicket({
   const precision = state.config.pricePrecision ?? 5;
   const pip = Number(state.config.pipSize) || 0;
   const spread = Number(state.config.spreadPips) || 0;
-  const spreadLabel = spreadReadout(state.config.symbol, spread, Number(state.config.pipSize));
+  const spreadLabel = spread.toFixed(1);
   const mid = state.currentPrice != null ? Number(state.currentPrice) : null;
   const ask = mid != null ? mid + (spread * pip) / 2 : null;
   const bid = mid != null ? mid - (spread * pip) / 2 : null;
@@ -398,6 +397,16 @@ export function OrderTicket({
             compact={compactQuote}
             onClick={() => activateQuote("short")}
           />
+          <span
+            data-testid="chart-trade-spread"
+            aria-label={`${spreadLabel} pips`}
+            title={`${spreadLabel} pips`}
+            className={`pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border app-border bg-[var(--app-panel-solid)] font-mono font-bold leading-none text-[var(--app-text)] shadow-md ${
+              compactQuote ? "h-5 min-w-6 px-0.5 text-[8px]" : "h-6 min-w-7 px-1 text-[10px]"
+            }`}
+          >
+            {spreadLabel}
+          </span>
           <CompactQuoteButton
             direction="long"
             position="right"
@@ -408,9 +417,6 @@ export function OrderTicket({
             onClick={() => activateQuote("long")}
           />
         </div>
-        <span data-testid="chart-trade-spread" className="ml-2 whitespace-nowrap text-[10px] app-muted" title="Difference between the Buy and Sell prices">
-          Spread <span className="font-mono">{spreadLabel}</span>
-        </span>
         <LotSizePopover
           lots={lots}
           onLots={setLots}

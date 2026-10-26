@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { PairChartData } from "@/lib/backtest/client";
+import { hasCandleAtReplayTime } from "@/lib/chart/replay-data-availability";
 import type { TradePlan } from "@/lib/backtest/trade-plan";
 import type { OpenPosition, OrderType, PendingOrder, PublicSessionState } from "@/lib/backtest/types";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
@@ -912,6 +913,7 @@ function ChartCellView({
         onLoadHistory={loadHistory}
         loading={isSession ? loading : pairLoading && !pair}
         error={isSession ? error : null}
+        noReplayData={!hasCandleAtReplayTime(replaySource, state.currentTime, TIMEFRAME_MS[state.config.timeframe])}
         storageKey={`${storageKey}:${cell.symbol}`}
         viewKey={`${storageKey}:${cell.id}:${cell.symbol}`}
         initialTimeframe={cell.timeframe ?? (TIMEFRAME_MS[state.config.timeframe] <= TIMEFRAME_MS["15m"] ? "15m" : state.config.timeframe)}

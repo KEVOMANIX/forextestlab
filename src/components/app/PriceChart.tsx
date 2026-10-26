@@ -299,6 +299,7 @@ interface PriceChartProps {
   ) => Promise<{ candles: Candle[]; hasMore: boolean }>;
   loading?: boolean;
   error?: string | null;
+  noReplayData?: boolean;
   /**
    * Identifies the *instrument*: drawings are stored under it, so the same
    * trendlines appear in any grid cell showing this symbol.
@@ -967,6 +968,7 @@ export default function PriceChart({
   onLoadHistory,
   loading = false,
   error = null,
+  noReplayData = false,
   storageKey,
   viewKey,
   initialTimeframe,
@@ -5183,9 +5185,12 @@ export default function PriceChart({
             <span className="max-w-xs text-center text-sm text-loss">{error}</span>
           </div>
         )}
-        {chartReadyForTools && !error && initialCandles.length === 0 && (
-          <div className="absolute inset-0 grid place-items-center">
-            <span className="app-muted text-sm">No candles to display.</span>
+        {chartReadyForTools && !loading && !error && (noReplayData || initialCandles.length === 0) && (
+          <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center" role="status">
+            <div className="max-w-xs rounded-xl border border-[var(--app-border)] bg-[var(--app-bg)]/95 px-6 py-4 text-center shadow-lg">
+              <p className="text-sm font-semibold">No data available</p>
+              <p className="app-muted mt-1 text-xs">No candles for this symbol at the current replay time.</p>
+            </div>
           </div>
         )}
       </div>

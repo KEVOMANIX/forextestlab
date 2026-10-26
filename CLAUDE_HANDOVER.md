@@ -57,7 +57,7 @@ Use the project's agent allowance carefully without weakening verification:
 | Public IP/origin | `52.34.239.239` |
 | SSH user | `ubuntu` |
 | Lightsail SSH private key | `E:\Downloads\LightsailDefaultKey-us-west-2.pem` |
-| Current deployed app revision | `d19fad8`, fast market data: parallel manifest, 48-month cache, hourly and New York daily rollups for all 38 symbols (full build 2026-10-23, 0 failures) |
+| Current deployed app revision | `b3430c6`, Pro locks redesigned (side panel and blurred previews), on top of the analytics PDF/share-link work and `d19fad8` fast market data |
 | Instance size | 4 GB RAM (3.7 GiB usable) + 2 GB swap, 2 vCPUs, 80 GB disk |
 
 The original workstation already has working Git credentials for the GitHub
@@ -735,6 +735,10 @@ The visual system deliberately separates product identity from trading results:
     Pro), AI route, `/api/backtest/sessions/[id]/export` (CSV is built there),
     and exit-quality reports are computed only for Pro. UI locks use
     `ProLock` (`src/components/app/ProLock.tsx`) and are explanations only.
+    Chosen design ("Peek", 2026-10-26): every lock opens a right-side Pro
+    panel with the reached-for feature pinned first; `ProPeek` blurs larger
+    areas (locked markets, Reports tab, Challenges page) under one unlock
+    card. Blurred reports use sample trades only, never the trader's own.
   - Pro trial: Paddle is canonical (Paystack has no native trials and keeps
     only its legacy webhook/manage paths). A 7-day card-required trial is a
     separate Paddle price per interval: `PADDLE_<MODE>_PRO_<MONTH|YEAR>_TRIAL_PRICE_ID`.

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, Lock, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, ShieldCheck, Sun, Trophy } from "lucide-react";
+import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, ShieldCheck, Sun, Trophy } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -69,22 +69,20 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null }
         {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
         <div className="mt-5"><p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link></div></div>
       </nav>
-      <div className="border-t app-border p-3">
-        <div className="overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/55 shadow-sm">
-          <div className="flex items-center gap-1 p-1.5">
-            <Link href={signedIn ? "/account" : "/sign-in"} className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--app-hover)]">
-              <span className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--app-accent-wash)] text-[11px] font-bold text-brand-300 ring-1 ring-brand-400/25">
-                {signedIn ? initials(displayName) : <LogIn size={15} aria-hidden />}
-                {signedIn && <span className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full border-2 border-[var(--app-panel-2)] bg-profit" aria-label="Signed in" />}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-xs font-semibold text-[var(--app-text)]">{signedIn ? displayName ?? "ForexTestLab trader" : "Sign in"}</span>
-                <span className="block truncate text-[10px] app-muted">{signedIn ? (freePlan ? "Free plan · Account" : "Account settings") : "Access your workspace"}</span>
-              </span>
-            </Link>
-            {signedIn && <button type="button" onClick={signOut} disabled={signingOut} aria-label="Sign out" title="Sign out" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg app-muted transition-colors hover:bg-loss/[0.08] hover:text-loss disabled:cursor-wait disabled:opacity-50">{signingOut ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogOut size={15} aria-hidden />}</button>}
-          </div>
-          {freePlan && <FreePlanStrip plan={freePlan} />}
+      <div className="border-t app-border">
+        {freePlan && <FreePlanLine plan={freePlan} />}
+        <div className={`flex items-center gap-1 px-2 pb-3 ${freePlan ? "pt-1" : "pt-3"}`}>
+          <Link href={signedIn ? "/account" : "/sign-in"} className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--app-hover)]">
+            <span className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--app-accent-wash)] text-[11px] font-bold text-brand-300 ring-1 ring-brand-400/25">
+              {signedIn ? initials(displayName) : <LogIn size={15} aria-hidden />}
+              {signedIn && <span className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full border-2 border-[var(--app-sidebar)] bg-profit" aria-label="Signed in" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-xs font-semibold text-[var(--app-text)]">{signedIn ? displayName ?? "ForexTestLab trader" : "Sign in"}</span>
+              <span className="block truncate text-[10px] app-muted">{signedIn ? "Account settings" : "Access your workspace"}</span>
+            </span>
+          </Link>
+          {signedIn && <button type="button" onClick={signOut} disabled={signingOut} aria-label="Sign out" title="Sign out" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg app-muted transition-colors hover:bg-loss/[0.08] hover:text-loss disabled:cursor-wait disabled:opacity-50">{signingOut ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogOut size={15} aria-hidden />}</button>}
         </div>
       </div>
     </aside>
@@ -94,8 +92,8 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null }
   </>;
 }
 
-/** Free accounts: this month's sessions and one way into Pro, under the profile. */
-function FreePlanStrip({ plan }: { plan: FreePlanSummary }) {
+/** Free accounts: this month's sessions and one way into Pro, above the profile. */
+function FreePlanLine({ plan }: { plan: FreePlanSummary }) {
   // Sessions started since the layout loaded; the layout survives client navigation.
   const [started, setStarted] = useState(0);
   useEffect(() => {
@@ -105,15 +103,14 @@ function FreePlanStrip({ plan }: { plan: FreePlanSummary }) {
   }, []);
   const used = Math.min(plan.limit, plan.used + started);
   const left = plan.limit - used;
-  return <div className="border-t app-border px-3 pb-3 pt-2.5">
-    <div className="flex items-baseline justify-between gap-2 text-[10px] app-muted">
-      <span><span className="font-semibold text-[var(--app-text)]">{left} of {plan.limit}</span> sessions left</span>
-      <span className="truncate">renews {formatQuotaReset(plan.resetsAt)}</span>
+  return <div className="px-4 pb-1.5 pt-3">
+    <div className="flex items-baseline justify-between gap-2 text-[11px] app-muted">
+      <span className="truncate" title={`Renews ${formatQuotaReset(plan.resetsAt)}`}><span className="font-semibold text-[var(--app-text)]">Free</span> · {left} of {plan.limit} left</span>
+      <ProLock feature="sessions" className="shrink-0 rounded text-[11px] font-semibold text-brand-300 transition-colors hover:text-brand-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-400">Upgrade →</ProLock>
     </div>
     <div className="mt-1.5 flex gap-[3px]" role="meter" aria-label="Free sessions used this month" aria-valuemin={0} aria-valuemax={plan.limit} aria-valuenow={used}>
       {Array.from({ length: plan.limit }, (_, index) => <span key={index} className={`h-1 flex-1 rounded-full ${index < used ? "bg-brand-400" : "bg-[var(--app-border)]"}`} />)}
     </div>
-    <ProLock feature="sessions" className="btn-primary mt-2.5 w-full py-1.5 text-xs"><Lock size={12} aria-hidden /> Unlock Pro</ProLock>
   </div>;
 }
 

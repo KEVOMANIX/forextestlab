@@ -9,7 +9,7 @@ import { THEME_COOKIE, isAppTheme } from "@/lib/ui/app-theme";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { isAdminUser } from "@/lib/admin";
 import { freePreviewActive } from "@/lib/billing/plan-preview";
-import { showsFreePlan } from "@/lib/billing/entitlements";
+import { freePlanSummary } from "@/lib/billing/entitlements";
 import { setPlanPreview } from "@/app/admin/actions";
 
 export const metadata: Metadata = {
@@ -31,12 +31,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     user?.user_metadata?.name,
   ].find((value): value is string => typeof value === "string" && Boolean(value.trim()))?.trim() ?? null;
   const storedTheme = (await cookies()).get(THEME_COOKIE)?.value;
-  const [previewFree, free] = user ? await Promise.all([freePreviewActive(user.id), showsFreePlan(user.id)]) : [false, false];
+  const [previewFree, freePlan] = user ? await Promise.all([freePreviewActive(user.id), freePlanSummary(user.id)]) : [false, null];
   return (
     <AppThemeProvider initialTheme={isAppTheme(storedTheme) ? storedTheme : null}>
       <DeploymentRefresh />
       <div className="min-h-dvh lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
-        <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} free={free} />
+        <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} freePlan={freePlan} />
         <div className="min-w-0 lg:col-start-2">
           <main id="main" className="min-h-[calc(100dvh-4rem)]">
             {previewFree && (

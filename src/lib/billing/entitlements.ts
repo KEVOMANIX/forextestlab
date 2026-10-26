@@ -106,14 +106,24 @@ export async function getUserEntitlements(userId: string, now = new Date()): Pro
   return planEntitlements(profile, { freeSessionsUsed: usage?.used ?? 0, trialEndsAt: trial?.trialEndsAt, now, previewFree });
 }
 
-/** Whether shared chrome (the sidebar) shows Free locks: one small query. */
-export async function showsFreePlan(userId: string): Promise<boolean> {
-  const [profile, previewFree] = await Promise.all([
+/** The sidebar's plan card: Free sessions this month, or null on Pro. */
+export interface FreePlanSummary {
+  used: number;
+  limit: number;
+  /** ISO start of the next UTC calendar month. */
+  resetsAt: string;
+}
+
+/** What shared chrome (the sidebar) shows for a Free account: two small queries. */
+export async function freePlanSummary(userId: string, now = new Date()): Promise<FreePlanSummary | null> {
+  const [profile, usage, previewFree] = await Promise.all([
     prisma.userProfile.findUnique({ where: { id: userId }, select: { billingStatus: true, proAccessUntil: true } }),
+    prisma.freeSessionUsage.findUnique({ where: { userId_month: { userId, month: quotaMonth(now) } }, select: { used: true } }),
     freePreviewActive(userId),
   ]);
-  if (previewFree) return true;
-  return profile ? !isProPlan(profile) : billingEnabled();
+  const free = previewFree || (profile ? !isProPlan(profile, now) : billingEnabled());
+  if (!free) return null;
+  return { used: Math.min(usage?.used ?? 0, FREE_MONTHLY_SESSIONS), limit: FREE_MONTHLY_SESSIONS, resetsAt: quotaResetsAt(now).toISOString() };
 }
 
 /** The message for a Free account that has started its sessions for the month. */

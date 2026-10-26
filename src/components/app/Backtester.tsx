@@ -53,6 +53,7 @@ import { depositedFunds } from "@/lib/backtest/replay-engine";
 import { replayDayLabel } from "@/lib/backtest/replay-progress";
 import type { ChallengeStart } from "@/lib/backtest/challenge-record";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
+import { FREE_SESSION_STARTED_EVENT } from "@/lib/billing/plan-limits";
 import { propFirmGuardMessage, tradingGuardMessage } from "@/lib/backtest/trade-guards";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
@@ -439,7 +440,11 @@ export function Backtester({
   );
   const startSession = useCallback(async (body: Parameters<typeof actions.startSession>[0]) => {
     const started = await actions.startSession(body);
-    if (started && entitlements.monthlySessions) setFreeSessionsStarted((count) => count + 1);
+    if (started && entitlements.monthlySessions) {
+      setFreeSessionsStarted((count) => count + 1);
+      // The sidebar's plan card lives in the layout, which a client navigation keeps.
+      window.dispatchEvent(new Event(FREE_SESSION_STARTED_EVENT));
+    }
     return started;
   }, [actions, entitlements.monthlySessions]);
 

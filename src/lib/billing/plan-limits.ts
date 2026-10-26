@@ -36,6 +36,9 @@ export function quotaResetsAt(now = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 }
 
+/** Window event the replay fires when a Free session starts, for the sidebar count. */
+export const FREE_SESSION_STARTED_EVENT = "ftl:free-session-started";
+
 /** "1 November" — how the UI names the renewal date. */
 export function formatQuotaReset(resetsAt: Date | string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(resetsAt));

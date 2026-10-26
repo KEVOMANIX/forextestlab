@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, BookOpenText, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, ShieldCheck, Sun, Trophy } from "lucide-react";
+import { BarChart3, BookOpenText, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, Lock, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, ShieldCheck, Sun, Trophy } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -9,7 +9,7 @@ import { Logo } from "@/components/Logo";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { useAppTheme } from "./ThemeContext";
 
-type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; badge?: string };
+type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; badge?: string; pro?: boolean };
 
 const WORKSPACE: NavItem[] = [
   { label: "Dashboard", href: "/app", icon: LayoutDashboard },
@@ -37,10 +37,11 @@ function isActive(pathname: string, href: string): boolean {
 function DesktopLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const Icon = item.icon;
   const active = isActive(pathname, item.href);
-  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{item.badge && <span className="ml-auto rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-surface-950">{item.badge}</span>}</Link>;
+  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{item.pro ? <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-[var(--app-text)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--app-bg)]"><Lock size={9} strokeWidth={2.6} aria-hidden />Pro</span> : item.badge && <span className="ml-auto rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-surface-950">{item.badge}</span>}</Link>;
 }
 
-export function AppNav({ signedIn, displayName, admin = false }: { signedIn: boolean; displayName: string | null; admin?: boolean }) {
+/** `free`: the account is on Free, so Pro-only destinations carry the Pro mark. */
+export function AppNav({ signedIn, displayName, admin = false, free = false }: { signedIn: boolean; displayName: string | null; admin?: boolean; free?: boolean }) {
   const { theme, toggle } = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
@@ -59,7 +60,7 @@ export function AppNav({ signedIn, displayName, admin = false }: { signedIn: boo
     <aside className="hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:row-span-2 lg:h-dvh lg:self-start lg:flex">
       <div className="flex h-16 items-center border-b app-border px-5"><Logo className="h-7" /></div>
       <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-3 py-5">
-        <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div>
+        <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={free && item.href === "/app/challenges" ? { ...item, pro: true } : item} pathname={pathname} />)}</div>
         <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
         {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
         <div className="mt-7"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link></div></div>

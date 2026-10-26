@@ -39,7 +39,11 @@ export const PRO_FEATURE_COPY = {
   },
   exports: {
     title: "Trade and analytics exports",
-    benefit: "Download your trades as CSV for your own spreadsheets and journals.",
+    benefit: "Download your trades as CSV and your analytics as a PDF report, for your own spreadsheets and journals.",
+  },
+  share: {
+    title: "Analytics share links",
+    benefit: "Send a read-only link to a session's analytics to a mentor or friend, and switch it off whenever you like.",
   },
   sessions: {
     title: "Unlimited sessions",

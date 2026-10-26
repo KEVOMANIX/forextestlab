@@ -106,6 +106,16 @@ export async function getUserEntitlements(userId: string, now = new Date()): Pro
   return planEntitlements(profile, { freeSessionsUsed: usage?.used ?? 0, trialEndsAt: trial?.trialEndsAt, now, previewFree });
 }
 
+/** Whether shared chrome (the sidebar) shows Free locks: one small query. */
+export async function showsFreePlan(userId: string): Promise<boolean> {
+  const [profile, previewFree] = await Promise.all([
+    prisma.userProfile.findUnique({ where: { id: userId }, select: { billingStatus: true, proAccessUntil: true } }),
+    freePreviewActive(userId),
+  ]);
+  if (previewFree) return true;
+  return profile ? !isProPlan(profile) : billingEnabled();
+}
+
 /** The message for a Free account that has started its sessions for the month. */
 export function monthlyQuotaMessage(resetsAt: Date | string): string {
   return `You've started your ${FREE_MONTHLY_SESSIONS} free sessions this month. More arrive on ${formatQuotaReset(resetsAt)}, or upgrade to Pro for unlimited sessions.`;

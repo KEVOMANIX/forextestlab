@@ -12,12 +12,14 @@ import {
   ChevronRight,
   Clock3,
   Download,
+  FileText,
   FlaskConical,
   Gauge,
   LineChart,
   Lock,
   NotebookPen,
   Play,
+  Share2,
   ShieldCheck,
   Target,
   TrendingDown,
@@ -413,6 +415,7 @@ export function AnalyticsDesignPrototype({
     [demo, scopedTrades, scopedEquityCurve, startingBalance, tradedPairLabel, scopedEndingBalance],
   );
   const reportsLocked = !fullAccess && !demo;
+  const lockedAction = "inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted transition-colors hover:text-[var(--app-text)]";
   // Locked reports preview sample trades, never the trader's own.
   const sampleModel = useMemo(() => createDemoModel(), []);
   const chartPeriod = demo ? DEMO_ANALYTICS_PERIOD : recordedChartPeriod(scopedEquityCurve, scopedTrades, startTime);
@@ -453,7 +456,11 @@ export function AnalyticsDesignPrototype({
     <div className="flex flex-wrap items-center gap-2">
       {!demo && !readOnly && fullAccess && sessionId && <ShareAnalyticsButton key={sessionId} sessionId={sessionId} />}
       {!demo && fullAccess && <ExportAnalyticsPdfButton getElement={() => exportRef.current} name={displayedSessionName} tab={tab} />}
-      {!readOnly && (demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <ProLock feature="exports" className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted transition-colors hover:text-[var(--app-text)]"><Download size={14} aria-hidden /> Export <Lock size={11} aria-label="Pro" /></ProLock>)}
+      {reportsLocked && !readOnly && <>
+        <ProLock feature="share" className={lockedAction}><Share2 size={14} aria-hidden /> Share <Lock size={11} aria-label="Pro" /></ProLock>
+        <ProLock feature="exports" className={lockedAction}><FileText size={14} aria-hidden /> PDF <Lock size={11} aria-label="Pro" /></ProLock>
+      </>}
+      {!readOnly && (demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <ProLock feature="exports" className={lockedAction}><Download size={14} aria-hidden /> Export <Lock size={11} aria-label="Pro" /></ProLock>)}
       {!demo && !readOnly && (onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>)}
     </div>
   );

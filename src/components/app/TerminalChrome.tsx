@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { formatInZone } from "@/lib/chart/timezones";
 import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
@@ -62,6 +63,7 @@ function RailButton({
 
 export function TerminalTopBar({
   state,
+  timeZone = "Etc/UTC",
   theme,
   onToggleTheme,
   onNewSession,
@@ -73,6 +75,7 @@ export function TerminalTopBar({
   children,
 }: {
   state: PublicSessionState;
+  timeZone?: string;
   theme: "dark" | "light";
   onToggleTheme: () => void;
   onNewSession: () => void;
@@ -158,9 +161,10 @@ export function TerminalTopBar({
           }`}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
+          title={`Session: ${state.config.name || "Backtest session"}. Each chart shows its own selected market and timeframe.`}
         >
           <FolderOpen size={14} className="shrink-0 app-muted" aria-hidden />
-          <span className="truncate">{state.config.name || "Backtest session"}</span>
+          <span className="min-w-0 text-left leading-tight"><span className="block text-[8px] uppercase tracking-wider app-muted">Session{state.currentTime != null ? ` · ${formatInZone(state.currentTime, timeZone, { day: "2-digit", month: "short", year: "numeric" })}` : ""}</span><span className="block truncate">{state.config.name || "Backtest session"}</span></span>
           <ChevronDown
             size={13}
             className={`shrink-0 app-muted transition-transform ${menuOpen ? "rotate-180" : ""}`}

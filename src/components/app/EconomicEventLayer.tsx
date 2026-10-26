@@ -179,7 +179,7 @@ export function EconomicEventLayer({
                   className="absolute -right-1 -top-1 flex h-3 min-w-3 items-center justify-center rounded-full px-[3px] text-[8px] font-bold leading-none text-surface-950"
                   style={{ background: RING[cluster.importance] }}
                 >
-                  {cluster.events.length}
+                  {cluster.events.length > 99 ? "99+" : cluster.events.length}
                 </span>
               )}
             </span>

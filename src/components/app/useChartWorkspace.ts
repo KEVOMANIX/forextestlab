@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ToolKind } from "@/lib/chart/drawing/types";
-import type { WorkspacePayload } from "@/lib/workspace";
+import type { WorkspacePayload, WorkspaceTemplate } from "@/lib/workspace";
 import { DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
+import { newestChartView, reusableWorkspace, templateView } from "@/lib/chart/workspace-template";
 
 const FAVOURITES_KEY = "forextestlab:fav-tools";
 const ORDER_DEFAULTS_KEY = "forextestlab:order-defaults";
@@ -16,10 +17,7 @@ const HIGH_IMPACT_NEWS_MIGRATION = "high-impact-news-v1";
  * Chart and trading preferences for a session, persisted locally and — for a
  * signed-in trader — synced in the background so a browser change follows them.
  *
- * There is no named-workspace or template surface: preferences are one set that
- * follows the trader, which is what the settings dialog edits. A saveable,
- * exportable, template-able workspace was a second concept on top of that, with
- * its own panel to manage, for a benefit nobody was getting.
+ * Named templates reuse appearance, indicators and drawing-tool defaults.
  */
 export interface ChartWorkspace {
   /** Local and, when signed in, server preferences have finished restoring. */
@@ -31,6 +29,10 @@ export interface ChartWorkspace {
   toggleFavorite: (tool: ToolKind) => void;
   /** Bumped when the server hands back a different set, so charts remount. */
   revision: number;
+  templates: WorkspaceTemplate[];
+  saveTemplate: (name: string) => Promise<void>;
+  applyTemplate: (id: string) => void;
+  deleteTemplate: (id: string) => Promise<void>;
 }
 
 function settingsKey(storageKey: string): string {
@@ -75,9 +77,13 @@ function captureWorkspace(
   favorites: Set<ToolKind>,
 ): WorkspacePayload {
   const cellViews: Record<string, unknown> = {};
-  for (let index = 1; index <= 4; index += 1) {
-    const value = parse<unknown>(window.localStorage.getItem(`forextestlab:chart:${storageKey}:cell-${index}`), null);
-    if (value) cellViews[`cell-${index}`] = value;
+  const prefix = `forextestlab:chart:${storageKey}:`;
+  for (const key of Object.keys(window.localStorage)) {
+    if (!key.startsWith(prefix)) continue;
+    const cell = key.slice(prefix.length);
+    if (!/^cell-\d+(?::[A-Z0-9]+)?$/.test(cell)) continue;
+    const value = parse<unknown>(window.localStorage.getItem(key), null);
+    if (value) cellViews[cell] = value;
   }
   const drawings: Record<string, unknown[]> = {};
   for (const symbol of symbols) {
@@ -90,6 +96,8 @@ function captureWorkspace(
     cellViews,
     drawings,
     toolDefaults: parse<unknown>(window.localStorage.getItem("forextestlab:tool-defaults"), null),
+    sessionIndicatorDefault: parse<unknown>(window.localStorage.getItem("forextestlab:session-indicator-default"), null),
+    defaultChartView: parse<unknown>(window.localStorage.getItem("forextestlab:default-chart-view"), null),
     orderTicketDefaults: parse<WorkspacePayload["orderTicketDefaults"]>(window.localStorage.getItem(ORDER_DEFAULTS_KEY), null),
     replayToolbarPosition: parse<WorkspacePayload["replayToolbarPosition"]>(window.localStorage.getItem(REPLAY_POSITION_KEY), null),
   };
@@ -106,7 +114,10 @@ function applyWorkspace(storageKey: string, payload: WorkspacePayload) {
     window.localStorage.removeItem(`forextestlab:chart:${storageKey}:cell-${index}`);
   }
   for (const [cell, view] of Object.entries(payload.cellViews ?? {})) {
-    window.localStorage.setItem(`forextestlab:chart:${storageKey}:${cell}`, JSON.stringify(view));
+    if (!/^cell-\d+(?::[A-Z0-9]+)?$/.test(cell)) continue;
+    const key = `forextestlab:chart:${storageKey}:${cell}`;
+    const local = parse<unknown>(window.localStorage.getItem(key), null);
+    window.localStorage.setItem(key, JSON.stringify(newestChartView(local, view)));
   }
 
   const drawingsPrefix = `forextestlab:drawings:${storageKey}:`;
@@ -119,6 +130,8 @@ function applyWorkspace(storageKey: string, payload: WorkspacePayload) {
 
   if (payload.toolDefaults) window.localStorage.setItem("forextestlab:tool-defaults", JSON.stringify(payload.toolDefaults));
   else window.localStorage.removeItem("forextestlab:tool-defaults");
+  if (payload.sessionIndicatorDefault) window.localStorage.setItem("forextestlab:session-indicator-default", JSON.stringify(payload.sessionIndicatorDefault));
+  if (payload.defaultChartView) window.localStorage.setItem("forextestlab:default-chart-view", JSON.stringify(payload.defaultChartView));
   if (payload.orderTicketDefaults) window.localStorage.setItem(ORDER_DEFAULTS_KEY, JSON.stringify(payload.orderTicketDefaults));
   else window.localStorage.removeItem(ORDER_DEFAULTS_KEY);
   if (payload.replayToolbarPosition) window.localStorage.setItem(REPLAY_POSITION_KEY, JSON.stringify(payload.replayToolbarPosition));
@@ -144,6 +157,7 @@ export function useChartWorkspace(
     signedIn ? "loading" : "local",
   );
   const [revision, setRevision] = useState(0);
+  const [templates, setTemplates] = useState<WorkspaceTemplate[]>([]);
   const lastSavedRef = useRef("");
   const savePendingRef = useRef<Promise<void> | null>(null);
   const retryAfterRef = useRef(0);
@@ -162,6 +176,7 @@ export function useChartWorkspace(
       setSettings((current) => ({ ...current, ...migrated }));
     }
     setFavorites(new Set(parse<ToolKind[]>(window.localStorage.getItem(FAVOURITES_KEY), [])));
+    setTemplates(parse<WorkspaceTemplate[]>(window.localStorage.getItem("forextestlab:workspace-templates"), []));
     setRestoredStorageKey(storageKey);
   }, [storageKey]);
 
@@ -178,7 +193,7 @@ export function useChartWorkspace(
     setSyncStatus("loading");
     setServerRestoredStorageKey(null);
     void fetch("/api/workspace", { cache: "no-store", signal: controller.signal }).then(async (response) => {
-      const data = await response.json() as { ok?: boolean; workspace?: { payload: WorkspacePayload; updatedAt: string } | null };
+      const data = await response.json() as { ok?: boolean; workspace?: { payload: WorkspacePayload; updatedAt: string } | null; templates?: WorkspaceTemplate[] };
       if (cancelled) return;
       if (!data.ok) {
         setSyncStatus("error");
@@ -195,6 +210,8 @@ export function useChartWorkspace(
         setRevision((value) => value + 1);
         lastSavedRef.current = JSON.stringify(data.workspace.payload);
       }
+      setTemplates(data.templates ?? []);
+      window.localStorage.setItem("forextestlab:workspace-templates", JSON.stringify(data.templates ?? []));
       setSyncStatus("saved");
       setServerRestoredStorageKey(storageKey);
     }).catch(() => {
@@ -275,6 +292,55 @@ export function useChartWorkspace(
     });
   }, []);
 
+  const persistTemplates = (next: WorkspaceTemplate[]) => {
+    window.localStorage.setItem("forextestlab:workspace-templates", JSON.stringify(next));
+    setTemplates(next);
+  };
+  const saveTemplate = async (name: string) => {
+    if (!name.trim()) throw new Error("Enter a template name.");
+    const nextPayload = reusableWorkspace(payload());
+    if (signedIn) {
+      const response = await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save-template", name, payload: nextPayload }) });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not save the template. Try again.");
+      persistTemplates(data.templates);
+    } else {
+      persistTemplates([...templates.slice(-19), { id: crypto.randomUUID(), name: name.trim().slice(0, 60), payload: nextPayload, updatedAt: new Date().toISOString() }]);
+    }
+  };
+  const deleteTemplate = async (id: string) => {
+    if (signedIn) {
+      const response = await fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-template", templateId: id }) });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error ?? "Could not delete the template.");
+      persistTemplates(data.templates);
+    } else persistTemplates(templates.filter((item) => item.id !== id));
+  };
+  const applyTemplate = (id: string) => {
+    const saved = templates.find((item) => item.id === id)?.payload;
+    if (!saved) return;
+    const views = Object.entries(saved.cellViews ?? {}).sort(([a], [b]) => Number(b.includes(":")) - Number(a.includes(":")));
+    const fallback = templateView(views[0]?.[1]);
+    const prefix = `forextestlab:chart:${storageKey}:`;
+    for (const key of Object.keys(window.localStorage)) {
+      if (!key.startsWith(prefix)) continue;
+      const cell = key.slice(prefix.length).split(":")[0];
+      const view = views.find(([name]) => name.split(":")[0] === cell)?.[1];
+      const existing = parse<Record<string, unknown>>(window.localStorage.getItem(key), {});
+      window.localStorage.setItem(key, JSON.stringify({ ...existing, ...templateView(view ?? fallback), preferencesUpdatedAt: Date.now() }));
+    }
+    window.localStorage.setItem("forextestlab:default-chart-view", JSON.stringify(fallback));
+    if (saved.toolDefaults) window.localStorage.setItem("forextestlab:tool-defaults", JSON.stringify(saved.toolDefaults));
+    else window.localStorage.removeItem("forextestlab:tool-defaults");
+    if (saved.sessionIndicatorDefault) window.localStorage.setItem("forextestlab:session-indicator-default", JSON.stringify(saved.sessionIndicatorDefault));
+    setSettings((current) => ({ ...current, ...saved.settings }));
+    setFavorites(new Set((saved.favorites ?? []) as ToolKind[]));
+    window.localStorage.setItem(FAVOURITES_KEY, JSON.stringify(saved.favorites ?? []));
+    setRevision((value) => value + 1);
+  };
+
   return {
     ready: restored && (!signedIn || serverRestoredStorageKey === storageKey),
     settings,
@@ -283,5 +349,6 @@ export function useChartWorkspace(
     favorites,
     toggleFavorite,
     revision,
+    templates, saveTemplate, applyTemplate, deleteTemplate,
   };
 }

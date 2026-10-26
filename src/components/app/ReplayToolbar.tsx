@@ -1,4 +1,5 @@
 "use client";
+import { spreadReadout } from "@/lib/chart/price-format";
 
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -144,7 +145,7 @@ export function ReplayToolbar({
    * two prices a market order would actually get.
    */
   const spreadPips = Number(state.config.spreadPips) || 0;
-  const spreadLabel = spreadPips.toFixed(1);
+  const spreadLabel = spreadReadout(state.config.symbol, spreadPips, Number(state.config.pipSize));
   const pipSize = Number(state.config.pipSize) || 0;
   const mid = state.currentPrice == null ? null : Number(state.currentPrice);
   const precision = state.config.pricePrecision;
@@ -418,29 +419,21 @@ export function ReplayToolbar({
           <button
             type="button"
             aria-label="Quick Sell"
-            title={`${spreadLabel} pips${bidAsk ? ` · ${bidAsk.bid}` : ""}`}
+            title={`${spreadLabel}${bidAsk ? ` · ${bidAsk.bid}` : ""}`}
             onClick={onSell}
             disabled={!canTrade}
-            className="inline-flex h-7 min-w-[48px] shrink-0 items-center justify-center gap-1 rounded-l-md rounded-r-sm bg-loss py-0 pl-1 pr-4 text-[11px] font-bold text-surface-950 hover:opacity-90 disabled:opacity-35 sm:pl-2"
+            className="inline-flex h-7 min-w-[48px] shrink-0 items-center justify-center gap-1 rounded-l-md rounded-r-sm bg-loss py-0 px-2 text-[11px] font-bold text-surface-950 hover:opacity-90 disabled:opacity-35 sm:pl-2"
           >
             <ArrowDownRight size={13} aria-hidden />
             <span className="hidden sm:inline">Sell</span>
           </button>
-          <span
-            data-testid="quick-trade-spread"
-            aria-label={`${spreadLabel} pips`}
-            title={`${spreadLabel} pips`}
-            className="pointer-events-none absolute left-1/2 top-1/2 z-10 inline-flex h-5 min-w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm border app-border bg-[var(--app-panel-solid)] px-1 font-mono text-[10px] font-bold leading-none text-[var(--app-text)] shadow-md"
-          >
-            {spreadLabel}
-          </span>
           <button
             type="button"
             aria-label="Quick Buy"
-            title={`${spreadLabel} pips${bidAsk ? ` · ${bidAsk.ask}` : ""}`}
+            title={`${spreadLabel}${bidAsk ? ` · ${bidAsk.ask}` : ""}`}
             onClick={onBuy}
             disabled={!canTrade}
-            className="inline-flex h-7 min-w-[48px] shrink-0 items-center justify-center gap-1 rounded-l-sm rounded-r-md bg-brand-500 py-0 pl-4 pr-1 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35 sm:pr-2"
+            className="inline-flex h-7 min-w-[48px] shrink-0 items-center justify-center gap-1 rounded-l-sm rounded-r-md bg-brand-500 py-0 px-2 text-[11px] font-bold text-surface-950 hover:bg-brand-400 disabled:opacity-35 sm:pr-2"
           >
             <ArrowUpRight size={13} aria-hidden />
             <span className="hidden sm:inline">Buy</span>
@@ -455,6 +448,9 @@ export function ReplayToolbar({
             placement={menusAbove ? "above" : "below"}
           />
         </div>
+        <span data-testid="quick-trade-spread" className="whitespace-nowrap px-1 text-[10px] app-muted" title="Difference between the Buy and Sell prices">
+          Spread <span className="font-mono">{spreadLabel}</span>
+        </span>
         <div className="relative shrink-0">
           <button
             type="button"

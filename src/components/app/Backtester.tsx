@@ -61,6 +61,7 @@ import { SymbolPickerModal } from "./SymbolPickerModal";
 import { GoToModal } from "./GoToModal";
 import { JumpStatus } from "./JumpStatus";
 import { EconomicCalendarPanel } from "./EconomicCalendarPanel";
+import { WorkspaceTemplates } from "./WorkspaceTemplates";
 import { TimeZonePicker } from "./TimeZonePicker";
 import type { GoToTarget } from "@/lib/backtest/goto";
 import { AUTO_BACKGROUND, ChartSettingsDialog, type SettingsTab } from "./ChartSettingsMenu";
@@ -1150,6 +1151,7 @@ export function Backtester({
 
       {!workspace.settings.distractionFree && <TerminalTopBar
         state={state}
+        timeZone={workspace.settings.timeZone}
         theme={theme}
         onToggleTheme={toggleTheme}
         onNewSession={newSession}
@@ -1468,6 +1470,7 @@ export function Backtester({
           initialTab={settingsTab}
           onChange={workspace.updateSettings}
           onReset={workspace.resetSettings}
+          templates={<WorkspaceTemplates workspace={workspace} />}
           onClose={closeSettings}
         />
       )}

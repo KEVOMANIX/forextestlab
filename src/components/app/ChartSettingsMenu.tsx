@@ -196,7 +196,8 @@ export type SettingsTab =
   | "display"
   | "trading"
   | "risk"
-  | "shortcuts";
+  | "shortcuts"
+  | "templates";
 
 const TABS: { key: SettingsTab; label: string }[] = [
   { key: "appearance", label: "Symbol" },
@@ -205,6 +206,7 @@ const TABS: { key: SettingsTab; label: string }[] = [
   { key: "trading", label: "Trading" },
   { key: "risk", label: "Risk limits" },
   { key: "shortcuts", label: "Shortcuts" },
+  { key: "templates", label: "Templates" },
 ];
 
 const SHORTCUT_LABELS: Record<keyof ChartSettings["shortcuts"], string> = {
@@ -244,6 +246,7 @@ export function ChartSettingsDialog({
   onChange,
   onReset,
   onClose,
+  templates,
 }: {
   settings: ChartSettings;
   theme: "dark" | "light";
@@ -252,6 +255,7 @@ export function ChartSettingsDialog({
   onChange: (patch: Partial<ChartSettings>) => void;
   onReset: () => void;
   onClose: () => void;
+  templates?: React.ReactNode;
 }) {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [capturing, setCapturing] = useState<
@@ -320,7 +324,7 @@ export function ChartSettingsDialog({
             style={{ borderColor: line, backgroundColor: inset }}
             aria-label="Settings sections"
           >
-            {TABS.map((entry) => (
+            {TABS.filter((entry) => entry.key !== "templates" || templates).map((entry) => (
               <button
                 key={entry.key}
                 type="button"
@@ -338,6 +342,7 @@ export function ChartSettingsDialog({
           </nav>
 
           <div className="min-w-0 flex-1 overflow-y-auto p-4">
+            {tab === "templates" && templates}
             {tab === "appearance" && (
               <div className="space-y-4">
                 <ColorRow

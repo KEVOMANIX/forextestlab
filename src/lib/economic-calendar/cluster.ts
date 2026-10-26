@@ -30,7 +30,7 @@ export interface EventCluster {
  * corner of a clustered one. Sized to the bubble rather than the disc because two
  * clusters a disc apart still had their counts sitting on top of each other.
  */
-export const CLUSTER_DISTANCE_PX = 22;
+export const CLUSTER_DISTANCE_PX = 36;
 
 export function clusterEvents(
   placed: PlacedEvent[],

@@ -117,6 +117,7 @@ import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorPicker } from "./IndicatorPicker";
 import { EconomicEventLayer } from "./EconomicEventLayer";
+import { chartPriceFormat } from "@/lib/chart/price-format";
 import { useCalendarEvents } from "./useCalendarEvents";
 import {
   ArrowCursorIcon,
@@ -770,6 +771,7 @@ function MarketSessionLayer({
   indicator,
   timeframe,
   chartTimeZone,
+  crosshairX,
 }: {
   chart: IChartApi;
   series: ISeriesApi<SeriesType>;
@@ -778,6 +780,7 @@ function MarketSessionLayer({
   timeframe: Timeframe;
   /** The axis zone, which can differ from the session's calculation zone. */
   chartTimeZone: string;
+  crosshairX: number | null;
 }) {
   // Range discovery is data work, not viewport work. Keeping it memoized means
   // panning, zooming and vertical scaling only project a small fixed set of
@@ -842,7 +845,7 @@ function MarketSessionLayer({
       const timestamp = zoneWallClockToUtc(configured.timezone, year!, month!, date!, Math.floor(session.lineMinutes / 60), session.lineMinutes % 60);
       if (timestamp < first || timestamp > last) continue;
       const left = coordinateFor(timestamp);
-      if (left == null) continue;
+      if (left == null || left < 0 || left > timeScale.width()) continue;
       lineElements.push(
         <div
           key={`${session.id}-${day}`}
@@ -856,7 +859,8 @@ function MarketSessionLayer({
           />
           <span
             className="absolute bottom-[3px] left-0 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm"
-            style={{ color: readableCanvasColor("#0b0f1a", session.lineColor), backgroundColor: session.lineColor }}
+            style={{ color: readableCanvasColor("#0b0f1a", session.lineColor), backgroundColor: session.lineColor,
+              visibility: crosshairX != null && Math.abs(left - crosshairX) < 190 ? "hidden" : "visible" }}
           >
             {formatInZone(timestamp, chartTimeZone, SESSION_LINE_AXIS_FORMAT)}
           </span>
@@ -1163,6 +1167,8 @@ export default function PriceChart({
   axisFontSizeRef.current = axisFontSize;
   timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
+  const [crosshairX, setCrosshairX] = useState<number | null>(null);
+  const preferencesRestoredRef = useRef(false);
   const [indicatorPaneLayouts, setIndicatorPaneLayouts] = useState<IndicatorPaneLayout[]>([]);
   const [pricePaneBottom, setPricePaneBottom] = useState<number | null>(null);
   const [collapsedIndicatorPanes, setCollapsedIndicatorPanes] = useState<Set<string>>(() => new Set());
@@ -1184,6 +1190,10 @@ export default function PriceChart({
     if (next === indicatorsRef.current) return;
     indicatorsRef.current = next;
     setIndicators(next);
+    try {
+      const session = next.find((item) => item.kind === "sessions");
+      if (session) window.localStorage.setItem("forextestlab:session-indicator-default", JSON.stringify(session));
+    } catch { /* Settings remain usable without browser storage. */ }
     if (linkedLayout && onSyncToLayout) {
       onSyncToLayout({
         indicators: cloneIndicatorsForLayout(next),
@@ -2323,7 +2333,7 @@ export default function PriceChart({
 
     if (viewStorageKey) {
       try {
-        const saved = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as {
+        const saved = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? window.localStorage.getItem("forextestlab:default-chart-view") ?? "{}") as {
           range?: { from: number; to: number };
           timeRange?: { from: number; to: number };
           timeframe?: Timeframe;
@@ -2397,6 +2407,7 @@ export default function PriceChart({
     chart.timeScale().subscribeVisibleLogicalRangeChange(coordinateUpdate);
 
     const onCrosshair = (param: MouseEventParams<Time>) => {
+      setCrosshairX(param.point?.x ?? null);
       scheduleLineCoordinates();
       const series = seriesRef.current;
       if (!series || param.time == null) {
@@ -2925,7 +2936,14 @@ export default function PriceChart({
   }, [displayTimeframe]);
 
   useEffect(() => {
+    const priceFormat = chartPriceFormat(precision, pipSize);
+    seriesRef.current?.applyOptions({ priceFormat });
+    contextSeriesRef.current?.applyOptions({ priceFormat });
+  }, [precision, pipSize, seriesEpoch]);
+
+  useEffect(() => {
     if (!viewStorageKey) return;
+    if (!preferencesRestoredRef.current) { preferencesRestoredRef.current = true; return; }
     try {
       const existing = JSON.parse(window.localStorage.getItem(`forextestlab:chart:${viewStorageKey}`) ?? "{}") as Record<string, unknown>;
       window.localStorage.setItem(
@@ -2935,6 +2953,7 @@ export default function PriceChart({
           timeframe: displayTimeframe,
           chartType,
           indicators,
+          preferencesUpdatedAt: Date.now(),
         }),
       );
     } catch {
@@ -3624,8 +3643,14 @@ export default function PriceChart({
   }
 
   function addIndicator(kind: string) {
-    const inst = makeInstance(kind);
+    let inst = makeInstance(kind);
     if (!inst) return;
+    if (kind === "sessions") {
+      try {
+        const saved = hydrateInstance(JSON.parse(window.localStorage.getItem("forextestlab:session-indicator-default") ?? "null"));
+        if (saved?.kind === "sessions") inst = { ...saved, id: inst.id, visible: true };
+      } catch { /* Use the built-in defaults. */ }
+    }
     commitIndicators((prev) => [...prev, inst]);
     setMenu(null);
     const anchorInput = getDef(kind)?.inputs.find((i) => i.type === "anchor");
@@ -4334,6 +4359,7 @@ export default function PriceChart({
             indicator={indicator}
             timeframe={displayTimeframe}
             chartTimeZone={settings.timeZone}
+            crosshairX={crosshairX}
           />
         ))}
 
@@ -4427,6 +4453,14 @@ export default function PriceChart({
             <div className="pointer-events-auto w-full">{axisCorner}</div>
           </div>
         )}
+        <button
+          type="button"
+          aria-label="Auto-fit price scale"
+          title="Fit visible candles vertically; keep the current time range"
+          className="absolute right-1 z-20 rounded border app-border bg-[var(--app-panel-solid)] px-1.5 py-0.5 text-[10px] font-semibold app-muted hover:text-brand-300"
+          style={{ bottom: timeAxisHeight + 30 }}
+          onClick={() => chartRef.current?.priceScale("right").applyOptions({ autoScale: true })}
+        >Auto</button>
 
         {/*
           Chart legend in the top-left corner.
@@ -4487,11 +4521,11 @@ export default function PriceChart({
                   title="Select a symbol"
                   className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 font-mono text-[1.05em] font-bold transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-accent-text)]"
                 >
-                  {symbolLabel}
+                  {getSymbolDefinition(symbolLabel)?.displayName ?? symbolLabel}
                   <ChevronDown size={12} className="text-[var(--chart-muted)]" aria-hidden />
                 </button>
               ) : (
-                <span className="px-2 font-mono text-[1.05em] font-bold">{symbolLabel}</span>
+                <span className="px-2 font-mono text-[1.05em] font-bold" title={symbolLabel}>{getSymbolDefinition(symbolLabel)?.displayName ?? symbolLabel}</span>
               )}
               {/* The timeframe picks from here as well as from the header row.
                   The pair and its timeframe are one thought ("EURUSD 15m"), and

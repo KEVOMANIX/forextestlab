@@ -854,3 +854,12 @@ The visual system deliberately separates product identity from trading results:
 5. Commit only task-related files, push `aws-lightsail`, and deploy through SSH.
 6. Verify both localhost on Lightsail and the Cloudflare public URL.
 7. Report the commit, verification performed, and any remaining operational risk.
+
+## 2026-10-26 — Chart readability and reusable templates
+
+- Session axis labels yield when the crosshair is within their label area; off-plot session labels are culled. Price axes update after symbol metadata arrives and index axes omit trailing zeros while retaining sub-point tick precision.
+- Spread moved beside both the chart quote buttons and floating replay buttons. Index spreads are converted from configured pips into actual points. Lot-size popovers remain available.
+- News clusters reserve 36 px for flags/counts and cap visible counts at 99+ (the full events remain in the tooltip). Added a per-chart Auto price-scale button, compact instrument display names, and an explicit Session caption with the current replay date.
+- Fixed account workspace capture to include symbol-qualified cell keys and layouts with more than four cells. Initial chart persistence no longer overwrites saved indicators with an empty mount state. Session indicator inputs are remembered for the next addition and included in account sync.
+- Settings > Templates saves/applies/deletes named preferences through the existing authenticated workspace API, with local templates for unsigned users. Templates contain chart appearance, per-cell indicators, favourites and drawing-tool defaults; they do not copy drawing coordinates, market selection, replay state or orders. Existing drawings retain their per-symbol keys. The applied first chart style is the default for newly opened charts.
+- Validation: 12 focused unit tests, TypeScript, production build, and a two-chart browser fixture: session label/crosshair visibility, delayed precision correction, template save/remove/apply, and indicator persistence after reload. Browser fixture lives under ignored .tmp/chart-ui-check.

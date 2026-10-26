@@ -8,6 +8,8 @@ export interface WorkspacePayload {
   cellViews: Record<string, unknown>;
   drawings: Record<string, unknown[]>;
   toolDefaults: unknown;
+  sessionIndicatorDefault?: unknown;
+  defaultChartView?: unknown;
   orderTicketDefaults: Omit<OrderRequest, "direction"> | null;
   replayToolbarPosition: { x: number; y: number } | null;
 }

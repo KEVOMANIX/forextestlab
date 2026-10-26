@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, BookOpenText, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, Lock, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, ShieldCheck, Sun, Trophy } from "lucide-react";
+import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, Lock, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, ShieldCheck, Sun, Trophy } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -40,7 +40,7 @@ function isActive(pathname: string, href: string): boolean {
 function DesktopLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const Icon = item.icon;
   const active = isActive(pathname, item.href);
-  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{item.pro ? <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold tracking-[0.12em] text-brand-300">PRO</span> : item.badge && <span className="ml-auto rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-surface-950">{item.badge}</span>}</Link>;
+  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{item.pro ? <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold tracking-[0.12em] text-brand-300">PRO</span> : item.badge && <span className="ml-auto rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-surface-950">{item.badge}</span>}</Link>;
 }
 
 /** `freePlan`: set for a Free account, so Pro-only destinations carry the Pro mark and the plan card shows. */
@@ -63,27 +63,28 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null }
   return <>
     <aside className="hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:row-span-2 lg:h-dvh lg:self-start lg:flex">
       <div className="flex h-16 items-center border-b app-border px-5"><Logo className="h-7" /></div>
-      <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-3 py-5">
+      <nav aria-label="Workspace navigation" className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={free && item.href === "/app/challenges" ? { ...item, pro: true } : item} pathname={pathname} />)}</div>
         <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
         {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
-        <div className="mt-7"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link></div></div>
+        <div className="mt-5"><p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link></div></div>
       </nav>
-      {freePlan && <FreePlanCard plan={freePlan} />}
       <div className="border-t app-border p-3">
         <div className="overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]/55 shadow-sm">
-          <Link href={signedIn ? "/account" : "/sign-in"} className="group flex items-center gap-3 px-3 py-3 transition-colors hover:bg-[var(--app-hover)]">
-            <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--app-accent-wash)] text-xs font-bold text-brand-300 ring-1 ring-brand-400/25">
-              {signedIn ? initials(displayName) : <LogIn size={16} aria-hidden />}
-              {signedIn && <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-[var(--app-panel-2)] bg-profit" aria-label="Signed in" />}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold text-[var(--app-text)]">{signedIn ? displayName ?? "ForexTestLab trader" : "Sign in"}</span>
-              <span className="mt-0.5 block truncate text-[10px] app-muted">{signedIn ? "Account settings" : "Access your workspace"}</span>
-            </span>
-            <ChevronRight size={14} className="shrink-0 app-muted transition-transform group-hover:translate-x-0.5 group-hover:text-brand-300" aria-hidden />
-          </Link>
-          {signedIn && <button type="button" onClick={signOut} disabled={signingOut} className="flex w-full items-center justify-center gap-2 border-t app-border px-3 py-2.5 text-[11px] font-semibold app-muted transition-colors hover:bg-loss/[0.07] hover:text-loss disabled:cursor-wait disabled:opacity-50">{signingOut ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <LogOut size={14} aria-hidden />}Sign out</button>}
+          <div className="flex items-center gap-1 p-1.5">
+            <Link href={signedIn ? "/account" : "/sign-in"} className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--app-hover)]">
+              <span className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--app-accent-wash)] text-[11px] font-bold text-brand-300 ring-1 ring-brand-400/25">
+                {signedIn ? initials(displayName) : <LogIn size={15} aria-hidden />}
+                {signedIn && <span className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full border-2 border-[var(--app-panel-2)] bg-profit" aria-label="Signed in" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-[var(--app-text)]">{signedIn ? displayName ?? "ForexTestLab trader" : "Sign in"}</span>
+                <span className="block truncate text-[10px] app-muted">{signedIn ? (freePlan ? "Free plan · Account" : "Account settings") : "Access your workspace"}</span>
+              </span>
+            </Link>
+            {signedIn && <button type="button" onClick={signOut} disabled={signingOut} aria-label="Sign out" title="Sign out" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg app-muted transition-colors hover:bg-loss/[0.08] hover:text-loss disabled:cursor-wait disabled:opacity-50">{signingOut ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogOut size={15} aria-hidden />}</button>}
+          </div>
+          {freePlan && <FreePlanStrip plan={freePlan} />}
         </div>
       </div>
     </aside>
@@ -93,8 +94,8 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null }
   </>;
 }
 
-/** Free accounts: this month's sessions and one way into Pro. */
-function FreePlanCard({ plan }: { plan: FreePlanSummary }) {
+/** Free accounts: this month's sessions and one way into Pro, under the profile. */
+function FreePlanStrip({ plan }: { plan: FreePlanSummary }) {
   // Sessions started since the layout loaded; the layout survives client navigation.
   const [started, setStarted] = useState(0);
   useEffect(() => {
@@ -104,16 +105,18 @@ function FreePlanCard({ plan }: { plan: FreePlanSummary }) {
   }, []);
   const used = Math.min(plan.limit, plan.used + started);
   const left = plan.limit - used;
-  return <div className="mx-3 mb-3 rounded-xl border border-brand-400/30 bg-[linear-gradient(160deg,rgb(var(--app-accent-rgb)/0.16),rgb(var(--app-accent-rgb)/0.03)_70%)] p-3.5">
-    <p className="text-[13px] font-semibold text-[var(--app-text)]">Free plan</p>
-    <p className="mt-0.5 text-[11px] app-muted">{left} of {plan.limit} sessions left · renews {formatQuotaReset(plan.resetsAt)}</p>
-    <div className="mt-2.5 flex gap-[3px]" role="meter" aria-label="Free sessions used this month" aria-valuemin={0} aria-valuemax={plan.limit} aria-valuenow={used}>
+  return <div className="border-t app-border px-3 pb-3 pt-2.5">
+    <div className="flex items-baseline justify-between gap-2 text-[10px] app-muted">
+      <span><span className="font-semibold text-[var(--app-text)]">{left} of {plan.limit}</span> sessions left</span>
+      <span className="truncate">renews {formatQuotaReset(plan.resetsAt)}</span>
+    </div>
+    <div className="mt-1.5 flex gap-[3px]" role="meter" aria-label="Free sessions used this month" aria-valuemin={0} aria-valuemax={plan.limit} aria-valuenow={used}>
       {Array.from({ length: plan.limit }, (_, index) => <span key={index} className={`h-1 flex-1 rounded-full ${index < used ? "bg-brand-400" : "bg-[var(--app-border)]"}`} />)}
     </div>
-    <ProLock feature="sessions" className="btn-primary mt-3 w-full py-2 text-xs"><Lock size={13} aria-hidden /> Unlock Pro</ProLock>
+    <ProLock feature="sessions" className="btn-primary mt-2.5 w-full py-1.5 text-xs"><Lock size={12} aria-hidden /> Unlock Pro</ProLock>
   </div>;
 }
 
 function NavGroup({ label, items, pathname }: { label: string; items: NavItem[]; pathname: string }) {
-  return <div className="mt-7"><p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">{label}</p><div className="space-y-1">{items.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div></div>;
+  return <div className="mt-5"><p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">{label}</p><div className="space-y-1">{items.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div></div>;
 }

@@ -20,6 +20,11 @@ it("requires ownership for every operation", async () => {
   expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.remove).not.toHaveBeenCalled();
 });
 it("blocks cross-origin mutations", async () => { for (const method of [POST, DELETE]) expect((await method(request("POST", "https://other.test"), context())).status).toBe(403); });
+it("accepts the public origin behind an internal reverse-proxy URL", async () => {
+  mocks.user.mockResolvedValue(null);
+  const proxied = new Request("http://localhost:3000/api/backtest/sessions/test/share", { method: "POST", headers: { origin: "https://www.forextestlab.com" } });
+  expect((await POST(proxied, context())).status).toBe(401);
+});
 it("does not publish without export entitlement", async () => { mocks.entitlement.mockResolvedValue({ exports: false }); expect((await POST(request("POST"), context())).status).toBe(403); expect(mocks.save).not.toHaveBeenCalled(); });
 it("rotates the token and gives snapshots a 30-day expiry", async () => {
   mocks.save.mockImplementation(async args => args.create);

@@ -6,11 +6,19 @@ import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { readSavedSessionState } from "@/lib/backtest/saved-session-state";
 import { fundedBalance } from "@/lib/backtest/replay-engine";
 import { createShareSnapshot } from "@/lib/analytics/share-snapshot";
+import { siteConfig } from "@/lib/site";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ id: string }> };
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
+
+function validOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+  // The reverse proxy gives Next an internal request URL. Compare browser
+  // origins against our public hosts as well, never arbitrary forwarded headers.
+  return !origin || [new URL(siteConfig.url).origin, "https://forextestlab.com", "https://www.forextestlab.com", new URL(request.url).origin].includes(origin);
+}
 
 async function ownedSession(context: Context) {
   const user = await getCurrentUser();
@@ -29,7 +37,7 @@ export async function GET(_request: Request, context: Context) {
 }
 
 export async function POST(request: Request, context: Context) {
-  if (request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin) return json({ error: "Invalid origin." }, 403);
+  if (!validOrigin(request)) return json({ error: "Invalid origin." }, 403);
   const result = await ownedSession(context);
   if (result.error) return result.error;
   const entitlements = await getUserEntitlements(result.user!.id);
@@ -43,7 +51,7 @@ export async function POST(request: Request, context: Context) {
 }
 
 export async function DELETE(request: Request, context: Context) {
-  if (request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin) return json({ error: "Invalid origin." }, 403);
+  if (!validOrigin(request)) return json({ error: "Invalid origin." }, 403);
   const result = await ownedSession(context);
   if (result.error) return result.error;
   await prisma.analyticsShare.deleteMany({ where: { sessionId: result.session!.id } });

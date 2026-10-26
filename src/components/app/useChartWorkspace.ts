@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ToolKind } from "@/lib/chart/drawing/types";
 import type { WorkspacePayload, WorkspaceTemplate } from "@/lib/workspace";
+import { mergeToolTemplates, TOOL_TEMPLATES_KEY, type ToolTemplate } from "@/lib/chart/tool-templates";
 import { DEFAULT_CHART_SETTINGS, type ChartSettings } from "./ChartSettingsMenu";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
 import { newestChartView, reusableWorkspace, templateView } from "@/lib/chart/workspace-template";
@@ -96,6 +97,7 @@ function captureWorkspace(
     cellViews,
     drawings,
     toolDefaults: parse<unknown>(window.localStorage.getItem("forextestlab:tool-defaults"), null),
+    individualToolTemplates: parse<ToolTemplate[]>(window.localStorage.getItem(TOOL_TEMPLATES_KEY), []),
     sessionIndicatorDefault: parse<unknown>(window.localStorage.getItem("forextestlab:session-indicator-default"), null),
     defaultChartView: parse<unknown>(window.localStorage.getItem("forextestlab:default-chart-view"), null),
     orderTicketDefaults: parse<WorkspacePayload["orderTicketDefaults"]>(window.localStorage.getItem(ORDER_DEFAULTS_KEY), null),
@@ -104,6 +106,11 @@ function captureWorkspace(
 }
 
 function applyWorkspace(storageKey: string, payload: WorkspacePayload) {
+  if (Array.isArray(payload.individualToolTemplates)) {
+    const local = parse<ToolTemplate[]>(window.localStorage.getItem(TOOL_TEMPLATES_KEY), []);
+    window.localStorage.setItem(TOOL_TEMPLATES_KEY, JSON.stringify(mergeToolTemplates(local, payload.individualToolTemplates)));
+    window.dispatchEvent(new Event("tool-templates-changed"));
+  }
   window.localStorage.setItem(settingsKey(storageKey), JSON.stringify(payload.settings ?? {}));
   window.localStorage.setItem(FAVOURITES_KEY, JSON.stringify(payload.favorites ?? []));
   const layoutKey = `forextestlab:layout:${storageKey}`;

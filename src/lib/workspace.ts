@@ -1,5 +1,6 @@
 import type { ChartSettings } from "@/components/app/ChartSettingsMenu";
 import type { OrderRequest } from "./backtest/types";
+import type { ToolTemplate } from "./chart/tool-templates";
 
 export interface WorkspacePayload {
   settings: Partial<ChartSettings>;
@@ -8,6 +9,7 @@ export interface WorkspacePayload {
   cellViews: Record<string, unknown>;
   drawings: Record<string, unknown[]>;
   toolDefaults: unknown;
+  individualToolTemplates?: ToolTemplate[];
   sessionIndicatorDefault?: unknown;
   defaultChartView?: unknown;
   orderTicketDefaults: Omit<OrderRequest, "direction"> | null;

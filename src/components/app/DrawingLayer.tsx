@@ -26,6 +26,7 @@ import type { Candle } from "@/lib/chart/drawing/coords";
 import { chartCanvasBackground, readableCanvasColor, type DrawingAccount } from "@/lib/chart/drawing/object";
 import type { DrawingJSON, MagnetMode, ToolKind } from "@/lib/chart/drawing/types";
 import { DrawingSettingsDialog } from "./DrawingSettingsDialog";
+import { DrawingTemplateMenu } from "./DrawingTemplateMenu";
 
 const DRAWINGS_CHANGED_EVENT = "forextestlab:drawings-change";
 
@@ -420,6 +421,7 @@ export function DrawingLayer({
             <Menu size={18} />
             <span className="sr-only">{selection.style.lineStyle}</span>
           </button>
+          <DrawingTemplateMenu value={selection} onChange={patch => eng()?.updateObject(selection.id, patch)} />
           <span className="mx-0.5 h-5 w-px bg-[var(--app-border)]" aria-hidden />
           {onPositionToolOrder && (selection.kind === "long" || selection.kind === "short") && <button type="button" onClick={() => { const drawing = eng()?.getSelected(); if (drawing) onPositionToolOrder(drawing); }} className="shrink-0 rounded bg-brand-500 px-3 py-1.5 text-xs font-semibold text-surface-950">Place order</button>}
           <button type="button" aria-label={selection.locked ? "Unlock drawing" : "Lock drawing"} onClick={() => eng()?.toggleLock()} className="grid h-6 w-6 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">

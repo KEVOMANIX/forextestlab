@@ -871,3 +871,9 @@ The visual system deliberately separates product identity from trading results:
 - Playback now checks the tails of every visible/focused/traded secondary market independently of the primary runway. It requests a fresh pair tail before advancing; if no further candles are returned, it pauses with an explicit message and preserves the clock. Buffered normal closures still skip to their reopening candle. Refresh merges existing history and keeps per-pair context.
 - Validation: all 369 backtest tests, TypeScript, browser hook fixture showing missing tail pauses at index 0 after one refresh, and recoverable tail resumes at the normal reopening index 106.
 - Local external downloader now accepts --month=YYYY-MM; the root Windows sync wrapper accepts -Month, allowing older truncated months to be repaired without resetting the normal current-month updater.
+
+### 2026-10-26 — Individual indicator and drawing templates
+- Added per-type Template menus in every indicator settings dialog, drawing settings dialog, and selected drawing toolbar. Save as, apply defaults, apply named preset, and delete; matching names update that type's preset.
+- Drawing presets include style and timeframe visibility, never IDs/anchors/locking. Optional style fields absent from the preset are cleared when applied through the merging drawing engine.
+- Saved in forextestlab:individual-tool-templates and included in account workspace sync. Timestamp merge and deletion tombstones preserve newer local edits during restore.
+- Verified 56 targeted tests (including all 48 drawing types), TypeScript, and real browser dialog fixtures: Fibonacci save/reload/apply, anchor preservation, per-type isolation, Sessions timezone restore.

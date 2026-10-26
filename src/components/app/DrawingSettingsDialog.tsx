@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
+import { DrawingTemplateMenu } from "./DrawingTemplateMenu";
 
 import {
   DRAW_PALETTE,
@@ -502,6 +503,10 @@ export function DrawingSettingsDialog({ value, timeframes, precision, onChange, 
               </div>
             </div>
           )}
+        </div>
+        <div className="flex items-center justify-between border-t app-border px-3 py-3">
+          <DrawingTemplateMenu value={value} onChange={onChange} />
+          <button type="button" onClick={onClose} className="rounded-md bg-brand-400 px-4 py-2 text-xs font-semibold text-surface-950">Done</button>
         </div>
       </div>
     </div>

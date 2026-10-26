@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Crosshair, Info, RotateCcw, X } from "lucide-react";
+import { Crosshair, Info, X } from "lucide-react";
+import { ToolTemplateMenu } from "./ToolTemplateMenu";
+import { indicatorTemplate } from "@/lib/chart/tool-templates";
 
 import { formatNewYorkDateTime } from "@/lib/date-time";
 import { zoneOptionsAt } from "@/lib/chart/timezones";
@@ -382,7 +384,7 @@ export function IndicatorSettingsDialog({ value, onChange, onClose, onPickAnchor
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t app-border px-5 py-3">
-          <button type="button" onClick={resetDefaults} className="inline-flex h-9 items-center gap-2 rounded-lg px-2 text-xs font-medium app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><RotateCcw size={13} /> Reset</button>
+          <ToolTemplateMenu scope={`indicator:${value.kind}`} value={indicatorTemplate(value)} onApply={onChange} onDefaults={resetDefaults} />
           <button type="button" onClick={onClose} className="h-9 rounded-lg bg-brand-500 px-5 text-xs font-semibold text-surface-950 hover:bg-brand-400">
             Done
           </button>

@@ -15,6 +15,7 @@ import {
   FlaskConical,
   Gauge,
   LineChart,
+  Lock,
   NotebookPen,
   Play,
   ShieldCheck,
@@ -46,7 +47,7 @@ import { analyticsTrades } from "@/lib/analytics/trade-scope";
 import { replayDayLabel, replayDayPercent } from "@/lib/backtest/replay-progress";
 import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradingSession } from "@/lib/date-time";
 import { formatSymbol } from "@/lib/market-data/symbols";
-import { ProLock } from "./ProLock";
+import { ProLock, ProPeek } from "./ProLock";
 
 type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "analyst";
 
@@ -411,6 +412,9 @@ export function AnalyticsDesignPrototype({
       : createLiveModel(scopedTrades, scopedEquityCurve, startingBalance, tradedPairLabel, scopedEndingBalance),
     [demo, scopedTrades, scopedEquityCurve, startingBalance, tradedPairLabel, scopedEndingBalance],
   );
+  const reportsLocked = !fullAccess && !demo;
+  // Locked reports preview sample trades, never the trader's own.
+  const sampleModel = useMemo(() => createDemoModel(), []);
   const chartPeriod = demo ? DEMO_ANALYTICS_PERIOD : recordedChartPeriod(scopedEquityCurve, scopedTrades, startTime);
   const equityValues = model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance];
   const equityPath = linePath(equityValues);
@@ -449,7 +453,7 @@ export function AnalyticsDesignPrototype({
     <div className="flex flex-wrap items-center gap-2">
       {!demo && !readOnly && fullAccess && sessionId && <ShareAnalyticsButton key={sessionId} sessionId={sessionId} />}
       {!demo && fullAccess && <ExportAnalyticsPdfButton getElement={() => exportRef.current} name={displayedSessionName} tab={tab} />}
-      {!readOnly && (demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <span className="inline-flex h-9 items-center gap-2 px-3 text-xs font-semibold app-muted"><Download size={14} aria-hidden /> Export <ProLock feature="exports" /></span>)}
+      {!readOnly && (demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <ProLock feature="exports" className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted transition-colors hover:text-[var(--app-text)]"><Download size={14} aria-hidden /> Export <Lock size={11} aria-label="Pro" /></ProLock>)}
       {!demo && !readOnly && (onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>)}
     </div>
   );
@@ -481,10 +485,8 @@ export function AnalyticsDesignPrototype({
       {sessionSelector ? <header className="mt-4 border-b app-border pb-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>{!showingLiveSample && headerActions}</div>{showingLiveSample ? <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div><div className="hidden sm:block">{sessionMetadata}</div><button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-amber-200/20 text-amber-100 transition-colors hover:bg-amber-200/10" aria-label="Close sample report" title="Close sample report"><X size={16} aria-hidden /></button></div> : <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>}</header> : <header className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{headerActions}</header>}
 
       <nav className="flex overflow-x-auto border-b app-border" aria-label="Prototype report sections">
-        {TABS.filter((item) => (!readOnly || (item !== "journal" && item !== "analyst")) && (item !== "analyst" || Boolean(aiPanel))).map((item) => item === "reports" && !fullAccess && !demo ? (
-          <span key={item} className="flex shrink-0 items-center gap-2 border-b-2 border-transparent px-4 py-3 text-xs font-semibold capitalize app-muted">{item} <ProLock feature="analytics" /></span>
-        ) : (
-          <button key={item} type="button" onClick={() => setTab(item)} className={`shrink-0 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}</button>
+        {TABS.filter((item) => (!readOnly || (item !== "journal" && item !== "analyst")) && (item !== "analyst" || Boolean(aiPanel))).map((item) => (
+          <button key={item} type="button" onClick={() => setTab(item)} className={`flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}{item === "reports" && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
         ))}
       </nav>
 
@@ -574,7 +576,12 @@ export function AnalyticsDesignPrototype({
 
       {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Trades included in analytics</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">{DEMO_ANALYTICS_SCOPED_TRADES.length} sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} focusedTrade={demo ? null : focusedTrade} /></section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
-      {tab === "reports" && <><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</>}
+      {tab === "reports" && reportsLocked && (
+        <ProPeek feature="analytics" title="Your full report is on Pro" text="Risk, timing and exit-quality analysis across your trades. The preview behind uses sample trades." className="mt-5 max-h-[34rem] rounded-2xl">
+          <ReportsWorkspace model={sampleModel} periodLabel={periodLabel} />
+        </ProPeek>
+      )}
+      {tab === "reports" && !reportsLocked && <><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</>}
       {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
     </TradeFocusProvider>

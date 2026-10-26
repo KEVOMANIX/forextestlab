@@ -4,14 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   Check,
-  Crown,
   Loader2,
   Lock,
   Plus,
   Search,
   X,
 } from "lucide-react";
-import Link from "next/link";
 
 import { fetchSymbols } from "@/lib/backtest/client";
 import type { SymbolQuote } from "@/lib/backtest/symbol-quote";
@@ -508,18 +506,18 @@ export function SymbolPickerModal({
           ) : (
             <>
               <p className="flex min-w-0 items-center gap-2 text-xs">
-                <ProLock feature="multiPair" label="Pro" />
+                <Lock size={13} className="shrink-0 app-muted" aria-hidden />
                 <span className="truncate app-muted">
                   Replay and trade several markets in one session with Pro.
                 </span>
               </p>
-              <Link
-                href="/pricing?feature=multiPair"
+              <ProLock
+                feature="multiPair"
                 className="btn-primary shrink-0 px-3.5 py-2 text-xs"
               >
-                <Crown size={14} aria-hidden />
-                See Pro
-              </Link>
+                <Lock size={13} aria-hidden />
+                Unlock with Pro
+              </ProLock>
             </>
           )}
         </footer>

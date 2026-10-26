@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Check, Play, Plus, RotateCcw, Trophy } from "lucide-react";
+import { BarChart3, Check, Lock, Play, Plus, RotateCcw, Trophy } from "lucide-react";
 
 import {
   BREACH_SHORT_LABELS,
@@ -15,7 +15,7 @@ import {
 } from "@/lib/backtest/challenge-record";
 import type { ChallengeAttempt, ChallengeDay, ChallengesOverview } from "@/lib/backtest/challenge-queries";
 import type { PropFirmBreachRule } from "@/lib/backtest/prop-firm";
-import { ProLock } from "./ProLock";
+import { ProLock, ProPeek } from "./ProLock";
 
 const RING_RADIUS = 62;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
@@ -234,6 +234,37 @@ function RecordStrip({ summary }: { summary: ChallengeSummary }) {
  * `locked`: the account is on Free. Past attempts stay listed and reviewable;
  * starting or continuing a challenge is Pro (the server refuses it too).
  */
+/** What a running challenge looks like, shown blurred behind the Pro card. */
+function SampleChallenge() {
+  const meters = [
+    { label: "Profit target", value: "+$6,240 of $10,000", percent: 62, tone: "bg-profit" },
+    { label: "Daily loss limit", value: "$1,180 of $5,000 used", percent: 24, tone: "bg-loss" },
+    { label: "Maximum loss", value: "$2,050 of $10,000 used", percent: 21, tone: "bg-loss" },
+  ];
+  return (
+    <section className="rounded-2xl border app-border bg-[var(--app-panel)] p-6 sm:p-8">
+      <div className="flex items-center gap-3">
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><Trophy size={20} /></span>
+        <div><p className="font-semibold">Phase 1 · $100,000 account</p><p className="text-xs app-muted">Day 9 · EURUSD</p></div>
+      </div>
+      <div className="mt-6 grid gap-5 sm:grid-cols-3">
+        {meters.map((meter) => (
+          <div key={meter.label}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] app-muted">{meter.label}</p>
+            <p className="mt-1 text-sm font-semibold">{meter.value}</p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className={`h-full rounded-full ${meter.tone}`} style={{ width: `${meter.percent}%` }} /></div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-6 flex h-28 items-end gap-1.5">
+        {[30, 55, -20, 70, 40, -35, 85, 60, 45].map((value, index) => (
+          <div key={index} className={`flex-1 rounded-t ${value >= 0 ? "bg-profit/60" : "bg-loss/60"}`} style={{ height: `${Math.abs(value)}%` }} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function ChallengesView({ overview, locked = false }: { overview: ChallengesOverview; locked?: boolean }) {
   const { active, days, attempts, summary } = overview;
   const next = active || locked ? null : nextChallengeStep(attempts);
@@ -242,27 +273,29 @@ export function ChallengesView({ overview, locked = false }: { overview: Challen
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Prop firm</p>
-          <h1 className="mt-1.5 flex items-center gap-3 text-3xl font-bold tracking-tight">Challenges {locked && <ProLock feature="challenge" />}</h1>
+          <h1 className="mt-1.5 flex items-center gap-3 text-3xl font-bold tracking-tight">Challenges</h1>
         </div>
         {locked
-          ? <Link href="/pricing?feature=challenge" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-300/40 px-4 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-300/10"><span aria-hidden="true">🔒</span>Start a challenge with Pro</Link>
+          ? <ProLock feature="challenge" className="inline-flex min-h-11 items-center gap-2 rounded-xl border app-border px-4 text-sm font-semibold transition-colors hover:bg-[var(--app-panel-2)]"><Lock size={15} aria-hidden />Start a challenge with Pro</ProLock>
           : <Link href={challengeStartHref()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand-400/60 px-4 text-sm font-semibold text-brand-300 transition-colors hover:bg-brand-400/10"><Plus size={16} aria-hidden />Start a challenge</Link>}
       </header>
 
       {locked && attempts.length > 0 && (
-        <p className="mt-4 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] px-4 py-3 text-sm leading-6 app-muted">
+        <p className="mt-4 rounded-xl border app-border bg-[var(--app-panel)] px-4 py-3 text-sm leading-6 app-muted">
           Prop Firm Challenge mode is part of Pro. Your attempts and their results stay here to review; upgrade or start a Pro trial to carry on or start a new one.
         </p>
       )}
 
-      {attempts.length === 0 ? (
+      {attempts.length === 0 && locked ? (
+        <ProPeek feature="challenge" title="Challenge mode is part of Pro" text="Trade a funded-account evaluation under real rules, scored day by day. New members can try it free for 7 days." className="mt-6 rounded-2xl">
+          <SampleChallenge />
+        </ProPeek>
+      ) : attempts.length === 0 ? (
         <section className="mt-6 rounded-2xl border border-brand-400/25 bg-brand-400/[0.06] p-6 shadow-card sm:p-8">
           <span className="grid h-11 w-11 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-300"><Trophy size={20} aria-hidden /></span>
-          <h2 className="mt-5 flex items-center gap-3 text-2xl font-bold tracking-tight">No challenges yet {locked && <ProLock feature="challenge" />}</h2>
-          <p className="mt-2 max-w-xl text-sm leading-6 app-muted">Trade under prop-firm rules: a profit target, a daily loss limit and a maximum loss. Challenges stay out of your backtest results.{locked && " Challenge mode is part of Pro; new members can try it free for 7 days."}</p>
-          {locked
-            ? <Link href="/pricing?feature=challenge" className="btn-primary mt-6">See Pro and the free trial</Link>
-            : <Link href={challengeStartHref()} className="btn-primary mt-6">Start a challenge <Play size={14} fill="currentColor" aria-hidden /></Link>}
+          <h2 className="mt-5 flex items-center gap-3 text-2xl font-bold tracking-tight">No challenges yet</h2>
+          <p className="mt-2 max-w-xl text-sm leading-6 app-muted">Trade under prop-firm rules: a profit target, a daily loss limit and a maximum loss. Challenges stay out of your backtest results.</p>
+          <Link href={challengeStartHref()} className="btn-primary mt-6">Start a challenge <Play size={14} fill="currentColor" aria-hidden /></Link>
         </section>
       ) : (
         <div className="mt-6 flex flex-col gap-5">

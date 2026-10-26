@@ -28,7 +28,7 @@ import {
 import type { ChallengeStart } from "@/lib/backtest/challenge-record";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { formatQuotaReset } from "@/lib/billing/plan-limits";
-import { ProLock } from "./ProLock";
+import { ProLock, ProPeek } from "./ProLock";
 import {
   PROP_FIRM_ACCOUNT_SIZES,
   PROP_FIRM_PRESETS,
@@ -124,6 +124,8 @@ function MarketPicker({
         .includes(needle);
     });
   }, [category, enabled, query]);
+  const openVisible = visible.filter((item) => !isLocked(item.symbol));
+  const lockedVisible = visible.filter((item) => isLocked(item.symbol));
 
   const selectedItems = useMemo(
     () => selected.map((symbol) => enabled.find((item) => item.symbol === symbol)).filter(Boolean) as MarketSymbol[],
@@ -206,24 +208,39 @@ function MarketPicker({
               {loading ? (
                 <div className="grid gap-2 sm:grid-cols-2">{Array.from({ length: 8 }, (_, index) => <span key={index} className="h-12 animate-pulse rounded-lg bg-white/[0.05]" />)}</div>
               ) : visible.length > 0 ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {visible.map((item) => {
-                    const active = selected.includes(item.symbol);
-                    const description = describeSymbol(item.symbol);
-                    if (isLocked(item.symbol)) {
-                      return <div key={item.symbol} className="flex items-center gap-3 rounded-lg border app-border px-3 py-2.5 opacity-80">
-                        <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center border app-border ${singleSelect ? "rounded-full" : "rounded-md"}`} />
-                        <span className="min-w-0 flex-1"><span className="block truncate font-mono text-sm font-semibold app-muted">{item.displayName}</span><span className="block truncate text-xs app-muted">{description}</span></span>
-                        <ProLock feature="markets" />
-                      </div>;
-                    }
-                    return <label key={item.symbol} className={`group flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ${active ? "border-brand-400/60 bg-brand-400/10" : "app-border hover:bg-[var(--app-panel-2)]"}`}>
-                      <input type={singleSelect ? "radio" : "checkbox"} name={singleSelect ? "session-pair" : undefined} className="sr-only" checked={active} onChange={() => { onToggle(item.symbol); if (!active) setQuery(""); if (singleSelect) closePicker(); }} />
-                      <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center border ${singleSelect ? "rounded-full" : "rounded-md"} ${active ? "border-brand-400 bg-brand-500 text-surface-950" : "app-border"}`}>{active && <Check size={12} strokeWidth={3.5} />}</span>
-                      <span className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{item.displayName}</span><span className="block truncate text-xs app-muted">{description}</span></span>
-                    </label>;
-                  })}
-                </div>
+                <>
+                  {openVisible.length > 0 && <div className="grid gap-2 sm:grid-cols-2">
+                    {openVisible.map((item) => {
+                      const active = selected.includes(item.symbol);
+                      const description = describeSymbol(item.symbol);
+                      return <label key={item.symbol} className={`group flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ${active ? "border-brand-400/60 bg-brand-400/10" : "app-border hover:bg-[var(--app-panel-2)]"}`}>
+                        <input type={singleSelect ? "radio" : "checkbox"} name={singleSelect ? "session-pair" : undefined} className="sr-only" checked={active} onChange={() => { onToggle(item.symbol); if (!active) setQuery(""); if (singleSelect) closePicker(); }} />
+                        <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center border ${singleSelect ? "rounded-full" : "rounded-md"} ${active ? "border-brand-400 bg-brand-500 text-surface-950" : "app-border"}`}>{active && <Check size={12} strokeWidth={3.5} />}</span>
+                        <span className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{item.displayName}</span><span className="block truncate text-xs app-muted">{description}</span></span>
+                      </label>;
+                    })}
+                  </div>}
+                  {lockedVisible.length > 0 && (
+                    <div className={openVisible.length > 0 ? "mt-5" : ""}>
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">{lockedVisible.length} more {lockedVisible.length === 1 ? "market" : "markets"} on Pro</p>
+                      <ProPeek
+                        feature="markets"
+                        title={lockedVisible.length <= 3 ? `${lockedVisible.map((item) => item.displayName).join(", ")} ${lockedVisible.length === 1 ? "is" : "are"} on Pro` : `${lockedVisible.length} more markets on Pro`}
+                        text="Every FX cross, gold and silver, US indices, crypto and the dollar index."
+                        className="min-h-44 max-h-64 rounded-lg"
+                      >
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {lockedVisible.slice(0, 8).map((item) => (
+                            <div key={item.symbol} className="flex items-center gap-3 rounded-lg border app-border px-3 py-2.5">
+                              <span className={`grid h-5 w-5 shrink-0 border app-border ${singleSelect ? "rounded-full" : "rounded-md"}`} />
+                              <span className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{item.displayName}</span><span className="block truncate text-xs app-muted">{describeSymbol(item.symbol)}</span></span>
+                            </div>
+                          ))}
+                        </div>
+                      </ProPeek>
+                    </div>
+                  )}
+                </>
               ) : <p className="py-10 text-center text-sm app-muted">No markets match your search.</p>}
             </div>
 
@@ -865,9 +882,9 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
                     aria-pressed={active}
                     title={disabled ? `Free sessions cover up to ${entitlements.maxSessionDays} days` : item.label}
                     onClick={() => selectPeriod(item.days)}
-                    className={`rounded-md border px-2 py-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${active ? "border-brand-400/50 bg-[var(--app-panel-2)] text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+                    className={`rounded-md border px-2 py-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-60 ${active ? "border-brand-400/50 bg-[var(--app-panel-2)] text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
                   >
-                    {disabled && <span aria-hidden="true">🔒 </span>}{item.label}
+                    {item.label}
                   </button>
                 );
               })}

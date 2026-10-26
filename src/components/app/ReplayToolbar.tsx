@@ -10,6 +10,7 @@ import {
   Ellipsis,
   GripHorizontal,
   LocateFixed,
+  Lock,
   Pause,
   Play,
   RotateCcw,
@@ -397,12 +398,10 @@ export function ReplayToolbar({
               ))}
               {lockedSpeeds.length > 0 && (
                 <div className="mt-1 border-t app-border pt-1">
-                  {lockedSpeeds.map((speed) => (
-                    <span key={speed} role="menuitemradio" aria-checked={false} aria-disabled="true" className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs font-mono app-muted opacity-60">
-                      <span aria-hidden="true">🔒&nbsp;</span>{speedLabel(speed)}
-                    </span>
-                  ))}
-                  <div className="px-1 py-1"><ProLock feature="speed" label="Faster on Pro" /></div>
+                  <ProLock feature="speed" className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
+                    <span className="flex items-center gap-1.5 font-mono"><Lock size={11} aria-hidden />{lockedSpeeds.map(speedLabel).join(" · ")}</span>
+                    <span className="font-semibold text-[var(--app-text)]">Pro</span>
+                  </ProLock>
                 </div>
               )}
             </div>

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Candle } from "@/lib/market-data/types";
 import type { EngineContext, SessionConfig } from "./types";
 import { createSessionState, fastForwardIdleTo, placeOrder, revealNext } from "./replay-engine";
-import { focusedMarketResumeIndex, unexpectedReplayGap } from "./focused-market-resume";
+import { exhaustedReplayPairs, focusedMarketResumeIndex, unexpectedReplayGap } from "./focused-market-resume";
 
 const minute = 60_000;
 // October 1: 16:14 -> 18:00 New York (UTC-4).
@@ -23,6 +23,26 @@ function context(symbol = "USA30IDXUSD"): EngineContext {
 }
 
 describe("focused market closure replay", () => {
+  it("detects a secondary tail before the primary runs out", () => {
+    const ctx = context();
+    ctx.pairCandles!.USA30IDXUSD = [bar(start)];
+    expect(exhaustedReplayPairs(ctx, ["EURUSD", "USA30IDXUSD", "USA30IDXUSD"])).toEqual(["USA30IDXUSD"]);
+    expect(ctx.state.visibleIndex).toBe(0);
+  });
+  it("does not flag a normal closure when the reopening candle is buffered", () => {
+    expect(exhaustedReplayPairs(context(), ["USA30IDXUSD"])).toEqual([]);
+  });
+  it("checks every visible or traded pair, not only the focused market", () => {
+    const ctx = context();
+    ctx.pairCandles!.USATECHIDXUSD = [bar(start)];
+    expect(exhaustedReplayPairs(ctx, ["USA30IDXUSD", "USATECHIDXUSD"])).toEqual(["USATECHIDXUSD"]);
+    expect(exhaustedReplayPairs(ctx, ["unloaded"])).toEqual(["unloaded"]);
+  });
+  it("checks a complete manual step before jumping to its end", () => {
+    const ctx = context();
+    ctx.pairCandles!.USA30IDXUSD = [bar(start), bar(start + 10 * minute)];
+    expect(exhaustedReplayPairs(ctx, ["USA30IDXUSD"], 30)).toEqual(["USA30IDXUSD"]);
+  });
   it("does not skip an open forex chart when a visible index is closed", () => {
     const ctx=context();
     expect(focusedMarketResumeIndex(ctx,"USA30IDXUSD",["EURUSD","USA30IDXUSD"])).toBeNull();

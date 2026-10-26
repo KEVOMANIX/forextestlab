@@ -3,6 +3,14 @@ import { TIMEFRAME_MS } from "@/lib/market-data/types";
 
 const MAX_MARKET_CLOSURE_MS = 4 * 24 * 60 * 60_000;
 
+/** An absent future bar is unknown data, never permission to run past a pair. */
+export function exhaustedReplayPairs(ctx: EngineContext, symbols: readonly string[], throughIndex = ctx.state.visibleIndex + 1): string[] {
+  const target = ctx.candles[Math.min(throughIndex, ctx.candles.length - 1)]?.timestamp;
+  if (target == null) return [];
+  return [...new Set(symbols)].filter(symbol => symbol !== ctx.state.config.symbol &&
+    (ctx.pairCandles?.[symbol]?.at(-1)?.timestamp ?? -Infinity) < target);
+}
+
 export function unexpectedReplayGap(ctx: EngineContext, symbol: string, throughIndex = ctx.state.visibleIndex + 1): { symbol: string; from: number; to: number } | null {
   const current = ctx.candles[ctx.state.visibleIndex];
   if (!current) return null;

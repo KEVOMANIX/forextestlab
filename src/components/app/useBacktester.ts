@@ -45,7 +45,7 @@ import type { GoToTarget } from "@/lib/backtest/goto";
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import { previousCandleIndex } from "@/lib/backtest/previous-candle";
 import { nextCandleTarget } from "@/lib/backtest/next-candle";
-import { focusedMarketResumeIndex, unexpectedReplayGap } from "@/lib/backtest/focused-market-resume";
+import { exhaustedReplayPairs, focusedMarketResumeIndex, unexpectedReplayGap } from "@/lib/backtest/focused-market-resume";
 import { mergePairSeries } from "@/lib/backtest/pair-series";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
@@ -252,6 +252,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const pairRequestsRef = useRef<Map<string, Promise<void>>>(new Map());
   /** Required trade data is independent of which charts happen to be mounted. */
   const tradingPairDataRef = useRef<(engine: EngineContext) => Promise<boolean> | null>(() => null);
+  const refreshPairTailRef = useRef<(symbols: string[]) => Promise<void>>(async () => {});
   /** Matching layout cells must share one R2 history request. */
   const historyRequestsRef = useRef(
     new Map<string, Promise<{ candles: Candle[]; hasMore: boolean }>>(),
@@ -737,8 +738,24 @@ export function useBacktester(resumeSessionId: string | null = null) {
       }
       if (manualTarget?.complete && engine.state.visibleIndex >= manualTarget.index) break;
       const gapSymbols = new Set([focusedMarket,
+        ...visibleReplaySymbolsRef.current,
         ...engine.state.openPositions.map(position => position.symbol ?? engine.state.config.symbol),
         ...engine.state.pendingOrders.filter(order => order.status === "pending").map(order => order.symbol ?? engine.state.config.symbol)]);
+      const exhausted = exhaustedReplayPairs(engine, [...gapSymbols], manualTarget?.index);
+      if (exhausted.length) {
+        // A secondary market can end before the primary buffer. Refresh it now,
+        // even when the primary still has thousands of candles in reserve.
+        await refreshPairTailRef.current(exhausted).catch(() => {});
+        if (engineGenerationRef.current !== generation || localEngineRef.current !== engine) { superseded = true; break; }
+        const stillMissing = exhaustedReplayPairs(engine, exhausted, manualTarget?.index);
+        if (stillMissing.length) {
+          wantsReplayRunningRef.current = false;
+          engine.state.status = "paused";
+          patch({ state: publicSessionState(engine, s.state?.anonymous ?? false),
+            error: `Replay paused: no further candles are available for ${stillMissing.join(", ")}. The replay clock has stopped. Reload after the data update, then press Play.` });
+          break;
+        }
+      }
       const missingData = [...gapSymbols].map(symbol => unexpectedReplayGap(engine, symbol, manualTarget?.index)).find(Boolean);
       if (missingData) {
         wantsReplayRunningRef.current = false;
@@ -1805,12 +1822,12 @@ export function useBacktester(resumeSessionId: string | null = null) {
    * Concurrent callers share one request and can wait for the same data.
    */
   const ensurePair = useCallback(
-    async (symbol: string) => {
+    async (symbol: string, refreshTail = false) => {
       const id = sessionIdRef.current;
       if (!id || !symbol) return;
       const engine = localEngineRef.current;
       if (!engine || engine.state.sessionId !== id || symbol === engine.state.config.symbol) return;
-      if (s.sessionId === id && s.pairs[symbol]?.candles.length) {
+      if (!refreshTail && s.sessionId === id && s.pairs[symbol]?.candles.length) {
         engine.pairCandles ??= {};
         if (!engine.pairCandles[symbol]?.length) engine.pairCandles[symbol] = s.pairs[symbol].candles;
         return;
@@ -1832,15 +1849,15 @@ export function useBacktester(resumeSessionId: string | null = null) {
           tokenRef.current,
           symbol,
           true,
-          undefined,
-          replayClock,
+          refreshTail ? engine.pairCandles?.[symbol]?.at(-1)?.timestamp : undefined,
+          refreshTail ? engine.candles.at(-1)?.timestamp : replayClock,
         );
         if (sessionIdRef.current !== id || localEngineRef.current !== engine) return;
         if (pair.ok && pair.symbol !== symbol) pair = { ok: false, error: `Unexpected market data returned for ${symbol}.` };
         if (pair.ok && engine) {
           engine.pairCandles ??= {};
           const candles = mergePairSeries(engine.pairCandles[symbol] ?? [], pair.candles);
-          pair = { ...pair, candles };
+          pair = { ...pair, candles, contextCandles: s.pairs[symbol]?.contextCandles ?? pair.contextCandles };
           engine.pairCandles[symbol] = candles;
         }
         setS((prev) => ({
@@ -1860,6 +1877,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
     [s.pairs, s.sessionId],
   );
 
+  refreshPairTailRef.current = async (symbols) => { await Promise.all(symbols.map(symbol => ensurePair(symbol, true))); };
+
   tradingPairDataRef.current = (engine) => {
     const symbols = new Set([
       ...engine.state.openPositions.map((position) => position.symbol ?? engine.state.config.symbol),
@@ -1868,7 +1887,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     ]);
     const missing = [...symbols].filter((symbol) => symbol !== engine.state.config.symbol && !engine.pairCandles?.[symbol]?.length);
     if (!missing.length) return null;
-    return Promise.all(missing.map(ensurePair)).then(() => localEngineRef.current === engine &&
+    return Promise.all(missing.map(symbol => ensurePair(symbol))).then(() => localEngineRef.current === engine &&
       missing.every((symbol) => Boolean(engine.pairCandles?.[symbol]?.length))).catch(() => false);
   };
 

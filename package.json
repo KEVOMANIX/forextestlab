@@ -46,6 +46,7 @@
     "decimal.js": "^10.6.0",
     "dukascopy-node": "^1.50.0",
     "fzstd": "^0.1.1",
+    "html2canvas": "^1.4.1",
     "hyparquet": "^1.26.2",
     "hyparquet-writer": "^0.16.1",
     "jspdf": "^4.2.1",

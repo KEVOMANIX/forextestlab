@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -383,6 +383,7 @@ export function AnalyticsDesignPrototype({
   sessionSelector,
 }: AnalyticsDesignPrototypeProps = {}) {
   const [tab, setTab] = useState<PrototypeTab>("overview");
+  const exportRef = useRef<HTMLDivElement>(null);
   const [focusedTrade, setFocusedTrade] = useState<number | null>(null);
   const [range, setRange] = useState("All");
   const [showDemoData, setShowDemoData] = useState(initialDemo);
@@ -443,7 +444,7 @@ export function AnalyticsDesignPrototype({
   const samplePreviewButton = mode === "live" && !showDemoData ? <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex items-center gap-2 text-[11px] font-semibold text-brand-300 transition-colors hover:text-brand-200"><FlaskConical size={13} aria-hidden /> View sample report</button> : null;
   const headerActions = (
     <div className="flex flex-wrap items-center gap-2">
-      {!demo && fullAccess && <ExportAnalyticsPdfButton report={{ name: displayedSessionName, symbols, period: periodLabel, model, trades: scopedTrades, excludedTrades: trades.length - scopedTrades.length, realisedOnly: scopedEquityCurve.length < 2, currency: accountCurrency }} />}
+      {!demo && fullAccess && <ExportAnalyticsPdfButton getElement={() => exportRef.current} name={displayedSessionName} tab={tab} />}
       {demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <span className="inline-flex h-9 items-center gap-2 px-3 text-xs font-semibold app-muted"><Download size={14} aria-hidden /> Export <ProLock feature="exports" /></span>}
       {!demo && (onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>)}
     </div>
@@ -466,7 +467,7 @@ export function AnalyticsDesignPrototype({
 
   return (
     <TradeFocusProvider value={tradeFocus}>
-    <div className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
+    <div ref={exportRef} className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
       {showReturn && onClose && <div className="flex flex-wrap items-center justify-between gap-3">
         <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button>
       </div>}

@@ -855,8 +855,8 @@ function MarketSessionLayer({
           aria-hidden
         >
           <i
-            className="absolute inset-y-0 left-0 border-l"
-            style={{ borderColor: session.lineColor, borderLeftWidth: session.lineWidth, borderLeftStyle: session.lineStyle }}
+            className="absolute left-0 top-0 border-l"
+            style={{ bottom: timeScale.height(), borderColor: session.lineColor, borderLeftWidth: session.lineWidth, borderLeftStyle: session.lineStyle }}
           />
           <span
             className="absolute bottom-[3px] left-0 -translate-x-1/2 whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-medium shadow-sm"

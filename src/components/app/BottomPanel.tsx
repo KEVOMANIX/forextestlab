@@ -9,14 +9,12 @@ import { AccountSummary } from "./AccountSummary";
 import { SessionClock } from "./SessionClock";
 import { TradesTable } from "./TradesTable";
 import { TradeJournalEditor } from "./TradeJournalEditor";
-import { BookmarksPanel } from "./BookmarksPanel";
 
 export type BottomPanelTab =
   | "position"
   | "trades"
   | "orders"
-  | "notes"
-  | "bookmarks";
+  | "notes";
 
 type Tab = BottomPanelTab;
 
@@ -25,7 +23,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "orders", label: "Pending Orders" },
   { id: "trades", label: "Trades" },
   { id: "notes", label: "Journal" },
-  { id: "bookmarks", label: "Bookmarks" },
 ];
 
 interface BottomPanelProps {
@@ -41,10 +38,6 @@ interface BottomPanelProps {
   onSaveTradeJournal: (journalId: string, journal: TradeJournalUpdate) => Promise<void> | void;
   pauseOnTradeClose: boolean;
   onEnableAfterTradeReview: () => void;
-  onAddBookmark: () => void;
-  onUpdateBookmark: (id: string, note: string) => void;
-  onDeleteBookmark: (id: string) => void;
-  onForkSession: () => void;
   /**
    * Opens the panel on a given tab from elsewhere in the app — the trade review
    * card's "Full journal". Carries a nonce so asking for the tab that is already
@@ -76,10 +69,6 @@ export function BottomPanel({
   onSaveTradeJournal,
   pauseOnTradeClose,
   onEnableAfterTradeReview,
-  onAddBookmark,
-  onUpdateBookmark,
-  onDeleteBookmark,
-  onForkSession,
   revealTab = null,
   onOpenAnalytics,
   onShowPropFirmVerdict,
@@ -112,7 +101,7 @@ export function BottomPanel({
     <section
       data-tour="session-panel"
       className={`relative flex shrink-0 flex-col overflow-hidden border-t app-border bg-[var(--app-panel)] transition-[height] duration-200 ease-out ${
-        expanded ? (tab === "notes" || tab === "bookmarks" ? "h-[min(72dvh,620px)]" : "h-44 md:h-48") : "h-11"
+        expanded ? (tab === "notes" ? "h-[min(72dvh,620px)]" : "h-44 md:h-48") : "h-11"
       }`}
       aria-label="Session details"
     >
@@ -204,20 +193,6 @@ export function BottomPanel({
             )
           )}
 
-          {tab === "bookmarks" && (
-            <BookmarksPanel
-              bookmarks={state.bookmarks}
-              currentTime={currentTime}
-              timeZone={timeZone}
-              anonymous={state.anonymous}
-              busy={busy}
-              onAdd={onAddBookmark}
-              onUpdate={onUpdateBookmark}
-              onDelete={onDeleteBookmark}
-              onFork={onForkSession}
-            />
-          )}
-
           {tab === "notes" ? (
             <div>
               {!state.anonymous && !pauseOnTradeClose && (
@@ -300,8 +275,6 @@ export function BottomPanel({
                 ? state.closedTrades.length
                 : item.id === "orders"
                   ? state.pendingOrders.filter((order) => order.status === "pending").length
-                  : item.id === "bookmarks"
-                    ? state.bookmarks.length
                   : null;
             const active = expanded && tab === item.id;
             return (

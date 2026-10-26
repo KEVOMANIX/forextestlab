@@ -43,7 +43,7 @@ const ALL_STEPS: TourStep[] = [
   {
     selector: '[data-tour="session-panel"]',
     title: "Positions, trades, and journal",
-    text: "Open these tabs to manage positions and pending orders, review completed trades, write journal notes, add bookmarks, and launch analytics.",
+    text: "Open these tabs to manage positions and pending orders, review completed trades, write journal notes, and launch analytics.",
   },
   {
     selector: '[data-tour="workspace-rail"]',

@@ -1,11 +1,11 @@
-/** Keep the instrument's tick precision while removing index-axis zero padding. */
+/** Keep axis labels and live prices at the same instrument precision. */
 export function chartPriceFormat(precision: number, pipSize: number) {
   const digits = Math.max(0, Math.min(8, precision));
   if (pipSize < 0.1) return { type: "price" as const, precision: digits, minMove: 1 / 10 ** digits };
   return {
     type: "custom" as const,
     minMove: 1 / 10 ** digits,
-    formatter: (price: number) => Number(price.toFixed(digits)).toLocaleString("en-US", { useGrouping: false, maximumFractionDigits: digits }),
+    formatter: (price: number) => price.toFixed(digits),
   };
 }
 

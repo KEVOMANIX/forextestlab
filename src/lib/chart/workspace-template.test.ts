@@ -39,10 +39,10 @@ describe("instrument price axes", () => {
   it("retains forex precision", () => {
     expect(chartPriceFormat(5, 0.0001)).toEqual({ type: "price", precision: 5, minMove: 0.00001 });
   });
-  it("removes index zero padding without losing sub-point prices", () => {
+  it("keeps index axis decimals consistent with live prices", () => {
     const format = chartPriceFormat(3, 1);
     if (format.type !== "custom") throw new Error("Expected custom index format");
-    expect(format.formatter(54000)).toBe("54000");
+    expect(format.formatter(54000)).toBe("54000.000");
     expect(format.formatter(52784.427)).toBe("52784.427");
     expect(format.minMove).toBe(0.001);
   });

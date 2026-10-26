@@ -604,9 +604,6 @@ export function Backtester({
       } else if (matches(workspace.settings.shortcuts.sell)) {
         event.preventDefault();
         submitOrder({ ...orderTemplate, direction: "short" });
-      } else if (matches(workspace.settings.shortcuts.bookmark)) {
-        event.preventDefault();
-        void actions.addBookmark();
       } else if (matches(workspace.settings.shortcuts.distractionFree)) {
         event.preventDefault();
         workspace.updateSettings({ distractionFree: !workspace.settings.distractionFree });
@@ -1437,10 +1434,6 @@ export function Backtester({
         onToggleBalances={() =>
           workspace.updateSettings({ hideBalances: !workspace.settings.hideBalances })
         }
-        onAddBookmark={() => void actions.addBookmark()}
-        onUpdateBookmark={(id, note) => void actions.updateBookmark(id, note)}
-        onDeleteBookmark={(id) => void actions.deleteBookmark(id)}
-        onForkSession={() => void forkSession()}
       />}
       <TradeNotifications notifications={notifications} onDismiss={(id) => setNotifications((current) => current.filter((item) => item.id !== id))} />
       {(!workspace.ready || readyChartIdentity !== chartLoadIdentity) && (

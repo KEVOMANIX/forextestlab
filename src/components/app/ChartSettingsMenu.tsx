@@ -556,7 +556,7 @@ export function ChartSettingsDialog({
 
             {tab === "shortcuts" && (
               <div className="space-y-1">
-                {(Object.keys(SHORTCUT_LABELS) as (keyof ChartSettings["shortcuts"])[]).map(
+                {(Object.keys(SHORTCUT_LABELS) as (keyof ChartSettings["shortcuts"])[]).filter(action => action !== "bookmark").map(
                   (action) => (
                     <div
                       key={action}
@@ -578,7 +578,7 @@ export function ChartSettingsDialog({
                           // silently stealing the binding.
                           const duplicate = Object.entries(settings.shortcuts).find(
                             ([key, value]) =>
-                              key !== action &&
+                              key !== "bookmark" && key !== action &&
                               value.toLowerCase() === event.key.toLowerCase(),
                           );
                           if (duplicate) return;

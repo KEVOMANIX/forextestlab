@@ -288,6 +288,8 @@ interface PriceChartProps {
   pipSize: number;
   precision: number;
   accountCurrency: string;
+  /** Balance the stop's loss is shown against, as a share. */
+  accountBalance?: string;
   /** Live account for the position tool, sized where the session state lives. */
   drawingAccount: DrawingAccount;
   theme: "dark" | "light";
@@ -961,6 +963,7 @@ export default function PriceChart({
   pipSize,
   precision,
   accountCurrency,
+  accountBalance,
   drawingAccount,
   theme,
   onStopLossChange,
@@ -3755,6 +3758,13 @@ export default function PriceChart({
     return (move / initialDistance) * initialRisk;
   }
 
+  /** A loss at the stop as a share of the balance, e.g. " · 2.0%". */
+  function balanceShare(value: number | null): string {
+    const balance = Number(accountBalance);
+    if (value == null || !(value < 0) || !(balance > 0)) return "";
+    const share = (-value / balance) * 100;
+    return ` · ${share.toFixed(share < 10 ? 1 : 0)}%`;
+  }
   function signedAccountValue(value: number | null): string {
     if (value == null || !Number.isFinite(value)) return `— ${accountCurrency}`;
     return `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)} ${accountCurrency}`;
@@ -5027,6 +5037,7 @@ export default function PriceChart({
                 {signedAccountValue(
                   projectedPositionPnl(activePosition, stopDraft),
                 )}
+                {balanceShare(projectedPositionPnl(activePosition, stopDraft))}
               </span>
               {activeProtectionRR && (
                 <span className="h-full whitespace-nowrap border-r border-amber-400/50 px-1.5 leading-5 text-amber-300">

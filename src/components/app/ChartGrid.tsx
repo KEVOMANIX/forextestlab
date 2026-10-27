@@ -906,6 +906,7 @@ function ChartCellView({
         pipSize={Number(isSession ? state.config.pipSize : pair?.pipSize ?? state.config.pipSize)}
         precision={isSession ? state.config.pricePrecision : pair?.pricePrecision ?? state.config.pricePrecision}
         accountCurrency={state.config.accountCurrency}
+        accountBalance={state.balance}
         drawingAccount={drawingAccount}
         theme={theme}
         onStopLossChange={tradable && showControls ? onStopLossChange : noop}

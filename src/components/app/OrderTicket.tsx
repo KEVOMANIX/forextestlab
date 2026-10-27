@@ -30,6 +30,7 @@ import type {
 } from "@/lib/backtest/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { LotSizePopover, useSizeSummary, type QuickRisk } from "./LotSizePopover";
+import { stopFromDistance } from "@/lib/backtest/execution";
 
 type PlanLevel = keyof Omit<TradePlan, "direction">;
 
@@ -283,6 +284,18 @@ export function OrderTicket({
   const activateQuote = useCallback((direction: TradeDirection) => {
     if (!oneClickTrading) {
       openPlanner(direction);
+      // Sizing by % carries into the planner with its stop, so dragging the
+      // stop line resizes the order to keep the same share of the balance.
+      if (quickRisk?.mode === "risk") {
+        setSizingMode("risk-percent");
+        setRiskPercent(quickRisk.percent);
+        const fill = direction === "long" ? ask : bid;
+        const keepStop = tradePlan?.direction === direction && tradePlan.stopLoss;
+        const stop = fill != null && !keepStop
+          ? stopFromDistance(direction, String(fill), quickRisk.stopPips, state.config.pipSize, precision)
+          : null;
+        if (stop) onPlanChange("stopLoss", stop);
+      }
       return;
     }
     // Sized by % of the balance: the lots already follow it, and the stop it
@@ -299,6 +312,12 @@ export function OrderTicket({
     onClearPlan();
     setPanelOpen(false);
   }, [
+    ask,
+    bid,
+    onPlanChange,
+    precision,
+    state.config.pipSize,
+    tradePlan,
     quickRisk,
     lots,
     onClearPlan,

@@ -49,7 +49,7 @@ export const createSessionSchema = z
         z
           .string()
           .trim()
-          .regex(/^[A-Z0-9]{3,6}$/, "Each market must use its supported symbol code."),
+          .regex(/^[A-Z0-9]{3,16}$/, "Each market must use its supported symbol code."),
       )
       .min(1, "Select at least one currency pair.")
       .max(12)
@@ -174,7 +174,7 @@ export const actionSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("place-order"),
-    symbol: z.string().trim().regex(/^[A-Z0-9]{6,12}$/).optional(),
+    symbol: z.string().trim().regex(/^[A-Z0-9]{3,16}$/).optional(),
     clientOrderId: z.string().uuid().optional(),
     targetIndex: z.number().int().nonnegative().optional(),
     direction: z.enum(["long", "short"]),

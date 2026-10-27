@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
+import { BarChart3, BookOpenText, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -94,9 +94,17 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
   };
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const fullScreen = isFullScreenPath(pathname);
-  const compact = collapsed || fullScreen;
+  // Full-screen pages start with the menu as icons whatever the saved choice;
+  // opening it there lasts until the trader leaves the page.
+  const [openOnFullScreen, setOpenOnFullScreen] = useState(false);
+  useEffect(() => setOpenOnFullScreen(false), [fullScreen]);
+  const compact = fullScreen ? !openOnFullScreen : collapsed;
 
   function toggleCollapsed() {
+    if (fullScreen) {
+      setOpenOnFullScreen((open) => !open);
+      return;
+    }
     const next = !collapsed;
     setCollapsed(next);
     document.cookie = `${NAV_COLLAPSED_COOKIE}=${next ? "1" : "0"}; path=/; max-age=${NAV_COLLAPSED_MAX_AGE}; samesite=lax`;
@@ -112,7 +120,8 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
   }
 
   return <>
-    <aside className={`hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:row-span-2 lg:h-dvh lg:self-start lg:flex ${compact ? "lg:w-14" : "lg:w-56"}`}>
+    <aside className={`hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:z-30 lg:row-span-2 lg:h-dvh lg:self-start lg:flex ${compact ? "lg:w-14" : "lg:w-56"}`}>
+      <button type="button" onClick={toggleCollapsed} aria-label={compact ? "Expand menu" : "Collapse menu"} title={compact ? "Expand menu" : "Collapse menu"} aria-expanded={!compact} className="absolute -right-3 top-1/2 z-10 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border app-border bg-[var(--app-panel-solid)] app-muted shadow-md transition-colors hover:border-brand-400/60 hover:text-brand-300">{compact ? <ChevronRight size={14} strokeWidth={2.4} aria-hidden /> : <ChevronLeft size={14} strokeWidth={2.4} aria-hidden />}</button>
       {compact
         ? <div className="flex h-16 items-center justify-center border-b app-border"><Link href="/" aria-label="ForexTestLab home"><Image src={theme === "light" ? logoMarkLight : logoMark} alt="" className="h-7 w-7 object-contain" /></Link></div>
         : <div className="flex h-16 items-center border-b app-border px-5"><Logo className="h-7" /></div>}
@@ -155,7 +164,7 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
       )}
     </aside>
 
-    {!fullScreen && <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-7 backdrop-blur lg:flex"><div className="flex min-w-0 items-center gap-3 text-sm"><button type="button" onClick={toggleCollapsed} aria-label={collapsed ? "Expand menu" : "Collapse menu"} title={collapsed ? "Expand menu" : "Collapse menu"} aria-pressed={collapsed} className="-ml-2 grid h-9 w-9 place-items-center rounded-lg text-brand-300 transition-colors hover:bg-[var(--app-panel-2)]">{collapsed ? <PanelLeftOpen size={17} aria-hidden /> : <PanelLeftClose size={17} aria-hidden />}</button><span className="app-muted">Workspace</span><span className="app-muted">/</span><span className="truncate font-semibold">{pathname.startsWith("/account") ? "Account" : pathname.startsWith("/app/backtest") ? "Backtester" : pathname.startsWith("/app/analytics") ? "Analytics" : pathname.startsWith("/app/history") ? "Sessions" : pathname.startsWith("/app/challenges") ? "Challenges" : pathname.startsWith("/app/ai") ? "AI Analyst" : pathname.startsWith("/app/support") ? "Support" : "Dashboard"}</span></div><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:text-brand-300" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button></header>}
+    {!fullScreen && <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-7 backdrop-blur lg:flex"><div className="flex min-w-0 items-center gap-3 text-sm"><span className="app-muted">Workspace</span><span className="app-muted">/</span><span className="truncate font-semibold">{pathname.startsWith("/account") ? "Account" : pathname.startsWith("/app/backtest") ? "Backtester" : pathname.startsWith("/app/analytics") ? "Analytics" : pathname.startsWith("/app/history") ? "Sessions" : pathname.startsWith("/app/challenges") ? "Challenges" : pathname.startsWith("/app/ai") ? "AI Analyst" : pathname.startsWith("/app/support") ? "Support" : "Dashboard"}</span></div><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:text-brand-300" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button></header>}
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-4 backdrop-blur lg:hidden"><Link href="/app"><Logo className="h-7" /></Link><div className="flex items-center gap-2"><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button><Menu size={18} className="app-muted" aria-hidden /></div></header>
   </>;
 }

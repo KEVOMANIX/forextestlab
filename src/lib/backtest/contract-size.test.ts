@@ -3,7 +3,7 @@ import { d } from "@/lib/decimal";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import type { Candle } from "@/lib/market-data/types";
 import { accountMargin } from "@/components/app/AccountSummary";
-import { sizeSummaryFor } from "@/components/app/LotSizePopover";
+import { riskLots, sizeSummaryFor } from "@/components/app/LotSizePopover";
 import { calculatePositionSize, marginRequired, pipValuePerLot } from "./position-sizing";
 import { closePosition, createSessionState, placeOrder, publicSessionState, revealNext } from "./replay-engine";
 import { tradePlanMetrics } from "./trade-plan";
@@ -62,6 +62,8 @@ describe.each(cases)("$symbol contract", (example) => {
     const sized = calculatePositionSize({ ...state.config, accountBalance: "10000", riskPercent: "1", entryPrice: example.entry, stopLoss: example.stop });
     expect(sized.lots).toBe(example.riskLots);
     expect(sized.maxExpectedLoss).toBe("100.00");
+    const stopPips = String((Number(example.entry) - Number(example.stop)) / Number(state.config.pipSize));
+    expect(riskLots(state, { percent: "1", stopPips })).toBe(example.riskLots);
   });
 
   it("handles shorts, partial closes and commission without multiplying by leverage", () => {

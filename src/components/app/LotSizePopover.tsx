@@ -25,6 +25,56 @@ import type { PublicSessionState } from "@/lib/backtest/types";
 
 export const LOT_PRESETS = ["0.01", "0.10", "0.50", "1.00"];
 export const LOT_STEP = 0.01;
+export const RISK_PRESETS = ["0.5", "1", "2", "3"];
+export const RISK_STEP = 0.25;
+
+/**
+ * Quick orders sized by a share of the balance instead of a fixed lot count.
+ * A percentage only means something against a stop, so the stop distance is
+ * part of the setting and a quick order in this mode is sent with that stop.
+ */
+export interface QuickRisk {
+  mode: "lots" | "risk";
+  percent: string;
+  stopPips: string;
+}
+
+/** The planner's own default stop is 20 pips, so a first switch to % agrees with it. */
+export const DEFAULT_QUICK_RISK: QuickRisk = { mode: "lots", percent: "1", stopPips: "20" };
+
+/**
+ * Lots that lose `percent` of the balance if a stop `stopPips` away is hit.
+ *
+ * Rounded down to the 0.01 step so the order never risks more than asked,
+ * except that the smallest size is 0.01: below that there is no order at all.
+ * Null when the inputs or the price leave nothing to work it out from.
+ */
+export function riskLots(state: PublicSessionState, risk: Pick<QuickRisk, "percent" | "stopPips">): string | null {
+  const percent = Number(risk.percent);
+  const stopPips = Number(risk.stopPips);
+  const balance = Number(state.balance);
+  if (!(percent > 0) || !(stopPips > 0) || !(balance > 0)) return null;
+  const perPip = Number(
+    pipValuePerLot({
+      pipSize: state.config.pipSize,
+      quoteCurrency: state.config.quoteCurrency,
+      accountCurrency: state.config.accountCurrency,
+      baseCurrency: state.config.baseCurrency,
+      price: String(state.currentPrice ?? ""),
+      symbol: state.config.symbol,
+    }).value,
+  );
+  if (!(perPip > 0)) return null;
+  const lots = Math.floor(((balance * percent) / 100 / (stopPips * perPip)) * 100 + 1e-9) / 100;
+  return Math.max(LOT_STEP, lots).toFixed(2);
+}
+
+/** The stop a quick order in % mode carries: `stopPips` from the side it fills on. */
+export function quickStopLoss(fillPrice: number, direction: "long" | "short", stopPips: string, pipSize: string, precision: number): string | undefined {
+  const distance = Number(stopPips) * Number(pipSize);
+  if (!Number.isFinite(fillPrice) || !(distance > 0)) return undefined;
+  return (direction === "long" ? fillPrice - distance : fillPrice + distance).toFixed(precision);
+}
 
 export interface SizeSummary {
   lots: string;
@@ -109,6 +159,8 @@ export function LotSizePopover({
   align = "left",
   /** Above the button instead of below, for a control near the bottom edge. */
   placement = "below",
+  risk,
+  onRisk,
 }: {
   lots: string;
   onLots: (lots: string) => void;
@@ -117,11 +169,23 @@ export function LotSizePopover({
   equity: string;
   align?: "left" | "right";
   placement?: "below" | "above";
+  /** Sizing by % of the balance; without it the panel only offers lots. */
+  risk?: QuickRisk;
+  onRisk?: (risk: QuickRisk) => void;
 }) {
+  const byRisk = risk?.mode === "risk" && onRisk != null;
   const step = (delta: number) => {
+    if (byRisk) {
+      const next = Math.max(RISK_STEP, (Number(risk.percent) || 0) + delta * (RISK_STEP / LOT_STEP));
+      onRisk({ ...risk, percent: String(Number(next.toFixed(2))) });
+      return;
+    }
     const next = Math.max(LOT_STEP, (Number(lots) || 0) + delta);
     onLots(next.toFixed(2));
   };
+  const percentValid = Number(risk?.percent) > 0 && Number(risk?.percent) <= 100;
+  const stopValid = Number(risk?.stopPips) > 0;
+  const riskAmount = byRisk && summary.pipValue != null && stopValid ? summary.pipValue * Number(risk.stopPips) : null;
   const marginShare =
     summary.margin != null && Number(equity) > 0
       ? Math.min(100, (summary.margin / Number(equity)) * 100)
@@ -136,29 +200,61 @@ export function LotSizePopover({
     >
       <div className="w-[172px] rounded-md border border-[var(--ticket-border)] bg-[var(--ticket-bg)] p-1.5 text-[var(--ticket-text)] shadow-2xl">
         <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => step(-LOT_STEP)}
-            aria-label="Decrease lot size"
-            className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[var(--ticket-border)] text-[var(--ticket-muted)] transition-colors hover:border-brand-400/50 hover:text-[var(--ticket-text)]"
-          >
-            <Minus size={11} aria-hidden />
-          </button>
-          <input
-            value={lots}
-            onChange={(event) => onLots(event.target.value)}
-            inputMode="decimal"
-            aria-label="Order size in lots"
-            className={`h-6 min-w-0 flex-1 rounded border bg-transparent px-1 text-center font-mono text-xs font-bold outline-none ${
-              summary.valid
-                ? "border-[var(--ticket-field-border)] focus:border-brand-400"
-                : "border-loss text-loss"
-            }`}
-          />
+          {risk && onRisk ? (
+            <span role="group" aria-label="Size by" className="flex h-6 shrink-0 overflow-hidden rounded border border-[var(--ticket-border)] text-[9px] font-bold">
+              {(["lots", "risk"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onRisk({ ...risk, mode })}
+                  aria-pressed={risk.mode === mode}
+                  title={mode === "lots" ? "Size in lots" : "Size by % of balance"}
+                  className={`px-1.5 transition-colors ${risk.mode === mode ? "bg-[var(--ticket-raised)] text-brand-300" : "text-[var(--ticket-muted)] hover:text-[var(--ticket-text)]"}`}
+                >
+                  {mode === "lots" ? "LOT" : "%"}
+                </button>
+              ))}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => step(-LOT_STEP)}
+              aria-label="Decrease lot size"
+              className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[var(--ticket-border)] text-[var(--ticket-muted)] transition-colors hover:border-brand-400/50 hover:text-[var(--ticket-text)]"
+            >
+              <Minus size={11} aria-hidden />
+            </button>
+          )}
+          {byRisk ? (
+            <span className="relative flex min-w-0 flex-1">
+              <input
+                value={risk.percent}
+                onChange={(event) => onRisk({ ...risk, percent: event.target.value })}
+                inputMode="decimal"
+                aria-label="Risk per trade, % of balance"
+                className={`h-6 min-w-0 flex-1 rounded border bg-transparent pl-1 pr-4 text-center font-mono text-xs font-bold outline-none ${
+                  percentValid ? "border-[var(--ticket-field-border)] focus:border-brand-400" : "border-loss text-loss"
+                }`}
+              />
+              <span className="pointer-events-none absolute inset-y-0 right-1.5 grid place-items-center font-mono text-[10px] text-[var(--ticket-muted)]" aria-hidden>%</span>
+            </span>
+          ) : (
+            <input
+              value={lots}
+              onChange={(event) => onLots(event.target.value)}
+              inputMode="decimal"
+              aria-label="Order size in lots"
+              className={`h-6 min-w-0 flex-1 rounded border bg-transparent px-1 text-center font-mono text-xs font-bold outline-none ${
+                summary.valid
+                  ? "border-[var(--ticket-field-border)] focus:border-brand-400"
+                  : "border-loss text-loss"
+              }`}
+            />
+          )}
           <button
             type="button"
             onClick={() => step(LOT_STEP)}
-            aria-label="Increase lot size"
+            aria-label={byRisk ? "Increase risk" : "Increase lot size"}
             className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[var(--ticket-border)] text-[var(--ticket-muted)] transition-colors hover:border-brand-400/50 hover:text-[var(--ticket-text)]"
           >
             <Plus size={11} aria-hidden />
@@ -166,7 +262,22 @@ export function LotSizePopover({
         </div>
 
         <div className="mt-1 grid grid-cols-4 gap-0.5">
-          {LOT_PRESETS.map((preset) => (
+          {byRisk && RISK_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => onRisk({ ...risk, percent: preset })}
+              aria-pressed={Number(risk.percent) === Number(preset)}
+              className={`h-5 rounded font-mono text-[10px] font-semibold transition-colors ${
+                Number(risk.percent) === Number(preset)
+                  ? "bg-brand-500 text-surface-950"
+                  : "bg-[var(--ticket-raised)] text-[var(--ticket-muted)] hover:text-[var(--ticket-text)]"
+              }`}
+            >
+              {preset}%
+            </button>
+          ))}
+          {!byRisk && LOT_PRESETS.map((preset) => (
             <button
               key={preset}
               type="button"
@@ -185,6 +296,29 @@ export function LotSizePopover({
 
         {/* Two figures on one line each: at this width a definition list with
             its own rows cost more height than the numbers were worth. */}
+        {byRisk ? (
+          <div className="mt-1 flex items-end justify-between gap-1 border-t border-[var(--ticket-border)] pt-1 text-[10px]">
+            <label className="min-w-0">
+              <span className="block text-[var(--ticket-subtle)]">Stop</span>
+              <span className="flex items-center gap-1 font-mono font-semibold">
+                <input
+                  value={risk.stopPips}
+                  onChange={(event) => onRisk({ ...risk, stopPips: event.target.value })}
+                  inputMode="decimal"
+                  aria-label="Stop loss distance in pips"
+                  className={`h-[18px] w-10 rounded border bg-transparent px-1 text-center outline-none ${stopValid ? "border-[var(--ticket-field-border)] focus:border-brand-400" : "border-loss text-loss"}`}
+                />
+                pips
+              </span>
+            </label>
+            <div className="min-w-0 text-right">
+              <span className="block text-[var(--ticket-subtle)]">Size</span>
+              <span className="block truncate font-mono font-semibold" title={riskAmount != null ? `Loses ${amount(riskAmount, accountCurrency, summary.approx)} at the stop` : undefined}>
+                {summary.valid ? `${lots} lots` : "—"}
+              </span>
+            </div>
+          </div>
+        ) : (
         <dl className="mt-1 flex items-center justify-between gap-1 border-t border-[var(--ticket-border)] pt-1 text-[10px]">
           <div className="min-w-0">
             <dt className="text-[var(--ticket-subtle)]">Pip</dt>
@@ -206,8 +340,12 @@ export function LotSizePopover({
             </dd>
           </div>
         </dl>
+        )}
 
-        {!summary.valid && (
+        {byRisk && riskAmount != null && percentValid && (
+          <p className="mt-0.5 text-right font-mono text-[10px] text-loss">−{amount(riskAmount, accountCurrency, summary.approx)} at the stop</p>
+        )}
+        {!byRisk && !summary.valid && (
           <p role="alert" className="mt-1 text-[10px] text-loss">
             Enter a size above zero.
           </p>

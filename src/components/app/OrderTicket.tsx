@@ -29,7 +29,7 @@ import type {
   TradeDirection,
 } from "@/lib/backtest/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
-import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
+import { LotSizePopover, quickStopLoss, useSizeSummary, type QuickRisk } from "./LotSizePopover";
 
 type PlanLevel = keyof Omit<TradePlan, "direction">;
 
@@ -57,6 +57,9 @@ interface OrderTicketProps {
    */
   lots: string;
   onLotsChange: (lots: string) => void;
+  /** Quick orders sized by % of the balance, with the stop that makes it true. */
+  quickRisk?: QuickRisk;
+  onQuickRiskChange?: (risk: QuickRisk) => void;
   oneClickTrading: boolean;
   activationRequest?: {
     id: number;
@@ -97,6 +100,8 @@ export function OrderTicket({
   onTemplateChange,
   lots,
   onLotsChange: setLots,
+  quickRisk,
+  onQuickRiskChange,
   oneClickTrading,
   activationRequest = null,
   onActivationHandled,
@@ -280,15 +285,26 @@ export function OrderTicket({
       openPlanner(direction);
       return;
     }
+    // Sized by % of the balance: the lots already follow it, and the stop it
+    // was worked out against goes with the order, or the % would not hold.
+    const stopLoss = quickRisk?.mode === "risk"
+      ? quickStopLoss((direction === "long" ? ask : bid) ?? Number.NaN, direction, quickRisk.stopPips, state.config.pipSize, precision)
+      : undefined;
     onPlaceOrder({
       direction,
-      sizingMode,
-      lots: sizingMode === "fixed-lots" ? lots : undefined,
-      riskPercent: sizingMode === "risk-percent" ? riskPercent : undefined,
+      sizingMode: stopLoss ? "fixed-lots" : sizingMode,
+      lots: stopLoss || sizingMode === "fixed-lots" ? lots : undefined,
+      riskPercent: !stopLoss && sizingMode === "risk-percent" ? riskPercent : undefined,
+      stopLoss,
     });
     onClearPlan();
     setPanelOpen(false);
   }, [
+    ask,
+    bid,
+    precision,
+    quickRisk,
+    state.config.pipSize,
     lots,
     onClearPlan,
     oneClickTrading,
@@ -423,6 +439,8 @@ export function OrderTicket({
           summary={sizeSummary}
           accountCurrency={state.config.accountCurrency}
           equity={state.equity}
+          risk={quickRisk}
+          onRisk={onQuickRiskChange}
         />
       </div>
     );

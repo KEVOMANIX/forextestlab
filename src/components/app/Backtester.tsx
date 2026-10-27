@@ -28,6 +28,7 @@ import {
   type JournalQueue,
 } from "./journal-queue";
 import { OrderTicket } from "./OrderTicket";
+import { DEFAULT_QUICK_RISK, riskLots, type QuickRisk } from "./LotSizePopover";
 import { ReplayToolbar } from "./ReplayToolbar";
 import { SessionSetup } from "./SessionSetup";
 import {
@@ -74,6 +75,7 @@ import { configForSymbol } from "@/lib/backtest/instrument-config";
 
 /** Toasts float over the chart, so the stack is capped at a readable few. */
 const MAX_NOTIFICATIONS = 4;
+const QUICK_RISK_KEY = "forextestlab:quick-risk";
 const JOURNAL_DISCOVERY_KEY = "forextestlab:journal-discovery-v3";
 /**
  * Journal prompts are paged, not stacked, so the cap only guards against a
@@ -399,6 +401,33 @@ export function Backtester({
    * inside the ticket meant the replay toolbox could only ever read a stale one.
    */
   const [lots, setLots] = useState("0.10");
+  const [quickRisk, setQuickRisk] = useState<QuickRisk>(DEFAULT_QUICK_RISK);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(QUICK_RISK_KEY) ?? "null") as Partial<QuickRisk> | null;
+      if (saved && (saved.mode === "lots" || saved.mode === "risk")) setQuickRisk({ ...DEFAULT_QUICK_RISK, ...saved });
+    } catch {
+      // A damaged setting falls back to sizing in lots.
+    }
+  }, []);
+  const changeQuickRisk = useCallback((next: QuickRisk) => {
+    setQuickRisk(next);
+    try {
+      window.localStorage.setItem(QUICK_RISK_KEY, JSON.stringify(next));
+    } catch {
+      // Storage can be unavailable; the choice still holds for this visit.
+    }
+  }, []);
+  // Sized by %, the lots follow the balance, the price and the market in focus.
+  const riskSizedLots = quickRisk.mode === "risk" && activeTradingState ? riskLots(activeTradingState, quickRisk) : null;
+  useEffect(() => {
+    if (riskSizedLots) setLots(riskSizedLots);
+  }, [riskSizedLots]);
+  /** A size typed in lots means the trader is sizing in lots again. */
+  const changeLots = useCallback((next: string) => {
+    setLots(next);
+    setQuickRisk((current) => current.mode === "risk" ? { ...current, mode: "lots" } : current);
+  }, []);
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("forextestlab:order-defaults");
@@ -1289,7 +1318,9 @@ export function Backtester({
                 onPlaceOrder={submitOrder}
                 onTemplateChange={setOrderTemplate}
                 lots={lots}
-                onLotsChange={setLots}
+                onLotsChange={changeLots}
+                quickRisk={quickRisk}
+                onQuickRiskChange={changeQuickRisk}
                 oneClickTrading={workspace.settings.oneClickTrading}
                 activationRequest={orderTicketActivation}
                 onActivationHandled={(id) =>
@@ -1312,7 +1343,9 @@ export function Backtester({
                 onPlaceOrder={submitOrder}
                 onTemplateChange={setOrderTemplate}
                 lots={lots}
-                onLotsChange={setLots}
+                onLotsChange={changeLots}
+                quickRisk={quickRisk}
+                onQuickRiskChange={changeQuickRisk}
                 oneClickTrading={workspace.settings.oneClickTrading}
                 onOpenChange={handleOrderTicketOpenChange}
                 compactQuote
@@ -1345,7 +1378,9 @@ export function Backtester({
             canTrade={canTrade}
             maxReplaySpeed={entitlements.maxReplaySpeed}
             lots={lots}
-            onLotsChange={setLots}
+            onLotsChange={changeLots}
+                quickRisk={quickRisk}
+                onQuickRiskChange={changeQuickRisk}
           />
 
           {journalQueue.prompts.length > 0 && (

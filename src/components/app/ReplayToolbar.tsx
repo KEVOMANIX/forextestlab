@@ -25,7 +25,7 @@ import {
 } from "@/lib/backtest/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import { replayRewindFloor } from "@/lib/backtest/replay-engine";
-import { LotSizePopover, useSizeSummary } from "./LotSizePopover";
+import { LotSizePopover, useSizeSummary, type QuickRisk } from "./LotSizePopover";
 import { ProLock } from "./ProLock";
 
 interface ReplayToolbarProps {
@@ -45,6 +45,8 @@ interface ReplayToolbarProps {
   /** Size the quick Buy/Sell buttons will send, shared with the order ticket. */
   lots: string;
   onLotsChange: (lots: string) => void;
+  quickRisk?: QuickRisk;
+  onQuickRiskChange?: (risk: QuickRisk) => void;
 }
 
 type ToolbarPosition = { x: number; y: number; dock?: "top" | "bottom" };
@@ -117,6 +119,8 @@ export function ReplayToolbar({
   maxReplaySpeed,
   lots,
   onLotsChange,
+  quickRisk,
+  onQuickRiskChange,
 }: ReplayToolbarProps) {
   const compact = useCompactViewport();
   const sizeSummary = useSizeSummary(state, lots);
@@ -452,6 +456,8 @@ export function ReplayToolbar({
             equity={state.equity}
             align="right"
             placement={menusAbove ? "above" : "below"}
+            risk={quickRisk}
+            onRisk={onQuickRiskChange}
           />
         </div>
         <div className="relative shrink-0">

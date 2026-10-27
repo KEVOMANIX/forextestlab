@@ -1,10 +1,9 @@
 import { getCurrentUser } from "@/lib/supabase/server";
-import { Prisma } from "@/generated/prisma/client";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { getSessionResults } from "@/lib/backtest/results";
-import { prisma } from "@/lib/db";
 import { geminiConfigured, streamGemini, type ChatTurn } from "@/lib/ai/gemini";
 import { buildPortfolioContext, buildSessionContext } from "@/lib/ai/context";
+import { loadPortfolioSessions } from "@/lib/ai/portfolio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,13 +23,6 @@ Rules:
 
 const MAX_QUESTION = 1000;
 const MAX_HISTORY_TURNS = 12;
-
-interface PortfolioMetadataRow {
-  id: string;
-  name: string | null;
-  symbols: unknown;
-  archived: boolean;
-}
 
 function bad(message: string, status: number) {
   return Response.json({ error: message }, { status });
@@ -79,52 +71,8 @@ export async function POST(request: Request) {
     if (!results) return bad("Session not found.", 404);
     context = buildSessionContext(results);
   } else {
-    const sessionRows = await prisma.backtestSession.findMany({
-      where: { userId: user.id, anonymous: false },
-      orderBy: { updatedAt: "desc" },
-      take: 100,
-      select: {
-        id: true,
-        symbol: true,
-        timeframe: true,
-        status: true,
-        startTime: true,
-        endTime: true,
-        startingBalance: true,
-        depositedFunds: true,
-        balance: true,
-        trades: { orderBy: { exitTime: "asc" } },
-        equitySnapshots: { orderBy: { index: "asc" } },
-      },
-    });
-    if (!sessionRows.length) return bad("No saved sessions to analyse yet.", 422);
-    const metadataRows = await prisma.$queryRaw<PortfolioMetadataRow[]>(Prisma.sql`
-      SELECT "id",
-             NULLIF("stateJson"::jsonb #>> '{config,name}', '') AS "name",
-             COALESCE(
-               "stateJson"::jsonb #> '{config,symbols}',
-               jsonb_build_array("symbol")
-             ) AS "symbols",
-             COALESCE(
-               ("stateJson"::jsonb #>> '{config,archived}')::boolean,
-               false
-             ) AS "archived"
-      FROM "BacktestSession"
-      WHERE "id" IN (${Prisma.join(sessionRows.map((session) => session.id))})
-    `);
-    const metadata = new Map(metadataRows.map((row) => [row.id, row]));
-    const sessions = sessionRows.map((session) => {
-      const details = metadata.get(session.id);
-      const symbols = Array.isArray(details?.symbols)
-        ? details.symbols.filter((value): value is string => typeof value === "string")
-        : [];
-      return {
-        ...session,
-        name: details?.name?.trim() || `${session.symbol} backtest`,
-        symbols: symbols.length ? symbols : [session.symbol],
-        archived: details?.archived ?? false,
-      };
-    });
+    const sessions = await loadPortfolioSessions(user.id);
+    if (!sessions.length) return bad("No saved sessions to analyse yet.", 422);
     context = buildPortfolioContext(sessions);
   }
 

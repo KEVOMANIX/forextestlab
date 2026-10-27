@@ -166,12 +166,15 @@ export function AiInsightsPanel({
   suggestions,
   title = "AI insights",
   subtitle,
+  queued,
 }: {
   scope: Scope;
   sessionId?: string;
   suggestions: readonly string[];
   title?: string;
   subtitle?: string;
+  /** A question asked from outside the panel, such as a finding card; a new id asks again. */
+  queued?: { id: number; text: string };
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -302,6 +305,13 @@ export function AiInsightsPanel({
     },
     [loading, messages, scope, scrollDown, sessionId],
   );
+
+  const askedQueued = useRef<number | null>(null);
+  useEffect(() => {
+    if (!queued || !restored || loading || askedQueued.current === queued.id) return;
+    askedQueued.current = queued.id;
+    void ask(queued.text);
+  }, [queued, restored, loading, ask]);
 
   const empty = messages.length === 0;
   const showSuggestionRow = empty || showSuggestions;

@@ -33,6 +33,18 @@ const ACCOUNT: NavItem[] = [
 ];
 /** Free accounts see these marked PRO in the menu. */
 const PRO_HREFS = new Set(["/app/ai", "/app/challenges"]);
+/** Pages whose NEW badge the trader has already opened; the badge stays away after that. */
+const SEEN_NEW_STORAGE_KEY = "ftl.nav.seenNew";
+
+function readSeenNew(): string[] {
+  try {
+    const value: unknown = JSON.parse(window.localStorage.getItem(SEEN_NEW_STORAGE_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((href): href is string => typeof href === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 const ADMIN: NavItem = { label: "Admin console", href: "/admin", icon: ShieldCheck };
 
 function initials(displayName: string | null): string {
@@ -49,7 +61,7 @@ function DesktopLink({ item, pathname, compact = false }: { item: NavItem; pathn
   const Icon = item.icon;
   const active = isActive(pathname, item.href);
   if (compact) return <Link href={item.href} aria-current={active ? "page" : undefined} aria-label={item.pro ? `${item.label} (Pro)` : item.label} title={item.label} className={`relative mx-auto grid h-10 w-10 place-items-center rounded-lg transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={17} aria-hidden />{item.pro && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand-400" aria-hidden />}</Link>;
-  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{item.pro ? <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold tracking-[0.12em] text-brand-300">PRO</span> : item.badge && <span className="ml-auto rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-surface-950">{item.badge}</span>}</Link>;
+  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{(item.pro || item.badge) && <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.12em] text-brand-300">{item.pro ? "PRO" : item.badge}</span>}</Link>;
 }
 
 /** `freePlan`: set for a Free account, so Pro-only destinations carry the Pro mark and the plan card shows. */
@@ -59,6 +71,27 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
   const router = useRouter();
   const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
+  const [seenNew, setSeenNew] = useState<string[]>([]);
+
+  // Opening a page marks its NEW badge as seen.
+  useEffect(() => {
+    const seen = readSeenNew();
+    const opened = WORKSPACE.find((item) => item.badge && isActive(pathname, item.href) && !seen.includes(item.href));
+    if (opened) {
+      seen.push(opened.href);
+      try {
+        window.localStorage.setItem(SEEN_NEW_STORAGE_KEY, JSON.stringify(seen));
+      } catch {
+        // Blocked storage just means the badge shows again next visit.
+      }
+    }
+    setSeenNew(seen);
+  }, [pathname]);
+
+  const menuItem = (item: NavItem): NavItem => {
+    if (free && PRO_HREFS.has(item.href)) return { ...item, pro: true };
+    return item.badge && seenNew.includes(item.href) ? { ...item, badge: undefined } : item;
+  };
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const fullScreen = isFullScreenPath(pathname);
   const compact = collapsed || fullScreen;
@@ -79,18 +112,18 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
   }
 
   return <>
-    <aside className={`hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:row-span-2 lg:h-dvh lg:self-start lg:flex ${compact ? "lg:w-14" : "lg:w-[15.5rem]"}`}>
+    <aside className={`hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:row-span-2 lg:h-dvh lg:self-start lg:flex ${compact ? "lg:w-14" : "lg:w-56"}`}>
       {compact
         ? <div className="flex h-16 items-center justify-center border-b app-border"><Link href="/" aria-label="ForexTestLab home"><Image src={theme === "light" ? logoMarkLight : logoMark} alt="" className="h-7 w-7 object-contain" /></Link></div>
         : <div className="flex h-16 items-center border-b app-border px-5"><Logo className="h-7" /></div>}
       <nav aria-label="Workspace navigation" className={`flex-1 overflow-y-auto ${compact ? "px-2 py-3" : "px-3 py-4"}`}>
         {compact ? <>
-          <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={free && PRO_HREFS.has(item.href) ? { ...item, pro: true } : item} pathname={pathname} compact />)}</div>
+          <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={menuItem(item)} pathname={pathname} compact />)}</div>
           <NavGroup label="Account" items={ACCOUNT} pathname={pathname} compact />
           {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} compact />}
           <NavGroup label="Help" items={[{ label: "FAQ", href: "/faq", icon: CircleHelp }]} pathname={pathname} compact />
         </> : <>
-          <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={free && PRO_HREFS.has(item.href) ? { ...item, pro: true } : item} pathname={pathname} />)}</div>
+          <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={menuItem(item)} pathname={pathname} />)}</div>
           <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
           {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
           <div className="mt-5"><p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link></div></div>

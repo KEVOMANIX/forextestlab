@@ -185,6 +185,7 @@ export const actionSchema = z.discriminatedUnion("type", [
     lots: positiveNumericString.optional(),
     riskPercent: positiveNumericString.optional(),
     stopLoss: positiveNumericString.optional(),
+    stopLossPips: positiveNumericString.optional(),
     takeProfit: positiveNumericString.optional(),
   }),
   z.object({ type: z.literal("modify-pending"), orderId: z.string().min(1), price: positiveNumericString, targetIndex: z.number().int().nonnegative().optional() }),

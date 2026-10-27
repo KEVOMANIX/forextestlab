@@ -27,6 +27,7 @@ import {
   deriveBidAsk,
   entryFillPrice,
   exitFillPrice,
+  stopFromDistance,
 } from "./execution";
 import type {
   ClosedTrade,
@@ -1198,7 +1199,7 @@ export function previewPosition(
     config.pipSize,
     config.slippagePips,
   ).toFixed(config.pricePrecision);
-  const stopLoss = req.stopLoss ?? null;
+  const stopLoss = req.stopLoss ?? stopFromDistance(req.direction, entry, req.stopLossPips, config.pipSize, config.pricePrecision);
   const takeProfit = req.takeProfit ?? null;
 
   const sizing = calculatePositionSize({

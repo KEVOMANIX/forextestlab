@@ -66,6 +66,19 @@ describe.each(cases)("$symbol contract", (example) => {
     expect(riskLots(state, { percent: "1", stopPips })).toBe(example.riskLots);
   });
 
+  it.each(["long", "short"] as const)("places a quick %s order's stop the given pips from its own fill", (direction) => {
+    const ctx = engine(example.symbol, [example.entry, example.exit]);
+    const state = publicSessionState(ctx);
+    const stopPips = String((Number(example.entry) - Number(example.stop)) / Number(state.config.pipSize));
+    const lots = riskLots(state, { percent: "1", stopPips })!;
+    expect(placeOrder(ctx, { direction, sizingMode: "fixed-lots", lots, stopLossPips: stopPips }).ok).toBe(true);
+    const position = ctx.state.openPositions[0]!;
+    const distance = d(position.entryPrice).minus(position.stopLoss!).abs();
+    expect(distance.toFixed(2)).toBe(d(stopPips).times(state.config.pipSize).toFixed(2));
+    expect(d(position.entryPrice).gt(position.stopLoss!)).toBe(direction === "long");
+    expect(Number(position.initialRiskAmount)).toBeCloseTo(100, 0);
+  });
+
   it("handles shorts, partial closes and commission without multiplying by leverage", () => {
     const ctx = engine(example.symbol, [example.exit, example.entry, example.entry]);
     ctx.state.config.leverage = "500";

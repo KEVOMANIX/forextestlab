@@ -189,6 +189,12 @@ export interface OrderRequest {
   /** Used when sizingMode === "risk-percent". */
   riskPercent?: string;
   stopLoss?: string;
+  /**
+   * A stop this many pips from wherever the order fills; ignored when
+   * `stopLoss` is set. Quick orders sized by risk use it, because a price
+   * worked out in the browser goes stale if the replay moves before the fill.
+   */
+  stopLossPips?: string;
   takeProfit?: string;
 }
 

@@ -6,7 +6,7 @@
  * decimal.js. No React, no DB: fully unit-testable.
  */
 
-import { Decimal, d } from "@/lib/decimal";
+import { Decimal, d, isFiniteNumeric } from "@/lib/decimal";
 import type { Candle } from "@/lib/market-data/types";
 import type { ExecutionPolicy, ExitReason, TradeDirection } from "./types";
 
@@ -94,6 +94,19 @@ export function entryFillPrice(
   return direction === "long"
     ? ba.askClose.plus(slip)
     : ba.bidClose.minus(slip);
+}
+
+/** The stop `pips` away from an entry: below it for a buy, above it for a sell. Null without a usable distance. */
+export function stopFromDistance(
+  direction: TradeDirection,
+  entryPrice: string,
+  pips: string | undefined,
+  pipSize: string,
+  pricePrecision: number,
+): string | null {
+  if (!pips || !isFiniteNumeric(pips) || !isFiniteNumeric(entryPrice) || d(pips).lte(0)) return null;
+  const distance = d(pips).times(pipSize);
+  return (direction === "long" ? d(entryPrice).minus(distance) : d(entryPrice).plus(distance)).toFixed(pricePrecision);
 }
 
 /** Manual/session-end close fill: long exits at bid, short exits at ask. */

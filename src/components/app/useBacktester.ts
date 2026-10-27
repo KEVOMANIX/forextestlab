@@ -1585,6 +1585,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         lots: sharedOrder.lots,
         riskPercent: sharedOrder.riskPercent,
         stopLoss: sharedOrder.stopLoss ?? undefined,
+        stopLossPips: sharedOrder.stopLossPips,
         takeProfit: sharedOrder.takeProfit ?? undefined,
         targetIndex: localEngineRef.current?.state.visibleIndex,
       }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });

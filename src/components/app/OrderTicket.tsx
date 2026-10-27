@@ -29,7 +29,7 @@ import type {
   TradeDirection,
 } from "@/lib/backtest/types";
 import { useCompactViewport } from "@/lib/ui/use-media-query";
-import { LotSizePopover, quickStopLoss, useSizeSummary, type QuickRisk } from "./LotSizePopover";
+import { LotSizePopover, useSizeSummary, type QuickRisk } from "./LotSizePopover";
 
 type PlanLevel = keyof Omit<TradePlan, "direction">;
 
@@ -286,25 +286,20 @@ export function OrderTicket({
       return;
     }
     // Sized by % of the balance: the lots already follow it, and the stop it
-    // was worked out against goes with the order, or the % would not hold.
-    const stopLoss = quickRisk?.mode === "risk"
-      ? quickStopLoss((direction === "long" ? ask : bid) ?? Number.NaN, direction, quickRisk.stopPips, state.config.pipSize, precision)
-      : undefined;
+    // was worked out against goes with the order, or the % would not hold. It
+    // goes as a distance so the engine measures it from the actual fill.
+    const byRisk = quickRisk?.mode === "risk" && Number(quickRisk.stopPips) > 0;
     onPlaceOrder({
       direction,
-      sizingMode: stopLoss ? "fixed-lots" : sizingMode,
-      lots: stopLoss || sizingMode === "fixed-lots" ? lots : undefined,
-      riskPercent: !stopLoss && sizingMode === "risk-percent" ? riskPercent : undefined,
-      stopLoss,
+      sizingMode: byRisk ? "fixed-lots" : sizingMode,
+      lots: byRisk || sizingMode === "fixed-lots" ? lots : undefined,
+      riskPercent: !byRisk && sizingMode === "risk-percent" ? riskPercent : undefined,
+      stopLossPips: byRisk ? quickRisk.stopPips : undefined,
     });
     onClearPlan();
     setPanelOpen(false);
   }, [
-    ask,
-    bid,
-    precision,
     quickRisk,
-    state.config.pipSize,
     lots,
     onClearPlan,
     oneClickTrading,

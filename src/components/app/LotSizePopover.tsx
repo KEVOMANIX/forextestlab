@@ -69,13 +69,6 @@ export function riskLots(state: PublicSessionState, risk: Pick<QuickRisk, "perce
   return Math.max(LOT_STEP, lots).toFixed(2);
 }
 
-/** The stop a quick order in % mode carries: `stopPips` from the side it fills on. */
-export function quickStopLoss(fillPrice: number, direction: "long" | "short", stopPips: string, pipSize: string, precision: number): string | undefined {
-  const distance = Number(stopPips) * Number(pipSize);
-  if (!Number.isFinite(fillPrice) || !(distance > 0)) return undefined;
-  return (direction === "long" ? fillPrice - distance : fillPrice + distance).toFixed(precision);
-}
-
 export interface SizeSummary {
   lots: string;
   /** False for a non-numeric or non-positive size; blocks submission. */

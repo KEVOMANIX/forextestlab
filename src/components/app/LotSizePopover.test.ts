@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { quickStopLoss, riskLots } from "./LotSizePopover";
+import { riskLots } from "./LotSizePopover";
 import type { PublicSessionState } from "@/lib/backtest/types";
 
 const eurusd = {
@@ -24,17 +24,5 @@ describe("riskLots", () => {
 
   it.each([["0", "20"], ["1", "0"], ["abc", "20"], ["1", ""]])("gives nothing for percent %s and stop %s", (percent, stopPips) => {
     expect(riskLots(eurusd, { percent, stopPips })).toBeNull();
-  });
-});
-
-describe("quickStopLoss", () => {
-  it("puts the stop below a buy and above a sell", () => {
-    expect(quickStopLoss(1.1001, "long", "20", "0.0001", 5)).toBe("1.09810");
-    expect(quickStopLoss(1.0999, "short", "20", "0.0001", 5)).toBe("1.10190");
-  });
-
-  it("sends no stop without a usable distance or price", () => {
-    expect(quickStopLoss(1.1, "long", "0", "0.0001", 5)).toBeUndefined();
-    expect(quickStopLoss(Number.NaN, "long", "20", "0.0001", 5)).toBeUndefined();
   });
 });

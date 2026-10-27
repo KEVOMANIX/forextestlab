@@ -1,4 +1,5 @@
 import { propFirmProgress } from "./prop-firm";
+import { stopFromDistance } from "./execution";
 import { defaultTradePlan, tradePlanMetrics } from "./trade-plan";
 import type { OrderRequest, PublicSessionState } from "./types";
 
@@ -70,7 +71,8 @@ export function tradingGuardMessage(
       riskPercent = Number(order.riskPercent);
     } else {
       const plan = defaultTradePlan(state, order.direction);
-      if (!plan || !order.stopLoss) {
+      const stopLoss = plan ? orderStop(state, order, plan.entryPrice) : null;
+      if (!plan || !stopLoss) {
         return `Add a stop loss to enforce the ${limits.maxRiskPerTradePercent}% risk limit.`;
       }
       const metrics = tradePlanMetrics({
@@ -78,7 +80,7 @@ export function tradingGuardMessage(
         plan: {
           ...plan,
           entryPrice: order.entryPrice ?? plan.entryPrice,
-          stopLoss: order.stopLoss,
+          stopLoss,
           takeProfit: order.takeProfit ?? "",
         },
         sizingMode: "fixed-lots",
@@ -94,6 +96,12 @@ export function tradingGuardMessage(
   }
 
   return null;
+}
+
+/** The stop an order will carry, a distance in pips measured from the expected entry. */
+function orderStop(state: PublicSessionState, order: OrderRequest, plannedEntry: string): string | null {
+  if (order.stopLoss) return order.stopLoss;
+  return stopFromDistance(order.direction, order.entryPrice ?? plannedEntry, order.stopLossPips, state.config.pipSize, state.config.pricePrecision ?? 5);
 }
 
 /**
@@ -125,10 +133,10 @@ export function propFirmGuardMessage(
     runtime,
   });
 
-  const stopLoss = order.stopLoss;
-  if (!stopLoss) return null;
   const plan = defaultTradePlan(state, order.direction);
   if (!plan) return null;
+  const stopLoss = orderStop(state, order, plan.entryPrice);
+  if (!stopLoss) return null;
   const metrics = tradePlanMetrics({
     state,
     plan: {

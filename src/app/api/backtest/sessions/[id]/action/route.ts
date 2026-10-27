@@ -220,6 +220,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
         lots: action.lots,
         riskPercent: action.riskPercent,
         stopLoss: action.stopLoss,
+        stopLossPips: action.stopLossPips,
         takeProfit: action.takeProfit,
       });
       if (!r.ok) {

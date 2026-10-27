@@ -343,7 +343,10 @@ export function LotSizePopover({
         )}
 
         {byRisk && riskAmount != null && percentValid && (
-          <p className="mt-0.5 text-right font-mono text-[10px] text-loss">−{amount(riskAmount, accountCurrency, summary.approx)} at the stop</p>
+          <p className="mt-0.5 flex items-center justify-between gap-1 whitespace-nowrap text-[10px]">
+            <span className="text-[var(--ticket-subtle)]">At stop</span>
+            <span className="truncate font-mono font-semibold text-loss">−{amount(riskAmount, accountCurrency, summary.approx)}</span>
+          </p>
         )}
         {!byRisk && !summary.valid && (
           <p role="alert" className="mt-1 text-[10px] text-loss">

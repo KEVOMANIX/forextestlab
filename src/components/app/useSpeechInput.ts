@@ -23,8 +23,8 @@ function recognitionConstructor(): RecognitionConstructor | null {
 }
 
 const ERROR_TEXT: Record<string, string> = {
-  "not-allowed": "Microphone access is blocked. Allow it in your browser's site settings.",
-  "service-not-allowed": "Microphone access is blocked. Allow it in your browser's site settings.",
+  "not-allowed": "The microphone is off for this site. Click the lock icon in the address bar to turn it on.",
+  "service-not-allowed": "The microphone is off for this site. Click the lock icon in the address bar to turn it on.",
   "audio-capture": "No microphone was found.",
   network: "Voice input needs an internet connection.",
 };

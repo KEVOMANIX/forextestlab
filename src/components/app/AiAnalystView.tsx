@@ -362,7 +362,7 @@ export function AiAnalystView({
   const groups = useMemo(() => groupThreads(chats, query, now), [chats, query, now]);
   const conversation = Boolean(activeId) && (messages.length > 0 || opening);
   const nothingFound = query.trim() !== "" && !groups.pinned.length && !groups.today.length && !groups.week.length && !groups.earlier.length;
-  const shownError = pageError ?? error ?? speech.error;
+  const shownError = pageError ?? error;
 
   const chatList = (mobile: boolean) => (
     <>
@@ -494,6 +494,7 @@ export function AiAnalystView({
                 className="max-h-40 w-full resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-[var(--app-muted)] focus-visible:ring-0 focus-visible:ring-offset-0"
               />
               {speech.listening && <p className="truncate text-xs text-brand-300" aria-live="polite">Listening…{speech.interim && <span className="app-muted"> {speech.interim}</span>}</p>}
+              {!speech.listening && speech.error && <p className="flex items-center gap-1.5 text-xs app-muted" aria-live="polite"><MicOff size={12} className="shrink-0" aria-hidden />{speech.error}</p>}
               <div className="mt-1.5 flex items-center gap-3">
                 {active ? (
                   <span className="inline-flex min-w-0 items-center gap-1.5 truncate rounded-full border border-brand-400/35 bg-brand-400/[0.08] px-2.5 py-1 text-xs font-medium text-brand-300"><BookOpenText size={12} className="shrink-0" aria-hidden /><span className="truncate">{sessionName(active.sessionId)}</span></span>

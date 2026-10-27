@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUp, BookOpenText, ChevronDown, ClipboardList, Loader2, Lock, Mic, MicOff, PanelLeft, PanelLeftClose, PanelLeftOpen, Pin, PinOff, Plus, RotateCcw, Search, Sparkles, Square, Trash2, X } from "lucide-react";
+import { ArrowRight, ArrowUp, BarChart3, BookOpenText, ChevronDown, ClipboardList, MessageSquare, Loader2, Lock, Mic, MicOff, PanelLeft, PanelLeftClose, PanelLeftOpen, Pin, PinOff, Plus, RotateCcw, Search, Sparkles, Square, Trash2, X } from "lucide-react";
 
 import { CopyAnswer, RichText } from "./AiInsightsPanel";
 import { ProLock } from "./ProLock";
@@ -10,7 +10,7 @@ import { TradeLinkProvider, type TradeLinkResolver } from "./TradeFocusContext";
 import { useAiChat } from "./useAiChat";
 import { useSpeechInput } from "./useSpeechInput";
 import type { AnalystSessionCard } from "@/lib/ai/analyst";
-import { THREADS_STORAGE_KEY, groupThreads, threadTitle, type ChatSummary } from "@/lib/ai/analyst-threads";
+import { THREADS_STORAGE_KEY, displayTitle, groupThreads, isReviewTitle, threadTitle, type ChatSummary } from "@/lib/ai/analyst-threads";
 import type { Finding } from "@/lib/ai/findings";
 import { sessionRef } from "@/lib/ai/trade-query";
 
@@ -103,14 +103,20 @@ function SessionCard({ card, onReview, locked }: { card: AnalystSessionCard; onR
     : <button type="button" onClick={onReview} className={className}>{body}</button>;
 }
 
-function ThreadRow({ thread, active, detail, onOpen, onPin, onDelete }: { thread: ChatSummary; active: boolean; detail: string; onOpen: () => void; onPin: () => void; onDelete: () => void }) {
+function ThreadRow({ thread, active, session, time, onOpen, onPin, onDelete }: { thread: ChatSummary; active: boolean; session: string; time: string; onOpen: () => void; onPin: () => void; onDelete: () => void }) {
+  const review = isReviewTitle(thread.title);
+  const Icon = review ? BarChart3 : MessageSquare;
   return (
-    <div className={`group relative flex items-start gap-2 rounded-lg px-2.5 py-2 transition-colors ${active ? "bg-[var(--app-panel-2)]" : "hover:bg-[var(--app-hover)]"}`}>
+    <div className={`group relative flex items-start gap-2.5 rounded-lg p-2 transition-colors ${active ? "bg-[var(--app-panel-2)]" : "hover:bg-[var(--app-hover)]"}`}>
+      <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg ${review ? "bg-brand-400/15 text-brand-300" : "bg-sky-400/15 text-sky-300"}`} aria-hidden><Icon size={14} /></span>
       <button type="button" onClick={onOpen} aria-current={active ? "true" : undefined} className="min-w-0 flex-1 text-left after:absolute after:inset-0 after:rounded-lg">
-        <span className="block truncate text-[13px] font-medium">{thread.title}</span>
-        <span className="block truncate text-[11px] app-muted">{detail}</span>
+        <span className="line-clamp-2 text-[13px] font-medium leading-[1.35]">{displayTitle(thread.title)}</span>
+        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] app-muted">
+          <span className={`min-w-0 truncate rounded-full px-1.5 font-semibold ${thread.sessionId ? "bg-brand-400/15 text-brand-300" : "bg-sky-400/15 text-sky-300"}`}>{session}</span>
+          <span className="shrink-0">{time}</span>
+        </span>
       </button>
-      <span className="relative z-10 flex shrink-0 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+      <span className="absolute right-1.5 top-1.5 z-10 flex gap-0.5 rounded-md bg-[var(--app-sidebar)] opacity-0 shadow-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100">
         <button type="button" onClick={onPin} aria-label={thread.pinned ? "Unpin chat" : "Pin chat"} title={thread.pinned ? "Unpin" : "Pin"} className="grid h-6 w-6 place-items-center rounded-md app-muted hover:text-brand-300">{thread.pinned ? <PinOff size={13} aria-hidden /> : <Pin size={13} aria-hidden />}</button>
         <button type="button" onClick={onDelete} aria-label="Delete chat" title="Delete" className="grid h-6 w-6 place-items-center rounded-md app-muted hover:text-loss"><Trash2 size={13} aria-hidden /></button>
       </span>
@@ -367,32 +373,33 @@ export function AiAnalystView({
   const chatList = (mobile: boolean) => (
     <>
       <div className="flex items-center gap-2">
-        <button type="button" onClick={newChat} className="flex flex-1 items-center gap-2 rounded-lg border border-brand-400/30 bg-brand-400/10 px-3 py-2 text-sm font-semibold text-brand-300 transition-colors hover:bg-brand-400/15"><Plus size={15} aria-hidden />New chat</button>
+        <button type="button" onClick={newChat} className="flex h-9 flex-1 items-center gap-2 rounded-lg bg-brand-500 px-3 text-sm font-semibold text-surface-950 transition-colors hover:bg-brand-400"><Plus size={15} strokeWidth={2.4} aria-hidden />New chat</button>
         {mobile
           ? <button type="button" onClick={() => setChatsOpen(false)} aria-label="Close chats" className={iconButton}><X size={16} aria-hidden /></button>
-          : <button type="button" onClick={() => setCollapsed(true)} aria-label="Collapse chats" title="Collapse chats" className={`${iconButton} border app-border`}><PanelLeftClose size={15} aria-hidden /></button>}
+          : <button type="button" onClick={() => setCollapsed(true)} aria-label="Collapse chats" title="Collapse chats" className={`${iconButton} h-9 w-9 border app-border bg-[var(--app-panel)]`}><PanelLeftClose size={15} aria-hidden /></button>}
       </div>
-      <label className="mt-1.5 flex items-center gap-2 rounded-lg px-3 py-2 text-sm app-muted focus-within:bg-[var(--app-panel-2)]">
+      <label className="mt-2 flex h-9 items-center gap-2 rounded-lg border app-border bg-[var(--app-panel)] px-3 text-sm app-muted transition-colors focus-within:border-brand-400/60">
         <Search size={15} aria-hidden />
         <input ref={mobile ? undefined : searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search chats" aria-label="Search chats" className="min-w-0 flex-1 bg-transparent text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus-visible:ring-0 focus-visible:ring-offset-0" />
-        <kbd className="rounded border app-border px-1 font-sans text-[10px] app-muted">Ctrl K</kbd>
+        <kbd className="font-sans text-[10px] app-muted">Ctrl K</kbd>
       </label>
-      {!locked && (
-        <button type="button" onClick={() => setPlanOpen(true)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm app-muted transition-colors hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]">
-          <ClipboardList size={15} aria-hidden /><span className="flex-1">Trading plan</span>
-          <span className={`text-[11px] ${plan ? "text-brand-300" : ""}`}>{plan ? "Set" : "Add"}</span>
-        </button>
-      )}
       <div className="mt-1 min-h-0 flex-1 overflow-y-auto">
         {([["Pinned", groups.pinned], ["Today", groups.today], ["Previous 7 days", groups.week], ["Earlier", groups.earlier]] as const).map(([label, list]) => list.length > 0 && (
           <div key={label} className="mt-3">
             <p className="px-2.5 pb-1 text-[11px] app-muted">{label}</p>
-            {list.map((thread) => <ThreadRow key={thread.id} thread={thread} active={thread.id === activeId} detail={`${sessionName(thread.sessionId)} · ${ago(thread.updatedAt, now)}`} onOpen={() => void openThread(thread)} onPin={() => togglePin(thread)} onDelete={() => deleteThread(thread)} />)}
+            {list.map((thread) => <ThreadRow key={thread.id} thread={thread} active={thread.id === activeId} session={sessionName(thread.sessionId)} time={ago(thread.updatedAt, now)} onOpen={() => void openThread(thread)} onPin={() => togglePin(thread)} onDelete={() => deleteThread(thread)} />)}
           </div>
         ))}
         {!chats.length && <p className="mt-4 px-2.5 text-xs leading-5 app-muted">Your chats appear here, saved to your account.</p>}
         {nothingFound && <p className="mt-4 px-2.5 text-xs app-muted">No chats match “{query}”.</p>}
       </div>
+      {!locked && (
+        <button type="button" onClick={() => setPlanOpen(true)} className={`mt-3 rounded-xl border p-3 text-left transition-colors ${plan ? "app-border bg-[var(--app-panel)] hover:border-sky-400/50" : "border-dashed border-sky-400/45 bg-sky-400/[0.06] hover:bg-sky-400/10"}`}>
+          <span className="flex items-center gap-2 text-[13px] font-semibold"><ClipboardList size={15} className="text-sky-300" aria-hidden />Trading plan{plan && <span className="ml-auto rounded-full bg-brand-400/15 px-1.5 text-[10px] font-semibold text-brand-300">On</span>}</span>
+          <span className="mt-1 block text-[11.5px] leading-4 app-muted">{plan ? "The AI checks your trades against your rules." : "Write your rules once. The AI checks your trades against them."}</span>
+          <span className="mt-1.5 block text-xs font-semibold text-sky-300">{plan ? "Edit rules →" : "Add your rules →"}</span>
+        </button>
+      )}
     </>
   );
 
@@ -407,7 +414,7 @@ export function AiAnalystView({
           {!locked && <button type="button" onClick={() => setPlanOpen(true)} aria-label="Trading plan" title="Trading plan" className={iconButton}><ClipboardList size={15} aria-hidden /></button>}
         </aside>
       ) : (
-        <aside aria-label="AI Analyst chats" className="hidden w-64 shrink-0 flex-col border-r app-border bg-[var(--app-sidebar)] p-3 lg:flex">{chatList(false)}</aside>
+        <aside aria-label="AI Analyst chats" className="hidden w-72 shrink-0 flex-col border-r app-border bg-[var(--app-sidebar)] p-3 lg:flex">{chatList(false)}</aside>
       )}
       {chatsOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
@@ -419,7 +426,7 @@ export function AiAnalystView({
       <section className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b app-border px-4 sm:px-6">
           <button type="button" onClick={() => setChatsOpen(true)} aria-label="Show chats" className={`${iconButton} border app-border lg:hidden`}><PanelLeft size={15} aria-hidden /></button>
-          <h1 className="min-w-0 truncate text-[15px] font-bold">{active ? active.title : "New chat"}</h1>
+          <h1 className="min-w-0 truncate text-[15px] font-bold">{active ? displayTitle(active.title) : "AI Analyst"}</h1>
           {active && <span className="hidden min-w-0 items-center gap-1.5 truncate rounded-full border app-border bg-[var(--app-panel)] px-2.5 py-0.5 text-xs app-muted sm:inline-flex"><BookOpenText size={12} className="shrink-0" aria-hidden /><span className="truncate">{sessionName(active.sessionId)}</span></span>}
         </header>
 

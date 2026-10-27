@@ -30,3 +30,13 @@ describe("AI Analyst saved chats", () => {
     expect(groupThreads(threads, "gold", NOW).today).toEqual([]);
   });
 });
+
+describe("AI Analyst chat titles", () => {
+  it("capitalises and brings early review titles into the current form", async () => {
+    const { displayTitle, isReviewTitle } = await import("./analyst-threads");
+    expect(displayTitle("do i have an edge across all my sessions?")).toBe("Do i have an edge across all my sessions?");
+    expect(displayTitle('Review my "EUR/USD · Dec 2025" session: what worked, what c…')).toBe("Review · EUR/USD · Dec 2025");
+    expect(isReviewTitle("Review · GBP/USD · Dec 2025")).toBe(true);
+    expect(isReviewTitle("Why do I lose on Fridays?")).toBe(false);
+  });
+});

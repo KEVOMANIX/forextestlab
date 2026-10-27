@@ -35,6 +35,18 @@ export function threadTitle(question: string): string {
   return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH - 1).trimEnd()}…` : line;
 }
 
+/** Reviews of one session, started from a card on the welcome screen. */
+export function isReviewTitle(title: string): boolean {
+  return /^review( ·| my ")/i.test(title.trim());
+}
+
+/** A title as the list shows it: a capital first letter, and early review titles in the current "Review · session" form. */
+export function displayTitle(title: string): string {
+  const legacy = /^Review my "(.+?)" session/i.exec(title.trim());
+  const text = legacy ? `Review · ${legacy[1]}` : title.trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 export function isMessage(value: unknown): value is ChatMessage {
   const message = value as ChatMessage;
   return Boolean(message) && (message.role === "user" || message.role === "model") && typeof message.text === "string";

@@ -1,7 +1,7 @@
 /**
  * Simulator contract sizes, in base-asset units per lot.
  * Gold: 100 troy ounces; silver: 5,000 troy ounces; Bitcoin: 1 BTC;
- * US30, US500 and NAS100: 1 index unit.
+ * US30, US500 and US100: 1 index unit.
  * Broker contracts can vary; these are ForexTestLab's explicit conventions.
  * References:
  * https://help.oanda.com/eu/en/faqs/check-leverage-eu.htm

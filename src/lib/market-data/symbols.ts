@@ -337,7 +337,7 @@ export const SYMBOL_DEFINITIONS: SymbolDefinition[] = [
   },
   {
     symbol: "USATECHIDXUSD",
-    displayName: "NAS100",
+    displayName: "US100",
     baseCurrency: "USATECHIDX",
     quoteCurrency: "USD",
     pipSize: "1",

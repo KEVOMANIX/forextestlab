@@ -17,7 +17,7 @@ import { NAV_COLLAPSED_COOKIE, NAV_COLLAPSED_MAX_AGE } from "@/lib/ui/nav";
 import { ProLock } from "./ProLock";
 import { useAppTheme } from "./ThemeContext";
 
-type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; badge?: string; pro?: boolean };
+type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; badge?: string; pro?: boolean; newTab?: boolean };
 
 const WORKSPACE: NavItem[] = [
   { label: "Dashboard", href: "/app", icon: LayoutDashboard },
@@ -45,7 +45,10 @@ function readSeenNew(): string[] {
   }
 }
 
-const ADMIN: NavItem = { label: "Admin console", href: "/admin", icon: ShieldCheck };
+// The admin console and the FAQ open beside the workspace rather than replacing it.
+const ADMIN: NavItem = { label: "Admin console", href: "/admin", icon: ShieldCheck, newTab: true };
+const FAQ_ITEM: NavItem = { label: "FAQ", href: "/faq", icon: CircleHelp, newTab: true };
+const NEW_TAB = { target: "_blank", rel: "noopener" } as const;
 
 function initials(displayName: string | null): string {
   if (!displayName) return "FT";
@@ -60,8 +63,9 @@ function isActive(pathname: string, href: string): boolean {
 function DesktopLink({ item, pathname, compact = false }: { item: NavItem; pathname: string; compact?: boolean }) {
   const Icon = item.icon;
   const active = isActive(pathname, item.href);
-  if (compact) return <Link href={item.href} aria-current={active ? "page" : undefined} aria-label={item.pro ? `${item.label} (Pro)` : item.label} title={item.label} className={`relative mx-auto grid h-10 w-10 place-items-center rounded-lg transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={17} aria-hidden />{item.pro && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand-400" aria-hidden />}</Link>;
-  return <Link href={item.href} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{(item.pro || item.badge) && <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.12em] text-brand-300">{item.pro ? "PRO" : item.badge}</span>}</Link>;
+  const tab = item.newTab ? NEW_TAB : {};
+  if (compact) return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} aria-label={item.pro ? `${item.label} (Pro)` : item.label} title={item.label} className={`relative mx-auto grid h-10 w-10 place-items-center rounded-lg transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={17} aria-hidden />{item.pro && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand-400" aria-hidden />}</Link>;
+  return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{(item.pro || item.badge) && <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.12em] text-brand-300">{item.pro ? "PRO" : item.badge}</span>}</Link>;
 }
 
 /** `freePlan`: set for a Free account, so Pro-only destinations carry the Pro mark and the plan card shows. */
@@ -130,12 +134,12 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
           <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={menuItem(item)} pathname={pathname} compact />)}</div>
           <NavGroup label="Account" items={ACCOUNT} pathname={pathname} compact />
           {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} compact />}
-          <NavGroup label="Help" items={[{ label: "FAQ", href: "/faq", icon: CircleHelp }]} pathname={pathname} compact />
+          <NavGroup label="Help" items={[FAQ_ITEM]} pathname={pathname} compact />
         </> : <>
           <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={menuItem(item)} pathname={pathname} />)}</div>
           <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
           {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
-          <div className="mt-5"><p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">Help</p><div className="space-y-1"><Link href="/faq" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><CircleHelp size={16} aria-hidden />FAQ</Link></div></div>
+          <NavGroup label="Help" items={[FAQ_ITEM]} pathname={pathname} />
           </>}
       </nav>
       {compact ? (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, EyeOff, LockKeyhole } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
@@ -10,7 +10,7 @@ import { siteConfig } from "@/lib/site";
 type Mode = "sign-in" | "sign-up" | "forgot-password";
 
 const COPY: Record<Mode, { title: string; submit: string }> = {
-  "sign-in": { title: "Sign in to ForexTestLab", submit: "Sign in" },
+  "sign-in": { title: "Welcome back", submit: "Sign in" },
   "sign-up": { title: "Create your account", submit: "Create account" },
   "forgot-password": {
     title: "Reset your password",
@@ -168,28 +168,21 @@ export function AuthForm({
     <div className="w-full">
       <form
         onSubmit={submit}
-        className="relative overflow-hidden rounded-2xl border border-white/[0.09] bg-[linear-gradient(160deg,rgba(21,31,46,.9),rgba(11,17,27,.94))] p-5 shadow-[0_24px_70px_-30px_rgba(0,0,0,.9)] ring-1 ring-inset ring-white/[0.04] backdrop-blur-xl sm:p-6"
+        className="relative rounded-[1.25rem] border border-white/[0.09] bg-[rgba(17,26,43,.88)] p-6 shadow-[0_30px_80px_-20px_rgba(0,0,0,.65)] ring-1 ring-inset ring-white/[0.04] backdrop-blur-xl sm:p-8"
       >
-        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-40 w-40 rounded-full bg-brand-400/[0.09] blur-3xl" />
-        <div className="relative">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-300">
-          {staffCopy ? staffCopy.eyebrow : mode === "sign-up"
-            ? "Create your workspace"
-            : mode === "sign-in"
-              ? "Welcome back"
-              : "Account recovery"}
-        </p>
-        <h1 className="mt-2 text-[1.4rem] font-bold leading-tight tracking-[-0.02em] sm:text-[1.55rem]">
+        <div>
+        {staffCopy && (
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-300">{staffCopy.eyebrow}</p>
+        )}
+        <h1 className="text-[1.6rem] font-extrabold leading-tight tracking-[-0.02em] sm:text-[1.75rem]">
           {staffCopy ? staffCopy.title : COPY[mode].title}
         </h1>
-        <p className="mt-1.5 text-[13px] leading-5 app-muted">
+        <p className="mt-1.5 text-sm leading-5 app-muted">
           {staffCopy ? staffCopy.description : mode === "sign-up"
             ? "Free: three new sessions a month on the major pairs. No card required."
             : mode === "sign-in"
-              ? "Access your private backtesting workspace."
-              : mode === "forgot-password"
-                ? "We will email you a secure password-reset link."
-                : "We will email you a secure password-reset link."}
+              ? "Sign in to your backtesting workspace."
+              : "We will email you a secure password-reset link."}
         </p>
 
         {supportsGoogle && (
@@ -197,7 +190,7 @@ export function AuthForm({
             <button
               type="button"
               onClick={continueWithGoogle}
-              className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2.5 rounded-xl bg-white px-4 text-[13px] font-semibold text-slate-900 shadow-sm transition-all hover:-translate-y-px hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-white px-4 text-[15px] font-semibold text-slate-900 shadow-sm transition-all hover:-translate-y-px hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
               disabled={pending}
             >
               <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden>
@@ -210,18 +203,18 @@ export function AuthForm({
             </button>
             <div className="my-5 flex items-center gap-3" aria-hidden>
               <span className="h-px flex-1 bg-[var(--app-border)]" />
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">or use email</span>
+              <span className="text-xs app-muted">or with email</span>
               <span className="h-px flex-1 bg-[var(--app-border)]" />
             </div>
           </>
         )}
 
-        <div className={supportsGoogle ? "space-y-3.5" : "mt-5 space-y-3.5"}>
+        <div className={supportsGoogle ? "space-y-4" : "mt-6 space-y-4"}>
           {mode === "sign-up" && (
             <label className="block">
-              <span className="mb-1.5 block text-[12px] font-medium app-muted">Display name</span>
+              <span className="mb-1.5 block text-[13px] font-semibold">Display name</span>
               <input
-                className="app-input h-11 w-full px-3.5 text-[13px]"
+                className="app-input h-12 w-full rounded-xl px-3.5 text-sm focus:ring-2 focus:ring-brand-400/20"
                 autoComplete="name"
                 maxLength={120}
                 value={displayName}
@@ -231,9 +224,9 @@ export function AuthForm({
           )}
 
           <label className="block">
-            <span className="mb-1.5 block text-[12px] font-medium app-muted">Email address</span>
+            <span className="mb-1.5 block text-[13px] font-semibold">Email address</span>
             <input
-              className="app-input h-11 w-full px-3.5 text-[13px]"
+              className="app-input h-12 w-full rounded-xl px-3.5 text-sm focus:ring-2 focus:ring-brand-400/20"
               type="email"
               autoComplete="email"
               required
@@ -246,16 +239,20 @@ export function AuthForm({
 
           {needsPassword && (
             <div className="block">
-              <label
-                htmlFor="auth-password"
-                className="mb-1.5 block text-[12px] font-medium app-muted"
-              >
-                Password
-              </label>
+              <span className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="auth-password" className="text-[13px] font-semibold">
+                  Password
+                </label>
+                {mode === "sign-in" && (
+                  <Link href="/forgot-password" className="text-[13px] text-brand-300 hover:underline">
+                    Forgot password?
+                  </Link>
+                )}
+              </span>
               <span className="relative block">
                 <input
                   id="auth-password"
-                  className="app-input h-11 w-full px-3.5 pr-11 text-[13px]"
+                  className="app-input h-12 w-full rounded-xl px-3.5 pr-11 text-sm focus:ring-2 focus:ring-brand-400/20"
                   type={showPassword ? "text" : "password"}
                   minLength={8}
                   autoComplete={
@@ -300,47 +297,39 @@ export function AuthForm({
 
         <button
           type="submit"
-          className="btn-primary mt-5 min-h-11 w-full rounded-xl text-[13px] shadow-[0_10px_24px_-14px_rgba(14,165,233,.85)] transition-transform hover:-translate-y-px"
+          className="btn-primary mt-6 min-h-12 w-full rounded-xl text-[15px] shadow-[0_10px_24px_-14px_rgba(69,214,168,.85)] transition-transform hover:-translate-y-px"
           disabled={pending}
         >
           {busy === "form" ? "Please wait…" : COPY[mode].submit}
         </button>
 
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[13px]">
-          {mode === "sign-in" && (
+        <p className="mt-5 text-center text-[13px] app-muted">
+          {mode === "sign-in" && (staffCopy ? (
+            <Link href="/app" className="font-semibold text-brand-300 hover:underline">
+              Not staff? Go to the app
+            </Link>
+          ) : (
             <>
-              <Link href="/forgot-password" className="text-brand-300 hover:underline">
-                Forgot password?
+              New here?{" "}
+              <Link href={`/sign-up?next=${encodeURIComponent(safeNextPath())}`} className="font-semibold text-brand-300 hover:underline">
+                Create a free account
               </Link>
-              {staffCopy ? (
-                <Link href="/app" className="text-brand-300 hover:underline">
-                  Not staff? Go to the app
-                </Link>
-              ) : (
-                <Link href={`/sign-up?next=${encodeURIComponent(safeNextPath())}`} className="text-brand-300 hover:underline">
-                  Create account
-                </Link>
-              )}
+            </>
+          ))}
+          {mode === "sign-up" && (
+            <>
+              Already have an account?{" "}
+              <Link href={`/sign-in?next=${encodeURIComponent(safeNextPath())}`} className="font-semibold text-brand-300 hover:underline">
+                Sign in
+              </Link>
             </>
           )}
-          {mode === "sign-up" && (
-            <Link href={`/sign-in?next=${encodeURIComponent(safeNextPath())}`} className="text-brand-300 hover:underline">
-              Already have an account?
-            </Link>
-          )}
           {mode === "forgot-password" && (
-            <Link href="/sign-in" className="text-brand-300 hover:underline">
+            <Link href="/sign-in" className="font-semibold text-brand-300 hover:underline">
               Return to sign in
             </Link>
           )}
-        </div>
-
-        {needsPassword && (
-          <p className="mt-5 flex items-center justify-center gap-2 border-t border-white/[0.07] pt-4 text-[11px] app-muted">
-            <LockKeyhole className="h-3.5 w-3.5 text-brand-300" aria-hidden />
-            Your credentials are encrypted in transit.
-          </p>
-        )}
+        </p>
         </div>
       </form>
     </div>

@@ -50,7 +50,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </Link>
       </header>
 
-      <section className="relative z-10 mx-auto flex min-h-[calc(100dvh-5.5rem)] w-full max-w-[25rem] items-center px-5 pb-16 pt-2 sm:px-0 sm:pb-20">
+      <section className="relative z-10 mx-auto flex min-h-[calc(100dvh-5.5rem)] w-full max-w-[26.25rem] items-center px-5 pb-16 pt-2 sm:px-0 sm:pb-20">
         <div className="auth-reveal-card w-full">
           {children}
         </div>

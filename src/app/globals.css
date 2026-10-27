@@ -402,6 +402,16 @@
     @apply rounded-lg px-3 py-2 text-sm transition-colors focus:border-brand-400/60;
   }
 
+  /* Chrome paints filled-in boxes its own pale green; keep them in the box's colours. */
+  .app-input:-webkit-autofill,
+  .app-input:-webkit-autofill:hover,
+  .app-input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--app-panel-2) inset;
+    -webkit-text-fill-color: var(--app-text);
+    caret-color: var(--app-text);
+    transition: background-color 9999s ease-out 0s;
+  }
+
   /*
    * Native select menus are painted by the browser rather than Tailwind.
    * Without an explicit scheme/option palette, Chromium on Windows falls back

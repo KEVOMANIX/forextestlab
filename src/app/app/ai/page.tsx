@@ -25,6 +25,8 @@ export default async function AiAnalystPage() {
   const [entitlements, rows] = await Promise.all([getUserEntitlements(user.id), loadPortfolioSessions(user.id)]);
   const sessions = rows.filter((session) => !session.archived);
   const locked = !entitlements.fullAnalytics;
+  const fullName = [user.user_metadata?.display_name, user.user_metadata?.full_name, user.user_metadata?.name]
+    .find((value): value is string => typeof value === "string" && Boolean(value.trim()));
   const cards = sessions
     .filter((session) => session.trades.some((trade) => trade.validity !== "experimental"))
     .slice(0, WELCOME_CARDS)
@@ -35,6 +37,7 @@ export default async function AiAnalystPage() {
   return (
     <AiAnalystView
       locked={locked}
+      firstName={fullName?.trim().split(/\s+/)[0] ?? null}
       cards={cards}
       sessions={sessions.map((session) => ({ id: session.id, name: session.name }))}
       findings={findings}

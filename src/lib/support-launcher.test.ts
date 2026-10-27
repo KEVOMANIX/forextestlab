@@ -8,6 +8,7 @@ describe("support launcher visibility", () => {
     expect(isLauncherHidden("/app/results/abc123")).toBe(true);
     expect(isLauncherHidden("/app/support")).toBe(true);
     expect(isLauncherHidden("/support-team")).toBe(true);
+    expect(isLauncherHidden("/app/ai")).toBe(true);
   });
 
   it("stands down while signing in, where the form is the only action", () => {

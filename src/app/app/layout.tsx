@@ -7,6 +7,7 @@ import { DeploymentRefresh } from "@/components/app/DeploymentRefresh";
 import { HiddenOnFullScreen } from "@/components/app/HiddenOnFullScreen";
 import { AppThemeProvider } from "@/components/app/ThemeContext";
 import { THEME_COOKIE, isAppTheme } from "@/lib/ui/app-theme";
+import { NAV_COLLAPSED_COOKIE } from "@/lib/ui/nav";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { isAdminUser } from "@/lib/admin";
 import { freePreviewActive } from "@/lib/billing/plan-preview";
@@ -31,13 +32,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     user?.user_metadata?.full_name,
     user?.user_metadata?.name,
   ].find((value): value is string => typeof value === "string" && Boolean(value.trim()))?.trim() ?? null;
-  const storedTheme = (await cookies()).get(THEME_COOKIE)?.value;
+  const cookieStore = await cookies();
+  const storedTheme = cookieStore.get(THEME_COOKIE)?.value;
+  const navCollapsed = cookieStore.get(NAV_COLLAPSED_COOKIE)?.value === "1";
   const [previewFree, freePlan] = user ? await Promise.all([freePreviewActive(user.id), freePlanSummary(user.id)]) : [false, null];
   return (
     <AppThemeProvider initialTheme={isAppTheme(storedTheme) ? storedTheme : null}>
       <DeploymentRefresh />
       <div className="min-h-dvh lg:grid lg:grid-cols-[auto_minmax(0,1fr)]">
-        <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} freePlan={freePlan} />
+        <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} freePlan={freePlan} initialCollapsed={navCollapsed} />
         <div className="min-w-0 lg:col-start-2">
           <main id="main" className="min-h-[calc(100dvh-4rem)]">
             {previewFree && (

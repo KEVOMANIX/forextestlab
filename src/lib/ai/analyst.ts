@@ -11,6 +11,7 @@ import { formatSymbol, getSymbolDefinition, marketCategory } from "@/lib/market-
 export interface AnalystSessionCard {
   id: string;
   name: string;
+  /** The first market, with a count of the others: "EUR/USD +2". */
   market: string;
   category: ReturnType<typeof marketCategory> | null;
   timeframe: string;
@@ -18,7 +19,6 @@ export interface AnalystSessionCard {
   /** Realised return on everything the trader funded, in percent. */
   returnPercent: number;
   profitFactor: string;
-  maxDrawdownPercent: string;
   trades: number;
   /** Equity at evenly spaced points, oldest first. */
   curve: number[];
@@ -47,13 +47,12 @@ export function analystSessionCard(session: PortfolioSessionRow): AnalystSession
   return {
     id: session.id,
     name: session.name,
-    market: markets.map(formatSymbol).join(", "),
+    market: `${formatSymbol(markets[0]!)}${markets.length > 1 ? ` +${markets.length - 1}` : ""}`,
     category: definition ? marketCategory(definition) : null,
     timeframe: session.timeframe,
     period: `${formatNewYorkDate(Number(session.startTime))} to ${formatNewYorkDate(Number(session.endTime))}`,
     returnPercent: funded.isZero() ? 0 : net.dividedBy(funded).times(100).toNumber(),
     profitFactor: stats.profitFactor,
-    maxDrawdownPercent: stats.maxDrawdownPercent,
     trades: trades.length,
     curve: sample(curve),
   };

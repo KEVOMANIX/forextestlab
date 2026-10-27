@@ -90,6 +90,7 @@ export type SupportChatSummary = {
  * for one, and nobody signs in by asking support to do it.
  */
 export const LAUNCHER_HIDDEN_ROUTES = [
+  "/app/ai",
   "/app/backtest",
   "/app/results",
   "/app/support",

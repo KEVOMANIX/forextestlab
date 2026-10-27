@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, PanelLeft, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
+import { BarChart3, BookOpenText, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -13,6 +13,7 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import type { FreePlanSummary } from "@/lib/billing/entitlements";
 import { FREE_SESSION_STARTED_EVENT, formatQuotaReset } from "@/lib/billing/plan-limits";
 import { isFullScreenPath } from "@/lib/ui/full-screen";
+import { NAV_COLLAPSED_COOKIE, NAV_COLLAPSED_MAX_AGE } from "@/lib/ui/nav";
 import { ProLock } from "./ProLock";
 import { useAppTheme } from "./ThemeContext";
 
@@ -52,13 +53,21 @@ function DesktopLink({ item, pathname, compact = false }: { item: NavItem; pathn
 }
 
 /** `freePlan`: set for a Free account, so Pro-only destinations carry the Pro mark and the plan card shows. */
-export function AppNav({ signedIn, displayName, admin = false, freePlan = null }: { signedIn: boolean; displayName: string | null; admin?: boolean; freePlan?: FreePlanSummary | null }) {
+export function AppNav({ signedIn, displayName, admin = false, freePlan = null, initialCollapsed = false }: { signedIn: boolean; displayName: string | null; admin?: boolean; freePlan?: FreePlanSummary | null; initialCollapsed?: boolean }) {
   const free = Boolean(freePlan);
   const { theme, toggle } = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
-  const compact = isFullScreenPath(pathname);
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const fullScreen = isFullScreenPath(pathname);
+  const compact = collapsed || fullScreen;
+
+  function toggleCollapsed() {
+    const next = !collapsed;
+    setCollapsed(next);
+    document.cookie = `${NAV_COLLAPSED_COOKIE}=${next ? "1" : "0"}; path=/; max-age=${NAV_COLLAPSED_MAX_AGE}; samesite=lax`;
+  }
 
   async function signOut() {
     const supabase = createBrowserSupabaseClient();
@@ -113,7 +122,7 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null }
       )}
     </aside>
 
-    {!compact && <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-7 backdrop-blur lg:flex"><div className="flex min-w-0 items-center gap-3 text-sm"><span className="text-brand-300"><PanelLeft size={17} aria-hidden /></span><span className="app-muted">Workspace</span><span className="app-muted">/</span><span className="truncate font-semibold">{pathname.startsWith("/account") ? "Account" : pathname.startsWith("/app/backtest") ? "Backtester" : pathname.startsWith("/app/analytics") ? "Analytics" : pathname.startsWith("/app/history") ? "Sessions" : pathname.startsWith("/app/challenges") ? "Challenges" : pathname.startsWith("/app/ai") ? "AI Analyst" : pathname.startsWith("/app/support") ? "Support" : "Dashboard"}</span></div><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:text-brand-300" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button></header>}
+    {!fullScreen && <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-7 backdrop-blur lg:flex"><div className="flex min-w-0 items-center gap-3 text-sm"><button type="button" onClick={toggleCollapsed} aria-label={collapsed ? "Expand menu" : "Collapse menu"} title={collapsed ? "Expand menu" : "Collapse menu"} aria-pressed={collapsed} className="-ml-2 grid h-9 w-9 place-items-center rounded-lg text-brand-300 transition-colors hover:bg-[var(--app-panel-2)]">{collapsed ? <PanelLeftOpen size={17} aria-hidden /> : <PanelLeftClose size={17} aria-hidden />}</button><span className="app-muted">Workspace</span><span className="app-muted">/</span><span className="truncate font-semibold">{pathname.startsWith("/account") ? "Account" : pathname.startsWith("/app/backtest") ? "Backtester" : pathname.startsWith("/app/analytics") ? "Analytics" : pathname.startsWith("/app/history") ? "Sessions" : pathname.startsWith("/app/challenges") ? "Challenges" : pathname.startsWith("/app/ai") ? "AI Analyst" : pathname.startsWith("/app/support") ? "Support" : "Dashboard"}</span></div><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:text-brand-300" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button></header>}
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-4 backdrop-blur lg:hidden"><Link href="/app"><Logo className="h-7" /></Link><div className="flex items-center gap-2"><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button><Menu size={18} className="app-muted" aria-hidden /></div></header>
   </>;
 }

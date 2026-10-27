@@ -34,6 +34,12 @@ describe("AI Analyst session cards", () => {
     expect(card.curve).toEqual([10000, 10300, 10200, 10400]);
   });
 
+  it("names the first market and counts the rest", () => {
+    const row = session([trade(0, "50")]);
+    row.symbols = ["EURUSD", "GBPUSD", "USDJPY"];
+    expect(analystSessionCard(row).market).toBe("EUR/USD +2");
+  });
+
   it("leaves experimental trades out of every number", () => {
     const card = analystSessionCard(session([trade(0, "300"), trade(1, "-900", "experimental")]));
     expect(card.trades).toBe(1);

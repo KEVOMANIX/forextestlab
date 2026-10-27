@@ -34,7 +34,7 @@ import {
   PROP_FIRM_PRESETS,
 } from "@/lib/backtest/prop-firm";
 import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date-time";
-import { describeSymbol, formatSymbol } from "@/lib/market-data/symbols";
+import { describeSymbol, formatSymbol, marketCategory } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
@@ -53,17 +53,7 @@ interface SessionSetupProps {
 // enough to wrap instead of scrolling off the edge of the column.
 const MARKET_CATEGORIES = ["All", "Forex", "Indices", "Crypto", "Metals", "Energies", "Futures", "Stocks"] as const;
 type MarketCategory = (typeof MARKET_CATEGORIES)[number];
-type MarketGroup = Exclude<MarketCategory, "All">;
 
-const FIAT_CURRENCIES = ["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"];
-
-function categoryForMarket(item: MarketSymbol): MarketGroup {
-  if (["BTC", "ETH", "LTC", "ADA"].includes(item.baseCurrency)) return "Crypto";
-  if (["XAU", "XAG"].includes(item.baseCurrency)) return "Metals";
-  if (item.symbol.includes("IDX") || item.symbol === "DXY") return "Indices";
-  if (FIAT_CURRENCIES.includes(item.baseCurrency) && FIAT_CURRENCIES.includes(item.quoteCurrency)) return "Forex";
-  return "Stocks";
-}
 
 /**
  * Market chooser for step 2.
@@ -103,7 +93,7 @@ function MarketPicker({
   const counts = useMemo(() => {
     const totals = new Map<MarketCategory, number>([["All", enabled.length]]);
     for (const item of enabled) {
-      const group = categoryForMarket(item);
+      const group = marketCategory(item);
       totals.set(group, (totals.get(group) ?? 0) + 1);
     }
     return totals;
@@ -117,7 +107,7 @@ function MarketPicker({
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return enabled.filter((item) => {
-      if (category !== "All" && categoryForMarket(item) !== category) return false;
+      if (category !== "All" && marketCategory(item) !== category) return false;
       if (!needle) return true;
       return `${item.symbol} ${item.displayName} ${describeSymbol(item.symbol)}`
         .toLowerCase()

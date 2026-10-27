@@ -15,13 +15,11 @@ import {
 
 import { useTradeFocus } from "@/components/app/TradeFocusContext";
 import { parseAnswer, type InlineToken } from "@/lib/ai/answer-markdown";
+import type { ChatMessage } from "@/lib/ai/analyst-threads";
+import { useAiChat, type AiScope } from "./useAiChat";
 
-type Scope = "session" | "portfolio";
-type Role = "user" | "model";
-interface Message {
-  role: Role;
-  text: string;
-}
+type Scope = AiScope;
+type Message = ChatMessage;
 
 /** Conversations survive a reload; an analysis is too expensive to lose. */
 const STORAGE_PREFIX = "ftl.ai.thread.";
@@ -36,7 +34,7 @@ function storageKey(scope: Scope, sessionId?: string) {
 /* -------------------------------------------------------------------------- */
 
 /** Renders the parsed answer. The grammar itself lives in lib/ai/answer-markdown. */
-function RichText({ text }: { text: string }) {
+export function RichText({ text }: { text: string }) {
   return (
     <>
       {parseAnswer(text).map((block, index) => {
@@ -166,28 +164,31 @@ export function AiInsightsPanel({
   suggestions,
   title = "AI insights",
   subtitle,
-  queued,
 }: {
   scope: Scope;
   sessionId?: string;
   suggestions: readonly string[];
   title?: string;
   subtitle?: string;
-  /** A question asked from outside the panel, such as a finding card; a new id asks again. */
-  queued?: { id: number; text: string };
 }) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  /** The question that failed, kept so it can be retried without retyping. */
-  const [failed, setFailed] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [restored, setRestored] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const key = storageKey(scope, sessionId);
+
+  const scrollDown = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+  }, []);
+
+  const chat = useAiChat({ onChunk: scrollDown });
+  const { messages, setMessages, loading, error, failed } = chat;
 
   useEffect(() => {
     try {
@@ -200,7 +201,7 @@ export function AiInsightsPanel({
       // A corrupt thread is not worth failing the panel over.
     }
     setRestored(true);
-  }, [key]);
+  }, [key, setMessages]);
 
   useEffect(() => {
     if (!restored || loading) return;
@@ -218,100 +219,15 @@ export function AiInsightsPanel({
     }
   }, [key, messages, loading, restored]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
-
-  const scrollDown = useCallback(() => {
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    });
-  }, []);
-
   const ask = useCallback(
-    async (question: string) => {
-      const q = question.trim();
-      if (!q || loading) return;
-      setError(null);
-      setFailed(null);
+    (question: string) => {
+      if (!question.trim() || loading) return;
       setInput("");
       setShowSuggestions(false);
-      const history = messages.slice();
-      setMessages((prev) => [
-        ...prev,
-        { role: "user", text: q },
-        { role: "model", text: "" },
-      ]);
-      setLoading(true);
-      scrollDown();
-
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      try {
-        const response = await fetch("/api/ai/insights", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ scope, sessionId, question: q, history }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok || !response.body) {
-          const data = await response.json().catch(() => ({}));
-          // Drop both the empty answer and the question: the question comes
-          // back on the retry button instead of being stranded in the thread.
-          setMessages((prev) => prev.slice(0, -2));
-          setError(data?.error || "Something went wrong. Please try again.");
-          setFailed(q);
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let acc = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          setMessages((prev) => {
-            const next = prev.slice();
-            next[next.length - 1] = { role: "model", text: acc };
-            return next;
-          });
-          scrollDown();
-        }
-        // A stop pressed before the first token would otherwise leave an empty
-        // bubble sitting in the thread.
-        if (!acc.trim()) setMessages((prev) => prev.slice(0, -1));
-      } catch (caught) {
-        if (controller.signal.aborted) {
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            return last && last.role === "model" && !last.text.trim()
-              ? prev.slice(0, -1)
-              : prev;
-          });
-        } else {
-          setMessages((prev) => prev.slice(0, -2));
-          setError("Connection interrupted. Please try again.");
-          setFailed(q);
-        }
-        void caught;
-      } finally {
-        abortRef.current = null;
-        setLoading(false);
-      }
+      void chat.ask(question, { scope, sessionId }, messages);
     },
-    [loading, messages, scope, scrollDown, sessionId],
+    [chat, loading, messages, scope, sessionId],
   );
-
-  const askedQueued = useRef<number | null>(null);
-  useEffect(() => {
-    if (!queued || !restored || loading || askedQueued.current === queued.id) return;
-    askedQueued.current = queued.id;
-    void ask(queued.text);
-  }, [queued, restored, loading, ask]);
 
   const empty = messages.length === 0;
   const showSuggestionRow = empty || showSuggestions;
@@ -351,9 +267,7 @@ export function AiInsightsPanel({
                   setConfirmClear(true);
                   return;
                 }
-                setMessages([]);
-                setError(null);
-                setFailed(null);
+                chat.reset();
                 setConfirmClear(false);
               }}
               onBlur={() => setConfirmClear(false)}
@@ -474,7 +388,7 @@ export function AiInsightsPanel({
         {loading ? (
           <button
             type="button"
-            onClick={() => abortRef.current?.abort()}
+            onClick={chat.stop}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border app-border text-[var(--app-text)] transition-colors hover:border-loss/50 hover:text-loss"
             aria-label="Stop generating"
             title="Stop generating"
@@ -503,7 +417,7 @@ export function AiInsightsPanel({
   );
 }
 
-function CopyAnswer({ text }: { text: string }) {
+export function CopyAnswer({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;

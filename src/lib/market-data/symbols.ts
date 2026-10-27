@@ -361,6 +361,17 @@ export function getSymbolDefinition(
   return SYMBOL_DEFINITIONS.find((s) => s.symbol === symbol);
 }
 
+const FIAT_CURRENCIES = ["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"];
+
+/** The market group a symbol is listed under in the market picker and on the AI Analyst cards. */
+export function marketCategory(item: Pick<MarketSymbol, "symbol" | "baseCurrency" | "quoteCurrency">): "Forex" | "Indices" | "Crypto" | "Metals" | "Stocks" {
+  if (["BTC", "ETH", "LTC", "ADA"].includes(item.baseCurrency)) return "Crypto";
+  if (["XAU", "XAG"].includes(item.baseCurrency)) return "Metals";
+  if (item.symbol.includes("IDX") || item.symbol === "DXY") return "Indices";
+  if (FIAT_CURRENCIES.includes(item.baseCurrency) && FIAT_CURRENCIES.includes(item.quoteCurrency)) return "Forex";
+  return "Stocks";
+}
+
 export function formatSymbol(symbol: string): string {
   return getSymbolDefinition(symbol)?.displayName ?? symbol;
 }

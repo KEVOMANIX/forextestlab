@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { AppFooter } from "@/components/app/AppFooter";
 import { AppNav } from "@/components/app/AppNav";
 import { DeploymentRefresh } from "@/components/app/DeploymentRefresh";
+import { HiddenOnFullScreen } from "@/components/app/HiddenOnFullScreen";
 import { AppThemeProvider } from "@/components/app/ThemeContext";
 import { THEME_COOKIE, isAppTheme } from "@/lib/ui/app-theme";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -35,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <AppThemeProvider initialTheme={isAppTheme(storedTheme) ? storedTheme : null}>
       <DeploymentRefresh />
-      <div className="min-h-dvh lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
+      <div className="min-h-dvh lg:grid lg:grid-cols-[auto_minmax(0,1fr)]">
         <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} freePlan={freePlan} />
         <div className="min-w-0 lg:col-start-2">
           <main id="main" className="min-h-[calc(100dvh-4rem)]">
@@ -49,7 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             )}
             {children}
           </main>
-          <AppFooter />
+          <HiddenOnFullScreen><AppFooter /></HiddenOnFullScreen>
         </div>
       </div>
     </AppThemeProvider>

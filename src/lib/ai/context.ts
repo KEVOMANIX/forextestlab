@@ -221,7 +221,7 @@ export interface PortfolioContextSession {
   }>;
 }
 
-function toClosedTrade(trade: SimulatedTrade): ClosedTrade {
+export function toClosedTrade(trade: SimulatedTrade): ClosedTrade {
   return {
     ...trade,
     direction: trade.direction as ClosedTrade["direction"],
@@ -232,7 +232,7 @@ function toClosedTrade(trade: SimulatedTrade): ClosedTrade {
   };
 }
 
-function toEquityPoint(point: PortfolioContextSession["equitySnapshots"][number]): EquityPoint {
+export function toEquityPoint(point: PortfolioContextSession["equitySnapshots"][number]): EquityPoint {
   return {
     index: point.index,
     time: Number(point.time),

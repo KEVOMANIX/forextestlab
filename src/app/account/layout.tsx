@@ -23,7 +23,7 @@ export default async function AccountLayout({
 
   return (
     <AppThemeProvider>
-      <div className="min-h-dvh lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
+      <div className="min-h-dvh lg:grid lg:grid-cols-[auto_minmax(0,1fr)]">
         <AppNav signedIn={Boolean(user)} displayName={displayName} admin={isAdminUser(user)} freePlan={freePlan} />
         <div className="min-w-0 lg:col-start-2">
           {children}

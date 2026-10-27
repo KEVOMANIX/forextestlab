@@ -145,6 +145,8 @@ export interface AnalyticsDesignPrototypeProps {
   notice?: ReactNode;
   showReturn?: boolean;
   sessionSelector?: ReactNode;
+  /** Trade number to open the ledger on, as in a link from an AI answer. */
+  initialTrade?: number | null;
 }
 
 const money = (value: number, signed = false) => `${signed && value > 0 ? "+" : value < 0 ? "−" : ""}$${Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -387,10 +389,12 @@ export function AnalyticsDesignPrototype({
   notice,
   showReturn = true,
   sessionSelector,
+  initialTrade = null,
 }: AnalyticsDesignPrototypeProps = {}) {
-  const [tab, setTab] = useState<PrototypeTab>("overview");
+  // A link to one trade (from an AI answer) opens the ledger on it.
+  const [tab, setTab] = useState<PrototypeTab>(initialTrade ? "trades" : "overview");
   const exportRef = useRef<HTMLDivElement>(null);
-  const [focusedTrade, setFocusedTrade] = useState<number | null>(null);
+  const [focusedTrade, setFocusedTrade] = useState<number | null>(initialTrade);
   const [range, setRange] = useState("All");
   const [showDemoData, setShowDemoData] = useState(initialDemo);
   const demo = mode === "demo" || showDemoData;

@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUp, BookOpenText, ChevronDown, Loader2, Lock, Mic, MicOff, PanelLeft, PanelLeftClose, PanelLeftOpen, Pin, PinOff, Plus, RotateCcw, Search, Sparkles, Square, Trash2, X } from "lucide-react";
+import { ArrowRight, ArrowUp, BookOpenText, ChevronDown, ClipboardList, Loader2, Lock, Mic, MicOff, PanelLeft, PanelLeftClose, PanelLeftOpen, Pin, PinOff, Plus, RotateCcw, Search, Sparkles, Square, Trash2, X } from "lucide-react";
 
 import { CopyAnswer, RichText } from "./AiInsightsPanel";
 import { ProLock } from "./ProLock";
+import { TradeLinkProvider, type TradeLinkResolver } from "./TradeFocusContext";
 import { useAiChat } from "./useAiChat";
 import { useSpeechInput } from "./useSpeechInput";
 import type { AnalystSessionCard } from "@/lib/ai/analyst";
-import { THREADS_STORAGE_KEY, groupThreads, parseThreads, threadTitle, upsertThread, type AnalystThread } from "@/lib/ai/analyst-threads";
+import { THREADS_STORAGE_KEY, groupThreads, threadTitle, type ChatSummary } from "@/lib/ai/analyst-threads";
 import type { Finding } from "@/lib/ai/findings";
+import { sessionRef } from "@/lib/ai/trade-query";
 
 export interface AnalystSessionOption {
   id: string;
@@ -45,6 +47,13 @@ function ago(time: number, now: number): string {
 function customName(card: AnalystSessionCard): string | null {
   const firstMarket = card.market.split(" +")[0]!;
   return card.name.startsWith(firstMarket) ? null : card.name;
+}
+
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...init?.headers } });
+  const data = (await response.json().catch(() => ({}))) as T & { error?: string };
+  if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+  return data;
 }
 
 function Sparkline({ values, positive }: { values: number[]; positive: boolean }) {
@@ -94,7 +103,7 @@ function SessionCard({ card, onReview, locked }: { card: AnalystSessionCard; onR
     : <button type="button" onClick={onReview} className={className}>{body}</button>;
 }
 
-function ThreadRow({ thread, active, detail, onOpen, onPin, onDelete }: { thread: AnalystThread; active: boolean; detail: string; onOpen: () => void; onPin: () => void; onDelete: () => void }) {
+function ThreadRow({ thread, active, detail, onOpen, onPin, onDelete }: { thread: ChatSummary; active: boolean; detail: string; onOpen: () => void; onPin: () => void; onDelete: () => void }) {
   return (
     <div className={`group relative flex items-start gap-2 rounded-lg px-2.5 py-2 transition-colors ${active ? "bg-[var(--app-panel-2)]" : "hover:bg-[var(--app-hover)]"}`}>
       <button type="button" onClick={onOpen} aria-current={active ? "true" : undefined} className="min-w-0 flex-1 text-left after:absolute after:inset-0 after:rounded-lg">
@@ -111,20 +120,74 @@ function ThreadRow({ thread, active, detail, onOpen, onPin, onDelete }: { thread
 
 const iconButton = "grid h-8 w-8 shrink-0 place-items-center rounded-lg app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]";
 
+/** The trader's own rules, given to the AI with every question. */
+function TradingPlanDialog({ open, onClose, initialRules, maxLength, onSaved }: { open: boolean; onClose: () => void; initialRules: string; maxLength: number; onSaved: (rules: string) => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const [rules, setRules] = useState(initialRules);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (open) {
+      setRules(initialRules);
+      setError(null);
+      dialog.current?.showModal();
+    } else {
+      dialog.current?.close();
+    }
+  }, [open, initialRules]);
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const data = await requestJson<{ rules: string }>("/api/ai/plan", { method: "PUT", body: JSON.stringify({ rules }) });
+      onSaved(data.rules);
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not save your plan.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <dialog ref={dialog} onClose={onClose} aria-labelledby="trading-plan-title" className="w-[min(92vw,36rem)] rounded-2xl border app-border bg-[var(--app-panel-solid)] p-0 text-[var(--app-text)] shadow-2xl backdrop:bg-black/50">
+      <div className="flex items-center justify-between border-b app-border px-5 py-4">
+        <h2 id="trading-plan-title" className="text-[15px] font-semibold">Your trading plan</h2>
+        <button type="button" onClick={onClose} aria-label="Close" className={iconButton}><X size={16} aria-hidden /></button>
+      </div>
+      <div className="px-5 py-4">
+        <p className="text-[13px] leading-5 app-muted">Write the rules you trade by. The AI Analyst reads them with every question and tells you when your trades broke them.</p>
+        <textarea value={rules} onChange={(event) => setRules(event.target.value.slice(0, maxLength))} rows={9} placeholder={"For example:\n- Risk 1% per trade, never more\n- Trade London and the New York open only\n- No new trades 30 minutes either side of high-impact news\n- Stop after 2 losses in a day"} aria-label="Your trading rules" className="mt-3 w-full resize-y rounded-xl border app-border bg-[var(--app-panel)] px-3.5 py-3 text-sm outline-none placeholder:text-[var(--app-muted)] focus:border-brand-400/60 focus-visible:ring-0 focus-visible:ring-offset-0" />
+        <p className="mt-1 text-right text-[11px] app-muted">{rules.length.toLocaleString("en-US")} / {maxLength.toLocaleString("en-US")}</p>
+        {error && <p role="alert" className="mt-2 text-xs text-loss">{error}</p>}
+      </div>
+      <div className="flex justify-end gap-2 border-t app-border px-5 py-3">
+        <button type="button" onClick={onClose} className="rounded-lg border app-border px-4 py-2 text-sm font-semibold transition-colors hover:bg-[var(--app-panel-2)]">Cancel</button>
+        <button type="button" onClick={save} disabled={saving} className="btn-primary px-4 py-2 text-sm disabled:opacity-60">{saving ? "Saving…" : "Save plan"}</button>
+      </div>
+    </dialog>
+  );
+}
+
 export function AiAnalystView({
   locked,
   firstName,
   cards,
   sessions,
   findings,
+  initialChats,
+  initialPlan,
+  planMaxLength,
 }: {
   locked: boolean;
   firstName: string | null;
   cards: AnalystSessionCard[];
   sessions: AnalystSessionOption[];
   findings: Finding[];
+  initialChats: ChatSummary[];
+  initialPlan: string;
+  planMaxLength: number;
 }) {
-  const [threads, setThreads] = useState<AnalystThread[]>([]);
+  const [chats, setChats] = useState<ChatSummary[]>(initialChats);
   const [activeId, setActiveId] = useState<string | null>(null);
   /** The session a new chat will read; empty for all sessions. */
   const [draftSessionId, setDraftSessionId] = useState("");
@@ -132,6 +195,11 @@ export function AiAnalystView({
   const [query, setQuery] = useState("");
   const [chatsOpen, setChatsOpen] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [plan, setPlan] = useState(initialPlan);
+  const [planOpen, setPlanOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -143,30 +211,49 @@ export function AiAnalystView({
   const chat = useAiChat({ onChunk: scrollDown });
   const { messages, loading, error, failed } = chat;
   const speech = useSpeechInput((text) => setInput((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text)));
+  const busy = loading || starting;
 
-  const active = threads.find((thread) => thread.id === activeId) ?? null;
+  const active = chats.find((item) => item.id === activeId) ?? null;
   const sessionId = active ? active.sessionId ?? "" : draftSessionId;
   const sessionName = useCallback((id: string | null) => (id ? sessions.find((session) => session.id === id)?.name ?? "A deleted session" : "All sessions"), [sessions]);
 
   useEffect(() => {
     try {
-      setThreads(parseThreads(window.localStorage.getItem(THREADS_STORAGE_KEY)));
       setPanelCollapsed(window.localStorage.getItem(PANEL_STORAGE_KEY) === "1");
     } catch {
-      // Storage can be blocked; the page still works without saved chats.
+      // Storage can be blocked; the panel just starts open.
     }
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const saveThreads = useCallback((next: AnalystThread[]) => {
-    setThreads(next);
+  // Chats the first version of this page kept in the browser move to the account once.
+  useEffect(() => {
+    let stored: string | null = null;
     try {
-      window.localStorage.setItem(THREADS_STORAGE_KEY, JSON.stringify(next));
+      stored = window.localStorage.getItem(THREADS_STORAGE_KEY);
     } catch {
-      // Private mode and quota failures are not worth surfacing.
+      return;
     }
-  }, []);
+    if (!stored || locked) return;
+    void fetch("/api/ai/chats/import", { method: "POST", body: stored })
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((data: { chats: ChatSummary[] }) => {
+        setChats(data.chats);
+        window.localStorage.removeItem(THREADS_STORAGE_KEY);
+      })
+      .catch(() => undefined);
+  }, [locked]);
+
+  // When an answer settles, the chat moves to the top of the list.
+  const wasLoading = useRef(false);
+  useEffect(() => {
+    if (wasLoading.current && !loading && activeId) {
+      const time = Date.now();
+      setChats((current) => current.map((item) => (item.id === activeId ? { ...item, updatedAt: time } : item)));
+    }
+    wasLoading.current = loading;
+  }, [activeId, loading]);
 
   const setCollapsed = (next: boolean) => {
     setPanelCollapsed(next);
@@ -176,14 +263,6 @@ export function AiAnalystView({
       // Not worth surfacing; the panel just opens next time.
     }
   };
-
-  // Save the open conversation once an answer settles.
-  useEffect(() => {
-    if (loading || !activeId || !messages.length) return;
-    const stored = threads.find((thread) => thread.id === activeId);
-    if (!stored || (stored.messages.length === messages.length && stored.messages.at(-1)?.text === messages.at(-1)?.text)) return;
-    saveThreads(upsertThread(threads, { ...stored, messages, updatedAt: Date.now() }));
-  }, [activeId, loading, messages, saveThreads, threads]);
 
   const focusSearch = useCallback(() => {
     if (window.matchMedia("(min-width: 1024px)").matches) {
@@ -205,19 +284,30 @@ export function AiAnalystView({
     return () => window.removeEventListener("keydown", onKey);
   }, [focusSearch]);
 
-  const ask = (question: string, targetSessionId = sessionId, title = threadTitle(question)) => {
+  const ask = async (question: string, targetSessionId = sessionId, title = threadTitle(question)) => {
     const text = question.trim();
-    if (!text || loading || locked) return;
+    if (!text || busy || locked) return;
     speech.stop();
     setInput("");
-    let thread = active;
-    if (!thread || (thread.sessionId ?? "") !== targetSessionId) {
-      thread = { id: crypto.randomUUID(), title, sessionId: targetSessionId || null, pinned: false, updatedAt: Date.now(), messages: [] };
-      saveThreads(upsertThread(threads, thread));
-      setActiveId(thread.id);
+    setPageError(null);
+    let target = active;
+    if (!target || (target.sessionId ?? "") !== targetSessionId) {
+      setStarting(true);
+      try {
+        const data = await requestJson<{ chat: ChatSummary }>("/api/ai/chats", { method: "POST", body: JSON.stringify({ title, sessionId: targetSessionId || null }) });
+        target = data.chat;
+        setChats((current) => [data.chat, ...current]);
+        setActiveId(data.chat.id);
+      } catch (caught) {
+        setInput(text);
+        setPageError(caught instanceof Error ? caught.message : "Could not start a chat.");
+        return;
+      } finally {
+        setStarting(false);
+      }
     }
-    const history = thread.id === activeId ? messages : [];
-    void chat.ask(text, targetSessionId ? { scope: "session", sessionId: targetSessionId } : { scope: "portfolio" }, history);
+    const history = target.id === activeId ? messages : [];
+    void chat.ask(text, targetSessionId ? { scope: "session", sessionId: targetSessionId, chatId: target.id } : { scope: "portfolio", chatId: target.id }, history);
   };
 
   const review = (card: AnalystSessionCard) => ask(
@@ -226,27 +316,53 @@ export function AiAnalystView({
     `Review · ${card.name}`,
   );
 
-  const openThread = (thread: AnalystThread) => {
-    chat.reset(thread.messages);
-    setActiveId(thread.id);
+  const openThread = async (thread: ChatSummary) => {
+    if (busy) return;
     setChatsOpen(false);
-    scrollDown();
+    setPageError(null);
+    setActiveId(thread.id);
+    chat.reset();
+    setOpening(true);
+    try {
+      const data = await requestJson<{ chat: { messages: { role: "user" | "model"; text: string }[] } }>(`/api/ai/chats/${encodeURIComponent(thread.id)}`);
+      chat.reset(data.chat.messages);
+      scrollDown();
+    } catch (caught) {
+      setPageError(caught instanceof Error ? caught.message : "Could not open that chat.");
+    } finally {
+      setOpening(false);
+    }
   };
   const newChat = () => {
     chat.reset();
     setActiveId(null);
     setChatsOpen(false);
+    setPageError(null);
     inputRef.current?.focus();
   };
-  const togglePin = (thread: AnalystThread) => saveThreads(threads.map((item) => (item.id === thread.id ? { ...item, pinned: !item.pinned } : item)));
-  const deleteThread = (thread: AnalystThread) => {
+  const togglePin = (thread: ChatSummary) => {
+    setChats((current) => current.map((item) => (item.id === thread.id ? { ...item, pinned: !thread.pinned } : item)));
+    void requestJson(`/api/ai/chats/${encodeURIComponent(thread.id)}`, { method: "PATCH", body: JSON.stringify({ pinned: !thread.pinned }) })
+      .catch(() => setChats((current) => current.map((item) => (item.id === thread.id ? { ...item, pinned: thread.pinned } : item))));
+  };
+  const deleteThread = (thread: ChatSummary) => {
     if (thread.id === activeId) newChat();
-    saveThreads(threads.filter((item) => item.id !== thread.id));
+    setChats((current) => current.filter((item) => item.id !== thread.id));
+    void fetch(`/api/ai/chats/${encodeURIComponent(thread.id)}`, { method: "DELETE" });
   };
 
-  const groups = useMemo(() => groupThreads(threads, query, now), [threads, query, now]);
-  const conversation = Boolean(activeId) && messages.length > 0;
+  // Cited trades open the analytics ledger on that trade: the session comes from
+  // the citation, or from the chat when it is about one session.
+  const tradeLink = useCallback<TradeLinkResolver>((tradeNumber, ref) => {
+    const id = ref ? sessions.find((session) => sessionRef(session.id) === ref)?.id : active?.sessionId;
+    if (!id || tradeNumber < 1) return null;
+    return { href: `/app/analytics?session=${encodeURIComponent(id)}&trade=${tradeNumber}`, label: `Open trade ${tradeNumber} of ${sessionName(id)}` };
+  }, [active?.sessionId, sessionName, sessions]);
+
+  const groups = useMemo(() => groupThreads(chats, query, now), [chats, query, now]);
+  const conversation = Boolean(activeId) && (messages.length > 0 || opening);
   const nothingFound = query.trim() !== "" && !groups.pinned.length && !groups.today.length && !groups.week.length && !groups.earlier.length;
+  const shownError = pageError ?? error ?? speech.error;
 
   const chatList = (mobile: boolean) => (
     <>
@@ -261,26 +377,34 @@ export function AiAnalystView({
         <input ref={mobile ? undefined : searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search chats" aria-label="Search chats" className="min-w-0 flex-1 bg-transparent text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus-visible:ring-0 focus-visible:ring-offset-0" />
         <kbd className="rounded border app-border px-1 font-sans text-[10px] app-muted">Ctrl K</kbd>
       </label>
+      {!locked && (
+        <button type="button" onClick={() => setPlanOpen(true)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm app-muted transition-colors hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]">
+          <ClipboardList size={15} aria-hidden /><span className="flex-1">Trading plan</span>
+          <span className={`text-[11px] ${plan ? "text-brand-300" : ""}`}>{plan ? "Set" : "Add"}</span>
+        </button>
+      )}
       <div className="mt-1 min-h-0 flex-1 overflow-y-auto">
         {([["Pinned", groups.pinned], ["Today", groups.today], ["Previous 7 days", groups.week], ["Earlier", groups.earlier]] as const).map(([label, list]) => list.length > 0 && (
           <div key={label} className="mt-3">
             <p className="px-2.5 pb-1 text-[11px] app-muted">{label}</p>
-            {list.map((thread) => <ThreadRow key={thread.id} thread={thread} active={thread.id === activeId} detail={`${sessionName(thread.sessionId)} · ${ago(thread.updatedAt, now)}`} onOpen={() => openThread(thread)} onPin={() => togglePin(thread)} onDelete={() => deleteThread(thread)} />)}
+            {list.map((thread) => <ThreadRow key={thread.id} thread={thread} active={thread.id === activeId} detail={`${sessionName(thread.sessionId)} · ${ago(thread.updatedAt, now)}`} onOpen={() => void openThread(thread)} onPin={() => togglePin(thread)} onDelete={() => deleteThread(thread)} />)}
           </div>
         ))}
-        {!threads.length && <p className="mt-4 px-2.5 text-xs leading-5 app-muted">Your chats appear here. They are saved in this browser.</p>}
+        {!chats.length && <p className="mt-4 px-2.5 text-xs leading-5 app-muted">Your chats appear here, saved to your account.</p>}
         {nothingFound && <p className="mt-4 px-2.5 text-xs app-muted">No chats match “{query}”.</p>}
       </div>
     </>
   );
 
   return (
+    <TradeLinkProvider value={tradeLink}>
     <div className="flex h-[calc(100dvh-3.5rem)] lg:h-dvh">
       {panelCollapsed ? (
         <aside aria-label="AI Analyst chats" className="hidden w-14 shrink-0 flex-col items-center gap-1 border-r app-border bg-[var(--app-sidebar)] py-3 lg:flex">
           <button type="button" onClick={() => setCollapsed(false)} aria-label="Expand chats" title="Expand chats" className={`${iconButton} border app-border`}><PanelLeftOpen size={15} aria-hidden /></button>
           <button type="button" onClick={newChat} aria-label="New chat" title="New chat" className={`${iconButton} mt-2`}><Plus size={16} aria-hidden /></button>
           <button type="button" onClick={focusSearch} aria-label="Search chats" title="Search chats" className={iconButton}><Search size={15} aria-hidden /></button>
+          {!locked && <button type="button" onClick={() => setPlanOpen(true)} aria-label="Trading plan" title="Trading plan" className={iconButton}><ClipboardList size={15} aria-hidden /></button>}
         </aside>
       ) : (
         <aside aria-label="AI Analyst chats" className="hidden w-64 shrink-0 flex-col border-r app-border bg-[var(--app-sidebar)] p-3 lg:flex">{chatList(false)}</aside>
@@ -302,6 +426,7 @@ export function AiAnalystView({
         <div ref={scrollRef} role={conversation ? "log" : undefined} aria-live={conversation ? "polite" : undefined} className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6">
           {conversation ? (
             <div className="mx-auto w-full max-w-3xl space-y-5 py-6">
+              {opening && <p className="flex items-center gap-2 text-sm app-muted"><Loader2 size={14} className="animate-spin" aria-hidden />Opening chat…</p>}
               {messages.map((message, index) => message.role === "user" ? (
                 <div key={index} className="flex justify-end"><div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-[var(--app-panel-2)] px-4 py-2.5 text-sm">{message.text}</div></div>
               ) : (
@@ -310,7 +435,7 @@ export function AiAnalystView({
                   <div className="min-w-0 flex-1 text-sm leading-6">
                     {message.text
                       ? <><RichText text={message.text} />{!(loading && index === messages.length - 1) && <CopyAnswer text={message.text} />}</>
-                      : <span className="flex items-center gap-2 app-muted"><Loader2 size={14} className="animate-spin" aria-hidden />Analysing…</span>}
+                      : <span className="flex items-center gap-2 app-muted"><Loader2 size={14} className="animate-spin" aria-hidden />Looking through your trades…</span>}
                   </div>
                 </div>
               ))}
@@ -323,7 +448,7 @@ export function AiAnalystView({
               {cards.length > 0 ? (
                 <>
                   <div className="mt-6 grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    {cards.map((card) => <SessionCard key={card.id} card={card} locked={locked} onReview={() => review(card)} />)}
+                    {cards.map((card) => <SessionCard key={card.id} card={card} locked={locked} onReview={() => void review(card)} />)}
                   </div>
                   <p className="mt-2.5 w-full text-left text-[11px] app-muted">From your saved sessions. Past results don&apos;t predict future returns.</p>
                 </>
@@ -337,13 +462,13 @@ export function AiAnalystView({
         <div className="shrink-0 px-4 pb-3 sm:px-6">
           {!conversation && !locked && findings.length > 0 && (
             <div className="mx-auto mb-2.5 flex max-w-3xl flex-wrap justify-center gap-2">
-              {findings.map((finding) => <button key={finding.kind} type="button" onClick={() => ask(finding.question, "")} className="rounded-full border app-border bg-[var(--app-panel)] px-3 py-1 text-xs app-muted transition-colors hover:border-brand-400/45 hover:text-[var(--app-text)]">{finding.title}</button>)}
+              {findings.map((finding) => <button key={finding.kind} type="button" onClick={() => void ask(finding.question, "")} className="rounded-full border app-border bg-[var(--app-panel)] px-3 py-1 text-xs app-muted transition-colors hover:border-brand-400/45 hover:text-[var(--app-text)]">{finding.title}</button>)}
             </div>
           )}
-          {(error || speech.error) && (
+          {shownError && (
             <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 rounded-lg border border-loss/30 bg-loss/10 px-3 py-2 text-xs text-loss">
-              <span role="alert">{error ?? speech.error}</span>
-              {failed && <button type="button" onClick={() => ask(failed)} className="inline-flex items-center gap-1.5 rounded-md border border-loss/40 px-2 py-1 font-semibold transition-colors hover:bg-loss/15"><RotateCcw size={12} aria-hidden />Retry</button>}
+              <span role="alert">{shownError}</span>
+              {error && failed && <button type="button" onClick={() => void ask(failed)} className="inline-flex items-center gap-1.5 rounded-md border border-loss/40 px-2 py-1 font-semibold transition-colors hover:bg-loss/15"><RotateCcw size={12} aria-hidden />Retry</button>}
             </div>
           )}
           {locked ? (
@@ -352,7 +477,7 @@ export function AiAnalystView({
               <span className="inline-flex items-center gap-1.5 font-semibold text-brand-300"><Lock size={14} aria-hidden />Unlock with Pro</span>
             </ProLock>
           ) : (
-            <form onSubmit={(event) => { event.preventDefault(); ask(input); }} className="mx-auto max-w-3xl rounded-2xl border app-border bg-[var(--app-panel)] px-3.5 pb-2.5 pt-3 transition-colors focus-within:border-brand-400/50">
+            <form onSubmit={(event) => { event.preventDefault(); void ask(input); }} className="mx-auto max-w-3xl rounded-2xl border app-border bg-[var(--app-panel)] px-3.5 pb-2.5 pt-3 transition-colors focus-within:border-brand-400/50">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -360,7 +485,7 @@ export function AiAnalystView({
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
-                    ask(input);
+                    void ask(input);
                   }
                 }}
                 rows={2}
@@ -389,7 +514,7 @@ export function AiAnalystView({
                 {loading ? (
                   <button type="button" onClick={chat.stop} aria-label="Stop generating" title="Stop generating" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border app-border transition-colors hover:border-loss/50 hover:text-loss"><Square size={13} fill="currentColor" aria-hidden /></button>
                 ) : (
-                  <button type="submit" disabled={!input.trim()} aria-label="Send" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-500 text-surface-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:bg-[var(--app-panel-2)] disabled:text-[var(--app-muted)]"><ArrowUp size={16} aria-hidden /></button>
+                  <button type="submit" disabled={!input.trim() || starting} aria-label="Send" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-500 text-surface-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:bg-[var(--app-panel-2)] disabled:text-[var(--app-muted)]">{starting ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <ArrowUp size={16} aria-hidden />}</button>
                 )}
                 </span>
               </div>
@@ -398,6 +523,8 @@ export function AiAnalystView({
           <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] app-muted">AI can make mistakes. These are historical simulations, not financial advice.</p>
         </div>
       </section>
+      {!locked && <TradingPlanDialog open={planOpen} onClose={() => setPlanOpen(false)} initialRules={plan} maxLength={planMaxLength} onSaved={setPlan} />}
     </div>
+    </TradeLinkProvider>
   );
 }

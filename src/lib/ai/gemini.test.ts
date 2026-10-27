@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TRUNCATED_NOTE, streamGemini } from "./gemini";
+import { TRUNCATED_NOTE, streamGemini, streamGeminiWithTools } from "./gemini";
 
 function sse(events: unknown[]): Response {
   const body = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
@@ -37,5 +37,21 @@ describe("Gemini streaming", () => {
       { candidates: [{ content: { parts: [{ text: ", part two" }] }, finishReason: "MAX_TOKENS" }] },
     ])));
     expect(await collect(streamGemini({ systemInstruction: "s", history: [] }))).toBe(`Part one, part two${TRUNCATED_NOTE}`);
+  });
+
+  it("runs the tools the model asks for and hands the call back with its signature", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test");
+    const call = { functionCall: { name: "find_trades", args: { weekdays: ["Friday"] } }, thoughtSignature: "sig" };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(sse([{ candidates: [{ content: { parts: [call] }, finishReason: "STOP" }] }]))
+      .mockResolvedValueOnce(sse([{ candidates: [{ content: { parts: [{ text: "Fridays lost $40." }] }, finishReason: "STOP" }] }]));
+    vi.stubGlobal("fetch", fetchMock);
+    const runTool = vi.fn().mockResolvedValue({ net: -40 });
+    const text = await collect(streamGeminiWithTools({ systemInstruction: "s", history: [{ role: "user", text: "Fridays?" }], tools: [], runTool }));
+    expect(text).toBe("Fridays lost $40.");
+    expect(runTool).toHaveBeenCalledWith("find_trades", { weekdays: ["Friday"] });
+    const second = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    expect(second.contents.at(-2)).toEqual({ role: "model", parts: [call] });
+    expect(second.contents.at(-1)).toEqual({ role: "user", parts: [{ functionResponse: { name: "find_trades", response: { result: { net: -40 } } } }] });
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
@@ -13,8 +14,8 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { useTradeFocus } from "@/components/app/TradeFocusContext";
-import { parseAnswer, type InlineToken } from "@/lib/ai/answer-markdown";
+import { useTradeFocus, useTradeLink } from "@/components/app/TradeFocusContext";
+import { parseAnswer, type AnswerChart, type InlineToken } from "@/lib/ai/answer-markdown";
 import type { ChatMessage } from "@/lib/ai/analyst-threads";
 import { useAiChat, type AiScope } from "./useAiChat";
 
@@ -103,6 +104,8 @@ export function RichText({ text }: { text: string }) {
                 </table>
               </div>
             );
+          case "chart":
+            return <AnswerBarChart key={index} chart={block.chart} />;
           default:
             return (
               <p key={index} className="my-1 leading-relaxed">
@@ -127,7 +130,7 @@ function Inline({ tokens }: { tokens: InlineToken[] }) {
           );
         }
         if (token.type === "citation") {
-          return <TradeCitation key={index} number={token.tradeNumber} />;
+          return <TradeCitation key={index} number={token.tradeNumber} sessionRef={token.sessionRef} />;
         }
         return <span key={index}>{token.text}</span>;
       })}
@@ -135,8 +138,14 @@ function Inline({ tokens }: { tokens: InlineToken[] }) {
   );
 }
 
-function TradeCitation({ number }: { number: number }) {
+const CITATION_CLASS = "mx-0.5 inline-flex items-center rounded border border-brand-400/35 bg-brand-400/10 px-1 font-mono text-[0.95em] leading-snug text-brand-200 transition-colors hover:bg-brand-400/20";
+
+function TradeCitation({ number, sessionRef }: { number: number; sessionRef?: string }) {
   const focus = useTradeFocus();
+  const link = useTradeLink()?.(number, sessionRef);
+  if (!focus && link) {
+    return <Link href={link.href} title={link.label} className={CITATION_CLASS}>#{number}</Link>;
+  }
   // Outside a session report, or pointing at a trade that does not exist, the
   // citation stays plain text rather than becoming a link to nowhere.
   if (!focus || number < 1 || number > focus.tradeCount) {
@@ -147,10 +156,52 @@ function TradeCitation({ number }: { number: number }) {
       type="button"
       onClick={() => focus.focusTrade(number)}
       title={`Show trade ${number} in the ledger`}
-      className="mx-0.5 inline-flex items-center rounded border border-brand-400/35 bg-brand-400/10 px-1 font-mono text-[0.95em] leading-snug text-brand-200 transition-colors hover:bg-brand-400/20"
+      className={CITATION_CLASS}
     >
       #{number}
     </button>
+  );
+}
+
+function chartValue(value: number, unit: string): string {
+  const amount = Math.abs(value).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const sign = value < 0 ? "−" : "";
+  if (unit === "$") return `${sign}$${amount}`;
+  if (unit === "%") return `${sign}${amount}%`;
+  return unit ? `${sign}${amount} ${unit}` : `${sign}${amount}`;
+}
+
+/** A bar per row, growing right for gains and left for losses from a shared zero line. */
+function AnswerBarChart({ chart }: { chart: AnswerChart | null }) {
+  if (!chart) {
+    return <p className="my-2 flex items-center gap-2 text-xs app-muted"><Loader2 size={12} className="animate-spin" aria-hidden />Drawing a chart…</p>;
+  }
+  const max = Math.max(...chart.data.map((row) => Math.abs(row.value)), 1e-9);
+  const hasNegative = chart.data.some((row) => row.value < 0);
+  return (
+    <figure className="my-3 rounded-xl border app-border bg-[var(--app-panel)]/60 p-3">
+      {chart.title && <figcaption className="mb-2 text-xs font-semibold">{chart.title}</figcaption>}
+      <div className="space-y-1.5" role="list">
+        {chart.data.map((row, index) => {
+          const width = `${(Math.abs(row.value) / max) * (hasNegative ? 50 : 100)}%`;
+          const negative = row.value < 0;
+          return (
+            <div key={index} role="listitem" className="grid grid-cols-[minmax(4rem,8rem)_1fr_auto] items-center gap-2 text-xs">
+              <span className="truncate app-muted" title={row.label}>{row.label}</span>
+              <span className="relative h-3.5">
+                {hasNegative && <span className="absolute inset-y-0 left-1/2 w-px bg-[var(--app-border)]" aria-hidden />}
+                <span
+                  className={`absolute inset-y-0.5 rounded-sm ${negative ? "bg-loss/80" : "bg-profit/80"}`}
+                  style={hasNegative ? (negative ? { right: "50%", width } : { left: "50%", width }) : { left: 0, width }}
+                  aria-hidden
+                />
+              </span>
+              <span className={`w-20 text-right font-mono ${negative ? "text-loss" : ""}`}>{chartValue(row.value, chart.unit)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </figure>
   );
 }
 

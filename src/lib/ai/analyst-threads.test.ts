@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupThreads, parseThreads, threadTitle, upsertThread, type AnalystThread } from "./analyst-threads";
+import { groupThreads, parseThreads, threadTitle, type AnalystThread } from "./analyst-threads";
 
 const NOW = new Date(2026, 9, 27, 15).getTime();
 const DAY = 86_400_000;
@@ -20,15 +20,6 @@ describe("AI Analyst saved chats", () => {
     expect(parseThreads(JSON.stringify([good, { id: 1 }, null, { ...good, id: "b", messages: [{ role: "x", text: "" }] }]))).toEqual([good]);
     expect(parseThreads("not json")).toEqual([]);
     expect(parseThreads(null)).toEqual([]);
-  });
-
-  it("keeps the newest first and never lets a pinned chat fall off", () => {
-    let threads = [thread("pinned", NOW - 100 * DAY, { pinned: true })];
-    for (let index = 0; index < 55; index += 1) threads = upsertThread(threads, thread(`t${index}`, NOW - (55 - index) * 1000));
-    expect(threads).toHaveLength(50);
-    expect(threads[0]!.id).toBe("t54");
-    expect(threads.some((item) => item.id === "pinned")).toBe(true);
-    expect(threads.some((item) => item.id === "t0")).toBe(false);
   });
 
   it("groups chats into pinned, today, this week and earlier, filtered by search", () => {

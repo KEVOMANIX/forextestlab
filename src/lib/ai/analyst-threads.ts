@@ -1,7 +1,7 @@
 /**
- * Saved AI Analyst conversations. They live in the trader's browser, like the
- * AI panels elsewhere in the app, so this module only shapes and sorts them;
- * the page does the reading and writing.
+ * Saved AI Analyst conversations: their shape, titles and grouping. They are
+ * stored in the database (see lib/ai/chats); early versions kept them in the
+ * browser, and parseThreads reads those once so they can be moved across.
  */
 
 export interface ChatMessage {
@@ -9,19 +9,24 @@ export interface ChatMessage {
   text: string;
 }
 
-export interface AnalystThread {
+/** A chat as the chats list shows it; its messages load when it is opened. */
+export interface ChatSummary {
   id: string;
   title: string;
   /** The session the conversation is about; null for all sessions. */
   sessionId: string | null;
   pinned: boolean;
   updatedAt: number;
+}
+
+export interface AnalystThread extends ChatSummary {
   messages: ChatMessage[];
 }
 
+/** Where the first version of the page kept chats, read once to move them to the account. */
 export const THREADS_STORAGE_KEY = "ftl.ai.analyst.threads";
-const MAX_THREADS = 50;
-const MAX_MESSAGES = 40;
+export const MAX_CHAT_MESSAGES = 60;
+export const MAX_MESSAGE_LENGTH = 12_000;
 const TITLE_LENGTH = 60;
 const DAY = 86_400_000;
 
@@ -30,7 +35,7 @@ export function threadTitle(question: string): string {
   return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH - 1).trimEnd()}…` : line;
 }
 
-function isMessage(value: unknown): value is ChatMessage {
+export function isMessage(value: unknown): value is ChatMessage {
   const message = value as ChatMessage;
   return Boolean(message) && (message.role === "user" || message.role === "model") && typeof message.text === "string";
 }
@@ -51,28 +56,17 @@ export function parseThreads(raw: string | null): AnalystThread[] {
   }
 }
 
-/** Adds or replaces a thread; the oldest unpinned ones go first when the list is full. */
-export function upsertThread(threads: AnalystThread[], thread: AnalystThread): AnalystThread[] {
-  const next = [{ ...thread, messages: thread.messages.slice(-MAX_MESSAGES) }, ...threads.filter((item) => item.id !== thread.id)]
-    .sort((a, b) => b.updatedAt - a.updatedAt);
-  while (next.length > MAX_THREADS) {
-    const oldest = next.findLastIndex((item) => !item.pinned);
-    next.splice(oldest === -1 ? next.length - 1 : oldest, 1);
-  }
-  return next;
+export interface ThreadGroups<T extends ChatSummary> {
+  pinned: T[];
+  today: T[];
+  week: T[];
+  earlier: T[];
 }
 
-export interface ThreadGroups {
-  pinned: AnalystThread[];
-  today: AnalystThread[];
-  week: AnalystThread[];
-  earlier: AnalystThread[];
-}
-
-export function groupThreads(threads: AnalystThread[], query: string, now: number): ThreadGroups {
+export function groupThreads<T extends ChatSummary>(threads: T[], query: string, now: number): ThreadGroups<T> {
   const needle = query.trim().toLowerCase();
   const startOfToday = new Date(now).setHours(0, 0, 0, 0);
-  const groups: ThreadGroups = { pinned: [], today: [], week: [], earlier: [] };
+  const groups: ThreadGroups<T> = { pinned: [], today: [], week: [], earlier: [] };
   for (const thread of [...threads].sort((a, b) => b.updatedAt - a.updatedAt)) {
     if (needle && !thread.title.toLowerCase().includes(needle)) continue;
     if (thread.pinned) groups.pinned.push(thread);

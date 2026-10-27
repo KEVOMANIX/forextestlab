@@ -10,6 +10,8 @@ export type AiScope = "session" | "portfolio";
 export interface AiTarget {
   scope: AiScope;
   sessionId?: string;
+  /** A saved chat; the server then reads its history and saves the answer to it. */
+  chatId?: string;
 }
 
 /**

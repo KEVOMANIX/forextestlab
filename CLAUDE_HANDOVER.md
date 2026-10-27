@@ -887,3 +887,24 @@ The visual system deliberately separates product identity from trading results:
 - Drawing presets include style and timeframe visibility, never IDs/anchors/locking. Optional style fields absent from the preset are cleared when applied through the merging drawing engine.
 - Saved in forextestlab:individual-tool-templates and included in account workspace sync. Timestamp merge and deletion tombstones preserve newer local edits during restore.
 - Verified 56 targeted tests (including all 48 drawing types), TypeScript, and real browser dialog fixtures: Fibonacci save/reload/apply, anchor preservation, per-type isolation, Sessions timezone restore.
+
+## 2026-10-27 — AI Analyst page
+
+- `/app/ai` is a full-screen page (the main menu shrinks to icons there; the
+  menu's own collapse toggle is in the top bar on every other page, kept in
+  the `ftl-nav-collapsed` cookie). Help launcher is hidden on it.
+- Chats are stored in the new `AiChat` table and the trader's rules in
+  `TradingPlan` (migration `20261027120000_ai_chats_and_trading_plan`,
+  additive). `/api/ai/insights` with a `chatId` reads history from the chat
+  and saves the answer itself when the stream ends, even if the tab closed.
+- The AI answers through Gemini function calling (`lib/ai/gemini.ts`
+  `streamGeminiWithTools`, tools in `lib/ai/tools.ts`, pure maths in
+  `lib/ai/trade-query.ts`): find/group trades, what-if-skipped, and
+  what-if-levels (re-runs a finished session's trades on real candles via
+  `testTradePlan`). Tools read the 40 most recently used sessions' states.
+- Gemini 2.5 thinking has its own 1,024-token budget and answers get 8,192
+  tokens; before this, thinking used the 1,200 limit and cut answers off.
+- Citations `[#12@abc123]` (abc123 = last six of the session id) link to
+  `/app/analytics?session=…&trade=12`; ```chart JSON blocks render as bar charts.
+- Deploys that change `prisma/schema.prisma` must run `npx prisma migrate
+  deploy && npx prisma generate` before the build (see above).

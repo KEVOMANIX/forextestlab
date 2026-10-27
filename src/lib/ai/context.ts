@@ -19,6 +19,7 @@ import { formatNewYorkDate, getNewYorkDateParts, getTradingSession } from "@/lib
 import { formatSymbol } from "@/lib/market-data/symbols";
 import type { SessionResults } from "@/lib/backtest/results";
 import { analyticsTrades } from "@/lib/analytics/trade-scope";
+import { sessionRef } from "@/lib/ai/trade-query";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
@@ -62,7 +63,7 @@ export function buildSessionContext(results: SessionResults): string {
   });
 
   const lines: string[] = [];
-  lines.push(`# Session: ${results.name}`);
+  lines.push(`# Session: ${results.name} (ref ${sessionRef(results.sessionId)})`);
   lines.push(
     `Markets: ${results.symbols.map(formatSymbol).join(", ")} · Timeframe: ${results.timeframe} · ` +
       `Period: ${formatNewYorkDate(state.config.startTime)} to ${formatNewYorkDate(state.config.endTime)} (New York) · ` +
@@ -187,6 +188,7 @@ export function buildSessionContext(results: SessionResults): string {
 
 interface PortfolioSession {
   name: string;
+  ref: string | null;
   symbol: string;
   symbols: string;
   timeframe: string;
@@ -200,6 +202,8 @@ interface PortfolioSession {
 }
 
 export interface PortfolioContextSession {
+  /** When given, the session's ref is listed so the AI can point its tools at it. */
+  id?: string;
   name: string;
   symbols: string[];
   archived: boolean;
@@ -277,6 +281,7 @@ export function buildPortfolioContext(sessions: PortfolioContextSession[]): stri
       const symbols = session.symbols.length ? session.symbols : [session.symbol];
       return {
         name: session.name.trim() || `${session.symbol} backtest`,
+        ref: session.id ? sessionRef(session.id) : null,
         symbol: session.symbol,
         symbols: symbols.map(formatSymbol).join(", "),
         timeframe: session.timeframe,
@@ -373,7 +378,7 @@ export function buildPortfolioContext(sessions: PortfolioContextSession[]): stri
   lines.push("\n## All sessions (newest first)");
   parsed.slice(0, 30).forEach((r, i) => {
     lines.push(
-      `${i + 1}. "${r.name}" — ${r.symbols} ${r.timeframe} (${r.period}), ${r.status}: ` +
+      `${i + 1}. "${r.name}"${r.ref ? ` (ref ${r.ref})` : ""} — ${r.symbols} ${r.timeframe} (${r.period}), ${r.status}: ` +
         `${r.trades.length} trades, net ${money(r.net)}, win rate ${r.winRate}%, ` +
         `profit factor ${r.profitFactor}, max drawdown ${r.maxDd}.`,
     );

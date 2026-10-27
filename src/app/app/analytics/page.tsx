@@ -62,10 +62,11 @@ interface SessionMetadataRow {
 export default async function AnalyticsHubPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session?: string }>;
+  searchParams: Promise<{ session?: string; trade?: string }>;
 }) {
   const user = await requireUser("/app/analytics");
-  const { session: requestedSessionId } = await searchParams;
+  const { session: requestedSessionId, trade: requestedTrade } = await searchParams;
+  const initialTrade = Number.parseInt(requestedTrade ?? "", 10);
   const sessions = await prisma.backtestSession.findMany({
     where: { userId: user.id, anonymous: false },
     orderBy: { updatedAt: "desc" },
@@ -141,6 +142,7 @@ export default async function AnalyticsHubPage({
     <AnalyticsDesignPrototype
           mode="live"
           sessionId={results.sessionId}
+          initialTrade={Number.isInteger(initialTrade) && initialTrade > 0 ? initialTrade : null}
           sessionName={results.name}
           symbols={results.symbols}
           startTime={results.state.config.startTime}

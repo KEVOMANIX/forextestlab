@@ -25,3 +25,18 @@ export const TradeFocusProvider = TradeFocusContext.Provider;
 export function useTradeFocus() {
   return useContext(TradeFocusContext);
 }
+
+/**
+ * Where a cited trade should open when the answer is not shown beside that
+ * session's ledger, as on the AI Analyst page. Returns null when the
+ * citation cannot be placed, so it stays plain text.
+ */
+export type TradeLinkResolver = (tradeNumber: number, sessionRef?: string) => { href: string; label: string } | null;
+
+const TradeLinkContext = createContext<TradeLinkResolver | null>(null);
+
+export const TradeLinkProvider = TradeLinkContext.Provider;
+
+export function useTradeLink() {
+  return useContext(TradeLinkContext);
+}

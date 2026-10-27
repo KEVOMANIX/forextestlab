@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAnswer, parseInline } from "./answer-markdown";
+import { parseAnswer, parseChart, parseInline } from "./answer-markdown";
 
 describe("AI answer inline grammar", () => {
   it("turns a bracketed trade number into a citation", () => {
@@ -73,5 +73,29 @@ describe("AI answer block grammar", () => {
   it("ignores blank input", () => {
     expect(parseAnswer("")).toEqual([]);
     expect(parseAnswer("\n\n  \n")).toEqual([]);
+  });
+});
+
+describe("AI answer citations and charts", () => {
+  it("keeps the session a citation points into", () => {
+    expect(parseInline("See [#4@abc123] and [#9].")).toEqual([
+      { type: "text", text: "See " },
+      { type: "citation", tradeNumber: 4, sessionRef: "abc123" },
+      { type: "text", text: " and " },
+      { type: "citation", tradeNumber: 9 },
+      { type: "text", text: "." },
+    ]);
+  });
+
+  it("reads a chart block and drops rows without a number", () => {
+    const blocks = parseAnswer(["Here:", "```chart", '{"title":"Net by weekday","unit":"$","data":[{"label":"Mon","value":-120.5},{"label":"Tue","value":"x"},{"label":"Fri","value":80}]}', "```", "Done."].join("\n"));
+    expect(blocks.map((block) => block.type)).toEqual(["paragraph", "chart", "paragraph"]);
+    expect(blocks[1]).toEqual({ type: "chart", chart: { title: "Net by weekday", unit: "$", data: [{ label: "Mon", value: -120.5 }, { label: "Fri", value: 80 }] } });
+  });
+
+  it("shows a chart that is still streaming as pending, and bad JSON as nothing to draw", () => {
+    expect(parseAnswer('```chart\n{"data":[{"label":"Mon"').at(-1)).toEqual({ type: "chart", chart: null });
+    expect(parseChart("not json")).toBeNull();
+    expect(parseChart('{"data":[]}')).toBeNull();
   });
 });

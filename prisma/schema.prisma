@@ -60,6 +60,8 @@ model UserProfile {
   billingPayments        BillingPayment[]
   billingSubscriptions   BillingSubscription[]
   freeSessionUsage       FreeSessionUsage[]
+  aiChats                AiChat[]
+  tradingPlan            TradingPlan?
 
   @@index([createdAt])
 }
@@ -454,6 +456,7 @@ model DataImport {
 
 model BacktestSession {
   analyticsShare     AnalyticsShare?
+  aiChats            AiChat[]
   id                 String            @id @default(cuid())
   /// Opaque token used to authorise an anonymous demonstration session.
   token              String            @unique
@@ -649,4 +652,32 @@ model EquitySnapshot {
   equity    String
 
   @@index([sessionId, index])
+}
+
+/// A saved AI Analyst conversation. Messages are stored as JSON
+/// ([{ role: "user" | "model", text }]) and written by the AI route itself,
+/// so a reply is kept even if the tab closes while it streams.
+model AiChat {
+  id           String           @id @default(cuid())
+  userId       String
+  user         UserProfile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// The session the chat reads; null for all sessions. Deleting the session keeps the chat.
+  sessionId    String?
+  session      BacktestSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  title        String
+  pinned       Boolean          @default(false)
+  messagesJson String           @default("[]")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([userId, updatedAt])
+}
+
+/// The trader's own rules, written once on the AI Analyst page and given to
+/// the AI with every question so it can grade trades against them.
+model TradingPlan {
+  userId    String      @id
+  user      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rules     String
+  updatedAt DateTime    @updatedAt
 }

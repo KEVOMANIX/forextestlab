@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { AiAnalystView } from "@/components/app/AiAnalystView";
 import { analystSessionCard } from "@/lib/ai/analyst";
+import { MAX_PLAN_LENGTH, getTradingPlan, listChats } from "@/lib/ai/chats";
 import { buildFindings } from "@/lib/ai/findings";
 import { loadPortfolioSessions } from "@/lib/ai/portfolio";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
@@ -22,7 +23,7 @@ const WELCOME_CARDS = 4;
 export default async function AiAnalystPage() {
   const user = await requireUser("/app/ai");
   await ensureUserProfile(user);
-  const [entitlements, rows] = await Promise.all([getUserEntitlements(user.id), loadPortfolioSessions(user.id)]);
+  const [entitlements, rows, chats, plan] = await Promise.all([getUserEntitlements(user.id), loadPortfolioSessions(user.id), listChats(user.id), getTradingPlan(user.id)]);
   const sessions = rows.filter((session) => !session.archived);
   const locked = !entitlements.fullAnalytics;
   const fullName = [user.user_metadata?.display_name, user.user_metadata?.full_name, user.user_metadata?.name]
@@ -41,6 +42,9 @@ export default async function AiAnalystPage() {
       cards={cards}
       sessions={sessions.map((session) => ({ id: session.id, name: session.name }))}
       findings={findings}
+      initialChats={chats}
+      initialPlan={plan}
+      planMaxLength={MAX_PLAN_LENGTH}
     />
   );
 }

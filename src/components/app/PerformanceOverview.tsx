@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Clock3, Flame, ListChecks, Scale, Target, TrendingDown, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { Check, Clock3, Flame, ListChecks, Scale, Target, TrendingDown, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 
 import {
   EARLY_DAYS_TRADES,
@@ -26,6 +26,7 @@ export interface WeekSummary {
 
 const PERIOD_TITLES: Record<PerformancePeriod, string> = { "30d": "Last 30 days", "90d": "Last 90 days", all: "All time" };
 const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
+const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const CHART_WIDTH = 600;
 const CHART_HEIGHT = 230;
 const MOTION = "animate-fade-up motion-reduce:animate-none";
@@ -222,33 +223,36 @@ function WinnersCard({ performance }: { performance: PracticePerformance }) {
 
 function WeekCard({ week }: { week: WeekSummary }) {
   const days = week.practiceMinutesByDay.length === 7 ? week.practiceMinutesByDay : [0, 0, 0, 0, 0, 0, 0];
-  const most = Math.max(1, ...days);
   const range = formatWeekRange(week.weekStart);
-  const row = "flex items-center gap-3 border-t border-[var(--app-panel-2)] py-2.5 first:border-t-0 first:pt-0";
   return (
     <article className="rounded-2xl border app-border bg-[var(--app-panel)] p-5 shadow-card" aria-labelledby="this-week">
-      <h3 id="this-week" className="font-semibold">This week{range && <span className="font-medium app-muted"> · {range}</span>}</h3>
-      <dl className="mt-3">
-        <div className={row}>
-          <Clock3 size={16} className="shrink-0 text-brand-300" aria-hidden />
-          <dt className="flex-1 text-sm">Time backtesting</dt>
-          <dd className="flex h-6 items-end gap-[3px]" role="img" aria-label={`Minutes backtesting, Monday to Sunday: ${days.map((minutes, index) => index > week.currentWeekdayIndex ? "upcoming" : minutes).join(", ")}`}>
-            {days.map((minutes, index) => (
-              <span key={index} title={`${WEEKDAYS[index]}: ${minutes} min`} className={`w-1.5 rounded-sm ${minutes ? "bg-brand-500" : index > week.currentWeekdayIndex ? "bg-[var(--app-panel-2)]" : "bg-[var(--app-border)]"} ${index === week.currentWeekdayIndex ? "ring-1 ring-brand-300 ring-offset-1 ring-offset-[var(--app-panel)]" : ""}`} style={{ height: minutes ? `${Math.max(25, (minutes / most) * 100)}%` : "3px" }} />
-            ))}
-          </dd>
-          <dd className="w-16 text-right font-mono text-sm font-semibold">{formatPracticeTime(week.practiceMinutes)}</dd>
-        </div>
-        <div className={row}>
-          <Flame size={16} className="shrink-0 text-exit" aria-hidden />
-          <dt className="flex-1 text-sm">Streak</dt>
-          <dd className="font-mono text-sm font-semibold">{week.streakDays} day{week.streakDays === 1 ? "" : "s"}</dd>
-        </div>
-        <div className={row}>
-          <ListChecks size={16} className="shrink-0 text-brand-300" aria-hidden />
-          <dt className="flex-1 text-sm">Trades closed</dt>
-          <dd className="font-mono text-sm font-semibold">{week.closedTradesThisWeek}</dd>
-        </div>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 id="this-week" className="font-semibold">This week</h3>
+        {range && <span className="text-xs font-medium app-muted">{range}</span>}
+      </div>
+      {/* One circle a day: ticked when there was backtesting, dashed for today, empty for days to come. */}
+      <ol className="mt-4 flex justify-between gap-1" aria-label="Days backtested this week, Monday to Sunday">
+        {days.map((minutes, index) => {
+          const today = index === week.currentWeekdayIndex;
+          const upcoming = index > week.currentWeekdayIndex;
+          const state = minutes ? `${formatPracticeTime(minutes)} backtesting` : upcoming ? "still to come" : today ? "today, nothing yet" : "no backtesting";
+          return (
+            <li key={index} className="flex flex-col items-center gap-1.5" title={`${WEEKDAY_NAMES[index]}: ${state}`}>
+              <span
+                aria-label={`${WEEKDAY_NAMES[index]}: ${state}`}
+                className={`grid h-9 w-9 place-items-center rounded-full border-2 ${minutes ? "border-brand-400 bg-brand-400/15 text-brand-200" : today ? "border-dashed border-brand-300" : "app-border"} ${minutes && today ? "ring-2 ring-brand-300/40 ring-offset-2 ring-offset-[var(--app-panel)]" : ""} ${upcoming ? "opacity-60" : ""}`}
+              >
+                {minutes > 0 && <Check size={16} strokeWidth={2.6} aria-hidden />}
+              </span>
+              <span className={`text-[11px] ${today ? "font-bold text-brand-300" : "app-muted"}`} aria-hidden>{WEEKDAYS[index]}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <dl className="mt-4 grid grid-cols-3 gap-2 border-t app-border pt-3 text-sm">
+        <div className="flex min-w-0 items-center gap-1.5"><Clock3 size={14} className="shrink-0 text-brand-300" aria-hidden /><dt className="sr-only">Time backtesting</dt><dd className="font-semibold">{formatPracticeTime(week.practiceMinutes)}</dd><span className="truncate app-muted" aria-hidden>backtesting</span></div>
+        <div className="flex min-w-0 items-center justify-center gap-1.5"><Flame size={14} className="shrink-0 text-exit" aria-hidden /><dt className="sr-only">Streak</dt><dd className="font-semibold">{week.streakDays} day{week.streakDays === 1 ? "" : "s"}</dd><span className="truncate app-muted" aria-hidden>streak</span></div>
+        <div className="flex min-w-0 items-center justify-end gap-1.5"><ListChecks size={14} className="shrink-0 text-brand-300" aria-hidden /><dt className="sr-only">Trades closed</dt><dd className="font-semibold">{week.closedTradesThisWeek}</dd><span className="truncate app-muted" aria-hidden>trades</span></div>
       </dl>
     </article>
   );

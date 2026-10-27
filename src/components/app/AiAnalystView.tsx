@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { ArrowRight, ArrowUp, BookOpenText, ChevronDown, Loader2, Lock, PanelLeft, PanelLeftClose, PanelLeftOpen, Pin, PinOff, Plus, RotateCcw, Search, Sparkles, Square, Trash2, X } from "lucide-react";
+import { ArrowRight, ArrowUp, BookOpenText, ChevronDown, Loader2, Lock, Mic, MicOff, PanelLeft, PanelLeftClose, PanelLeftOpen, Pin, PinOff, Plus, RotateCcw, Search, Sparkles, Square, Trash2, X } from "lucide-react";
 
 import { CopyAnswer, RichText } from "./AiInsightsPanel";
 import { ProLock } from "./ProLock";
 import { useAiChat } from "./useAiChat";
+import { useSpeechInput } from "./useSpeechInput";
 import type { AnalystSessionCard } from "@/lib/ai/analyst";
 import { THREADS_STORAGE_KEY, groupThreads, parseThreads, threadTitle, upsertThread, type AnalystThread } from "@/lib/ai/analyst-threads";
 import type { Finding } from "@/lib/ai/findings";
@@ -141,6 +142,7 @@ export function AiAnalystView({
   }, []);
   const chat = useAiChat({ onChunk: scrollDown });
   const { messages, loading, error, failed } = chat;
+  const speech = useSpeechInput((text) => setInput((current) => (current.trim() ? `${current.trimEnd()} ${text}` : text)));
 
   const active = threads.find((thread) => thread.id === activeId) ?? null;
   const sessionId = active ? active.sessionId ?? "" : draftSessionId;
@@ -206,6 +208,7 @@ export function AiAnalystView({
   const ask = (question: string, targetSessionId = sessionId, title = threadTitle(question)) => {
     const text = question.trim();
     if (!text || loading || locked) return;
+    speech.stop();
     setInput("");
     let thread = active;
     if (!thread || (thread.sessionId ?? "") !== targetSessionId) {
@@ -337,9 +340,9 @@ export function AiAnalystView({
               {findings.map((finding) => <button key={finding.kind} type="button" onClick={() => ask(finding.question, "")} className="rounded-full border app-border bg-[var(--app-panel)] px-3 py-1 text-xs app-muted transition-colors hover:border-brand-400/45 hover:text-[var(--app-text)]">{finding.title}</button>)}
             </div>
           )}
-          {error && (
+          {(error || speech.error) && (
             <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 rounded-lg border border-loss/30 bg-loss/10 px-3 py-2 text-xs text-loss">
-              <span role="alert">{error}</span>
+              <span role="alert">{error ?? speech.error}</span>
               {failed && <button type="button" onClick={() => ask(failed)} className="inline-flex items-center gap-1.5 rounded-md border border-loss/40 px-2 py-1 font-semibold transition-colors hover:bg-loss/15"><RotateCcw size={12} aria-hidden />Retry</button>}
             </div>
           )}
@@ -365,6 +368,7 @@ export function AiAnalystView({
                 aria-label="Ask the AI Analyst a question"
                 className="max-h-40 w-full resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-[var(--app-muted)] focus-visible:ring-0 focus-visible:ring-offset-0"
               />
+              {speech.listening && <p className="truncate text-xs text-brand-300" aria-live="polite">Listening…{speech.interim && <span className="app-muted"> {speech.interim}</span>}</p>}
               <div className="mt-1.5 flex items-center gap-3">
                 {active ? (
                   <span className="inline-flex min-w-0 items-center gap-1.5 truncate rounded-full border border-brand-400/35 bg-brand-400/[0.08] px-2.5 py-1 text-xs font-medium text-brand-300"><BookOpenText size={12} className="shrink-0" aria-hidden /><span className="truncate">{sessionName(active.sessionId)}</span></span>
@@ -378,11 +382,16 @@ export function AiAnalystView({
                     <ChevronDown size={12} className="pointer-events-none absolute right-2.5" aria-hidden />
                   </label>
                 )}
-                {loading ? (
-                  <button type="button" onClick={chat.stop} aria-label="Stop generating" title="Stop generating" className="ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-full border app-border transition-colors hover:border-loss/50 hover:text-loss"><Square size={13} fill="currentColor" aria-hidden /></button>
-                ) : (
-                  <button type="submit" disabled={!input.trim()} aria-label="Send" className="ml-auto grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-500 text-surface-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:bg-[var(--app-panel-2)] disabled:text-[var(--app-muted)]"><ArrowUp size={16} aria-hidden /></button>
+                <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                {speech.supported && (
+                  <button type="button" onClick={() => { speech.clearError(); if (speech.listening) speech.stop(); else speech.start(); }} aria-pressed={speech.listening} aria-label={speech.listening ? "Stop voice input" : "Speak your question"} title={speech.listening ? "Stop voice input" : "Speak your question"} className={`grid h-9 w-9 place-items-center rounded-full transition-colors ${speech.listening ? "animate-pulse bg-loss/15 text-loss" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}>{speech.listening ? <MicOff size={16} aria-hidden /> : <Mic size={16} aria-hidden />}</button>
                 )}
+                {loading ? (
+                  <button type="button" onClick={chat.stop} aria-label="Stop generating" title="Stop generating" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border app-border transition-colors hover:border-loss/50 hover:text-loss"><Square size={13} fill="currentColor" aria-hidden /></button>
+                ) : (
+                  <button type="submit" disabled={!input.trim()} aria-label="Send" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-500 text-surface-950 transition-colors hover:bg-brand-400 disabled:cursor-not-allowed disabled:bg-[var(--app-panel-2)] disabled:text-[var(--app-muted)]"><ArrowUp size={16} aria-hidden /></button>
+                )}
+                </span>
               </div>
             </form>
           )}

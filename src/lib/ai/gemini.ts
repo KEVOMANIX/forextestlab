@@ -52,6 +52,16 @@ function model(): string {
 }
 
 /**
+ * Gemini 2.5 models think before they answer, and that thinking is paid out of
+ * maxOutputTokens. Left uncapped it can use the whole allowance and cut the
+ * visible answer off mid-sentence, so it gets a budget of its own.
+ */
+const THINKING_BUDGET = 1024;
+
+/** Shown when the model still runs out of room, so a cut-off answer never looks finished. */
+export const TRUNCATED_NOTE = "\n\n**The answer was cut short.** Ask me to continue.";
+
+/**
  * Stream a completion from Gemini. Yields incremental text chunks.
  *
  * @param systemInstruction Persona / grounding rules for the assistant.
@@ -64,13 +74,19 @@ export async function* streamGemini(params: {
   maxOutputTokens?: number;
   temperature?: number;
 }): AsyncGenerator<string> {
-  const { systemInstruction, history, signal, maxOutputTokens = 1200, temperature = 0.4 } = params;
+  const { systemInstruction, history, signal, maxOutputTokens = 8192, temperature = 0.4 } = params;
+  const modelName = model();
 
-  const url = `${API_BASE}/models/${encodeURIComponent(model())}:streamGenerateContent?alt=sse&key=${apiKey()}`;
+  const url = `${API_BASE}/models/${encodeURIComponent(modelName)}:streamGenerateContent?alt=sse&key=${apiKey()}`;
   const body = {
     systemInstruction: { parts: [{ text: systemInstruction }] },
     contents: history.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] })),
-    generationConfig: { temperature, maxOutputTokens, topP: 0.95 },
+    generationConfig: {
+      temperature,
+      maxOutputTokens,
+      topP: 0.95,
+      ...(modelName.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: THINKING_BUDGET } } : {}),
+    },
   };
 
   const response = await fetch(url, {
@@ -110,12 +126,15 @@ export async function* streamGemini(params: {
       if (!payload || payload === "[DONE]") continue;
       try {
         const parsed = JSON.parse(payload);
-        const parts = parsed?.candidates?.[0]?.content?.parts;
+        const candidate = parsed?.candidates?.[0];
+        const parts = candidate?.content?.parts;
         if (Array.isArray(parts)) {
           for (const part of parts) {
-            if (typeof part?.text === "string" && part.text) yield part.text;
+            // Thought summaries are not part of the answer.
+            if (typeof part?.text === "string" && part.text && !part.thought) yield part.text;
           }
         }
+        if (candidate?.finishReason === "MAX_TOKENS") yield TRUNCATED_NOTE;
       } catch {
         // Partial JSON across chunk boundaries — put it back and wait for more.
         buffer = `${line}\n${buffer}`;

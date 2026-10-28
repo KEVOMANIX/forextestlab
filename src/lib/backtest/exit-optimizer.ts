@@ -50,6 +50,8 @@ export interface OptimizedTradeResult {
   deltaR: number;
   money: number;
   reason: string;
+  symbol?: string;
+  direction?: TradeDirection;
 }
 
 export interface OptimizerMetrics {
@@ -198,6 +200,8 @@ export function simulateExitRule(
     deltaR: optimizedR - actualR,
     money: optimizedMoney.toNumber(),
     reason,
+    symbol: trade.symbol ?? config.symbol,
+    direction: trade.direction,
   };
 }
 

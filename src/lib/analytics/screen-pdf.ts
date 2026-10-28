@@ -19,8 +19,41 @@ export function screenPageCuts(height: number, pageHeight: number, blocks: { top
   return cuts;
 }
 
-export async function exportAnalyticsScreen(element: HTMLElement, name: string, tab: string) {
+/** One part of the export: `show` puts it on screen before it is captured. */
+export type ScreenSection = { label: string; show: () => Promise<void> };
+
+/**
+ * Captures each section in turn into one PDF, every section starting on a new
+ * page. `onProgress` hears the share done, 0 to 100.
+ */
+export async function exportAnalyticsScreens(element: HTMLElement, name: string, sections: ScreenSection[], onProgress?: (percent: number) => void) {
   await document.fonts.ready;
+  let doc: jsPDF | null = null;
+  const pageLabels: string[] = [];
+  // Drawing each section is most of the work; saving takes the last few percent.
+  const report = (done: number) => onProgress?.(Math.round(done / sections.length * 95));
+  for (const [i, section] of sections.entries()) {
+    report(i);
+    await section.show();
+    report(i + 0.15);
+    doc = await addScreenPages(doc, element);
+    while (pageLabels.length < doc.getNumberOfPages()) pageLabels.push(section.label);
+  }
+  report(sections.length);
+  if (!doc) throw new Error("Nothing to export.");
+  const pageHeight = doc.internal.pageSize.getHeight();
+  for (let i = 0; i < pageLabels.length; i++) {
+    doc.setPage(i + 1);
+    doc.setFontSize(8); doc.setTextColor("#a8b7b1");
+    doc.text(`ForexTestLab | ${pageLabels[i]} | ${i + 1} / ${pageLabels.length}`, 18, pageHeight - 12);
+  }
+  const filename = `${name.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 70) || "session"}-analytics.pdf`;
+  await doc.save(filename, { returnPromise: true });
+  onProgress?.(100);
+}
+
+/** Adds the element as it is now drawn, cut into pages, to `doc` (created on first use). */
+async function addScreenPages(existing: jsPDF | null, element: HTMLElement): Promise<jsPDF> {
   const bounds = element.getBoundingClientRect();
   const width = Math.ceil(bounds.width), height = Math.ceil(element.scrollHeight);
   if (width <= 0 || height <= 0) throw new Error("Analytics is not visible.");
@@ -46,7 +79,7 @@ export async function exportAnalyticsScreen(element: HTMLElement, name: string, 
       }
     },
   });
-  const doc = new jsPDF({ orientation: width >= 850 ? "landscape" : "portrait", unit: "pt", format: "a4", compress: true });
+  const doc = existing ?? new jsPDF({ orientation: width >= 850 ? "landscape" : "portrait", unit: "pt", format: "a4", compress: true });
   const pageWidth = doc.internal.pageSize.getWidth(), pageHeight = doc.internal.pageSize.getHeight();
   const margin = 18, imageWidth = pageWidth - margin * 2;
   const availableHeight = pageHeight - margin * 2 - 18;
@@ -57,7 +90,7 @@ export async function exportAnalyticsScreen(element: HTMLElement, name: string, 
   }).filter(block => block.bottom > block.top && block.bottom - block.top <= cssPageHeight);
   const cuts = screenPageCuts(height, cssPageHeight, blocks);
   for (let i = 0; i < cuts.length - 1; i++) {
-    if (i) doc.addPage();
+    if (i || existing) doc.addPage();
     const start = Math.round(cuts[i]! * canvas.height / height);
     const end = Math.round(cuts[i + 1]! * canvas.height / height);
     const slice = document.createElement("canvas"); slice.width = canvas.width; slice.height = Math.max(1, end - start);
@@ -65,11 +98,8 @@ export async function exportAnalyticsScreen(element: HTMLElement, name: string, 
     context.drawImage(canvas, 0, start, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
     doc.setFillColor(background); doc.rect(0, 0, pageWidth, pageHeight, "F");
     doc.addImage(slice.toDataURL("image/png"), "PNG", margin, margin, imageWidth, slice.height / canvas.width * imageWidth);
-    doc.setFontSize(8); doc.setTextColor("#a8b7b1");
-    doc.text(`ForexTestLab | ${tab} | ${i + 1} / ${cuts.length - 1}`, margin, pageHeight - 12);
     slice.width = 0; slice.height = 0;
   }
   canvas.width = 0; canvas.height = 0;
-  const filename = `${name.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 70) || "session"}-${tab}-analytics.pdf`;
-  await doc.save(filename, { returnPromise: true });
+  return doc;
 }

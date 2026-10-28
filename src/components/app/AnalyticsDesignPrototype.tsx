@@ -394,6 +394,10 @@ export function AnalyticsDesignPrototype({
   // A link to one trade (from an AI answer) opens the ledger on it.
   const [tab, setTab] = useState<PrototypeTab>(initialTrade ? "trades" : "overview");
   const exportRef = useRef<HTMLDivElement>(null);
+  // The PDF walks through these tabs, with every trade listed, then returns
+  // to the tab that was open.
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const tabBeforeExport = useRef(tab);
   const [focusedTrade, setFocusedTrade] = useState<number | null>(initialTrade);
   const [range, setRange] = useState("All");
   const [showDemoData, setShowDemoData] = useState(initialDemo);
@@ -456,12 +460,24 @@ export function AnalyticsDesignPrototype({
     () => (demo ? null : { tradeCount: scopedTrades.length, focusTrade }),
     [demo, focusTrade, scopedTrades.length],
   );
+  const pdfSections = useMemo(() => (["overview", "trades", ...(reportsLocked ? [] : ["reports"])] as PrototypeTab[]).map((item) => ({
+    label: item[0]!.toUpperCase() + item.slice(1),
+    show: () => new Promise<void>((resolve) => {
+      setTab(item);
+      requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 150)));
+    }),
+  })), [reportsLocked]);
+  const onExportingPdf = useCallback((exporting: boolean) => {
+    if (exporting) tabBeforeExport.current = tab;
+    else setTab(tabBeforeExport.current);
+    setExportingPdf(exporting);
+  }, [tab]);
   const showingLiveSample = mode === "live" && showDemoData;
   const samplePreviewButton = mode === "live" && !readOnly && !showDemoData ? <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex items-center gap-2 text-[11px] font-semibold text-brand-300 transition-colors hover:text-brand-200"><FlaskConical size={13} aria-hidden /> View sample report</button> : null;
   const headerActions = (
     <div className="flex flex-wrap items-center gap-2">
       {!demo && !readOnly && fullAccess && sessionId && <ShareAnalyticsButton key={sessionId} sessionId={sessionId} />}
-      {!demo && fullAccess && <ExportAnalyticsPdfButton getElement={() => exportRef.current} name={displayedSessionName} tab={tab} />}
+      {!demo && fullAccess && <ExportAnalyticsPdfButton getElement={() => exportRef.current} name={displayedSessionName} sections={pdfSections} onExporting={onExportingPdf} />}
       {reportsLocked && !readOnly && <>
         <ProLock feature="share" className={lockedAction}><Share2 size={14} aria-hidden /> Share <Lock size={11} aria-label="Pro" /></ProLock>
         <ProLock feature="exports" className={lockedAction}><FileText size={14} aria-hidden /> PDF <Lock size={11} aria-label="Pro" /></ProLock>
@@ -591,7 +607,7 @@ export function AnalyticsDesignPrototype({
         </main>
       )}
 
-      {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Trades included in analytics</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">{DEMO_ANALYTICS_SCOPED_TRADES.length} sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} focusedTrade={demo ? null : focusedTrade} /></section>}
+      {tab === "trades" && <section className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Trades included in analytics</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">{DEMO_ANALYTICS_SCOPED_TRADES.length} sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} focusedTrade={demo ? null : focusedTrade} showAll={exportingPdf} /></section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
       {tab === "reports" && reportsLocked && (
         <ProPeek feature="analytics" title="Your full report is on Pro" text="Risk, timing and exit-quality analysis across your trades. The preview behind uses sample trades." className="mt-5 max-h-[34rem] rounded-2xl">

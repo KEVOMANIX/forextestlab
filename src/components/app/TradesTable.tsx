@@ -22,8 +22,11 @@ const EXIT_LABEL: Record<ClosedTrade["exitReason"], string> = {
 export function TradesTable({
   trades,
   focusedTrade,
+  showAll = false,
 }: {
   trades: ClosedTrade[];
+  /** Every trade on one page, without the pager: the PDF export uses it. */
+  showAll?: boolean;
   /**
    * 1-based ledger number to reveal, set when an AI answer cites a trade. The
    * table pages to it and highlights the row until another one is chosen.
@@ -49,9 +52,9 @@ export function TradesTable({
     return <p className="p-4 text-sm app-muted">No trades yet. Place a simulated Buy or Sell to begin.</p>;
   }
 
-  const clamped = Math.min(page, pageCount - 1);
+  const clamped = showAll ? 0 : Math.min(page, pageCount - 1);
   const offset = clamped * PAGE_SIZE;
-  const rows = trades.slice(offset, offset + PAGE_SIZE);
+  const rows = showAll ? trades : trades.slice(offset, offset + PAGE_SIZE);
 
   return (
     <div>
@@ -130,7 +133,7 @@ export function TradesTable({
         </table>
       </div>
 
-      {pageCount > 1 && (
+      {pageCount > 1 && !showAll && (
         <div className="flex items-center justify-between p-3 text-xs app-muted">
           <span>
             Page {clamped + 1} of {pageCount} · {trades.length} trades

@@ -19,47 +19,84 @@ export function screenPageCuts(height: number, pageHeight: number, blocks: { top
   return cuts;
 }
 
-/** One part of the export: `show` puts it on screen before it is captured. */
-export type ScreenSection = { label: string; show: () => Promise<void> };
+/** A captured part of the page, placed at `top` in the report's single flow. */
+interface Strip { canvas: HTMLCanvasElement; label: string; top: number; left: number; height: number }
+
+const PART_GAP = 16;
 
 /**
- * Captures each section in turn into one PDF, every section starting on a new
- * page. `onProgress` hears the share done, 0 to 100.
+ * Captures every `[data-pdf-part]` inside `element` and lays them out as one
+ * continuous report, breaking pages only where a card would otherwise be cut.
+ * `onProgress` hears the share done, 0 to 100.
  */
-export async function exportAnalyticsScreens(element: HTMLElement, name: string, sections: ScreenSection[], onProgress?: (percent: number) => void) {
+export async function exportAnalyticsScreen(element: HTMLElement, name: string, onProgress?: (percent: number) => void) {
   await document.fonts.ready;
-  let doc: jsPDF | null = null;
-  const pageLabels: string[] = [];
-  // Drawing each section is most of the work; saving takes the last few percent.
-  const report = (done: number) => onProgress?.(Math.round(done / sections.length * 95));
-  for (const [i, section] of sections.entries()) {
-    report(i);
-    await section.show();
-    report(i + 0.15);
-    doc = await addScreenPages(doc, element);
-    while (pageLabels.length < doc.getNumberOfPages()) pageLabels.push(section.label);
+  // Let the page finish drawing the parts it shows only while exporting.
+  await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 150))));
+  onProgress?.(5);
+  const parts = [...element.querySelectorAll<HTMLElement>("[data-pdf-part]")];
+  if (!parts.length) throw new Error("Analytics is not visible.");
+  const bounds = element.getBoundingClientRect();
+  const width = Math.ceil(bounds.width);
+  const tallest = Math.max(...parts.map((part) => part.scrollHeight));
+  if (width <= 0 || tallest <= 0) throw new Error("Analytics is not visible.");
+  const scale = Math.min(2, 16000 / Math.max(width, tallest));
+  const background = getComputedStyle(element).getPropertyValue("--app-bg").trim() || "#10211b";
+
+  const doc = new jsPDF({ orientation: width >= 850 ? "landscape" : "portrait", unit: "pt", format: "a4", compress: true });
+  const pageWidth = doc.internal.pageSize.getWidth(), pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 18, imageWidth = pageWidth - margin * 2;
+  const availableHeight = pageHeight - margin * 2 - 18;
+  const cssPageHeight = availableHeight / imageWidth * width;
+
+  const strips: Strip[] = [];
+  const blocks: { top: number; bottom: number }[] = [];
+  let flowHeight = 0;
+  for (const [i, part] of parts.entries()) {
+    const rect = part.getBoundingClientRect();
+    const height = Math.ceil(part.scrollHeight);
+    const top = flowHeight + (i ? PART_GAP : 0);
+    strips.push({ canvas: await capture(part, Math.ceil(rect.width), height, scale, background), label: part.dataset.pdfPart || "Analytics", top, left: rect.left - bounds.left, height });
+    for (const node of part.querySelectorAll("section, article, header, tr")) {
+      const box = node.getBoundingClientRect();
+      const block = { top: Math.max(top, top + box.top - rect.top - 6), bottom: top + box.bottom - rect.top + 6 };
+      if (block.bottom > block.top && block.bottom - block.top <= cssPageHeight) blocks.push(block);
+    }
+    flowHeight = top + height;
+    onProgress?.(5 + Math.round((i + 1) / parts.length * 85));
   }
-  report(sections.length);
-  if (!doc) throw new Error("Nothing to export.");
-  const pageHeight = doc.internal.pageSize.getHeight();
-  for (let i = 0; i < pageLabels.length; i++) {
-    doc.setPage(i + 1);
+
+  const cuts = screenPageCuts(flowHeight, cssPageHeight, blocks);
+  const pages = cuts.length - 1;
+  for (let i = 0; i < pages; i++) {
+    if (i) doc.addPage();
+    const start = cuts[i]!, end = cuts[i + 1]!;
+    const slice = document.createElement("canvas");
+    slice.width = Math.round(width * scale); slice.height = Math.max(1, Math.round((end - start) * scale));
+    const context = slice.getContext("2d"); if (!context) throw new Error("Canvas unavailable.");
+    context.fillStyle = background; context.fillRect(0, 0, slice.width, slice.height);
+    for (const strip of strips) {
+      const from = Math.max(start, strip.top), to = Math.min(end, strip.top + strip.height);
+      if (to <= from) continue;
+      const sourceY = Math.round((from - strip.top) * scale), rows = Math.round((to - from) * scale);
+      context.drawImage(strip.canvas, 0, sourceY, strip.canvas.width, rows, Math.round(strip.left * scale), Math.round((from - start) * scale), strip.canvas.width, rows);
+    }
+    doc.setFillColor(background); doc.rect(0, 0, pageWidth, pageHeight, "F");
+    doc.addImage(slice.toDataURL("image/png"), "PNG", margin, margin, imageWidth, slice.height / slice.width * imageWidth);
+    const label = [...strips].reverse().find((strip) => strip.top <= start + 1)?.label ?? strips[0]!.label;
     doc.setFontSize(8); doc.setTextColor("#a8b7b1");
-    doc.text(`ForexTestLab | ${pageLabels[i]} | ${i + 1} / ${pageLabels.length}`, 18, pageHeight - 12);
+    doc.text(`ForexTestLab | ${label} | ${i + 1} / ${pages}`, margin, pageHeight - 12);
+    slice.width = 0; slice.height = 0;
   }
+  for (const strip of strips) { strip.canvas.width = 0; strip.canvas.height = 0; }
+  onProgress?.(95);
   const filename = `${name.replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 70) || "session"}-analytics.pdf`;
   await doc.save(filename, { returnPromise: true });
   onProgress?.(100);
 }
 
-/** Adds the element as it is now drawn, cut into pages, to `doc` (created on first use). */
-async function addScreenPages(existing: jsPDF | null, element: HTMLElement): Promise<jsPDF> {
-  const bounds = element.getBoundingClientRect();
-  const width = Math.ceil(bounds.width), height = Math.ceil(element.scrollHeight);
-  if (width <= 0 || height <= 0) throw new Error("Analytics is not visible.");
-  const scale = Math.min(2, 16000 / Math.max(width, height));
-  const background = getComputedStyle(element).getPropertyValue("--app-bg").trim() || "#10211b";
-  const canvas = await html2canvas(element, {
+function capture(part: HTMLElement, width: number, height: number, scale: number, background: string) {
+  return html2canvas(part, {
     scale, width, height, backgroundColor: background, useCORS: true, logging: false,
     onclone: (_doc, cloned) => {
       // html2canvas's text baseline can extend below a tightly clipped line.
@@ -79,27 +116,4 @@ async function addScreenPages(existing: jsPDF | null, element: HTMLElement): Pro
       }
     },
   });
-  const doc = existing ?? new jsPDF({ orientation: width >= 850 ? "landscape" : "portrait", unit: "pt", format: "a4", compress: true });
-  const pageWidth = doc.internal.pageSize.getWidth(), pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 18, imageWidth = pageWidth - margin * 2;
-  const availableHeight = pageHeight - margin * 2 - 18;
-  const cssPageHeight = availableHeight / imageWidth * width;
-  const blocks = [...element.querySelectorAll("section, article, header, tr")].map(node => {
-    const rect = node.getBoundingClientRect();
-    return { top: Math.max(0, rect.top - bounds.top - 6), bottom: rect.bottom - bounds.top + 6 };
-  }).filter(block => block.bottom > block.top && block.bottom - block.top <= cssPageHeight);
-  const cuts = screenPageCuts(height, cssPageHeight, blocks);
-  for (let i = 0; i < cuts.length - 1; i++) {
-    if (i || existing) doc.addPage();
-    const start = Math.round(cuts[i]! * canvas.height / height);
-    const end = Math.round(cuts[i + 1]! * canvas.height / height);
-    const slice = document.createElement("canvas"); slice.width = canvas.width; slice.height = Math.max(1, end - start);
-    const context = slice.getContext("2d"); if (!context) throw new Error("Canvas unavailable.");
-    context.drawImage(canvas, 0, start, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
-    doc.setFillColor(background); doc.rect(0, 0, pageWidth, pageHeight, "F");
-    doc.addImage(slice.toDataURL("image/png"), "PNG", margin, margin, imageWidth, slice.height / canvas.width * imageWidth);
-    slice.width = 0; slice.height = 0;
-  }
-  canvas.width = 0; canvas.height = 0;
-  return doc;
 }

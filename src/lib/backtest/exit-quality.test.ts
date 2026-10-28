@@ -8,6 +8,7 @@ import {
   testTradePlan,
   tradeExcursion,
   tradePlanTestable,
+  winnersTurnedLosses,
   planTestable,
   type PlanConfig,
   type PlanTest,
@@ -129,6 +130,20 @@ describe("tier 1 — session summary", () => {
     const summary = summariseExcursions([trade()]);
     expect(summary.tested).toBe(0);
     expect(summary.captureRate).toBeNull();
+  });
+
+  it("lists trades that reached at least 1R and then closed at a loss", () => {
+    const result = winnersTurnedLosses([
+      trade({ id: "below", maxFavorablePnl: "180.00", pnl: "-100.00" }),
+      trade({ id: "smaller-gap", maxFavorablePnl: "300.00", pnl: "-40.00" }),
+      trade({ id: "winner", maxFavorablePnl: "500.00", pnl: "100.00" }),
+      trade({ id: "largest-gap", maxFavorablePnl: "400.00", pnl: "-200.00" }),
+    ]);
+
+    expect(result).toEqual([
+      { tradeNumber: 4, peakR: 2, capturedR: -1, giveBackR: 2 },
+      { tradeNumber: 2, peakR: 1.5, capturedR: -0.2, giveBackR: 1.5 },
+    ]);
   });
 });
 

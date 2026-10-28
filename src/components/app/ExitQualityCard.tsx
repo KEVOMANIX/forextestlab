@@ -1,7 +1,8 @@
 "use client";
 
 import { MetricInfo } from "@/components/app/MetricInfo";
-import { summariseExcursions, type PlanSummary } from "@/lib/backtest/exit-quality";
+import { useTradeFocus } from "@/components/app/TradeFocusContext";
+import { summariseExcursions, tradeExcursion, winnersTurnedLosses, type PlanSummary } from "@/lib/backtest/exit-quality";
 import type { ClosedTrade } from "@/lib/backtest/types";
 
 const money = (value: number) =>
@@ -41,10 +42,18 @@ export function ExitQualityCard({
    */
   planUnavailable?: string;
 }) {
+  const tradeFocus = useTradeFocus();
   const excursion = summariseExcursions(trades);
   if (!excursion.tested && !plan) return null;
 
   const planAhead = plan ? plan.planR - plan.capturedR : 0;
+  const givenBackMoney = Math.max(0, excursion.favourableMoney - excursion.bankedMoney);
+  const capturePercent = excursion.captureRate === null ? 0 : Math.round(excursion.captureRate * 100);
+  const givenBackPercent = Math.max(0, 100 - capturePercent);
+  const excursionRows = trades.map(tradeExcursion).filter((row) => row.giveBackR !== null);
+  const keptMost = excursionRows.filter((row) => (row.giveBackR ?? 0) <= 0.25).length;
+  const gaveBackUnderOne = excursionRows.filter((row) => (row.giveBackR ?? 0) > 0.25 && (row.giveBackR ?? 0) <= 1).length;
+  const turnedLosses = winnersTurnedLosses(trades);
 
   return (
     <section className="mt-4 overflow-hidden rounded-2xl bg-[var(--app-panel)]">
@@ -63,39 +72,29 @@ export function ExitQualityCard({
 
       {excursion.tested > 0 && (
         <div className="border-b app-border p-5">
-          <p className="text-sm leading-6">
-            You banked{" "}
-            <strong className="font-mono font-semibold text-brand-300">
-              {money(excursion.bankedMoney)}
-            </strong>{" "}
-            of the{" "}
-            <strong className="font-mono font-semibold">
-              {money(excursion.favourableMoney)}
-            </strong>{" "}
-            that appeared on screen while these trades were open
-            {excursion.captureRate !== null && (
-              <> — {Math.round(excursion.captureRate * 100)}% of it</>
-            )}
-            .
-          </p>
-          {excursion.widestGap && (
-            <p className="mt-1.5 text-sm leading-6 app-muted">
-              The widest gap was trade{" "}
-              <span className="font-mono text-[var(--app-text)]">
-                #{excursion.widestGap.tradeNumber}
-              </span>
-              : it reached{" "}
-              <span className="font-mono text-[var(--app-text)]">
-                {rr(excursion.widestGap.peakR)}
-              </span>{" "}
-              and was closed at{" "}
-              <span className="font-mono text-[var(--app-text)]">
-                {rr(excursion.widestGap.capturedR)}
-              </span>
-              .
-            </p>
-          )}
-          <dl className="mt-4 flex flex-wrap gap-x-10 gap-y-3 text-xs">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <SummaryFigure label="Available at peak" value={money(excursion.favourableMoney)} detail="All favourable movement recorded while these trades were open." />
+            <SummaryFigure label="Given back" value={money(givenBackMoney)} tone="text-loss" detail="Favourable movement that was no longer present when the trades closed." />
+            <SummaryFigure label="Banked" value={money(excursion.bankedMoney)} tone="text-profit" detail="Positive realised profit retained from the favourable movement." />
+          </div>
+          <div className="mt-4 overflow-hidden rounded-full bg-white/[0.06]" aria-label={`${capturePercent}% of available profit captured`}><div className="flex h-3"><span className="bg-loss/75" style={{ width: `${givenBackPercent}%` }} /><span className="bg-profit" style={{ width: `${capturePercent}%` }} /></div></div>
+          <div className="mt-2 flex justify-between text-[10px] app-muted"><span>{givenBackPercent}% given back</span><span className="font-semibold text-profit">{capturePercent}% captured</span></div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-300">Give-back distribution</p>
+              <div className="mt-3 space-y-3">
+                {[
+                  { label: "Kept most", count: keptMost, tone: "bg-profit/75" },
+                  { label: "Gave back 0.25–1R", count: gaveBackUnderOne, tone: "bg-amber-300/65" },
+                  { label: "Gave back over 1R", count: excursion.gaveBackOverOneR, tone: "bg-loss/75" },
+                ].map((row) => <div key={row.label} className="grid grid-cols-[130px_minmax(0,1fr)_64px] items-center gap-3 text-xs"><span className="app-muted">{row.label}</span><div className="h-2 overflow-hidden rounded-full bg-white/[0.05]"><div className={`h-full rounded-full ${row.tone}`} style={{ width: `${Math.max(row.count ? 6 : 0, row.count / excursion.tested * 100)}%` }} /></div><span className="text-right font-mono font-semibold">{row.count} of {excursion.tested}</span></div>)}
+              </div>
+            </div>
+            {excursion.widestGap && <div className="rounded-xl border app-border bg-white/[0.02] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-loss">Worst leak</p><p className="mt-2 text-sm leading-6">Trade <strong className="font-mono">#{excursion.widestGap.tradeNumber}</strong> reached <strong className="font-mono text-profit">{rr(excursion.widestGap.peakR)}</strong> and closed at <strong className="font-mono text-loss">{rr(excursion.widestGap.capturedR)}</strong>.</p></div>}
+          </div>
+
+          <dl className="mt-5 flex flex-wrap gap-x-10 gap-y-3 border-t app-border pt-4 text-xs">
             <Figure
               label="Typical give-back"
               value={
@@ -118,6 +117,11 @@ export function ExitQualityCard({
               />
             )}
           </dl>
+
+          <div className="mt-5 border-t app-border pt-4">
+            <div className="flex flex-wrap items-end justify-between gap-2"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-loss">Winners turned into losses</p><h3 className="mt-1 text-sm font-semibold">Reached at least +1R, then closed below 0R</h3></div><span className="font-mono text-[10px] app-muted">{turnedLosses.length} trade{turnedLosses.length === 1 ? "" : "s"}</span></div>
+            {turnedLosses.length ? <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[520px] text-left text-xs"><thead><tr className="border-b app-border app-muted"><th className="py-2 font-medium">Trade</th><th className="py-2 text-right font-medium">Peak reached</th><th className="py-2 text-right font-medium">Final result</th><th className="py-2 text-right font-medium">Given back</th></tr></thead><tbody>{turnedLosses.slice(0, 8).map((row) => <tr key={row.tradeNumber} className="border-b app-border/60 last:border-0"><td className="py-2.5">{tradeFocus ? <button type="button" onClick={() => tradeFocus.focusTrade(row.tradeNumber)} className="font-mono font-semibold text-brand-300 hover:underline">#{row.tradeNumber}</button> : <span className="font-mono font-semibold">#{row.tradeNumber}</span>}</td><td className="py-2.5 text-right font-mono font-semibold text-profit">{rr(row.peakR)}</td><td className="py-2.5 text-right font-mono font-semibold text-loss">{rr(row.capturedR)}</td><td className="py-2.5 text-right font-mono app-muted">{row.giveBackR.toFixed(2)}R</td></tr>)}</tbody></table></div> : <p className="mt-3 rounded-xl border border-dashed app-border px-4 py-5 text-center text-xs app-muted">No trade reached +1R and later closed at a loss.</p>}
+          </div>
         </div>
       )}
 
@@ -266,6 +270,10 @@ export function ExitQualityCard({
       )}
     </section>
   );
+}
+
+function SummaryFigure({ label, value, detail, tone = "" }: { label: string; value: string; detail: string; tone?: string }) {
+  return <div className="rounded-xl border app-border bg-white/[0.02] p-4"><p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">{label}<MetricInfo term={label} detail={detail} /></p><p className={`mt-2 font-mono text-xl font-semibold ${tone}`}>{value}</p></div>;
 }
 
 /**

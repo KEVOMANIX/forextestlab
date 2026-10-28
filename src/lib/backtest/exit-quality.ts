@@ -111,6 +111,35 @@ export interface WidestGap {
   giveBackR: number;
 }
 
+/** A trade that was a meaningful open winner before ultimately closing red. */
+export interface WinnerTurnedLoser {
+  tradeNumber: number;
+  peakR: number;
+  capturedR: number;
+  giveBackR: number;
+}
+
+/**
+ * Closed trades that reached the requested reward multiple and then lost.
+ * They are ordered by the profit surrendered so the most useful reviews lead.
+ */
+export function winnersTurnedLosses(
+  trades: ClosedTrade[],
+  minimumPeakR = 1,
+): WinnerTurnedLoser[] {
+  return trades
+    .map((trade, index) => ({ tradeNumber: index + 1, ...tradeExcursion(trade) }))
+    .filter((row): row is WinnerTurnedLoser & { troughR: number | null } =>
+      row.peakR !== null &&
+      row.capturedR !== null &&
+      row.giveBackR !== null &&
+      row.peakR >= minimumPeakR &&
+      row.capturedR < 0,
+    )
+    .map(({ tradeNumber, peakR, capturedR, giveBackR }) => ({ tradeNumber, peakR, capturedR, giveBackR }))
+    .sort((a, b) => b.giveBackR - a.giveBackR);
+}
+
 export interface ExcursionSummary {
   /** Trades with both a defined risk and a recorded excursion. */
   tested: number;

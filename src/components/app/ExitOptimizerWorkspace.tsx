@@ -2,7 +2,7 @@
 
 import { ArrowRight, Check, Clock3, LoaderCircle, Play, RotateCcw, ShieldCheck, Target, TrendingUp, Trophy } from "lucide-react";
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { ExitOptimizerPanel } from "@/components/app/ExitQualityCard";
+import { ExitOptimizerPanel, type OptimizerObjective } from "@/components/app/ExitQualityCard";
 import type { ExitOptimizerReport } from "@/lib/backtest/exit-optimizer";
 
 type RuleGroup = { id: string; label: string; detail: string; description: string; rules: readonly string[]; icon: ComponentType<{ size?: number; className?: string }> };
@@ -18,6 +18,12 @@ const STAGES = [
   { threshold: 88, label: "Validating candidates", detail: "Checking winners on later trades" },
   { threshold: 101, label: "Ranking results", detail: "Comparing stability and drawdown" },
 ] as const;
+const OBJECTIVES: Array<{ id: OptimizerObjective; label: string; detail: string }> = [
+  { id: "balanced", label: "Balanced", detail: "Return and risk" },
+  { id: "return", label: "Maximum return", detail: "Highest total R" },
+  { id: "profit-factor", label: "Profit factor", detail: "Best gain/loss ratio" },
+  { id: "drawdown", label: "Lowest drawdown", detail: "Smoothest result" },
+];
 
 export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: string; status: string }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(GROUPS.map((g) => g.id)));
@@ -25,6 +31,7 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ExitOptimizerReport | null>(null);
+  const [objective, setObjective] = useState<OptimizerObjective>("balanced");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
 
@@ -59,7 +66,8 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
 
       <div className="p-5 lg:p-6">
         {!running && !report && <><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-sm font-semibold">Select exit rules to test</p><p className="mt-1 text-[10px] app-muted">Choose one or more families. You can run another selection later.</p></div><p className="font-mono text-[10px] text-brand-300">{ruleCount} rule variations selected</p></div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{GROUPS.map((group) => { const active = selected.has(group.id); const Icon = group.icon; return <button key={group.id} type="button" onClick={() => toggle(group.id)} className={`relative min-h-40 rounded-xl border p-4 text-left transition-all ${active ? "border-brand-400/55 bg-brand-400/[0.08]" : "app-border bg-white/[0.015] hover:border-brand-400/25 hover:bg-white/[0.035]"}`}><span className={`grid h-9 w-9 place-items-center rounded-lg ${active ? "bg-brand-400/15 text-brand-300" : "bg-white/[0.04] app-muted"}`}><Icon size={18} /></span><span className={`absolute right-4 top-4 grid h-5 w-5 place-items-center rounded-md border ${active ? "border-brand-300 bg-brand-400 text-surface-950" : "app-border"}`}>{active && <Check size={13} />}</span><strong className="mt-4 block text-sm">{group.label}</strong><span className="mt-1 block font-mono text-[10px] text-brand-300">{group.detail}</span><span className="mt-2 block text-[10px] leading-4 app-muted">{group.description}</span></button>; })}</div></>}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{GROUPS.map((group) => { const active = selected.has(group.id); const Icon = group.icon; return <button key={group.id} type="button" onClick={() => toggle(group.id)} className={`relative min-h-40 rounded-xl border p-4 text-left transition-all ${active ? "border-brand-400/55 bg-brand-400/[0.08]" : "app-border bg-white/[0.015] hover:border-brand-400/25 hover:bg-white/[0.035]"}`}><span className={`grid h-9 w-9 place-items-center rounded-lg ${active ? "bg-brand-400/15 text-brand-300" : "bg-white/[0.04] app-muted"}`}><Icon size={18} /></span><span className={`absolute right-4 top-4 grid h-5 w-5 place-items-center rounded-md border ${active ? "border-brand-300 bg-brand-400 text-surface-950" : "app-border"}`}>{active && <Check size={13} />}</span><strong className="mt-4 block text-sm">{group.label}</strong><span className="mt-1 block font-mono text-[10px] text-brand-300">{group.detail}</span><span className="mt-2 block text-[10px] leading-4 app-muted">{group.description}</span></button>; })}</div>
+          <div className="mt-5 border-t app-border pt-4"><p className="text-xs font-semibold">What should the optimizer prioritize?</p><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{OBJECTIVES.map((item) => <button key={item.id} type="button" onClick={() => setObjective(item.id)} className={`rounded-lg border px-3 py-2.5 text-left ${objective === item.id ? "border-brand-400/50 bg-brand-400/[0.08]" : "app-border bg-white/[0.015]"}`}><strong className="block text-[11px]">{item.label}</strong><span className="mt-0.5 block text-[9px] app-muted">{item.detail}</span></button>)}</div></div></>}
 
         {status !== "finished" ? <p className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-xs text-amber-100">Finish this replay before running the optimizer. Its comparison requires candles beyond each original exit.</p> : !sessionId ? <p className="mt-5 text-xs app-muted">Select a real session to run the optimizer.</p> : null}
         {running && <div role="status" className="mx-auto max-w-3xl py-3"><div className="flex items-center justify-between gap-3"><div><p className="inline-flex items-center gap-2 text-sm font-semibold"><LoaderCircle size={16} className="animate-spin text-brand-300" />Running your exit analysis</p><p className="mt-1 text-[10px] app-muted">Keep this tab open while we replay the rules candle by candle.</p></div><span className="font-mono text-lg font-semibold text-brand-300">{progress}%</span></div><div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-brand-400 transition-[width] duration-500" style={{ width: `${progress}%` }} /></div><div className="mt-5 grid gap-2 sm:grid-cols-2">{STAGES.map((stage, index) => { const done = progress >= stage.threshold; const active = index === activeStage; return <div key={stage.label} className={`flex items-center gap-3 rounded-xl border p-3 ${active ? "border-brand-400/35 bg-brand-400/[0.06]" : "app-border bg-white/[0.015]"}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${done ? "bg-brand-400 text-surface-950" : active ? "bg-brand-400/15 text-brand-300" : "bg-white/[0.04] app-muted"}`}>{done ? <Check size={14} /> : active ? <LoaderCircle size={14} className="animate-spin" /> : index + 1}</span><span><strong className="block text-[11px]">{stage.label}</strong><span className="mt-0.5 block text-[9px] app-muted">{stage.detail}</span></span></div>; })}</div></div>}
@@ -67,6 +75,6 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
         {!running && <div className={`flex flex-wrap items-center gap-3 ${report ? "justify-between border-t app-border pt-5" : "mt-5"}`}>{report && <div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-full bg-brand-400/15 text-brand-300"><Trophy size={15} /></span><span><strong className="block text-xs">Analysis complete</strong><span className="block text-[9px] app-muted">The winner was tested against later trades.</span></span></div>}<div className="flex flex-wrap items-center gap-3"><button type="button" onClick={run} disabled={status !== "finished" || !sessionId || !selected.size} className="inline-flex h-11 items-center gap-2 rounded-lg bg-brand-500 px-6 text-xs font-bold text-surface-950 hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-45">{report ? <RotateCcw size={14} /> : <Play size={14} />}{report ? "Run another test" : "Run optimizer"}<ArrowRight size={14} /></button>{!report && <span className="text-[10px] app-muted">{selected.size} of {GROUPS.length} rule families selected</span>}</div></div>}
       </div>
     </section>
-    {report && <section className="overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)]"><ExitOptimizerPanel report={report} /></section>}
+    {report && <section className="overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)]"><ExitOptimizerPanel report={report} objective={objective} /></section>}
   </main>;
 }

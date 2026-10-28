@@ -931,7 +931,7 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
               <div key={bucket.label} className="grid grid-cols-[76px_minmax(0,1fr)_72px] items-center gap-2 text-[10px]">
                 <span className="app-muted">{bucket.label}</span>
                 <div className="h-5 overflow-hidden rounded bg-white/[0.035]"><div className={`h-full rounded ${bucket.value >= 0 ? "bg-profit/20" : "bg-loss/20"}`} style={{ width: `${Math.max(12, Math.abs(bucket.value) / holdMax * 100)}%` }} /></div>
-                <span className={`text-right font-mono font-semibold ${bucket.value >= 0 ? "text-profit" : "text-loss"}`}>{bucket.value >= 0 ? "+" : "−"}${Math.abs(bucket.value)}</span>
+                <span className={`text-right font-mono font-semibold ${bucket.value >= 0 ? "text-profit" : "text-loss"}`}>{money(bucket.value, true)}</span>
               </div>
             ))}
           </div>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getSessionResults } from "@/lib/backtest/results";
 import { buildExitQualityReport } from "@/lib/backtest/exit-quality-server";
-import { PHASE_ONE_EXIT_RULES } from "@/lib/backtest/exit-optimizer";
+import { ALL_EXIT_RULES } from "@/lib/backtest/exit-optimizer";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { siteConfig } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -29,7 +29,7 @@ export async function POST(request: Request, context: Context) {
 
   let requested: unknown = [];
   try { requested = (await request.json()).ruleIds; } catch { /* all rules */ }
-  const allowed = new Set(PHASE_ONE_EXIT_RULES.map((rule) => rule.id));
+  const allowed = new Set(ALL_EXIT_RULES.map((rule) => rule.id));
   const ruleIds = Array.isArray(requested) ? requested.filter((id): id is string => typeof id === "string" && allowed.has(id)).slice(0, allowed.size) : [];
   if (!ruleIds.length) return json({ ok: false, error: "Select at least one exit-rule group." }, 400);
 

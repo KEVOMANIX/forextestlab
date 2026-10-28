@@ -20,7 +20,7 @@ import {
 import {
   buildOptimizerReport,
   optimizerTradeEligible,
-  PHASE_ONE_EXIT_RULES,
+  ALL_EXIT_RULES,
   simulateExitRule,
   type ExitOptimizerReport,
   type OptimizedTradeResult,
@@ -73,7 +73,7 @@ export async function buildExitQualityReport(
   const provider = getMarketDataProvider();
   const tests: PlanTest[] = [];
   const requestedRules = options.optimizerRuleIds?.length ? new Set(options.optimizerRuleIds) : null;
-  const optimizedByRule = new Map((includeOptimizer ? PHASE_ONE_EXIT_RULES : []).filter((rule) => !requestedRules || requestedRules.has(rule.id)).map((rule) => [rule.id, { rule, trades: [] as OptimizedTradeResult[] }]));
+  const optimizedByRule = new Map((includeOptimizer ? ALL_EXIT_RULES : []).filter((rule) => !requestedRules || requestedRules.has(rule.id)).map((rule) => [rule.id, { rule, trades: [] as OptimizedTradeResult[] }]));
   const tradeNumbers = new Map(state.closedTrades.map((trade, index) => [trade.id, index + 1]));
 
   // Each instrument's history is a separate read from storage, so they are

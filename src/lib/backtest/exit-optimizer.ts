@@ -20,7 +20,8 @@ export type ExitRule =
   | { id: string; label: string; kind: "fixed-target"; targetR: number }
   | { id: string; label: string; kind: "break-even"; triggerR: number }
   | { id: string; label: string; kind: "trailing"; triggerR: number; distanceR: number }
-  | { id: string; label: string; kind: "max-hold"; milliseconds: number };
+  | { id: string; label: string; kind: "max-hold"; milliseconds: number }
+  | { id: string; label: string; kind: "combined"; breakEvenR: number; trailTriggerR: number; distanceR: number; targetR: number };
 
 export const PHASE_ONE_EXIT_RULES: ExitRule[] = [
   ...[0.5, 1, 1.5, 2, 2.5, 3].map((targetR) => ({ id: `target-${targetR}`, label: `Fixed ${targetR}R target`, kind: "fixed-target" as const, targetR })),
@@ -30,6 +31,15 @@ export const PHASE_ONE_EXIT_RULES: ExitRule[] = [
   { id: "trail-2-1", label: "Trail 1R after +2R", kind: "trailing", triggerR: 2, distanceR: 1 },
   ...[1, 2, 4, 8, 12].map((hours) => ({ id: `hold-${hours}h`, label: `Exit after ${hours} hour${hours === 1 ? "" : "s"}`, kind: "max-hold" as const, milliseconds: hours * 3_600_000 })),
 ];
+
+export const PHASE_TWO_EXIT_RULES: ExitRule[] = [
+  { id: "combo-be1-trail2-1-target3", label: "BE +1R · trail after +2R · target 3R", kind: "combined", breakEvenR: 1, trailTriggerR: 2, distanceR: 1, targetR: 3 },
+  { id: "combo-be0.5-trail1.5-1-target3", label: "BE +0.5R · trail after +1.5R · target 3R", kind: "combined", breakEvenR: 0.5, trailTriggerR: 1.5, distanceR: 1, targetR: 3 },
+  { id: "combo-be1-trail2-0.5-target3", label: "BE +1R · tight trail after +2R · target 3R", kind: "combined", breakEvenR: 1, trailTriggerR: 2, distanceR: 0.5, targetR: 3 },
+  { id: "combo-be1-trail1.5-0.5-target2.5", label: "BE +1R · trail after +1.5R · target 2.5R", kind: "combined", breakEvenR: 1, trailTriggerR: 1.5, distanceR: 0.5, targetR: 2.5 },
+];
+
+export const ALL_EXIT_RULES: ExitRule[] = [...PHASE_ONE_EXIT_RULES, ...PHASE_TWO_EXIT_RULES];
 
 export interface OptimizedTradeResult {
   tradeId: string;
@@ -126,7 +136,7 @@ export function simulateExitRule(
 
   let stopR = -1;
   let stopLoss = trade.initialStopLoss;
-  const takeProfit = rule.kind === "fixed-target" ? priceAtR(trade, rule.targetR) : trade.initialTakeProfit ?? null;
+  const takeProfit = rule.kind === "fixed-target" || rule.kind === "combined" ? priceAtR(trade, rule.targetR) : trade.initialTakeProfit ?? null;
   let peakR = 0;
   let exitPrice: string | null = null;
   let reason = "session-end";
@@ -158,6 +168,19 @@ export function simulateExitRule(
       if (nextStopR > stopR) {
         stopR = nextStopR;
         stopLoss = priceAtR(trade, nextStopR);
+      }
+    }
+    if (rule.kind === "combined") {
+      if (peakR >= rule.breakEvenR && stopR < 0) {
+        stopR = 0;
+        stopLoss = priceAtR(trade, 0);
+      }
+      if (peakR >= rule.trailTriggerR) {
+        const nextStopR = Math.max(0, peakR - rule.distanceR);
+        if (nextStopR > stopR) {
+          stopR = nextStopR;
+          stopLoss = priceAtR(trade, nextStopR);
+        }
       }
     }
   }

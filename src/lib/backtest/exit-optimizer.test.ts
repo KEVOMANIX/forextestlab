@@ -44,6 +44,17 @@ describe("exit optimizer simulation", () => {
     expect(result.optimizedR).toBeCloseTo(0.5, 5);
     expect(result.reason).toBe("maximum holding time");
   });
+
+  it("chains break even, trailing protection, and a final target without intrabar lookahead", () => {
+    const rule: ExitRule = { id: "combo", label: "Combined", kind: "combined", breakEvenR: 1, trailTriggerR: 2, distanceR: 1, targetR: 3 };
+    const result = simulateExitRule(trade(), 1, [
+      candle(0, "1.1000", "1.1022", "1.0995", "1.1020"),
+      candle(60_000, "1.1020", "1.1052", "1.1010", "1.1050"),
+      candle(120_000, "1.1050", "1.1051", "1.1020", "1.1030"),
+    ], CONFIG, rule)!;
+    expect(result.optimizedR).toBeCloseTo(1.6, 5);
+    expect(result.reason).toBe("stop-loss");
+  });
 });
 
 describe("exit optimizer validation", () => {

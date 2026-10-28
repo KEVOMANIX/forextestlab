@@ -29,6 +29,7 @@ import {
 
 import { JournalReview, type ReviewRecord } from "@/components/app/journal/JournalReview";
 import { ExitQualityCard } from "@/components/app/ExitQualityCard";
+import { ExitOptimizerWorkspace } from "@/components/app/ExitOptimizerWorkspace";
 import { MetricInfo } from "@/components/app/MetricInfo";
 import { ReportTimeZone } from "@/components/app/ReportTimeZone";
 import { TradeFocusProvider } from "@/components/app/TradeFocusContext";
@@ -38,7 +39,6 @@ import { ExportAnalyticsPdfButton } from "./ExportAnalyticsPdfButton";
 import { ShareAnalyticsButton } from "./ShareAnalyticsButton";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_PERIOD, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY } from "@/lib/analytics/demo-data";
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
-import type { ExitOptimizerReport } from "@/lib/backtest/exit-optimizer";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { Decimal } from "@/lib/decimal";
@@ -52,9 +52,9 @@ import { formatNewYorkDate, formatNewYorkDateTime, getNewYorkDateParts, getTradi
 import { formatSymbol } from "@/lib/market-data/symbols";
 import { ProLock, ProPeek } from "./ProLock";
 
-type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "analyst";
+type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "optimizer";
 
-const TABS = ["overview", "trades", "journal", "reports", "analyst"] as const;
+const TABS = ["overview", "trades", "journal", "reports", "optimizer"] as const;
 const DEMO_ANALYTICS_SCOPED_TRADES = analyticsTrades(DEMO_ANALYTICS_TRADES);
 
 type ResultRow = { label: string; value: number; trades: number; rate?: number; winRate?: number; share?: number };
@@ -130,19 +130,12 @@ export interface AnalyticsDesignPrototypeProps {
   onClose?: () => void;
   journalContent?: ReactNode;
   /**
-   * The AI analyst. It used to sit at the bottom of the Reports tab, which put
-   * the most differentiated part of the report behind the longest scroll on
-   * the screen; it now has a tab of its own.
-   */
-  aiPanel?: ReactNode;
-  /**
    * The counterfactual: what the hand-closed trades would have done if their
    * original stop and target had been left alone. Null while the session is
    * still being replayed, because working it out needs candles the trader has
    * not been shown.
    */
   exitQuality?: PlanSummary | null;
-  exitOptimizer?: ExitOptimizerReport | null;
   reportFooter?: ReactNode;
   notice?: ReactNode;
   showReturn?: boolean;
@@ -385,9 +378,7 @@ export function AnalyticsDesignPrototype({
   fullAccess = true,
   onClose,
   journalContent,
-  aiPanel,
   exitQuality = null,
-  exitOptimizer = null,
   reportFooter,
   notice,
   showReturn = true,
@@ -504,8 +495,8 @@ export function AnalyticsDesignPrototype({
 
       <nav className="flex items-center justify-between gap-4 border-b app-border" aria-label="Prototype report sections">
         <div className="flex min-w-0 overflow-x-auto">
-          {TABS.filter((item) => (!readOnly || (item !== "journal" && item !== "analyst")) && (item !== "analyst" || Boolean(aiPanel))).map((item) => (
-            <button key={item} type="button" onClick={() => setTab(item)} className={`flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}{item === "reports" && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
+          {TABS.filter((item) => !readOnly || (item !== "journal" && item !== "optimizer")).map((item) => (
+            <button key={item} type="button" onClick={() => setTab(item)} className={`flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}{(item === "reports" || item === "optimizer") && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
           ))}
         </div>
         {samplePreviewButton && <div className="shrink-0 pb-2"><button type="button" onClick={() => setShowDemoData(true)} className="inline-flex h-8 items-center gap-2 rounded-lg border app-border px-2.5 text-[11px] font-semibold text-brand-300 transition-colors hover:bg-white/[0.04] hover:text-brand-200" aria-label="View sample report"><FlaskConical size={13} aria-hidden /><span className="hidden lg:inline">View sample report</span></button></div>}
@@ -603,8 +594,9 @@ export function AnalyticsDesignPrototype({
           <ReportsWorkspace model={sampleModel} periodLabel={periodLabel} />
         </ProPeek>
       )}
-      {(tab === "reports" || exportingPdf) && !reportsLocked && <div data-pdf-part="Reports"><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} optimizer={demo ? null : exitOptimizer} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</div>}
-      {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
+      {(tab === "reports" || exportingPdf) && !reportsLocked && <div data-pdf-part="Reports"><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</div>}
+      {tab === "optimizer" && reportsLocked && <ProPeek feature="analytics" title="The Exit Optimizer is on Pro" text="Test fixed targets, break-even rules, trailing stops and holding times against later validation trades." className="mt-5 max-h-[34rem] rounded-2xl"><div className="h-80 bg-[var(--app-panel)]" /></ProPeek>}
+      {tab === "optimizer" && !reportsLocked && <ExitOptimizerWorkspace sessionId={demo ? undefined : sessionId} status={status} />}
     </div>
     </TradeFocusProvider>
   );

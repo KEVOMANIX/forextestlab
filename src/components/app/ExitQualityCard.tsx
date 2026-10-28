@@ -33,12 +33,10 @@ const rr = (value: number) =>
 export function ExitQualityCard({
   trades,
   plan,
-  optimizer,
   planUnavailable,
 }: {
   trades: ClosedTrade[];
   plan: PlanSummary | null;
-  optimizer?: ExitOptimizerReport | null;
   /**
    * Why the comparison is missing, when it is. Without this the card stops
    * after the first figures and reads as though it were broken.
@@ -47,7 +45,7 @@ export function ExitQualityCard({
 }) {
   const tradeFocus = useTradeFocus();
   const excursion = summariseExcursions(trades);
-  if (!excursion.tested && !plan && !optimizer) return null;
+  if (!excursion.tested && !plan) return null;
 
   const planAhead = plan ? plan.planR - plan.capturedR : 0;
   const givenBackMoney = Math.max(0, excursion.favourableMoney - excursion.bankedMoney);
@@ -127,8 +125,6 @@ export function ExitQualityCard({
           </div>
         </div>
       )}
-
-      {optimizer && <ExitOptimizerPanel report={optimizer} />}
 
       {!plan && planUnavailable && (
         <p className="p-5 text-xs leading-5 app-muted">
@@ -285,7 +281,7 @@ function pf(metrics: OptimizerMetrics) {
   return metrics.profitFactor === null ? (metrics.netR > 0 ? "∞" : "—") : metrics.profitFactor.toFixed(2);
 }
 
-function ExitOptimizerPanel({ report }: { report: ExitOptimizerReport }) {
+export function ExitOptimizerPanel({ report }: { report: ExitOptimizerReport }) {
   const tradeFocus = useTradeFocus();
   const best = report.rules.find((row) => row.rule.id === report.bestRuleId) ?? null;
   const evidenceLabel = { insufficient: "Insufficient sample", experimental: "Experimental", developing: "Developing evidence", stronger: "Stronger evidence" }[report.evidence];

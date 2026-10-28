@@ -44,15 +44,18 @@ export interface ExitQualityReport {
  */
 export async function buildExitQualityReport(
   state: SessionState,
+  options: { includePlan?: boolean; includeOptimizer?: boolean; optimizerRuleIds?: string[] } = {},
 ): Promise<ExitQualityReport | null> {
   if (!planTestable(state)) return null;
+  const includePlan = options.includePlan ?? true;
+  const includeOptimizer = options.includeOptimizer ?? true;
 
-  const planCandidates = state.closedTrades.filter(
+  const planCandidates = includePlan ? state.closedTrades.filter(
     (trade) => isAnalyticsTrade(trade) && tradePlanTestable(trade),
-  );
-  const optimizerCandidates = state.closedTrades.filter(
+  ) : [];
+  const optimizerCandidates = includeOptimizer ? state.closedTrades.filter(
     (trade) => isAnalyticsTrade(trade) && optimizerTradeEligible(trade),
-  );
+  ) : [];
   const candidates = [...new Map([...planCandidates, ...optimizerCandidates].map((trade) => [trade.id, trade])).values()];
   if (!candidates.length) return null;
 
@@ -69,7 +72,8 @@ export async function buildExitQualityReport(
 
   const provider = getMarketDataProvider();
   const tests: PlanTest[] = [];
-  const optimizedByRule = new Map(PHASE_ONE_EXIT_RULES.map((rule) => [rule.id, { rule, trades: [] as OptimizedTradeResult[] }]));
+  const requestedRules = options.optimizerRuleIds?.length ? new Set(options.optimizerRuleIds) : null;
+  const optimizedByRule = new Map((includeOptimizer ? PHASE_ONE_EXIT_RULES : []).filter((rule) => !requestedRules || requestedRules.has(rule.id)).map((rule) => [rule.id, { rule, trades: [] as OptimizedTradeResult[] }]));
   const tradeNumbers = new Map(state.closedTrades.map((trade, index) => [trade.id, index + 1]));
 
   // Each instrument's history is a separate read from storage, so they are
@@ -123,7 +127,7 @@ export async function buildExitQualityReport(
     }
   }
 
-  const optimizer = buildOptimizerReport([...optimizedByRule.values()]);
+  const optimizer = includeOptimizer ? buildOptimizerReport([...optimizedByRule.values()]) : null;
   if (!tests.length && !optimizer) return null;
   return { tests, summary: tests.length ? summarisePlanTests(tests) : null, optimizer };
 }

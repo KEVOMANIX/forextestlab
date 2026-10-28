@@ -123,6 +123,16 @@ describe("building the exit quality report", () => {
     expect(report!.summary!.tested).toBe(1);
   });
 
+  it("can defer optimizer work until the user explicitly runs it", async () => {
+    getCandles.mockResolvedValue([
+      candle(1_000, "1.10100", "1.09950"),
+      candle(2_000, "1.10650", "1.10200"),
+    ]);
+    const report = await buildExitQualityReport(state(), { includeOptimizer: false });
+    expect(report?.summary?.tested).toBe(1);
+    expect(report?.optimizer).toBeNull();
+  });
+
   it("asks the provider only for what the walk needs", async () => {
     getCandles.mockResolvedValue([candle(1_000, "1.10650", "1.09950")]);
     await buildExitQualityReport(

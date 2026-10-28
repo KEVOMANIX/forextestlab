@@ -17,6 +17,14 @@ import {
   type PlanSummary,
   type PlanTest,
 } from "@/lib/backtest/exit-quality";
+import {
+  buildOptimizerReport,
+  optimizerTradeEligible,
+  PHASE_ONE_EXIT_RULES,
+  simulateExitRule,
+  type ExitOptimizerReport,
+  type OptimizedTradeResult,
+} from "@/lib/backtest/exit-optimizer";
 import { configForSymbol, recordSymbol } from "@/lib/backtest/instrument-config";
 import type { SessionState } from "@/lib/backtest/types";
 import { getMarketDataProvider } from "@/lib/market-data";
@@ -25,7 +33,8 @@ import { isAnalyticsTrade } from "@/lib/analytics/trade-scope";
 
 export interface ExitQualityReport {
   tests: PlanTest[];
-  summary: PlanSummary;
+  summary: PlanSummary | null;
+  optimizer: ExitOptimizerReport | null;
 }
 
 /**
@@ -38,9 +47,13 @@ export async function buildExitQualityReport(
 ): Promise<ExitQualityReport | null> {
   if (!planTestable(state)) return null;
 
-  const candidates = state.closedTrades.filter(
+  const planCandidates = state.closedTrades.filter(
     (trade) => isAnalyticsTrade(trade) && tradePlanTestable(trade),
   );
+  const optimizerCandidates = state.closedTrades.filter(
+    (trade) => isAnalyticsTrade(trade) && optimizerTradeEligible(trade),
+  );
+  const candidates = [...new Map([...planCandidates, ...optimizerCandidates].map((trade) => [trade.id, trade])).values()];
   if (!candidates.length) return null;
 
   // One fetch per instrument covering every candidate, sliced per trade. The
@@ -56,6 +69,8 @@ export async function buildExitQualityReport(
 
   const provider = getMarketDataProvider();
   const tests: PlanTest[] = [];
+  const optimizedByRule = new Map(PHASE_ONE_EXIT_RULES.map((rule) => [rule.id, { rule, trades: [] as OptimizedTradeResult[] }]));
+  const tradeNumbers = new Map(state.closedTrades.map((trade, index) => [trade.id, index + 1]));
 
   // Each instrument's history is a separate read from storage, so they are
   // fetched side by side rather than one after another.
@@ -91,11 +106,24 @@ export async function buildExitQualityReport(
     };
 
     for (const trade of group) {
-      const result = testTradePlan(trade, candles, planConfig);
-      if (result) tests.push(result);
+      // Slice once per trade. Passing the symbol's whole multi-year array into
+      // every candidate rule would repeatedly rescan hundreds of thousands of
+      // candles and make opening Reports progressively slower with history.
+      const tradeCandles = candles.filter((candle) => candle.timestamp >= trade.entryTime).slice(0, 10_000);
+      if (tradePlanTestable(trade)) {
+        const result = testTradePlan(trade, tradeCandles, planConfig);
+        if (result) tests.push(result);
+      }
+      if (optimizerTradeEligible(trade)) {
+        for (const row of optimizedByRule.values()) {
+          const result = simulateExitRule(trade, tradeNumbers.get(trade.id) ?? 0, tradeCandles, planConfig, row.rule);
+          if (result) row.trades.push(result);
+        }
+      }
     }
   }
 
-  if (!tests.length) return null;
-  return { tests, summary: summarisePlanTests(tests) };
+  const optimizer = buildOptimizerReport([...optimizedByRule.values()]);
+  if (!tests.length && !optimizer) return null;
+  return { tests, summary: tests.length ? summarisePlanTests(tests) : null, optimizer };
 }

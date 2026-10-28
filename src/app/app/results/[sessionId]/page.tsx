@@ -101,6 +101,7 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
       fullAccess={entitlements.fullAnalytics}
       journalContent={journal}
       exitQuality={exitQuality?.summary ?? null}
+      exitOptimizer={exitQuality?.optimizer ?? null}
       aiPanel={aiPanel}
       reportFooter={reportFooter}
       notice={notice}

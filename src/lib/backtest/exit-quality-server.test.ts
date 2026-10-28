@@ -119,8 +119,8 @@ describe("building the exit quality report", () => {
     expect(report!.tests[0]!.outcome).toBe("take-profit");
     // 60 pips against a 20-pip stop is 3R, against the 0.5R actually taken.
     expect(report!.tests[0]!.planR).toBeCloseTo(3, 5);
-    expect(report!.summary.netDeltaR).toBeCloseTo(2.5, 5);
-    expect(report!.summary.tested).toBe(1);
+    expect(report!.summary!.netDeltaR).toBeCloseTo(2.5, 5);
+    expect(report!.summary!.tested).toBe(1);
   });
 
   it("asks the provider only for what the walk needs", async () => {
@@ -165,7 +165,7 @@ describe("building the exit quality report", () => {
     ]);
   });
 
-  it("skips trades that followed their own plan", async () => {
+  it("does not run the original-plan comparison for trades that followed it", async () => {
     const report = await buildExitQualityReport(
       state({
         closedTrades: [
@@ -176,7 +176,20 @@ describe("building the exit quality report", () => {
       }),
     );
     expect(report).toBeNull();
-    expect(getCandles).not.toHaveBeenCalled();
+    // They remain eligible for the optimizer, which compares alternative exit
+    // rules across every risk-defined trade rather than manual closes only.
+    expect(getCandles).toHaveBeenCalledTimes(1);
+  });
+
+  it("optimizes risk-defined trades even when they were not closed manually", async () => {
+    getCandles.mockResolvedValue([
+      candle(1_000, "1.10250", "1.09950"),
+      candle(2_000, "1.10450", "1.10100"),
+    ]);
+    const report = await buildExitQualityReport(state({ closedTrades: [trade({ exitReason: "take-profit" })] }));
+    expect(report?.summary).toBeNull();
+    expect(report?.optimizer?.eligibleTrades).toBe(1);
+    expect(report?.optimizer?.rules.length).toBeGreaterThan(10);
   });
 
   it("survives an instrument whose history cannot be loaded", async () => {

@@ -38,6 +38,7 @@ import { ExportAnalyticsPdfButton } from "./ExportAnalyticsPdfButton";
 import { ShareAnalyticsButton } from "./ShareAnalyticsButton";
 import { DEMO_ANALYTICS_EQUITY_CURVE, DEMO_ANALYTICS_PERIOD, DEMO_ANALYTICS_TRADES, DEMO_EXIT_QUALITY } from "@/lib/analytics/demo-data";
 import type { PlanSummary } from "@/lib/backtest/exit-quality";
+import type { ExitOptimizerReport } from "@/lib/backtest/exit-optimizer";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { Decimal } from "@/lib/decimal";
@@ -141,6 +142,7 @@ export interface AnalyticsDesignPrototypeProps {
    * not been shown.
    */
   exitQuality?: PlanSummary | null;
+  exitOptimizer?: ExitOptimizerReport | null;
   reportFooter?: ReactNode;
   notice?: ReactNode;
   showReturn?: boolean;
@@ -385,6 +387,7 @@ export function AnalyticsDesignPrototype({
   journalContent,
   aiPanel,
   exitQuality = null,
+  exitOptimizer = null,
   reportFooter,
   notice,
   showReturn = true,
@@ -600,7 +603,7 @@ export function AnalyticsDesignPrototype({
           <ReportsWorkspace model={sampleModel} periodLabel={periodLabel} />
         </ProPeek>
       )}
-      {(tab === "reports" || exportingPdf) && !reportsLocked && <div data-pdf-part="Reports"><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</div>}
+      {(tab === "reports" || exportingPdf) && !reportsLocked && <div data-pdf-part="Reports"><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} optimizer={demo ? null : exitOptimizer} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</div>}
       {tab === "analyst" && aiPanel && <div className="mt-5">{aiPanel}</div>}
     </div>
     </TradeFocusProvider>

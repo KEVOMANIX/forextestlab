@@ -3,6 +3,7 @@
 import { MetricInfo } from "@/components/app/MetricInfo";
 import { useTradeFocus } from "@/components/app/TradeFocusContext";
 import { summariseExcursions, tradeExcursion, winnersTurnedLosses, type PlanSummary } from "@/lib/backtest/exit-quality";
+import type { ExitOptimizerReport, OptimizerMetrics } from "@/lib/backtest/exit-optimizer";
 import type { ClosedTrade } from "@/lib/backtest/types";
 
 const money = (value: number) =>
@@ -32,10 +33,12 @@ const rr = (value: number) =>
 export function ExitQualityCard({
   trades,
   plan,
+  optimizer,
   planUnavailable,
 }: {
   trades: ClosedTrade[];
   plan: PlanSummary | null;
+  optimizer?: ExitOptimizerReport | null;
   /**
    * Why the comparison is missing, when it is. Without this the card stops
    * after the first figures and reads as though it were broken.
@@ -44,7 +47,7 @@ export function ExitQualityCard({
 }) {
   const tradeFocus = useTradeFocus();
   const excursion = summariseExcursions(trades);
-  if (!excursion.tested && !plan) return null;
+  if (!excursion.tested && !plan && !optimizer) return null;
 
   const planAhead = plan ? plan.planR - plan.capturedR : 0;
   const givenBackMoney = Math.max(0, excursion.favourableMoney - excursion.bankedMoney);
@@ -124,6 +127,8 @@ export function ExitQualityCard({
           </div>
         </div>
       )}
+
+      {optimizer && <ExitOptimizerPanel report={optimizer} />}
 
       {!plan && planUnavailable && (
         <p className="p-5 text-xs leading-5 app-muted">
@@ -270,6 +275,33 @@ export function ExitQualityCard({
       )}
     </section>
   );
+}
+
+function metric(value: number, suffix = "R") {
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}${suffix}`;
+}
+
+function pf(metrics: OptimizerMetrics) {
+  return metrics.profitFactor === null ? (metrics.netR > 0 ? "∞" : "—") : metrics.profitFactor.toFixed(2);
+}
+
+function ExitOptimizerPanel({ report }: { report: ExitOptimizerReport }) {
+  const tradeFocus = useTradeFocus();
+  const best = report.rules.find((row) => row.rule.id === report.bestRuleId) ?? null;
+  const evidenceLabel = { insufficient: "Insufficient sample", experimental: "Experimental", developing: "Developing evidence", stronger: "Stronger evidence" }[report.evidence];
+  const strongestImpacts = best?.trades.slice().sort((a, b) => Math.abs(b.deltaR) - Math.abs(a.deltaR)).slice(0, 5) ?? [];
+
+  return <div className="border-b app-border p-5">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-300">Exit optimizer · Phase 1</p><h3 className="mt-1 text-lg font-semibold">Test exit rules without changing the entries</h3><p className="mt-1 max-w-3xl text-xs leading-5 app-muted">The first 70% of eligible trades discovers candidates. The final 30% validates them chronologically on later trades.</p></div><span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${report.evidence === "insufficient" ? "bg-amber-300/10 text-amber-200" : "bg-brand-400/10 text-brand-300"}`}>{evidenceLabel} · {report.eligibleTrades} trades</span></div>
+
+    {best ? <div className="mt-5 rounded-xl border border-brand-400/25 bg-brand-400/[0.06] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-brand-300">Best validated rule</p><p className="mt-1 text-base font-semibold">{best.rule.label}</p><p className={`mt-1 font-mono text-[10px] ${best.validation.netR >= report.actualValidation.netR ? "text-profit" : "text-loss"}`}>{metric(best.validation.netR - report.actualValidation.netR)} versus actual exits on validation trades</p></div><div className="grid grid-cols-3 gap-5 text-right"><div><p className="text-[9px] app-muted">Validation net</p><p className="mt-1 font-mono text-sm font-semibold text-profit">{metric(best.validation.netR)}</p></div><div><p className="text-[9px] app-muted">Profit factor</p><p className="mt-1 font-mono text-sm font-semibold">{pf(best.validation)}</p></div><div><p className="text-[9px] app-muted">Drawdown</p><p className="mt-1 font-mono text-sm font-semibold text-loss">{metric(-best.validation.maxDrawdownR)}</p></div></div></div></div> : <div className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-4 text-xs leading-5 text-amber-100">No candidate produced a positive validated result with enough later trades. The optimizer is reporting the tests, but it is not recommending a rule.</div>}
+
+    <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead><tr className="border-b app-border app-muted"><th className="py-2 pr-4 font-medium">Rule</th><th className="py-2 pr-4 text-right font-medium">Discovery R</th><th className="py-2 pr-4 text-right font-medium">Validation R</th><th className="py-2 pr-4 text-right font-medium">Validation PF</th><th className="py-2 pr-4 text-right font-medium">Drawdown</th><th className="py-2 text-right font-medium">Status</th></tr></thead><tbody><tr className="border-b border-brand-400/20 bg-brand-400/[0.035]"><td className="py-2.5 pr-4 font-semibold">Actual exits · baseline</td><td className={`py-2.5 pr-4 text-right font-mono ${report.actualDiscovery.netR >= 0 ? "text-profit" : "text-loss"}`}>{metric(report.actualDiscovery.netR)}</td><td className={`py-2.5 pr-4 text-right font-mono font-semibold ${report.actualValidation.netR >= 0 ? "text-profit" : "text-loss"}`}>{metric(report.actualValidation.netR)}</td><td className="py-2.5 pr-4 text-right font-mono">{pf(report.actualValidation)}</td><td className="py-2.5 pr-4 text-right font-mono text-loss">{metric(-report.actualValidation.maxDrawdownR)}</td><td className="py-2.5 text-right app-muted">Baseline</td></tr>{report.rules.slice(0, 10).map((row) => <tr key={row.rule.id} className="border-b app-border/60 last:border-0"><td className="py-2.5 pr-4 font-semibold">{row.rule.label}</td><td className={`py-2.5 pr-4 text-right font-mono ${row.discovery.netR >= 0 ? "text-profit" : "text-loss"}`}>{metric(row.discovery.netR)}</td><td className={`py-2.5 pr-4 text-right font-mono font-semibold ${row.validation.netR >= 0 ? "text-profit" : "text-loss"}`}>{metric(row.validation.netR)}</td><td className="py-2.5 pr-4 text-right font-mono">{pf(row.validation)}</td><td className="py-2.5 pr-4 text-right font-mono text-loss">{metric(-row.validation.maxDrawdownR)}</td><td className="py-2.5 text-right"><span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${row.validationPassed ? "bg-profit/10 text-profit" : "bg-white/[0.04] app-muted"}`}>{row.validationPassed ? "Passed" : "Not validated"}</span></td></tr>)}</tbody></table></div>
+
+    {best && strongestImpacts.length > 0 && <div className="mt-5 border-t app-border pt-4"><p className="text-[10px] font-semibold uppercase tracking-[0.13em] app-muted">Trades most changed by this rule</p><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{strongestImpacts.map((trade) => <div key={trade.tradeId} className="rounded-lg bg-white/[0.025] p-3">{tradeFocus ? <button type="button" onClick={() => tradeFocus.focusTrade(trade.tradeNumber)} className="font-mono text-[10px] text-brand-300 hover:underline">Trade #{trade.tradeNumber}</button> : <p className="font-mono text-[10px] app-muted">Trade #{trade.tradeNumber}</p>}<p className={`mt-1 font-mono text-sm font-semibold ${trade.deltaR >= 0 ? "text-profit" : "text-loss"}`}>{metric(trade.deltaR)}</p><p className="mt-1 text-[9px] app-muted">Actual {metric(trade.actualR)} → rule {metric(trade.optimizedR)}</p></div>)}</div></div>}
+
+    <p className="mt-4 text-[10px] leading-4 app-muted">Candle-by-candle simulation uses the session&apos;s spread, commission and intrabar execution policy. Dynamic stops become active only after the candle that triggered them closes.</p>
+  </div>;
 }
 
 function SummaryFigure({ label, value, detail, tone = "" }: { label: string; value: string; detail: string; tone?: string }) {

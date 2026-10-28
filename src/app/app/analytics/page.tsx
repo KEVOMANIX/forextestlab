@@ -158,6 +158,7 @@ export default async function AnalyticsHubPage({
           fullAccess={Boolean(entitlements?.fullAnalytics)}
           journalContent={journal}
           exitQuality={exitQuality?.summary ?? null}
+          exitOptimizer={exitQuality?.optimizer ?? null}
           aiPanel={aiPanel}
           reportFooter={reportFooter}
           notice={notice}

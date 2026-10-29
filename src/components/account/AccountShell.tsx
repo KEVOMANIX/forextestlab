@@ -49,37 +49,37 @@ export function AccountShell({ account, tab, children }: { account: AccountData;
   const joined = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "America/New_York" }).format(profile.createdAt);
   return (
     <main id="main" className="min-h-[calc(100dvh-3.5rem)] px-4 py-8 sm:py-10">
-      <div className="mx-auto max-w-3xl">
-        <header className="flex items-center gap-4">
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-lg font-bold text-surface-950">
+      <div className="mx-auto max-w-5xl">
+        <header className="flex items-center gap-5">
+          <span className="grid h-20 w-20 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-2xl font-bold text-surface-950">
             {initials(displayName)}
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-xl font-bold tracking-tight">{displayName}</h1>
+              <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl">{displayName}</h1>
               {pro
-                ? <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-0.5 text-xs font-bold text-amber-200"><Crown size={12} aria-hidden />Pro</span>
-                : <span className="rounded-full bg-[var(--app-panel-2)] px-2.5 py-0.5 text-xs font-semibold">Free</span>}
+                ? <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-sm font-bold text-amber-200"><Crown size={14} aria-hidden />Pro</span>
+                : <span className="rounded-full bg-[var(--app-panel-2)] px-3 py-1 text-sm font-semibold">Free</span>}
             </div>
-            <p className="mt-0.5 truncate text-sm app-muted">{user.email}</p>
-            <p className="mt-0.5 text-xs app-muted">Member since {joined} · {profile._count.sessions} saved {profile._count.sessions === 1 ? "session" : "sessions"}</p>
+            <p className="mt-1 truncate text-base app-muted">{user.email}</p>
+            <p className="mt-1 text-sm app-muted">Member since {joined} · {profile._count.sessions} saved {profile._count.sessions === 1 ? "session" : "sessions"}</p>
           </div>
         </header>
 
-        <nav aria-label="Account" className="mt-7 flex gap-1 overflow-x-auto border-b app-border">
+        <nav aria-label="Account" className="mt-8 flex gap-2 overflow-x-auto shadow-[inset_0_-1px_0_var(--app-border)] [scrollbar-width:none]">
           {TABS.map(({ tab: id, label, href, icon: Icon }) => (
             <Link
               key={id}
               href={href}
               aria-current={id === tab ? "page" : undefined}
-              className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${id === tab ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}
+              className={`inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-base font-medium transition-colors ${id === tab ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}
             >
-              <Icon size={16} aria-hidden />{label}
+              <Icon size={18} aria-hidden />{label}
             </Link>
           ))}
         </nav>
 
-        <div className="mt-6 space-y-6">{children}</div>
+        <div className="mt-8 space-y-6">{children}</div>
       </div>
     </main>
   );
@@ -89,12 +89,12 @@ export function AccountShell({ account, tab, children }: { account: AccountData;
 export function AccountCard({ title, description, children, footer }: { title: string; description?: string; children?: React.ReactNode; footer?: React.ReactNode }) {
   return (
     <section className="panel overflow-hidden">
-      <div className="p-5 sm:p-6">
-        <h2 className="text-base font-semibold">{title}</h2>
-        {description && <p className="mt-1 text-sm app-muted">{description}</p>}
-        {children && <div className="mt-5">{children}</div>}
+      <div className="p-6 sm:p-8">
+        <h2 className="text-lg font-semibold sm:text-xl">{title}</h2>
+        {description && <p className="mt-1.5 text-sm app-muted sm:text-base">{description}</p>}
+        {children && <div className="mt-6">{children}</div>}
       </div>
-      {footer && <div className="border-t app-border bg-[var(--app-panel-2)]/40 px-5 py-4 sm:px-6">{footer}</div>}
+      {footer && <div className="border-t app-border bg-[var(--app-panel-2)]/40 px-6 py-4 sm:px-8">{footer}</div>}
     </section>
   );
 }

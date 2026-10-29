@@ -105,7 +105,7 @@ export function ProfileDetailsForm({
         </div>
         <button
           type="submit"
-          className="btn-primary h-10 px-4 py-2 text-xs"
+          className="btn-primary h-11 px-5 py-2 text-sm"
           disabled={status === "saving" || unchanged || displayName.trim().length < 2}
         >
           {status === "saving" ? (

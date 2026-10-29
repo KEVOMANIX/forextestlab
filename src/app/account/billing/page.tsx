@@ -43,10 +43,10 @@ export default async function BillingPage() {
   return (
     <AccountShell account={account} tab="billing">
       <section className={`overflow-hidden rounded-xl border ${pro ? "border-amber-300/30 bg-[linear-gradient(135deg,rgba(251,191,36,0.08),rgba(20,184,166,0.05))]" : "app-border bg-[var(--app-panel)]"}`}>
-        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div>
             <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${pro ? "text-amber-200" : "app-muted"}`}>Current plan</p>
-            <h2 className="mt-1 flex items-center gap-2 text-2xl font-bold">
+            <h2 className="mt-1 flex items-center gap-2 text-3xl font-bold">
               {pro && <Crown size={20} className="text-amber-200" aria-hidden />}{heading}
             </h2>
             <p className="mt-1 text-sm app-muted">{summary}</p>
@@ -57,7 +57,7 @@ export default async function BillingPage() {
         </div>
 
         {!pro && monthly && (
-          <div className="border-t app-border px-5 py-4 sm:px-6">
+          <div className="border-t app-border px-6 py-4 sm:px-8">
             <div className="flex items-center justify-between text-xs">
               <span className="app-muted">Sessions this month</span>
               <span className="font-semibold tabular-nums">{monthly.used} / {monthly.limit}</span>
@@ -71,7 +71,7 @@ export default async function BillingPage() {
 
         {!checkoutEnabled && <p className="border-t app-border px-5 py-4 text-xs app-muted sm:px-6">New purchases are disabled. Existing subscribers can still manage or turn off renewal below.</p>}
         {paddleSubscription && (
-          <div className="border-t app-border px-5 py-5 sm:px-6">
+          <div className="border-t app-border px-6 py-5 sm:px-8">
             <SubscriptionRenewalControls
               autoRenew={!paddleSubscription.cancelAtPeriodEnd}
               nextPaymentLabel={nextPaymentLabel}

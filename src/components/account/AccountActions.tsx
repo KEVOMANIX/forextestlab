@@ -35,9 +35,9 @@ export function SessionActions() {
       <div className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <MonitorSmartphone size={17} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
-          <div><p className="text-sm font-medium">Other devices</p><p className="text-xs app-muted">Sign out of every other browser and device. You stay signed in here.</p></div>
+          <div><p className="text-base font-medium">Other devices</p><p className="text-sm app-muted">Sign out of every other browser and device. You stay signed in here.</p></div>
         </div>
-        <button type="button" className="btn-secondary h-9 shrink-0 px-4 text-xs" onClick={() => void signOut("others")} disabled={busy !== null || othersDone}>
+        <button type="button" className="btn-secondary h-10 shrink-0 px-5 text-sm" onClick={() => void signOut("others")} disabled={busy !== null || othersDone}>
           {busy === "others" ? <Loader2 size={15} className="animate-spin" aria-hidden /> : othersDone ? <Check size={15} aria-hidden /> : <LogOut size={15} aria-hidden />}
           {othersDone ? "Signed out" : "Sign out all"}
         </button>
@@ -45,9 +45,9 @@ export function SessionActions() {
       <div className="flex flex-col gap-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <LogOut size={17} className="mt-0.5 shrink-0 app-muted" aria-hidden />
-          <div><p className="text-sm font-medium">This device</p><p className="text-xs app-muted">End your session in this browser.</p></div>
+          <div><p className="text-base font-medium">This device</p><p className="text-sm app-muted">End your session in this browser.</p></div>
         </div>
-        <button type="button" className="btn-secondary h-9 shrink-0 px-4 text-xs" onClick={() => void signOut("local")} disabled={busy !== null}>
+        <button type="button" className="btn-secondary h-10 shrink-0 px-5 text-sm" onClick={() => void signOut("local")} disabled={busy !== null}>
           {busy === "here" ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogOut size={15} aria-hidden />}
           Sign out
         </button>
@@ -83,12 +83,12 @@ export function DeleteAccountSection() {
     <section className="border-t app-border pt-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-loss">Delete account</h2>
+          <h2 className="text-lg font-semibold text-loss">Delete account</h2>
           <p className="mt-1 text-sm app-muted">Permanently remove your profile, sessions, trades and notes. This cannot be undone.</p>
         </div>
         <button
           type="button"
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-loss/10 px-4 text-xs font-semibold text-loss transition-colors hover:bg-loss/20 disabled:opacity-50"
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-loss/10 px-5 text-sm font-semibold text-loss transition-colors hover:bg-loss/20 disabled:opacity-50"
           onClick={() => setDeleteOpen(true)}
           disabled={busy}
         >

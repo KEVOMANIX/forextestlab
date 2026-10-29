@@ -14,7 +14,7 @@ const bundle = await build({
       import { PRO_PLAN_FEATURES } from './src/lib/billing/plan-copy';
       const root = createRoot(document.getElementById('root'));
       const tiers = [{id:'pro', name:'Pro', featured:true, description:'', features:PRO_PLAN_FEATURES, priceId:{month:'pri_month',year:'pri_year'}}];
-      window.renderPricing = (trialOffer = true) => root.render(<LocalizedPricing tiers={tiers} clientToken="live_fixture" environment="production" userId="fixture" customerEmail="fixture@example.test" trialOffer={trialOffer} />);
+      window.renderPricing = (trialOffer = true) => root.render(<LocalizedPricing tiers={tiers} clientToken="live_fixture" environment="production" userId="fixture" customerEmail="fixture@example.test" trialOffer={trialOffer} trialAvailable />);
       window.renderPricing();`,
     resolveDir: process.cwd(), loader: "tsx",
   },
@@ -50,6 +50,11 @@ try {
     await expect(page.getByTestId("plan-pro").getByRole("button", { name: "Choose Pro" })).toBeEnabled();
     await expect(page.getByTestId("plan-pro").getByRole("button", { name: "Start 7-day free trial" })).toHaveCount(0);
     await expect(page.getByTestId("trial-callout").getByRole("button", { name: "Start 7-day free trial" })).toBeEnabled();
+    const calloutBox = await page.getByTestId("trial-callout").boundingBox();
+    const freeBox = await page.getByTestId("plan-free").boundingBox();
+    const proBox = await page.getByTestId("plan-pro").boundingBox();
+    assert.ok(calloutBox.y + calloutBox.height < freeBox.y, "Trial must appear before the cards");
+    assert.ok(freeBox.height < proBox.height - 70, "Free card must not stretch to leave blank feature rows");
     await expect(page.getByTestId("plan-pro").getByText("Advanced analytics & reports", { exact: true })).toBeVisible();
     await expect(page.getByTestId("terms-month")).toContainText("$10.00 / month");
     assert.equal(await page.getByTestId("plan-pro").getByTestId("terms-month").count(), 0, "Billing disclosure belongs below the cards");
@@ -76,7 +81,9 @@ try {
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
     await page.evaluate(() => window.renderPricing(false));
     await expect(page.getByRole("button", { name: "Choose Pro", exact: true })).toBeEnabled();
-    await expect(page.getByTestId("trial-callout")).toHaveCount(0);
+    await expect(page.getByTestId("trial-callout")).toContainText("This account isn’t eligible for a free trial.");
+    await expect(page.getByTestId("trial-callout").getByRole("button", { name: "Start 7-day free trial" })).toHaveCount(0);
+    await expect(page.getByTestId("trial-callout").getByRole("link", { name: "Trial details" })).toBeVisible();
     await expect(page.getByTestId("terms-month")).toContainText("Charged today");
     console.log(`${width}px: trial and returning-customer pricing, plan exclusions, annual billing and layout passed`);
     await page.close();

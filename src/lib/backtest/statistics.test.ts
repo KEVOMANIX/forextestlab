@@ -229,8 +229,8 @@ describe("computeStatistics", () => {
 
   it("computes average achieved risk/reward from SL and exit values", () => {
     // Trade A: entry 1.1000, SL 1.0900 (risk 0.0100), exit 1.1200 (reward 0.0200) -> 2.
-    // Trade B: entry 1.2000, SL 1.1800 (risk 0.0200), exit 1.2100 (reward 0.0100) -> 0.5.
-    // Trade C: no stop loss -> excluded. Average = (2 + 0.5) / 2 = 1.25.
+    // Trade B: entry 1.2000, SL 1.1800 (risk 0.0200), exit 1.1900 -> -0.5R.
+    // Trade C: no stop loss -> excluded. Average = (2 - 0.5) / 2 = 0.75.
     const trades = [
       makeTrade({
         id: "A",
@@ -244,7 +244,7 @@ describe("computeStatistics", () => {
         pnl: "-100",
         entryPrice: "1.2000",
         stopLoss: "1.1800",
-        exitPrice: "1.2100",
+        exitPrice: "1.1900",
       }),
       makeTrade({
         id: "C",
@@ -262,7 +262,21 @@ describe("computeStatistics", () => {
       equityCurve: [],
     });
 
-    expect(stats.averageRiskReward).toBe("1.25");
+    expect(stats.averageRiskReward).toBe("0.75");
+  });
+
+  it.each([
+    ["long", "1.0900", "1.0900", "-1.00"],
+    ["short", "1.1100", "1.1100", "-1.00"],
+    ["short", "1.1100", "1.0800", "2.00"],
+  ] as const)("reports signed R for a %s trade exiting at %s", (direction, stopLoss, exitPrice, expected) => {
+    const stats = computeStatistics({
+      startingBalance: "10000",
+      endingBalance: expected === "-1.00" ? "9900" : "10200",
+      trades: [makeTrade({ direction, entryPrice: "1.1000", stopLoss, exitPrice, pnl: expected === "-1.00" ? "-100" : "200" })],
+      equityCurve: [],
+    });
+    expect(stats.averageRiskReward).toBe(expected);
   });
 
   it("excludes zero-risk trades from average risk/reward", () => {

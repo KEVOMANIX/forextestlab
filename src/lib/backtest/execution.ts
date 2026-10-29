@@ -146,6 +146,23 @@ export function checkStopTakeProfit(
 ): ExitCheck | null {
   const ba = deriveBidAsk(candle, spreadPips, pipSize);
 
+  // A level crossed at the open is reached before any later intrabar move.
+  // Stops become market orders and fill at the worse opening quote; limits
+  // retain their requested price when the market opens beyond take-profit.
+  const open = direction === "long" ? ba.bidOpen : ba.askOpen;
+  const stopAtOpen = stopLoss != null && (direction === "long"
+    ? open.lte(stopLoss)
+    : open.gte(stopLoss));
+  if (stopAtOpen) {
+    return { price: open.toString(), reason: "stop-loss", intrabarAmbiguous: false };
+  }
+  const profitAtOpen = takeProfit != null && (direction === "long"
+    ? open.gte(takeProfit)
+    : open.lte(takeProfit));
+  if (profitAtOpen) {
+    return { price: takeProfit, reason: "take-profit", intrabarAmbiguous: false };
+  }
+
   let slHit = false;
   let tpHit = false;
 

@@ -112,7 +112,9 @@ export function computeStatistics(params: {
       const exit = d(trade.exitPrice);
       const risk = entry.minus(stop).abs();
       if (risk.greaterThan(0)) {
-        const reward = exit.minus(entry).abs();
+        const reward = trade.direction === "long"
+          ? exit.minus(entry)
+          : entry.minus(exit);
         riskRewardSum = riskRewardSum.plus(reward.dividedBy(risk));
         riskRewardCount += 1;
       }

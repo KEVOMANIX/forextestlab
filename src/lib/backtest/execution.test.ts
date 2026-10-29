@@ -52,6 +52,33 @@ describe("entry / exit fills", () => {
 });
 
 describe("checkStopTakeProfit", () => {
+  it.each(["conservative", "optimistic"] as const)("fills a long gap at the opening bid under %s policy, before a later recovery", (policy) => {
+    const hit = checkStopTakeProfit("long", "1.09900", "1.10500", candle("1.09000", "1.11000", "1.08500", "1.10000"), "2", "0.0001", policy);
+    expect(hit).toEqual({ price: "1.0899", reason: "stop-loss", intrabarAmbiguous: false });
+  });
+
+  it("fills a short gap at the opening ask", () => {
+    const hit = checkStopTakeProfit("short", "1.10100", "1.09500", candle("1.11000", "1.11500", "1.09000", "1.10000"), "2", "0.0001", "optimistic");
+    expect(hit).toEqual({ price: "1.1101", reason: "stop-loss", intrabarAmbiguous: false });
+  });
+
+  it("uses native opening quotes for a gap fill", () => {
+    const c: Candle = {
+      ...candle("1.10000", "1.11000", "1.08000", "1.09000"),
+      bidOpen: "1.0898", bidHigh: "1.1098", bidLow: "1.0798", bidClose: "1.0898",
+      askOpen: "1.0902", askHigh: "1.1102", askLow: "1.0802", askClose: "1.0902",
+    };
+    expect(checkStopTakeProfit("long", "1.09900", null, c, "0", "0.0001", "conservative")?.price).toBe("1.0898");
+  });
+
+  it.each([
+    ["long", "1.09000", "1.10500", "1.11000"],
+    ["short", "1.11000", "1.09500", "1.09000"],
+  ] as const)("executes %s take-profit at the open before a later stop touch", (direction, stop, profit, open) => {
+    const hit = checkStopTakeProfit(direction, stop, profit, candle(open, "1.12000", "1.08000", "1.10000"), "0", "0.0001", "conservative");
+    expect(hit).toEqual({ price: profit, reason: "take-profit", intrabarAmbiguous: false });
+  });
+
   it("detects a long stop-loss", () => {
     const hit = checkStopTakeProfit("long", "1.09900", "1.10500", candle("1.10000", "1.10050", "1.09850", "1.09900"), "0", "0.0001", "conservative");
     expect(hit?.reason).toBe("stop-loss");

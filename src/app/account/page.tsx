@@ -16,7 +16,8 @@ import {
 import { AccountActions } from "@/components/account/AccountActions";
 import { ProfileDetailsForm } from "@/components/account/ProfileDetailsForm";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
-import { isProPlan } from "@/lib/billing/entitlements";
+import { hasProAccess, isProPlan } from "@/lib/billing/entitlements";
+import { FREE_MONTHLY_SESSIONS } from "@/lib/billing/plan-limits";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +32,15 @@ function initials(name: string): string {
     .join("") || "FT";
 }
 
-function planName(value: string): string {
-  return value.startsWith("pro_") ? "Pro" : "Free";
+const accessDate = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+
+/** Where an account's Pro comes from, so a grant or pass still reads as Pro. */
+function planNote(profile: { billingStatus: string; proAccessUntil: Date | null }, hasPro: boolean): string {
+  if (!hasPro) return `${FREE_MONTHLY_SESSIONS} sessions a month on the major pairs.`;
+  if (profile.billingStatus === "non-renewing") return profile.proAccessUntil ? `Pro until ${accessDate.format(profile.proAccessUntil)}, not renewing.` : "Pro until the end of the paid term.";
+  if (["active", "attention"].includes(profile.billingStatus)) return "Pro subscription is active.";
+  if (profile.proAccessUntil && hasProAccess(profile)) return `Pro access granted until ${accessDate.format(profile.proAccessUntil)}.`;
+  return "Full access while billing is off.";
 }
 
 export default async function AccountPage() {
@@ -45,7 +53,8 @@ export default async function AccountPage() {
   // Same rule as the entitlements, including full access while billing is off.
   const hasPro = isProPlan(profile);
   const displayName = profile.displayName || user.email?.split("@")[0] || "ForexTestLab trader";
-  const currentPlan = hasPro ? planName(profile.billingPlan) : "Free";
+  const currentPlan = hasPro ? "Pro" : "Free";
+  const note = planNote(profile, hasPro);
   const joined = new Intl.DateTimeFormat("en-US", {
     month: "short",
     year: "numeric",
@@ -152,7 +161,7 @@ export default async function AccountPage() {
               {hasPro && <div aria-hidden className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-300/10 blur-2xl" />}
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-300">Your plan</p>
               <div className="mt-3 flex items-end justify-between gap-3">
-                <div><p className="text-xl font-bold">{currentPlan}</p><p className="mt-1 text-xs app-muted">{hasPro ? "Paid workspace access is active." : "Core replay access."}</p></div>
+                <div><p className="text-xl font-bold">{currentPlan}</p><p className="mt-1 text-xs app-muted">{note}</p></div>
                 {hasPro ? <Crown size={22} className="text-amber-200" aria-hidden /> : <CreditCard size={22} className="text-brand-300" aria-hidden />}
               </div>
               <Link href="/account/billing" className="mt-5 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-300 hover:text-brand-200">

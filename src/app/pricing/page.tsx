@@ -83,15 +83,10 @@ export default async function PricingPage() {
     <PageShell>
       <main className="border-b border-white/10">
         <section className="container-page pb-6 pt-8 text-center sm:pt-10">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Your next edge starts here</p>
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Plans</p>
           <h1 className="mx-auto max-w-3xl text-balance text-4xl font-bold tracking-[-0.045em] text-white sm:text-5xl">
-            Start with curiosity.<br />Go further with Pro.
+            Make your next move.
           </h1>
-          <p className="mx-auto mt-3 max-w-2xl text-pretty text-base leading-7 text-slate-400">
-            {checkoutEnabled
-              ? "A free place to begin. A complete workspace to grow."
-              : "During early access every account has the full workspace for free."}
-          </p>
         </section>
 
         <section className="container-page pb-12 sm:pb-16">

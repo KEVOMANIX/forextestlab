@@ -45,9 +45,9 @@ const definitions: DiscountDefinition[] = [
     description: "20% off the first monthly payment",
     amount: "20",
     usageLimit: null,
-    restrictTo: monthlyPriceIds,
+    restrictTo: [...monthlyPriceIds, ...(process.env.PADDLE_LIVE_PRO_MONTH_TRIAL_PRICE_ID?.trim() ? [requiredPriceId("PADDLE_LIVE_PRO_MONTH_TRIAL_PRICE_ID")] : [])],
     samplePriceId: monthlyPriceIds[0]!,
-    expiresAt: "2026-10-21T23:59:59Z",
+    expiresAt: null,
   },
   {
     code: "PARTNER15",

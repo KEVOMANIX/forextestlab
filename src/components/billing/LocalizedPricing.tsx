@@ -4,8 +4,9 @@ import { ArrowRight, Check, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { FREE_PLAN_FEATURES } from "@/lib/billing/plan-copy";
-import { PRO_TRIAL_DAYS } from "@/lib/billing/plan-limits";
+import { PRICING_PLAN_FEATURES } from "@/lib/billing/plan-copy";
+import { CopyWelcomeCode } from "@/components/WelcomeOffer";
+import { WELCOME_OFFER } from "@/lib/promotions";
 import type { BillingInterval, Tier } from "@/lib/billing/tier-types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
@@ -97,12 +98,6 @@ interface LocalizedPricingProps {
   trialOffer?: boolean;
   /** Keep the offer discoverable even when this account cannot claim it. */
   trialAvailable?: boolean;
-}
-
-/** "30 October 2026": the trial's end if it starts today. */
-function trialEndLabel(days = PRO_TRIAL_DAYS): string {
-  const end = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric" }).format(end);
 }
 
 function previewItems(tiers: Tier[]): PaddlePricePreviewParams["items"] {
@@ -244,17 +239,8 @@ export function LocalizedPricing({
 
   return (
     <div>
-      {trialAvailable && trialTier && (
-        <aside data-testid="trial-callout" className="mx-auto mb-5 flex max-w-4xl flex-col items-start justify-between gap-3 rounded-2xl border border-brand-400/30 bg-brand-400/10 px-5 py-4 sm:flex-row sm:items-center">
-          <div><p className="text-sm font-semibold text-white">Try Pro free for 7 days.</p><p className="mt-1 text-xs text-slate-300">{trialOffer ? "All Pro features. Card required. Cancel anytime." : "For new members. This account isn’t eligible for a free trial."}</p></div>
-          {trialOffer ? (
-            <button type="button" onClick={() => void subscribe(trialTier)} disabled={!paddle || loading || !selectedPrice || Boolean(openingPriceId)} className="btn-primary w-full shrink-0 sm:w-auto">
-              {openingPriceId ? <><Loader2 size={15} className="animate-spin" aria-hidden /> Opening checkout</> : <>Start 7-day free trial <ArrowRight size={15} aria-hidden /></>}
-            </button>
-          ) : <Link href="/faq" className="btn-secondary w-full shrink-0 sm:w-auto">Trial details <ArrowRight size={15} aria-hidden /></Link>}
-        </aside>
-      )}
-      <div className="mx-auto flex w-fit rounded-xl border border-white/10 bg-surface-900/80 p-1 shadow-card" aria-label="Billing frequency">
+      <div className="mx-auto mb-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
+      <div className="flex w-fit rounded-xl border border-white/10 bg-surface-900/80 p-1 shadow-card" aria-label="Billing frequency">
         {(["month", "year"] as const).map((value) => (
           <button
             key={value}
@@ -267,23 +253,32 @@ export function LocalizedPricing({
           </button>
         ))}
       </div>
+      {trialAvailable && trialTier && (
+        <div data-testid="trial-callout" className="text-xs">
+          {trialOffer ? (
+            <button type="button" onClick={() => void subscribe(trialTier)} disabled={!paddle || loading || !selectedPrice || Boolean(openingPriceId)} className="inline-flex items-center gap-1.5 py-2 font-semibold text-brand-200 underline underline-offset-4 disabled:opacity-50">
+              {openingPriceId ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Opening checkout</> : <>Try Pro free for 7 days <ArrowRight size={14} aria-hidden /></>}
+            </button>
+          ) : <Link href="/faq" className="inline-flex items-center gap-1.5 py-2 text-slate-300 underline underline-offset-4" aria-label="7-day trial details. This account isn’t eligible for a free trial.">7-day trial · new members <ArrowRight size={14} aria-hidden /></Link>}
+        </div>
+      )}
+      </div>
 
       {error && <div role="alert" className="mx-auto mt-5 max-w-xl rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-center text-sm text-red-200">{error}</div>}
 
-      <div className="mx-auto mt-5 grid max-w-4xl items-start gap-5 md:grid-cols-2">
-        <article data-testid="plan-free" className="relative flex flex-col rounded-[20px] border border-white/10 bg-surface-900 p-6 shadow-card">
+      <div className="mx-auto grid max-w-3xl gap-5 md:grid-cols-2">
+        <article data-testid="plan-free" className="relative flex flex-col rounded-2xl border border-white/10 bg-surface-900 p-6 shadow-card sm:p-7">
           <p className="text-lg font-semibold text-white">Free</p>
-          <p className="mt-2 text-sm text-slate-400">Build your backtesting routine.</p>
-          <div className="mt-4 flex min-h-10 items-end gap-2">
-            <strong className="text-4xl font-bold tracking-tight text-white">$0</strong>
+          <div className="mt-5 flex min-h-12 items-end gap-2">
+            <strong className="text-5xl font-bold tracking-tight text-white">$0</strong>
             <span className="pb-1 text-sm text-slate-500">/ forever</span>
           </div>
-          <p className="mt-3 text-xs text-slate-400">Free forever. No card required.</p>
+          <p className="mt-3 text-xs text-slate-400">No card required.</p>
           <Link href={browserIdentity.userId ? "/app/backtest" : "/sign-up"} className="btn-secondary mt-5 w-full text-center">
             {browserIdentity.userId ? "Start a free session" : "Start free"} <ArrowRight size={15} aria-hidden />
           </Link>
           <ul className="mt-5 space-y-3 border-t border-white/10 pt-5">
-            {FREE_PLAN_FEATURES.map((feature) => (
+            {PRICING_PLAN_FEATURES.free.map((feature) => (
               <li key={feature} className="flex gap-2.5 text-sm text-slate-300">
                 <Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
                 <span>{feature}</span>
@@ -300,15 +295,14 @@ export function LocalizedPricing({
             <article
               key={tier.id}
               data-testid="plan-pro"
-              className={`relative flex flex-col rounded-[20px] border bg-surface-900 p-6 shadow-card ${tier.featured ? "border-brand-400/60" : "border-white/10"}`}
+              className={`relative flex flex-col rounded-2xl border bg-surface-900 p-6 shadow-card sm:p-7 ${tier.featured ? "border-brand-400/60" : "border-white/10"}`}
             >
               <div className="flex items-center justify-between gap-3"><p className="text-lg font-semibold text-white">{tier.name}</p><span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1 text-[11px] font-semibold text-brand-200">{trialOffer ? "7 days free" : "Full access"}</span></div>
-              <p className="mt-2 text-sm text-slate-400">The complete trading workspace.</p>
-              <div className="mt-4 flex min-h-10 items-end gap-2">
-                {loading || !price ? <span className="h-10 w-32 animate-pulse rounded-lg bg-white/10" aria-label="Loading localized price" /> : <strong className="text-4xl font-bold tracking-tight text-white">{price}</strong>}
+              <div className="mt-5 flex min-h-12 items-end gap-2">
+                {loading || !price ? <span className="h-12 w-32 animate-pulse rounded-lg bg-white/10" aria-label="Loading localized price" /> : <strong className="text-5xl font-bold tracking-tight text-white">{price}</strong>}
                 <span className="pb-1 text-sm text-slate-500">/ {interval}</span>
               </div>
-              <p className="mt-3 text-xs text-slate-400">{trialOffer ? "7-day free trial. Card required." : "Cancel anytime."}</p>
+              <p className="mt-3 text-xs text-slate-400">Every tool. Every market.</p>
               <button
                 type="button"
                 onClick={() => void subscribe(tier)}
@@ -318,20 +312,23 @@ export function LocalizedPricing({
                 {opening ? <><Loader2 size={15} className="animate-spin" aria-hidden /> Opening checkout</> : <>Choose Pro <ArrowRight size={15} aria-hidden /></>}
               </button>
               <ul className="mt-5 space-y-3 border-t border-brand-400/20 pt-5">
-                {tier.features.map((feature) => <li key={feature} className="flex gap-2.5 text-sm text-slate-200"><Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden /><span>{feature}</span></li>)}
+                {PRICING_PLAN_FEATURES.pro.map((feature) => <li key={feature} className="flex gap-2.5 text-sm text-slate-200"><Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden /><span>{feature}</span></li>)}
               </ul>
             </article>
           );
         })}
       </div>
 
-      <div className="mx-auto mt-5 max-w-4xl space-y-2 text-center text-xs leading-5 text-slate-400">
-        <p>Every plan includes simulated orders, stop-loss, take-profit and risk sizing.</p>
+      <aside data-testid="discount-offer" className="mx-auto mt-5 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-white/15 bg-surface-900/60 px-5 py-4">
+        <p className="text-sm text-slate-200">{WELCOME_OFFER.discountLabel}<span className="ml-2 text-xs text-slate-400">Monthly plans</span></p>
+        <CopyWelcomeCode />
+      </aside>
+
+      <div className="mx-auto mt-5 max-w-3xl text-center text-xs leading-5 text-slate-400">
         <p data-testid={`terms-${interval}`}>
           {trialOffer
-            ? <>7 days free, then {selectedPrice ?? "the checkout total"} / {interval}. If started today, billed on {trialEndLabel()}; renews automatically unless you cancel. One trial per account.</>
+            ? <>Trial: card required. Then {selectedPrice ?? "the checkout total"} / {interval}; renews until canceled. One trial per account.</>
             : <>Charged today; renews every {interval} until canceled.</>}
-          {" "}Manage or cancel in Account → Billing.
         </p>
       </div>
       <p className="mt-6 flex items-center justify-center gap-2 text-center text-xs text-slate-500"><ShieldCheck size={14} className="text-brand-300" aria-hidden />Localized totals and secure checkout are provided by Paddle.</p>

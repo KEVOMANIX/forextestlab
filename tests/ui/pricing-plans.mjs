@@ -41,21 +41,25 @@ try {
     });
     await page.addStyleTag({ content: css.css });
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
-    await expect(page.getByRole("button", { name: "Start 7-day free trial" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Try Pro free for 7 days" })).toBeEnabled();
     for (const feature of ["AI Analyst", "Prop Firm Challenges", "CSV & PDF exports"]) {
       await expect(page.getByTestId("plan-free").getByText(feature, { exact: false })).toHaveCount(0);
-      await expect(page.getByTestId("plan-pro").getByText(feature, { exact: true })).toBeVisible();
+      await expect(page.getByTestId("plan-pro").getByText(feature, { exact: false })).toBeVisible();
     }
     await expect(page.getByTestId("plan-free").getByText("Advanced analytics", { exact: false })).toHaveCount(0);
     await expect(page.getByTestId("plan-pro").getByRole("button", { name: "Choose Pro" })).toBeEnabled();
-    await expect(page.getByTestId("plan-pro").getByRole("button", { name: "Start 7-day free trial" })).toHaveCount(0);
-    await expect(page.getByTestId("trial-callout").getByRole("button", { name: "Start 7-day free trial" })).toBeEnabled();
+    await expect(page.getByTestId("plan-pro").getByRole("button", { name: "Try Pro free for 7 days" })).toHaveCount(0);
+    await expect(page.getByTestId("trial-callout").getByRole("button", { name: "Try Pro free for 7 days" })).toBeEnabled();
     const calloutBox = await page.getByTestId("trial-callout").boundingBox();
     const freeBox = await page.getByTestId("plan-free").boundingBox();
     const proBox = await page.getByTestId("plan-pro").boundingBox();
     assert.ok(calloutBox.y + calloutBox.height < freeBox.y, "Trial must appear before the cards");
-    assert.ok(freeBox.height < proBox.height - 70, "Free card must not stretch to leave blank feature rows");
-    await expect(page.getByTestId("plan-pro").getByText("Advanced analytics & reports", { exact: true })).toBeVisible();
+    assert.ok(Math.abs(freeBox.height - proBox.height) <= 50, "Essential cards stay compact and balanced");
+    await expect(page.getByTestId("plan-pro").getByText("AI Analyst · advanced analytics", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("discount-offer")).toContainText("20% off your first paid month");
+    await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async code => { window.copiedCode = code; } } }));
+    await page.getByRole("button", { name: "Copy discount code WELCOME20" }).click();
+    await expect.poll(() => page.evaluate(() => window.copiedCode)).toBe("WELCOME20");
     await expect(page.getByTestId("terms-month")).toContainText("$10.00 / month");
     assert.equal(await page.getByTestId("plan-pro").getByTestId("terms-month").count(), 0, "Billing disclosure belongs below the cards");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "No horizontal overflow");
@@ -67,7 +71,7 @@ try {
       return route.fulfill({ json: { ok: true, transactionId: "txn_fixture", trial: true } });
     });
     await page.evaluate(() => { window.Paddle.Checkout.open = options => { window.openedCheckout = options.transactionId; }; });
-    await page.getByTestId("trial-callout").getByRole("button", { name: "Start 7-day free trial" }).click();
+    await page.getByTestId("trial-callout").getByRole("button", { name: "Try Pro free for 7 days" }).click();
     await expect.poll(() => page.evaluate(() => window.openedCheckout)).toBe("txn_fixture");
     // Closing the checkout clears its pending state before checking a returning account.
     await page.reload();
@@ -81,9 +85,8 @@ try {
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
     await page.evaluate(() => window.renderPricing(false));
     await expect(page.getByRole("button", { name: "Choose Pro", exact: true })).toBeEnabled();
-    await expect(page.getByTestId("trial-callout")).toContainText("This account isn’t eligible for a free trial.");
-    await expect(page.getByTestId("trial-callout").getByRole("button", { name: "Start 7-day free trial" })).toHaveCount(0);
-    await expect(page.getByTestId("trial-callout").getByRole("link", { name: "Trial details" })).toBeVisible();
+    await expect(page.getByTestId("trial-callout").getByRole("button", { name: "Try Pro free for 7 days" })).toHaveCount(0);
+    await expect(page.getByTestId("trial-callout").getByRole("link", { name: /7-day trial details/ })).toBeVisible();
     await expect(page.getByTestId("terms-month")).toContainText("Charged today");
     console.log(`${width}px: trial and returning-customer pricing, plan exclusions, annual billing and layout passed`);
     await page.close();

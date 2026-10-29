@@ -26,3 +26,9 @@ export const PRO_PLAN_FEATURES = [
 
 export const PRO_TRIAL_SUMMARY =
   "Try every Pro feature free for 7 days. Choose monthly or yearly.";
+
+/** Short rows for the Essential pricing cards. */
+export const PRICING_PLAN_FEATURES = {
+  free: ["3 sessions / month", "7 major FX pairs", "31 days / session", "Journal & basic results"],
+  pro: ["Unlimited sessions · 38 markets", "Full history · multi-pair replay", "AI Analyst · advanced analytics", "Prop Firm Challenges", "CSV & PDF exports"],
+} as const;

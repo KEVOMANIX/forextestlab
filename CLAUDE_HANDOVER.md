@@ -14,6 +14,13 @@
 
 # ForexTestLab operational handover
 
+### 2026-10-29 — Essential pricing and WELCOME20
+
+- Owner selected Essential from the new minimal previews. Pricing uses "Make your next move.", four included-only Free rows and five grouped Pro rows. Trial link sits beside the billing switch; discount strip below the cards has a copy button. Compact billing terms remain below it. Ineligible accounts keep a new-members trial-details link.
+- Reactivated the existing WELCOME20 live discount: 20% off the first paid monthly payment, non-recurring, enabled for checkout, no expiry. Preserved existing price restrictions and added the live monthly trial price; yearly prices are excluded. A restricted JSON backup of the old discount is on Lightsail under `/home/ubuntu/.welcome20-before-essential-*.json`.
+- Verified Paddle monthly pricing preview is $8 and a seven-day-trial draft checkout accepts the discount. Paddle carries a one-time discount past a free trial to the first paid billing period. No real subscription or charge was created. The discount seeder and local promotion copy now match the reactivated offer.
+- Updated browser regression covers short feature rows, copy-code interaction, monthly/yearly switching, trial checkout and returning-account rendering on desktop/mobile.
+
 ### 2026-10-29 — Seven-day Pro trial and pricing cards
 
 - Owner selected the Signature design: centered two-line heading and compact plan cards. Free lists included features only. The Pro card uses "Choose Pro". After spacing feedback, the trial callout sits above the cards, remains discoverable for ineligible accounts with an explicit eligibility message and FAQ link, and offers checkout only when eligible. Reduced hero/card spacing, widened the comparison and stopped stretching Free to the taller Pro card. Checkout eligibility is unchanged.

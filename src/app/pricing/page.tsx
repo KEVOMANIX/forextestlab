@@ -7,7 +7,7 @@ import { PageShell } from "@/components/PageShell";
 import { billingEnabled } from "@/lib/billing/availability";
 import { proTrialEligible } from "@/lib/billing/checkout";
 import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billing/paddle";
-import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES, PRO_TRIAL_SUMMARY } from "@/lib/billing/plan-copy";
+import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from "@/lib/billing/plan-copy";
 import { getPricingTiers, proTrialPricesConfigured } from "@/lib/billing/tiers";
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -82,13 +82,14 @@ export default async function PricingPage() {
   return (
     <PageShell>
       <main className="border-b border-white/10">
-        <section className="container-page py-14 text-center sm:py-16">
-          <h1 className="mx-auto max-w-3xl text-balance text-4xl font-bold tracking-[-0.035em] text-white sm:text-5xl">
-            Start free. Go Pro when you need more.
+        <section className="container-page pb-8 pt-12 text-center sm:pt-14">
+          <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Your next edge starts here</p>
+          <h1 className="mx-auto max-w-3xl text-balance text-4xl font-bold tracking-[-0.045em] text-white sm:text-5xl">
+            Start with curiosity.<br />Go further with Pro.
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-7 text-slate-400">
             {checkoutEnabled
-              ? (trialOffer ? PRO_TRIAL_SUMMARY : "Free covers the major pairs every month. Pro unlocks every market, the full history, multi-pair replay, full analytics and Prop Firm Challenge mode.")
+              ? "A free place to begin. A complete workspace to grow."
               : "During early access every account has the full workspace for free."}
           </p>
         </section>

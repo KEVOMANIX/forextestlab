@@ -16,6 +16,8 @@
 
 ### 2026-10-29 — Seven-day Pro trial and pricing cards
 
+- Owner selected the Signature design: centered two-line heading and compact matching plan cards. Free lists included features only. The Pro card uses "Choose Pro"; eligible users get a separate seven-day trial callout below the cards. Both actions use the same server-selected eligible price; returning subscribers see no trial callout.
+
 - The owner requested a 7-day Pro trial. Created/reused separate live monthly and yearly trial prices under the existing product, preserving the $10/month and $80/year renewal amounts, tax settings and plain paid prices. Saved `PADDLE_LIVE_PRO_MONTH_TRIAL_PRICE_ID` and `PADDLE_LIVE_PRO_YEAR_TRIAL_PRICE_ID` in production. Both prices have a free seven-day trial requiring a payment method; verified draft checkouts carry the correct trial. No real subscription or charge created.
 - Added trialing, activated, past_due, paused, resumed and transaction.payment_failed to the existing production webhook subscriptions. Existing checkout eligibility still enforces one trial per account and excludes prior subscribers/current Pro accounts.
 - Pricing cards use short matching feature rows with explicit Free exclusions for Advanced Analytics, AI Analyst, Prop Firm Challenges and CSV/PDF exports. Billing/renewal terms sit below the cards. Pricing section passes trial availability; pricing page still applies account eligibility. FAQ explains the trial.

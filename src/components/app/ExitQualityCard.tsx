@@ -284,14 +284,14 @@ function pf(metrics: OptimizerMetrics) {
 
 export type OptimizerObjective = "balanced" | "return" | "profit-factor" | "drawdown";
 
-function objectiveScore(row: ExitOptimizerReport["rules"][number], objective: OptimizerObjective) {
+export function objectiveScore(row: ExitOptimizerReport["rules"][number], objective: OptimizerObjective) {
   if (objective === "return") return row.all.netR;
   if (objective === "profit-factor") return row.all.profitFactor ?? (row.all.netR > 0 ? 999 : 0);
   if (objective === "drawdown") return -row.all.maxDrawdownR;
   return row.all.netR / Math.max(1, row.all.maxDrawdownR);
 }
 
-function validationReason(row: ExitOptimizerReport["rules"][number], baseline: OptimizerMetrics) {
+export function validationReason(row: ExitOptimizerReport["rules"][number], baseline: OptimizerMetrics) {
   if (row.validation.trades < 3) return { label: "Too few trades", detail: "Fewer than 3 validation trades" };
   if (row.validation.netR <= 0) return { label: "Lost in validation", detail: "Later trades produced a loss" };
   if (row.validation.profitFactor !== null && row.validation.profitFactor <= 1) return { label: "PF below 1", detail: "Validation losses outweighed gains" };

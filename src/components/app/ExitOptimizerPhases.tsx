@@ -14,14 +14,15 @@ function groups(trades: OptimizedTradeResult[], key: (trade: OptimizedTradeResul
   return [...map].map(([label, value]) => ({ label, ...value, delta: value.optimized - value.actual })).sort((a, b) => b.delta - a.delta);
 }
 
-export function ExitOptimizerPhases({ report, best }: { report: ExitOptimizerReport; best: OptimizerRuleResult }) {
+export function ExitOptimizerPhases({ report, best, activePhase }: { report: ExitOptimizerReport; best: OptimizerRuleResult; activePhase?: 3 | 4 | 5 | 6 }) {
   const [phase, setPhase] = useState<3 | 4 | 5 | 6>(3);
-  return <section className="mt-5 rounded-xl border app-border bg-black/[0.05] p-4">
-    <div className="flex gap-2 overflow-x-auto">{([3, 4, 5, 6] as const).map((number) => <button key={number} type="button" onClick={() => setPhase(number)} className={`min-w-36 flex-1 rounded-lg border px-3 py-2 text-left ${phase === number ? "border-brand-400/45 bg-brand-400/[0.08]" : "app-border bg-white/[0.015]"}`}><span className="text-[9px] font-semibold text-brand-300">Phase {number}</span><strong className="mt-0.5 block text-[11px]">{{ 3: "Context", 4: "Robustness", 5: "Trade review", 6: "Deploy plan" }[number]}</strong></button>)}</div>
-    {phase === 3 && <ContextPhase best={best} />}
-    {phase === 4 && <RobustnessPhase report={report} best={best} />}
-    {phase === 5 && <TradeReviewPhase best={best} />}
-    {phase === 6 && <DeployPhase report={report} best={best} />}
+  const current = activePhase ?? phase;
+  return <section className={activePhase ? "" : "mt-5 rounded-xl border app-border bg-black/[0.05] p-4"}>
+    {!activePhase && <div className="flex gap-2 overflow-x-auto">{([3, 4, 5, 6] as const).map((number) => <button key={number} type="button" onClick={() => setPhase(number)} className={`min-w-36 flex-1 rounded-lg border px-3 py-2 text-left ${phase === number ? "border-brand-400/45 bg-brand-400/[0.08]" : "app-border bg-white/[0.015]"}`}><span className="text-[9px] font-semibold text-brand-300">Phase {number}</span><strong className="mt-0.5 block text-[11px]">{{ 3: "Context", 4: "Robustness", 5: "Trade review", 6: "Deploy plan" }[number]}</strong></button>)}</div>}
+    {current === 3 && <ContextPhase best={best} />}
+    {current === 4 && <RobustnessPhase report={report} best={best} />}
+    {current === 5 && <TradeReviewPhase best={best} />}
+    {current === 6 && <DeployPhase report={report} best={best} />}
   </section>;
 }
 

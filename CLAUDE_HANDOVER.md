@@ -14,6 +14,13 @@
 
 # ForexTestLab operational handover
 
+### 2026-10-29 — Obsidian Desk exit optimizer
+
+- Owner selected Obsidian Desk. Replaced the stacked wizard/status boxes with one six-phase navigation, Configure/Results view switch, compact rule selection and a persistent test-scope/objective sidebar. Report view has a validated recommendation, four primary figures, responsive labeled equity comparison and candidate table. Extra metrics, all candidates and trade impacts remain available through disclosures.
+- Context, robustness, review, device-local plan saving and JSON export reuse the existing phase components, now controllable by the workspace navigation. Objectives reuse the existing ranking logic and still select only validation-passing rules. No optimizer engine/API/entitlement changes; no mock performance values were shipped.
+- Loading now reflects the active request without an invented progress percentage. Requests abort on session change/unmount and old reports clear on session changes. Unfinished sessions and sample-only mode still cannot run analysis. Failed/no-winner results remain explicit.
+- Scoped styles follow existing dark/light app tokens; mobile stacks the report and scope without page overflow. `tests/ui/optimizer-desk.mjs` runs real components and report calculations with deterministic intercepted responses, covering selection payloads, ranking, all phases, trade focus, saving/export, request errors, no-winner state, session reset, full candidate disclosure, desktop/mobile and both themes. Windows: `PLAYWRIGHT_CHANNEL=msedge`.
+
 ### 2026-10-29 — Essential pricing and WELCOME20
 
 - Checkout follow-up: production logged a 404 for a saved Paddle customer that no longer exists in the live account. The checkout helper now retries once without that customer reference only for the exact Paddle `not_found` customer error. Price, permission and server errors still fail normally. Account custom_data is preserved so the completion webhook can relink the current customer. No saved billing history or entitlement was reset. Regression tests cover the fallback and unrelated failures.

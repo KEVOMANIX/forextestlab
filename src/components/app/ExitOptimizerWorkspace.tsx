@@ -1,83 +1,132 @@
 "use client";
 
-import { ArrowRight, Check, Clock3, LoaderCircle, Play, RotateCcw, ShieldCheck, Target, TrendingUp, Trophy, Workflow } from "lucide-react";
+import { ArrowUpRight, Check, Clock3, LoaderCircle, Play, ShieldCheck, Target, TrendingUp, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { ExitOptimizerPanel, type OptimizerObjective } from "@/components/app/ExitQualityCard";
+import { objectiveScore, type OptimizerObjective } from "@/components/app/ExitQualityCard";
+import { ExitOptimizerPhases } from "@/components/app/ExitOptimizerPhases";
+import { ExitOptimizerResults } from "@/components/app/ExitOptimizerResults";
 import type { ExitOptimizerReport } from "@/lib/backtest/exit-optimizer";
+import styles from "./ExitOptimizerWorkspace.module.css";
 
-type RuleGroup = { id: string; phase: number; label: string; detail: string; description: string; rules: readonly string[]; icon: ComponentType<{ size?: number; className?: string }> };
+type RuleGroup = { id: string; phase: 1 | 2; label: string; detail: string; rules: readonly string[]; icon: ComponentType<{ size?: number }> };
 const GROUPS: readonly RuleGroup[] = [
-  { id: "targets", phase: 1, label: "Fixed targets", detail: "0.5R to 3R", description: "Find the profit target with the strongest repeatable result.", rules: ["target-0.5", "target-1", "target-1.5", "target-2", "target-2.5", "target-3"], icon: Target },
-  { id: "break-even", phase: 1, label: "Break even", detail: "Trigger from +0.5R to +2R", description: "Move the stop to entry after price reaches a reward threshold.", rules: ["be-0.5", "be-1", "be-1.5", "be-2"], icon: ShieldCheck },
-  { id: "trailing", phase: 1, label: "Trailing stops", detail: "Three R-based trails", description: "Protect open profit while allowing winners room to continue.", rules: ["trail-1-0.5", "trail-1.5-1", "trail-2-1"], icon: TrendingUp },
-  { id: "holding", phase: 1, label: "Holding time", detail: "Exit after 1 to 12 hours", description: "Discover whether time in the market helps your outcomes.", rules: ["hold-1h", "hold-2h", "hold-4h", "hold-8h", "hold-12h"], icon: Clock3 },
-  { id: "combinations", phase: 2, label: "Rule combinations", detail: "Protection + target chains", description: "Test break-even, trailing and a final target as one coordinated plan.", rules: ["combo-be1-trail2-1-target3", "combo-be0.5-trail1.5-1-target3", "combo-be1-trail2-0.5-target3", "combo-be1-trail1.5-0.5-target2.5"], icon: Workflow },
+  { id: "targets", phase: 1, label: "Fixed targets", detail: "0.5R to 3R", rules: ["target-0.5", "target-1", "target-1.5", "target-2", "target-2.5", "target-3"], icon: Target },
+  { id: "break-even", phase: 1, label: "Break even", detail: "Trigger from +0.5R to +2R", rules: ["be-0.5", "be-1", "be-1.5", "be-2"], icon: ShieldCheck },
+  { id: "trailing", phase: 1, label: "Trailing stops", detail: "Three R-based trails", rules: ["trail-1-0.5", "trail-1.5-1", "trail-2-1"], icon: TrendingUp },
+  { id: "holding", phase: 1, label: "Holding time", detail: "Exit after 1 to 12 hours", rules: ["hold-1h", "hold-2h", "hold-4h", "hold-8h", "hold-12h"], icon: Clock3 },
+  { id: "combinations", phase: 2, label: "Rule combinations", detail: "Break even + trailing stop + final target", rules: ["combo-be1-trail2-1-target3", "combo-be0.5-trail1.5-1-target3", "combo-be1-trail2-0.5-target3", "combo-be1-trail1.5-0.5-target2.5"], icon: Workflow },
 ];
-const STAGES = [
-  { threshold: 22, label: "Preparing trades", detail: "Loading entries, stops and candle paths" },
-  { threshold: 58, label: "Testing combinations", detail: "Replaying every selected exit rule" },
-  { threshold: 88, label: "Validating candidates", detail: "Checking winners on later trades" },
-  { threshold: 101, label: "Ranking results", detail: "Comparing stability and drawdown" },
-] as const;
-const OBJECTIVES: Array<{ id: OptimizerObjective; label: string; detail: string }> = [
-  { id: "balanced", label: "Balanced", detail: "Return and risk" },
-  { id: "return", label: "Maximum return", detail: "Highest total R" },
-  { id: "profit-factor", label: "Profit factor", detail: "Best gain/loss ratio" },
-  { id: "drawdown", label: "Lowest drawdown", detail: "Smoothest result" },
+const OBJECTIVES: Array<{ id: OptimizerObjective; label: string }> = [
+  { id: "balanced", label: "Balanced" }, { id: "return", label: "Maximum return" },
+  { id: "profit-factor", label: "Profit factor" }, { id: "drawdown", label: "Lowest drawdown" },
 ];
-const PHASES = ["Single rules", "Combinations", "Context", "Robustness", "Review", "Deploy"];
+const PHASES = ["Rules", "Combinations", "Context", "Robustness", "Review", "Deploy"];
+type Phase = 1 | 2 | 3 | 4 | 5 | 6;
+const isAnalysisPhase = (phase: Phase): phase is 3 | 4 | 5 | 6 => phase >= 3;
 
 export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: string; status: string }) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(GROUPS.map((g) => g.id)));
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(GROUPS.map(group => group.id)));
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ExitOptimizerReport | null>(null);
   const [objective, setObjective] = useState<OptimizerObjective>("balanced");
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
+  const [view, setView] = useState<"configure" | "results">("configure");
+  const [phase, setPhase] = useState<Phase>(1);
+  const request = useRef<AbortController | null>(null);
 
-  const toggle = (id: string) => setSelected((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  useEffect(() => {
+    setReport(null); setError(null); setRunning(false); setView("configure"); setPhase(1);
+    return () => { request.current?.abort(); request.current = null; };
+  }, [sessionId]);
+
+  const best = report?.rules.filter(row => row.validationPassed).sort((a, b) => objectiveScore(b, objective) - objectiveScore(a, objective))[0] ?? null;
+  const ruleCount = GROUPS.filter(group => selected.has(group.id)).reduce((sum, group) => sum + group.rules.length, 0);
+  const canRun = status === "finished" && Boolean(sessionId) && ruleCount > 0 && !running;
+  const toggle = (id: string) => setSelected(current => {
+    const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next;
+  });
+  const configure = () => { setView("configure"); setPhase(1); };
   const run = async () => {
-    if (!sessionId || status !== "finished" || !selected.size) return;
-    setRunning(true); setReport(null); setError(null); setProgress(4);
-    timer.current = setInterval(() => setProgress((v) => Math.min(92, v + (v < 35 ? 7 : v < 70 ? 4 : 1))), 450);
+    if (!canRun || !sessionId) return;
+    const controller = new AbortController();
+    request.current?.abort(); request.current = controller;
+    setRunning(true); setError(null);
     try {
-      const ruleIds = GROUPS.filter((g) => selected.has(g.id)).flatMap((g) => [...g.rules]);
-      const response = await fetch(`/api/backtest/sessions/${encodeURIComponent(sessionId)}/exit-optimizer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ruleIds }) });
+      const ruleIds = GROUPS.filter(group => selected.has(group.id)).flatMap(group => [...group.rules]);
+      const response = await fetch(`/api/backtest/sessions/${encodeURIComponent(sessionId)}/exit-optimizer`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ruleIds }), signal: controller.signal,
+      });
       const body = await response.json() as { optimizer?: ExitOptimizerReport; error?: string };
       if (!response.ok || !body.optimizer) throw new Error(body.error || "The optimizer could not complete.");
-      setProgress(100); setReport(body.optimizer);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "The optimizer could not complete."); setProgress(0); }
-    finally { if (timer.current) clearInterval(timer.current); timer.current = null; setRunning(false); }
+      if (!controller.signal.aborted) { setReport(body.optimizer); setView("results"); setPhase(1); }
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "The optimizer could not complete.");
+    } finally {
+      if (request.current === controller) { request.current = null; setRunning(false); }
+    }
   };
 
-  const currentStep = report ? 3 : running ? 2 : 1;
-  const activeStage = STAGES.findIndex((stage) => progress < stage.threshold);
-  const ruleCount = GROUPS.filter((g) => selected.has(g.id)).reduce((sum, g) => sum + g.rules.length, 0);
-  const steps = [{ n: 1, title: "Select rules", text: "Choose what to test" }, { n: 2, title: "Run analysis", text: "Replay each combination" }, { n: 3, title: "Review winner", text: "See validated results" }];
+  return <main className={styles.workspace} data-testid="optimizer-workspace">
+    <header className={styles.header}>
+      <div><p className={styles.eyebrow}>Research workspace</p><h2 className={styles.title}>Exit optimizer</h2></div>
+      <div className={styles.viewSwitch} aria-label="Optimizer view">
+        <button type="button" aria-pressed={view === "configure"} onClick={configure} disabled={running}>Configure</button>
+        <button type="button" aria-pressed={view === "results"} onClick={() => { setView("results"); setPhase(1); }} disabled={!report || running}>Results</button>
+      </div>
+    </header>
 
-  return <main className="mt-5 space-y-4">
-    <section className="overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)]">
-      <div className="border-b app-border px-5 py-5 lg:px-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-300">Exit optimizer</p>
-        <h2 className="mt-1 text-xl font-semibold">Find a stronger way to exit</h2>
-        <p className="mt-2 max-w-3xl text-xs leading-5 app-muted">Choose the rules you want to test. We keep every entry and initial stop unchanged, then validate the strongest result on later trades.</p>
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">{PHASES.map((label, index) => <div key={label} className="min-w-32 flex-1 rounded-lg border border-brand-400/30 bg-brand-400/[0.05] px-3 py-2"><p className="text-[9px] font-semibold text-brand-300">Phase {index + 1} · Available</p><p className="mt-0.5 text-[10px] font-medium">{label}</p></div>)}</div>
-        <ol className="mt-5 grid gap-2 md:grid-cols-3">{steps.map((step) => { const complete = currentStep > step.n; const active = currentStep === step.n; return <li key={step.n} className={`relative flex items-center gap-3 rounded-xl border px-4 py-3 ${active ? "border-brand-400/45 bg-brand-400/[0.08]" : complete ? "border-brand-400/20 bg-brand-400/[0.035]" : "app-border bg-white/[0.015]"}`}><span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-bold ${active || complete ? "border-brand-300/60 bg-brand-400 text-surface-950" : "app-border app-muted"}`}>{complete ? <Check size={15} /> : step.n}</span><span><strong className="block text-xs">{step.title}</strong><span className="mt-0.5 block text-[9px] app-muted">{step.text}</span></span>{step.n < 3 && <ArrowRight size={14} className="absolute -right-2.5 z-10 hidden rounded-full bg-[var(--app-panel)] app-muted md:block" />}</li>; })}</ol>
+    <nav className={styles.phases} aria-label="Optimizer phases">
+      {PHASES.map((label, index) => {
+        const number = (index + 1) as Phase;
+        return <button key={label} type="button" aria-current={phase === number ? "step" : undefined}
+          disabled={running || (number > 2 && !best)} title={number > 2 && !best ? "Run the optimizer and find a validated candidate first" : undefined}
+          onClick={() => { setPhase(number); setView(number <= 2 ? "configure" : "results"); }}>
+          <span>{String(number).padStart(2, "0")}</span>{label}
+        </button>;
+      })}
+    </nav>
+
+    <div className={styles.layout}>
+      <div className={styles.content}>
+        {running ? <section className={styles.panel} role="status" aria-live="polite">
+          <div className={styles.loading}><LoaderCircle size={26} className="animate-spin" /><h3>Running your exit analysis</h3><p>Replaying selected rules and validating them on later trades.</p></div>
+        </section> : view === "configure" ? <section className={styles.panel}>
+          <p className={styles.eyebrow}>{phase === 2 ? "Coordinated exit plans" : "Design your test"}</p>
+          <h3 className={styles.sectionTitle}>{phase === 2 ? "Combine protection and targets" : "What would you change?"}</h3>
+          <div className={styles.ruleGrid}>
+            {GROUPS.filter(group => group.phase === phase).map(group => {
+              const active = selected.has(group.id), Icon = group.icon;
+              return <button type="button" key={group.id} className={styles.rule} aria-pressed={active} onClick={() => toggle(group.id)}>
+                <span className={styles.ruleCheck}>{active && <Check size={12} />}</span><Icon size={18} />
+                <span><strong>{group.label}</strong><small>{group.detail}</small></span>
+              </button>;
+            })}
+          </div>
+          {phase === 1 && <button type="button" className={styles.inlineLink} onClick={() => setPhase(2)}>Rule combinations <span>{selected.has("combinations") ? "4 selected" : "Not selected"}</span><ArrowUpRight size={14} /></button>}
+          {phase === 2 && <p className={styles.note}>Tests break-even, trailing protection and a final target as a single plan. Selections in Rules remain included.</p>}
+          <div className={styles.actionRow}><span>{ruleCount} variations selected</span><button type="button" className={styles.primary} onClick={() => void run()} disabled={!canRun}><Play size={14} />Run optimizer<ArrowUpRight size={14} /></button></div>
+          <p className={styles.note}>Every entry and its initial risk stay unchanged.</p>
+        </section> : report && phase <= 2 ? <ExitOptimizerResults report={report} best={best} objective={objective} onDeploy={() => setPhase(6)} /> : report && best && isAnalysisPhase(phase) ?
+          <section className={`${styles.panel} ${styles.phaseContent}`}><ExitOptimizerPhases report={report} best={best} activePhase={phase} /></section> : null}
+
+        {status !== "finished" ? <p className={styles.warning}>Finish this replay before running the optimizer.</p> : !sessionId ? <p className={styles.warning}>Select a real session to run the optimizer.</p> : null}
+        {error && <p role="alert" className={styles.error}>{error}</p>}
       </div>
 
-      <div className="p-5 lg:p-6">
-        {!running && !report && <><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-sm font-semibold">Select exit rules to test</p><p className="mt-1 text-[10px] app-muted">Choose one or more families. You can run another selection later.</p></div><p className="font-mono text-[10px] text-brand-300">{ruleCount} rule variations selected</p></div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{GROUPS.map((group) => { const active = selected.has(group.id); const Icon = group.icon; return <button key={group.id} type="button" onClick={() => toggle(group.id)} className={`relative min-h-40 rounded-xl border p-4 text-left transition-all ${active ? "border-brand-400/55 bg-brand-400/[0.08]" : "app-border bg-white/[0.015] hover:border-brand-400/25 hover:bg-white/[0.035]"}`}><span className={`grid h-9 w-9 place-items-center rounded-lg ${active ? "bg-brand-400/15 text-brand-300" : "bg-white/[0.04] app-muted"}`}><Icon size={18} /></span><span className="absolute left-14 top-5 rounded bg-white/[0.04] px-1.5 py-0.5 text-[8px] app-muted">Phase {group.phase}</span><span className={`absolute right-4 top-4 grid h-5 w-5 place-items-center rounded-md border ${active ? "border-brand-300 bg-brand-400 text-surface-950" : "app-border"}`}>{active && <Check size={13} />}</span><strong className="mt-4 block text-sm">{group.label}</strong><span className="mt-1 block font-mono text-[10px] text-brand-300">{group.detail}</span><span className="mt-2 block text-[10px] leading-4 app-muted">{group.description}</span></button>; })}</div>
-          <div className="mt-5 border-t app-border pt-4"><p className="text-xs font-semibold">What should the optimizer prioritize?</p><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{OBJECTIVES.map((item) => <button key={item.id} type="button" onClick={() => setObjective(item.id)} className={`rounded-lg border px-3 py-2.5 text-left ${objective === item.id ? "border-brand-400/50 bg-brand-400/[0.08]" : "app-border bg-white/[0.015]"}`}><strong className="block text-[11px]">{item.label}</strong><span className="mt-0.5 block text-[9px] app-muted">{item.detail}</span></button>)}</div></div></>}
-
-        {status !== "finished" ? <p className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-4 text-xs text-amber-100">Finish this replay before running the optimizer. Its comparison requires candles beyond each original exit.</p> : !sessionId ? <p className="mt-5 text-xs app-muted">Select a real session to run the optimizer.</p> : null}
-        {running && <div role="status" className="mx-auto max-w-3xl py-3"><div className="flex items-center justify-between gap-3"><div><p className="inline-flex items-center gap-2 text-sm font-semibold"><LoaderCircle size={16} className="animate-spin text-brand-300" />Running your exit analysis</p><p className="mt-1 text-[10px] app-muted">Keep this tab open while we replay the rules candle by candle.</p></div><span className="font-mono text-lg font-semibold text-brand-300">{progress}%</span></div><div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-brand-400 transition-[width] duration-500" style={{ width: `${progress}%` }} /></div><div className="mt-5 grid gap-2 sm:grid-cols-2">{STAGES.map((stage, index) => { const done = progress >= stage.threshold; const active = index === activeStage; return <div key={stage.label} className={`flex items-center gap-3 rounded-xl border p-3 ${active ? "border-brand-400/35 bg-brand-400/[0.06]" : "app-border bg-white/[0.015]"}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${done ? "bg-brand-400 text-surface-950" : active ? "bg-brand-400/15 text-brand-300" : "bg-white/[0.04] app-muted"}`}>{done ? <Check size={14} /> : active ? <LoaderCircle size={14} className="animate-spin" /> : index + 1}</span><span><strong className="block text-[11px]">{stage.label}</strong><span className="mt-0.5 block text-[9px] app-muted">{stage.detail}</span></span></div>; })}</div></div>}
-        {error && <p role="alert" className="mt-5 rounded-xl border border-loss/25 bg-loss/[0.07] p-4 text-xs text-loss">{error}</p>}
-        {!running && <div className={`flex flex-wrap items-center gap-3 ${report ? "justify-between border-t app-border pt-5" : "mt-5"}`}>{report && <div className="flex items-center gap-2"><span className="grid h-8 w-8 place-items-center rounded-full bg-brand-400/15 text-brand-300"><Trophy size={15} /></span><span><strong className="block text-xs">Analysis complete</strong><span className="block text-[9px] app-muted">The winner was tested against later trades.</span></span></div>}<div className="flex flex-wrap items-center gap-3"><button type="button" onClick={run} disabled={status !== "finished" || !sessionId || !selected.size} className="inline-flex h-11 items-center gap-2 rounded-lg bg-brand-500 px-6 text-xs font-bold text-surface-950 hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-45">{report ? <RotateCcw size={14} /> : <Play size={14} />}{report ? "Run another test" : "Run optimizer"}<ArrowRight size={14} /></button>{!report && <span className="text-[10px] app-muted">{selected.size} of {GROUPS.length} rule families selected</span>}</div></div>}
-      </div>
-    </section>
-    {report && <section className="overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)]"><ExitOptimizerPanel report={report} objective={objective} /></section>}
+      <aside className={styles.scope} aria-label="Test scope">
+        <h3>Test scope</h3>
+        <dl>
+          <div><dt>Eligible trades</dt><dd>{report?.eligibleTrades ?? "—"}</dd></div>
+          <div><dt>{view === "results" && report ? "Rules tested" : "Rule variations"}</dt><dd>{view === "results" && report ? report.rules.length : ruleCount}</dd></div>
+          <div><dt>Discovery</dt><dd>{report ? report.discoveryTrades : "70%"}</dd></div>
+          <div><dt>Validation</dt><dd>{report ? report.validationTrades : "30%"}</dd></div>
+        </dl>
+        <label className={styles.objective}>Optimize for<select aria-label="Optimization objective" value={objective} onChange={event => setObjective(event.target.value as OptimizerObjective)} disabled={running}>
+          {OBJECTIVES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select></label>
+        {report && <button type="button" className={styles.secondary} onClick={configure} disabled={running}>Edit rules</button>}
+        <p className={styles.note}>Chronological validation on later trades. Simulation, not a performance guarantee.</p>
+      </aside>
+    </div>
   </main>;
 }

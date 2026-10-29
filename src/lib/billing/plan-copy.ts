@@ -8,27 +8,29 @@ export const FREE_PLAN_FEATURES = [
   "3 sessions / month",
   "7 major FX pairs",
   "31 days of history / session",
-  "Single-pair replay · up to 1,200×",
-  "Trading journal & basic results",
+  "Single-pair replay",
+  "Replay speeds up to 1,200×",
+  "Simulated market & pending orders",
+  "Stop-loss, take-profit & risk sizing",
+  "Trading journal",
+  "Basic session results",
 ] as const;
 
 export const PRO_PLAN_FEATURES = [
   "Unlimited sessions",
   "All 38 markets",
   "Full available history",
-  "Multi-pair replay · all speeds",
-  "Trading journal & results",
+  "Multi-pair replay",
+  "All replay speeds",
+  "Simulated market & pending orders",
+  "Stop-loss, take-profit & risk sizing",
+  "Trading journal & session results",
   "Advanced analytics & reports",
   "AI Analyst",
   "Prop Firm Challenges",
-  "CSV & PDF exports",
+  "CSV trade exports",
+  "PDF reports & analytics sharing",
 ] as const;
 
 export const PRO_TRIAL_SUMMARY =
   "Try every Pro feature free for 7 days. Choose monthly or yearly.";
-
-/** Short rows for the Essential pricing cards. */
-export const PRICING_PLAN_FEATURES = {
-  free: ["3 sessions / month", "7 major FX pairs", "31 days / session", "Journal & basic results"],
-  pro: ["Unlimited sessions · 38 markets", "Full history · multi-pair replay", "AI Analyst · advanced analytics", "Prop Firm Challenges", "CSV & PDF exports"],
-} as const;

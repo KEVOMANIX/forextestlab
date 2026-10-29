@@ -42,7 +42,7 @@ try {
     await page.addStyleTag({ content: css.css });
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
     await expect(page.getByRole("button", { name: "Try Pro free for 7 days" })).toBeEnabled();
-    for (const feature of ["AI Analyst", "Prop Firm Challenges", "CSV & PDF exports"]) {
+    for (const feature of ["AI Analyst", "Prop Firm Challenges", "CSV trade exports", "PDF reports & analytics sharing"]) {
       await expect(page.getByTestId("plan-free").getByText(feature, { exact: false })).toHaveCount(0);
       await expect(page.getByTestId("plan-pro").getByText(feature, { exact: false })).toBeVisible();
     }
@@ -54,8 +54,12 @@ try {
     const freeBox = await page.getByTestId("plan-free").boundingBox();
     const proBox = await page.getByTestId("plan-pro").boundingBox();
     assert.ok(calloutBox.y + calloutBox.height < freeBox.y, "Trial must appear before the cards");
-    assert.ok(Math.abs(freeBox.height - proBox.height) <= 50, "Essential cards stay compact and balanced");
-    await expect(page.getByTestId("plan-pro").getByText("AI Analyst · advanced analytics", { exact: true })).toBeVisible();
+    assert.ok(Math.abs(freeBox.height - proBox.height) <= 1, "Cards have equal heights on desktop and mobile");
+    for (const plan of ["plan-free", "plan-pro"]) {
+      await expect(page.getByTestId(plan).getByText("Simulated market & pending orders", { exact: true })).toBeVisible();
+      await expect(page.getByTestId(plan).getByText("Stop-loss, take-profit & risk sizing", { exact: true })).toBeVisible();
+    }
+    await expect(page.getByTestId("plan-pro").getByText("Advanced analytics & reports", { exact: true })).toBeVisible();
     await expect(page.getByTestId("discount-offer")).toContainText("20% off your first paid month");
     await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async code => { window.copiedCode = code; } } }));
     await page.getByRole("button", { name: "Copy discount code WELCOME20" }).click();

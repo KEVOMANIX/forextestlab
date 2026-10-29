@@ -6,9 +6,52 @@ import {
   paddleMode,
   requiredPaddleClientToken,
   unmarshalPaddleWebhook,
+  createPaddleCheckoutTransaction,
 } from "./paddle";
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+
+describe("Paddle checkout customer recovery", () => {
+  function setupFetch() {
+    vi.stubEnv("PADDLE_MODE", "live");
+    vi.stubEnv("PADDLE_LIVE_API_KEY", "pdl_live_fixture");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+  const input = { priceId: "pri_month", customerId: "ctm_old", customData: { userId: "u1", productKey: "pro_month" } };
+
+  it("retries a confirmed missing customer without losing account or price metadata", async () => {
+    const fetchMock = setupFetch();
+    fetchMock.mockResolvedValueOnce(Response.json({ error: { code: "not_found", detail: "customer ctm_old not found." } }, { status: 404 }));
+    fetchMock.mockResolvedValueOnce(Response.json({ data: { id: "txn_new" } }));
+    await expect(createPaddleCheckoutTransaction(input)).resolves.toEqual({ id: "txn_new" });
+    const first = JSON.parse(fetchMock.mock.calls[0]![1].body);
+    const retry = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    expect(first.customer_id).toBe("ctm_old");
+    expect(retry).toEqual({ items: [{ price_id: "pri_month", quantity: 1 }], custom_data: input.customData, collection_mode: "automatic" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an existing valid customer attached", async () => {
+    const fetchMock = setupFetch();
+    fetchMock.mockResolvedValueOnce(Response.json({ data: { id: "txn_valid" } }));
+    await createPaddleCheckoutTransaction(input);
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).customer_id).toBe("ctm_old");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [404, "not_found", "price pri_month not found."],
+    [403, "forbidden", "You aren't permitted to perform this request."],
+    [500, "internal_error", "Service unavailable"],
+  ])("does not retry an unrelated Paddle failure (%s)", async (status, code, detail) => {
+    const fetchMock = setupFetch();
+    fetchMock.mockResolvedValueOnce(Response.json({ error: { code, detail } }, { status }));
+    await expect(createPaddleCheckoutTransaction(input)).rejects.toThrow(detail);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("Paddle environment safety", () => {
   it("fails instead of silently choosing an environment", () => {

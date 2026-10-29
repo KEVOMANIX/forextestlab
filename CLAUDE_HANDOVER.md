@@ -16,6 +16,10 @@
 
 ### 2026-10-29 — Essential pricing and WELCOME20
 
+- Checkout follow-up: production logged a 404 for a saved Paddle customer that no longer exists in the live account. The checkout helper now retries once without that customer reference only for the exact Paddle `not_found` customer error. Price, permission and server errors still fail normally. Account custom_data is preserved so the completion webhook can relink the current customer. No saved billing history or entitlement was reset. Regression tests cover the fallback and unrelated failures.
+
+- Follow-up: owner requested the complete included-feature lists and equal card heights. Pricing now uses the full plan feature arrays, including execution/risk tools, replay speeds, analytics, AI, Challenges, CSV exports and PDF/sharing. Grid rows and cards use equal heights on desktop and mobile; Free still excludes Pro-only rows. Browser checks assert equal heights within one pixel at both widths.
+
 - Owner selected Essential from the new minimal previews. Pricing uses "Make your next move.", four included-only Free rows and five grouped Pro rows. Trial link sits beside the billing switch; discount strip below the cards has a copy button. Compact billing terms remain below it. Ineligible accounts keep a new-members trial-details link.
 - Reactivated the existing WELCOME20 live discount: 20% off the first paid monthly payment, non-recurring, enabled for checkout, no expiry. Preserved existing price restrictions and added the live monthly trial price; yearly prices are excluded. A restricted JSON backup of the old discount is on Lightsail under `/home/ubuntu/.welcome20-before-essential-*.json`.
 - Verified Paddle monthly pricing preview is $8 and a seven-day-trial draft checkout accepts the discount. Paddle carries a one-time discount past a free trial to the first paid billing period. No real subscription or charge was created. The discount seeder and local promotion copy now match the reactivated offer.

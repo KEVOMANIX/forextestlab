@@ -4,7 +4,7 @@ import { ArrowRight, Check, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { PRICING_PLAN_FEATURES } from "@/lib/billing/plan-copy";
+import { FREE_PLAN_FEATURES } from "@/lib/billing/plan-copy";
 import { CopyWelcomeCode } from "@/components/WelcomeOffer";
 import { WELCOME_OFFER } from "@/lib/promotions";
 import type { BillingInterval, Tier } from "@/lib/billing/tier-types";
@@ -266,8 +266,8 @@ export function LocalizedPricing({
 
       {error && <div role="alert" className="mx-auto mt-5 max-w-xl rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-center text-sm text-red-200">{error}</div>}
 
-      <div className="mx-auto grid max-w-3xl gap-5 md:grid-cols-2">
-        <article data-testid="plan-free" className="relative flex flex-col rounded-2xl border border-white/10 bg-surface-900 p-6 shadow-card sm:p-7">
+      <div className="mx-auto grid max-w-3xl auto-rows-fr gap-5 md:grid-cols-2">
+        <article data-testid="plan-free" className="relative flex h-full flex-col rounded-2xl border border-white/10 bg-surface-900 p-6 shadow-card sm:p-7">
           <p className="text-lg font-semibold text-white">Free</p>
           <div className="mt-5 flex min-h-12 items-end gap-2">
             <strong className="text-5xl font-bold tracking-tight text-white">$0</strong>
@@ -278,7 +278,7 @@ export function LocalizedPricing({
             {browserIdentity.userId ? "Start a free session" : "Start free"} <ArrowRight size={15} aria-hidden />
           </Link>
           <ul className="mt-5 space-y-3 border-t border-white/10 pt-5">
-            {PRICING_PLAN_FEATURES.free.map((feature) => (
+            {FREE_PLAN_FEATURES.map((feature) => (
               <li key={feature} className="flex gap-2.5 text-sm text-slate-300">
                 <Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
                 <span>{feature}</span>
@@ -295,7 +295,7 @@ export function LocalizedPricing({
             <article
               key={tier.id}
               data-testid="plan-pro"
-              className={`relative flex flex-col rounded-2xl border bg-surface-900 p-6 shadow-card sm:p-7 ${tier.featured ? "border-brand-400/60" : "border-white/10"}`}
+              className={`relative flex h-full flex-col rounded-2xl border bg-surface-900 p-6 shadow-card sm:p-7 ${tier.featured ? "border-brand-400/60" : "border-white/10"}`}
             >
               <div className="flex items-center justify-between gap-3"><p className="text-lg font-semibold text-white">{tier.name}</p><span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1 text-[11px] font-semibold text-brand-200">{trialOffer ? "7 days free" : "Full access"}</span></div>
               <div className="mt-5 flex min-h-12 items-end gap-2">
@@ -312,7 +312,7 @@ export function LocalizedPricing({
                 {opening ? <><Loader2 size={15} className="animate-spin" aria-hidden /> Opening checkout</> : <>Choose Pro <ArrowRight size={15} aria-hidden /></>}
               </button>
               <ul className="mt-5 space-y-3 border-t border-brand-400/20 pt-5">
-                {PRICING_PLAN_FEATURES.pro.map((feature) => <li key={feature} className="flex gap-2.5 text-sm text-slate-200"><Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden /><span>{feature}</span></li>)}
+                {tier.features.map((feature) => <li key={feature} className="flex gap-2.5 text-sm text-slate-200"><Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden /><span>{feature}</span></li>)}
               </ul>
             </article>
           );

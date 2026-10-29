@@ -70,6 +70,13 @@ function paddleApiBase(): string {
     : "https://sandbox-api.paddle.com";
 }
 
+class PaddleApiError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message);
+    this.name = "PaddleApiError";
+  }
+}
+
 async function paddleApiRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -89,10 +96,10 @@ async function paddleApiRequest<T>(
   });
   const payload = await response.json().catch(() => null) as {
     data?: T;
-    error?: { detail?: string };
+    error?: { detail?: string; code?: string };
   } | null;
   if (!response.ok || payload?.data === undefined) {
-    throw new Error(payload?.error?.detail || `Paddle API returned ${response.status}.`);
+    throw new PaddleApiError(payload?.error?.detail || `Paddle API returned ${response.status}.`, response.status, payload?.error?.code);
   }
   return payload.data;
 }
@@ -131,15 +138,31 @@ export async function createPaddleCheckoutTransaction(input: {
   customerId?: string | null;
   customData: Record<string, string>;
 }): Promise<{ id: string }> {
-  return paddleApiRequest<{ id: string }>("/transactions", {
+  const create = (customerId?: string) => paddleApiRequest<{ id: string }>("/transactions", {
     method: "POST",
     body: JSON.stringify({
       items: [{ price_id: input.priceId, quantity: 1 }],
-      ...(input.customerId?.startsWith("ctm_") ? { customer_id: input.customerId } : {}),
+      ...(customerId ? { customer_id: customerId } : {}),
       custom_data: input.customData,
       collection_mode: "automatic",
     }),
   });
+  const customerId = input.customerId?.startsWith("ctm_") ? input.customerId : undefined;
+  try {
+    return await create(customerId);
+  } catch (error) {
+    // Old/sandbox customer references can survive a live billing migration.
+    // Retry only a confirmed missing customer, never price/auth/network errors.
+    // Checkout collects the email and webhooks relink the resulting customer
+    // through the unchanged account custom_data after completion.
+    if (
+      customerId && error instanceof PaddleApiError && error.status === 404 &&
+      error.code === "not_found" && error.message === `customer ${customerId} not found.`
+    ) {
+      return create();
+    }
+    throw error;
+  }
 }
 
 /** Ends a subscription now, with no further charges: used when an account is deleted. */

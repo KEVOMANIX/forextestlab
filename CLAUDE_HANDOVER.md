@@ -1,3 +1,11 @@
+## 2026-10-29 — Stop gaps, achieved R and payment reopening
+
+- Stop-loss gaps now fill at the opening executable bid/ask. An opening stop or take-profit crossing takes precedence over later intrabar touches; ordinary ambiguous candles still follow the execution policy.
+- Average achieved risk/reward uses signed, direction-aware price movement, so losses contribute negative R. Existing saved trade fills are not rewritten.
+- The owner accepts the bounded future-candle replay buffer as an intentional design choice.
+- Payment reopening requested. Production has live Paddle mode, browser environment, API key, client token, webhook secret and both recurring price IDs; `BILLING_ENABLED` is unset. Paddle rejects price reads, price previews, notification-setting reads and checkout transaction creation with HTTP 403 `forbidden`. Restore/replace the production live API key before enabling billing. Both trial-price IDs are absent, so the current configuration offers ordinary paid subscriptions without a trial.
+- Validation: 1,212 tests across 133 files passed, including regression cases for long/short gaps, native quotes, opening-event precedence and signed R.
+
 ## 2026-10-26 — Analytics share links
 - Added owner-managed Share dialog beside PDF export, public read-only Analytics snapshots (Overview, Trades, Reports), and 30-day expiry/revocation/token rotation.
 - Snapshot payload is an explicit allowlist; excludes session name, real IDs, notes, journals and experimental trades, rebuilding balance/equity scope as needed. No live replay access. Uses latest persisted state.

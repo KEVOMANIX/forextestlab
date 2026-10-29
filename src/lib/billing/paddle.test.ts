@@ -21,9 +21,9 @@ describe("Paddle checkout customer recovery", () => {
   }
   const input = { priceId: "pri_month", customerId: "ctm_old", customData: { userId: "u1", productKey: "pro_month" } };
 
-  it("retries a confirmed missing customer without losing account or price metadata", async () => {
+  it.each(["customer ctm_old not found.", "Customer ctm_old not found."])("recovers a missing customer (%s) without losing account or price metadata", async (detail) => {
     const fetchMock = setupFetch();
-    fetchMock.mockResolvedValueOnce(Response.json({ error: { code: "not_found", detail: "customer ctm_old not found." } }, { status: 404 }));
+    fetchMock.mockResolvedValueOnce(Response.json({ error: { code: "not_found", detail } }, { status: 404 }));
     fetchMock.mockResolvedValueOnce(Response.json({ data: { id: "txn_new" } }));
     await expect(createPaddleCheckoutTransaction(input)).resolves.toEqual({ id: "txn_new" });
     const first = JSON.parse(fetchMock.mock.calls[0]![1].body);

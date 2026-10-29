@@ -7,7 +7,7 @@ import type { BillingInterval } from "./tier-types";
 
 /**
  * Whether an account may start the 7-day Pro trial: one per account, never
- * after a previous subscription, and not while already on Pro. Paddle does not
+ * after an earlier trial, and not while already on Pro. Paddle does not
  * limit repeat trials itself, so this is the rule, applied when the server
  * builds the checkout.
  */
@@ -18,7 +18,17 @@ export async function proTrialEligible(userId: string): Promise<boolean> {
       where: { id: userId },
       select: { id: true, proTrialStartedAt: true, billingStatus: true, proAccessUntil: true },
     }),
-    prisma.billingSubscription.count({ where: { userId } }),
+    prisma.billingSubscription.count({ where: {
+      userId,
+      OR: [
+        { status: "trialing" },
+        { trialEndsAt: { not: null } },
+        { planCode: { in: [
+          configuredPaddleTierPriceId("pro", "month", true),
+          configuredPaddleTierPriceId("pro", "year", true),
+        ].filter((id): id is string => Boolean(id)) } },
+      ],
+    } }),
   ]);
   if (!profile || profile.proTrialStartedAt || earlier > 0) return false;
   return !isProPlan(profile);

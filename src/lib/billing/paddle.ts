@@ -157,7 +157,7 @@ export async function createPaddleCheckoutTransaction(input: {
     // through the unchanged account custom_data after completion.
     if (
       customerId && error instanceof PaddleApiError && error.status === 404 &&
-      error.code === "not_found" && error.message === `customer ${customerId} not found.`
+      error.code === "not_found" && error.message.toLowerCase() === `customer ${customerId} not found.`.toLowerCase()
     ) {
       return create();
     }

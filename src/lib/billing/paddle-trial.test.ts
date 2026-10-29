@@ -59,7 +59,7 @@ describe("one Pro trial per account", () => {
     expect(await proTrialEligible("u1")).toBe(true);
   });
 
-  it("refuses a second trial, a past subscriber, and an account already on Pro", async () => {
+  it("refuses a second trial, an earlier trial subscription, and an account already on Pro", async () => {
     mocks.profile.mockResolvedValue({ proTrialStartedAt: new Date(), billingStatus: "inactive", proAccessUntil: null });
     expect(await proTrialEligible("u1")).toBe(false);
     mocks.profile.mockResolvedValue({ proTrialStartedAt: null, billingStatus: "inactive", proAccessUntil: null });
@@ -68,6 +68,16 @@ describe("one Pro trial per account", () => {
     mocks.subscriptions.mockResolvedValue(0);
     mocks.profile.mockResolvedValue({ proTrialStartedAt: null, billingStatus: "active", proAccessUntil: null });
     expect(await proTrialEligible("u1")).toBe(false);
+  });
+
+  it("allows a former paid subscriber when they have never claimed a trial", async () => {
+    mocks.profile.mockResolvedValue({ proTrialStartedAt: null, billingStatus: "inactive", proAccessUntil: new Date("2020-01-01") });
+    mocks.subscriptions.mockResolvedValue(0); // no trial history; ordinary paid history is excluded
+    expect(await proTrialEligible("former-paid")).toBe(true);
+    expect(mocks.subscriptions).toHaveBeenCalledWith({ where: { userId: "former-paid", OR: [
+      { status: "trialing" }, { trialEndsAt: { not: null } },
+      { planCode: { in: ["pri_month_trial", "pri_year_trial"] } },
+    ] } });
   });
 
   it("offers no trial while the trial prices are not configured", async () => {

@@ -963,3 +963,8 @@ The visual system deliberately separates product identity from trading results:
 - Server emits real history completion counts, current rule/market/trade and completed simulation totals, then chronological validation. Work yields periodically so updates flush; disconnect signals stop subsequent analysis checkpoints. In-flight provider reads finish before their cancellation check.
 - Running UI shows four stages, elapsed time, stage-specific percentage only when totals are known, and five recent activity entries. Interrupted streams surface an error and never display partial results. Session changes abort and reset progress.
 - Verification: 31 targeted tests across report math/progress/endpoint authorization and existing session routes; desktop/mobile browser workflow checks include held-open streams and intermediate progress values. Screenshots under ignored .tmp/optimizer-desk/progress-*.png.
+
+### 2026-10-29 — Checkout recovery capitalization
+- Production checkout logs revealed Paddle returns capitalized Customer in its missing-customer detail. Made the existing narrow 404/not_found customer-ID match case-insensitive; retained all price/auth/network exclusions and account metadata. Regression covers both wordings. Signed-out pricing visitors already go to sign-up; API returns 401 for missing authentication.
+
+- Trial eligibility broadened to all non-Pro accounts with no prior trial, including former paid subscribers. Historical trial status/end/price IDs and the permanent proTrialStartedAt marker still block repeat claims. Pricing copy now says once per account instead of new members. Current/permanent Pro access is preserved.

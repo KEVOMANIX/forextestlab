@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, BookOpenText, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, Crown, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
+import { BarChart3, BookOpenText, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -144,14 +144,14 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
       </nav>
       {compact ? (
         <div className="flex flex-col items-center gap-1 border-t app-border py-3">
-          {signedIn && !free && <ProPlanLine compact />}
           <button type="button" onClick={toggle} title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} className="grid h-9 w-9 place-items-center rounded-lg app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300">{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button>
           <Link href={signedIn ? "/account" : "/sign-in"} title={signedIn ? displayName ?? "Account settings" : "Sign in"} aria-label={signedIn ? "Account settings" : "Sign in"} className="grid h-9 w-9 place-items-center rounded-full bg-[var(--app-accent-wash)] text-[11px] font-bold text-brand-300 ring-1 ring-brand-400/25">{signedIn ? initials(displayName) : <LogIn size={15} aria-hidden />}</Link>
+          {signedIn && !free && <ProBadge />}
           {signedIn && <button type="button" onClick={signOut} disabled={signingOut} aria-label="Sign out" title="Sign out" className="grid h-9 w-9 place-items-center rounded-lg app-muted transition-colors hover:bg-loss/[0.08] hover:text-loss disabled:cursor-wait disabled:opacity-50">{signingOut ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogOut size={15} aria-hidden />}</button>}
         </div>
       ) : (
       <div className="border-t app-border">
-        {freePlan ? <FreePlanLine plan={freePlan} /> : signedIn ? <ProPlanLine /> : null}
+        {freePlan && <FreePlanLine plan={freePlan} />}
         <div className={`flex items-center gap-1 px-2 pb-3 ${freePlan ? "pt-1" : "pt-3"}`}>
           <Link href={signedIn ? "/account" : "/sign-in"} className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-[var(--app-hover)]">
             <span className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--app-accent-wash)] text-[11px] font-bold text-brand-300 ring-1 ring-brand-400/25">
@@ -159,7 +159,7 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
               {signedIn && <span className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full border-2 border-[var(--app-sidebar)] bg-profit" aria-label="Signed in" />}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold text-[var(--app-text)]">{signedIn ? displayName ?? "ForexTestLab trader" : "Sign in"}</span>
+              <span className="flex items-center gap-2"><span className="truncate text-xs font-semibold text-[var(--app-text)]">{signedIn ? displayName ?? "ForexTestLab trader" : "Sign in"}</span>{signedIn && !free && <ProBadge />}</span>
               <span className="block truncate text-[10px] app-muted">{signedIn ? "Account settings" : "Access your workspace"}</span>
             </span>
           </Link>
@@ -174,11 +174,8 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
   </>;
 }
 
-/** The server's plan summary is authoritative for both paid and permanent Pro. */
-function ProPlanLine({ compact = false }: { compact?: boolean }) {
-  return <Link href="/account/billing" aria-label="Pro plan" title="Pro plan" data-testid="sidebar-pro-plan" className={compact ? "flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-[10px] font-semibold text-amber-200" : "mx-4 mb-1 mt-3 flex items-center gap-2 rounded-lg border border-amber-300/25 bg-amber-300/[0.06] px-3 py-2 text-xs font-semibold text-amber-200"}>
-    <Crown size={compact ? 14 : 15} aria-hidden /><span>Pro</span>
-  </Link>;
+function ProBadge() {
+  return <span data-testid="sidebar-pro-plan" className="inline-flex shrink-0 items-center rounded border border-brand-400/20 bg-[var(--app-accent-wash)] px-1.5 py-0.5 text-[9px] font-semibold leading-none tracking-wide text-brand-300">PRO</span>;
 }
 
 /** Free accounts: this month's sessions and one way into Pro, above the profile. */

@@ -951,3 +951,5 @@ The visual system deliberately separates product identity from trading results:
   `/app/analytics?session=…&trade=12`; ```chart JSON blocks render as bar charts.
 - Deploys that change `prisma/schema.prisma` must run `npx prisma migrate
   deploy && npx prisma generate` before the build (see above).
+
+- Sidebar Pro badge refinement: replaced the separate gold crown panel with a small brand-colored PRO badge beside the profile name; collapsed rail shows the same compact badge below the avatar.

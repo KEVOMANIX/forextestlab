@@ -3,6 +3,7 @@ import "server-only";
 import type { UserProfile } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/db";
+import { isAdminUserId } from "@/lib/admin";
 import { billingEnabled } from "./availability";
 import type { PlanEntitlements } from "./entitlement-types";
 import { freePreviewActive } from "./plan-preview";
@@ -21,7 +22,7 @@ import {
 
 export { FREE_SESSION_MAX_MS } from "./plan-limits";
 
-type BillingProfile = Pick<UserProfile, "billingStatus" | "proAccessUntil">;
+type BillingProfile = Pick<UserProfile, "billingStatus" | "proAccessUntil"> & Partial<Pick<UserProfile, "id">>;
 
 /**
  * Pro comes from a live subscription (a Paddle trial is reported as "active"
@@ -31,6 +32,7 @@ type BillingProfile = Pick<UserProfile, "billingStatus" | "proAccessUntil">;
  */
 export function hasProAccess(profile: BillingProfile, now = new Date()): boolean {
   return (
+    isAdminUserId(profile.id) ||
     ["active", "attention", "non-renewing"].includes(profile.billingStatus) ||
     Boolean(profile.proAccessUntil && profile.proAccessUntil > now)
   );
@@ -53,7 +55,7 @@ export function planEntitlements(
   if (pro) {
     return {
       plan: "pro",
-      trialEndsAt: billingEnabled() && options.trialEndsAt && options.trialEndsAt > now ? options.trialEndsAt.toISOString() : null,
+      trialEndsAt: !isAdminUserId(profile.id) && billingEnabled() && options.trialEndsAt && options.trialEndsAt > now ? options.trialEndsAt.toISOString() : null,
       monthlySessions: null,
       allowedSymbols: null,
       maxSessionDays: null,
@@ -89,7 +91,7 @@ export async function getUserEntitlements(userId: string, now = new Date()): Pro
   const [profile, usage, trial, previewFree] = await Promise.all([
     prisma.userProfile.findUnique({
       where: { id: userId },
-      select: { billingStatus: true, proAccessUntil: true },
+      select: { id: true, billingStatus: true, proAccessUntil: true },
     }),
     prisma.freeSessionUsage.findUnique({
       where: { userId_month: { userId, month: quotaMonth(now) } },
@@ -117,7 +119,7 @@ export interface FreePlanSummary {
 /** What shared chrome (the sidebar) shows for a Free account: two small queries. */
 export async function freePlanSummary(userId: string, now = new Date()): Promise<FreePlanSummary | null> {
   const [profile, usage, previewFree] = await Promise.all([
-    prisma.userProfile.findUnique({ where: { id: userId }, select: { billingStatus: true, proAccessUntil: true } }),
+    prisma.userProfile.findUnique({ where: { id: userId }, select: { id: true, billingStatus: true, proAccessUntil: true } }),
     prisma.freeSessionUsage.findUnique({ where: { userId_month: { userId, month: quotaMonth(now) } }, select: { used: true } }),
     freePreviewActive(userId),
   ]);

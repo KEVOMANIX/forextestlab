@@ -4,6 +4,7 @@ import { CreditCard, Crown, Shield, UserRound } from "lucide-react";
 import { ensureUserProfile, requireUser } from "@/lib/auth";
 import { getUserEntitlements, hasProAccess } from "@/lib/billing/entitlements";
 import { prisma } from "@/lib/db";
+import { isAdminUserId } from "@/lib/admin";
 
 export type AccountTab = "general" | "security" | "billing";
 
@@ -20,8 +21,9 @@ function initials(name: string): string {
 }
 
 /** Where an account's Pro comes from, so a grant or pass still reads as Pro. */
-export function planNote(profile: { billingStatus: string; proAccessUntil: Date | null }, pro: boolean, freeLimit: number | null): string {
+export function planNote(profile: { id?: string; billingStatus: string; proAccessUntil: Date | null }, pro: boolean, freeLimit: number | null): string {
   if (!pro) return freeLimit ? `${freeLimit} sessions a month on the major pairs.` : "Core replay access.";
+  if (isAdminUserId(profile.id)) return "Permanent Pro access · administrator account.";
   if (profile.billingStatus === "non-renewing") return profile.proAccessUntil ? `Pro until ${ACCESS_DATE.format(profile.proAccessUntil)}, not renewing.` : "Pro until the end of the paid term.";
   if (["active", "attention"].includes(profile.billingStatus)) return "Pro subscription is active.";
   if (profile.proAccessUntil && hasProAccess(profile)) return `Pro access granted until ${ACCESS_DATE.format(profile.proAccessUntil)}.`;

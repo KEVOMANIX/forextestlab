@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/db";
+import { hasProAccess } from "@/lib/billing/entitlements";
 import { verifyAndRecordPayment } from "@/lib/billing/service";
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -12,8 +13,8 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ ok: false, error: "Sign in required." }, { status: 401 });
   const reference = new URL(request.url).searchParams.get("reference")?.trim() || "";
   if (!reference) {
-    const profile = await prisma.userProfile.findUnique({ where: { id: user.id }, select: { billingStatus: true, proAccessUntil: true } });
-    const active = Boolean(profile && (["active", "attention", "non-renewing"].includes(profile.billingStatus) || (profile.proAccessUntil && profile.proAccessUntil > new Date())));
+    const profile = await prisma.userProfile.findUnique({ where: { id: user.id }, select: { id: true, billingStatus: true, proAccessUntil: true } });
+    const active = Boolean(profile && hasProAccess(profile));
     return NextResponse.json({ ok: true, status: active ? "success" : "pending", message: active ? "Your Pro access is active." : "Waiting for Paddle to confirm the subscription." });
   }
   const payment = await prisma.billingPayment.findUnique({ where: { reference } });

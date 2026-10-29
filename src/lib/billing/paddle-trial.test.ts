@@ -75,4 +75,10 @@ describe("one Pro trial per account", () => {
     mocks.profile.mockResolvedValue({ proTrialStartedAt: null, billingStatus: "inactive", proAccessUntil: null });
     expect(await proTrialEligible("u1")).toBe(false);
   });
+
+  it("never offers the permanently Pro administrator a paid trial", async () => {
+    process.env.ADMIN_USER_IDS = "owner-id";
+    mocks.profile.mockResolvedValue({ id: "owner-id", proTrialStartedAt: null, billingStatus: "inactive", proAccessUntil: null });
+    expect(await proTrialEligible("owner-id")).toBe(false);
+  });
 });

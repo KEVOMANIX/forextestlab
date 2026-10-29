@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { assertSessionAllowed, monthlyQuotaMessage, planEntitlements } from "./entitlements";
+import { assertSessionAllowed, hasProAccess, monthlyQuotaMessage, planEntitlements } from "./entitlements";
 import { formatQuotaReset, quotaMonth, quotaResetsAt } from "./plan-limits";
 
 const FREE_PROFILE = { billingStatus: "inactive", proAccessUntil: null };
@@ -53,6 +53,24 @@ describe("Free plan", () => {
 });
 
 describe("Pro", () => {
+  it("keeps the configured administrator on Pro after any paid access expires", () => {
+    const original = process.env.ADMIN_USER_IDS;
+    process.env.ADMIN_USER_IDS = "owner-id";
+    try {
+      const owner = { id: "owner-id", billingStatus: "inactive", proAccessUntil: new Date("2020-01-01") };
+      const now = new Date("2100-01-01");
+      expect(hasProAccess(owner, now)).toBe(true);
+      expect(planEntitlements(owner, { now, freeSessionsUsed: 999 })).toEqual(expect.objectContaining({ plan: "pro", monthlySessions: null, fullAnalytics: true, exports: true, propFirmChallenges: true }));
+      expect(planEntitlements(owner, { now, trialEndsAt: new Date("2101-01-01") }).trialEndsAt).toBeNull();
+      expect(planEntitlements({ ...owner, id: "someone-else" }, { now }).plan).toBe("free");
+      expect(planEntitlements(FREE_PROFILE, { now }).plan).toBe("free");
+      expect(planEntitlements(owner, { now, previewFree: true }).plan).toBe("free");
+    } finally {
+      if (original === undefined) delete process.env.ADMIN_USER_IDS;
+      else process.env.ADMIN_USER_IDS = original;
+    }
+  });
+
   it("removes every limit for a paying account", () => {
     const pro = planEntitlements({ billingStatus: "active", proAccessUntil: null });
     expect(pro).toEqual(expect.objectContaining({

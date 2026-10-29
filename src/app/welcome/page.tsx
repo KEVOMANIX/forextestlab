@@ -20,7 +20,7 @@ export default async function WelcomePage() {
     return <BillingResultCard icon={CircleCheck} tone="success" eyebrow="Checkout complete" title="Welcome to ForexTestLab" message="Create or sign in to your account with the email used at checkout to access your workspace."><Link href="/sign-up?next=/welcome" className="btn-primary w-full">Continue to your account <ArrowRight size={15} aria-hidden /></Link></BillingResultCard>;
   }
   const [profile, trial] = await Promise.all([
-    prisma.userProfile.findUnique({ where: { id: user.id }, select: { billingStatus: true, proAccessUntil: true } }),
+    prisma.userProfile.findUnique({ where: { id: user.id }, select: { id: true, billingStatus: true, proAccessUntil: true } }),
     prisma.billingSubscription.findFirst({
       where: { userId: user.id, provider: "paddle", status: "trialing" },
       orderBy: { updatedAt: "desc" },

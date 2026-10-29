@@ -14,12 +14,16 @@ function configuredValues(name: "ADMIN_EMAILS" | "ADMIN_USER_IDS"): Set<string> 
   );
 }
 
+/** Immutable account-ID check, also used for permanent owner entitlements. */
+export function isAdminUserId(userId?: string): boolean {
+  return Boolean(userId && configuredValues("ADMIN_USER_IDS").has(userId.toLowerCase()));
+}
+
 export function isAdminUser(user: User | null): boolean {
   if (!user) return false;
-  const userIds = configuredValues("ADMIN_USER_IDS");
   const emails = configuredValues("ADMIN_EMAILS");
   return (
-    userIds.has(user.id.toLowerCase()) ||
+    isAdminUserId(user.id) ||
     Boolean(user.email && emails.has(user.email.trim().toLowerCase()))
   );
 }

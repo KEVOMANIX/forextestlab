@@ -16,7 +16,7 @@ export async function proTrialEligible(userId: string): Promise<boolean> {
   const [profile, earlier] = await Promise.all([
     prisma.userProfile.findUnique({
       where: { id: userId },
-      select: { proTrialStartedAt: true, billingStatus: true, proAccessUntil: true },
+      select: { id: true, proTrialStartedAt: true, billingStatus: true, proAccessUntil: true },
     }),
     prisma.billingSubscription.count({ where: { userId } }),
   ]);

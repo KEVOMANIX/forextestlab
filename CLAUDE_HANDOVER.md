@@ -14,6 +14,12 @@
 
 # ForexTestLab operational handover
 
+### 2026-10-29 — Permanent Pro for the sole administrator
+
+- Confirmed `kelvinmwaniki62@gmail.com` is user `00b54d69-34c9-4c82-b010-9d8020754825`, already the sole `ADMIN_USER_IDS` entry. Production admin emails are empty. Permanent Pro now derives from that immutable configured admin ID at the shared entitlement boundary, independent of billing status, subscription/trial expiry or provider webhooks.
+- Entitlement, Free-summary and trial-eligibility queries select the profile ID. Account copy explicitly says permanent administrator access. Other accounts still need their normal paid/trial/granted access; no customer billing rows or payment history were changed. The explicit administrator "View as Free" testing preview remains intentional and reversible.
+- Regression tests cover expired/inactive owner access into the future, full capabilities, no trial offer for the owner, and unchanged restrictions for other accounts.
+
 ### 2026-10-29 — Obsidian Desk exit optimizer
 
 - Owner selected Obsidian Desk. Replaced the stacked wizard/status boxes with one six-phase navigation, Configure/Results view switch, compact rule selection and a persistent test-scope/objective sidebar. Report view has a validated recommendation, four primary figures, responsive labeled equity comparison and candidate table. Extra metrics, all candidates and trade impacts remain available through disclosures.

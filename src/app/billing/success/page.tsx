@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export default async function BillingSuccessPage() {
   const user = await requireUser("/billing/success");
-  const profile = await prisma.userProfile.findUnique({ where: { id: user.id }, select: { billingStatus: true, proAccessUntil: true } });
+  const profile = await prisma.userProfile.findUnique({ where: { id: user.id }, select: { id: true, billingStatus: true, proAccessUntil: true } });
   const active = Boolean(profile && hasProAccess(profile));
   if (!active) {
     return <BillingResultCard icon={Clock3} tone="pending" eyebrow="Payment received" title="Activating your Pro workspace" message="Paddle is confirming your subscription. This normally takes only a few seconds."><PaymentStatusPoller /></BillingResultCard>;

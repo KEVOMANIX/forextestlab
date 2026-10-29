@@ -102,7 +102,7 @@ export function SecurePasswordForm({ email }: { email: string }) {
         <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand-400/10 text-brand-300">
           <ShieldCheck size={23} aria-hidden />
         </span>
-        <h1 className="mt-5 text-2xl font-bold tracking-tight">Password secured</h1>
+        <h2 className="mt-5 text-xl font-bold tracking-tight">Password secured</h2>
         <p role="status" className="mt-2 text-sm leading-6 app-muted">{message}</p>
         <button
           type="button"
@@ -127,7 +127,7 @@ export function SecurePasswordForm({ email }: { email: string }) {
           </span>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Account security</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight">Change password</h1>
+            <h2 className="mt-1 text-xl font-bold tracking-tight">Change password</h2>
             <p className="mt-2 text-sm leading-6 app-muted">
               Verify your identity before choosing a new password.
             </p>

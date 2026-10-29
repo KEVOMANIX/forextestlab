@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
-import { BadgeCheck, CreditCard } from "lucide-react";
+import { ArrowRight, Crown } from "lucide-react";
 
-import { BackLink } from "@/components/app/BackLink";
+import { AccountShell, loadAccount } from "@/components/account/AccountShell";
 import { ManageSubscriptionButton } from "@/components/billing/ManageSubscriptionButton";
 import { SubscriptionRenewalControls } from "@/components/billing/SubscriptionRenewalControls";
-import { ensureUserProfile, requireUser } from "@/lib/auth";
 import { billingEnabled } from "@/lib/billing/availability";
-import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { formatQuotaReset } from "@/lib/billing/plan-limits";
 import { prisma } from "@/lib/db";
 
@@ -17,15 +15,12 @@ const LONG_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "lon
 
 export default async function BillingPage() {
   const checkoutEnabled = billingEnabled();
-  const user = await requireUser("/account/billing");
-  const [entitlements, subscription] = await Promise.all([
-    ensureUserProfile(user).then(() => getUserEntitlements(user.id)),
-    prisma.billingSubscription.findFirst({
-      where: { userId: user.id, status: { in: ["active", "trialing", "past_due", "attention", "non-renewing"] } },
-      orderBy: { updatedAt: "desc" },
-    }),
-  ]);
-  const pro = entitlements.plan === "pro";
+  const account = await loadAccount("/account/billing");
+  const subscription = await prisma.billingSubscription.findFirst({
+    where: { userId: account.user.id, status: { in: ["active", "trialing", "past_due", "attention", "non-renewing"] } },
+    orderBy: { updatedAt: "desc" },
+  });
+  const { pro, entitlements } = account;
   const trial = subscription?.provider === "paddle" && subscription.status === "trialing";
   const paddleSubscription = subscription?.provider === "paddle"
     && ["active", "trialing"].includes(subscription.status)
@@ -43,42 +38,51 @@ export default async function BillingPage() {
     ? "Full workspace access is free while billing is paused."
     : trial
       ? `Every Pro feature is unlocked until ${nextPaymentLabel ?? "your trial ends"}.`
-      : pro
-        ? "Every market, the full history, multi-pair replay, full analytics and Prop Firm Challenge mode."
-        : monthly
-          ? `${monthly.remaining} of ${monthly.limit} new sessions left this month; more arrive on ${formatQuotaReset(monthly.resetsAt)}.`
-          : "Choose a plan when you are ready for more.";
+      : account.note;
 
   return (
-    <main id="main" className="min-h-[calc(100dvh-3.5rem)] px-4 py-10 sm:py-12">
-      <div className="mx-auto max-w-3xl">
-        <BackLink label="Back to account" fallback="/account" />
-        <div className="mt-5"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-300">Account billing</p><h1 className="mt-2 text-3xl font-bold tracking-tight">Plan and subscription</h1><p className="mt-2 text-sm app-muted">Signed in as {user.email}</p></div>
-        <section className="panel mt-8 p-6">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><CreditCard size={20} aria-hidden /></span>
-              <div><p className="text-xs uppercase tracking-[0.14em] app-muted">Current plan</p><h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">{heading}{(pro || !checkoutEnabled) && <BadgeCheck size={18} className="text-brand-300" aria-hidden />}</h2><p className="mt-1 text-sm app-muted">{summary}</p></div>
-            </div>
-            {checkoutEnabled
-              ? <div className="w-full sm:w-52">{manageableSubscription ? <ManageSubscriptionButton /> : <a href="/pricing" className="btn-primary w-full">View plans</a>}</div>
-              : manageableSubscription ? <div className="w-full sm:w-52"><ManageSubscriptionButton /></div> : <span className="rounded-lg border border-brand-400/20 bg-brand-400/[.07] px-3 py-2 text-center text-xs font-semibold text-brand-200">Billing paused</span>}
+    <AccountShell account={account} tab="billing">
+      <section className={`overflow-hidden rounded-xl border ${pro ? "border-amber-300/30 bg-[linear-gradient(135deg,rgba(251,191,36,0.08),rgba(20,184,166,0.05))]" : "app-border bg-[var(--app-panel)]"}`}>
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div>
+            <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${pro ? "text-amber-200" : "app-muted"}`}>Current plan</p>
+            <h2 className="mt-1 flex items-center gap-2 text-2xl font-bold">
+              {pro && <Crown size={20} className="text-amber-200" aria-hidden />}{heading}
+            </h2>
+            <p className="mt-1 text-sm app-muted">{summary}</p>
           </div>
-          {!checkoutEnabled && <p className="mt-5 border-t app-border pt-5 text-xs app-muted">New purchases are disabled. Existing subscribers can still manage or turn off renewal below.</p>}
-          {paddleSubscription && (
-            <div className="mt-6 border-t app-border pt-6">
-              <SubscriptionRenewalControls
-                autoRenew={!paddleSubscription.cancelAtPeriodEnd}
-                nextPaymentLabel={nextPaymentLabel}
-                trial={trial}
-              />
-              <p className="mt-3 text-xs app-muted">
-                Paddle securely handles invoices, payment methods, and billing history.
-              </p>
+          {checkoutEnabled
+            ? <div className="w-full sm:w-52">{manageableSubscription ? <ManageSubscriptionButton /> : !pro ? <a href="/pricing" className="btn-primary w-full">Upgrade to Pro <ArrowRight size={15} aria-hidden /></a> : null}</div>
+            : manageableSubscription ? <div className="w-full sm:w-52"><ManageSubscriptionButton /></div> : <span className="rounded-lg border border-brand-400/20 bg-brand-400/[.07] px-3 py-2 text-center text-xs font-semibold text-brand-200">Billing paused</span>}
+        </div>
+
+        {!pro && monthly && (
+          <div className="border-t app-border px-5 py-4 sm:px-6">
+            <div className="flex items-center justify-between text-xs">
+              <span className="app-muted">Sessions this month</span>
+              <span className="font-semibold tabular-nums">{monthly.used} / {monthly.limit}</span>
             </div>
-          )}
-        </section>
-      </div>
-    </main>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--app-panel-2)]">
+              <div className="h-full rounded-full bg-brand-400" style={{ width: `${Math.min(100, monthly.used / monthly.limit * 100)}%` }} />
+            </div>
+            <p className="mt-2 text-xs app-muted">{monthly.remaining} left · more arrive on {formatQuotaReset(monthly.resetsAt)}.</p>
+          </div>
+        )}
+
+        {!checkoutEnabled && <p className="border-t app-border px-5 py-4 text-xs app-muted sm:px-6">New purchases are disabled. Existing subscribers can still manage or turn off renewal below.</p>}
+        {paddleSubscription && (
+          <div className="border-t app-border px-5 py-5 sm:px-6">
+            <SubscriptionRenewalControls
+              autoRenew={!paddleSubscription.cancelAtPeriodEnd}
+              nextPaymentLabel={nextPaymentLabel}
+              trial={trial}
+            />
+            <p className="mt-3 text-xs app-muted">
+              Paddle securely handles invoices, payment methods, and billing history.
+            </p>
+          </div>
+        )}
+      </section>
+    </AccountShell>
   );
 }

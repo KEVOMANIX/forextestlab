@@ -1,22 +1,22 @@
 import type { Metadata } from "next";
 
+import { DeleteAccountSection, SessionActions } from "@/components/account/AccountActions";
+import { AccountCard, AccountShell, loadAccount } from "@/components/account/AccountShell";
 import { SecurePasswordForm } from "@/components/account/SecurePasswordForm";
-import { requireUser } from "@/lib/auth";
-import { BackLink } from "@/components/app/BackLink";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Update password", robots: { index: false } };
+export const metadata: Metadata = { title: "Security", robots: { index: false } };
 
-export default async function UpdatePasswordPage() {
-  const user = await requireUser("/account/update-password");
+// The password-reset email lands here too, so it stays at this address.
+export default async function SecurityPage() {
+  const account = await loadAccount("/account/update-password");
   return (
-    <main id="main" className="min-h-[calc(100dvh-3.5rem)] px-4 py-10 sm:py-12">
-      <div className="mx-auto max-w-2xl">
-        <BackLink fallback="/account" label="Back to account" />
-        <div className="mt-6">
-          <SecurePasswordForm email={user.email ?? "your verified email"} />
-        </div>
-      </div>
-    </main>
+    <AccountShell account={account} tab="security">
+      <SecurePasswordForm email={account.user.email ?? "your verified email"} />
+      <AccountCard title="Active sessions" description="Control where you're signed in.">
+        <SessionActions />
+      </AccountCard>
+      <DeleteAccountSection />
+    </AccountShell>
   );
 }

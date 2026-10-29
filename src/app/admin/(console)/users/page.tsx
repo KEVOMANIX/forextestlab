@@ -1,4 +1,4 @@
-import { Headphones, Search, ShieldPlus, Users } from "lucide-react";
+import { Headphones, Search, Users } from "lucide-react";
 
 import {
   AdminPageHeader,
@@ -7,7 +7,7 @@ import {
   adminTd,
   adminTh,
 } from "@/components/admin/AdminUI";
-import { grantManualAccess, revokeManualAccess } from "@/app/admin/actions";
+import { AccessGrantControls } from "@/components/admin/AccessGrantControls";
 import { addSupportAgent } from "@/app/support-team/actions";
 import { prisma } from "@/lib/db";
 import { formatNewYorkDateTime } from "@/lib/date-time";
@@ -19,7 +19,8 @@ export default async function AdminUsersPage(
   }
 ) {
   const searchParams = await props.searchParams;
-  await requireAdmin("/admin/users");
+  const actor = await requireAdmin("/admin/users");
+  const now = new Date();
   const q = searchParams.q?.trim().slice(0, 120) ?? "";
   // Support-team membership is account administration, so it lives here rather
   // than beside an open customer conversation in /support-team.
@@ -66,19 +67,20 @@ export default async function AdminUsersPage(
           <tbody>
             {users.map((profile) => (
               <tr key={profile.id}>
-                <td className={adminTd}><p className="font-semibold">{profile.displayName || "Unnamed user"}</p><p className="mt-1 text-xs app-muted">{profile.email}</p><p className="mt-1 font-mono text-[10px] app-muted">{profile.id.slice(0, 12)}…</p></td>
+                <td className={adminTd}><p className="font-semibold">{profile.displayName || "Unnamed user"}{profile.id === actor.id && <span className="ml-2 rounded-full bg-brand-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--app-accent-text)]">You</span>}</p><p className="mt-1 text-xs app-muted">{profile.email}</p><p className="mt-1 font-mono text-[10px] app-muted">{profile.id.slice(0, 12)}…</p></td>
                 <td className={adminTd}><AdminStatus value={profile.billingStatus} /><p className="mt-2 text-xs capitalize app-muted">{profile.billingPlan}</p></td>
                 <td className={adminTd}><p>{profile._count.sessions} sessions</p><p className="mt-1 text-xs app-muted">{profile._count.billingSubscriptions} subscriptions · {profile._count.billingPayments} payments</p></td>
                 <td className={adminTd}>
-                  <p className="mb-2 text-xs app-muted">{profile.proAccessUntil ? `Until ${formatNewYorkDateTime(profile.proAccessUntil)}` : "No manual grant"}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <form action={grantManualAccess} className="flex gap-1.5">
-                      <input type="hidden" name="userId" value={profile.id} />
-                      <select name="days" className="app-input py-1.5 text-xs"><option value="30">30 days</option><option value="90">90 days</option><option value="365">1 year</option></select>
-                      <button className="inline-flex items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-semibold text-surface-950"><ShieldPlus size={13} aria-hidden /> Grant</button>
-                    </form>
-                    {profile.proAccessUntil && <form action={revokeManualAccess}><input type="hidden" name="userId" value={profile.id} /><button className="rounded-lg border border-loss/25 px-2.5 py-1.5 text-xs font-semibold text-loss">Revoke grant</button></form>}
-                  </div>
+                  {(() => {
+                    const until = profile.proAccessUntil;
+                    const active = Boolean(until && until > now);
+                    return <>
+                      <p className={`mb-2 text-xs ${active ? "text-[var(--app-accent-text)]" : "app-muted"}`}>{!until ? "No manual grant" : active ? `Pro until ${formatNewYorkDateTime(until)}` : `Grant expired ${formatNewYorkDateTime(until)}`}</p>
+                      {profile.id === actor.id
+                        ? <p className="text-xs app-muted">Your own access can only be changed by another admin.</p>
+                        : <AccessGrantControls userId={profile.id} activeGrant={active} />}
+                    </>;
+                  })()}
                 </td>
                 <td className={`${adminTd} text-xs app-muted`}>{formatNewYorkDateTime(profile.createdAt)}</td>
               </tr>

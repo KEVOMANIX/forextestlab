@@ -7,10 +7,12 @@ import { after } from "next/server";
 
 import { PLAN_PREVIEW_COOKIE } from "@/lib/billing/plan-preview";
 
+import type { AccessResult } from "@/components/admin/AccessGrantControls";
 import { requireAdmin } from "@/lib/admin";
 import { billingEnabled } from "@/lib/billing/availability";
 import { sendSupportEmailReply, sendSupportMessageNotification } from "@/lib/contact-email";
 import { prisma } from "@/lib/db";
+import { formatNewYorkDateTime } from "@/lib/date-time";
 import { recordEmailFailure } from "@/lib/email-failures";
 import { accessGrantedEmail, accessRevokedEmail } from "@/lib/lifecycle-email";
 import { sendLifecycleEmail, sendResolvedEmail } from "@/lib/lifecycle-send";
@@ -49,17 +51,20 @@ export async function setPlanPreview(formData: FormData) {
   redirect(String(formData.get("returnTo") ?? "").startsWith("/") ? String(formData.get("returnTo")) : "/app");
 }
 
-export async function grantManualAccess(formData: FormData) {
+const SELF_CHANGE = "You can't change your own access. Ask another admin to do it.";
+
+export async function grantManualAccess(_previous: AccessResult, formData: FormData): Promise<AccessResult> {
   const actor = await requireAdmin("/admin/users");
   const userId = String(formData.get("userId") ?? "");
   const days = Number(formData.get("days") ?? 30);
-  if (!userId || ![30, 90, 365].includes(days) || userId === actor.id) return;
+  if (userId === actor.id) return { ok: false, message: SELF_CHANGE };
+  if (!userId || ![30, 90, 365].includes(days)) return { ok: false, message: "Choose 30 days, 90 days or 1 year." };
 
   const profile = await prisma.userProfile.findUnique({
     where: { id: userId },
     select: { proAccessUntil: true, email: true, displayName: true },
   });
-  if (!profile) return;
+  if (!profile) return { ok: false, message: "This account no longer exists." };
   const base =
     profile.proAccessUntil && profile.proAccessUntil > new Date()
       ? profile.proAccessUntil
@@ -74,12 +79,14 @@ export async function grantManualAccess(formData: FormData) {
     accessGrantedEmail({ name: profile.displayName, until: accessUntil, days })));
   revalidatePath("/admin");
   revalidatePath("/admin/users");
+  return { ok: true, message: `Pro granted until ${formatNewYorkDateTime(accessUntil)}.` };
 }
 
-export async function revokeManualAccess(formData: FormData) {
+export async function revokeManualAccess(_previous: AccessResult, formData: FormData): Promise<AccessResult> {
   const actor = await requireAdmin("/admin/users");
   const userId = String(formData.get("userId") ?? "");
-  if (!userId || userId === actor.id) return;
+  if (userId === actor.id) return { ok: false, message: SELF_CHANGE };
+  if (!userId) return { ok: false, message: "No account was selected." };
   const profile = await prisma.userProfile.update({
     where: { id: userId },
     data: { proAccessUntil: null },
@@ -92,6 +99,7 @@ export async function revokeManualAccess(formData: FormData) {
   }
   revalidatePath("/admin");
   revalidatePath("/admin/users");
+  return { ok: true, message: "Grant removed." };
 }
 
 export async function updateEnquiryStatus(formData: FormData) {

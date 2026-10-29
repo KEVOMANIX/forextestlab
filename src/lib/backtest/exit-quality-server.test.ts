@@ -224,3 +224,25 @@ describe("building the exit quality report", () => {
     expect(await buildExitQualityReport(state())).toBeNull();
   });
 });
+
+describe("optimizer server progress", () => {
+  it("reports real market loads, simulation totals and validation without changing the result", async () => {
+    getCandles.mockResolvedValue([candle(1_000, "1.10100", "1.09950"), candle(2_000, "1.10650", "1.10200")]);
+    const progress: import("./optimizer-progress").OptimizerProgress[] = [];
+    const options = { includePlan: false, optimizerRuleIds: ["target-1", "target-2"] };
+    const plain = await buildExitQualityReport(state(), options);
+    const streamed = await buildExitQualityReport(state(), { ...options, onProgress: event => progress.push(event) });
+    expect(streamed).toEqual(plain);
+    expect(progress[0]).toMatchObject({ stage: "loading", completed: 0, total: 1 });
+    expect(progress.find(event => event.stage === "loading" && event.completed === 1)?.symbol).toBe("EURUSD");
+    const replays = progress.filter(event => event.stage === "replaying");
+    expect(replays.at(-1)).toMatchObject({ completed: 2, total: 2, symbol: "EURUSD", tradeNumber: 1 });
+    expect(replays.every(event => Boolean(event.rule))).toBe(true);
+    expect(progress.at(-1)?.stage).toBe("validating");
+  });
+  it("stops before loading market history when cancelled", async () => {
+    const controller = new AbortController(); controller.abort();
+    await expect(buildExitQualityReport(state(), { signal: controller.signal })).rejects.toThrow();
+    expect(getCandles).not.toHaveBeenCalled();
+  });
+});

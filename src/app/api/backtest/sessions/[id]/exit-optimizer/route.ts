@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getSessionResults } from "@/lib/backtest/results";
 import { buildExitQualityReport } from "@/lib/backtest/exit-quality-server";
+import type { OptimizerStreamEvent } from "@/lib/backtest/optimizer-progress";
 import { ALL_EXIT_RULES } from "@/lib/backtest/exit-optimizer";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { siteConfig } from "@/lib/site";
@@ -33,7 +34,50 @@ export async function POST(request: Request, context: Context) {
   const ruleIds = Array.isArray(requested) ? requested.filter((id): id is string => typeof id === "string" && allowed.has(id)).slice(0, allowed.size) : [];
   if (!ruleIds.length) return json({ ok: false, error: "Select at least one exit-rule group." }, 400);
 
-  const report = await buildExitQualityReport(results.state, { includePlan: false, includeOptimizer: true, optimizerRuleIds: ruleIds });
-  if (!report?.optimizer) return json({ ok: false, error: "No eligible trades were found. Trades need an initial stop and recorded risk." }, 422);
-  return json({ ok: true, optimizer: report.optimizer });
+  const options = { includePlan: false, includeOptimizer: true, optimizerRuleIds: ruleIds };
+  const noTrades = "No eligible trades were found. Trades need an initial stop and recorded risk.";
+  if (!request.headers.get("accept")?.includes("application/x-ndjson")) {
+    const report = await buildExitQualityReport(results.state, options);
+    if (!report?.optimizer) return json({ ok: false, error: noTrades }, 422);
+    return json({ ok: true, optimizer: report.optimizer });
+  }
+
+  const abort = new AbortController();
+  const disconnect = () => abort.abort();
+  request.signal.addEventListener("abort", disconnect, { once: true });
+  if (request.signal.aborted) abort.abort();
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: OptimizerStreamEvent) => {
+        if (!abort.signal.aborted) controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+      };
+      const heartbeat = setInterval(() => {
+        if (!abort.signal.aborted) controller.enqueue(encoder.encode("\n"));
+      }, 10_000);
+      try {
+        send({ type: "progress", progress: { stage: "preparing", message: "Checking eligible trades and selected exit rules" } });
+        const report = await buildExitQualityReport(results.state, {
+          ...options, signal: abort.signal, onProgress: progress => send({ type: "progress", progress }),
+        });
+        if (!report?.optimizer) send({ type: "error", error: noTrades });
+        else send({ type: "result", optimizer: report.optimizer });
+      } catch (error) {
+        if (!abort.signal.aborted) {
+          console.error("Optimizer analysis failed", error);
+          send({ type: "error", error: "The optimizer could not complete. Please try again." });
+        }
+      } finally {
+        clearInterval(heartbeat);
+        request.signal.removeEventListener("abort", disconnect);
+        if (!abort.signal.aborted) controller.close();
+      }
+    },
+    cancel() { abort.abort(); },
+  });
+  return new Response(stream, { headers: {
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "private, no-store, no-transform",
+    "X-Accel-Buffering": "no",
+  } });
 }

@@ -66,7 +66,26 @@ try {
       return route.fulfill({ json: { optimizer } });
     });
     await page.screenshot({ path: `.tmp/optimizer-desk/setup-${width}.png`, fullPage: true });
+    // Hold a real browser ReadableStream open to inspect intermediate progress.
+    await page.evaluate(() => {
+      window.originalFetch = window.fetch;
+      window.fetch = async () => new Response(new ReadableStream({ start(controller) {
+        const encoder = new TextEncoder();
+        window.sendOptimizerEvent = event => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+        window.finishOptimizerStream = () => { window.sendOptimizerEvent({ type: "result", optimizer: window.optimizerFixture }); controller.close(); window.fetch = window.originalFetch; };
+        window.sendOptimizerEvent({ type: "progress", progress: { stage: "loading", message: "Loaded EURUSD · 12,000 candles", completed: 1, total: 2, symbol: "EURUSD" } });
+      } }), { headers: { "Content-Type": "application/x-ndjson" } });
+    });
     await page.getByRole("button", { name: "Run optimizer" }).click();
+    await expect(page.getByTestId("optimizer-progress")).toBeVisible();
+    await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
+    await page.evaluate(() => window.sendOptimizerEvent({ type: "progress", progress: { stage: "replaying", message: "Testing Fixed 2R target", completed: 45, total: 120, symbol: "EURUSD", rule: "Fixed 2R target", tradeNumber: 23 } }));
+    await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "37");
+    await expect(page.getByText("45 / 120 rule / trade tests", { exact: true })).toBeVisible();
+    await page.screenshot({ path: `.tmp/optimizer-desk/progress-${width}.png`, fullPage: true });
+    await page.evaluate(() => window.sendOptimizerEvent({ type: "progress", progress: { stage: "validating", message: "Comparing discovery and later-trade validation results" } }));
+    await expect(page.getByRole("progressbar")).not.toHaveAttribute("aria-valuenow");
+    await page.evaluate(() => window.finishOptimizerStream());
     const result = page.getByTestId("optimizer-results");
     await expect(result.getByRole("heading", { name: "Fixed 2R target", exact: true })).toBeVisible();
     await expect(result.getByRole("img", { name: /Cumulative R over 60 trades/ })).toBeVisible();

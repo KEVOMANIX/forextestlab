@@ -7,6 +7,7 @@
  */
 
 import "server-only";
+import type { OptimizerProgress } from "./optimizer-progress";
 
 import {
   planTestable,
@@ -44,8 +45,9 @@ export interface ExitQualityReport {
  */
 export async function buildExitQualityReport(
   state: SessionState,
-  options: { includePlan?: boolean; includeOptimizer?: boolean; optimizerRuleIds?: string[] } = {},
+  options: { includePlan?: boolean; includeOptimizer?: boolean; optimizerRuleIds?: string[]; onProgress?: (progress: OptimizerProgress) => void; signal?: AbortSignal } = {},
 ): Promise<ExitQualityReport | null> {
+  options.signal?.throwIfAborted();
   if (!planTestable(state)) return null;
   const includePlan = options.includePlan ?? true;
   const includeOptimizer = options.includeOptimizer ?? true;
@@ -78,22 +80,33 @@ export async function buildExitQualityReport(
 
   // Each instrument's history is a separate read from storage, so they are
   // fetched side by side rather than one after another.
+  let loaded = 0;
+  options.onProgress?.({ stage: "loading", message: "Loading market history", completed: 0, total: bySymbol.size });
   const candlesBySymbol = new Map(await Promise.all([...bySymbol].map(async ([symbol, group]) => {
     try {
+      options.signal?.throwIfAborted();
       const candles = await provider.getCandles({
         symbol,
         timeframe: state.config.timeframe,
         startTime: Math.min(...group.map((trade) => trade.entryTime)),
         endTime: state.config.endTime,
       });
+      options.signal?.throwIfAborted();
+      options.onProgress?.({ stage: "loading", message: `Loaded ${symbol} · ${candles.length.toLocaleString()} candles`, symbol, completed: ++loaded, total: bySymbol.size });
       return [symbol, candles] as const;
     } catch {
+      options.signal?.throwIfAborted();
+      options.onProgress?.({ stage: "loading", message: `${symbol} history unavailable · skipping`, symbol, completed: ++loaded, total: bySymbol.size });
       // Missing history for one instrument must not take the whole report
       // down; the others still have something to say.
       return [symbol, [] as Candle[]] as const;
     }
   })));
 
+  const availableTrades = optimizerCandidates.filter(trade => (candlesBySymbol.get(recordSymbol(trade, state.config))?.length ?? 0) > 0);
+  const totalSimulations = availableTrades.length * optimizedByRule.size;
+  let completedSimulations = 0;
+  let lastYield = 0;
   for (const [symbol, group] of bySymbol) {
     const candles = candlesBySymbol.get(symbol) ?? [];
     if (!candles.length) continue;
@@ -110,6 +123,7 @@ export async function buildExitQualityReport(
     };
 
     for (const trade of group) {
+      options.signal?.throwIfAborted();
       // Slice once per trade. Passing the symbol's whole multi-year array into
       // every candidate rule would repeatedly rescan hundreds of thousands of
       // candles and make opening Reports progressively slower with history.
@@ -122,11 +136,23 @@ export async function buildExitQualityReport(
         for (const row of optimizedByRule.values()) {
           const result = simulateExitRule(trade, tradeNumbers.get(trade.id) ?? 0, tradeCandles, planConfig, row.rule);
           if (result) row.trades.push(result);
+          completedSimulations++;
+          if (options.onProgress && (Date.now() - lastYield >= 80 || completedSimulations === totalSimulations)) {
+            options.onProgress({ stage: "replaying", message: `Testing ${row.rule.label}`, symbol, rule: row.rule.label,
+              tradeNumber: tradeNumbers.get(trade.id), completed: completedSimulations, total: totalSimulations });
+            // Let queued progress reach the browser and allow disconnects to cancel work.
+            await new Promise<void>(resolve => setImmediate(resolve));
+            options.signal?.throwIfAborted();
+            lastYield = Date.now();
+          }
         }
       }
     }
   }
 
+  options.onProgress?.({ stage: "validating", message: "Comparing discovery and later-trade validation results" });
+  if (options.onProgress) await new Promise<void>(resolve => setImmediate(resolve));
+  options.signal?.throwIfAborted();
   const optimizer = includeOptimizer ? buildOptimizerReport([...optimizedByRule.values()]) : null;
   if (!tests.length && !optimizer) return null;
   return { tests, summary: tests.length ? summarisePlanTests(tests) : null, optimizer };

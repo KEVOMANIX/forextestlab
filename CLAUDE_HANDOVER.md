@@ -957,3 +957,9 @@ The visual system deliberately separates product identity from trading results:
 ### 2026-10-29 — Optimizer visual refinement
 - Refined Obsidian Desk with a full-width numbered phase bar, structured rule cards with variation counts, quieter surfaces, separate analysis settings, metric tiles, and a framed equity comparison. Existing rule execution, validation, and six-phase workflows remain intact.
 - Verified real components at 1280px and 390px using tests/ui/optimizer-desk.mjs, including rule payloads, objective ranking, phases, save/export, errors, session reset, and horizontal overflow; inspected desktop/mobile screenshots and light-mode output.
+
+### 2026-10-29 — Live optimizer progress
+- Optimizer POST supports opt-in NDJSON streaming, preserving existing JSON responses. Auth, ownership, Pro and finished-session checks run before streaming. Proxy buffering is disabled per response; heartbeat lines keep long history loads connected.
+- Server emits real history completion counts, current rule/market/trade and completed simulation totals, then chronological validation. Work yields periodically so updates flush; disconnect signals stop subsequent analysis checkpoints. In-flight provider reads finish before their cancellation check.
+- Running UI shows four stages, elapsed time, stage-specific percentage only when totals are known, and five recent activity entries. Interrupted streams surface an error and never display partial results. Session changes abort and reset progress.
+- Verification: 31 targeted tests across report math/progress/endpoint authorization and existing session routes; desktop/mobile browser workflow checks include held-open streams and intermediate progress values. Screenshots under ignored .tmp/optimizer-desk/progress-*.png.

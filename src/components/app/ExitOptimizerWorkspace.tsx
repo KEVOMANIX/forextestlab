@@ -1,11 +1,13 @@
 "use client";
 
-import { ArrowUpRight, Check, Clock3, LoaderCircle, Play, ShieldCheck, Target, TrendingUp, Workflow } from "lucide-react";
+import { ArrowUpRight, Check, Clock3, Play, ShieldCheck, Target, TrendingUp, Workflow } from "lucide-react";
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { objectiveScore, type OptimizerObjective } from "@/components/app/ExitQualityCard";
 import { ExitOptimizerPhases } from "@/components/app/ExitOptimizerPhases";
 import { ExitOptimizerResults } from "@/components/app/ExitOptimizerResults";
 import type { ExitOptimizerReport } from "@/lib/backtest/exit-optimizer";
+import { readOptimizerStream, type OptimizerProgress } from "@/lib/backtest/optimizer-progress";
+import { ExitOptimizerProgress } from "./ExitOptimizerProgress";
 import styles from "./ExitOptimizerWorkspace.module.css";
 
 type RuleGroup = { id: string; phase: 1 | 2; label: string; detail: string; rules: readonly string[]; icon: ComponentType<{ size?: number }> };
@@ -27,6 +29,9 @@ const isAnalysisPhase = (phase: Phase): phase is 3 | 4 | 5 | 6 => phase >= 3;
 export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: string; status: string }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(GROUPS.map(group => group.id)));
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<OptimizerProgress | null>(null);
+  const [activity, setActivity] = useState<OptimizerProgress[]>([]);
+  const [startedAt, setStartedAt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ExitOptimizerReport | null>(null);
   const [objective, setObjective] = useState<OptimizerObjective>("balanced");
@@ -35,7 +40,7 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
   const request = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    setReport(null); setError(null); setRunning(false); setView("configure"); setPhase(1);
+    setReport(null); setProgress(null); setActivity([]); setError(null); setRunning(false); setView("configure"); setPhase(1);
     return () => { request.current?.abort(); request.current = null; };
   }, [sessionId]);
 
@@ -50,15 +55,26 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
     if (!canRun || !sessionId) return;
     const controller = new AbortController();
     request.current?.abort(); request.current = controller;
-    setRunning(true); setError(null);
+    setRunning(true); setError(null); setStartedAt(Date.now()); setActivity([]);
+    setProgress({ stage: "preparing", message: "Opening your session and checking access" });
     try {
       const ruleIds = GROUPS.filter(group => selected.has(group.id)).flatMap(group => [...group.rules]);
       const response = await fetch(`/api/backtest/sessions/${encodeURIComponent(sessionId)}/exit-optimizer`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ruleIds }), signal: controller.signal,
+        method: "POST", headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" }, body: JSON.stringify({ ruleIds }), signal: controller.signal,
       });
-      const body = await response.json() as { optimizer?: ExitOptimizerReport; error?: string };
-      if (!response.ok || !body.optimizer) throw new Error(body.error || "The optimizer could not complete.");
-      if (!controller.signal.aborted) { setReport(body.optimizer); setView("results"); setPhase(1); }
+      let optimizer: ExitOptimizerReport;
+      if (response.ok && response.headers.get("content-type")?.includes("application/x-ndjson")) {
+        optimizer = await readOptimizerStream(response, update => {
+          if (controller.signal.aborted) return;
+          setProgress(update);
+          setActivity(current => [...current.slice(-4), update]);
+        });
+      } else {
+        const body = await response.json() as { optimizer?: ExitOptimizerReport; error?: string };
+        if (!response.ok || !body.optimizer) throw new Error(body.error || "The optimizer could not complete.");
+        optimizer = body.optimizer;
+      }
+      if (!controller.signal.aborted) { setReport(optimizer); setView("results"); setPhase(1); }
     } catch (cause) {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "The optimizer could not complete.");
     } finally {
@@ -88,8 +104,8 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
 
     <div className={styles.layout}>
       <div className={styles.content}>
-        {running ? <section className={styles.panel} role="status" aria-live="polite">
-          <div className={styles.loading}><LoaderCircle size={26} className="animate-spin" /><h3>Running your exit analysis</h3><p>Replaying selected rules and validating them on later trades.</p></div>
+        {running ? <section className={styles.panel} aria-label="Optimizer analysis">
+          <ExitOptimizerProgress progress={progress} activity={activity} startedAt={startedAt} />
         </section> : view === "configure" ? <section className={styles.panel}>
           <p className={styles.eyebrow}>{phase === 2 ? "Coordinated exit plans" : "Design your test"}</p>
           <h3 className={styles.sectionTitle}>{phase === 2 ? "Combine protection and targets" : "Find a better exit."}</h3>

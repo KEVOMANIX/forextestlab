@@ -170,3 +170,27 @@
  .actionRow, .under { align-items:start; flex-direction:column; }
  .extra .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+.runHeading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.runTime { padding:7px 10px; border:1px solid var(--app-border); border-radius:8px; color:var(--app-muted); font:12px ui-monospace,monospace; }
+.runStages { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:28px 0; list-style:none; padding:0; }
+.runStages li { display:flex; flex-direction:column; gap:10px; font-size:11px; color:var(--app-muted); }
+.runStages li>span { display:grid; place-items:center; width:29px; height:29px; border:1px solid var(--app-border); border-radius:9px; font:10px ui-monospace,monospace; }
+.runStages li[data-state="active"] { color:var(--app-text); }
+.runStages li[data-state="active"]>span { background:var(--app-accent-wash); color:var(--app-accent-text); border-color:var(--app-accent); }
+.runStages li[data-state="done"]>span { color:var(--app-accent-text); }
+.runCurrent { padding:20px; border:1px solid var(--app-border); border-radius:12px; background:var(--app-bg); }
+.runStatus { display:flex; justify-content:space-between; gap:16px; font-size:13px; line-height:1.5; }
+.runStatus strong { color:var(--app-accent-text); font:14px ui-monospace,monospace; }
+.runTrack { height:5px; overflow:hidden; margin:18px 0 12px; background:var(--app-border); border-radius:4px; }
+.runTrack>span { display:block; height:100%; background:var(--app-accent); border-radius:4px; transition:width .2s; }
+.runTrack .indeterminate { width:30%; animation:optimizer-scan 1.6s ease-in-out infinite; }
+.runMeta { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; color:var(--app-muted); font:10px ui-monospace,monospace; line-height:1.6; }
+.runActivity { margin-top:26px; }
+.runActivity ul { list-style:none; padding:0; margin:0; }
+.runActivity li { display:flex; align-items:center; gap:9px; padding:9px 0; font-size:11px; color:var(--app-muted); border-bottom:1px solid var(--app-border); }
+.runActivity li>span { width:4px; height:4px; flex:none; border-radius:50%; background:var(--app-accent); }
+.runActivity small { margin-left:auto; white-space:nowrap; font:10px ui-monospace,monospace; }
+@keyframes optimizer-scan { from { transform:translateX(-100%); } to { transform:translateX(440%); } }
+@media(max-width:550px) { .runStages { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; } .runCurrent { padding:15px; } .runActivity li { flex-wrap:wrap; } }
+@media(prefers-reduced-motion:reduce) { .runTrack .indeterminate { animation:none; opacity:.6; } .runTrack>span { transition:none; } }

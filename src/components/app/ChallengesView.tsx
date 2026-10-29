@@ -287,7 +287,7 @@ export function ChallengesView({ overview, locked = false }: { overview: Challen
       )}
 
       {attempts.length === 0 && locked ? (
-        <ProPeek feature="challenge" title="Challenge mode is part of Pro" text="Trade a funded-account evaluation under real rules, scored day by day. New members can try it free for 7 days." className="mt-6 rounded-2xl">
+        <ProPeek feature="challenge" title="Challenge mode is part of Pro" text="Trade a funded-account evaluation under real rules, scored day by day. Choose a monthly or yearly Pro plan to unlock challenges." className="mt-6 rounded-2xl">
           <SampleChallenge />
         </ProPeek>
       ) : attempts.length === 0 ? (

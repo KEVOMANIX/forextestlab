@@ -679,11 +679,11 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
         <h2 className="mt-5 text-2xl font-semibold">You&apos;ve started this month&apos;s {monthly.limit} free sessions</h2>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed app-muted">
           {monthly.limit} new sessions arrive on {formatQuotaReset(monthly.resetsAt)}. Your saved
-          sessions are still yours to open, replay and review. Pro has unlimited sessions,
-          and new members can try it free for 7 days.
+          sessions are still yours to open, replay and review. Pro has unlimited sessions
+          with monthly or yearly billing.
         </p>
         <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link href="/pricing?feature=sessions" className="btn-primary">See Pro and the free trial</Link>
+          <Link href="/pricing?feature=sessions" className="btn-primary">Compare Pro plans</Link>
           <Link href="/app/history" className="btn-secondary">Open saved sessions</Link>
         </div>
       </div>

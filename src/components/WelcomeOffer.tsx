@@ -47,20 +47,20 @@ export function CopyWelcomeCode({
 export function WelcomeOfferBanner() {
   return (
     <aside
-      aria-label="Pre-launch access"
+      aria-label="Free and Pro plans"
       className="relative z-20 border-y border-brand-200/40 bg-brand-300 text-surface-950"
     >
       <div className="container-page flex min-h-12 flex-wrap items-center justify-center gap-x-3 gap-y-2 py-2 text-center text-sm">
-        <span className="font-bold">Free during early access</span>
+        <span className="font-bold">Start free. Upgrade when you need more.</span>
         <span aria-hidden className="hidden h-3 w-px bg-surface-950/25 sm:block" />
         <span className="text-xs font-semibold text-surface-800">
-          Explore the complete workspace. No payment required.
+          Three free sessions each month. Pro unlocks the full workspace.
         </span>
         <Link
-          href="/sign-up"
+          href="/pricing"
           className="text-xs font-bold text-surface-950 underline decoration-surface-950/35 underline-offset-4 transition hover:text-white"
         >
-          Get early access
+          Compare plans
         </Link>
       </div>
     </aside>

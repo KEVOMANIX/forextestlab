@@ -24,27 +24,27 @@ export function TrialOffer({
         <div className="max-w-2xl">
           <div className="flex items-center gap-2">
             <span className="rounded-full border border-brand-300/25 bg-brand-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-brand-200">
-              {hero ? "Start free" : "Free trial"}
+              Start free
             </span>
             <span className="text-xs font-medium text-slate-400">No payment required</span>
           </div>
           <h2 className={`${hero ? "mt-5 text-2xl sm:text-[2rem]" : compact ? "mt-3 text-xl" : "mt-4 text-2xl sm:text-3xl"} font-bold tracking-tight text-white`}>
-            {hero ? "Experience the replay workspace first." : "Test three sessions before choosing a plan"}
+            {hero ? "Experience the replay workspace first." : "Start with three free sessions every month"}
           </h2>
           <p className={`mt-2 text-sm leading-relaxed text-slate-300 ${hero ? "max-w-lg" : "sm:text-base"}`}>
             {hero
-              ? "Run three EUR/USD replay sessions across randomly selected 31-day market periods before choosing a plan."
-              : "Each trial opens EUR/USD on a randomly selected 31-day historical period. The trial includes a maximum of three sessions on each device."}
+              ? "Create a free account and run three replay sessions each calendar month on the seven major FX pairs."
+              : "Free includes three new sessions per account every calendar month on the seven major FX pairs, with up to 31 days of history in each session."}
           </p>
         </div>
         <div className={hero ? "" : "shrink-0"}>
           <ul className={`mb-5 grid gap-3 text-sm text-slate-300 ${hero ? "" : "sm:grid-cols-2 lg:grid-cols-1"}`}>
-            <li>{hero ? "One month of historical data per session" : "One month of market data"}</li>
-            <li>{hero ? "Up to three sessions on each device" : "Three sessions per device"}</li>
-            <li>{hero ? "Launch directly into EUR/USD replay" : "Instant EUR/USD replay"}</li>
+            <li>Up to 31 days of historical data per session</li>
+            <li>Three new sessions per account each month</li>
+            <li>Choose from seven major FX pairs</li>
           </ul>
           <Link href={href} className={`btn-primary w-full px-5 shadow-glow ${hero ? "py-3.5" : "py-3"}`}>
-            Start free trial
+            Create a free account
             <ArrowRight size={16} aria-hidden />
           </Link>
         </div>

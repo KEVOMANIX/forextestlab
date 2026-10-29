@@ -151,7 +151,7 @@ export function EndOfDataModal({
               href="/pricing?feature=history"
               className="btn-primary px-4 py-2.5"
             >
-              See Pro and the free trial
+              Compare Pro plans
               <ArrowRight size={15} aria-hidden />
             </Link>
           </div>

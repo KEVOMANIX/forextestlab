@@ -61,7 +61,7 @@ export default async function BillingPage() {
               <div><p className="text-xs uppercase tracking-[0.14em] app-muted">Current plan</p><h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">{heading}{(pro || !checkoutEnabled) && <BadgeCheck size={18} className="text-brand-300" aria-hidden />}</h2><p className="mt-1 text-sm app-muted">{summary}</p></div>
             </div>
             {checkoutEnabled
-              ? <div className="w-full sm:w-52">{manageableSubscription ? <ManageSubscriptionButton /> : <a href="/pricing" className="btn-primary w-full">{pro ? "View plans" : "See Pro and the free trial"}</a>}</div>
+              ? <div className="w-full sm:w-52">{manageableSubscription ? <ManageSubscriptionButton /> : <a href="/pricing" className="btn-primary w-full">View plans</a>}</div>
               : manageableSubscription ? <div className="w-full sm:w-52"><ManageSubscriptionButton /></div> : <span className="rounded-lg border border-brand-400/20 bg-brand-400/[.07] px-3 py-2 text-center text-xs font-semibold text-brand-200">Billing paused</span>}
           </div>
           {!checkoutEnabled && <p className="mt-5 border-t app-border pt-5 text-xs app-muted">New purchases are disabled. Existing subscribers can still manage or turn off renewal below.</p>}

@@ -113,8 +113,8 @@ export function ProLock({ feature, className = "", label = "Pro", children }: { 
             </ul>
           </div>
           <footer className="border-t app-border px-5 py-4">
-            <Link href={`/pricing?feature=${feature}`} onClick={close} className="btn-primary w-full py-2.5 text-sm">See Pro and the 7-day free trial</Link>
-            <p className="mt-2 text-center text-[11px] app-muted">New members can try every Pro feature free for 7 days.</p>
+            <Link href={`/pricing?feature=${feature}`} onClick={close} className="btn-primary w-full py-2.5 text-sm">Compare Pro plans</Link>
+            <p className="mt-2 text-center text-[11px] app-muted">Choose monthly or yearly access to every Pro feature.</p>
           </footer>
         </div>
       </dialog>

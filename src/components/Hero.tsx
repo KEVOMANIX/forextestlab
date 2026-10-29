@@ -152,7 +152,7 @@ export function Hero() {
               </Link>
             </div>
               <p className="mt-3 text-center text-xs text-slate-500 lg:text-right">
-                Free: 3 sessions a month on the major pairs · No card required · Pro free for 7 days
+                Free: 3 sessions a month on the major pairs · No card required · Monthly and yearly Pro plans
               </p>
               <p className="mt-2 text-center text-xs text-slate-400 lg:text-right">
                 Already have an account?{" "}

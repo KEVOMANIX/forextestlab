@@ -21,7 +21,7 @@ const FAQS = [
   },
   {
     q: "What is included for free?",
-    a: "Three new sessions every calendar month on the seven major FX pairs, each covering up to 31 days of history, with no card required. Pro adds every market, the full history and more, and new members can try it free for 7 days.",
+    a: "Three new sessions every calendar month on the seven major FX pairs, each covering up to 31 days of history, with no card required. Monthly and yearly Pro plans add every market, the full history and more.",
   },
   {
     q: "Can I simulate trades?",

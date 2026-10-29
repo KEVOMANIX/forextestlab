@@ -68,7 +68,7 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
 
   return <main className={styles.workspace} data-testid="optimizer-workspace">
     <header className={styles.header}>
-      <div><p className={styles.eyebrow}>Research workspace</p><h2 className={styles.title}>Exit optimizer</h2></div>
+      <div><p className={styles.eyebrow}>Strategy research</p><h2 className={styles.title}>Exit optimizer</h2></div>
       <div className={styles.viewSwitch} aria-label="Optimizer view">
         <button type="button" aria-pressed={view === "configure"} onClick={configure} disabled={running}>Configure</button>
         <button type="button" aria-pressed={view === "results"} onClick={() => { setView("results"); setPhase(1); }} disabled={!report || running}>Results</button>
@@ -92,20 +92,21 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
           <div className={styles.loading}><LoaderCircle size={26} className="animate-spin" /><h3>Running your exit analysis</h3><p>Replaying selected rules and validating them on later trades.</p></div>
         </section> : view === "configure" ? <section className={styles.panel}>
           <p className={styles.eyebrow}>{phase === 2 ? "Coordinated exit plans" : "Design your test"}</p>
-          <h3 className={styles.sectionTitle}>{phase === 2 ? "Combine protection and targets" : "What would you change?"}</h3>
+          <h3 className={styles.sectionTitle}>{phase === 2 ? "Combine protection and targets" : "Find a better exit."}</h3>
           <div className={styles.ruleGrid}>
             {GROUPS.filter(group => group.phase === phase).map(group => {
               const active = selected.has(group.id), Icon = group.icon;
               return <button type="button" key={group.id} className={styles.rule} aria-pressed={active} onClick={() => toggle(group.id)}>
-                <span className={styles.ruleCheck}>{active && <Check size={12} />}</span><Icon size={18} />
+                <span className={styles.ruleTop}><span className={styles.ruleIcon}><Icon size={20} /></span><span className={styles.ruleCheck}>{active && <Check size={12} />}</span></span>
                 <span><strong>{group.label}</strong><small>{group.detail}</small></span>
+                <span className={styles.ruleCount}>{group.rules.length} variations</span>
               </button>;
             })}
           </div>
           {phase === 1 && <button type="button" className={styles.inlineLink} onClick={() => setPhase(2)}>Rule combinations <span>{selected.has("combinations") ? "4 selected" : "Not selected"}</span><ArrowUpRight size={14} /></button>}
           {phase === 2 && <p className={styles.note}>Tests break-even, trailing protection and a final target as a single plan. Selections in Rules remain included.</p>}
           <div className={styles.actionRow}><span>{ruleCount} variations selected</span><button type="button" className={styles.primary} onClick={() => void run()} disabled={!canRun}><Play size={14} />Run optimizer<ArrowUpRight size={14} /></button></div>
-          <p className={styles.note}>Every entry and its initial risk stay unchanged.</p>
+          <p className={styles.note}>Same entries. Same risk. Different exits.</p>
         </section> : report && phase <= 2 ? <ExitOptimizerResults report={report} best={best} objective={objective} onDeploy={() => setPhase(6)} /> : report && best && isAnalysisPhase(phase) ?
           <section className={`${styles.panel} ${styles.phaseContent}`}><ExitOptimizerPhases report={report} best={best} activePhase={phase} /></section> : null}
 
@@ -114,7 +115,7 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
       </div>
 
       <aside className={styles.scope} aria-label="Test scope">
-        <h3>Test scope</h3>
+        <p className={styles.eyebrow}>Analysis settings</p><h3>Test scope</h3>
         <dl>
           <div><dt>Eligible trades</dt><dd>{report?.eligibleTrades ?? "—"}</dd></div>
           <div><dt>{view === "results" && report ? "Rules tested" : "Rule variations"}</dt><dd>{view === "results" && report ? report.rules.length : ruleCount}</dd></div>

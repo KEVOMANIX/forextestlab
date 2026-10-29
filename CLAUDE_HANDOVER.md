@@ -953,3 +953,7 @@ The visual system deliberately separates product identity from trading results:
   deploy && npx prisma generate` before the build (see above).
 
 - Sidebar Pro badge refinement: replaced the separate gold crown panel with a small brand-colored PRO badge beside the profile name; collapsed rail shows the same compact badge below the avatar.
+
+### 2026-10-29 — Optimizer visual refinement
+- Refined Obsidian Desk with a full-width numbered phase bar, structured rule cards with variation counts, quieter surfaces, separate analysis settings, metric tiles, and a framed equity comparison. Existing rule execution, validation, and six-phase workflows remain intact.
+- Verified real components at 1280px and 390px using tests/ui/optimizer-desk.mjs, including rule payloads, objective ranking, phases, save/export, errors, session reset, and horizontal overflow; inspected desktop/mobile screenshots and light-mode output.

@@ -87,6 +87,56 @@
 .impactList button, .impactList span { font-size:11px; }
 .impactList strong { display:block; margin-top:5px; font:13px ui-monospace,monospace; }
 .phaseContent [class*="text-[8px]"], .phaseContent [class*="text-[9px]"], .phaseContent [class*="text-[10px]"] { font-size:11px; }
+/* Refined research desk: clear stages, quiet surfaces and stronger data hierarchy. */
+.workspace { margin-top:28px; }
+.header { margin-bottom:28px; }
+.title { font-size:34px; letter-spacing:-1.3px; }
+.eyebrow { font-size:10px; letter-spacing:.18em; }
+.viewSwitch { border:1px solid var(--app-border); background:var(--app-bg); }
+.viewSwitch button { min-width:82px; }
+.viewSwitch button[aria-pressed="true"] { box-shadow:0 1px 4px #00000012; background:var(--app-panel-2); }
+.phases { flex-wrap:nowrap; gap:6px; padding:6px; margin-bottom:28px; border:1px solid var(--app-border); border-radius:12px; background:var(--app-bg); overflow-x:auto; }
+.phases button { flex:1; justify-content:center; gap:9px; padding:12px 14px; border:0; border-radius:8px; white-space:nowrap; }
+.phases button span { display:grid; place-items:center; width:23px; height:23px; border:1px solid var(--app-border); border-radius:7px; font-size:10px; opacity:1; }
+.phases button[aria-current="step"] { color:var(--app-accent-text); background:var(--app-accent-wash); }
+.phases button[aria-current="step"] span { background:var(--app-accent); color:var(--app-accent-ink); border-color:transparent; }
+.layout { grid-template-columns:minmax(0,1fr) 260px; gap:24px; }
+.panel { padding:30px; border-radius:16px; background:color-mix(in srgb,var(--app-panel) 55%,var(--app-bg)); }
+.scope { padding:24px; background:var(--app-bg); border-radius:16px; }
+.scope h3 { font-size:18px; letter-spacing:-.4px; margin-bottom:16px; }
+.scope dd { font-size:13px; font-variant-numeric:tabular-nums; }
+.sectionTitle { font-size:27px; letter-spacing:-.9px; }
+.ruleGrid { gap:14px; margin-top:26px; }
+.rule { position:relative; flex-direction:column; align-items:stretch; gap:16px; padding:20px; min-height:176px; background:var(--app-bg); transition:background .18s,border-color .18s,box-shadow .18s; }
+.rule:hover { border-color:var(--app-accent-text); }
+.rule[aria-pressed="true"] { background:color-mix(in srgb,var(--app-accent) 3%,var(--app-bg)); border-color:color-mix(in srgb,var(--app-accent) 40%,var(--app-border)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--app-accent) 6%,transparent); }
+.ruleTop { display:flex; align-items:center; justify-content:space-between; }
+.ruleIcon { display:grid; place-items:center; width:36px; height:36px; border-radius:10px; background:var(--app-panel); color:var(--app-muted); }
+.rule[aria-pressed="true"] .ruleIcon { color:var(--app-accent-text); background:var(--app-accent-wash); }
+.rule strong { font-size:14px; font-weight:600; }
+.rule small { font-size:12px; line-height:1.5; }
+.ruleCount { font:10px ui-monospace,monospace; color:var(--app-muted); }
+.ruleCheck { width:19px; height:19px; border-radius:6px; }
+.inlineLink { padding:18px 0 2px; }
+.actionRow { margin-top:26px; padding-top:24px; }
+.primary { padding:13px 20px; border-radius:10px; }
+.objective { margin-top:24px; }
+.objective select { padding:12px; border-radius:10px; }
+.note { line-height:1.65; }
+.resultHeading h3 { font-size:30px; letter-spacing:-1px; }
+.metrics { gap:10px; padding-top:0; border:0; }
+.metrics>div { padding:18px 14px; border:1px solid var(--app-border); border-radius:10px; background:var(--app-bg); }
+.metrics dd { font-size:25px; }
+.metrics dd small { line-height:1.5; }
+.plot { background:var(--app-bg); border:1px solid var(--app-border); border-radius:12px; padding:20px 14px 6px; }
+.plotHeading { padding:0 6px; }
+.candidateSection { margin-top:30px; }
+.table th { background:var(--app-bg); padding-top:13px; padding-bottom:13px; }
+.table th:first-child,.table td:first-child { padding-left:12px; }
+.table tbody tr:hover { background:var(--app-hover); }
+.extra { padding:13px 0; border-bottom:1px solid var(--app-border); }
+.workspace button:focus-visible,.workspace select:focus-visible,.extra summary:focus-visible { outline:2px solid var(--app-accent); outline-offset:4px; }
+@media(prefers-reduced-motion:reduce) { .rule { transition:none; } }
 @media(max-width:1100px) {
  .layout { grid-template-columns:minmax(0,1fr) 200px; gap:16px; }
  .panel { padding:20px; }
@@ -105,11 +155,13 @@
  .workspace { margin-top:20px; }
  .header { align-items:start; flex-direction:column; gap:16px; }
  .title { font-size:26px; }
- .phases { gap:15px; }
- .phases button { padding-bottom:10px; font-size:11px; }
+ .phases { gap:4px; }
+ .phases button { padding:9px 10px; font-size:11px; }
  .phases button span { font-size:10px; }
  .panel { padding:18px; }
  .ruleGrid { grid-template-columns:1fr; }
+ .rule { min-height:145px; }
+ .metrics>div { padding:14px 11px; }
  .scope dl { grid-template-columns:repeat(2,minmax(0,1fr)); }
  .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
  .resultHeading { flex-direction:column; gap:13px; }

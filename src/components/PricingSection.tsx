@@ -6,9 +6,7 @@ import { PreLaunchAccessCard } from "@/components/billing/PreLaunchAccessCard";
 import { Section } from "@/components/Section";
 import { billingEnabled } from "@/lib/billing/availability";
 import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billing/paddle";
-import { getPricingTiers } from "@/lib/billing/tiers";
-import { TrialOffer } from "@/components/TrialOffer";
-import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
+import { getPricingTiers, proTrialPricesConfigured } from "@/lib/billing/tiers";
 
 export function PricingSection() {
   const checkoutEnabled = billingEnabled();
@@ -21,8 +19,7 @@ export function PricingSection() {
       centered
     >
       {checkoutEnabled ? <>
-        <div className="mb-8 text-left"><TrialOffer compact href={TRIAL_SIGN_UP_PATH} /></div>
-        <LocalizedPricing compact tiers={getPricingTiers()} clientToken={requiredPaddleClientToken()} environment={paddleBrowserEnvironment()} />
+        <LocalizedPricing compact tiers={getPricingTiers()} clientToken={requiredPaddleClientToken()} environment={paddleBrowserEnvironment()} trialOffer={proTrialPricesConfigured()} />
         <div className="mt-6 text-center"><Link href="/pricing" className="inline-flex items-center gap-2 text-sm font-semibold text-brand-300 hover:text-brand-200">Compare all plan details <ArrowRight size={15} aria-hidden /></Link></div>
       </> : <PreLaunchAccessCard compact />}
     </Section>

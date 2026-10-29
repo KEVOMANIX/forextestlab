@@ -19,6 +19,7 @@ const GROUPS = [
   { title: "Access and accounts", items: [
     ["What is included for free?", "The Free plan is ongoing and needs no card. Each calendar month (renewing at 00:00 UTC on the 1st) you can start three new sessions on any of the seven major FX pairs, each covering up to 31 days from any point in history, with simulated orders, stop-loss and take-profit, position sizing, the journal and session results. Your saved sessions never expire."],
     ["How does Pro billing work?", "Choose Pro Monthly or Yearly. Paddle checkout shows your localized total and billing interval before payment. Your subscription renews automatically unless you cancel from Account → Billing. Cancellation stops the next renewal; Pro remains available until the end of the paid period."],
+    ["Can I try Pro first?", "New members get 7 days free on a monthly or yearly Pro plan. A card is required. Cancel before the trial ends to avoid a charge. One trial per account; all Pro features are included."],
     ["Will my sessions be saved?", "Signed-in sessions are private and saved to your account so you can resume and review them later."],
     ["Where can I get help?", "Use the support page or in-app help button. Include the affected session and what you expected to happen when reporting a problem."],
   ] },

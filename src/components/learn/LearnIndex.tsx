@@ -28,9 +28,9 @@ export function LearnIndex({ articles }: { articles: LearnSummary[] }) {
   return (
     <>
       {featured && browsing && (
-        <Link href={`/learn/${featured.slug}`} className="group grid items-center gap-8 border-b border-white/10 pb-12 pt-4 lg:grid-cols-[1.25fr_1fr] lg:gap-10">
-          <ArticleCover article={featured} priority sizes="(min-width: 1024px) 680px, 100vw" className="aspect-[16/9] transition group-hover:border-white/20" />
-          <div>
+        <Link href={`/learn/${featured.slug}`} className="group grid items-center gap-7 rounded-2xl border border-white/10 bg-surface-900/50 p-4 transition hover:border-white/20 hover:bg-surface-900/70 sm:p-6 lg:grid-cols-[1.2fr_1fr] lg:gap-10">
+          <ArticleCover article={featured} priority sizes="(min-width: 1024px) 650px, 100vw" className="aspect-[16/9] transition group-hover:border-white/20" />
+          <div className="pb-1 lg:pr-3">
             <div className="flex items-center gap-2">
               <CategoryLabel category={featured.category} />
               <span className="rounded bg-brand-500 px-1.5 py-0.5 text-[11px] font-bold text-surface-950">Featured</span>
@@ -38,11 +38,12 @@ export function LearnIndex({ articles }: { articles: LearnSummary[] }) {
             <h2 className="mt-3 text-3xl font-semibold leading-tight tracking-tight text-white transition group-hover:text-brand-300 sm:text-4xl">{featured.title}</h2>
             <p className="mt-4 text-base leading-7 text-slate-300">{featured.description}</p>
             <div className="mt-5"><ArticleMeta article={featured} /></div>
+            <span className="mt-5 inline-flex min-h-10 items-center text-sm font-semibold text-brand-300 transition group-hover:text-brand-200">Read guide <span aria-hidden className="ml-1.5 transition-transform group-hover:translate-x-1">→</span></span>
           </div>
         </Link>
       )}
 
-      <div className="flex flex-col gap-4 py-8 md:flex-row md:items-center md:justify-between">
+      <div className="mt-8 flex flex-col gap-4 border-y border-white/10 py-5 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by topic">
           {(["All", ...categories] as const).map(name => (
             <button
@@ -72,7 +73,7 @@ export function LearnIndex({ articles }: { articles: LearnSummary[] }) {
 
       <p className="sr-only" aria-live="polite">{shown.length} guides shown</p>
       {shown.length > 0 ? (
-        <div className="grid gap-x-7 gap-y-12 pb-16 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 pb-16 pt-7 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map(article => <ArticleCard key={article.slug} article={article} />)}
         </div>
       ) : (

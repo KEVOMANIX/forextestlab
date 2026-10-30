@@ -1,49 +1,29 @@
 "use client";
 
 import { Search, X } from "lucide-react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { LEARN_CATEGORIES, type LearnCategory, type LearnSummary } from "@/lib/learn/categories";
 
 import { ArticleCard } from "./ArticleCard";
-import { ArticleCover, ArticleMeta, CategoryLabel } from "./ArticleCover";
 
 /** The Learn page body: a featured article, category filters, search, and the article grid. */
 export function LearnIndex({ articles }: { articles: LearnSummary[] }) {
   const [category, setCategory] = useState<LearnCategory | "All">("All");
   const [query, setQuery] = useState("");
-  const featured = articles.find(article => article.featured) ?? articles[0];
   const categories = (Object.keys(LEARN_CATEGORIES) as LearnCategory[]).filter(name => articles.some(article => article.category === name));
-  const browsing = category === "All" && !query.trim();
 
   const shown = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     return articles.filter(article =>
       (category === "All" || article.category === category)
       && words.every(word => `${article.title} ${article.description} ${article.category}`.toLowerCase().includes(word))
-      && !(browsing && article === featured));
-  }, [articles, category, query, browsing, featured]);
+    );
+  }, [articles, category, query]);
 
   return (
     <>
-      {featured && browsing && (
-        <Link href={`/learn/${featured.slug}`} className="group grid items-center gap-7 rounded-2xl border border-white/10 bg-surface-900/50 p-4 transition hover:border-white/20 hover:bg-surface-900/70 sm:p-6 lg:grid-cols-[1.2fr_1fr] lg:gap-10">
-          <ArticleCover article={featured} priority sizes="(min-width: 1024px) 650px, 100vw" className="aspect-[16/9] transition group-hover:border-white/20" />
-          <div className="pb-1 lg:pr-3">
-            <div className="flex items-center gap-2">
-              <CategoryLabel category={featured.category} />
-              <span className="rounded bg-brand-500 px-1.5 py-0.5 text-[11px] font-bold text-surface-950">Featured</span>
-            </div>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight tracking-tight text-white transition group-hover:text-brand-300 sm:text-4xl">{featured.title}</h2>
-            <p className="mt-4 text-base leading-7 text-slate-300">{featured.description}</p>
-            <div className="mt-5"><ArticleMeta article={featured} /></div>
-            <span className="mt-5 inline-flex min-h-10 items-center text-sm font-semibold text-brand-300 transition group-hover:text-brand-200">Read guide <span aria-hidden className="ml-1.5 transition-transform group-hover:translate-x-1">→</span></span>
-          </div>
-        </Link>
-      )}
-
-      <div className="mt-8 flex flex-col gap-4 border-y border-white/10 py-5 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 border-y border-white/10 py-5 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by topic">
           {(["All", ...categories] as const).map(name => (
             <button

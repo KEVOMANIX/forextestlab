@@ -707,8 +707,8 @@
 }
 .marketing-light .dimension-stage-left,
 .marketing-light .dimension-stage-right {
-  opacity: 0.1 !important;
-  filter: saturate(0.45) brightness(1.35);
+  opacity: 0.48 !important;
+  filter: brightness(1.2) contrast(0.86) saturate(0.82);
 }
 
 @keyframes page-loader-candle {

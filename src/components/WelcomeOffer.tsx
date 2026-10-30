@@ -48,9 +48,9 @@ export function WelcomeOfferBanner() {
   return (
     <aside
       aria-label="Free and Pro plans"
-      className="relative z-20 border-y border-brand-200/40 bg-brand-300 text-surface-950"
+      className="relative z-20 border-y border-brand-500/15 bg-brand-400/[0.11] text-surface-950"
     >
-      <div className="container-page flex min-h-12 flex-wrap items-center justify-center gap-x-3 gap-y-2 py-2 text-center text-sm">
+      <div className="container-page flex min-h-10 flex-wrap items-center justify-center gap-x-3 gap-y-1.5 py-1.5 text-center text-sm">
         <span className="font-bold">Start free. Upgrade when you need more.</span>
         <span aria-hidden className="hidden h-3 w-px bg-surface-950/25 sm:block" />
         <span className="text-xs font-semibold text-surface-800">
@@ -58,7 +58,7 @@ export function WelcomeOfferBanner() {
         </span>
         <Link
           href="/pricing"
-          className="text-xs font-bold text-surface-950 underline decoration-surface-950/35 underline-offset-4 transition hover:text-white"
+          className="text-xs font-bold text-brand-700 underline decoration-brand-700/30 underline-offset-4 transition hover:text-brand-800"
         >
           Compare plans
         </Link>

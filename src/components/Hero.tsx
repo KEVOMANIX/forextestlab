@@ -93,7 +93,7 @@ const PROOF_POINTS = [
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pb-12 pt-10 sm:pt-14 lg:pb-16 lg:pt-16">
+    <section className="relative overflow-hidden pb-12 pt-7 sm:pt-10 lg:pb-16 lg:pt-12">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(to_bottom,#f5f8f6_0%,#eef6f1_48%,#f5f8f6_100%)]"
@@ -146,7 +146,7 @@ export function Hero() {
               </Link>
               <Link
                 href="#product-preview"
-                className="inline-flex min-h-12 w-full items-center justify-center gap-2 px-4 text-sm font-semibold text-slate-300 transition-colors hover:text-brand-200 sm:w-auto"
+                className="btn-secondary min-h-12 w-full px-6 sm:w-auto"
               >
                 Explore the product
               </Link>

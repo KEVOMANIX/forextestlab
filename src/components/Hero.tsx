@@ -36,7 +36,7 @@ function ScreenFrame({
 }) {
   return (
     <div
-      className={`marketing-dark-demo overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 shadow-[0_45px_140px_-45px_rgba(0,0,0,.72)] ${imageIncludesChrome ? "p-0" : "p-1.5"} ${className}`}
+      className={`marketing-dark-demo marketing-product-frame overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 shadow-[0_45px_140px_-45px_rgba(0,0,0,.72)] ${imageIncludesChrome ? "p-0" : "p-1.5"} ${className}`}
     >
       {!imageIncludesChrome && (
         <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/95 px-3">
@@ -178,7 +178,7 @@ export function Hero() {
               label="Session dashboard"
               width={1470}
               height={735}
-              className="dimension-stage-left opacity-60"
+              className="dimension-stage-left opacity-45"
             />
           </div>
           <div
@@ -191,11 +191,11 @@ export function Hero() {
               label="Session analytics"
               width={1470}
               height={765}
-              className="dimension-stage-right opacity-60"
+              className="dimension-stage-right opacity-45"
             />
           </div>
 
-          <div className="dimension-stage-main relative z-10 mx-auto w-full lg:w-[82%]">
+          <div className="dimension-stage-main relative z-10 mx-auto w-full lg:w-[76%]">
             <div
               aria-hidden
               className="absolute -inset-10 -z-10 rounded-[3rem] bg-brand-400/[0.12] blur-[70px]"

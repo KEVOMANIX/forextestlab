@@ -96,7 +96,7 @@ export function Hero() {
     <section className="relative overflow-hidden pb-12 pt-7 sm:pt-10 lg:pb-16 lg:pt-12">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(to_bottom,#f5f8f6_0%,#eef6f1_48%,#f5f8f6_100%)]"
+        className="marketing-hero-background pointer-events-none absolute inset-0 -z-30"
       />
       <div
         aria-hidden
@@ -104,7 +104,7 @@ export function Hero() {
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-48 -z-10 h-[42rem] w-[70rem] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse,rgba(69,214,168,.18),rgba(69,214,168,.06)_42%,transparent_70%)] blur-[80px]"
+        className="marketing-hero-glow pointer-events-none absolute left-1/2 top-48 -z-10 h-[42rem] w-[70rem] -translate-x-1/2 rounded-[50%] blur-[80px]"
       />
 
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">

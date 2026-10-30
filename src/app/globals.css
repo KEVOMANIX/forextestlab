@@ -523,12 +523,47 @@
    wrapper; the authenticated trading workspace keeps its independent dark
    terminal theme. Product screenshots and demo frames deliberately stay dark
    so the actual application remains recognisable. */
+.marketing-hero-background {
+  background: linear-gradient(to bottom, #070a12 0%, #071015 46%, #070a12 100%);
+}
+.marketing-hero-glow {
+  background: radial-gradient(ellipse, rgb(14 165 233 / 0.18), rgb(56 189 248 / 0.07) 42%, transparent 70%);
+}
+.market-selected-card {
+  background: linear-gradient(145deg, rgb(69 214 168 / 0.14), rgb(22 36 31 / 0.84));
+  box-shadow: 0 18px 45px rgb(0 0 0 / 0.2);
+}
+.market-selected-detail {
+  background: linear-gradient(155deg, rgb(69 214 168 / 0.14), rgb(13 29 23 / 0.97) 38%);
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.24);
+}
+.marketing-saved-sessions {
+  background: linear-gradient(145deg, rgb(69 214 168 / 0.12), rgb(30 48 42 / 0.72));
+}
 .marketing-light {
   min-height: 100vh;
   color-scheme: light;
   --focus-ring-offset: #f5f8f6;
   background: #f5f8f6;
   color: #10211b;
+}
+
+.marketing-light .marketing-hero-background {
+  background: linear-gradient(to bottom, #f5f8f6 0%, #eef6f1 48%, #f5f8f6 100%);
+}
+.marketing-light .marketing-hero-glow {
+  background: radial-gradient(ellipse, rgb(69 214 168 / 0.18), rgb(69 214 168 / 0.06) 42%, transparent 70%);
+}
+.marketing-light .market-selected-card {
+  background: linear-gradient(145deg, rgb(69 214 168 / 0.20), rgb(255 255 255 / 0.97));
+  box-shadow: 0 18px 45px rgb(16 50 38 / 0.12);
+}
+.marketing-light .market-selected-detail {
+  background: linear-gradient(155deg, rgb(69 214 168 / 0.20), rgb(255 255 255 / 0.98) 38%);
+  box-shadow: 0 24px 70px rgb(16 50 38 / 0.14);
+}
+.marketing-light .marketing-saved-sessions {
+  background: linear-gradient(145deg, rgb(69 214 168 / 0.16), rgb(255 255 255 / 0.92));
 }
 
 .marketing-light .app-logo-dark { display: none; }

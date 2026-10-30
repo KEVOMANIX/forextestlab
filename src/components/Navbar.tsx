@@ -6,6 +6,7 @@ import { LogIn, Menu, UserPlus, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { Logo } from "@/components/Logo";
+import { MarketingThemeToggle } from "@/components/MarketingThemeToggle";
 import { mainNav, TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
 export function Navbar() {
@@ -62,6 +63,7 @@ export function Navbar() {
         </div>
 
         <div className="hidden items-center gap-2 lg:flex">
+          <MarketingThemeToggle />
           <Link
             href="/sign-in?next=%2Faccount%2Fcontinue"
             className="btn-secondary py-2.5"
@@ -117,6 +119,7 @@ export function Navbar() {
             <LogIn size={16} aria-hidden />
             Sign in
           </Link>
+          <MarketingThemeToggle mobile />
           <Link
             href={TRIAL_SIGN_UP_PATH}
             onClick={() => setOpen(false)}

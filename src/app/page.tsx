@@ -15,7 +15,7 @@ const EXPLORE = [
 
 export default function HomePage() {
   return (
-    <div className="marketing-light min-h-screen">
+    <div className="marketing-site marketing-light min-h-screen">
       <Navbar />
       <main id="main" className="pt-16">
         <WelcomeOfferBanner />

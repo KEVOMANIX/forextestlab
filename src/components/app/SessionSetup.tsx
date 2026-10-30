@@ -165,7 +165,7 @@ function MarketPicker({
         <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] app-muted">
           Free sessions replay one of the seven major pairs.
           <ProLock feature="multiPair" label="Multi-pair" />
-          <ProLock feature="markets" label="All 38 markets" />
+          <ProLock feature="markets" label="All 39 markets" />
         </p>
       )}
 

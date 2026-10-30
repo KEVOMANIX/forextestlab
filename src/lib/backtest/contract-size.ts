@@ -1,7 +1,7 @@
 /**
  * Simulator contract sizes, in base-asset units per lot.
  * Gold: 100 troy ounces; silver: 5,000 troy ounces; Bitcoin: 1 BTC;
- * US30, US500 and US100: 1 index unit.
+ * WTI: 100 barrels; US30, US500 and US100: 1 index unit.
  * Broker contracts can vary; these are ForexTestLab's explicit conventions.
  * References:
  * https://help.oanda.com/eu/en/faqs/check-leverage-eu.htm
@@ -13,6 +13,7 @@ export function contractUnitsPerLot(baseCurrency: string): number {
     case "XAU": return 100;
     case "XAG": return 5000;
     case "BTC": return 1;
+    case "LIGHTCMD": return 100;
     case "USA30IDX": return 1;
     case "USA500IDX": return 1;
     case "USATECHIDX": return 1;

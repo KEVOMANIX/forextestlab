@@ -40,4 +40,11 @@ describe("forex symbol catalogue", () => {
     expect(describeSymbol("USA500IDXUSD")).toBe("US500");
     expect(describeSymbol("USATECHIDXUSD")).toBe("US100");
   });
+
+  it("exposes WTI crude oil as an energy market with Dukascopy pricing metadata", () => {
+    expect(getSymbolDefinition("LIGHTCMDUSD")).toMatchObject({
+      displayName: "WTI / US Oil", baseCurrency: "LIGHTCMD", quoteCurrency: "USD", pipSize: "0.01", pricePrecision: 2,
+    });
+    expect(describeSymbol("LIGHTCMDUSD")).toBe("WTI Crude Oil / US Dollar");
+  });
 });

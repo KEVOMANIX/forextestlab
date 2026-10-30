@@ -116,7 +116,7 @@ export function EndOfDataModal({
               <div className="mt-6 grid gap-2 sm:grid-cols-2">
                 {[
                   "Extend past 31 days",
-                  "All 38 markets",
+                  "All 39 markets",
                   "Multi-pair replay",
                   "Full analytics and AI insights",
                 ].map((feature) => (

@@ -353,6 +353,15 @@ export const SYMBOL_DEFINITIONS: SymbolDefinition[] = [
     pricePrecision: 3,
     demoBasePrice: "104.000",
   },
+  {
+    symbol: "LIGHTCMDUSD",
+    displayName: "WTI / US Oil",
+    baseCurrency: "LIGHTCMD",
+    quoteCurrency: "USD",
+    pipSize: "0.01",
+    pricePrecision: 2,
+    demoBasePrice: "68.00",
+  },
 ];
 
 export function getSymbolDefinition(
@@ -364,9 +373,10 @@ export function getSymbolDefinition(
 const FIAT_CURRENCIES = ["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"];
 
 /** The market group a symbol is listed under in the market picker and on the AI Analyst cards. */
-export function marketCategory(item: Pick<MarketSymbol, "symbol" | "baseCurrency" | "quoteCurrency">): "Forex" | "Indices" | "Crypto" | "Metals" | "Stocks" {
+export function marketCategory(item: Pick<MarketSymbol, "symbol" | "baseCurrency" | "quoteCurrency">): "Forex" | "Indices" | "Crypto" | "Metals" | "Energies" | "Stocks" {
   if (["BTC", "ETH", "LTC", "ADA"].includes(item.baseCurrency)) return "Crypto";
   if (["XAU", "XAG"].includes(item.baseCurrency)) return "Metals";
+  if (["LIGHTCMD", "BRENTCMD", "GASCMD"].includes(item.baseCurrency)) return "Energies";
   if (item.symbol.includes("IDX") || item.symbol === "DXY") return "Indices";
   if (FIAT_CURRENCIES.includes(item.baseCurrency) && FIAT_CURRENCIES.includes(item.quoteCurrency)) return "Forex";
   return "Stocks";
@@ -387,6 +397,7 @@ const CURRENCY_NAMES: Record<string, string> = {
   GBP: "British Pound",
   JPY: "Japanese Yen",
   LTC: "Litecoin",
+  LIGHTCMD: "WTI Crude Oil",
   NZD: "New Zealand Dollar",
   USD: "US Dollar",
   XAG: "Silver",

@@ -44,7 +44,7 @@ export default function FeaturesPage() {
           <div className="relative z-10 border-t border-white/10 bg-surface-950/95 p-6 sm:p-8 xl:absolute xl:left-16 xl:top-1/2 xl:w-[34rem] xl:-translate-y-1/2 xl:border-0 xl:bg-transparent xl:p-0">
             <h1 className="text-4xl font-bold leading-[1.02] tracking-[-0.05em] text-white sm:text-6xl lg:text-7xl">Practise the decision.<br /><span className="text-slate-300">Study the outcome.</span></h1>
             <p className="mt-6 max-w-md text-base leading-7 text-slate-300">Replay historical markets, manage simulated risk, and turn every trade into evidence you can review.</p>
-            <div className="mt-7 flex flex-wrap gap-3"><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary">Start free <ArrowRight size={16} aria-hidden /></Link><Link href="/markets" className="btn-secondary">Explore 38 markets</Link></div>
+            <div className="mt-7 flex flex-wrap gap-3"><Link href={TRIAL_SIGN_UP_PATH} className="btn-primary">Start free <ArrowRight size={16} aria-hidden /></Link><Link href="/markets" className="btn-secondary">Explore 39 markets</Link></div>
           </div>
           <div className="relative z-10 grid gap-px border-t border-white/10 bg-white/10 sm:grid-cols-3 xl:absolute xl:bottom-6 xl:right-6 xl:flex xl:border-0 xl:bg-transparent">
             {["Historical replay", "Simulated execution", "Session analytics"].map((label) => <span key={label} className="bg-surface-900/95 px-4 py-3 text-center text-[11px] font-medium text-slate-300 backdrop-blur xl:rounded-lg xl:border xl:border-white/15 xl:bg-surface-950/80">{label}</span>)}

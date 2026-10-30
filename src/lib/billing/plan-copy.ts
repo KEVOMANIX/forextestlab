@@ -18,7 +18,7 @@ export const FREE_PLAN_FEATURES = [
 
 export const PRO_PLAN_FEATURES = [
   "Unlimited sessions",
-  "All 38 markets",
+  "All 39 markets",
   "Full available history",
   "Multi-pair replay",
   "All replay speeds",

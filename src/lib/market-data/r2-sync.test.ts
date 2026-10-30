@@ -23,13 +23,14 @@ describe("R2 market-data synchronization", () => {
     expect(AUTOMATED_FX_SYMBOLS).not.toContain("BTCUSD");
   });
 
-  it("allows provider backfills for metals, Bitcoin and US indices, but not DXY", () => {
+  it("allows provider backfills for metals, Bitcoin, WTI and US indices, but not DXY", () => {
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("XAUUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("XAGUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("BTCUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("USA30IDXUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("USA500IDXUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).toContain("USATECHIDXUSD");
+    expect(DUKASCOPY_MARKET_SYMBOLS).toContain("LIGHTCMDUSD");
     expect(DUKASCOPY_MARKET_SYMBOLS).not.toContain("DXY");
   });
 

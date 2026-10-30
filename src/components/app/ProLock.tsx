@@ -18,7 +18,7 @@ export const PRO_FEATURE_COPY = {
     benefit: "Replay several markets on one synchronised clock and trade all of them, the way you watch the market live.",
   },
   markets: {
-    title: "All 38 markets",
+    title: "All 39 markets",
     benefit: "Every FX cross, gold and silver, US indices, crypto and the dollar index, on top of the seven majors.",
   },
   history: {

@@ -2,22 +2,23 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, BarChart3, Check, Coins, Search } from "lucide-react";
+import { ArrowRight, BarChart3, Check, Coins, Flame, Search } from "lucide-react";
 
 import { CurrencyFlag, hasCurrencyFlag } from "@/components/app/CurrencyFlag";
 import { fetchSymbols } from "@/lib/backtest/client";
 import { describeSymbol } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
 
-type Category = "All" | "Forex" | "Indices" | "Crypto" | "Metals";
+type Category = "All" | "Forex" | "Indices" | "Crypto" | "Metals" | "Energies";
 
-const CATEGORIES: Category[] = ["All", "Forex", "Indices", "Crypto", "Metals"];
+const CATEGORIES: Category[] = ["All", "Forex", "Indices", "Crypto", "Metals", "Energies"];
 const CRYPTO_CURRENCIES = new Set(["BTC", "ETH", "LTC", "ADA"]);
 const METAL_CURRENCIES = new Set(["XAU", "XAG"]);
 
 function categoryFor(item: MarketSymbol): Exclude<Category, "All"> {
   if (CRYPTO_CURRENCIES.has(item.baseCurrency)) return "Crypto";
   if (METAL_CURRENCIES.has(item.baseCurrency)) return "Metals";
+  if (item.baseCurrency === "LIGHTCMD") return "Energies";
   if (item.symbol.includes("IDX") || item.symbol === "DXY") return "Indices";
   return "Forex";
 }
@@ -42,6 +43,13 @@ function MarketMark({ market, large = false }: { market: MarketSymbol; large?: b
   if (category === "Crypto" && !hasCurrencyFlag(market.baseCurrency)) {
     return <span className={`relative grid shrink-0 place-items-center rounded-xl border border-brand-400/25 bg-brand-400/10 text-brand-200 ${large ? "h-14 w-14" : "h-11 w-11"}`} aria-hidden>
       <Coins size={large ? 25 : 20} strokeWidth={1.8} />
+      <CurrencyFlag currency="USD" size={secondarySize} className="absolute -bottom-1 -right-1 block" />
+    </span>;
+  }
+
+  if (category === "Energies") {
+    return <span className={`relative grid shrink-0 place-items-center rounded-xl border border-amber-300/25 bg-amber-300/10 text-amber-200 ${large ? "h-14 w-14" : "h-11 w-11"}`} aria-hidden>
+      <Flame size={large ? 25 : 20} strokeWidth={1.8} />
       <CurrencyFlag currency="USD" size={secondarySize} className="absolute -bottom-1 -right-1 block" />
     </span>;
   }

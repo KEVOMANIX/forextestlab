@@ -156,7 +156,7 @@ export function assertSessionAllowed(
     throw new Error("Free sessions replay one pair. Multi-pair replay is part of Pro.");
   }
   if (entitlements.allowedSymbols && !input.symbols.every(isFreeSymbol)) {
-    throw new Error("Free sessions use the major FX pairs. All 38 markets are part of Pro.");
+    throw new Error("Free sessions use the major FX pairs. All 39 markets are part of Pro.");
   }
   if (
     entitlements.maxSessionDays !== null &&

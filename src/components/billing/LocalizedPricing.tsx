@@ -253,13 +253,11 @@ export function LocalizedPricing({
           </button>
         ))}
       </div>
-      {trialAvailable && trialTier && (
+      {trialAvailable && trialTier && trialOffer && (
         <div data-testid="trial-callout" className="text-xs">
-          {trialOffer ? (
-            <button type="button" onClick={() => void subscribe(trialTier)} disabled={!paddle || loading || !selectedPrice || Boolean(openingPriceId)} className="inline-flex items-center gap-1.5 py-2 font-semibold text-brand-200 underline underline-offset-4 disabled:opacity-50">
-              {openingPriceId ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Opening checkout</> : <>Try Pro free for 7 days <ArrowRight size={14} aria-hidden /></>}
-            </button>
-          ) : <Link href="/faq" className="inline-flex items-center gap-1.5 py-2 text-slate-300 underline underline-offset-4" aria-label="7-day trial details. This account isn’t eligible for a free trial.">7-day trial · once per account <ArrowRight size={14} aria-hidden /></Link>}
+          <button type="button" onClick={() => void subscribe(trialTier)} disabled={!paddle || loading || !selectedPrice || Boolean(openingPriceId)} className="inline-flex items-center gap-1.5 py-2 font-semibold text-brand-200 underline underline-offset-4 disabled:opacity-50">
+            {openingPriceId ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Opening checkout</> : <>Try Pro free for 7 days <ArrowRight size={14} aria-hidden /></>}
+          </button>
         </div>
       )}
       </div>

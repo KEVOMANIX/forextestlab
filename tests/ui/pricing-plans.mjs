@@ -101,7 +101,8 @@ try {
     await page.evaluate(() => window.renderPricing(false));
     await expect(page.getByRole("button", { name: "Choose Pro", exact: true })).toBeEnabled();
     await expect(page.getByTestId("trial-callout").getByRole("button", { name: "Try Pro free for 7 days" })).toHaveCount(0);
-    await expect(page.getByTestId("trial-callout").getByRole("link", { name: /7-day trial details/ })).toBeVisible();
+    await expect(page.getByTestId("trial-callout")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /7-day trial details/ })).toHaveCount(0);
     await expect(page.getByTestId("terms-month")).toContainText("Charged today");
     console.log(`${width}px: trial and returning-customer pricing, plan exclusions, annual billing and layout passed`);
     await page.close();

@@ -112,7 +112,7 @@ export function ProductPreview() {
           </div>
         </div>
 
-        <div className="relative min-w-0">
+        <div className="marketing-product-showcase relative min-w-0 rounded-[2rem] p-3 sm:p-5">
           <div
             aria-hidden
             className="absolute -inset-7 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_50%_55%,rgba(14,165,233,.14),transparent_65%)] blur-2xl"

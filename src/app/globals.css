@@ -659,20 +659,27 @@
    small exposure lift keep the UI authentic without making the page feel dark. */
 .marketing-light .marketing-product-frame {
   border-color: rgb(255 255 255 / 0.96) !important;
-  outline: 1px solid #d8e5de;
-  outline-offset: 5px;
+  outline: 1px solid #cfddd6;
+  outline-offset: 7px;
   box-shadow:
-    0 30px 72px -38px rgb(16 50 38 / 0.34),
-    0 10px 28px -22px rgb(16 50 38 / 0.22) !important;
+    0 26px 64px -40px rgb(16 50 38 / 0.25),
+    0 8px 24px -20px rgb(16 50 38 / 0.16) !important;
 }
 .marketing-light .marketing-product-frame img,
 .marketing-light .marketing-product-frame video {
-  filter: brightness(1.1) contrast(0.92) saturate(0.94);
+  filter: brightness(1.32) contrast(0.76) saturate(0.78);
 }
 .marketing-light .dimension-stage-left,
 .marketing-light .dimension-stage-right {
-  opacity: 0.26 !important;
-  filter: saturate(0.72) brightness(1.08);
+  opacity: 0.1 !important;
+  filter: saturate(0.45) brightness(1.35);
+}
+.marketing-light .marketing-product-showcase {
+  border: 1px solid #d7e4dd;
+  background:
+    radial-gradient(circle at 50% 45%, rgb(69 214 168 / 0.12), transparent 58%),
+    rgb(255 255 255 / 0.82);
+  box-shadow: 0 30px 80px -55px rgb(16 50 38 / 0.32);
 }
 
 @keyframes page-loader-candle {

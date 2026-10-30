@@ -36,7 +36,7 @@ function ScreenFrame({
 }) {
   return (
     <div
-      className={`overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 shadow-[0_45px_140px_-45px_rgba(0,0,0,.95)] ${imageIncludesChrome ? "p-0" : "p-1.5"} ${className}`}
+      className={`marketing-dark-demo overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 shadow-[0_45px_140px_-45px_rgba(0,0,0,.72)] ${imageIncludesChrome ? "p-0" : "p-1.5"} ${className}`}
     >
       {!imageIncludesChrome && (
         <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/95 px-3">
@@ -96,15 +96,15 @@ export function Hero() {
     <section className="relative overflow-hidden pb-12 pt-10 sm:pt-14 lg:pb-16 lg:pt-16">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(to_bottom,#070a12_0%,#071015_46%,#070a12_100%)]"
+        className="pointer-events-none absolute inset-0 -z-30 bg-[linear-gradient(to_bottom,#f5f8f6_0%,#eef6f1_48%,#f5f8f6_100%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-20 bg-grid-faint [background-size:64px_64px] opacity-70 [mask-image:radial-gradient(75%_65%_at_50%_35%,black,transparent)]"
+        className="pointer-events-none absolute inset-0 -z-20 bg-grid-faint [background-size:64px_64px] opacity-25 [mask-image:radial-gradient(75%_65%_at_50%_35%,black,transparent)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-48 -z-10 h-[42rem] w-[70rem] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse,rgba(14,165,233,.18),rgba(56,189,248,.07)_42%,transparent_70%)] blur-[80px]"
+        className="pointer-events-none absolute left-1/2 top-48 -z-10 h-[42rem] w-[70rem] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(ellipse,rgba(69,214,168,.18),rgba(69,214,168,.06)_42%,transparent_70%)] blur-[80px]"
       />
 
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">

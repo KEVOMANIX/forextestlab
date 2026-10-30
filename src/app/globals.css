@@ -519,6 +519,105 @@
   }
 }
 
+/* Public website palette. The marketing and editorial routes opt into this
+   wrapper; the authenticated trading workspace keeps its independent dark
+   terminal theme. Product screenshots and demo frames deliberately stay dark
+   so the actual application remains recognisable. */
+.marketing-light {
+  min-height: 100vh;
+  color-scheme: light;
+  --focus-ring-offset: #f5f8f6;
+  background: #f5f8f6;
+  color: #10211b;
+}
+
+.marketing-light .app-logo-dark { display: none; }
+.marketing-light .app-logo-light { display: block; }
+
+.marketing-light .text-white { color: #10211b !important; }
+.marketing-light .text-slate-100,
+.marketing-light .text-slate-200 { color: #20382f !important; }
+.marketing-light .text-slate-300 { color: #40574e !important; }
+.marketing-light .text-slate-400 { color: #5c7067 !important; }
+.marketing-light .text-slate-500,
+.marketing-light .text-slate-600 { color: #71847b !important; }
+.marketing-light .text-brand-200,
+.marketing-light .text-brand-300 { color: #08745c !important; }
+
+.marketing-light .bg-surface-950 { background-color: #f5f8f6 !important; }
+.marketing-light .bg-surface-900 { background-color: #ffffff !important; }
+.marketing-light .bg-surface-800 { background-color: #edf3ef !important; }
+.marketing-light [class*="bg-surface-950/"] { background-color: rgb(245 248 246 / 0.94) !important; }
+.marketing-light [class*="bg-surface-900/"] { background-color: rgb(255 255 255 / 0.94) !important; }
+.marketing-light [class*="bg-surface-800/"] { background-color: rgb(237 243 239 / 0.94) !important; }
+.marketing-light [class*="bg-white/"] { background-color: rgb(16 33 27 / 0.045) !important; }
+.marketing-light [class*="border-white/"] { border-color: #d7e2dc !important; }
+.marketing-light [class*="divide-white/"] > :not([hidden]) ~ :not([hidden]) { border-color: #d7e2dc !important; }
+
+.marketing-light .btn-secondary {
+  border-color: #cbd9d2 !important;
+  background: #ffffff !important;
+  color: #183229 !important;
+  box-shadow: 0 1px 2px rgb(16 33 27 / 0.05);
+}
+.marketing-light .btn-secondary:hover {
+  border-color: #9eb9ad !important;
+  background: #f8fbf9 !important;
+}
+.marketing-light .card {
+  border-color: #d7e2dc !important;
+  background: #ffffff !important;
+  box-shadow: 0 18px 50px -36px rgb(16 50 38 / 0.32);
+}
+.marketing-light .field-label { color: #20382f !important; }
+.marketing-light .field-input {
+  border-color: #cbd9d2 !important;
+  background: #ffffff !important;
+  color: #10211b !important;
+}
+.marketing-light ::selection { background: rgb(69 214 168 / 0.28); color: #10211b; }
+
+/* Navigation and footer should read as native light surfaces, not inverted
+   copies of their former dark treatment. */
+.marketing-light > header {
+  background: rgb(245 248 246 / 0.9);
+  border-color: #d7e2dc !important;
+  box-shadow: 0 1px 0 rgb(16 33 27 / 0.04);
+}
+.marketing-light > footer {
+  background: #edf3ef !important;
+  border-color: #d7e2dc !important;
+}
+
+/* Preserve the real dark product UI wherever it is shown inside the light
+   marketing site. */
+.marketing-light .marketing-dark-demo {
+  color-scheme: dark;
+  color: #f4fff9;
+}
+.marketing-light .marketing-dark-demo .text-white { color: #ffffff !important; }
+.marketing-light .marketing-dark-demo .text-slate-100,
+.marketing-light .marketing-dark-demo .text-slate-200 { color: #e2e8f0 !important; }
+.marketing-light .marketing-dark-demo .text-slate-300 { color: #cbd5e1 !important; }
+.marketing-light .marketing-dark-demo .text-slate-400 { color: #94a3b8 !important; }
+.marketing-light .marketing-dark-demo .text-slate-500 { color: #64748b !important; }
+.marketing-light .marketing-dark-demo .text-brand-200,
+.marketing-light .marketing-dark-demo .text-brand-300 { color: #7be8c4 !important; }
+.marketing-light .marketing-dark-demo.bg-surface-950,
+.marketing-light .marketing-dark-demo .bg-surface-950 { background-color: #101a17 !important; }
+.marketing-light .marketing-dark-demo.bg-surface-900,
+.marketing-light .marketing-dark-demo .bg-surface-900 { background-color: #16241f !important; }
+.marketing-light .marketing-dark-demo.bg-surface-800,
+.marketing-light .marketing-dark-demo .bg-surface-800 { background-color: #1e302a !important; }
+.marketing-light .marketing-dark-demo[class*="bg-surface-950/"],
+.marketing-light .marketing-dark-demo [class*="bg-surface-950/"] { background-color: rgb(16 26 23 / 0.95) !important; }
+.marketing-light .marketing-dark-demo[class*="bg-surface-900/"],
+.marketing-light .marketing-dark-demo [class*="bg-surface-900/"] { background-color: rgb(22 36 31 / 0.95) !important; }
+.marketing-light .marketing-dark-demo[class*="bg-surface-800/"],
+.marketing-light .marketing-dark-demo [class*="bg-surface-800/"] { background-color: rgb(30 48 42 / 0.95) !important; }
+.marketing-light .marketing-dark-demo [class*="border-white/"] { border-color: rgb(255 255 255 / 0.12) !important; }
+.marketing-light .marketing-dark-demo [class*="bg-white/"] { background-color: rgb(255 255 255 / 0.06) !important; }
+
 @keyframes page-loader-candle {
   0%,
   100% {

@@ -63,7 +63,7 @@ function MarketMark({ market, large = false }: { market: MarketSymbol; large?: b
 function MarketCard({ market, selected, onSelect }: { market: MarketSymbol; selected: boolean; onSelect: () => void }) {
   const years = historyYears(market);
 
-  return <button type="button" onClick={onSelect} className={`group relative min-h-52 overflow-hidden rounded-2xl border p-5 text-left transition-all ${selected ? "border-brand-400/70 bg-[linear-gradient(145deg,rgba(69,214,168,.14),rgba(22,36,31,.84))] shadow-[0_18px_45px_rgba(0,0,0,.2)]" : "border-white/10 bg-surface-900/65 hover:-translate-y-0.5 hover:border-brand-400/35 hover:bg-surface-900"}`}>
+  return <button type="button" onClick={onSelect} className={`group relative min-h-52 overflow-hidden rounded-2xl border p-5 text-left transition-all ${selected ? "border-brand-400/70 bg-[linear-gradient(145deg,rgba(69,214,168,.20),rgba(255,255,255,.97))] shadow-[0_18px_45px_rgba(16,50,38,.12)]" : "border-white/10 bg-surface-900/65 hover:-translate-y-0.5 hover:border-brand-400/35 hover:bg-surface-900"}`}>
     <div className="flex items-start justify-between gap-4">
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-brand-300">{categoryFor(market)}{years !== null ? ` · ${years} years` : ""}</p>
@@ -149,7 +149,7 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
         {!showAll && !query.trim() && filtered.length > displayed.length && <div className="mt-5 text-center"><button type="button" onClick={() => setShowAll(true)} className="rounded-xl border border-white/10 bg-surface-900/55 px-5 py-2.5 text-xs font-semibold text-slate-300 transition-colors hover:border-brand-400/40 hover:text-brand-200">Show all {filtered.length} {category === "All" ? "markets" : category.toLowerCase()}</button></div>}
       </section>
 
-      {activeMarket && <aside className="overflow-hidden rounded-2xl border border-brand-400/30 bg-[linear-gradient(155deg,rgba(69,214,168,.14),rgba(13,29,23,.97)_38%)] shadow-[0_24px_70px_rgba(0,0,0,.24)] xl:sticky xl:top-24">
+      {activeMarket && <aside className="overflow-hidden rounded-2xl border border-brand-400/30 bg-[linear-gradient(155deg,rgba(69,214,168,.20),rgba(255,255,255,.98)_38%)] shadow-[0_24px_70px_rgba(16,50,38,.14)] xl:sticky xl:top-24">
         <div className="border-b border-white/10 p-6">
           <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-brand-300">Selected market</p>
           <div className="mt-5 flex items-start justify-between gap-5"><div><h2 className="text-3xl font-bold tracking-tight text-white">{activeMarket.displayName}</h2><p className="mt-1 text-sm text-slate-400">{describeSymbol(activeMarket.symbol)}</p></div><MarketMark market={activeMarket} large /></div>

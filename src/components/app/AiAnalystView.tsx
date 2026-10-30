@@ -27,6 +27,7 @@ const CATEGORY_DOT: Record<NonNullable<AnalystSessionCard["category"]>, string> 
   Metals: "bg-amber-300",
   Crypto: "bg-violet-400",
   Indices: "bg-sky-400",
+  Energies: "bg-orange-400",
   Stocks: "bg-slate-400",
 };
 

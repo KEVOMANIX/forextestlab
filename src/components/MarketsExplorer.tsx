@@ -113,7 +113,7 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
   }, []);
 
   const counts = useMemo(() => {
-    const result: Record<Category, number> = { All: markets.length, Forex: 0, Indices: 0, Crypto: 0, Metals: 0 };
+    const result: Record<Category, number> = { All: markets.length, Forex: 0, Indices: 0, Crypto: 0, Metals: 0, Energies: 0 };
     for (const market of markets) result[categoryFor(market)] += 1;
     return result;
   }, [markets]);

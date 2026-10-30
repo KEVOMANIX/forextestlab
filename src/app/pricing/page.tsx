@@ -82,14 +82,14 @@ export default async function PricingPage() {
   return (
     <PageShell>
       <main className="border-b border-white/10">
-        <section className="container-page pb-6 pt-8 text-center sm:pt-10">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Plans</p>
-          <h1 className="mx-auto max-w-3xl text-balance text-4xl font-bold tracking-[-0.045em] text-white sm:text-5xl">
+        <section className="container-page pb-4 pt-5 text-center sm:pt-6">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Plans</p>
+          <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-[-0.045em] text-white sm:text-4xl">
             Make your next move.
           </h1>
         </section>
 
-        <section className="container-page pb-12 sm:pb-16">
+        <section className="container-page pb-8 sm:pb-10">
           {checkoutEnabled ? (
             <LocalizedPricing
               tiers={getPricingTiers()}

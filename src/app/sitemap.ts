@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { learnArticles } from "@/lib/learn";
+import { getLearnArticles } from "@/lib/learn";
 import { siteConfig } from "@/lib/site";
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -28,5 +28,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
     url: `${siteConfig.url}${route.path}`,
     changeFrequency: route.changeFrequency,
     priority: route.priority,
-  })), ...learnArticles.map(article => ({ url: `${siteConfig.url}/learn/${article.slug}`, lastModified: new Date(`${article.updated}T12:00:00Z`), changeFrequency: "monthly" as const, priority: 0.7 }))];
+  })), ...getLearnArticles().map(article => ({ url: `${siteConfig.url}/learn/${article.slug}`, lastModified: new Date(`${article.updated}T12:00:00Z`), changeFrequency: "monthly" as const, priority: 0.7 }))];
 }

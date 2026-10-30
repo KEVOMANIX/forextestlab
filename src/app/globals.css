@@ -666,20 +666,15 @@
     0 8px 24px -20px rgb(16 50 38 / 0.16) !important;
 }
 .marketing-light .marketing-product-frame img,
-.marketing-light .marketing-product-frame video {
+.marketing-light .marketing-product-frame video,
+.marketing-light .marketing-product-media img,
+.marketing-light .marketing-product-media video {
   filter: brightness(1.32) contrast(0.76) saturate(0.78);
 }
 .marketing-light .dimension-stage-left,
 .marketing-light .dimension-stage-right {
   opacity: 0.1 !important;
   filter: saturate(0.45) brightness(1.35);
-}
-.marketing-light .marketing-product-showcase {
-  border: 1px solid #d7e4dd;
-  background:
-    radial-gradient(circle at 50% 45%, rgb(69 214 168 / 0.12), transparent 58%),
-    rgb(255 255 255 / 0.82);
-  box-shadow: 0 30px 80px -55px rgb(16 50 38 / 0.32);
 }
 
 @keyframes page-loader-candle {

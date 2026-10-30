@@ -24,7 +24,7 @@ export function ProductDemoVideo({
     : "h-auto w-full";
 
   return (
-    <div className={`relative overflow-hidden bg-surface-950 ${mobileZoom ? "aspect-[4/3] sm:aspect-auto" : ""}`}>
+    <div className={`marketing-product-media relative overflow-hidden bg-surface-950 ${mobileZoom ? "aspect-[4/3] sm:aspect-auto" : ""}`}>
       <video
         className={`${mediaClass} motion-reduce:hidden`}
         autoPlay

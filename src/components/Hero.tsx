@@ -178,7 +178,7 @@ export function Hero() {
               label="Session dashboard"
               width={1470}
               height={735}
-              className="dimension-stage-left opacity-25"
+              className="dimension-stage-left opacity-60"
             />
           </div>
           <div
@@ -191,11 +191,11 @@ export function Hero() {
               label="Session analytics"
               width={1470}
               height={765}
-              className="dimension-stage-right opacity-25"
+              className="dimension-stage-right opacity-60"
             />
           </div>
 
-          <div className="dimension-stage-main relative z-10 mx-auto w-full lg:w-[66%]">
+          <div className="dimension-stage-main relative z-10 mx-auto w-full lg:w-[82%]">
             <div
               aria-hidden
               className="absolute -inset-10 -z-10 rounded-[3rem] bg-brand-400/[0.12] blur-[70px]"

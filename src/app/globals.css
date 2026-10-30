@@ -523,6 +523,36 @@
    wrapper; the authenticated trading workspace keeps its independent dark
    terminal theme. Product screenshots and demo frames deliberately stay dark
    so the actual application remains recognisable. */
+.marketing-site {
+  --marketing-text-primary: #f5fbf8;
+  --marketing-text-secondary: #c4d4cd;
+  --marketing-text-muted: #91a89f;
+  --marketing-text-accent: #9af0d4;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  font-synthesis: none;
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  color: var(--marketing-text-secondary);
+}
+.marketing-site :is(h1, h2, h3, h4, h5, h6, p, a, button, label, input, textarea, select) {
+  font-family: inherit;
+}
+.marketing-site :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--marketing-text-primary);
+}
+.marketing-site .font-mono {
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Code", "Roboto Mono", monospace;
+}
+.marketing-site .text-white,
+.marketing-site .text-slate-100,
+.marketing-site .text-slate-200 { color: var(--marketing-text-primary); }
+.marketing-site .text-slate-300,
+.marketing-site .text-slate-400 { color: var(--marketing-text-secondary); }
+.marketing-site .text-slate-500,
+.marketing-site .text-slate-600 { color: var(--marketing-text-muted); }
+.marketing-site .text-brand-200,
+.marketing-site .text-brand-300 { color: var(--marketing-text-accent); }
+
 .marketing-hero-background {
   background: linear-gradient(to bottom, #070a12 0%, #071015 46%, #070a12 100%);
 }
@@ -544,8 +574,12 @@
   min-height: 100vh;
   color-scheme: light;
   --focus-ring-offset: #f5f8f6;
+  --marketing-text-primary: #10251d;
+  --marketing-text-secondary: #3f5a50;
+  --marketing-text-muted: #60766c;
+  --marketing-text-accent: #08745c;
   background: #f5f8f6;
-  color: #10211b;
+  color: var(--marketing-text-secondary);
 }
 
 .marketing-light .marketing-hero-background {
@@ -569,15 +603,15 @@
 .marketing-light .app-logo-dark { display: none; }
 .marketing-light .app-logo-light { display: block; }
 
-.marketing-light .text-white { color: #10211b !important; }
+.marketing-light .text-white { color: var(--marketing-text-primary) !important; }
 .marketing-light .text-slate-100,
-.marketing-light .text-slate-200 { color: #20382f !important; }
-.marketing-light .text-slate-300 { color: #40574e !important; }
-.marketing-light .text-slate-400 { color: #5c7067 !important; }
+.marketing-light .text-slate-200 { color: var(--marketing-text-primary) !important; }
+.marketing-light .text-slate-300 { color: var(--marketing-text-secondary) !important; }
+.marketing-light .text-slate-400 { color: var(--marketing-text-secondary) !important; }
 .marketing-light .text-slate-500,
-.marketing-light .text-slate-600 { color: #71847b !important; }
+.marketing-light .text-slate-600 { color: var(--marketing-text-muted) !important; }
 .marketing-light .text-brand-200,
-.marketing-light .text-brand-300 { color: #08745c !important; }
+.marketing-light .text-brand-300 { color: var(--marketing-text-accent) !important; }
 
 .marketing-light .bg-surface-950 { background-color: #f5f8f6 !important; }
 .marketing-light .bg-surface-900 { background-color: #ffffff !important; }

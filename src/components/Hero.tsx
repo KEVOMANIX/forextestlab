@@ -93,7 +93,7 @@ const PROOF_POINTS = [
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pb-12 pt-7 sm:pt-10 lg:pb-16 lg:pt-12">
+    <section className="relative overflow-hidden pb-12 pt-5 sm:pt-6 lg:pb-16 lg:pt-7">
       <div
         aria-hidden
         className="marketing-hero-background pointer-events-none absolute inset-0 -z-30"
@@ -110,7 +110,7 @@ export function Hero() {
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">
         <div className="mx-auto max-w-[1240px] text-center">
           <div className="text-center">
-            <h1 className="mx-auto max-w-6xl text-balance text-4xl font-bold leading-[1.12] tracking-[-0.035em] text-white animate-fade-up sm:text-5xl lg:text-[4rem]">
+            <h1 className="mx-auto max-w-6xl text-balance text-3xl font-bold leading-[1.12] tracking-[-0.035em] text-white animate-fade-up sm:text-4xl lg:text-[3.25rem]">
               Build confidence in your strategy.<br className="hidden sm:block" />{" "}
               <span className="text-brand-200">
                 One backtest at a time.
@@ -118,7 +118,7 @@ export function Hero() {
             </h1>
           </div>
 
-          <div className="mt-5 grid gap-7">
+          <div className="mt-3 grid gap-4">
             <div>
               <p className="mx-auto max-w-3xl text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
                 Replay markets, practise your strategy, and review your results.
@@ -130,7 +130,7 @@ export function Hero() {
               <div>
               <Link
                 href={TRIAL_SIGN_UP_PATH}
-                className="btn-primary min-h-14 w-full rounded-full px-6 shadow-glow"
+                className="btn-primary min-h-12 w-full rounded-full px-6 shadow-glow"
               >
                 Start backtesting free
                 <ArrowRight size={16} aria-hidden />
@@ -139,7 +139,7 @@ export function Hero() {
               <div>
               <Link
                 href="#product-preview"
-                className="btn-secondary min-h-14 w-full rounded-full px-6"
+                className="btn-secondary min-h-12 w-full rounded-full px-6"
               >
                 Explore the workspace
               </Link>
@@ -149,7 +149,7 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="dimension-stage relative mt-14 lg:mt-16">
+        <div className="dimension-stage relative mt-7 lg:mt-8">
           <div
             aria-hidden
             className="absolute -left-[4%] top-[14%] hidden w-[46%] lg:block"

@@ -51,10 +51,10 @@ export function WelcomeOfferBanner() {
       className="relative z-20 border-y border-brand-500/15 bg-brand-400/[0.11] text-surface-950"
     >
       <div className="container-page flex min-h-10 flex-wrap items-center justify-center gap-x-3 gap-y-1.5 py-1.5 text-center text-sm">
-        <span className="font-bold">Start free. Upgrade when you need more.</span>
+        <span className="font-bold">Your next trading session starts here.</span>
         <span aria-hidden className="hidden h-3 w-px bg-surface-950/25 sm:block" />
         <span className="text-xs font-semibold text-surface-800">
-          Three free sessions each month. Pro unlocks the full workspace.
+          Three free replay sessions every month.
         </span>
         <Link
           href="/pricing"

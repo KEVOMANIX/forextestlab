@@ -108,25 +108,24 @@ export function Hero() {
       />
 
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">
-        <div className="mx-auto max-w-[1240px]">
+        <div className="mx-auto max-w-[1240px] text-center">
           <div className="text-center">
-            <h1 className="mx-auto max-w-6xl text-balance text-5xl font-bold leading-[0.98] tracking-[-0.05em] text-white animate-fade-up sm:text-6xl lg:text-[5rem]">
-              Build a trading process you can{" "}
+            <h1 className="mx-auto max-w-6xl text-balance text-4xl font-bold leading-[1.12] tracking-[-0.035em] text-white animate-fade-up sm:text-5xl lg:text-[4rem]">
+              Build confidence in your strategy.<br className="hidden sm:block" />{" "}
               <span className="text-brand-200">
-                actually measure.
+                One backtest at a time.
               </span>
             </h1>
           </div>
 
-          <div className="mt-8 grid gap-7 border-t border-white/[0.08] pt-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="mt-5 grid gap-7">
             <div>
-              <p className="max-w-2xl text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
-                Replay historical forex markets, practise entries and exits,
-                and review every session through structured performance analytics.
+              <p className="mx-auto max-w-3xl text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
+                Replay historical markets, practise your entries and exits, and understand your results with a complete record of every trading decision.
               </p>
               {/* One per line on a phone: wrapping three items across two
                   lines left a lone item above a pair and read as a mistake. */}
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-5">
+              <div className="hidden">
                 {["Replay without future candles", "Execute simulated trades", "Review session analytics"].map(
                   (item) => (
                     <span key={item} className="text-xs font-medium text-slate-400">{item}</span>
@@ -135,26 +134,32 @@ export function Hero() {
               </div>
             </div>
 
-            <div className="lg:min-w-[23rem]">
-              <div className="flex flex-col gap-3 animate-fade-up sm:flex-row lg:justify-end">
+            <div className="mx-auto w-full max-w-[640px]">
+              <div className="grid gap-5 animate-fade-up sm:grid-cols-2">
+              <div>
               <Link
                 href={TRIAL_SIGN_UP_PATH}
-                className="btn-primary min-h-12 w-full px-6 shadow-glow sm:w-auto"
+                className="btn-primary min-h-14 w-full rounded-full px-6 shadow-glow"
               >
-                Start free
+                Start backtesting free
                 <ArrowRight size={16} aria-hidden />
               </Link>
+              <p className="mt-3 text-xs leading-5 text-slate-400">3 sessions each month.<br />No credit card required.</p>
+              </div>
+              <div>
               <Link
                 href="#product-preview"
-                className="btn-secondary min-h-12 w-full px-6 sm:w-auto"
+                className="btn-secondary min-h-14 w-full rounded-full px-6"
               >
-                Explore the product
+                Explore the workspace
               </Link>
+              <p className="mt-3 text-xs leading-5 text-slate-400">Replay, journal, and analytics.<br />See how the tools work together.</p>
+              </div>
             </div>
-              <p className="mt-3 text-center text-xs text-slate-500 lg:text-right">
+              <p className="hidden">
                 Free: 3 sessions a month on the major pairs · No card required · Monthly and yearly Pro plans
               </p>
-              <p className="mt-2 text-center text-xs text-slate-400 lg:text-right">
+              <p className="hidden">
                 Already have an account?{" "}
                 <Link
                   href="/sign-in?next=%2Faccount%2Fcontinue"

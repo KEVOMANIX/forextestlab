@@ -573,20 +573,20 @@
 .marketing-light {
   min-height: 100vh;
   color-scheme: light;
-  --focus-ring-offset: #f5f8f6;
+  --focus-ring-offset: #fbfcfb;
   --marketing-text-primary: #10251d;
   --marketing-text-secondary: #3f5a50;
   --marketing-text-muted: #60766c;
   --marketing-text-accent: #08745c;
-  background: #f5f8f6;
+  background: #fbfcfb;
   color: var(--marketing-text-secondary);
 }
 
 .marketing-light .marketing-hero-background {
-  background: linear-gradient(to bottom, #f5f8f6 0%, #eef6f1 48%, #f5f8f6 100%);
+  background: linear-gradient(to bottom, #ffffff 0%, #fbfcfb 62%, #f4f8f5 100%);
 }
 .marketing-light .marketing-hero-glow {
-  background: radial-gradient(ellipse, rgb(69 214 168 / 0.18), rgb(69 214 168 / 0.06) 42%, transparent 70%);
+  background: radial-gradient(ellipse, rgb(69 214 168 / 0.1), rgb(69 214 168 / 0.025) 44%, transparent 72%);
 }
 .marketing-light .market-selected-card {
   background: linear-gradient(145deg, rgb(69 214 168 / 0.20), rgb(255 255 255 / 0.97));
@@ -613,10 +613,10 @@
 .marketing-light .text-brand-200,
 .marketing-light .text-brand-300 { color: var(--marketing-text-accent) !important; }
 
-.marketing-light .bg-surface-950 { background-color: #f5f8f6 !important; }
+.marketing-light .bg-surface-950 { background-color: #fbfcfb !important; }
 .marketing-light .bg-surface-900 { background-color: #ffffff !important; }
 .marketing-light .bg-surface-800 { background-color: #edf3ef !important; }
-.marketing-light [class*="bg-surface-950/"] { background-color: rgb(245 248 246 / 0.94) !important; }
+.marketing-light [class*="bg-surface-950/"] { background-color: rgb(251 252 251 / 0.96) !important; }
 .marketing-light [class*="bg-surface-900/"] { background-color: rgb(255 255 255 / 0.94) !important; }
 .marketing-light [class*="bg-surface-800/"] { background-color: rgb(237 243 239 / 0.94) !important; }
 .marketing-light [class*="bg-white/"] { background-color: rgb(16 33 27 / 0.045) !important; }
@@ -649,13 +649,13 @@
 /* Navigation and footer should read as native light surfaces, not inverted
    copies of their former dark treatment. */
 .marketing-light > header {
-  background: rgb(245 248 246 / 0.9);
-  border-color: #d7e2dc !important;
-  box-shadow: 0 1px 0 rgb(16 33 27 / 0.04);
+  background: rgb(255 255 255 / 0.94);
+  border-color: #e2e8e4 !important;
+  box-shadow: 0 1px 0 rgb(16 33 27 / 0.035);
 }
 .marketing-light > footer {
-  background: #edf3ef !important;
-  border-color: #d7e2dc !important;
+  background: #f5f7f5 !important;
+  border-color: #e2e8e4 !important;
 }
 
 /* Preserve the real dark product UI wherever it is shown inside the light
@@ -703,12 +703,12 @@
 .marketing-light .marketing-product-frame video,
 .marketing-light .marketing-product-media img,
 .marketing-light .marketing-product-media video {
-  filter: brightness(1.32) contrast(0.76) saturate(0.78);
+  filter: none;
 }
 .marketing-light .dimension-stage-left,
 .marketing-light .dimension-stage-right {
-  opacity: 0.48 !important;
-  filter: brightness(1.2) contrast(0.86) saturate(0.82);
+  opacity: 0.64 !important;
+  filter: none;
 }
 
 @keyframes page-loader-candle {

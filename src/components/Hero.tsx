@@ -121,17 +121,8 @@ export function Hero() {
           <div className="mt-5 grid gap-7">
             <div>
               <p className="mx-auto max-w-3xl text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
-                Replay historical markets, practise your entries and exits, and understand your results with a complete record of every trading decision.
+                Replay markets, practise your strategy, and review your results.
               </p>
-              {/* One per line on a phone: wrapping three items across two
-                  lines left a lone item above a pair and read as a mistake. */}
-              <div className="hidden">
-                {["Replay without future candles", "Execute simulated trades", "Review session analytics"].map(
-                  (item) => (
-                    <span key={item} className="text-xs font-medium text-slate-400">{item}</span>
-                  ),
-                )}
-              </div>
             </div>
 
             <div className="mx-auto w-full max-w-[640px]">
@@ -144,7 +135,6 @@ export function Hero() {
                 Start backtesting free
                 <ArrowRight size={16} aria-hidden />
               </Link>
-              <p className="mt-3 text-xs leading-5 text-slate-400">3 sessions each month.<br />No credit card required.</p>
               </div>
               <div>
               <Link
@@ -153,21 +143,8 @@ export function Hero() {
               >
                 Explore the workspace
               </Link>
-              <p className="mt-3 text-xs leading-5 text-slate-400">Replay, journal, and analytics.<br />See how the tools work together.</p>
               </div>
             </div>
-              <p className="hidden">
-                Free: 3 sessions a month on the major pairs · No card required · Monthly and yearly Pro plans
-              </p>
-              <p className="hidden">
-                Already have an account?{" "}
-                <Link
-                  href="/sign-in?next=%2Faccount%2Fcontinue"
-                  className="font-semibold text-brand-300 transition-colors hover:text-brand-200"
-                >
-                  Sign in to your workspace
-                </Link>
-              </p>
             </div>
           </div>
         </div>

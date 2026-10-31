@@ -5,7 +5,6 @@ import { Footer } from "@/components/Footer";
 import { Hero } from "@/components/Hero";
 import { Navbar } from "@/components/Navbar";
 import { ProductPreview } from "@/components/ProductPreview";
-import { WelcomeOfferBanner } from "@/components/WelcomeOffer";
 
 const EXPLORE = [
   { href: "/features", title: "Explore the workspace", text: "See the replay, execution, journal, and analytics tools." },
@@ -18,7 +17,6 @@ export default function HomePage() {
     <div className="marketing-site marketing-light min-h-screen">
       <Navbar />
       <main id="main" className="pt-16">
-        <WelcomeOfferBanner />
         <Hero />
         <ProductPreview />
         <section className="border-t border-white/10 py-16 sm:py-20">

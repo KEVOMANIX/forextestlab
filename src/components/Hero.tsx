@@ -111,8 +111,8 @@ export function Hero() {
         <div className="mx-auto max-w-[1240px] text-center">
           <div className="text-center">
             <h1 className="mx-auto max-w-6xl text-balance text-3xl font-bold leading-[1.22] tracking-[-0.025em] text-white animate-fade-up sm:text-4xl lg:text-[3.25rem]">
-              Build confidence in your strategy.<br className="hidden sm:block" />{" "}
-              <span className="text-brand-200">
+              Build confidence in your strategy.
+              <span className="mt-4 block text-brand-200 sm:mt-5">
                 One backtest at a time.
               </span>
             </h1>

@@ -556,6 +556,12 @@
 .marketing-hero-background {
   background: linear-gradient(to bottom, #070a12 0%, #071015 46%, #070a12 100%);
 }
+.marketing-headline-highlight {
+  background-color: rgb(69 214 168 / 0.12);
+}
+.marketing-light .marketing-headline-highlight {
+  background-color: #e3f5ec;
+}
 .marketing-hero-glow {
   background: radial-gradient(ellipse, rgb(14 165 233 / 0.18), rgb(56 189 248 / 0.07) 42%, transparent 70%);
 }

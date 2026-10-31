@@ -112,7 +112,7 @@ export function Hero() {
           <div className="text-center">
             <h1 className="mx-auto max-w-6xl text-balance text-3xl font-bold leading-[1.22] tracking-[-0.025em] text-white animate-fade-up sm:text-4xl lg:text-[3.25rem]">
               Build confidence in your strategy.
-              <span className="mt-4 block text-brand-200 sm:mt-5">
+              <span className="marketing-headline-highlight mx-auto mt-4 block w-fit max-w-full rounded-2xl px-4 py-2 text-brand-200 sm:mt-5 sm:px-6">
                 One backtest at a time.
               </span>
             </h1>

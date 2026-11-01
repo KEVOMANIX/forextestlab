@@ -792,6 +792,42 @@
   animation: page-loader-quote 320ms ease-out both;
 }
 
+.app-shell.light .page-loader {
+  background: #f4f7f4;
+  color: #17201c;
+}
+.app-shell.light .page-loader-grid {
+  opacity: 0.12;
+}
+.app-shell.light .page-loader-glow {
+  background: radial-gradient(ellipse at 50% 35%, rgb(138 218 184 / 0.24), transparent 65%);
+}
+.app-shell.light .page-loader-panel {
+  border-color: #ccdcd2;
+  background: rgb(255 255 255 / 0.94);
+  box-shadow: 0 24px 70px rgb(31 80 57 / 0.12);
+}
+.app-shell.light .page-loader-mark {
+  border-color: #b9e2ce;
+  background: #f2faf5;
+}
+.app-shell.light .page-loader-brand,
+.app-shell.light .page-loader-caption {
+  color: #08745c;
+}
+.app-shell.light .page-loader-track {
+  background: #e2eee6;
+}
+.app-shell.light .page-loader-message {
+  color: #476157;
+}
+.app-shell.light .page-loader-footer {
+  border-color: #d7e4da;
+}
+.app-shell.light .page-loader-quote {
+  color: #2c4439;
+}
+
 @keyframes real-product-screen {
   from {
     opacity: 0;

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, BookOpenText, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
+import { BarChart3, BookOpenText, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, MoreHorizontal, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -17,34 +17,20 @@ import { NAV_COLLAPSED_COOKIE, NAV_COLLAPSED_MAX_AGE } from "@/lib/ui/nav";
 import { ProLock } from "./ProLock";
 import { useAppTheme } from "./ThemeContext";
 
-type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; badge?: string; pro?: boolean; newTab?: boolean };
+type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; pro?: boolean; newTab?: boolean };
 
 const WORKSPACE: NavItem[] = [
   { label: "Dashboard", href: "/app", icon: LayoutDashboard },
   { label: "New backtest", href: "/app/backtest", icon: Plus },
   { label: "Sessions", href: "/app/history", icon: BookOpenText },
   { label: "Analytics", href: "/app/analytics", icon: BarChart3 },
-  { label: "AI Analyst", href: "/app/ai", icon: Sparkles, badge: "New" },
-  { label: "Challenges", href: "/app/challenges", icon: Trophy, badge: "New" },
-];
-const ACCOUNT: NavItem[] = [
-  { label: "Account", href: "/account", icon: CircleUserRound },
-  { label: "Billing", href: "/account/billing", icon: CreditCard },
+  { label: "AI Analyst", href: "/app/ai", icon: Sparkles },
+  { label: "Challenges", href: "/app/challenges", icon: Trophy },
 ];
 /** Free accounts see these marked PRO in the menu. */
 const PRO_HREFS = new Set(["/app/ai", "/app/challenges"]);
-/** Pages whose NEW badge the trader has already opened; the badge stays away after that. */
-const SEEN_NEW_STORAGE_KEY = "ftl.nav.seenNew";
 
-function readSeenNew(): string[] {
-  try {
-    const value: unknown = JSON.parse(window.localStorage.getItem(SEEN_NEW_STORAGE_KEY) ?? "[]");
-    return Array.isArray(value) ? value.filter((href): href is string => typeof href === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
+const BILLING: NavItem = { label: "Billing", href: "/account/billing", icon: CreditCard };
 // The admin console and the FAQ open beside the workspace rather than replacing it.
 const ADMIN: NavItem = { label: "Admin console", href: "/admin", icon: ShieldCheck, newTab: true };
 const FAQ_ITEM: NavItem = { label: "FAQ", href: "/faq", icon: CircleHelp, newTab: true };
@@ -65,7 +51,7 @@ function DesktopLink({ item, pathname, compact = false }: { item: NavItem; pathn
   const active = isActive(pathname, item.href);
   const tab = item.newTab ? NEW_TAB : {};
   if (compact) return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} aria-label={item.pro ? `${item.label} (Pro)` : item.label} title={item.label} className={`relative mx-auto grid h-10 w-10 place-items-center rounded-lg transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={17} aria-hidden />{item.pro && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand-400" aria-hidden />}</Link>;
-  return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{(item.pro || item.badge) && <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.12em] text-brand-300">{item.pro ? "PRO" : item.badge}</span>}</Link>;
+  return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{item.pro && <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.12em] text-brand-300">PRO</span>}</Link>;
 }
 
 /** `freePlan`: set for a Free account, so Pro-only destinations carry the Pro mark and the plan card shows. */
@@ -75,26 +61,9 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
   const router = useRouter();
   const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
-  const [seenNew, setSeenNew] = useState<string[]>([]);
-
-  // Opening a page marks its NEW badge as seen.
-  useEffect(() => {
-    const seen = readSeenNew();
-    const opened = WORKSPACE.find((item) => item.badge && isActive(pathname, item.href) && !seen.includes(item.href));
-    if (opened) {
-      seen.push(opened.href);
-      try {
-        window.localStorage.setItem(SEEN_NEW_STORAGE_KEY, JSON.stringify(seen));
-      } catch {
-        // Blocked storage just means the badge shows again next visit.
-      }
-    }
-    setSeenNew(seen);
-  }, [pathname]);
-
   const menuItem = (item: NavItem): NavItem => {
     if (free && PRO_HREFS.has(item.href)) return { ...item, pro: true };
-    return item.badge && seenNew.includes(item.href) ? { ...item, badge: undefined } : item;
+    return item;
   };
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const fullScreen = isFullScreenPath(pathname);
@@ -132,14 +101,19 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
       <nav aria-label="Workspace navigation" className={`flex-1 overflow-y-auto ${compact ? "px-2 py-3" : "px-3 py-4"}`}>
         {compact ? <>
           <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={menuItem(item)} pathname={pathname} compact />)}</div>
-          <NavGroup label="Account" items={ACCOUNT} pathname={pathname} compact />
-          {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} compact />}
-          <NavGroup label="Help" items={[FAQ_ITEM]} pathname={pathname} compact />
+          <div className="mt-3 space-y-1 border-t app-border pt-3">
+            {[BILLING, ...(admin ? [ADMIN] : []), FAQ_ITEM].map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} compact />)}
+          </div>
         </> : <>
           <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={menuItem(item)} pathname={pathname} />)}</div>
-          <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
-          {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
-          <NavGroup label="Help" items={[FAQ_ITEM]} pathname={pathname} />
+          <details className="group mt-4 border-t app-border pt-3" open={pathname.startsWith("/account/billing") ? true : undefined}>
+            <summary className="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)] [&::-webkit-details-marker]:hidden">
+              <MoreHorizontal size={16} aria-hidden />More<ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            <div className="mt-1 space-y-1 pl-2">
+              {[BILLING, ...(admin ? [ADMIN] : []), FAQ_ITEM].map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}
+            </div>
+          </details>
           </>}
       </nav>
       {compact ? (
@@ -198,9 +172,4 @@ function FreePlanLine({ plan }: { plan: FreePlanSummary }) {
       {Array.from({ length: plan.limit }, (_, index) => <span key={index} className={`h-1 flex-1 rounded-full ${index < used ? "bg-brand-400" : "bg-[var(--app-border)]"}`} />)}
     </div>
   </div>;
-}
-
-function NavGroup({ label, items, pathname, compact = false }: { label: string; items: NavItem[]; pathname: string; compact?: boolean }) {
-  if (compact) return <div className="mt-3 space-y-1 border-t app-border pt-3">{items.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} compact />)}</div>;
-  return <div className="mt-5"><p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] app-muted">{label}</p><div className="space-y-1">{items.map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}</div></div>;
 }

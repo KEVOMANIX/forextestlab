@@ -623,6 +623,15 @@
 .marketing-light .text-slate-600 { color: var(--marketing-text-muted) !important; }
 .marketing-light .text-brand-200,
 .marketing-light .text-brand-300 { color: var(--marketing-text-accent) !important; }
+.marketing-light .welcome-code {
+  border-color: #9bdcc4 !important;
+  background: #e1f6ed !important;
+  color: #075e4b !important;
+}
+.marketing-light .welcome-code:hover {
+  border-color: #48bb91 !important;
+  background: #d2f0e2 !important;
+}
 
 .marketing-light .bg-surface-950 { background-color: #fbfcfb !important; }
 .marketing-light .bg-surface-900 { background-color: #ffffff !important; }

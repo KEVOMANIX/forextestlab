@@ -30,7 +30,7 @@ export function CopyWelcomeCode({
       type="button"
       onClick={copyCode}
       aria-label={`Copy discount code ${WELCOME_OFFER.code}`}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border font-bold tracking-[0.08em] transition focus-visible:outline-none focus-visible:ring-2 ${
+      className={`welcome-code inline-flex items-center justify-center gap-1.5 rounded-lg border font-bold tracking-[0.08em] transition focus-visible:outline-none focus-visible:ring-2 ${
         bright
           ? "border-surface-950/20 bg-white/45 text-surface-950 shadow-sm hover:bg-white/65 focus-visible:ring-surface-950/50"
           : "border-brand-300/30 bg-brand-300/10 text-brand-100 hover:border-brand-300/55 hover:bg-brand-300/15 focus-visible:ring-brand-300"

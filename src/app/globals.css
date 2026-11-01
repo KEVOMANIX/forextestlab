@@ -589,7 +589,12 @@
 }
 
 .marketing-light .marketing-hero-background {
-  background: linear-gradient(to bottom, #f5f3fa 0%, #f5f3fa 36%, #f8f7fb 65%, #fbfcfb 100%);
+  background: linear-gradient(to bottom, #fbfcfb 0%, #fbfcfb 37%, #e4f0e9 37%, #e4f0e9 84%, #fbfcfb 100%);
+}
+@media (max-width: 640px) {
+  .marketing-light .marketing-hero-background {
+    background: linear-gradient(to bottom, #fbfcfb 0%, #fbfcfb 56%, #e4f0e9 56%, #e4f0e9 85%, #fbfcfb 100%);
+  }
 }
 .marketing-light .marketing-hero-glow {
   background: radial-gradient(ellipse, rgb(69 214 168 / 0.08), rgb(69 214 168 / 0.02) 44%, transparent 72%);

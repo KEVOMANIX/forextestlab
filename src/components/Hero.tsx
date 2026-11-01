@@ -95,7 +95,7 @@ const PROOF_POINTS = [
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden pb-12 pt-8 sm:pt-10 lg:pb-16 lg:pt-12">
+    <section className="relative isolate overflow-hidden pb-12 pt-8 sm:pt-10 lg:pb-16 lg:pt-12">
       <div
         aria-hidden
         className="marketing-hero-background pointer-events-none absolute inset-0 -z-30"

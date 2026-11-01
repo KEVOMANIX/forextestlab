@@ -792,6 +792,27 @@
   animation: page-loader-quote 320ms ease-out both;
 }
 
+.app-shell .app-nav-sidebar .app-nav-link {
+  font-size: 13px;
+  line-height: 1.35;
+}
+.app-shell .app-nav-sidebar .app-nav-heading {
+  font-size: 11px;
+  line-height: 16px;
+}
+.app-shell:not(.light) .app-nav-sidebar {
+  background-color: #171d1a;
+  border-right-color: #304039;
+}
+.app-shell:not(.light) .app-nav-sidebar .app-nav-link[aria-current="page"] {
+  background-color: #2a312d;
+  color: #f4fff9;
+}
+.app-shell.light .app-nav-sidebar .app-nav-link[aria-current="page"] {
+  background-color: #e8f2ec;
+  color: #075e4b;
+}
+
 .app-shell.light .page-loader {
   background: #f4f7f4;
   color: #17201c;

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, BookOpenText, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, CreditCard, LayoutDashboard, Loader2, LogIn, LogOut, Menu, Moon, MoreHorizontal, Plus, ShieldCheck, Sparkles, Sun, Trophy } from "lucide-react";
+import { BarChart3, BookOpenText, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, LifeBuoy, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy, WalletCards } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -19,21 +19,30 @@ import { useAppTheme } from "./ThemeContext";
 
 type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; pro?: boolean; newTab?: boolean };
 
-const WORKSPACE: NavItem[] = [
-  { label: "Dashboard", href: "/app", icon: LayoutDashboard },
+const DASHBOARD: NavItem = { label: "Dashboard", href: "/app", icon: LayoutDashboard };
+const REPLAY: NavItem[] = [
   { label: "New backtest", href: "/app/backtest", icon: Plus },
   { label: "Sessions", href: "/app/history", icon: BookOpenText },
   { label: "Analytics", href: "/app/analytics", icon: BarChart3 },
+];
+const TOOLS: NavItem[] = [
   { label: "AI Analyst", href: "/app/ai", icon: Sparkles },
   { label: "Challenges", href: "/app/challenges", icon: Trophy },
 ];
 /** Free accounts see these marked PRO in the menu. */
 const PRO_HREFS = new Set(["/app/ai", "/app/challenges"]);
 
-const BILLING: NavItem = { label: "Billing", href: "/account/billing", icon: CreditCard };
-// The admin console and the FAQ open beside the workspace rather than replacing it.
+const ACCOUNT: NavItem[] = [
+  { label: "Account", href: "/account", icon: CircleUserRound },
+  { label: "Billing", href: "/account/billing", icon: CreditCard },
+  { label: "Plans & Pricing", href: "/pricing", icon: WalletCards, newTab: true },
+];
+// Help and admin pages open beside the workspace rather than replacing a replay.
 const ADMIN: NavItem = { label: "Admin console", href: "/admin", icon: ShieldCheck, newTab: true };
-const FAQ_ITEM: NavItem = { label: "FAQ", href: "/faq", icon: CircleHelp, newTab: true };
+const HELP: NavItem[] = [
+  { label: "FAQ", href: "/faq", icon: CircleHelp, newTab: true },
+  { label: "Support", href: "/support", icon: LifeBuoy, newTab: true },
+];
 const NEW_TAB = { target: "_blank", rel: "noopener" } as const;
 
 function initials(displayName: string | null): string {
@@ -43,15 +52,22 @@ function initials(displayName: string | null): string {
 
 function isActive(pathname: string, href: string): boolean {
   const target = href.split("#")[0]!;
-  return target === "/app" ? pathname === target : pathname.startsWith(target);
+  return target === "/app" || target === "/account" ? pathname === target : pathname.startsWith(target);
 }
 
 function DesktopLink({ item, pathname, compact = false }: { item: NavItem; pathname: string; compact?: boolean }) {
   const Icon = item.icon;
   const active = isActive(pathname, item.href);
   const tab = item.newTab ? NEW_TAB : {};
-  if (compact) return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} aria-label={item.pro ? `${item.label} (Pro)` : item.label} title={item.label} className={`relative mx-auto grid h-10 w-10 place-items-center rounded-lg transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={17} aria-hidden />{item.pro && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-brand-400" aria-hidden />}</Link>;
-  return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${active ? "bg-brand-400/10 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.label}{item.pro && <span className="ml-auto rounded-[5px] border border-brand-400/45 px-1.5 py-px text-[9.5px] font-bold uppercase tracking-[0.12em] text-brand-300">PRO</span>}</Link>;
+  if (compact) return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} aria-label={item.pro ? `${item.label} (Pro)` : item.label} title={item.label} className={`app-nav-link relative mx-auto grid h-9 w-9 place-items-center rounded-md transition-colors ${active ? "bg-[var(--app-hover)] text-[var(--app-text)]" : "app-muted hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"}`}><Icon size={16} aria-hidden />{item.pro && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-400" aria-hidden />}</Link>;
+  return <Link href={item.href} {...tab} aria-current={active ? "page" : undefined} className={`app-nav-link flex min-h-9 items-center gap-2.5 rounded-md px-2 py-1.5 font-medium transition-colors ${active ? "bg-[var(--app-hover)] font-semibold text-[var(--app-text)]" : "app-muted hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]"}`}><Icon size={16} className="shrink-0" aria-hidden /><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.pro && <span className="rounded border border-brand-400/35 px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-brand-300">PRO</span>}</Link>;
+}
+
+function NavGroup({ label, items, pathname, compact = false, markPro }: { label: string; items: NavItem[]; pathname: string; compact?: boolean; markPro?: (item: NavItem) => NavItem }) {
+  return <div className={compact ? "mt-3 space-y-1 border-t app-border pt-3" : "mt-5"}>
+    {!compact && <p className="app-nav-heading mb-1.5 px-2 font-semibold app-muted">{label}</p>}
+    <div className="space-y-0.5">{items.map((item) => <DesktopLink key={item.href} item={markPro?.(item) ?? item} pathname={pathname} compact={compact} />)}</div>
+  </div>;
 }
 
 /** `freePlan`: set for a Free account, so Pro-only destinations carry the Pro mark and the plan card shows. */
@@ -93,27 +109,26 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
   }
 
   return <>
-    <aside className={`hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:z-30 lg:row-span-2 lg:h-dvh lg:self-start lg:flex ${compact ? "lg:w-14" : "lg:w-56"}`}>
+    <aside className={`app-nav-sidebar hidden min-h-dvh flex-col border-r app-border bg-[var(--app-sidebar)] lg:sticky lg:top-0 lg:z-30 lg:row-span-2 lg:h-dvh lg:self-start lg:flex ${compact ? "lg:w-14" : "lg:w-60"}`}>
       <button type="button" onClick={toggleCollapsed} aria-label={compact ? "Expand menu" : "Collapse menu"} title={compact ? "Expand menu" : "Collapse menu"} aria-expanded={!compact} className="absolute -right-3 top-1/2 z-10 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border app-border bg-[var(--app-panel-solid)] app-muted shadow-md transition-colors hover:border-brand-400/60 hover:text-brand-300">{compact ? <ChevronRight size={14} strokeWidth={2.4} aria-hidden /> : <ChevronLeft size={14} strokeWidth={2.4} aria-hidden />}</button>
       {compact
-        ? <div className="flex h-16 items-center justify-center border-b app-border"><Link href="/" aria-label="ForexTestLab home"><Image src={theme === "light" ? logoMarkLight : logoMark} alt="" className="h-7 w-7 object-contain" /></Link></div>
-        : <div className="flex h-16 items-center border-b app-border px-5"><Logo className="h-7" /></div>}
-      <nav aria-label="Workspace navigation" className={`flex-1 overflow-y-auto ${compact ? "px-2 py-3" : "px-3 py-4"}`}>
+        ? <div className="flex h-16 items-center justify-center"><Link href="/" aria-label="ForexTestLab home"><Image src={theme === "light" ? logoMarkLight : logoMark} alt="" className="h-7 w-7 object-contain" /></Link></div>
+        : <div className="flex h-16 items-center px-4"><Logo className="h-8" /></div>}
+      <nav aria-label="Workspace navigation" className={`flex-1 overflow-y-auto ${compact ? "px-2 py-2" : "px-2 py-3"}`}>
         {compact ? <>
-          <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={menuItem(item)} pathname={pathname} compact />)}</div>
-          <div className="mt-3 space-y-1 border-t app-border pt-3">
-            {[BILLING, ...(admin ? [ADMIN] : []), FAQ_ITEM].map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} compact />)}
-          </div>
+          <DesktopLink item={DASHBOARD} pathname={pathname} compact />
+          <NavGroup label="Replay" items={REPLAY} pathname={pathname} compact />
+          <NavGroup label="Tools" items={TOOLS} pathname={pathname} compact markPro={menuItem} />
+          <NavGroup label="Account" items={ACCOUNT} pathname={pathname} compact />
+          <NavGroup label="Help" items={HELP} pathname={pathname} compact />
+          {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} compact />}
         </> : <>
-          <div className="space-y-1">{WORKSPACE.map((item) => <DesktopLink key={item.href} item={menuItem(item)} pathname={pathname} />)}</div>
-          <details className="group mt-4 border-t app-border pt-3" open={pathname.startsWith("/account/billing") ? true : undefined}>
-            <summary className="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)] [&::-webkit-details-marker]:hidden">
-              <MoreHorizontal size={16} aria-hidden />More<ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180" aria-hidden />
-            </summary>
-            <div className="mt-1 space-y-1 pl-2">
-              {[BILLING, ...(admin ? [ADMIN] : []), FAQ_ITEM].map((item) => <DesktopLink key={item.href} item={item} pathname={pathname} />)}
-            </div>
-          </details>
+          <DesktopLink item={DASHBOARD} pathname={pathname} />
+          <NavGroup label="Replay" items={REPLAY} pathname={pathname} />
+          <NavGroup label="Tools" items={TOOLS} pathname={pathname} markPro={menuItem} />
+          <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
+          <NavGroup label="Help" items={HELP} pathname={pathname} />
+          {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
           </>}
       </nav>
       {compact ? (

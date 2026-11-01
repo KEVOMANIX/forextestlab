@@ -396,6 +396,13 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const patch = useCallback((p: Partial<BacktesterState>) => {
     setS((prev) => ({ ...prev, ...p }));
   }, []);
+  const clearError = useCallback(() => patch({ error: null }), [patch]);
+  const hasLocalOpenPosition = useCallback((positionId?: string) => {
+    const positions = localEngineRef.current?.state.openPositions;
+    return !positions || (positionId
+      ? positions.some((position) => position.id === positionId)
+      : positions.length > 0);
+  }, []);
 
   const activateCreatedSession = useCallback(
     (res: CreatedSession) => {
@@ -579,6 +586,19 @@ export function useBacktester(resumeSessionId: string | null = null) {
         const res = await sendAction(id, token, action);
         if (!res.ok) {
           succeeded = false;
+          const positionAction = ["close", "close-all", "modify-stop", "modify-target", "modify-trailing"].includes(action.type);
+          if (positionAction && (res.error === "No open position." || res.error === "No open positions.")) {
+            // A TP/SL may close the trade while its editor or a queued command
+            // still holds the old position id. Use the server's closed state
+            // without treating the stale command as a replay failure.
+            if (res.state && localEngineRef.current) {
+              const next = engineStateFromPublic(res.state);
+              next.totalCandles = localEngineRef.current.candles.length;
+              localEngineRef.current.state = next;
+            }
+            setS((prev) => ({ ...prev, error: null, state: res.state ?? prev.state, saveStatus: "saved", savedAt: Date.now() }));
+            return;
+          }
           if (res.state && !opts.preserveLocalState) localEngineRef.current = {
             state: {
               ...engineStateFromPublic(res.state),
@@ -1594,6 +1614,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   );
   const closePosition = useCallback(
     (positionId?: string, lots?: string) => {
+      if (!hasLocalOpenPosition(positionId)) return Promise.resolve(false);
       const rollbackState = s.state;
       const engine = localEngineRef.current;
       if (engine) {
@@ -1610,9 +1631,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
         targetIndex: localEngineRef.current?.state.visibleIndex,
       }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
     },
-    [runAction, s.state],
+    [hasLocalOpenPosition, runAction, s.state],
   );
   const closeAllPositions = useCallback(() => {
+    if (!hasLocalOpenPosition()) return Promise.resolve(false);
     const rollbackState = s.state;
     const engine = localEngineRef.current;
     if (engine) {
@@ -1626,7 +1648,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       type: "close-all",
       targetIndex: localEngineRef.current?.state.visibleIndex,
     }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
-  }, [runAction, s.state]);
+  }, [hasLocalOpenPosition, runAction, s.state]);
   /**
    * Rescue a blown account with demo funds.
    *
@@ -1657,6 +1679,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   );
   const modifyStop = useCallback(
     (price: string | null, positionId?: string) => {
+      if (!hasLocalOpenPosition(positionId)) return Promise.resolve(false);
       const rollbackState = s.state;
       const engine = localEngineRef.current;
       if (engine && modifyLocalStopLoss(engine, price, positionId).ok) {
@@ -1670,10 +1693,11 @@ export function useBacktester(resumeSessionId: string | null = null) {
         targetIndex: localEngineRef.current?.state.visibleIndex,
       }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
     },
-    [runAction, s.state],
+    [hasLocalOpenPosition, runAction, s.state],
   );
   const modifyTarget = useCallback(
     (price: string | null, positionId?: string) => {
+      if (!hasLocalOpenPosition(positionId)) return Promise.resolve(false);
       const rollbackState = s.state;
       const engine = localEngineRef.current;
       if (engine && modifyLocalTakeProfit(engine, price, positionId).ok) {
@@ -1687,7 +1711,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         targetIndex: localEngineRef.current?.state.visibleIndex,
       }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
     },
-    [runAction, s.state],
+    [hasLocalOpenPosition, runAction, s.state],
   );
   const modifyPending = useCallback(
     (orderId: string, price: string) => {
@@ -1734,6 +1758,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   );
   const modifyTrailing = useCallback(
     (pips: string | null, positionId?: string) => {
+      if (!hasLocalOpenPosition(positionId)) return Promise.resolve(false);
       const rollbackState = s.state;
       const engine = localEngineRef.current;
       if (engine && modifyLocalTrailingStop(engine, pips, positionId).ok) {
@@ -1747,7 +1772,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
         targetIndex: localEngineRef.current?.state.visibleIndex,
       }, { rollbackState: rollbackState ?? undefined, showBusy: false, preserveLocalState: true });
     },
-    [runAction, s.state],
+    [hasLocalOpenPosition, runAction, s.state],
   );
   const saveNotes = useCallback(
     async (notes: string) => {
@@ -2000,6 +2025,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     ...s,
     replayStepMinutes,
     actions: {
+      clearError,
       startSession,
       play,
       pause,

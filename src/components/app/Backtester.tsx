@@ -5,7 +5,7 @@ import type { DrawingJSON } from "@/lib/chart/drawing/types";
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Plus, Settings } from "lucide-react";
+import { CalendarClock, CircleAlert, Plus, Settings, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -1250,15 +1250,17 @@ export function Backtester({
         </div>
       )}
 
-      {/* Centred, and above the focus-mode controls that also claim the
-          top-right corner, so an error is never buried. */}
       {bt.error && (
-        <p
+        <div
           role="alert"
-          className="absolute left-1/2 top-14 z-[95] w-[min(28rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-lg border border-loss/30 bg-[var(--app-panel-solid)] px-3 py-2 text-center text-sm text-loss shadow-2xl"
+          className="absolute right-3 top-14 z-[95] flex w-[min(21rem,calc(100%-1.5rem))] items-start gap-2 rounded-xl border app-border bg-[var(--app-panel-solid)] px-3 py-2.5 text-sm shadow-xl sm:right-4 sm:top-16"
         >
-          {bt.error}
-        </p>
+          <CircleAlert size={16} className="mt-0.5 shrink-0 text-loss" aria-hidden />
+          <span className="min-w-0 flex-1 leading-5">{bt.error}</span>
+          <button type="button" onClick={actions.clearError} aria-label="Dismiss message" className="grid h-5 w-5 shrink-0 place-items-center rounded app-muted hover:bg-[var(--app-hover)] hover:text-[var(--app-text)]">
+            <X size={14} aria-hidden />
+          </button>
+        </div>
       )}
 
       <div className="flex min-h-0 flex-1">

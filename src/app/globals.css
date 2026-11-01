@@ -589,10 +589,10 @@
 }
 
 .marketing-light .marketing-hero-background {
-  background: linear-gradient(to bottom, #ffffff 0%, #fbfcfb 62%, #f4f8f5 100%);
+  background: linear-gradient(to bottom, #f5f3fa 0%, #f5f3fa 36%, #f8f7fb 65%, #fbfcfb 100%);
 }
 .marketing-light .marketing-hero-glow {
-  background: radial-gradient(ellipse, rgb(69 214 168 / 0.1), rgb(69 214 168 / 0.025) 44%, transparent 72%);
+  background: radial-gradient(ellipse, rgb(69 214 168 / 0.08), rgb(69 214 168 / 0.02) 44%, transparent 72%);
 }
 .marketing-light .market-selected-card {
   background: linear-gradient(145deg, rgb(69 214 168 / 0.20), rgb(255 255 255 / 0.97));

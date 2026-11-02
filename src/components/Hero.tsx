@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { ProductDemoVideo } from "@/components/ProductDemoVideo";
@@ -85,8 +85,6 @@ function ScreenFrame({
   );
 }
 
-const TRUST_POINTS = ["Free to start", "No card required", "Sessions auto-save"];
-
 const PROOF_POINTS = [
   "Historical replay",
   "New York time",
@@ -112,54 +110,45 @@ export function Hero() {
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">
         <div className="mx-auto max-w-[1240px] text-center">
           <div className="text-center">
-            <Link
-              href="/markets"
-              className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-surface-900/80 py-1 pl-1 pr-3 text-[13px] text-slate-300 transition-colors animate-fade-up hover:border-brand-400/40 hover:text-white"
-            >
-              <span className="rounded-full bg-brand-400/15 px-2 py-0.5 text-xs font-bold text-brand-200">New</span>
-              WTI crude oil is now in replay
-              <ArrowRight size={13} aria-hidden />
-            </Link>
-            <h1 className="mx-auto max-w-6xl text-balance text-3xl font-bold leading-[1.22] tracking-[-0.025em] text-white animate-fade-up sm:text-4xl lg:text-[3.25rem]">
+            <h1 className="mx-auto max-w-6xl text-balance text-4xl font-extrabold leading-[1.12] tracking-[-0.03em] text-white animate-fade-up sm:text-5xl lg:text-[4rem]">
               Build confidence in your strategy.
-              <span className="mt-2 block text-brand-200 sm:mt-3">
+              <span className="mt-1 block text-brand-200 sm:mt-2">
                 One backtest at a time.
               </span>
             </h1>
           </div>
 
-          <div className="mt-5 grid gap-6">
+          <div className="mt-5 grid gap-8">
             <div>
               <p className="mx-auto max-w-3xl text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
                 Replay markets, practise your strategy, and review your results.
               </p>
             </div>
 
-            <div className="animate-fade-up">
-              <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
+            <div className="flex flex-col items-center justify-center gap-5 animate-fade-up sm:flex-row sm:items-start sm:gap-4">
+              <div className="w-full sm:w-[340px]">
                 <Link
                   href={TRIAL_SIGN_UP_PATH}
-                  className="btn-primary min-h-12 w-full rounded-full px-7 shadow-glow sm:w-auto"
+                  className="btn-primary min-h-14 w-full rounded-full px-7 text-base shadow-glow"
                 >
                   Start backtesting free
-                  <ArrowRight size={16} aria-hidden />
+                  <ArrowRight size={17} aria-hidden />
                 </Link>
+                <p className="mt-2.5 text-[13px] text-slate-400">
+                  Free plan. No card required.
+                </p>
+              </div>
+              <div className="w-full sm:w-[340px]">
                 <Link
                   href="#product-preview"
-                  className="group inline-flex min-h-12 items-center gap-2 px-3 text-[15px] font-semibold text-white transition-colors hover:text-brand-200"
+                  className="btn-secondary min-h-14 w-full rounded-full px-7 text-base"
                 >
                   Explore the workspace
-                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" aria-hidden />
                 </Link>
+                <p className="mt-2.5 text-[13px] text-slate-400">
+                  See the real replay screens first.
+                </p>
               </div>
-              <ul className="mt-5 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-slate-400">
-                {TRUST_POINTS.map(point => (
-                  <li key={point} className="flex items-center gap-1.5">
-                    <Check size={15} strokeWidth={2.5} className="text-brand-300" aria-hidden />
-                    {point}
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
         </div>

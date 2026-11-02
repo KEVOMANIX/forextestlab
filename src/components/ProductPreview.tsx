@@ -13,7 +13,7 @@ const VIEWS = [
     description:
       "Move through historical price action, place positions instantly, adjust chart context, and control replay without losing your place.",
     detail: "1m–1D chart context · draggable replay controls · multi-position execution",
-    src: "/product/market-replay-20261008.webp",
+    src: "/product/market-replay-light-20261102.webp",
     width: 1905,
     height: 945,
     imageIncludesChrome: false,
@@ -26,7 +26,7 @@ const VIEWS = [
     description:
       "Resume active tests, switch between strategies, and see progress and account performance from one clean dashboard.",
     detail: "Saved sessions · replay progress · session-level performance",
-    src: "/product/session-dashboard-20261008.webp",
+    src: "/product/session-dashboard-light-20261102.webp",
     width: 1470,
     height: 735,
     imageIncludesChrome: false,
@@ -39,7 +39,7 @@ const VIEWS = [
     description:
       "Study equity, drawdown, expectancy, timing, day-of-week performance, trading sessions, and the sequence behind your results.",
     detail: "Equity and drawdown · timing analysis · trade distributions",
-    src: "/product/session-analytics-20261008.webp",
+    src: "/product/session-analytics-light-20261102.webp",
     width: 1470,
     height: 765,
     imageIncludesChrome: false,
@@ -117,7 +117,7 @@ export function ProductPreview() {
             aria-hidden
             className="absolute -inset-7 -z-10 rounded-[2rem] bg-[radial-gradient(circle_at_50%_55%,rgba(14,165,233,.14),transparent_65%)] blur-2xl"
           />
-          <div className={`marketing-dark-demo marketing-product-frame flex aspect-[4/3] flex-col overflow-hidden rounded-2xl sm:aspect-[19/10] border border-white/[0.12] bg-surface-800/90 shadow-[0_38px_100px_-40px_rgba(0,0,0,.55)] ${active.imageIncludesChrome ? "p-0" : "p-1.5"}`}>
+          <div className={`marketing-product-frame flex aspect-[4/3] flex-col overflow-hidden rounded-2xl sm:aspect-[19/10] border border-white/[0.12] bg-surface-800/90 shadow-[0_38px_100px_-40px_rgba(0,0,0,.55)] ${active.imageIncludesChrome ? "p-0" : "p-1.5"}`}>
             {!active.imageIncludesChrome && (
               <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/90 px-3">
                 <span className="flex gap-1.5" aria-hidden>

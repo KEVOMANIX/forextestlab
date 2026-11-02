@@ -36,7 +36,7 @@ function ScreenFrame({
 }) {
   return (
     <div
-      className={`marketing-dark-demo marketing-product-frame overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 shadow-[0_45px_140px_-45px_rgba(0,0,0,.72)] ${imageIncludesChrome ? "p-0" : "p-1.5"} ${className}`}
+      className={`marketing-product-frame overflow-hidden rounded-2xl border border-white/[0.12] bg-surface-800/95 shadow-[0_45px_140px_-45px_rgba(0,0,0,.72)] ${imageIncludesChrome ? "p-0" : "p-1.5"} ${className}`}
     >
       {!imageIncludesChrome && (
         <div className="flex h-9 items-center justify-between rounded-t-xl border-b border-white/[0.08] bg-surface-900/95 px-3">
@@ -159,7 +159,7 @@ export function Hero() {
             className="absolute -left-[4%] top-[14%] hidden w-[46%] lg:block"
           >
             <ScreenFrame
-              src="/product/session-dashboard-20261008.webp"
+              src="/product/session-dashboard-light-20261102.webp"
               alt=""
               label="Session dashboard"
               width={1470}
@@ -172,7 +172,7 @@ export function Hero() {
             className="absolute -right-[4%] top-[14%] hidden w-[46%] lg:block"
           >
             <ScreenFrame
-              src="/product/session-analytics-20261008.webp"
+              src="/product/session-analytics-light-20261102.webp"
               alt=""
               label="Session analytics"
               width={1470}
@@ -187,18 +187,14 @@ export function Hero() {
               className="absolute -inset-10 -z-10 rounded-[3rem] bg-brand-400/[0.12] blur-[70px]"
             />
             <ScreenFrame
-              src="/product/market-replay-20261008.webp"
+              src="/product/market-replay-light-20261102.webp"
               alt="ForexTestLab historical market replay terminal with candlestick chart, positions, execution controls, and session metrics"
               label="Market replay terminal"
               priority
               imageIncludesChrome
               mobileZoom
-              width={1906}
-              height={946}
-              video={{
-                mp4: "/product/market-replay-20261008.mp4",
-                poster: "/product/market-replay-video-20261008.webp",
-              }}
+              width={1905}
+              height={945}
             />
 
             <div className="absolute -bottom-5 left-1/2 hidden -translate-x-1/2 items-center gap-1.5 rounded-xl border border-white/[0.11] bg-surface-900/95 p-1.5 shadow-2xl backdrop-blur sm:flex">

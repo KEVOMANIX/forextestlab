@@ -202,6 +202,21 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
   const averageLoss = losses.length ? Math.abs(losses.reduce((sum, value) => sum + value, 0) / losses.length) : 0;
   let peak = equity[0] ?? startingBalance;
   const drawdown = equity.map((value) => { peak = Math.max(peak, value); return value - peak; });
+  // Sessions without recorded equity history have no stored drawdown, so fall
+  // back to the closed-trade equity curve the drawdown chart already plots.
+  let curvePeak = equity[0] ?? startingBalance;
+  let curveDrawdown = 0;
+  let curveDrawdownPercent = 0;
+  for (const value of equity) {
+    curvePeak = Math.max(curvePeak, value);
+    const depth = curvePeak - value;
+    if (depth > curveDrawdown) {
+      curveDrawdown = depth;
+      curveDrawdownPercent = curvePeak > 0 ? depth / curvePeak * 100 : 0;
+    }
+  }
+  const storedDrawdown = numberOrNull(stats.maxDrawdown);
+  const useCurveDrawdown = storedDrawdown === null && trades.length > 0;
   const monthlyReturns = monthlyReturnSeries(trades, startingBalance);
   const calendar = createCalendar(trades);
   const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -231,7 +246,8 @@ function createLiveModel(trades: ClosedTrade[], equityCurve: EquityPoint[], star
   return {
     equity, endingBalance, netProfit, returnPercent: returnPercent(startingBalanceValue, String(endingBalance)),
     winRate: stats.winRate, profitFactor: stats.profitFactor, expectancy: Number(stats.expectancy) || 0,
-    maxDrawdown: numberOrNull(stats.maxDrawdown), maxDrawdownPercent: numberOrNull(stats.maxDrawdownPercent),
+    maxDrawdown: useCurveDrawdown ? curveDrawdown : storedDrawdown,
+    maxDrawdownPercent: useCurveDrawdown ? curveDrawdownPercent : numberOrNull(stats.maxDrawdownPercent),
     closedTrades: trades.length, averageR, payoffRatio: averageLoss ? (averageWin / averageLoss).toFixed(2) : "—", averageHold,
     bestTrade: wins.length ? Math.max(...wins) : 0, worstTrade: losses.length ? Math.min(...losses) : 0,
     streak: streakTrade ? `${streakCount} ${Number(streakTrade.pnl) > 0 ? "wins" : "losses"}` : "—",
@@ -543,7 +559,7 @@ export function AnalyticsDesignPrototype({
             </section>
 
             <section className="min-w-0 rounded-2xl border app-border bg-[var(--app-panel)] p-4 sm:p-5">
-              <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-cyan-300">Trade results</p><p className="mt-1 text-xs app-muted">Realised P/L for the latest 20 trades</p></div>{overviewTradePnls.length > 0 && <span className="rounded-full bg-[var(--app-panel-2)] px-2.5 py-1 font-mono text-[9px] app-muted">{overviewTradePnls.length} trades</span>}</div>
+              <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Trade results</p><p className="mt-1 text-xs app-muted">Realised P/L for the latest 20 trades</p></div>{overviewTradePnls.length > 0 && <span className="rounded-full bg-[var(--app-panel-2)] px-2.5 py-1 font-mono text-[9px] app-muted">{overviewTradePnls.length} trades</span>}</div>
               {overviewTradePnls.length > 0 ? <div className="mt-5"><div className="grid h-[210px] items-center gap-1 rounded-xl bg-[var(--app-panel-2)]/35 px-3 py-4" style={{ gridTemplateColumns: `repeat(${overviewTradePnls.length}, minmax(3px, 1fr))` }}>{overviewTradePnls.map((value, index) => { const height = Math.max(6, Math.abs(value) / overviewTradePnlMax * 88); return <div key={`${index}-${value}`} className="flex h-full min-w-0 flex-col justify-center" title={`Trade ${Math.max(1, model.closedTrades - overviewTradePnls.length + index + 1)}: ${money(value, true)}`}><div className="relative h-1/2 border-b border-white/10">{value > 0 && <div className="absolute bottom-0 left-1/2 w-[72%] -translate-x-1/2 rounded-t bg-profit/85" style={{ height: `${height}%` }} />}</div><div className="relative h-1/2">{value < 0 && <div className="absolute left-1/2 top-0 w-[72%] -translate-x-1/2 rounded-b bg-loss/85" style={{ height: `${height}%` }} />}</div></div>; })}</div><div className="mt-3 flex items-center justify-between text-[10px] app-muted"><span>Older</span><span className="inline-flex items-center gap-3"><i className="inline-flex items-center gap-1.5"><b className="h-1.5 w-1.5 rounded-full bg-profit" /> Profit</i><i className="inline-flex items-center gap-1.5"><b className="h-1.5 w-1.5 rounded-full bg-loss" /> Loss</i></span><span>Latest</span></div><div className="mt-4 grid grid-cols-3 divide-x app-border border-t app-border pt-4 text-center"><div><p className="font-mono text-sm font-semibold">{model.winningTrades}</p><p className="mt-1 text-[9px] app-muted">Profit trades</p></div><div><p className="font-mono text-sm font-semibold">{model.losingTrades}</p><p className="mt-1 text-[9px] app-muted">Loss trades</p></div><div><p className={`font-mono text-sm font-semibold ${model.averageTrade >= 0 ? "text-profit" : "text-loss"}`}>{money(model.averageTrade, true)}</p><p className="mt-1 text-[9px] app-muted">Avg. trade P/L</p></div></div></div> : <div className="mt-5 grid h-[276px] place-items-center rounded-xl border border-dashed app-border bg-[var(--app-panel-2)]/35 px-6 text-center"><div><BarChart3 size={20} className="mx-auto text-cyan-300/70" aria-hidden /><p className="mt-3 text-sm font-semibold">Trade results appear here</p><p className="mt-1 text-xs app-muted">Close a trade to plot its realised P/L</p></div></div>}
             </section>
           </section>

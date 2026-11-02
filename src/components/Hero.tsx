@@ -121,7 +121,7 @@ export function Hero() {
           <div className="mt-5 grid gap-8">
             <div>
               <p className="mx-auto max-w-3xl text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
-                Replay markets, practise your strategy, and review your results.
+                Replay real historical charts, place trades as each candle prints, and review every result in one place.
               </p>
             </div>
 
@@ -146,7 +146,7 @@ export function Hero() {
                   Explore the workspace
                 </Link>
                 <p className="mt-2.5 text-[13px] text-slate-400">
-                  See the real replay screens first.
+                  Sessions auto-save as you trade.
                 </p>
               </div>
             </div>

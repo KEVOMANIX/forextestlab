@@ -110,15 +110,18 @@ export function Hero() {
       <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8">
         <div className="mx-auto max-w-[1240px] text-center">
           <div className="text-center">
-            <h1 className="mx-auto max-w-5xl text-balance text-4xl font-extrabold leading-[1.12] tracking-[-0.03em] text-white animate-fade-up sm:text-5xl lg:text-[4rem]">
-              Backtest your forex strategy before you risk real money.
+            <h1 className="mx-auto max-w-6xl text-balance text-4xl font-extrabold leading-[1.12] tracking-[-0.03em] text-white animate-fade-up sm:text-5xl lg:text-[4rem]">
+              Build confidence in your strategy.
+              <span className="mt-1 block text-brand-200 sm:mt-2">
+                One backtest at a time.
+              </span>
             </h1>
           </div>
 
           <div className="mt-5 grid gap-8">
             <div>
               <p className="mx-auto max-w-3xl text-pretty text-base leading-7 text-slate-300 animate-fade-up sm:text-lg">
-                Replay historical charts candle by candle, place trades as if the market were live, and see exactly how your strategy performs.
+                Replay markets, practise your strategy, and review your results.
               </p>
             </div>
 
@@ -140,7 +143,7 @@ export function Hero() {
                   href="#product-preview"
                   className="btn-secondary min-h-14 w-full rounded-full px-7 text-base"
                 >
-                  See how it works
+                  Explore the workspace
                 </Link>
                 <p className="mt-2.5 text-[13px] text-slate-400">
                   See the real replay screens first.

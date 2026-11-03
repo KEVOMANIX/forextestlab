@@ -496,7 +496,26 @@ export function AnalyticsDesignPrototype({
 
       {!demo && notice}
 
-      {sessionSelector ? <header data-pdf-part="Overview" className="mt-4 border-b app-border pb-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>{!showingLiveSample && headerActions}</div>{showingLiveSample ? <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div><div className="hidden sm:block">{sessionMetadata}</div><button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-amber-200/20 text-amber-100 transition-colors hover:bg-amber-200/10" aria-label="Close sample report" title="Close sample report"><X size={16} aria-hidden /></button></div> : <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>}</header> : <header data-pdf-part="Overview" className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{headerActions}</header>}
+      {sessionSelector ? (
+        <header data-pdf-part="Overview" className="mt-4 border-b app-border pb-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>
+            {!showingLiveSample && headerActions}
+          </div>
+          {showingLiveSample ? (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span>
+              <div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div>
+              <div className="hidden sm:block">{sessionMetadata}</div>
+              {!readOnly && <button type="button" onClick={() => setShowDemoData(false)} className="ml-auto inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-amber-300/40 bg-[var(--app-panel)] px-3 text-xs font-semibold text-[var(--app-text)] transition-colors hover:bg-[var(--app-panel-2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"><X size={14} aria-hidden /> Close demo</button>}
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>
+          )}
+        </header>
+      ) : (
+        <header data-pdf-part="Overview" className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{showingLiveSample && !readOnly ? <button type="button" onClick={() => setShowDemoData(false)} className="inline-flex h-9 items-center gap-2 rounded-lg border app-border bg-[var(--app-panel)] px-3 text-xs font-semibold"><X size={14} aria-hidden /> Close demo</button> : headerActions}</header>
+      )}
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <nav className="w-fit max-w-full overflow-x-auto rounded-2xl border app-border bg-[var(--app-panel)] p-1.5 shadow-[0_14px_36px_-32px_rgba(0,0,0,0.65)]" aria-label="Analytics sections">
@@ -507,7 +526,6 @@ export function AnalyticsDesignPrototype({
           </div>
         </nav>
         {canPreviewSample && !exportingPdf && <button type="button" onClick={() => setShowDemoData(true)} className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border app-border bg-[var(--app-panel)] px-4 text-xs font-semibold text-[var(--app-accent-text)] shadow-sm transition-colors hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-wash)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"><FlaskConical size={15} aria-hidden /> View demo</button>}
-        {showingLiveSample && !readOnly && !exportingPdf && <button type="button" onClick={() => setShowDemoData(false)} className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border app-border bg-[var(--app-panel)] px-4 text-xs font-semibold text-[var(--app-text)] shadow-sm transition-colors hover:bg-[var(--app-panel-2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"><X size={15} aria-hidden /> Close demo</button>}
       </div>
 
       {(tab === "overview" || exportingPdf) && (

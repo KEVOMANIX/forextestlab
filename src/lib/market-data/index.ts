@@ -23,6 +23,10 @@ import type {
 export type ProviderKey = "r2" | "demo";
 export type ReplayDataSource = "dukascopy" | "histdata";
 
+export function histDataReplayEnabled(): boolean {
+  return process.env.HISTDATA_REPLAY_ENABLED === "true";
+}
+
 export function replayDataSourceFromStored(value: string | null | undefined): ReplayDataSource {
   return value === "histdata-r2" ? "histdata" : "dukascopy";
 }
@@ -88,6 +92,7 @@ class ProviderWithDemoFallback implements MarketDataProvider {
 
 export function getMarketDataProvider(source: ReplayDataSource = "dukascopy"): MarketDataProvider {
   if (source === "histdata") {
+    if (!histDataReplayEnabled()) throw new Error("HistData replay is not enabled.");
     // HistData is selected only when its own R2 archive has coverage. Never
     // fall back to Dukascopy or synthetic candles within a HistData replay.
     const prefix = process.env.HISTDATA_R2_PREFIX?.trim() || "histdata_market_data";

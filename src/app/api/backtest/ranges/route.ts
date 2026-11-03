@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getMarketDataProvider } from "@/lib/market-data";
+import { getMarketDataProvider, histDataReplayEnabled } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 const SESSION_BASE_TIMEFRAME = "1m";
 
@@ -12,6 +12,7 @@ export async function GET(request: Request) {
   const symbol = searchParams.get("symbol");
   const source = searchParams.get("source") ?? "dukascopy";
   if (source !== "dukascopy" && source !== "histdata") return NextResponse.json({ ok: false, error: "Invalid data source." }, { status: 400 });
+  if (source === "histdata" && !histDataReplayEnabled()) return NextResponse.json({ ok: true, ranges: [] });
   if (!symbol || !getSymbolDefinition(symbol)) {
     return NextResponse.json({ ok: false, error: "Invalid symbol." }, { status: 400 });
   }

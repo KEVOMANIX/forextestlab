@@ -28,7 +28,8 @@ import {
 import type { ChallengeStart } from "@/lib/backtest/challenge-record";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
 import { formatQuotaReset } from "@/lib/billing/plan-limits";
-import { ProLock, ProPeek } from "./ProLock";
+import { ProLock } from "./ProLock";
+import { CurrencyFlag, hasCurrencyFlag } from "./CurrencyFlag";
 import {
   PROP_FIRM_ACCOUNT_SIZES,
   PROP_FIRM_PRESETS,
@@ -51,7 +52,7 @@ interface SessionSetupProps {
 // Ordered by catalogue size so the busiest filters sit closest to "All". A
 // category with no enabled symbols is never rendered, so the row stays short
 // enough to wrap instead of scrolling off the edge of the column.
-const MARKET_CATEGORIES = ["All", "Forex", "Indices", "Crypto", "Metals", "Energies", "Futures", "Stocks"] as const;
+const MARKET_CATEGORIES = ["All", "Stocks", "Futures", "Forex", "Crypto", "Indices", "Metals", "Energies"] as const;
 type MarketCategory = (typeof MARKET_CATEGORIES)[number];
 
 
@@ -91,13 +92,13 @@ function MarketPicker({
   const enabled = useMemo(() => symbols.filter((item) => item.enabled), [symbols]);
 
   const counts = useMemo(() => {
-    const totals = new Map<MarketCategory, number>([["All", enabled.length]]);
-    for (const item of enabled) {
+    const totals = new Map<MarketCategory, number>([["All", symbols.length]]);
+    for (const item of symbols) {
       const group = marketCategory(item);
       totals.set(group, (totals.get(group) ?? 0) + 1);
     }
     return totals;
-  }, [enabled]);
+  }, [symbols]);
 
   const categories = useMemo(
     () => MARKET_CATEGORIES.filter((item) => (counts.get(item) ?? 0) > 0),
@@ -106,16 +107,14 @@ function MarketPicker({
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return enabled.filter((item) => {
+    return symbols.filter((item) => {
       if (category !== "All" && marketCategory(item) !== category) return false;
       if (!needle) return true;
       return `${item.symbol} ${item.displayName} ${describeSymbol(item.symbol)}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [category, enabled, query]);
-  const openVisible = visible.filter((item) => !isLocked(item.symbol));
-  const lockedVisible = visible.filter((item) => isLocked(item.symbol));
+  }, [category, symbols, query]);
 
   const selectedItems = useMemo(
     () => selected.map((symbol) => enabled.find((item) => item.symbol === symbol)).filter(Boolean) as MarketSymbol[],
@@ -171,11 +170,11 @@ function MarketPicker({
 
       {open && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) closePicker(); }}>
-          <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="market-picker-title" className="panel flex max-h-[min(42rem,calc(100dvh-2rem))] w-full max-w-3xl flex-col overflow-hidden shadow-2xl">
+          <section ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="market-picker-title" className="panel flex max-h-[min(44rem,calc(100dvh-2rem))] w-full max-w-2xl flex-col overflow-hidden shadow-2xl">
             <header className="flex items-center justify-between gap-4 border-b app-border px-5 py-4">
               <div>
                 <h2 id="market-picker-title" className="text-lg font-semibold">Choose markets</h2>
-                <p className="mt-0.5 text-xs app-muted">{selected.length} selected · {enabled.length} available</p>
+                <p className="mt-0.5 text-xs app-muted">{selected.length} selected · {enabled.length} markets with data</p>
               </div>
               <button type="button" onClick={closePicker} aria-label="Close market picker" className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><X size={17} aria-hidden /></button>
             </header>
@@ -184,53 +183,43 @@ function MarketPicker({
               <div className="relative">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 app-muted" aria-hidden />
                 <label htmlFor="setup-market-search" className="sr-only">Search markets</label>
-                <input id="setup-market-search" type="search" className="app-input w-full py-2 pl-9 pr-9 text-sm" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${enabled.length} markets`} autoComplete="off" />
+                <input id="setup-market-search" type="search" className="app-input w-full py-2 pl-9 pr-9 text-sm" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search assets" autoComplete="off" />
                 {query && <button type="button" aria-label="Clear market search" onClick={() => setQuery("")} className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md app-muted hover:bg-[var(--app-panel-2)]"><X size={14} aria-hidden /></button>}
               </div>
               {categories.length > 1 && (
                 <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Filter markets by category">
-                  {categories.map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`rounded-md border px-2.5 py-1 text-[11px] font-medium ${category === item ? "border-brand-400/50 bg-brand-400/10 text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)]"}`}>{item} <span className="opacity-70">{counts.get(item)}</span></button>)}
+                  {categories.map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)} className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${category === item ? "bg-[var(--app-text)] text-[var(--app-bg)]" : "bg-[var(--app-panel-2)] app-muted hover:text-[var(--app-text)]"}`}>{item}</button>)}
                 </div>
               )}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2 sm:px-4">
               {loading ? (
-                <div className="grid gap-2 sm:grid-cols-2">{Array.from({ length: 8 }, (_, index) => <span key={index} className="h-12 animate-pulse rounded-lg bg-white/[0.05]" />)}</div>
+                <div className="grid gap-1">{Array.from({ length: 8 }, (_, index) => <span key={index} className="h-11 animate-pulse rounded-lg bg-[var(--app-panel-2)]" />)}</div>
               ) : visible.length > 0 ? (
-                <>
-                  {openVisible.length > 0 && <div className="grid gap-2 sm:grid-cols-2">
-                    {openVisible.map((item) => {
-                      const active = selected.includes(item.symbol);
-                      const description = describeSymbol(item.symbol);
-                      return <label key={item.symbol} className={`group flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 ${active ? "border-brand-400/60 bg-brand-400/10" : "app-border hover:bg-[var(--app-panel-2)]"}`}>
-                        <input type={singleSelect ? "radio" : "checkbox"} name={singleSelect ? "session-pair" : undefined} className="sr-only" checked={active} onChange={() => { onToggle(item.symbol); if (!active) setQuery(""); if (singleSelect) closePicker(); }} />
-                        <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center border ${singleSelect ? "rounded-full" : "rounded-md"} ${active ? "border-brand-400 bg-brand-500 text-surface-950" : "app-border"}`}>{active && <Check size={12} strokeWidth={3.5} />}</span>
-                        <span className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{item.displayName}</span><span className="block truncate text-xs app-muted">{description}</span></span>
-                      </label>;
-                    })}
-                  </div>}
-                  {lockedVisible.length > 0 && (
-                    <div className={openVisible.length > 0 ? "mt-5" : ""}>
-                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.14em] app-muted">{lockedVisible.length} more {lockedVisible.length === 1 ? "market" : "markets"} on Pro</p>
-                      <ProPeek
-                        feature="markets"
-                        title={lockedVisible.length <= 3 ? `${lockedVisible.map((item) => item.displayName).join(", ")} ${lockedVisible.length === 1 ? "is" : "are"} on Pro` : `${lockedVisible.length} more markets on Pro`}
-                        text="Every FX cross, gold and silver, US indices, crypto and the dollar index."
-                        className="min-h-44 max-h-64 rounded-lg"
-                      >
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {lockedVisible.slice(0, 8).map((item) => (
-                            <div key={item.symbol} className="flex items-center gap-3 rounded-lg border app-border px-3 py-2.5">
-                              <span className={`grid h-5 w-5 shrink-0 border app-border ${singleSelect ? "rounded-full" : "rounded-md"}`} />
-                              <span className="min-w-0"><span className="block truncate font-mono text-sm font-semibold">{item.displayName}</span><span className="block truncate text-xs app-muted">{describeSymbol(item.symbol)}</span></span>
-                            </div>
-                          ))}
-                        </div>
-                      </ProPeek>
-                    </div>
-                  )}
-                </>
+                <div className="space-y-0.5">
+                  {visible.map((item) => {
+                    const active = selected.includes(item.symbol);
+                    const locked = isLocked(item.symbol);
+                    const group = marketCategory(item);
+                    const base = item.baseCurrency;
+                    const row = <>
+                      <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--app-panel-2)] text-[10px] font-bold text-[var(--app-accent-text)]" aria-hidden>
+                        {hasCurrencyFlag(base) ? <CurrencyFlag currency={base} size={24} /> : base.slice(0, 2)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-left">
+                        <span className="font-mono text-[13px] font-bold">{item.symbol}</span>
+                        <span className="ml-2 text-xs app-muted">{describeSymbol(item.symbol)}</span>
+                      </span>
+                      {active && <Check size={15} className="shrink-0 text-[var(--app-accent-text)]" aria-hidden />}
+                      {locked && <span className="shrink-0 rounded-md bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold text-blue-400">Pro</span>}
+                      {!item.enabled && <span className="shrink-0 text-[11px] app-muted">No data</span>}
+                      <span className="hidden w-16 shrink-0 text-right text-[11px] app-muted sm:block">{group}</span>
+                    </>;
+                    if (locked && item.enabled) return <ProLock key={item.symbol} feature="markets" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left opacity-70 transition-colors hover:bg-[var(--app-panel-2)] hover:opacity-100">{row}</ProLock>;
+                    return <button key={item.symbol} type="button" disabled={!item.enabled} aria-pressed={active} onClick={() => { onToggle(item.symbol); if (singleSelect) closePicker(); }} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${active ? "bg-[var(--app-accent-wash)]" : "hover:bg-[var(--app-panel-2)]"}`}>{row}</button>;
+                  })}
+                </div>
               ) : <p className="py-10 text-center text-sm app-muted">No markets match your search.</p>}
             </div>
 

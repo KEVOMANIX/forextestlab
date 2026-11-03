@@ -507,6 +507,7 @@ export function AnalyticsDesignPrototype({
           </div>
         </nav>
         {canPreviewSample && !exportingPdf && <button type="button" onClick={() => setShowDemoData(true)} className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border app-border bg-[var(--app-panel)] px-4 text-xs font-semibold text-[var(--app-accent-text)] shadow-sm transition-colors hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-wash)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"><FlaskConical size={15} aria-hidden /> View demo</button>}
+        {showingLiveSample && !readOnly && !exportingPdf && <button type="button" onClick={() => setShowDemoData(false)} className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border app-border bg-[var(--app-panel)] px-4 text-xs font-semibold text-[var(--app-text)] shadow-sm transition-colors hover:bg-[var(--app-panel-2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"><X size={15} aria-hidden /> Close demo</button>}
       </div>
 
       {(tab === "overview" || exportingPdf) && (

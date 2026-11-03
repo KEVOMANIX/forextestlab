@@ -26,7 +26,7 @@ function niceStep(value: number): number {
   if (value <= 0) return 1;
   const power = 10 ** Math.floor(Math.log10(value));
   const scaled = value / power;
-  return (scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10) * power;
+  return (scaled <= 1 ? 1 : scaled <= 2 ? 2 : scaled <= 2.5 ? 2.5 : scaled <= 5 ? 5 : 10) * power;
 }
 
 export function AnalyticsEquityChart({
@@ -123,11 +123,10 @@ export function AnalyticsEquityChart({
               {ticks.map((tick) => <line key={tick} x1="0" x2={plotWidth} y1={y(tick)} y2={y(tick)} stroke="var(--app-border)" strokeOpacity={tick === 0 ? 0.8 : 0.45} strokeDasharray={tick === 0 ? "" : "3 5"} vectorEffect="non-scaling-stroke" />)}
               <path d={fill} fill="var(--app-accent-wash)" />
               <path d={line} fill="none" stroke="var(--app-accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-              {deepest.amount > 0 && deepestPoint && deepestPlotIndex >= 0 && <circle cx={x(deepestPlotIndex)} cy={y(deepestPoint.value)} r="5" fill="var(--app-danger-text)" stroke="var(--app-panel)" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
+              {deepest.amount > 0 && deepestPoint && deepestPlotIndex >= 0 && <circle cx={x(deepestPlotIndex)} cy={y(deepestPoint.value)} r="5" fill="var(--app-danger-text)" stroke="var(--app-panel)" strokeWidth="2" vectorEffect="non-scaling-stroke"><title>{`Max drawdown ${formattedMoney(-deepest.amount, currency, 2)}`}</title></circle>}
               {latest && <circle cx={x(plotted.length - 1)} cy={y(latest.value)} r="4.5" fill="var(--app-accent)" stroke="var(--app-panel)" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
               {active && hoveredIndex !== null && <><line x1={x(hoveredIndex)} x2={x(hoveredIndex)} y1={TOP} y2={BOTTOM} stroke="var(--app-muted)" strokeOpacity=".5" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" /><circle cx={x(hoveredIndex)} cy={y(active.value)} r="5" fill="var(--app-accent)" stroke="var(--app-panel)" strokeWidth="2" vectorEffect="non-scaling-stroke" /></>}
             </svg>
-            {deepest.amount > 0 && deepestPoint && deepestPlotIndex >= 0 && !active && <span className="pointer-events-none absolute hidden -translate-x-1/2 rounded-md border app-border bg-[var(--app-panel)]/95 px-2 py-1 text-[10px] font-medium shadow-sm sm:block" style={{ left: `${Math.max(14, Math.min(86, x(deepestPlotIndex) / plotWidth * 100))}%`, top: Math.max(0, y(deepestPoint.value) - 34) }}>Max drawdown</span>}
             {active && <div className="pointer-events-none absolute right-2 top-2 rounded-lg border app-border bg-[var(--app-panel)]/95 px-3 py-2 text-xs shadow-lg"><p className="app-muted">{formatNewYorkDateTime(active.time)}</p><p className="mt-1 font-mono font-semibold">{formattedMoney(active.value, currency, 2, true)}</p></div>}
           </div>
         </div>

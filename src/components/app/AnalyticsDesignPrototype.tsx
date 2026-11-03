@@ -163,16 +163,16 @@ const drawdownPercent = (value: number | null, digits = 1) =>
 const ratio = (value: number) => `${value < 0 ? "−" : ""}${Math.abs(value).toFixed(2)}`;
 
 function aggregateRows(trades: ClosedTrade[], label: (trade: ClosedTrade) => string): ResultRow[] {
-  const groups = new Map<string, { value: number; trades: number; wins: number }>();
+  const groups = new Map<string, { value: Decimal; trades: number; wins: number }>();
   for (const trade of trades) {
     const key = label(trade);
-    const row = groups.get(key) ?? { value: 0, trades: 0, wins: 0 };
-    row.value += Number(trade.pnl);
+    const row = groups.get(key) ?? { value: new Decimal(0), trades: 0, wins: 0 };
+    row.value = row.value.plus(trade.pnl);
     row.trades += 1;
-    if (Number(trade.pnl) > 0) row.wins += 1;
+    if (new Decimal(trade.pnl).greaterThan(0)) row.wins += 1;
     groups.set(key, row);
   }
-  return [...groups.entries()].map(([key, row]) => ({ label: key, value: row.value, trades: row.trades, rate: row.trades ? Math.round(row.wins / row.trades * 100) : 0, winRate: row.trades ? Math.round(row.wins / row.trades * 100) : 0 }));
+  return [...groups.entries()].map(([key, row]) => ({ label: key, value: Number(row.value.toFixed(2)), trades: row.trades, rate: row.trades ? Math.round(row.wins / row.trades * 100) : 0, winRate: row.trades ? Math.round(row.wins / row.trades * 100) : 0 }));
 }
 
 /**
@@ -868,7 +868,7 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
           <div className="mt-5 space-y-5">
             {model.sessions.map((session) => (
               <div key={session.label}>
-                <div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold">{session.label}</span><span className={`font-mono font-semibold ${session.value >= 0 ? "text-profit" : "text-loss"}`}>{session.value >= 0 ? "+" : "−"}${Math.abs(session.value).toLocaleString()}</span></div>
+                <div className="flex items-center justify-between gap-3 text-xs"><span className="font-semibold">{session.label}</span><span className={`font-mono font-semibold ${session.value >= 0 ? "text-profit" : "text-loss"}`}>{money(session.value, true)}</span></div>
                 <div className="mt-2 flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]"><div className={`h-full rounded-full ${session.value >= 0 ? "bg-profit" : "bg-loss"}`} style={{ width: `${Math.max(12, Math.abs(session.value) / sessionMax * 100)}%` }} /></div><span className="w-8 text-right font-mono text-[9px] app-muted">{session.rate}%</span></div>
               </div>
             ))}
@@ -881,10 +881,10 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
         <ReportCard eyebrow="Timing" title="Performance by weekday" icon={CalendarDays} info="Results grouped by the New York weekday a trade was opened on. With fewer than about a hundred trades there are only a handful in each day, so treat a standout day as a question rather than a finding.">
           <div className="mt-5 space-y-4">
             {model.weekdays.map((day) => (
-              <div key={day.label} className="grid grid-cols-[34px_minmax(0,1fr)_72px] items-center gap-3 text-xs">
+              <div key={day.label} className="grid grid-cols-[34px_minmax(0,1fr)_100px] items-center gap-3 text-xs">
                 <span className="font-semibold">{day.label}</span>
                 <div className="h-7 overflow-hidden rounded-md bg-white/[0.035]"><div className={`flex h-full items-center rounded-md px-2 ${day.value >= 0 ? "bg-profit/15" : "bg-loss/15"}`} style={{ width: `${Math.max(18, Math.abs(day.value) / weekdayMax * 100)}%` }}><span className="text-[9px] app-muted">{day.trades} trades</span></div></div>
-                <span className={`text-right font-mono font-semibold ${day.value >= 0 ? "text-profit" : "text-loss"}`}>{day.value >= 0 ? "+" : "−"}${Math.abs(day.value)}</span>
+                <span className={`whitespace-nowrap text-right font-mono font-semibold tabular-nums ${day.value >= 0 ? "text-profit" : "text-loss"}`}>{money(day.value, true)}</span>
               </div>
             ))}
           </div>
@@ -911,7 +911,7 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
                   <div><p className="font-semibold">{exit.label}</p><div className="mt-2 h-1 w-full max-w-48 overflow-hidden rounded-full bg-white/[0.05]"><div className={`h-full rounded-full ${exit.value >= 0 ? "bg-profit" : "bg-loss"}`} style={{ width: `${Math.max(10, Math.abs(exit.value) / exitMax * 100)}%` }} /></div></div>
                   <span className="font-mono app-muted">{exit.trades}</span>
                   <span className="font-mono">{exit.winRate}%</span>
-                  <span className={`text-right font-mono font-semibold ${exit.value > 0 ? "text-profit" : exit.value < 0 ? "text-loss" : "app-muted"}`}>{exit.value > 0 ? "+" : exit.value < 0 ? "−" : ""}${Math.abs(exit.value).toLocaleString()}</span>
+                  <span className={`text-right font-mono font-semibold ${exit.value > 0 ? "text-profit" : exit.value < 0 ? "text-loss" : "app-muted"}`}>{money(exit.value, true)}</span>
                 </div>
               ))}
             </div>

@@ -13,6 +13,7 @@ The free download page also offers a yearly ZIP for completed years and monthly 
 ```
 
 This downloads archives only. It does not publish them to R2.
+Some HistData archive pages list a filename but supply no download token. The downloader logs these as unavailable and continues; inspect `download-<SYMBOL>.log` in the destination for the gaps.
 
 After downloading, check every ZIP's contents and CRC and write `downloads_verified.csv` with SHA256 hashes:
 

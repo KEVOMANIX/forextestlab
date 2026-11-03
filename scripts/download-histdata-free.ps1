@@ -42,11 +42,12 @@ foreach ($symbol in $Symbols) {
     foreach ($match in [regex]::Matches($form, '<input[^>]+name="([^"]+)"[^>]+value="([^"]*)"')) {
       $fields[$match.Groups[1].Value] = $match.Groups[2].Value
     }
-    if ($fields.fxpair -ne $symbol -or $fields.platform -ne 'ASCII' -or $fields.timeframe -ne 'M1' -or -not $fields.tk) {
+    if ($fields.fxpair -ne $symbol -or $fields.platform -ne 'ASCII' -or $fields.timeframe -ne 'M1') {
       throw "Unexpected download form: $pageUrl"
     }
     $archiveName = "HISTDATA_COM_ASCII_${symbol}_M1_$($fields.datemonth).zip"
     if ($archiveName -notmatch "^HISTDATA_COM_ASCII_${symbol}_M1_\d{4,6}\.zip$") { throw "Unexpected filename: $archiveName" }
+    if (-not $fields.tk) { Write-Host "  unavailable $archiveName (HistData supplied no download token)"; continue }
     $target = Join-Path $folder $archiveName
     if (Test-HistDataZip $target $symbol) { Write-Host "  skip $archiveName"; continue }
     $tempPath = "$target.partial"

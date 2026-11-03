@@ -11,7 +11,7 @@ import { HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s
 
 config({ path: process.env.FOREXTESTLAB_ENV_FILE || ".env" });
 
-const root = process.argv[2];
+const root: string = process.argv[2] || "";
 if (!root) throw new Error("Pass the HistData download root.");
 const bucket = process.env.R2_BUCKET_NAME;
 const endpoint = process.env.R2_ENDPOINT;
@@ -23,7 +23,7 @@ const client = new S3Client({ endpoint, region: "auto", forcePathStyle: true, cr
 const manifest = readFileSync(join(root, "parquet_manifest.csv"), "utf8").trim().split(/\r?\n/);
 if (manifest.shift() !== "Symbol,Key,Candles,Bytes,FirstUtc,LastUtc") throw new Error("Unexpected Parquet manifest format.");
 const entries = manifest.map((line) => {
-  const [symbol, key, candles, bytes] = line.split(",");
+  const [symbol = "", key = "", candles = "", bytes = ""] = line.split(",");
   if (!/^histdata_market_data\/[A-Z0-9]+\/\d{4}\/\d{2}\.parquet$/.test(key)) throw new Error(`Invalid key: ${key}`);
   const path = join(root, "parquet", ...key.split("/"));
   if (statSync(path).size !== Number(bytes)) throw new Error(`Parquet size mismatch: ${key}`);
@@ -37,6 +37,7 @@ let verifiedBytes = 0;
 async function worker() {
   while (cursor < entries.length) {
     const entry = entries[cursor++];
+    if (!entry) break;
     let exists = false;
     try {
       const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: entry.key }));

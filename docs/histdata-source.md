@@ -1,6 +1,6 @@
 # HistData replay source
 
-HistData is an optional, per-replay source. The setup screen shows it only after the `histdata_market_data` R2 prefix contains at least one supported market with M1 data. Each session stores `histdata-r2` or the existing source in `dataSource`; resume, chart history, trade review, optimizer, AI level tests, duplicate, and branch use that source.
+HistData is an optional, per-replay source. Public replay remains off unless `HISTDATA_REPLAY_ENABLED=true` is set after confirming permission to serve HistData. Private R2 objects alone do not expose the source in setup. Each session stores `histdata-r2` or the existing source in `dataSource`; resume, chart history, trade review, optimizer, AI level tests, duplicate, and branch use that source.
 
 ## Before import
 
@@ -12,7 +12,7 @@ The free download page also offers a yearly ZIP for completed years and monthly 
 ./scripts/download-histdata-free.ps1 -Destination 'E:\desktop\histdata-market-data'
 ```
 
-This downloads archives only. It does not publish them to R2.
+This downloads archives only. It does not publish them to R2. Use `-AllSymbols` to download all instruments on HistData's M1 catalogue.
 Some HistData archive pages list a filename but supply no download token. The downloader logs these as unavailable and continues; inspect `download-<SYMBOL>.log` in the destination for the gaps.
 
 After downloading, check every ZIP's contents and CRC and write `downloads_verified.csv` with SHA256 hashes:
@@ -22,6 +22,18 @@ python scripts/audit-histdata-downloads.py E:/desktop/histdata-market-data
 ```
 
 ## Dry run and upload
+
+For a bulk private archive, convert every verified ZIP to UTC-month Parquet, then upload the manifest to R2:
+
+```powershell
+python scripts/convert-histdata-archives.py E:/desktop/histdata-market-data
+$env:FOREXTESTLAB_ENV_FILE = 'E:/desktop/forextestlab/.env'
+npx tsx scripts/upload-histdata-parquet-r2.ts E:/desktop/histdata-market-data
+```
+
+The upload skips remote objects with matching size and verifies the size after each PUT. It is resumable. Keep `HISTDATA_REPLAY_ENABLED` unset in the web service until serving rights are confirmed. The HistData and Dukascopy R2 prefixes must differ.
+
+The one-file importer remains available for individual updates:
 
 ```sh
 npm run data:import-histdata -- --symbol EURUSD --file path/to/DAT_ASCII_EURUSD_M1_202401.csv

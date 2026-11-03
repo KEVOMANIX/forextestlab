@@ -39,10 +39,10 @@ export function SessionTradeJournal({
   }
 
   return (
-    <section className="panel mt-6 overflow-hidden">
-      <div className="border-b app-border p-5">
-        <h2 className="font-semibold">Trade journal</h2>
-        <p className="mt-1 text-xs app-muted">Review every decision. Changes autosave and remain available inside the backtester.</p>
+    <section className="mt-5 overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-[0_18px_55px_-42px_rgba(0,0,0,0.7)]">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b app-border p-5 sm:px-6">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--app-accent-text)]">Trading journal</p><h2 className="mt-1.5 text-xl font-semibold tracking-tight">Review your decisions</h2><p className="mt-1 text-xs app-muted">Capture plans, execution and lessons for each closed trade. Changes autosave.</p></div>
+        <span className="rounded-lg bg-[var(--app-panel-2)] px-3 py-2 font-mono text-[11px] app-muted">{trades.length} trade{trades.length === 1 ? "" : "s"}</span>
       </div>
       <TradeJournalEditor sessionId={sessionId} closedTrades={trades} onSave={save} />
     </section>

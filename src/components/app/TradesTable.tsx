@@ -49,7 +49,7 @@ export function TradesTable({
   }, [focusedTrade, page]);
 
   if (trades.length === 0) {
-    return <p className="p-4 text-sm app-muted">No trades yet. Place a simulated Buy or Sell to begin.</p>;
+    return <div className="grid min-h-48 place-items-center px-6 py-10 text-center"><div><p className="text-sm font-semibold">Your trade ledger is empty</p><p className="mt-1 text-xs app-muted">Close a simulated trade to review its entry, exit and result here.</p></div></div>;
   }
 
   const clamped = showAll ? 0 : Math.min(page, pageCount - 1);
@@ -61,7 +61,7 @@ export function TradesTable({
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <caption className="sr-only">Simulated trade history</caption>
-          <thead className="sticky top-0 z-10 bg-[var(--app-panel-solid)] app-muted">
+          <thead className="sticky top-0 z-10 bg-[var(--app-panel-2)] app-muted">
             <tr className="border-b app-border">
               <th scope="col" className="px-3 py-2 font-medium">#</th>
               <th scope="col" className="px-3 py-2 font-medium">Direction</th>
@@ -86,7 +86,7 @@ export function TradesTable({
                 <tr
                   key={t.id}
                   ref={focused ? rowRef : undefined}
-                  className={`border-b app-border/60 ${focused ? "bg-brand-400/[0.12] outline outline-1 outline-brand-400/40" : ""}`}
+                  className={`border-b app-border/60 transition-colors ${focused ? "bg-[var(--app-accent-wash)] outline outline-1 outline-[var(--app-accent)]" : "hover:bg-[var(--app-panel-2)]/55"}`}
                 >
                   <td className="px-3 py-2 app-muted">{number}</td>
                   <td className="px-3 py-2">
@@ -134,14 +134,14 @@ export function TradesTable({
       </div>
 
       {pageCount > 1 && !showAll && (
-        <div className="flex items-center justify-between p-3 text-xs app-muted">
+        <div className="flex items-center justify-between border-t app-border px-4 py-3 text-xs app-muted">
           <span>
             Page {clamped + 1} of {pageCount} · {trades.length} trades
           </span>
           <div className="flex gap-2">
             <button
               type="button"
-              className="rounded border app-border px-2 py-1 disabled:opacity-40"
+              className="rounded-lg border app-border px-3 py-1.5 font-semibold transition-colors hover:bg-[var(--app-panel-2)] disabled:opacity-40"
               onClick={() => setPage(clamped - 1)}
               disabled={clamped === 0}
             >
@@ -149,7 +149,7 @@ export function TradesTable({
             </button>
             <button
               type="button"
-              className="rounded border app-border px-2 py-1 disabled:opacity-40"
+              className="rounded-lg border app-border px-3 py-1.5 font-semibold transition-colors hover:bg-[var(--app-panel-2)] disabled:opacity-40"
               onClick={() => setPage(clamped + 1)}
               disabled={clamped >= pageCount - 1}
             >

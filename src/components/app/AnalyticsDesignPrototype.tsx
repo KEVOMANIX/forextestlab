@@ -16,6 +16,7 @@ import {
   FlaskConical,
   Gauge,
   LineChart,
+  ListOrdered,
   Lock,
   NotebookPen,
   Play,
@@ -55,7 +56,13 @@ import { ProLock, ProPeek } from "./ProLock";
 
 type PrototypeTab = "overview" | "trades" | "journal" | "reports" | "optimizer";
 
-const TABS = ["overview", "trades", "journal", "reports", "optimizer"] as const;
+const TABS = [
+  { id: "overview", label: "Overview", icon: LineChart },
+  { id: "trades", label: "Trades", icon: ListOrdered },
+  { id: "journal", label: "Journal", icon: NotebookPen },
+  { id: "reports", label: "Reports", icon: FileText },
+  { id: "optimizer", label: "Optimizer", icon: Target },
+] as const;
 const DEMO_ANALYTICS_SCOPED_TRADES = analyticsTrades(DEMO_ANALYTICS_TRADES);
 
 type ResultRow = { label: string; value: number; trades: number; rate?: number; winRate?: number; share?: number };
@@ -451,7 +458,7 @@ export function AnalyticsDesignPrototype({
     [demo, focusTrade, scopedTrades.length],
   );
   const showingLiveSample = mode === "live" && showDemoData;
-  const samplePreviewButton = mode === "live" && !readOnly && !showDemoData ? <button type="button" onClick={() => setShowDemoData(true)} className="inline-flex items-center gap-2 text-[11px] font-semibold text-brand-300 transition-colors hover:text-brand-200"><FlaskConical size={13} aria-hidden /> View sample report</button> : null;
+  const canPreviewSample = mode === "live" && !readOnly && !showDemoData;
   const headerActions = (
     <div className="flex flex-wrap items-center gap-2">
       {!demo && !readOnly && fullAccess && sessionId && <ShareAnalyticsButton key={sessionId} sessionId={sessionId} />}
@@ -491,17 +498,17 @@ export function AnalyticsDesignPrototype({
 
       {sessionSelector ? <header data-pdf-part="Overview" className="mt-4 border-b app-border pb-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>{!showingLiveSample && headerActions}</div>{showingLiveSample ? <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div><div className="hidden sm:block">{sessionMetadata}</div><button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-amber-200/20 text-amber-100 transition-colors hover:bg-amber-200/10" aria-label="Close sample report" title="Close sample report"><X size={16} aria-hidden /></button></div> : <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>}</header> : <header data-pdf-part="Overview" className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{headerActions}</header>}
 
-      <nav className="flex items-center justify-between gap-4 border-b app-border" aria-label="Prototype report sections">
-        <div className="flex min-w-0 overflow-x-auto">
-          {TABS.filter((item) => !readOnly || (item !== "journal" && item !== "optimizer")).map((item) => (
-            <button key={item} type="button" onClick={() => setTab(item)} className={`flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-3 text-xs font-semibold capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${tab === item ? "border-brand-400 text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{item}{(item === "reports" || item === "optimizer") && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
+      <nav className="mt-5 w-fit max-w-full overflow-x-auto rounded-2xl border app-border bg-[var(--app-panel)] p-1.5 shadow-[0_14px_36px_-32px_rgba(0,0,0,0.65)]" aria-label="Analytics sections">
+        <div className="flex min-w-max items-center gap-1">
+          {TABS.filter((item) => !readOnly || (item.id !== "journal" && item.id !== "optimizer")).map(({ id, label, icon: Icon }) => (
+            <button key={id} type="button" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] ${tab === id ? "bg-[var(--app-accent)] text-[var(--app-accent-ink)] shadow-sm" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={15} aria-hidden />{label}{id === "trades" && model.closedTrades > 0 && <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] ${tab === id ? "bg-black/10" : "bg-[var(--app-panel-2)]"}`}>{model.closedTrades}</span>}{(id === "reports" || id === "optimizer") && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
           ))}
         </div>
-        {samplePreviewButton && <div className="shrink-0 pb-2"><button type="button" onClick={() => setShowDemoData(true)} className="inline-flex h-8 items-center gap-2 rounded-lg border app-border px-2.5 text-[11px] font-semibold text-brand-300 transition-colors hover:bg-white/[0.04] hover:text-brand-200" aria-label="View sample report"><FlaskConical size={13} aria-hidden /><span className="hidden lg:inline">View sample report</span></button></div>}
       </nav>
 
       {(tab === "overview" || exportingPdf) && (
         <main data-pdf-part="Overview" className="mt-5 space-y-4">
+          {canPreviewSample && model.closedTrades === 0 && !exportingPdf && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border app-border bg-[var(--app-panel)] px-4 py-3"><div className="flex items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--app-accent-wash)] text-[var(--app-accent-text)]"><FlaskConical size={15} aria-hidden /></span><div><p className="text-xs font-semibold">Explore a completed report</p><p className="text-[11px] app-muted">See how analytics looks with a full set of trades.</p></div></div><button type="button" onClick={() => setShowDemoData(true)} className="inline-flex items-center gap-1.5 rounded-lg border app-border px-3 py-2 text-xs font-semibold text-[var(--app-accent-text)] transition-colors hover:bg-[var(--app-accent-wash)]">View sample <ArrowUpRight size={13} aria-hidden /></button></div>}
           <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {[
               { label: "Account equity", value: money(model.endingBalance), tone: "text-[var(--app-text)]" },
@@ -574,14 +581,20 @@ export function AnalyticsDesignPrototype({
         </main>
       )}
 
-      {(tab === "trades" || exportingPdf) && <section data-pdf-part="Trades" className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]"><div className="flex flex-wrap items-end justify-between gap-3 border-b app-border p-5"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Execution ledger</p><h2 className="mt-1 text-xl font-semibold">Trades included in analytics</h2></div>{demo && <span className="rounded-full bg-amber-300/10 px-3 py-1 text-[10px] font-semibold text-amber-200">{DEMO_ANALYTICS_SCOPED_TRADES.length} sample trades</span>}</div><TradesTable trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} focusedTrade={demo ? null : focusedTrade} showAll={exportingPdf} /></section>}
+      {(tab === "trades" || exportingPdf) && <section data-pdf-part="Trades" className="mt-5 overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-[0_18px_55px_-42px_rgba(0,0,0,0.7)]">
+        <div className="flex flex-wrap items-start justify-between gap-5 border-b app-border px-5 py-5 sm:px-6">
+          <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--app-accent-text)]">Execution ledger</p><h2 className="mt-1.5 text-xl font-semibold tracking-tight">Every closed trade</h2><p className="mt-1 text-xs app-muted">Entries, exits, risk and realised results in one place.</p></div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs"><div><span className="block text-[10px] app-muted">Trades</span><strong className="mt-1 block font-mono text-base">{model.closedTrades}</strong></div><div><span className="block text-[10px] app-muted">Win rate</span><strong className="mt-1 block font-mono text-base">{model.winRate === "Not available" ? "—" : `${model.winRate}%`}</strong></div><div><span className="block text-[10px] app-muted">Net P/L</span><strong className={`mt-1 block font-mono text-base ${model.netProfit >= 0 ? "text-profit" : "text-loss"}`}>{model.closedTrades ? money(model.netProfit, true) : "—"}</strong></div>{demo && <span className="rounded-full bg-[var(--app-warn-wash)] px-2.5 py-1 text-[10px] font-semibold text-[var(--app-warn-text)]">Sample trades</span>}</div>
+        </div>
+        <TradesTable trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} focusedTrade={demo ? null : focusedTrade} showAll={exportingPdf} />
+      </section>}
       {tab === "journal" && (demo ? <DemoJournalWorkspace /> : journalContent ?? <PrototypePlaceholder icon={NotebookPen} title="Trading journal" description="Journal entries for this session will appear here." />)}
       {tab === "reports" && reportsLocked && (
         <ProPeek feature="analytics" title="Your full report is on Pro" text="Risk, timing and exit-quality analysis across your trades. The preview behind uses sample trades." className="mt-5 max-h-[34rem] rounded-2xl">
           <ReportsWorkspace model={sampleModel} periodLabel={periodLabel} />
         </ProPeek>
       )}
-      {(tab === "reports" || exportingPdf) && !reportsLocked && <div data-pdf-part="Reports"><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</div>}
+      {(tab === "reports" || exportingPdf) && !reportsLocked && <div data-pdf-part="Reports"><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} onViewSample={canPreviewSample && !exportingPdf ? () => setShowDemoData(true) : undefined} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</div>}
       {tab === "optimizer" && reportsLocked && <ProPeek feature="analytics" title="The Exit Optimizer is on Pro" text="Test fixed targets, break-even rules, trailing stops and holding times against later validation trades." className="mt-5 max-h-[34rem] rounded-2xl"><div className="h-80 bg-[var(--app-panel)]" /></ProPeek>}
       {tab === "optimizer" && !reportsLocked && <ExitOptimizerWorkspace sessionId={demo ? undefined : sessionId} status={status} />}
     </div>
@@ -727,14 +740,14 @@ function DemoJournalWorkspace() {
     journal: trade.journal!,
   }));
   return (
-    <main className="mt-5 overflow-hidden rounded-2xl bg-[var(--app-panel)]">
+    <main className="mt-5 overflow-hidden rounded-2xl border app-border bg-[var(--app-panel)] shadow-[0_18px_55px_-42px_rgba(0,0,0,0.7)]">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b app-border p-4 sm:p-5">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-brand-300">Trading journal</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--app-accent-text)]">Trading journal</p>
           <h2 className="mt-1 text-xl font-semibold">Decision review</h2>
           <p className="mt-1 text-xs app-muted">A realistic example of how plans, emotions, rules, and post-trade lessons appear.</p>
         </div>
-        <span className="rounded-full bg-amber-300/10 px-3 py-1.5 text-[11px] font-semibold text-amber-200">Read-only sample</span>
+        <span className="rounded-full bg-[var(--app-warn-wash)] px-3 py-1.5 text-[11px] font-semibold text-[var(--app-warn-text)]">Read-only sample</span>
       </div>
       <JournalReview records={records} onEdit={() => undefined} />
     </main>
@@ -742,7 +755,7 @@ function DemoJournalWorkspace() {
 }
 
 
-function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsModel; periodLabel: string; sessionId?: string }) {
+function ReportsWorkspace({ model, periodLabel, sessionId, onViewSample }: { model: AnalyticsModel; periodLabel: string; sessionId?: string; onViewSample?: () => void }) {
   const monthPercents = model.monthlyReturns.map((month) => month.percent);
   const bestMonth = Math.max(...monthPercents, 0);
   const worstMonth = Math.min(...monthPercents, 0);
@@ -758,16 +771,13 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
 
   return (
     <main className="mt-5 space-y-4">
-      <section className="flex flex-col gap-4 rounded-2xl bg-[var(--app-panel)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <section className="flex flex-col gap-4 rounded-2xl border app-border bg-[var(--app-panel)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Strategy reports</p>
           <h2 className="mt-1 text-xl font-semibold">Find where the edge comes from</h2>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs app-muted">All {model.closedTrades} closed trades · {periodLabel} <ReportTimeZone sessionId={sessionId} /></p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted"><CalendarDays size={14} /> Entire test</button>
-          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted"><BarChart3 size={14} /> Closed trades</button>
-        </div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] app-muted"><span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-panel-2)] px-3 py-2"><CalendarDays size={13} aria-hidden /> Entire test</span><span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-panel-2)] px-3 py-2"><BarChart3 size={13} aria-hidden /> Closed trades</span>{onViewSample && <button type="button" onClick={onViewSample} className="inline-flex items-center gap-1.5 rounded-lg border app-border px-3 py-2 font-semibold text-[var(--app-accent-text)] transition-colors hover:bg-[var(--app-accent-wash)]"><FlaskConical size={13} aria-hidden /> View sample</button>}</div>
       </section>
 
       <section className="grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-2 lg:grid-cols-4">

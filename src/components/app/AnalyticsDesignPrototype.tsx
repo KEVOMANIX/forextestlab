@@ -792,13 +792,9 @@ function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsM
 
   return (
     <main className="mt-5 space-y-4">
-      <section className="flex flex-col gap-4 rounded-2xl border app-border bg-[var(--app-panel)] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Strategy reports</p>
-          <h2 className="mt-1 text-xl font-semibold">Find where the edge comes from</h2>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs app-muted">All {model.closedTrades} closed trades · {periodLabel} <ReportTimeZone sessionId={sessionId} /></p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] app-muted"><span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-panel-2)] px-3 py-2"><CalendarDays size={13} aria-hidden /> Entire test</span><span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-panel-2)] px-3 py-2"><BarChart3 size={13} aria-hidden /> Closed trades</span></div>
+      <section className="rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-4 sm:px-5">
+        <h2 className="text-lg font-semibold">Performance report</h2>
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs app-muted"><span>{model.closedTrades} closed trade{model.closedTrades === 1 ? "" : "s"} · {periodLabel}</span><span aria-hidden>·</span><ReportTimeZone sessionId={sessionId} compact /></p>
       </section>
 
       <section className="grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-2 lg:grid-cols-4">

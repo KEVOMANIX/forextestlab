@@ -53,6 +53,7 @@ next-env.d.ts
 /prisma/dev.db-journal
 *.db
 *.db-journal
+__pycache__/
 
 # playwright
 /test-results

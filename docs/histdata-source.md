@@ -6,6 +6,20 @@ HistData is an optional, per-replay source. The setup screen shows it only after
 
 Obtain HistData Generic ASCII M1 monthly archives and confirm permission to serve the data through ForexTestLab. Extract each archive locally. The importer takes the extracted CSV, not the ZIP. HistData tick files are a different format and are not accepted. The current replay engine uses M1 candles.
 
+The free download page also offers a yearly ZIP for completed years and monthly ZIPs for the current year. To download the seven major FX pairs to local storage, with ZIP validation and resumable skips:
+
+```powershell
+./scripts/download-histdata-free.ps1 -Destination 'E:\desktop\histdata-market-data'
+```
+
+This downloads archives only. It does not publish them to R2.
+
+After downloading, check every ZIP's contents and CRC and write `downloads_verified.csv` with SHA256 hashes:
+
+```sh
+python scripts/audit-histdata-downloads.py E:/desktop/histdata-market-data
+```
+
 ## Dry run and upload
 
 ```sh

@@ -29,6 +29,7 @@ import {
 
 import { JournalReview, type ReviewRecord } from "@/components/app/journal/JournalReview";
 import { ExitQualityCard } from "@/components/app/ExitQualityCard";
+import { AnalyticsEquityChart } from "@/components/app/AnalyticsEquityChart";
 import { ExitOptimizerWorkspace } from "@/components/app/ExitOptimizerWorkspace";
 import { MetricInfo } from "@/components/app/MetricInfo";
 import { ReportTimeZone } from "@/components/app/ReportTimeZone";
@@ -42,7 +43,7 @@ import type { PlanSummary } from "@/lib/backtest/exit-quality";
 import { computeStatistics } from "@/lib/backtest/statistics";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 import { Decimal } from "@/lib/decimal";
-import { recordedChartPeriod, returnPercent } from "@/lib/analytics/performance-display";
+import { returnPercent } from "@/lib/analytics/performance-display";
 import { monthlyReturnSeries, type MonthlyReturn } from "@/lib/analytics/monthly-returns";
 import { RELIABLE_SAMPLE_TRADES, sampleIsReliable, tradesUntilReliable } from "@/lib/analytics/sample-size";
 import { WEEKDAY_LABELS, createCalendar, type CalendarMonth } from "@/lib/analytics/trading-calendar";
@@ -309,19 +310,6 @@ function createDemoModel(): AnalyticsModel {
   );
 }
 
-function linePath(values: number[], domain = values) {
-  const width = 920;
-  const pad = 16;
-  const top = 16;
-  const bottom = 190;
-  const min = Math.min(...domain);
-  const max = Math.max(...domain);
-  const spread = max - min || 1;
-  const x = (index: number) => pad + index * ((width - pad * 2) / (values.length - 1));
-  const y = (value: number) => top + (1 - (value - min) / spread) * (bottom - top);
-  return values.map((value, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
-}
-
 function normalizedPath(values: number[], width = 920, height = 220) {
   const pad = 16;
   const min = Math.min(...values);
@@ -407,7 +395,6 @@ export function AnalyticsDesignPrototype({
   // While the PDF is made, Overview, every trade and Reports show together.
   const [exportingPdf, setExportingPdf] = useState(false);
   const [focusedTrade, setFocusedTrade] = useState<number | null>(initialTrade);
-  const [range, setRange] = useState("All");
   const [showDemoData, setShowDemoData] = useState(initialDemo);
   const demo = mode === "demo" || showDemoData;
   const pairLabel = symbols.map(formatSymbol).join(" · ");
@@ -434,16 +421,11 @@ export function AnalyticsDesignPrototype({
   const lockedAction = "inline-flex h-9 items-center gap-2 rounded-lg border app-border px-3 text-xs font-semibold app-muted transition-colors hover:text-[var(--app-text)]";
   // Locked reports preview sample trades, never the trader's own.
   const sampleModel = useMemo(() => createDemoModel(), []);
-  const chartPeriod = demo ? DEMO_ANALYTICS_PERIOD : recordedChartPeriod(scopedEquityCurve, scopedTrades, startTime);
-  const equityValues = model.equity.length > 1 ? model.equity : [model.endingBalance, model.endingBalance];
-  const equityPath = linePath(equityValues);
   const overviewMonthMax = Math.max(...model.monthlyReturns.map((month) => Math.abs(month.percent)), 1);
   const overviewRMax = Math.max(...model.rDistribution.map((bucket) => bucket.count), 1);
   const overviewSessionMax = Math.max(...model.sessions.map((row) => Math.abs(row.value)), 1);
   const overviewTradePnls = (demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades).slice(-20).map((trade) => Number(trade.pnl));
   const overviewTradePnlMax = Math.max(...overviewTradePnls.map((value) => Math.abs(value)), 1);
-  const overviewDrawdown = model.drawdown.length > 1 ? model.drawdown : [0, 0];
-  const overviewDrawdownMax = Math.max(...overviewDrawdown.map((value) => Math.abs(value)), 1);
   // The sample used to carry a hand-written period that its own trades,
   // calendar and equity axis all contradicted. Both modes now derive it.
   const periodStart = demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime;
@@ -538,25 +520,14 @@ export function AnalyticsDesignPrototype({
           </section>
 
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.75fr)]">
-            <section className="min-w-0 rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-[0_18px_55px_-38px_rgba(0,0,0,0.9)] sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Equity curve</p><p className="mt-1 text-xs app-muted">Realised account equity after each closed trade</p></div>
-                <div className="flex items-center gap-3">
-                  <div className="inline-flex rounded-lg bg-[var(--app-panel-2)] p-1">
-                    {["1M", "3M", "1Y", "All"].map((value) => <button key={value} type="button" onClick={() => setRange(value)} className={`rounded-md px-2.5 py-1.5 text-[10px] font-semibold ${range === value ? "bg-white/[0.08] text-[var(--app-text)]" : "app-muted"}`}>{value}</button>)}
-                  </div>
-                </div>
-              </div>
-              <div className="relative mt-5 overflow-hidden rounded-t-xl bg-[var(--app-panel-2)]/55">
-                <svg viewBox="0 0 920 280" preserveAspectRatio="none" className="h-60 w-full" role="img" aria-label={model.closedTrades ? "Account equity history" : "Equity chart awaiting closed trades"}>
-                  <defs><linearGradient id="prototype-equity" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#22c55e" stopOpacity=".22"/><stop offset="1" stopColor="#22c55e" stopOpacity="0"/></linearGradient><pattern id="prototype-grid" width="115" height="56" patternUnits="userSpaceOnUse"><path d="M115 0H0V56" fill="none" stroke="currentColor" strokeOpacity=".07"/></pattern></defs>
-                  <rect width="920" height="280" fill="url(#prototype-grid)" className="app-muted" />
-                  {model.closedTrades > 0 && <><path d={`${equityPath} L904,264 L16,264 Z`} fill="url(#prototype-equity)" /><path d={equityPath} fill="none" stroke="#22c55e" strokeWidth="2.75" strokeLinecap="round" vectorEffect="non-scaling-stroke" /></>}
-                </svg>
-                {model.closedTrades > 0 ? <div className="absolute inset-x-4 bottom-3 flex justify-between text-[10px] app-muted"><span>{chartPeriod.startTime ? formatNewYorkDate(chartPeriod.startTime, { month: "short", year: "numeric" }) : "Start"}</span><span className="text-profit">━ Equity</span><span>{model.closedTrades} trades</span><span>{chartPeriod.endTime ? formatNewYorkDate(chartPeriod.endTime, { month: "short", year: "numeric" }) : "Now"}</span></div> : <div className="absolute inset-0 grid place-items-center px-6 text-center"><div><span className="mx-auto grid h-10 w-10 place-items-center rounded-xl border app-border bg-[var(--app-panel)] text-brand-300"><LineChart size={18} aria-hidden /></span><h2 className="mt-4 text-base font-semibold">No closed trades yet</h2><p className="mx-auto mt-2 max-w-md text-xs leading-5 app-muted">Close a trade in this session to calculate the equity curve, win rate, expectancy, and drawdown.</p></div></div>}
-              </div>
-              {model.closedTrades > 0 && <div className="rounded-b-xl border-t border-white/[0.06] bg-[var(--app-panel-2)]/35 px-4 pb-3 pt-2"><div className="flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.12em] app-muted"><span>Drawdown</span><span>Deepest {drawdownMoney(model.maxDrawdown)}</span></div><div className="mt-2 flex h-12 items-start gap-px" role="img" aria-label="Drawdown across the equity curve">{overviewDrawdown.map((value, index) => <span key={`${index}-${value}`} className="min-w-0 flex-1 rounded-b-sm bg-loss/75" style={{ height: `${Math.max(value ? 3 : 1, Math.abs(value) / overviewDrawdownMax * 100)}%` }} title={drawdownMoney(value)} />)}</div></div>}
-            </section>
+            <AnalyticsEquityChart
+              key={demo ? "sample" : sessionId ?? "session"}
+              equityCurve={demo ? DEMO_ANALYTICS_EQUITY_CURVE : scopedEquityCurve}
+              trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades}
+              startingBalance={Number(demo ? "100000" : startingBalance)}
+              startTime={demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime}
+              currency={accountCurrency}
+            />
 
             <section className="min-w-0 rounded-2xl border app-border bg-[var(--app-panel)] p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-brand-300">Trade results</p><p className="mt-1 text-xs app-muted">Realised P/L for the latest 20 trades</p></div>{overviewTradePnls.length > 0 && <span className="rounded-full bg-[var(--app-panel-2)] px-2.5 py-1 font-mono text-[9px] app-muted">{overviewTradePnls.length} trades</span>}</div>

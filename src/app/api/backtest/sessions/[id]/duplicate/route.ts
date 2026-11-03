@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { ensureUserProfile } from "@/lib/auth";
 import { createSession, loadSession } from "@/lib/backtest/session-store";
+import { replayDataSourceFromStored } from "@/lib/market-data";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -22,6 +23,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const config = source.ctx.state.config;
   try {
     const duplicate = await createSession({
+      dataSource: replayDataSourceFromStored(source.ctx.state.dataSource),
       name: `${config.name || config.symbol} copy`,
       tags: config.tags,
       symbols: config.symbols?.length ? config.symbols : [config.symbol],

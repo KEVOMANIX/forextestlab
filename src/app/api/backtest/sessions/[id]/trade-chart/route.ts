@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { loadSession } from "@/lib/backtest/session-store";
 import { loadReplaySafeReviewCandles } from "@/lib/backtest/trade-review-chart";
-import { getMarketDataProvider } from "@/lib/market-data";
+import { getMarketDataProvider, replayDataSourceFromStored } from "@/lib/market-data";
 import { isTimeframe, TIMEFRAME_MS } from "@/lib/market-data/types";
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -31,7 +31,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   const exitTime = trades.length ? Math.max(...trades.map((trade) => trade.exitTime)) : session.ctx.candles[session.ctx.state.visibleIndex]?.timestamp ?? entryTime;
   const step = TIMEFRAME_MS[timeframe];
   const candles = await loadReplaySafeReviewCandles({
-    provider: getMarketDataProvider(),
+    provider: getMarketDataProvider(replayDataSourceFromStored(session.ctx.state.dataSource)),
     symbol,
     timeframe,
     startTime: Math.max(0, entryTime - step * 120),

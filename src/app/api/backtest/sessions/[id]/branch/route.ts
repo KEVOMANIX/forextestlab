@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { ensureUserProfile } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { createSession, loadSession, persistSession } from "@/lib/backtest/session-store";
+import { replayDataSourceFromStored } from "@/lib/market-data";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -27,6 +28,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   const candle = source.ctx.candles[source.ctx.state.visibleIndex];
   try {
     const branch = await createSession({
+      dataSource: replayDataSourceFromStored(source.ctx.state.dataSource),
       name: branchName,
       tags: config.tags,
       symbols: config.symbols?.length ? config.symbols : [config.symbol],

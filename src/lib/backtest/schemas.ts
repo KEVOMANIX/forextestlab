@@ -43,6 +43,7 @@ export const propFirmRulesSchema = z.object({
 export const createSessionSchema = z
   .object({
     name: z.string().trim().min(2).max(80),
+    dataSource: z.enum(["dukascopy", "histdata"]).default("dukascopy"),
     tags: z.array(z.string().trim().min(1).max(24)).max(8).optional(),
     symbols: z
       .array(

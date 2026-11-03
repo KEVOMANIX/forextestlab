@@ -23,7 +23,7 @@ import {
   monthlyQuotaMessage,
   planEntitlements,
 } from "@/lib/billing/entitlements";
-import { getMarketDataProvider } from "@/lib/market-data";
+import { getMarketDataProvider, replayDataSourceFromStored, type ReplayDataSource } from "@/lib/market-data";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { nextTimeframeTimestamp, TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import {
@@ -89,6 +89,7 @@ function cacheContext(key: string, candles: Candle[]): void {
 }
 
 export interface CreateSessionParams {
+  dataSource?: ReplayDataSource;
   name: string;
   tags?: string[];
   symbols: string[];
@@ -300,7 +301,7 @@ export async function ensureSessionPairCandles(
             )
           : ctx.state.config.startTime;
         const additions = await fetchPairRunway(start, target, ctx.state.config.timeframe,
-          (from, to, limit) => fetchSeries(symbol, ctx.state.config.timeframe, from, to, limit));
+          (from, to, limit) => fetchSeries(symbol, ctx.state.config.timeframe, from, to, limit, replayDataSourceFromStored(ctx.state.dataSource)));
         if (additions.length) {
           pairCandles[symbol] = mergePairSeries(pairCandles[symbol] ?? [], additions);
         } else if (!pairCandles[symbol]) {
@@ -315,6 +316,7 @@ async function fetchChartContext(
   timeframe: Timeframe,
   before: number,
   earliestAvailable: number,
+  dataSource: ReplayDataSource = "dukascopy",
 ): Promise<Candle[]> {
   // `before` may be inside a long-running session when a resumed chart asks
   // for history adjacent to its current window. Capping every request at the
@@ -332,7 +334,7 @@ async function fetchChartContext(
     TIMEFRAME_MS[timeframe] * MAX_CONTEXT_CANDLES * 3,
     maximumWindow,
   );
-  const candles = await getMarketDataProvider().getCandles({
+  const candles = await getMarketDataProvider(dataSource).getCandles({
     symbol,
     timeframe,
     startTime: Math.max(earliestAvailable, endTime - windowMs),
@@ -345,8 +347,9 @@ async function earliestAvailableTime(
   symbol: string,
   timeframe: Timeframe,
   fallback: number,
+  dataSource: ReplayDataSource = "dukascopy",
 ): Promise<number> {
-  const ranges = await getMarketDataProvider().getAvailableRanges(
+  const ranges = await getMarketDataProvider(dataSource).getAvailableRanges(
     symbol,
     timeframe,
   );
@@ -369,12 +372,14 @@ export async function getChartContext(
     symbol,
     timeframe,
     replayStartTime,
+    replayDataSourceFromStored(session.ctx.state.dataSource),
   );
   const candles = await fetchChartContext(
     symbol,
     timeframe,
     replayStartTime,
     earliestAvailable,
+    replayDataSourceFromStored(session.ctx.state.dataSource),
   );
   cacheContext(key, candles);
   return candles;
@@ -408,12 +413,14 @@ export async function getChartContextPage(
     symbol,
     timeframe,
     replayStartTime,
+    replayDataSourceFromStored(session.ctx.state.dataSource),
   );
   const candles = await fetchChartContext(
     symbol,
     timeframe,
     safeBefore,
     earliestAvailable,
+    replayDataSourceFromStored(session.ctx.state.dataSource),
   );
   return {
     candles,
@@ -427,8 +434,9 @@ async function fetchSeries(
   startTime: number,
   endTime: number,
   limit = MAX_SESSION_CANDLES,
+  dataSource: ReplayDataSource = "dukascopy",
 ): Promise<Candle[]> {
-  const provider = getMarketDataProvider();
+  const provider = getMarketDataProvider(dataSource);
   const candles = await provider.getCandles({
     symbol,
     timeframe,
@@ -454,6 +462,7 @@ export async function loadResumeSessionSnapshot(
       stateObjectKey: true,
       symbol: true,
       timeframe: true,
+      dataSource: true,
       startTime: true,
       endTime: true,
       visibleIndex: true,
@@ -480,6 +489,7 @@ export async function loadResumeSessionSnapshot(
         Number(row.startTime),
         Number(row.endTime),
         Math.max(MAX_SESSION_CANDLES, row.totalCandles),
+        replayDataSourceFromStored(row.dataSource),
       );
       await writeSessionCandleSnapshot(id, series);
     }
@@ -542,6 +552,7 @@ export async function extendReplaySeries(
     nextTimeframeTimestamp(last.timestamp, ctx.state.config.timeframe),
     ctx.state.config.endTime,
     pageSize,
+    replayDataSourceFromStored(ctx.state.dataSource),
   );
   const candles = next.filter((candle) => candle.timestamp > last.timestamp);
   if (candles.length === 0) return { candles: [], hasMore: false };
@@ -593,6 +604,8 @@ export async function createSession(
     params.timeframe,
     params.startTime,
     params.endTime,
+    MAX_SESSION_CANDLES,
+    params.dataSource,
   );
   if (series.length < 2) {
     throw new Error("Not enough historical data for the selected range.");
@@ -617,7 +630,8 @@ export async function createSession(
     params.symbol,
     params.timeframe,
     effectiveStart,
-    await earliestAvailableTime(params.symbol, params.timeframe, effectiveStart),
+    await earliestAvailableTime(params.symbol, params.timeframe, effectiveStart, params.dataSource),
+    params.dataSource,
   );
 
   const config = buildSessionConfig({
@@ -801,6 +815,7 @@ export async function loadSession(id: string): Promise<LoadedSession | null> {
         Number(row.startTime),
         Number(row.endTime),
         Math.max(MAX_SESSION_CANDLES, state.totalCandles),
+        replayDataSourceFromStored(row.dataSource),
       );
       await writeSessionCandleSnapshot(id, series);
     }

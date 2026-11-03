@@ -17,6 +17,7 @@ import type { ActionInput } from "./schemas";
 
 export interface CreateSessionBody {
   name: string;
+  dataSource?: "dukascopy" | "histdata";
   tags?: string[];
   symbols: string[];
   startTime: number;
@@ -88,17 +89,18 @@ async function parse<T>(res: Response): Promise<T | ApiErr> {
   }
 }
 
-export async function fetchSymbols(): Promise<MarketSymbol[]> {
-  const res = await fetch("/api/backtest/symbols", { cache: "no-store" });
+export async function fetchSymbols(source: "dukascopy" | "histdata" = "dukascopy"): Promise<MarketSymbol[]> {
+  const res = await fetch(`/api/backtest/symbols?source=${source}`, { cache: "no-store" });
   const data = await parse<{ ok: true; symbols: MarketSymbol[] }>(res);
   return data.ok ? data.symbols : [];
 }
 
 export async function fetchRanges(
   symbol: string,
+  source: "dukascopy" | "histdata" = "dukascopy",
 ): Promise<{ startTime: number; endTime: number }[]> {
   const res = await fetch(
-    `/api/backtest/ranges?symbol=${symbol}`,
+    `/api/backtest/ranges?symbol=${symbol}&source=${source}`,
     { cache: "no-store" },
   );
   const data = await parse<{

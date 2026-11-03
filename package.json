@@ -18,6 +18,7 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "data:import": "tsx scripts/import-market-data.ts",
+    "data:import-histdata": "tsx scripts/import-histdata-r2.ts",
     "data:sync-r2": "tsx scripts/sync-market-data-r2.ts",
     "data:build-rollups": "tsx scripts/build-market-rollups.ts",
     "data:build-r2-rollups": "tsx scripts/build-rollups-from-r2.ts",

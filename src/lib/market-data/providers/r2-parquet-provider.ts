@@ -70,7 +70,7 @@ interface ManifestCache {
   monthsBySymbol: Map<string, StoredMonth[]>;
 }
 
-let manifestCache: ManifestCache | undefined;
+const manifestCaches = new Map<string, ManifestCache>();
 const candleCache = new Map<string, { expiresAt: number; candles: Promise<Candle[]> }>();
 const rollupCache = new Map<string, { expiresAt: number; candles: Promise<Candle[]> }>();
 let s3Bucket: R2BucketAdapter | undefined;
@@ -136,11 +136,11 @@ function s3BucketFromEnvironment(): R2BucketAdapter | undefined {
   return s3Bucket;
 }
 
-function r2Config(): R2Config {
+function r2Config(prefixOverride?: string): R2Config {
   const bucket = s3BucketFromEnvironment();
   if (bucket) {
     return {
-      prefix: (process.env.R2_PREFIX?.trim() || "market_data").replace(
+      prefix: (prefixOverride || process.env.R2_PREFIX?.trim() || "market_data").replace(
         /^\/+|\/+$/g,
         "",
       ),
@@ -150,6 +150,10 @@ function r2Config(): R2Config {
   throw new Error(
     "R2 is not configured. Provide R2_ENDPOINT, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, and R2_SECRET_ACCESS_KEY.",
   );
+}
+
+function sourceForConfig(config: R2Config): string {
+  return config.prefix === (process.env.R2_PREFIX?.trim() || "market_data") ? "dukascopy-r2" : "histdata-r2";
 }
 
 export function parseStoredMonth(key: string, prefix: string): StoredMonth | undefined {
@@ -212,7 +216,7 @@ function decimalString(value: unknown): string | undefined {
   return undefined;
 }
 
-export function parquetRowsToCandles(rows: Record<string, unknown>[]): Candle[] {
+export function parquetRowsToCandles(rows: Record<string, unknown>[], source = "dukascopy-r2"): Candle[] {
   const byTimestamp = new Map<number, Candle>();
   for (const row of rows) {
     const timestamp = timestampMs(row.timestamp);
@@ -232,7 +236,7 @@ export function parquetRowsToCandles(rows: Record<string, unknown>[]): Candle[] 
       high,
       low,
       close,
-      source: "dukascopy-r2",
+      source,
     };
     const volume = decimalString(row.volume);
     if (volume !== undefined) candle.volume = volume;
@@ -273,7 +277,7 @@ async function fetchManifest(config: R2Config): Promise<Map<string, StoredMonth[
 
 /** The last manifest, kept on disk so a restart does not make a trader wait for a listing. */
 const manifestFile = () => path.resolve(process.env.R2_MANIFEST_CACHE_FILE?.trim() || "data/.r2-manifest.json");
-let manifestRefresh: Promise<Map<string, StoredMonth[]>> | undefined;
+const manifestRefreshes = new Map<string, Promise<Map<string, StoredMonth[]>>>();
 
 async function readManifestFile(): Promise<Map<string, StoredMonth[]> | undefined> {
   try {
@@ -285,17 +289,22 @@ async function readManifestFile(): Promise<Map<string, StoredMonth[]> | undefine
 }
 
 function refreshManifest(config: R2Config): Promise<Map<string, StoredMonth[]>> {
-  manifestRefresh ??= fetchManifest(config)
+  const existing = manifestRefreshes.get(config.prefix);
+  if (existing) return existing;
+  const pending = fetchManifest(config)
     .then(async (monthsBySymbol) => {
-      manifestCache = { expiresAt: Date.now() + MANIFEST_TTL_MS, monthsBySymbol };
-      await mkdir(path.dirname(manifestFile()), { recursive: true }).catch(() => undefined);
-      await writeFile(manifestFile(), JSON.stringify(Object.fromEntries(monthsBySymbol))).catch(() => undefined);
+      manifestCaches.set(config.prefix, { expiresAt: Date.now() + MANIFEST_TTL_MS, monthsBySymbol });
+      if (config.prefix === (process.env.R2_PREFIX?.trim() || "market_data")) {
+        await mkdir(path.dirname(manifestFile()), { recursive: true }).catch(() => undefined);
+        await writeFile(manifestFile(), JSON.stringify(Object.fromEntries(monthsBySymbol))).catch(() => undefined);
+      }
       return monthsBySymbol;
     })
     .finally(() => {
-      manifestRefresh = undefined;
+      manifestRefreshes.delete(config.prefix);
     });
-  return manifestRefresh;
+  manifestRefreshes.set(config.prefix, pending);
+  return pending;
 }
 
 /**
@@ -305,10 +314,14 @@ function refreshManifest(config: R2Config): Promise<Map<string, StoredMonth[]>> 
  * first start with no saved copy waits for a listing.
  */
 async function loadManifest(config: R2Config): Promise<Map<string, StoredMonth[]>> {
-  if (!manifestCache) {
+  let manifestCache = manifestCaches.get(config.prefix);
+  if (!manifestCache && config.prefix === (process.env.R2_PREFIX?.trim() || "market_data")) {
     const saved = await readManifestFile();
     // Saved copies start expired, so the first request also refreshes them.
-    if (saved?.size) manifestCache = { expiresAt: 0, monthsBySymbol: saved };
+    if (saved?.size) {
+      manifestCache = { expiresAt: 0, monthsBySymbol: saved };
+      manifestCaches.set(config.prefix, manifestCache);
+    }
   }
   if (manifestCache) {
     if (manifestCache.expiresAt <= Date.now()) void refreshManifest(config).catch(() => undefined);
@@ -337,7 +350,7 @@ async function readMonth(config: R2Config, stored: StoredMonth): Promise<Candle[
       compressors: PARQUET_COMPRESSORS,
       columns: COLUMNS,
     });
-    const candles = parquetRowsToCandles(rows).filter(candle => !isEmptyForexWeekendCandle(stored.symbol, candle));
+    const candles = parquetRowsToCandles(rows, sourceForConfig(config)).filter(candle => !isEmptyForexWeekendCandle(stored.symbol, candle));
     if (candles.length === 0) {
       throw new Error(`No valid candles were found in ${stored.key}.`);
     }
@@ -408,7 +421,7 @@ async function readDailyRollup(config: R2Config, symbol: string, folder: "1d" | 
       compressors: PARQUET_COMPRESSORS,
       columns: COLUMNS,
     });
-    return parquetRowsToCandles(rows);
+    return parquetRowsToCandles(rows, sourceForConfig(config));
   })();
   rollupCache.set(key, { expiresAt: Date.now() + CANDLE_CACHE_TTL_MS, candles: pending });
   try {
@@ -435,7 +448,7 @@ async function readHourlyRollup(config: R2Config, month: StoredMonth): Promise<C
       const object = await config.bucket.get(key);
       if (!object) return [];
       const rows = await parquetReadObjects({ file: await object.arrayBuffer(), compressors: PARQUET_COMPRESSORS, columns: COLUMNS });
-      return parquetRowsToCandles(rows);
+      return parquetRowsToCandles(rows, sourceForConfig(config));
     })();
     cached = { expiresAt: Date.now() + CANDLE_CACHE_TTL_MS, candles };
     hourlyRollupCache.delete(key);
@@ -514,8 +527,9 @@ async function readForexDailyMonth(config: R2Config, month: StoredMonth, startTi
 }
 
 export class R2ParquetProvider implements MarketDataProvider {
+  constructor(private readonly prefixOverride?: string) {}
   async getAvailableSymbols(): Promise<MarketSymbol[]> {
-    const config = r2Config();
+    const config = r2Config(this.prefixOverride);
     const manifest = await loadManifest(config);
     return SYMBOL_DEFINITIONS.map((definition) => {
       const months = manifest.get(definition.symbol) ?? [];
@@ -535,7 +549,7 @@ export class R2ParquetProvider implements MarketDataProvider {
 
   async getAvailableRanges(symbol: string): Promise<DataRange[]> {
     if (!getSymbolDefinition(symbol)) return [];
-    const config = r2Config();
+    const config = r2Config(this.prefixOverride);
     const months = (await loadManifest(config)).get(symbol) ?? [];
     const first = months[0];
     const last = months[months.length - 1];
@@ -546,7 +560,7 @@ export class R2ParquetProvider implements MarketDataProvider {
     // download two months each time; a new month or a refreshed last month
     // (its key is the same, so the entry also expires) recomputes it.
     const cacheKey = `${first.key}|${last.key}`;
-    const cached = rangeCache.get(symbol);
+    const cached = rangeCache.get(`${config.prefix}:${symbol}`);
     if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) return cached.ranges;
 
     const [firstCandles, lastCandles] = await Promise.all([
@@ -556,13 +570,13 @@ export class R2ParquetProvider implements MarketDataProvider {
     const startTime = firstCandles[0]?.timestamp;
     const endTime = lastCandles[lastCandles.length - 1]?.timestamp;
     const ranges = startTime !== undefined && endTime !== undefined ? [{ startTime, endTime }] : [];
-    rangeCache.set(symbol, { key: cacheKey, ranges, expiresAt: Date.now() + RANGE_CACHE_TTL_MS });
+    rangeCache.set(`${config.prefix}:${symbol}`, { key: cacheKey, ranges, expiresAt: Date.now() + RANGE_CACHE_TTL_MS });
     return ranges;
   }
 
   async getCandles(request: CandleRequest): Promise<Candle[]> {
     if (!getSymbolDefinition(request.symbol) || request.endTime < request.startTime) return [];
-    const config = r2Config();
+    const config = r2Config(this.prefixOverride);
     // Legacy stored daily rollups are UTC-aligned and cannot be split into
     // New York-close bars without their minute data. Keep them for higher
     // calendar charts, but build daily charts from the original minute rows.

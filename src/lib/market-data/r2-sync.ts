@@ -142,7 +142,7 @@ export function mergeCandles(existing: Candle[], incoming: Candle[]): Candle[] {
   return [...merged.values()].sort((a, b) => a.timestamp - b.timestamp);
 }
 
-export async function encodeParquet(candles: Candle[], timeframe = "1m"): Promise<ArrayBuffer> {
+export async function encodeParquet(candles: Candle[], timeframe = "1m", source = "dukascopy"): Promise<ArrayBuffer> {
   const { parquetWriteBuffer } = await import("hyparquet-writer");
   return parquetWriteBuffer({
     codec: "SNAPPY",
@@ -161,7 +161,7 @@ export async function encodeParquet(candles: Candle[], timeframe = "1m"): Promis
       { name: "volume", data: Float64Array.from(candles, (candle) => Number(candle.volume || 0)), type: "DOUBLE", nullable: false },
     ],
     kvMetadata: [
-      { key: "forextestlab.source", value: "dukascopy" },
+      { key: "forextestlab.source", value: source },
       { key: "forextestlab.timeframe", value: timeframe },
     ],
   });

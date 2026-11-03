@@ -474,6 +474,8 @@ function SessionDatePicker({
 }
 
 export function SessionSetup({ initialMarket, initialChallenge = null, onStart, busy, error, entitlements }: SessionSetupProps) {
+  const [dataSource, setDataSource] = useState<"dukascopy" | "histdata">("dukascopy");
+  const [histdataAvailable, setHistdataAvailable] = useState(false);
   const [name, setName] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
@@ -505,7 +507,18 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
 
   useEffect(() => {
     let active = true;
-    void fetchSymbols()
+    void fetchSymbols("histdata").then((list) => {
+      if (active) setHistdataAvailable(list.some((symbol) => symbol.enabled));
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setLoadingSymbols(true);
+    setSelectedSymbols([]);
+    setRange(null);
+    void fetchSymbols(dataSource)
       .then((list) => {
         if (!active) return;
         setSymbols(list);
@@ -522,7 +535,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     return () => {
       active = false;
     };
-  }, [initialMarket, symbolLocked]);
+  }, [dataSource, initialMarket, symbolLocked]);
 
   useEffect(() => {
     if (selectedSymbols.length === 0) {
@@ -537,7 +550,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     setRange(null);
     void Promise.all(
       selectedSymbols.map(async (symbol) => {
-        const ranges = await fetchRanges(symbol);
+        const ranges = await fetchRanges(symbol, dataSource);
         return ranges[0] ?? null;
       }),
     )
@@ -575,7 +588,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     return () => {
       cancelled = true;
     };
-  }, [selectedSymbols]);
+  }, [selectedSymbols, dataSource]);
 
   const availableEnd = range ? toDateInput(range.endTime) : "";
   const allowedPeriodDays = Math.min(
@@ -643,6 +656,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     const rules = challengePreset ? PROP_FIRM_PRESETS[challengePreset] : undefined;
     onStart({
       name: name.trim() || generatedName,
+      dataSource,
       tags,
       symbols: selectedSymbols,
       startTime: Math.max(range.startTime, newYorkDateStart(start)),
@@ -704,6 +718,17 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {histdataAvailable && (
+          <div className="flex flex-wrap items-center gap-2 border-b app-border px-5 py-3 sm:px-6">
+            <span className="mr-2 text-xs font-medium app-muted">Market data</span>
+            {(["dukascopy", "histdata"] as const).map((source) => (
+              <button key={source} type="button" onClick={() => setDataSource(source)} aria-pressed={dataSource === source}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${dataSource === source ? "border-brand-400 bg-brand-400/10 text-brand-300" : "app-border app-muted hover:bg-[var(--app-panel-2)]"}`}>
+                {source === "dukascopy" ? "Dukascopy" : "HistData"}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="grid shrink-0 gap-4 border-b app-border px-5 py-3 sm:px-6 lg:grid-cols-2 lg:items-start">
           <section>
             <div className="mb-2 flex items-center gap-2">

@@ -21,6 +21,11 @@ import type {
 } from "./types";
 
 export type ProviderKey = "r2" | "demo";
+export type ReplayDataSource = "dukascopy" | "histdata";
+
+export function replayDataSourceFromStored(value: string | null | undefined): ReplayDataSource {
+  return value === "histdata-r2" ? "histdata" : "dukascopy";
+}
 
 function demoEnabled(): boolean {
   // Enabled unless explicitly turned off.
@@ -81,7 +86,14 @@ class ProviderWithDemoFallback implements MarketDataProvider {
   }
 }
 
-export function getMarketDataProvider(): MarketDataProvider {
+export function getMarketDataProvider(source: ReplayDataSource = "dukascopy"): MarketDataProvider {
+  if (source === "histdata") {
+    // HistData is selected only when its own R2 archive has coverage. Never
+    // fall back to Dukascopy or synthetic candles within a HistData replay.
+    const prefix = process.env.HISTDATA_R2_PREFIX?.trim() || "histdata_market_data";
+    if (prefix === (process.env.R2_PREFIX?.trim() || "market_data")) throw new Error("HistData and Dukascopy must use separate R2 prefixes.");
+    return new R2ParquetProvider(prefix);
+  }
   const primary = basePrimary();
   if (primary instanceof DemoDataProvider) return primary;
   return new ProviderWithDemoFallback(primary);

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { getMarketDataProvider } from "@/lib/market-data";
+import { getMarketDataProvider, type ReplayDataSource } from "@/lib/market-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const symbols = await getMarketDataProvider().getAvailableSymbols();
+    const source = new URL(request.url).searchParams.get("source") ?? "dukascopy";
+    if (source !== "dukascopy" && source !== "histdata") return NextResponse.json({ ok: false, error: "Invalid data source." }, { status: 400 });
+    const symbols = await getMarketDataProvider(source as ReplayDataSource).getAvailableSymbols();
     return NextResponse.json({ ok: true, symbols });
   } catch (error) {
     const message =

@@ -28,7 +28,7 @@ import {
 } from "@/lib/backtest/exit-optimizer";
 import { configForSymbol, recordSymbol } from "@/lib/backtest/instrument-config";
 import type { SessionState } from "@/lib/backtest/types";
-import { getMarketDataProvider } from "@/lib/market-data";
+import { getMarketDataProvider, replayDataSourceFromStored } from "@/lib/market-data";
 import type { Candle } from "@/lib/market-data/types";
 import { isAnalyticsTrade } from "@/lib/analytics/trade-scope";
 
@@ -72,7 +72,7 @@ export async function buildExitQualityReport(
     bySymbol.set(symbol, group);
   }
 
-  const provider = getMarketDataProvider();
+  const provider = getMarketDataProvider(replayDataSourceFromStored(state.dataSource));
   const tests: PlanTest[] = [];
   const requestedRules = options.optimizerRuleIds?.length ? new Set(options.optimizerRuleIds) : null;
   const optimizedByRule = new Map((includeOptimizer ? ALL_EXIT_RULES : []).filter((rule) => !requestedRules || requestedRules.has(rule.id)).map((rule) => [rule.id, { rule, trades: [] as OptimizedTradeResult[] }]));

@@ -216,7 +216,7 @@ async function whatIfLevels(book: TradeBook, args: Args) {
   const targetPips = typeof args.takeProfitPips === "number" && args.takeProfitPips > 0 ? args.takeProfitPips : null;
   if (!stopPips && !targetPips) return { error: "Give a stopLossPips or takeProfitPips to test." };
 
-  const provider = getMarketDataProvider();
+  const provider = getMarketDataProvider(session.state.dataSource === "histdata-r2" ? "histdata" : "dukascopy");
   const config = session.state.config;
   const results: { trade: ClosedTrade; pnl: number; outcome: string }[] = [];
   const bySymbol = new Map<string, ClosedTrade[]>();

@@ -52,6 +52,7 @@ export async function POST(request: Request) {
   try {
     const session = await createSession({
       name: parsed.data.name,
+      dataSource: parsed.data.dataSource,
       tags: parsed.data.tags,
       symbols: parsed.data.symbols,
       symbol: parsed.data.symbols[0]!,

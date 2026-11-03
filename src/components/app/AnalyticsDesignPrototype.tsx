@@ -498,17 +498,19 @@ export function AnalyticsDesignPrototype({
 
       {sessionSelector ? <header data-pdf-part="Overview" className="mt-4 border-b app-border pb-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>{!showingLiveSample && headerActions}</div>{showingLiveSample ? <div className="mt-4 flex items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div><div className="hidden sm:block">{sessionMetadata}</div><button type="button" onClick={() => setShowDemoData(false)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-amber-200/20 text-amber-100 transition-colors hover:bg-amber-200/10" aria-label="Close sample report" title="Close sample report"><X size={16} aria-hidden /></button></div> : <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>}</header> : <header data-pdf-part="Overview" className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{headerActions}</header>}
 
-      <nav className="mt-5 w-fit max-w-full overflow-x-auto rounded-2xl border app-border bg-[var(--app-panel)] p-1.5 shadow-[0_14px_36px_-32px_rgba(0,0,0,0.65)]" aria-label="Analytics sections">
-        <div className="flex min-w-max items-center gap-1">
-          {TABS.filter((item) => !readOnly || (item.id !== "journal" && item.id !== "optimizer")).map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] ${tab === id ? "bg-[var(--app-accent)] text-[var(--app-accent-ink)] shadow-sm" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={15} aria-hidden />{label}{id === "trades" && model.closedTrades > 0 && <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] ${tab === id ? "bg-black/10" : "bg-[var(--app-panel-2)]"}`}>{model.closedTrades}</span>}{(id === "reports" || id === "optimizer") && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
-          ))}
-        </div>
-      </nav>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <nav className="w-fit max-w-full overflow-x-auto rounded-2xl border app-border bg-[var(--app-panel)] p-1.5 shadow-[0_14px_36px_-32px_rgba(0,0,0,0.65)]" aria-label="Analytics sections">
+          <div className="flex min-w-max items-center gap-1">
+            {TABS.filter((item) => !readOnly || (item.id !== "journal" && item.id !== "optimizer")).map(({ id, label, icon: Icon }) => (
+              <button key={id} type="button" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] ${tab === id ? "bg-[var(--app-accent)] text-[var(--app-accent-ink)] shadow-sm" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={15} aria-hidden />{label}{id === "trades" && model.closedTrades > 0 && <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] ${tab === id ? "bg-black/10" : "bg-[var(--app-panel-2)]"}`}>{model.closedTrades}</span>}{(id === "reports" || id === "optimizer") && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
+            ))}
+          </div>
+        </nav>
+        {canPreviewSample && !exportingPdf && <button type="button" onClick={() => setShowDemoData(true)} className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border app-border bg-[var(--app-panel)] px-4 text-xs font-semibold text-[var(--app-accent-text)] shadow-sm transition-colors hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-wash)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"><FlaskConical size={15} aria-hidden /> View demo</button>}
+      </div>
 
       {(tab === "overview" || exportingPdf) && (
         <main data-pdf-part="Overview" className="mt-5 space-y-4">
-          {canPreviewSample && model.closedTrades === 0 && !exportingPdf && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border app-border bg-[var(--app-panel)] px-4 py-3"><div className="flex items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--app-accent-wash)] text-[var(--app-accent-text)]"><FlaskConical size={15} aria-hidden /></span><div><p className="text-xs font-semibold">Explore a completed report</p><p className="text-[11px] app-muted">See how analytics looks with a full set of trades.</p></div></div><button type="button" onClick={() => setShowDemoData(true)} className="inline-flex items-center gap-1.5 rounded-lg border app-border px-3 py-2 text-xs font-semibold text-[var(--app-accent-text)] transition-colors hover:bg-[var(--app-accent-wash)]">View sample <ArrowUpRight size={13} aria-hidden /></button></div>}
           <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {[
               { label: "Account equity", value: money(model.endingBalance), tone: "text-[var(--app-text)]" },
@@ -594,7 +596,7 @@ export function AnalyticsDesignPrototype({
           <ReportsWorkspace model={sampleModel} periodLabel={periodLabel} />
         </ProPeek>
       )}
-      {(tab === "reports" || exportingPdf) && !reportsLocked && <div data-pdf-part="Reports"><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} onViewSample={canPreviewSample && !exportingPdf ? () => setShowDemoData(true) : undefined} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</div>}
+      {(tab === "reports" || exportingPdf) && !reportsLocked && <div data-pdf-part="Reports"><ReportsWorkspace model={model} periodLabel={periodLabel} sessionId={demo ? undefined : sessionId} /><ExitQualityCard trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades} plan={demo ? DEMO_EXIT_QUALITY : exitQuality} planUnavailable={status !== "finished" ? "Available once this session is complete. Working out what a trade would have done needs candles the replay has not shown you yet." : "No trade was closed by hand with a stop or target still to resolve, so there is nothing to test."} />{!demo && reportFooter}</div>}
       {tab === "optimizer" && reportsLocked && <ProPeek feature="analytics" title="The Exit Optimizer is on Pro" text="Test fixed targets, break-even rules, trailing stops and holding times against later validation trades." className="mt-5 max-h-[34rem] rounded-2xl"><div className="h-80 bg-[var(--app-panel)]" /></ProPeek>}
       {tab === "optimizer" && !reportsLocked && <ExitOptimizerWorkspace sessionId={demo ? undefined : sessionId} status={status} />}
     </div>
@@ -755,7 +757,7 @@ function DemoJournalWorkspace() {
 }
 
 
-function ReportsWorkspace({ model, periodLabel, sessionId, onViewSample }: { model: AnalyticsModel; periodLabel: string; sessionId?: string; onViewSample?: () => void }) {
+function ReportsWorkspace({ model, periodLabel, sessionId }: { model: AnalyticsModel; periodLabel: string; sessionId?: string }) {
   const monthPercents = model.monthlyReturns.map((month) => month.percent);
   const bestMonth = Math.max(...monthPercents, 0);
   const worstMonth = Math.min(...monthPercents, 0);
@@ -777,7 +779,7 @@ function ReportsWorkspace({ model, periodLabel, sessionId, onViewSample }: { mod
           <h2 className="mt-1 text-xl font-semibold">Find where the edge comes from</h2>
           <p className="mt-1 flex flex-wrap items-center gap-2 text-xs app-muted">All {model.closedTrades} closed trades · {periodLabel} <ReportTimeZone sessionId={sessionId} /></p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-[11px] app-muted"><span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-panel-2)] px-3 py-2"><CalendarDays size={13} aria-hidden /> Entire test</span><span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-panel-2)] px-3 py-2"><BarChart3 size={13} aria-hidden /> Closed trades</span>{onViewSample && <button type="button" onClick={onViewSample} className="inline-flex items-center gap-1.5 rounded-lg border app-border px-3 py-2 font-semibold text-[var(--app-accent-text)] transition-colors hover:bg-[var(--app-accent-wash)]"><FlaskConical size={13} aria-hidden /> View sample</button>}</div>
+        <div className="flex flex-wrap items-center gap-2 text-[11px] app-muted"><span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-panel-2)] px-3 py-2"><CalendarDays size={13} aria-hidden /> Entire test</span><span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--app-panel-2)] px-3 py-2"><BarChart3 size={13} aria-hidden /> Closed trades</span></div>
       </section>
 
       <section className="grid gap-px overflow-hidden rounded-xl border app-border bg-[var(--app-border)] sm:grid-cols-2 lg:grid-cols-4">

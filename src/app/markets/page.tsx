@@ -6,7 +6,7 @@ import { SYMBOL_DEFINITIONS } from "@/lib/market-data/symbols";
 
 export const metadata: Metadata = {
   title: "Markets",
-  description: "Explore forex, index, cryptocurrency, and metals data available for historical replay in ForexTestLab.",
+  description: "Explore forex, index, cryptocurrency, metals and energy data from Dukascopy and HistData for historical replay in ForexTestLab.",
   alternates: { canonical: "/markets" },
 };
 
@@ -22,17 +22,17 @@ const INITIAL_MARKETS = SYMBOL_DEFINITIONS.map((market) => ({
 
 export default function MarketsPage() {
   return <PageShell>
-    <section className="relative overflow-hidden pb-16 pt-14 sm:pb-24 sm:pt-20">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] bg-[radial-gradient(circle_at_74%_5%,rgba(69,214,168,.12),transparent_38%)]" />
+    <section className="relative overflow-hidden bg-[#f6f9f6] pb-16 pt-14 sm:pb-24 sm:pt-20">
       <div className="container-page relative">
-        <div className="mb-8 flex flex-col justify-between gap-5 border-b border-white/10 pb-8 lg:flex-row lg:items-end">
+        <div className="mb-8 flex flex-col justify-between gap-5 border-b border-[#d7e2dc] pb-8 lg:flex-row lg:items-end">
           <div>
-            <h1 className="text-4xl font-bold leading-none tracking-[-.04em] text-white sm:text-5xl">Explore the archive.</h1>
+            <p className="mb-3 text-xs font-bold uppercase tracking-[.16em] text-[#08745c]">Market archive</p>
+            <h1 className="text-4xl font-bold leading-tight tracking-[-.04em] text-[#10251d] sm:text-5xl">Find a market. Replay its history.</h1>
+            <p className="mt-3 text-sm text-[#3f5a50]">Search instruments and compare data providers before starting a backtest.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            <span className="rounded-full border border-white/10 bg-surface-900/80 px-3 py-2">38 instruments</span>
-            <span className="rounded-full border border-white/10 bg-surface-900/80 px-3 py-2">1-minute base data</span>
-            <span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-2 text-brand-200">Source · Dukascopy</span>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-[#3f5a50]">
+            <span className="rounded-full border border-[#d7e2dc] bg-white px-3 py-2">1-minute base data</span>
+            <span className="rounded-full border border-[#b9d7c8] bg-[#eaf6ef] px-3 py-2">Dukascopy + HistData</span>
           </div>
         </div>
         <MarketsExplorer initialMarkets={INITIAL_MARKETS} />

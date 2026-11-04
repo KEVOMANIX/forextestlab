@@ -42,6 +42,7 @@ import { randomBlindWindow, randomBlindWindowAvailable } from "@/lib/backtest/bl
 
 interface SessionSetupProps {
   initialMarket?: string | null;
+  initialSource?: "dukascopy" | "histdata";
   /** Start with this challenge chosen rather than free practice. */
   initialChallenge?: ChallengeStart | null;
   onStart: (body: CreateSessionBody) => void;
@@ -473,7 +474,7 @@ function SessionDatePicker({
   );
 }
 
-export function SessionSetup({ initialMarket, initialChallenge = null, onStart, busy, error, entitlements }: SessionSetupProps) {
+export function SessionSetup({ initialMarket, initialSource = "dukascopy", initialChallenge = null, onStart, busy, error, entitlements }: SessionSetupProps) {
   const [dataSource, setDataSource] = useState<MarketSource>("dukascopy");
   const [name, setName] = useState("");
   const [tagsText, setTagsText] = useState("");
@@ -527,7 +528,9 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
         }
         setListings(combined);
         const usable = (item: MarketListing) => item.enabled && !symbolLocked(item.symbol);
-        const firstEnabled = combined.find((item) => usable(item) && item.symbol === initialMarket) ?? combined.find(usable);
+        const firstEnabled = combined.find((item) => usable(item) && item.symbol === initialMarket && item.source === initialSource)
+          ?? combined.find((item) => usable(item) && item.symbol === initialMarket)
+          ?? combined.find(usable);
         if (firstEnabled) {
           setDataSource(firstEnabled.source);
           setSelectedSymbols([firstEnabled.symbol]);
@@ -542,7 +545,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     return () => {
       active = false;
     };
-  }, [initialMarket, symbolLocked]);
+  }, [initialMarket, initialSource, symbolLocked]);
 
   useEffect(() => {
     if (selectedSymbols.length === 0) {

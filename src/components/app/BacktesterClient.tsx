@@ -25,11 +25,13 @@ const Backtester = dynamic(
 export function BacktesterClient({
   resumeSessionId,
   initialMarket,
+  initialSource,
   initialChallenge = null,
   entitlements,
 }: {
   resumeSessionId: string | null;
   initialMarket: string | null;
+  initialSource: "dukascopy" | "histdata";
   /** Open the setup with a challenge chosen (from the Challenges page). */
   initialChallenge?: ChallengeStart | null;
   entitlements: PlanEntitlements;
@@ -39,6 +41,7 @@ export function BacktesterClient({
       <Backtester
         resumeSessionId={resumeSessionId}
         initialMarket={initialMarket}
+        initialSource={initialSource}
         initialChallenge={initialChallenge}
         entitlements={entitlements}
       />

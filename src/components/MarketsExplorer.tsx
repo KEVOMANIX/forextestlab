@@ -10,6 +10,10 @@ import { describeSymbol } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
 
 type Category = "All" | "Forex" | "Indices" | "Crypto" | "Metals" | "Energies";
+type Source = "dukascopy" | "histdata";
+type Listing = MarketSymbol & { source: Source };
+const sourceName = (source: Source) => source === "dukascopy" ? "Dukascopy" : "HistData";
+const listingKey = (item: Listing) => `${item.source}:${item.symbol}`;
 
 const CATEGORIES: Category[] = ["All", "Forex", "Indices", "Crypto", "Metals", "Energies"];
 const CRYPTO_CURRENCIES = new Set(["BTC", "ETH", "LTC", "ADA"]);
@@ -60,7 +64,7 @@ function MarketMark({ market, large = false }: { market: MarketSymbol; large?: b
   </span>;
 }
 
-function MarketCard({ market, selected, onSelect }: { market: MarketSymbol; selected: boolean; onSelect: () => void }) {
+function MarketCard({ market, selected, onSelect }: { market: Listing; selected: boolean; onSelect: () => void }) {
   const years = historyYears(market);
 
   return <button type="button" onClick={onSelect} className={`group relative min-h-52 overflow-hidden rounded-2xl border p-5 text-left transition-all ${selected ? "market-selected-card border-brand-400/70" : "border-white/10 bg-surface-900/65 hover:-translate-y-0.5 hover:border-brand-400/35 hover:bg-surface-900"}`}>
@@ -76,7 +80,7 @@ function MarketCard({ market, selected, onSelect }: { market: MarketSymbol; sele
     <div className="mt-6 grid grid-cols-3 gap-2 border-t border-white/10 pt-4">
       <div><p className="text-[9px] uppercase tracking-[.13em] text-slate-500">Data starts</p><p className="mt-1 font-mono text-sm font-semibold text-slate-100">{market.availableFromYear ?? "—"}</p></div>
       <div><p className="text-[9px] uppercase tracking-[.13em] text-slate-500">Base</p><p className="mt-1 font-mono text-sm font-semibold text-slate-100">1 minute</p></div>
-      <div><p className="text-[9px] uppercase tracking-[.13em] text-slate-500">Source</p><p className="mt-1 truncate text-xs font-semibold text-brand-200">Dukascopy</p></div>
+      <div><p className="text-[9px] uppercase tracking-[.13em] text-slate-500">Source</p><p className="mt-1 truncate text-xs font-semibold text-brand-200">{sourceName(market.source)}</p></div>
     </div>
 
     <div className="mt-4 flex items-center justify-between rounded-lg border border-white/[.07] bg-surface-950/35 px-3 py-2.5">
@@ -87,26 +91,33 @@ function MarketCard({ market, selected, onSelect }: { market: MarketSymbol; sele
   </button>;
 }
 
-function signInForMarket(symbol: string): string {
-  const backtestPath = `/app/backtest?market=${encodeURIComponent(symbol)}`;
+function signInForMarket(market: Listing): string {
+  const backtestPath = `/app/backtest?market=${encodeURIComponent(market.symbol)}&source=${market.source}`;
   return `/sign-in?next=${encodeURIComponent(backtestPath)}`;
 }
 
 export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymbol[] }) {
-  const [markets, setMarkets] = useState(initialMarkets);
+  const [markets, setMarkets] = useState<Listing[]>(initialMarkets.map((market) => ({ ...market, source: "dukascopy" })));
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<Category>("All");
   const [showAll, setShowAll] = useState(false);
-  const [selected, setSelected] = useState(initialMarkets[0]?.symbol ?? "");
+  const [selected, setSelected] = useState(initialMarkets[0] ? `dukascopy:${initialMarkets[0].symbol}` : "");
 
   useEffect(() => {
     let active = true;
-    void fetchSymbols().then((items) => {
-      if (!active || items.length === 0) return;
-      const enabled = items.filter((item) => item.enabled);
-      if (enabled.length > 0) {
-        setMarkets(enabled);
-        setSelected((current) => enabled.some((item) => item.symbol === current) ? current : enabled[0]!.symbol);
+    void Promise.allSettled([fetchSymbols("dukascopy"), fetchSymbols("histdata")]).then(([dukResult, histResult]) => {
+      if (!active) return;
+      const dukascopy = dukResult.status === "fulfilled" ? dukResult.value.filter((item) => item.enabled) : [];
+      const histdata = histResult.status === "fulfilled" ? histResult.value.filter((item) => item.enabled) : [];
+      const histBySymbol = new Map(histdata.map((item) => [item.symbol, item]));
+      const combined: Listing[] = dukascopy.flatMap((item) => {
+        const sibling = histBySymbol.get(item.symbol);
+        return [{ ...item, source: "dukascopy" as const }, ...(sibling ? [{ ...sibling, source: "histdata" as const }] : [])];
+      });
+      for (const item of histdata) if (!dukascopy.some((duk) => duk.symbol === item.symbol)) combined.push({ ...item, source: "histdata" });
+      if (combined.length > 0) {
+        setMarkets(combined);
+        setSelected((current) => combined.some((item) => listingKey(item) === current) ? current : listingKey(combined[0]!));
       }
     });
     return () => { active = false; };
@@ -123,12 +134,12 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
     return markets.filter((market) => {
       if (category !== "All" && categoryFor(market) !== category) return false;
       if (!needle) return true;
-      return `${market.symbol} ${market.displayName} ${describeSymbol(market.symbol)}`.toLowerCase().includes(needle);
+      return `${market.symbol} ${market.displayName} ${describeSymbol(market.symbol)} ${sourceName(market.source)}`.toLowerCase().includes(needle);
     });
   }, [category, markets, query]);
 
   const displayed = showAll || query.trim() ? filtered : filtered.slice(0, 8);
-  const activeMarket = markets.find((market) => market.symbol === selected) ?? markets[0];
+  const activeMarket = markets.find((market) => listingKey(market) === selected) ?? markets[0];
   const activeYears = activeMarket ? historyYears(activeMarket) : null;
 
   return <>
@@ -136,7 +147,7 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
       <div className="relative min-w-0 flex-1">
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden />
         <label htmlFor="market-search" className="sr-only">Search markets</label>
-        <input id="market-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${markets.length} markets`} className="w-full rounded-xl border border-white/10 bg-surface-900/65 py-3 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:border-brand-400/60" />
+        <input id="market-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search markets or providers" className="w-full rounded-xl border border-white/10 bg-surface-900/65 py-3 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 focus:border-brand-400/60" />
       </div>
       <div className="flex flex-wrap gap-1.5 rounded-xl border border-white/10 bg-surface-900/65 p-1.5" role="group" aria-label="Market categories">
         {CATEGORIES.map((item) => <button key={item} type="button" onClick={() => { setCategory(item); setShowAll(false); }} aria-pressed={category === item} className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${category === item ? "bg-brand-400/15 text-brand-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>{item} <span className="ml-1 opacity-50">{counts[item]}</span></button>)}
@@ -145,7 +156,7 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
 
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(19rem,.55fr)] xl:items-start">
       <section>
-        {displayed.length > 0 ? <div className="grid gap-4 md:grid-cols-2">{displayed.map((market) => <MarketCard key={market.symbol} market={market} selected={market.symbol === activeMarket?.symbol} onSelect={() => setSelected(market.symbol)} />)}</div> : <div className="rounded-2xl border border-white/10 bg-surface-900/65 px-5 py-16 text-center"><p className="font-medium text-white">No market matches that search.</p><button type="button" onClick={() => { setQuery(""); setCategory("All"); }} className="mt-3 text-sm text-brand-300 hover:text-brand-200">Clear filters</button></div>}
+        {displayed.length > 0 ? <div className="grid gap-4 md:grid-cols-2">{displayed.map((market) => <MarketCard key={listingKey(market)} market={market} selected={listingKey(market) === listingKey(activeMarket!)} onSelect={() => setSelected(listingKey(market))} />)}</div> : <div className="rounded-2xl border border-white/10 bg-surface-900/65 px-5 py-16 text-center"><p className="font-medium text-white">No market matches that search.</p><button type="button" onClick={() => { setQuery(""); setCategory("All"); }} className="mt-3 text-sm text-brand-300 hover:text-brand-200">Clear filters</button></div>}
         {!showAll && !query.trim() && filtered.length > displayed.length && <div className="mt-5 text-center"><button type="button" onClick={() => setShowAll(true)} className="rounded-xl border border-white/10 bg-surface-900/55 px-5 py-2.5 text-xs font-semibold text-slate-300 transition-colors hover:border-brand-400/40 hover:text-brand-200">Show all {filtered.length} {category === "All" ? "markets" : category.toLowerCase()}</button></div>}
       </section>
 
@@ -166,12 +177,12 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
           </div>
 
           <dl className="mt-5 divide-y divide-white/10 border-y border-white/10">
-            <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Source</dt><dd className="text-sm font-semibold text-brand-200">Dukascopy</dd></div>
+            <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Source</dt><dd className="text-sm font-semibold text-brand-200">{sourceName(activeMarket.source)}</dd></div>
             <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Base timeframe</dt><dd className="font-mono text-sm font-semibold text-slate-200">1 minute</dd></div>
             <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Asset class</dt><dd className="text-sm font-semibold text-slate-200">{categoryFor(activeMarket)}</dd></div>
           </dl>
 
-          <Link href={signInForMarket(activeMarket.symbol)} className="btn-primary mt-6 w-full">Backtest {activeMarket.displayName} <ArrowRight size={16} aria-hidden /></Link>
+          <Link href={signInForMarket(activeMarket)} className="btn-primary mt-6 w-full">Backtest {activeMarket.displayName} <ArrowRight size={16} aria-hidden /></Link>
         </div>
       </aside>}
     </div>

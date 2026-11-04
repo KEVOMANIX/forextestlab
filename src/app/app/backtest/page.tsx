@@ -37,7 +37,7 @@ const DEMO_ENTITLEMENTS: PlanEntitlements = {
 
 export default async function BacktestPage(
   props: {
-    searchParams: Promise<{ session?: string; market?: string; mode?: string; phase?: string; size?: string }>;
+    searchParams: Promise<{ session?: string; market?: string; source?: string; mode?: string; phase?: string; size?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
@@ -52,6 +52,7 @@ export default async function BacktestPage(
     <BacktesterClient
       resumeSessionId={resumeSessionId}
       initialMarket={typeof searchParams.market === "string" ? searchParams.market : null}
+      initialSource={searchParams.source === "histdata" ? "histdata" : "dukascopy"}
       initialChallenge={parseChallengeStart(searchParams)}
       entitlements={entitlements}
     />

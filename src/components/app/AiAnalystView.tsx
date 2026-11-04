@@ -108,16 +108,16 @@ function ThreadRow({ thread, active, session, time, onOpen, onPin, onDelete }: {
   const review = isReviewTitle(thread.title);
   const Icon = review ? BarChart3 : MessageSquare;
   return (
-    <div className={`group relative flex items-start gap-2.5 rounded-lg p-2 transition-colors ${active ? "bg-[var(--app-panel-2)]" : "hover:bg-[var(--app-hover)]"}`}>
-      <span className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg ${review ? "bg-brand-400/15 text-brand-300" : "bg-sky-400/15 text-sky-300"}`} aria-hidden><Icon size={14} /></span>
-      <button type="button" onClick={onOpen} aria-current={active ? "true" : undefined} className="min-w-0 flex-1 text-left after:absolute after:inset-0 after:rounded-lg">
-        <span className="line-clamp-2 text-[13px] font-medium leading-[1.35]">{displayTitle(thread.title)}</span>
-        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] app-muted">
-          <span className={`min-w-0 truncate rounded-full px-1.5 font-semibold ${thread.sessionId ? "bg-brand-400/15 text-brand-300" : "bg-sky-400/15 text-sky-300"}`}>{session}</span>
-          <span className="shrink-0">{time}</span>
+    <div className={`group relative rounded-lg border px-3 py-2.5 transition-colors ${active ? "border-[var(--app-border)] bg-[var(--app-panel-2)]" : "border-transparent hover:bg-[var(--app-hover)]"}`}>
+      <button type="button" onClick={onOpen} aria-current={active ? "true" : undefined} className="block w-full min-w-0 text-left after:absolute after:inset-0 after:rounded-lg">
+        <span className="line-clamp-2 pr-2 text-[13px] font-semibold leading-[1.45]" title={displayTitle(thread.title)}>{displayTitle(thread.title)}</span>
+        <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[10.5px] app-muted">
+          <Icon size={12} className="shrink-0 opacity-75" aria-hidden />
+          {!review && <span className="min-w-0 truncate">{session}</span>}
+          <span className={`${review ? "" : "ml-auto"} shrink-0`}>{time}</span>
         </span>
       </button>
-      <span className="absolute right-1.5 top-1.5 z-10 flex gap-0.5 rounded-md bg-[var(--app-sidebar)] opacity-0 shadow-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+      <span className="absolute bottom-1.5 right-1.5 z-10 flex gap-0.5 rounded-md bg-[var(--app-sidebar)] opacity-0 shadow-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100">
         <button type="button" onClick={onPin} aria-label={thread.pinned ? "Unpin chat" : "Pin chat"} title={thread.pinned ? "Unpin" : "Pin"} className="grid h-6 w-6 place-items-center rounded-md app-muted hover:text-brand-300">{thread.pinned ? <PinOff size={13} aria-hidden /> : <Pin size={13} aria-hidden />}</button>
         <button type="button" onClick={onDelete} aria-label="Delete chat" title="Delete" className="grid h-6 w-6 place-items-center rounded-md app-muted hover:text-loss"><Trash2 size={13} aria-hidden /></button>
       </span>
@@ -384,12 +384,12 @@ export function AiAnalystView({
         <input ref={mobile ? undefined : searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search chats" aria-label="Search chats" className="min-w-0 flex-1 bg-transparent text-[var(--app-text)] outline-none placeholder:text-[var(--app-muted)] focus-visible:ring-0 focus-visible:ring-offset-0" />
         <kbd className="font-sans text-[10px] app-muted">Ctrl K</kbd>
       </label>
-      <div className="mt-1 min-h-0 flex-1 overflow-y-auto">
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-0.5">
         {([["Pinned", groups.pinned], ["Today", groups.today], ["Previous 7 days", groups.week], ["Earlier", groups.earlier]] as const).map(([label, list]) => list.length > 0 && (
-          <div key={label} className="mt-3">
-            <p className="px-2.5 pb-1 text-[11px] app-muted">{label}</p>
-            {list.map((thread) => <ThreadRow key={thread.id} thread={thread} active={thread.id === activeId} session={sessionName(thread.sessionId)} time={ago(thread.updatedAt, now)} onOpen={() => void openThread(thread)} onPin={() => togglePin(thread)} onDelete={() => deleteThread(thread)} />)}
-          </div>
+          <section key={label} className="mt-4 border-t app-border pt-3 first:mt-1 first:border-t-0 first:pt-0" aria-label={`${label} chats`}>
+            <h2 className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] app-muted">{label}</h2>
+            <div className="space-y-1">{list.map((thread) => <ThreadRow key={thread.id} thread={thread} active={thread.id === activeId} session={sessionName(thread.sessionId)} time={ago(thread.updatedAt, now)} onOpen={() => void openThread(thread)} onPin={() => togglePin(thread)} onDelete={() => deleteThread(thread)} />)}</div>
+          </section>
         ))}
         {!chats.length && <p className="mt-4 px-2.5 text-xs leading-5 app-muted">Your chats appear here, saved to your account.</p>}
         {nothingFound && <p className="mt-4 px-2.5 text-xs app-muted">No chats match “{query}”.</p>}
@@ -415,11 +415,11 @@ export function AiAnalystView({
           {!locked && <button type="button" onClick={() => setPlanOpen(true)} aria-label="Trading plan" title="Trading plan" className={iconButton}><ClipboardList size={15} aria-hidden /></button>}
         </aside>
       ) : (
-        <aside aria-label="AI Analyst chats" className="hidden w-72 shrink-0 flex-col border-r app-border bg-[var(--app-sidebar)] p-3 lg:flex">{chatList(false)}</aside>
+        <aside aria-label="AI Analyst chats" className="hidden w-80 shrink-0 flex-col border-r app-border bg-[var(--app-sidebar)] p-3 lg:flex">{chatList(false)}</aside>
       )}
       {chatsOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
-          <aside aria-label="AI Analyst chats" className="flex w-72 max-w-[85vw] flex-col border-r app-border bg-[var(--app-sidebar)] p-3">{chatList(true)}</aside>
+          <aside aria-label="AI Analyst chats" className="flex w-80 max-w-[85vw] flex-col border-r app-border bg-[var(--app-sidebar)] p-3">{chatList(true)}</aside>
           <button type="button" aria-label="Close chats" onClick={() => setChatsOpen(false)} className="flex-1 bg-black/50" />
         </div>
       )}

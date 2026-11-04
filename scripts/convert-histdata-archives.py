@@ -88,6 +88,7 @@ def convert_symbol(root: Path, symbol: str, archives: list[Path]) -> list[dict[s
         month_rows = {}
 
     for archive_path in sorted(archives, key=archive_date):
+        archive_rows: list[tuple[int, float, float, float, float]] = []
         with zipfile.ZipFile(archive_path) as archive:
             csv_entries = [entry for entry in archive.infolist() if re.fullmatch(
                 rf"DAT_ASCII_{symbol}_M1_\d{{4,6}}\.csv", entry.filename
@@ -99,15 +100,18 @@ def convert_symbol(root: Path, symbol: str, archives: list[Path]) -> list[dict[s
                     raw = raw_bytes.decode("ascii").strip()
                     if not raw:
                         continue
-                    row = parse_row(raw, archive_path)
-                    date = datetime.fromtimestamp(row[0] / 1000, UTC)
-                    new_month = (date.year, date.month)
-                    if month_key is not None and new_month < month_key:
-                        raise ValueError(f"Out-of-order archive row in {archive_path}: {raw[:30]}")
-                    if month_key != new_month:
-                        flush()
-                        month_key = new_month
-                    month_rows[row[0]] = row
+                    archive_rows.append(parse_row(raw, archive_path))
+        # HistData occasionally places whole days out of order inside a ZIP
+        # (AUDJPY 2012 is one example). Sort the archive before month flushing.
+        for row in sorted(archive_rows, key=lambda item: item[0]):
+            date = datetime.fromtimestamp(row[0] / 1000, UTC)
+            new_month = (date.year, date.month)
+            if month_key is not None and new_month < month_key:
+                raise ValueError(f"Archive crosses into a previously written month: {archive_path}, {date.isoformat()}")
+            if month_key != new_month:
+                flush()
+                month_key = new_month
+            month_rows[row[0]] = row
     flush()
     return results
 

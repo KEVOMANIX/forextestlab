@@ -364,20 +364,53 @@ export const SYMBOL_DEFINITIONS: SymbolDefinition[] = [
   },
 ];
 
+/** HistData instruments absent from the Dukascopy catalogue. Keep them out of
+ * Dukascopy sync and marketing counts; they appear only for HistData replays. */
+const HISTDATA_ONLY_SYMBOLS = [
+  "AUXAUD", "BCOUSD", "ETXEUR", "EURCZK", "EURDKK", "EURHUF", "EURNOK", "EURPLN", "EURSEK", "EURTRY",
+  "FRXEUR", "GRXEUR", "HKXHKD", "JPXJPY", "NSXUSD", "SGDJPY", "SPXUSD", "UDXUSD", "UKXGBP",
+  "USDCZK", "USDDKK", "USDHKD", "USDHUF", "USDMXN", "USDNOK", "USDPLN", "USDSEK", "USDSGD", "USDTRY", "USDZAR",
+  "WTIUSD", "XAUAUD", "XAUCHF", "XAUEUR", "XAUGBP", "ZARJPY",
+] as const;
+
+const HISTDATA_INDEX_CODES = new Set(["AUXAUD", "ETXEUR", "FRXEUR", "GRXEUR", "HKXHKD", "JPXJPY", "NSXUSD", "SPXUSD", "UDXUSD", "UKXGBP"]);
+const HISTDATA_ENERGY_CODES = new Set(["BCOUSD", "WTIUSD"]);
+
+export const HISTDATA_ONLY_SYMBOL_DEFINITIONS: SymbolDefinition[] = HISTDATA_ONLY_SYMBOLS.map((symbol) => {
+  const baseCurrency = symbol.slice(0, 3);
+  const quoteCurrency = symbol.slice(3);
+  const index = HISTDATA_INDEX_CODES.has(symbol);
+  const energy = HISTDATA_ENERGY_CODES.has(symbol);
+  const metal = baseCurrency === "XAU";
+  const coarseFx = quoteCurrency === "JPY" || quoteCurrency === "HUF";
+  const pricePrecision = index || energy || metal ? 2 : coarseFx ? 3 : 5;
+  const pipSize = index ? "1" : energy || metal || coarseFx ? "0.01" : "0.0001";
+  const displayName = symbol === "WTIUSD" ? "WTI / US Oil"
+    : symbol === "BCOUSD" ? "Brent / US Oil"
+      : index ? `${baseCurrency} Index / ${quoteCurrency}`
+        : `${baseCurrency}/${quoteCurrency}`;
+  return {
+    symbol, displayName, baseCurrency, quoteCurrency, pipSize, pricePrecision,
+    demoBasePrice: index ? "1000.00" : energy ? "80.00" : metal ? "2000.00" : coarseFx ? "100.000" : "1.00000",
+  };
+});
+
+export const HISTDATA_SYMBOL_DEFINITIONS: SymbolDefinition[] = [...SYMBOL_DEFINITIONS, ...HISTDATA_ONLY_SYMBOL_DEFINITIONS];
+
 export function getSymbolDefinition(
   symbol: string,
 ): SymbolDefinition | undefined {
-  return SYMBOL_DEFINITIONS.find((s) => s.symbol === symbol);
+  return HISTDATA_SYMBOL_DEFINITIONS.find((s) => s.symbol === symbol);
 }
 
-const FIAT_CURRENCIES = ["AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"];
+const FIAT_CURRENCIES = ["AUD", "CAD", "CHF", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "JPY", "MXN", "NOK", "NZD", "PLN", "SEK", "SGD", "TRY", "USD", "ZAR"];
 
 /** The market group a symbol is listed under in the market picker and on the AI Analyst cards. */
 export function marketCategory(item: Pick<MarketSymbol, "symbol" | "baseCurrency" | "quoteCurrency">): "Forex" | "Indices" | "Crypto" | "Metals" | "Energies" | "Stocks" {
   if (["BTC", "ETH", "LTC", "ADA"].includes(item.baseCurrency)) return "Crypto";
   if (["XAU", "XAG"].includes(item.baseCurrency)) return "Metals";
-  if (["LIGHTCMD", "BRENTCMD", "GASCMD"].includes(item.baseCurrency)) return "Energies";
-  if (item.symbol.includes("IDX") || item.symbol === "DXY") return "Indices";
+  if (["LIGHTCMD", "BRENTCMD", "GASCMD"].includes(item.baseCurrency) || HISTDATA_ENERGY_CODES.has(item.symbol)) return "Energies";
+  if (item.symbol.includes("IDX") || item.symbol === "DXY" || HISTDATA_INDEX_CODES.has(item.symbol)) return "Indices";
   if (FIAT_CURRENCIES.includes(item.baseCurrency) && FIAT_CURRENCIES.includes(item.quoteCurrency)) return "Forex";
   return "Stocks";
 }
@@ -392,16 +425,27 @@ const CURRENCY_NAMES: Record<string, string> = {
   BTC: "Bitcoin",
   CAD: "Canadian Dollar",
   CHF: "Swiss Franc",
+  CZK: "Czech Koruna",
+  DKK: "Danish Krone",
   ETH: "Ethereum",
   EUR: "Euro",
   GBP: "British Pound",
+  HKD: "Hong Kong Dollar",
+  HUF: "Hungarian Forint",
   JPY: "Japanese Yen",
   LTC: "Litecoin",
+  MXN: "Mexican Peso",
+  NOK: "Norwegian Krone",
   LIGHTCMD: "WTI Crude Oil",
   NZD: "New Zealand Dollar",
+  PLN: "Polish Zloty",
+  SEK: "Swedish Krona",
+  SGD: "Singapore Dollar",
+  TRY: "Turkish Lira",
   USD: "US Dollar",
   XAG: "Silver",
   XAU: "Gold",
+  ZAR: "South African Rand",
 };
 
 /**

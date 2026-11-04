@@ -38,26 +38,34 @@ async function worker() {
   while (cursor < entries.length) {
     const entry = entries[cursor++];
     if (!entry) break;
-    let exists = false;
-    try {
-      const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: entry.key }));
-      exists = head.ContentLength === entry.bytes;
-    } catch (error) {
-      if ((error as { name?: string }).name !== "NotFound" && (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode !== 404) throw error;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        let exists = false;
+        try {
+          const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: entry.key }));
+          exists = head.ContentLength === entry.bytes;
+        } catch (error) {
+          if ((error as { name?: string }).name !== "NotFound" && (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode !== 404) throw error;
+        }
+        if (!exists) {
+          await client.send(new PutObjectCommand({
+            Bucket: bucket,
+            Key: entry.key,
+            Body: readFileSync(entry.path),
+            ContentLength: entry.bytes,
+            ContentType: "application/vnd.apache.parquet",
+            Metadata: { source: "histdata", timeframe: "1m", candles: String(entry.candles) },
+          }));
+          const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: entry.key }));
+          if (head.ContentLength !== entry.bytes) throw new Error(`Remote size mismatch: ${entry.key}`);
+          uploaded++;
+        } else skipped++;
+        break;
+      } catch (error) {
+        if (attempt >= 7) throw error;
+        await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** attempt, 15000)));
+      }
     }
-    if (!exists) {
-      await client.send(new PutObjectCommand({
-        Bucket: bucket,
-        Key: entry.key,
-        Body: readFileSync(entry.path),
-        ContentLength: entry.bytes,
-        ContentType: "application/vnd.apache.parquet",
-        Metadata: { source: "histdata", timeframe: "1m", candles: String(entry.candles) },
-      }));
-      const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: entry.key }));
-      if (head.ContentLength !== entry.bytes) throw new Error(`Remote size mismatch: ${entry.key}`);
-      uploaded++;
-    } else skipped++;
     verifiedBytes += entry.bytes;
     if ((uploaded + skipped) % 100 === 0) console.log(`${uploaded + skipped}/${entries.length} verified; ${uploaded} uploaded; ${skipped} already present`);
   }

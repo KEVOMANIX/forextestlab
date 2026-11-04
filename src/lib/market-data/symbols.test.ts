@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SYMBOL_DEFINITIONS, describeSymbol, getSymbolDefinition } from "./symbols";
+import { HISTDATA_ONLY_SYMBOL_DEFINITIONS, HISTDATA_SYMBOL_DEFINITIONS, SYMBOL_DEFINITIONS, describeSymbol, getSymbolDefinition, marketCategory } from "./symbols";
 
 describe("forex symbol catalogue", () => {
   it("contains all 28 major and cross pairs without duplicates", () => {
@@ -46,5 +46,15 @@ describe("forex symbol catalogue", () => {
       displayName: "WTI / US Oil", baseCurrency: "LIGHTCMD", quoteCurrency: "USD", pipSize: "0.01", pricePrecision: 2,
     });
     expect(describeSymbol("LIGHTCMDUSD")).toBe("WTI Crude Oil / US Dollar");
+  });
+
+  it("keeps the HistData additions separate and classifies their markets", () => {
+    expect(SYMBOL_DEFINITIONS).toHaveLength(39);
+    expect(HISTDATA_ONLY_SYMBOL_DEFINITIONS).toHaveLength(36);
+    expect(new Set(HISTDATA_SYMBOL_DEFINITIONS.map(({ symbol }) => symbol)).size).toBe(75);
+    expect(marketCategory(getSymbolDefinition("EURCZK")!)).toBe("Forex");
+    expect(marketCategory(getSymbolDefinition("SPXUSD")!)).toBe("Indices");
+    expect(marketCategory(getSymbolDefinition("WTIUSD")!)).toBe("Energies");
+    expect(marketCategory(getSymbolDefinition("XAUAUD")!)).toBe("Metals");
   });
 });

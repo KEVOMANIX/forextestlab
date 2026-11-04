@@ -15,7 +15,7 @@ import { parquetReadObjects, type Compressors } from "hyparquet";
 
 import { forexDailyStart, nextForexDailyBoundary } from "@/lib/market-data/forex-day";
 import { aggregateCandles } from "@/lib/market-data/aggregation";
-import { getSymbolDefinition, SYMBOL_DEFINITIONS } from "@/lib/market-data/symbols";
+import { getSymbolDefinition, HISTDATA_SYMBOL_DEFINITIONS, SYMBOL_DEFINITIONS } from "@/lib/market-data/symbols";
 import type {
   Candle,
   CandleRequest,
@@ -270,7 +270,8 @@ async function listSymbolMonths(config: R2Config, symbol: string): Promise<Store
  */
 async function fetchManifest(config: R2Config): Promise<Map<string, StoredMonth[]>> {
   const entries = await Promise.all(
-    SYMBOL_DEFINITIONS.map(async ({ symbol }) => [symbol, await listSymbolMonths(config, symbol)] as const),
+    (sourceForConfig(config) === "histdata-r2" ? HISTDATA_SYMBOL_DEFINITIONS : SYMBOL_DEFINITIONS)
+      .map(async ({ symbol }) => [symbol, await listSymbolMonths(config, symbol)] as const),
   );
   return new Map(entries.filter(([, months]) => months.length > 0));
 }
@@ -531,7 +532,9 @@ export class R2ParquetProvider implements MarketDataProvider {
   async getAvailableSymbols(): Promise<MarketSymbol[]> {
     const config = r2Config(this.prefixOverride);
     const manifest = await loadManifest(config);
-    return SYMBOL_DEFINITIONS.map((definition) => {
+    const histdata = sourceForConfig(config) === "histdata-r2";
+    const definitions = histdata ? HISTDATA_SYMBOL_DEFINITIONS.filter((definition) => manifest.has(definition.symbol)) : SYMBOL_DEFINITIONS;
+    return definitions.map((definition) => {
       const months = manifest.get(definition.symbol) ?? [];
       return {
         symbol: definition.symbol,

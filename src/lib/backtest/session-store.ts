@@ -725,6 +725,9 @@ export async function createSession(
       const profile = await tx.userProfile.findUnique({
         where: { id: params.userId },
         select: {
+          // Owner Pro access is keyed by account ID. Keep it in the
+          // transactional recheck so it agrees with getUserEntitlements above.
+          id: true,
           billingStatus: true,
           proAccessUntil: true,
         },

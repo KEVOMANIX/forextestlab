@@ -61,6 +61,9 @@ describe("Pro", () => {
       const now = new Date("2100-01-01");
       expect(hasProAccess(owner, now)).toBe(true);
       expect(planEntitlements(owner, { now, freeSessionsUsed: 999 })).toEqual(expect.objectContaining({ plan: "pro", monthlySessions: null, fullAnalytics: true, exports: true, propFirmChallenges: true }));
+      expect(() => assertSessionAllowed(planEntitlements(owner, { now }), {
+        symbols: ["XAUUSD"], startTime: 0, endTime: 365 * DAY,
+      })).not.toThrow();
       expect(planEntitlements(owner, { now, trialEndsAt: new Date("2101-01-01") }).trialEndsAt).toBeNull();
       expect(planEntitlements({ ...owner, id: "someone-else" }, { now }).plan).toBe("free");
       expect(planEntitlements(FREE_PROFILE, { now }).plan).toBe("free");

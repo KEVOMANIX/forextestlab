@@ -56,22 +56,7 @@ const MARKET_CATEGORIES = ["All", "Stocks", "Futures", "Forex", "Crypto", "Indic
 type MarketCategory = (typeof MARKET_CATEGORIES)[number];
 type MarketSource = "dukascopy" | "histdata";
 type MarketListing = MarketSymbol & { source: MarketSource };
-const sourceName = (source: MarketSource) => source === "dukascopy" ? "Dukascopy" : "HistData";
-
-function ProviderIcon({ source }: { source: MarketSource }) {
-  const isHistData = source === "histdata";
-  return (
-    <span
-      className={`relative grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 border-white/80 shadow-[0_1px_3px_rgba(0,0,0,.18)] ${isHistData ? "bg-[#087e87]" : "bg-[#1269a6]"}`}
-      aria-hidden="true"
-    >
-      <span className="absolute inset-[2px] rounded-full border border-white/45" />
-      <span className="relative font-serif text-[14px] font-bold leading-none text-white">
-        {isHistData ? "H" : "D"}
-      </span>
-    </span>
-  );
-}
+const sourceName = (source: MarketSource) => source === "dukascopy" ? "Dukascopy" : "HistData.com";
 
 
 /**
@@ -234,9 +219,8 @@ function MarketPicker({
                       {active && <Check size={15} className="shrink-0 text-[var(--app-accent-text)]" aria-hidden />}
                       {locked && <span className="shrink-0 rounded-md bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold text-blue-400">Pro</span>}
                       {!item.enabled && <span className="shrink-0 text-[11px] app-muted">No data</span>}
-                      <span className="flex w-[5.75rem] shrink-0 items-center justify-end gap-1.5 text-[11px] app-muted sm:w-28" title={`${sourceName(item.source)} · ${group}`}>
-                        <span className="truncate">{sourceName(item.source)}</span>
-                        <ProviderIcon source={item.source} />
+                      <span className="flex w-[5.75rem] shrink-0 items-center justify-end text-[11px] app-muted sm:w-28" title={`${sourceName(item.source)} · ${group}`}>
+                        <span className="truncate font-medium">{sourceName(item.source)}</span>
                       </span>
                     </>;
                     if (locked && item.enabled) return <ProLock key={`${item.source}:${item.symbol}`} feature="markets" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left opacity-70 transition-colors hover:bg-[var(--app-panel-2)] hover:opacity-100">{row}</ProLock>;

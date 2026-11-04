@@ -14,9 +14,13 @@ export function contractUnitsPerLot(baseCurrency: string): number {
     case "XAG": return 5000;
     case "BTC": return 1;
     case "LIGHTCMD": return 100;
+    case "WTI": return 100;
+    case "BCO": return 100;
     case "USA30IDX": return 1;
     case "USA500IDX": return 1;
     case "USATECHIDX": return 1;
+    case "AUX": case "ETX": case "FRX": case "GRX": case "HKX":
+    case "JPX": case "NSX": case "SPX": case "UDX": case "UKX": return 1;
     default: return 100000;
   }
 }

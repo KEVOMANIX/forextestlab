@@ -59,6 +59,8 @@ def convert_symbol(root: Path, symbol: str, archives: list[Path]) -> list[dict[s
     month_rows: dict[int, tuple[int, float, float, float, float]] = {}
     month_key: tuple[int, int] | None = None
     results: list[dict[str, object]] = []
+    rejected: list[tuple[str, str, str]] = []
+    rejected_count = 0
 
     def flush() -> None:
         nonlocal month_rows, month_key
@@ -100,7 +102,12 @@ def convert_symbol(root: Path, symbol: str, archives: list[Path]) -> list[dict[s
                     raw = raw_bytes.decode("ascii").strip()
                     if not raw:
                         continue
-                    archive_rows.append(parse_row(raw, archive_path))
+                    try:
+                        archive_rows.append(parse_row(raw, archive_path))
+                    except ValueError as error:
+                        rejected_count += 1
+                        if len(rejected) < 1000:
+                            rejected.append((archive_path.name, raw[:160], str(error)))
         # HistData occasionally places whole days out of order inside a ZIP
         # (AUDJPY 2012 is one example). Sort the archive before month flushing.
         for row in sorted(archive_rows, key=lambda item: item[0]):
@@ -113,6 +120,13 @@ def convert_symbol(root: Path, symbol: str, archives: list[Path]) -> list[dict[s
                 month_key = new_month
             month_rows[row[0]] = row
     flush()
+    if rejected_count:
+        output_root.mkdir(parents=True, exist_ok=True)
+        with (output_root / "rejected_rows.csv").open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["Archive", "Row", "Reason"])
+            writer.writerows(rejected)
+        print(f"{symbol}: rejected {rejected_count} invalid source rows (first {len(rejected)} recorded)", flush=True)
     return results
 
 

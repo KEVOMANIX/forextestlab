@@ -5,12 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, RotateCcw, X } from "lucide-react";
 
 import { EXCHANGE_ZONE, zoneOptionsAt } from "@/lib/chart/timezones";
-import {
-  TRADING_SESSIONS,
-  minutesToClock,
-  type SessionHourOverrides,
-  type TradingSessionDefinition,
-} from "@/lib/backtest/goto";
+import type { SessionHourOverrides } from "@/lib/backtest/goto";
 import type { EventImportance } from "@/lib/economic-calendar/types";
 import type { Timeframe } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
@@ -200,11 +195,11 @@ export type SettingsTab =
   | "templates";
 
 const TABS: { key: SettingsTab; label: string }[] = [
-  { key: "appearance", label: "Symbol" },
-  { key: "scales", label: "Scales & lines" },
+  { key: "appearance", label: "Appearance" },
+  { key: "scales", label: "Chart" },
   { key: "display", label: "Display" },
   { key: "trading", label: "Trading" },
-  { key: "risk", label: "Risk limits" },
+  { key: "risk", label: "Risk" },
   { key: "shortcuts", label: "Shortcuts" },
   { key: "templates", label: "Templates" },
 ];
@@ -219,6 +214,12 @@ const SHORTCUT_LABELS: Record<keyof ChartSettings["shortcuts"], string> = {
   distractionFree: "Distraction-free mode",
   reference: "Shortcut reference",
 };
+
+const SHORTCUT_GROUPS: { title: string; actions: (keyof ChartSettings["shortcuts"])[] }[] = [
+  { title: "Replay", actions: ["toggleReplay", "stepForward", "stepBack"] },
+  { title: "Orders", actions: ["buy", "sell"] },
+  { title: "Workspace", actions: ["distractionFree", "reference"] },
+];
 
 function shortcutName(value: string) {
   if (value === " ") return "Space";
@@ -293,7 +294,7 @@ export function ChartSettingsDialog({
         onContextMenu={(event) => event.preventDefault()}
         // Portaled outside `.app-shell`, so the scoped theme variables do not
         // reach it — these colours have to be explicit.
-        className="flex max-h-[min(34rem,calc(100vh-2rem))] w-[min(38rem,100%)] flex-col overflow-hidden rounded-xl border text-sm shadow-2xl outline-none"
+        className="flex max-h-[min(40rem,calc(100dvh-2rem))] w-[min(44rem,100%)] flex-col overflow-hidden rounded-xl border text-sm shadow-2xl outline-none"
         style={
           {
             backgroundColor: surface,
@@ -318,9 +319,9 @@ export function ChartSettingsDialog({
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
           <nav
-            className="flex w-36 shrink-0 flex-col gap-0.5 border-r p-2"
+            className="flex w-full shrink-0 gap-0.5 overflow-x-auto border-b p-2 sm:w-40 sm:flex-col sm:overflow-x-visible sm:border-b-0 sm:border-r"
             style={{ borderColor: line, backgroundColor: inset }}
             aria-label="Settings sections"
           >
@@ -330,7 +331,7 @@ export function ChartSettingsDialog({
                 type="button"
                 onClick={() => setTab(entry.key)}
                 aria-current={tab === entry.key ? "page" : undefined}
-                className={`rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors ${
                   tab === entry.key
                     ? "bg-brand-400/15 font-semibold text-brand-300"
                     : "opacity-75 hover:bg-white/[0.06] hover:opacity-100"
@@ -341,99 +342,47 @@ export function ChartSettingsDialog({
             ))}
           </nav>
 
-          <div className="min-w-0 flex-1 overflow-y-auto p-4">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
             {tab === "templates" && templates}
             {tab === "appearance" && (
-              <div className="space-y-4">
-                <ColorRow
-                  label="Up colour"
-                  value={settings.upColor}
-                  swatches={UP_SWATCHES}
-                  onChange={(upColor) => onChange({ upColor })}
-                />
-                <ColorRow
-                  label="Down colour"
-                  value={settings.downColor}
-                  swatches={DOWN_SWATCHES}
-                  onChange={(downColor) => onChange({ downColor })}
-                />
-                <ColorRow
-                  label="Background"
-                  value={settings.background}
-                  swatches={BACKGROUND_SWATCHES}
-                  onChange={(background) => onChange({ background })}
-                />
+              <div className="space-y-5">
+                <SettingsGroup title="Candles" description="Choose the colours used for rising and falling prices.">
+                  <ColorRow label="Up colour" value={settings.upColor} swatches={UP_SWATCHES} onChange={(upColor) => onChange({ upColor })} />
+                  <ColorRow label="Down colour" value={settings.downColor} swatches={DOWN_SWATCHES} onChange={(downColor) => onChange({ downColor })} />
+                </SettingsGroup>
+                <SettingsGroup title="Canvas">
+                  <ColorRow label="Background" value={settings.background} swatches={BACKGROUND_SWATCHES} onChange={(background) => onChange({ background })} />
+                  <ChoiceRow label="Chart text size" hint="Axis labels, legend and indicator chips." value={settings.chartTextSize} options={TEXT_SIZES} onChange={(chartTextSize) => onChange({ chartTextSize })} />
+                </SettingsGroup>
               </div>
             )}
 
             {tab === "scales" && (
-              <div className="space-y-1">
-                <ToggleRow
-                  label="Grid lines"
-                  checked={settings.grid}
-                  onToggle={() => onChange({ grid: !settings.grid })}
-                />
-                <ToggleRow
-                  label="Current price line"
-                  checked={settings.priceLine}
-                  onToggle={() => onChange({ priceLine: !settings.priceLine })}
-                />
-                <ToggleRow
-                  label="Magnet crosshair"
-                  hint="Snap the crosshair to the nearest OHLC value."
-                  checked={settings.magnet}
-                  onToggle={() => onChange({ magnet: !settings.magnet })}
-                />
-                <ToggleRow
-                  label="Trade history"
-                  hint="Entry and exit arrows for trades already closed."
-                  checked={settings.tradeHistory}
-                  onToggle={() => onChange({ tradeHistory: !settings.tradeHistory })}
-                />
-                <ToggleRow
-                  label="Open position lines"
-                  checked={settings.positionLines}
-                  onToggle={() => onChange({ positionLines: !settings.positionLines })}
-                />
-                <ToggleRow
-                  label="Drawings"
-                  checked={settings.drawings}
-                  onToggle={() => onChange({ drawings: !settings.drawings })}
-                />
-                <ToggleRow
-                  label="Lock all drawings"
-                  hint="Freezes every drawing against move and resize, without changing any drawing's own lock."
-                  checked={settings.drawingsLocked}
-                  onToggle={() => onChange({ drawingsLocked: !settings.drawingsLocked })}
-                />
-                <ToggleRow
-                  label="Economic calendar"
-                  hint="Flag the news releases on the time axis."
-                  checked={settings.economicEvents}
-                  onToggle={() => onChange({ economicEvents: !settings.economicEvents })}
-                />
-                {settings.economicEvents && (
-                  <ChoiceRow
-                    label="Show news rated"
-                    hint="Lower ratings add a great deal of routine data."
-                    value={settings.economicEventImportance}
-                    options={EVENT_IMPORTANCE_CHOICES}
-                    onChange={(economicEventImportance) => onChange({ economicEventImportance })}
-                  />
-                )}
+              <div className="space-y-5">
+                <SettingsGroup title="Guides">
+                  <ToggleRow label="Grid lines" checked={settings.grid} onToggle={() => onChange({ grid: !settings.grid })} />
+                  <ToggleRow label="Current price line" checked={settings.priceLine} onToggle={() => onChange({ priceLine: !settings.priceLine })} />
+                  <ToggleRow label="Magnet crosshair" hint="Snap to the nearest OHLC value." checked={settings.magnet} onToggle={() => onChange({ magnet: !settings.magnet })} />
+                </SettingsGroup>
+                <SettingsGroup title="Trades on chart">
+                  <ToggleRow label="Closed trade markers" hint="Show entry and exit arrows." checked={settings.tradeHistory} onToggle={() => onChange({ tradeHistory: !settings.tradeHistory })} />
+                  <ToggleRow label="Open position lines" hint="Show entry, stop and target levels." checked={settings.positionLines} onToggle={() => onChange({ positionLines: !settings.positionLines })} />
+                </SettingsGroup>
+                <SettingsGroup title="Drawings">
+                  <ToggleRow label="Show drawings" checked={settings.drawings} onToggle={() => onChange({ drawings: !settings.drawings })} />
+                  {settings.drawings && <ToggleRow label="Lock all drawings" hint="Prevent moving and resizing drawings." checked={settings.drawingsLocked} onToggle={() => onChange({ drawingsLocked: !settings.drawingsLocked })} />}
+                </SettingsGroup>
+                <SettingsGroup title="News events">
+                  <ToggleRow label="Economic calendar" hint="Mark news releases on the time axis." checked={settings.economicEvents} onToggle={() => onChange({ economicEvents: !settings.economicEvents })} />
+                  {settings.economicEvents && <ChoiceRow label="Show news rated" hint="Choose the lowest impact rating to show." value={settings.economicEventImportance} options={EVENT_IMPORTANCE_CHOICES} onChange={(economicEventImportance) => onChange({ economicEventImportance })} />}
+                </SettingsGroup>
               </div>
             )}
 
             {tab === "display" && (
-              <div className="space-y-1">
-                <ChoiceRow
-                  label="Text size"
-                  hint="Axis labels, the legend and indicator chips."
-                  value={settings.chartTextSize}
-                  options={TEXT_SIZES}
-                  onChange={(chartTextSize) => onChange({ chartTextSize })}
-                />
-                <label className="block px-2 pt-3">
+              <div className="space-y-5">
+                <SettingsGroup title="Time and labels">
+                <label className="block px-2">
                   <span className="mb-1.5 block text-[13px]">Time zone</span>
                   <span className="mb-1.5 block text-[11px] opacity-55">
                     Labels the axis, the crosshair and the session clock.
@@ -451,7 +400,8 @@ export function ChartSettingsDialog({
                     ))}
                   </select>
                 </label>
-                <div className="pt-3">
+                </SettingsGroup>
+                <SettingsGroup title="Workspace view">
                   <ToggleRow
                     label="Hide account figures"
                     hint="Masks balance, equity and P&L in the status bar — for recording and screen-sharing."
@@ -464,18 +414,21 @@ export function ChartSettingsDialog({
                     checked={settings.distractionFree}
                     onToggle={() => onChange({ distractionFree: !settings.distractionFree })}
                   />
-                </div>
+                </SettingsGroup>
               </div>
             )}
 
             {tab === "trading" && (
-              <div className="space-y-1">
+              <div className="space-y-5">
+                <SettingsGroup title="Order entry">
                 <ToggleRow
                   label="One-click trading"
                   hint="Buy and Sell send a market order immediately, with no confirmation."
                   checked={settings.oneClickTrading}
                   onToggle={() => onChange({ oneClickTrading: !settings.oneClickTrading })}
                 />
+                </SettingsGroup>
+                <SettingsGroup title="Trade review">
                 <ToggleRow
                   label="Pause to review a closed trade"
                   hint="When a stop or target fills, pause replay and open the journal card."
@@ -488,65 +441,23 @@ export function ChartSettingsDialog({
                   checked={settings.promptEntryReason}
                   onToggle={() => onChange({ promptEntryReason: !settings.promptEntryReason })}
                 />
-
-                <div className="mt-3 border-t app-border pt-3">
-                  <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide opacity-60">
-                    &quot;Go to&quot; session hours
-                  </p>
-                  {TRADING_SESSIONS.map((session) => (
-                    <SessionHoursRow
-                      key={session.id}
-                      session={session}
-                      override={settings.sessionHours[session.id]}
-                      onChange={(value) => {
-                        const next = { ...settings.sessionHours };
-                        if (value) next[session.id] = value;
-                        else delete next[session.id];
-                        onChange({ sessionHours: next });
-                      }}
-                    />
-                  ))}
-                  <p className="px-2 pt-1 text-[11px] opacity-55">
-                    Hours are read in each session&apos;s own zone. They only
-                    change where &quot;Go to&quot; jumps — not the cash-session
-                    convention anyone else&apos;s chart still uses.
-                  </p>
-                </div>
+                </SettingsGroup>
               </div>
             )}
 
             {tab === "risk" && (
-              <div className="space-y-2">
-                <NumberRow
-                  label="Maximum risk per trade"
-                  suffix="%"
-                  value={settings.maxRiskPerTradePercent}
-                  onChange={(maxRiskPerTradePercent) => onChange({ maxRiskPerTradePercent })}
-                />
-                <NumberRow
-                  label="Daily loss limit"
-                  suffix="%"
-                  value={settings.dailyLossLimitPercent}
-                  onChange={(dailyLossLimitPercent) => onChange({ dailyLossLimitPercent })}
-                />
-                <NumberRow
-                  label="Maximum drawdown"
-                  suffix="%"
-                  value={settings.maxDrawdownLimitPercent}
-                  onChange={(maxDrawdownLimitPercent) => onChange({ maxDrawdownLimitPercent })}
-                />
-                <NumberRow
-                  label="Session trade limit"
-                  integer
-                  value={settings.sessionTradeLimit}
-                  onChange={(sessionTradeLimit) => onChange({ sessionTradeLimit })}
-                />
-                <NumberRow
-                  label="Session profit goal"
-                  prefix="$"
-                  value={settings.sessionGoalAmount}
-                  onChange={(sessionGoalAmount) => onChange({ sessionGoalAmount })}
-                />
+              <div className="space-y-5">
+                <SettingsGroup title="Per trade">
+                  <NumberRow label="Maximum risk per trade" suffix="%" value={settings.maxRiskPerTradePercent} onChange={(maxRiskPerTradePercent) => onChange({ maxRiskPerTradePercent })} />
+                </SettingsGroup>
+                <SettingsGroup title="Loss limits">
+                  <NumberRow label="Daily loss limit" suffix="%" value={settings.dailyLossLimitPercent} onChange={(dailyLossLimitPercent) => onChange({ dailyLossLimitPercent })} />
+                  <NumberRow label="Maximum drawdown" suffix="%" value={settings.maxDrawdownLimitPercent} onChange={(maxDrawdownLimitPercent) => onChange({ maxDrawdownLimitPercent })} />
+                </SettingsGroup>
+                <SettingsGroup title="Session goals">
+                  <NumberRow label="Session trade limit" integer value={settings.sessionTradeLimit} onChange={(sessionTradeLimit) => onChange({ sessionTradeLimit })} />
+                  <NumberRow label="Session profit goal" prefix="$" value={settings.sessionGoalAmount} onChange={(sessionGoalAmount) => onChange({ sessionGoalAmount })} />
+                </SettingsGroup>
                 <p className="px-2 pt-2 text-[11px] opacity-55">
                   Use 0 to disable a limit. A limit blocks new entries; it never
                   force-closes a position you already hold.
@@ -555,9 +466,9 @@ export function ChartSettingsDialog({
             )}
 
             {tab === "shortcuts" && (
-              <div className="space-y-1">
-                {(Object.keys(SHORTCUT_LABELS) as (keyof ChartSettings["shortcuts"])[]).filter(action => action !== "bookmark").map(
-                  (action) => (
+              <div className="space-y-5">
+                {SHORTCUT_GROUPS.map((group) => <SettingsGroup key={group.title} title={group.title}>
+                  {group.actions.map((action) => (
                     <div
                       key={action}
                       className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5"
@@ -598,8 +509,8 @@ export function ChartSettingsDialog({
                           : shortcutName(settings.shortcuts[action])}
                       </button>
                     </div>
-                  ),
-                )}
+                  ))}
+                </SettingsGroup>)}
                 <p className="px-2 pt-2 text-[11px] opacity-55">
                   Click a key, then press the one you want. Escape abandons the
                   change; a key already in use is refused.
@@ -632,6 +543,26 @@ export function ChartSettingsDialog({
       </div>
     </div>,
     document.body,
+  );
+}
+
+function SettingsGroup({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-current/15 p-2.5">
+      <div className="px-2 pb-2">
+        <h3 className="text-[11px] font-bold uppercase tracking-[.13em] opacity-70">{title}</h3>
+        {description && <p className="mt-1 text-[11px] leading-relaxed opacity-55">{description}</p>}
+      </div>
+      <div className="space-y-2">{children}</div>
+    </section>
   );
 }
 
@@ -704,76 +635,6 @@ function NumberRow({
         {suffix}
       </span>
     </label>
-  );
-}
-
-function clockToMinutes(value: string): number | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(value);
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return null;
-  return hour * 60 + minute;
-}
-
-/**
- * One named session's hours, editable in its own zone. Shows the built-in
- * hours until a trader changes one, at which point both fields become an
- * override together — a session opening after it closes reads as a mistake,
- * not an overnight session, so there is no "closes after midnight" case to
- * design around here.
- */
-function SessionHoursRow({
-  session,
-  override,
-  onChange,
-}: {
-  session: TradingSessionDefinition;
-  override?: { openMinutes: number; closeMinutes: number; zone?: string };
-  onChange: (value: { openMinutes: number; closeMinutes: number; zone?: string } | null) => void;
-}) {
-  const open = override?.openMinutes ?? session.openMinutes;
-  const close = override?.closeMinutes ?? session.closeMinutes;
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5">
-      <span className="min-w-0">
-        <span className="block text-[13px]">{session.label}</span>
-        <span className="mt-0.5 block text-[11px] opacity-55">{override?.zone ?? session.zone}</span>
-      </span>
-      <span className="flex shrink-0 items-center gap-1">
-        <input
-          type="time"
-          aria-label={`${session.label} open`}
-          value={minutesToClock(open)}
-          onChange={(event) => {
-            const minutes = clockToMinutes(event.target.value);
-            if (minutes != null) onChange({ ...override, openMinutes: minutes, closeMinutes: close });
-          }}
-          className="w-[5.5rem] rounded border border-current/25 bg-transparent px-1.5 py-1 text-[12px] font-mono outline-none focus:border-brand-400"
-        />
-        <span className="opacity-40">–</span>
-        <input
-          type="time"
-          aria-label={`${session.label} close`}
-          value={minutesToClock(close)}
-          onChange={(event) => {
-            const minutes = clockToMinutes(event.target.value);
-            if (minutes != null) onChange({ ...override, openMinutes: open, closeMinutes: minutes });
-          }}
-          className="w-[5.5rem] rounded border border-current/25 bg-transparent px-1.5 py-1 text-[12px] font-mono outline-none focus:border-brand-400"
-        />
-        <button
-          type="button"
-          disabled={!override}
-          onClick={() => onChange(null)}
-          aria-label={`Reset ${session.label} hours to the default`}
-          title="Reset to default"
-          className="grid h-6 w-6 shrink-0 place-items-center rounded opacity-55 hover:opacity-100 disabled:opacity-20 disabled:hover:opacity-20"
-        >
-          <RotateCcw size={12} aria-hidden />
-        </button>
-      </span>
-    </div>
   );
 }
 

@@ -120,18 +120,18 @@ test("one settings dialog holds the chart, trading, risk and shortcut sections",
   await expect(dialog).toBeVisible();
 
   for (const section of [
-    "Symbol",
-    "Scales & lines",
+    "Appearance",
+    "Chart",
     "Display",
     "Trading",
-    "Risk limits",
+    "Risk",
     "Shortcuts",
   ]) {
     await expect(dialog.getByRole("button", { name: section, exact: true })).toBeVisible();
   }
 
   // Risk limits came from the panel that used to live behind its own icon.
-  await dialog.getByRole("button", { name: "Risk limits", exact: true }).click();
+  await dialog.getByRole("button", { name: "Risk", exact: true }).click();
   await expect(dialog.getByText("Daily loss limit")).toBeVisible();
   await expect(dialog.getByText("Session profit goal")).toBeVisible();
 
@@ -144,6 +144,7 @@ test("one settings dialog holds the chart, trading, risk and shortcut sections",
   await expect(
     dialog.getByRole("switch", { name: "One-click trading" }),
   ).toHaveCount(1);
+  await expect(dialog.getByText('"Go to" session hours')).toHaveCount(0);
 
   // Display carries the session-level toggles.
   await dialog.getByRole("button", { name: "Display", exact: true }).click();

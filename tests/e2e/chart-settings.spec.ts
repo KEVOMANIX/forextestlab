@@ -83,7 +83,7 @@ test("right-click settings toggle what the chart draws, and survive a reload", a
   await expect(page.getByTestId("add-stop-loss-handle")).toHaveCount(1);
 
   panel = await openSettings(page);
-  await panel.getByRole("button", { name: "Scales & lines" }).click();
+  await panel.getByRole("button", { name: "Chart", exact: true }).click();
   await panel.getByRole("switch", { name: "Open position lines" }).click();
   await expect(page.getByTestId("position-entry-line")).toHaveCount(0);
   await expect(page.getByTestId("stop-loss-line")).toHaveCount(0);

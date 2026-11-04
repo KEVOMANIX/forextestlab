@@ -82,7 +82,7 @@ export function AnalyticsEquityChart({
   const barWidth = Math.max(1, Math.min(16, (plotWidth - 8) / Math.max(1, plotted.length - 1) - 1));
 
   return (
-    <section className="min-w-0 rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-[0_18px_55px_-38px_rgba(0,0,0,0.9)] sm:p-5">
+    <section className="min-w-0 self-start rounded-2xl border app-border bg-[var(--app-panel)] p-4 shadow-[0_18px_55px_-38px_rgba(0,0,0,0.9)] sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--app-accent-text)]">Equity curve</h2>

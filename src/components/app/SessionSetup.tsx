@@ -54,6 +54,9 @@ interface SessionSetupProps {
 // enough to wrap instead of scrolling off the edge of the column.
 const MARKET_CATEGORIES = ["All", "Stocks", "Futures", "Forex", "Crypto", "Indices", "Metals", "Energies"] as const;
 type MarketCategory = (typeof MARKET_CATEGORIES)[number];
+type MarketSource = "dukascopy" | "histdata";
+type MarketListing = MarketSymbol & { source: MarketSource };
+const sourceName = (source: MarketSource) => source === "dukascopy" ? "Dukascopy" : "HistData";
 
 
 /**
@@ -64,21 +67,23 @@ type MarketCategory = (typeof MARKET_CATEGORIES)[number];
  * current selection visible even when it has been filtered out of the list.
  */
 function MarketPicker({
-  symbols,
+  listings,
   loading,
   selected,
+  selectedSource,
   singleSelect,
   isLocked = () => false,
   onToggle,
   onReset,
 }: {
-  symbols: MarketSymbol[];
+  listings: MarketListing[];
   loading: boolean;
   selected: string[];
+  selectedSource: MarketSource;
   singleSelect: boolean;
   /** Markets outside the plan: listed so they can be discovered, but locked. */
   isLocked?: (symbol: string) => boolean;
-  onToggle: (symbol: string) => void;
+  onToggle: (listing: MarketListing) => void;
   onReset: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -89,16 +94,16 @@ function MarketPicker({
     onClose: () => setOpen(false),
   });
 
-  const enabled = useMemo(() => symbols.filter((item) => item.enabled), [symbols]);
+  const enabled = useMemo(() => listings.filter((item) => item.enabled), [listings]);
 
   const counts = useMemo(() => {
-    const totals = new Map<MarketCategory, number>([["All", symbols.length]]);
-    for (const item of symbols) {
+    const totals = new Map<MarketCategory, number>([["All", listings.length]]);
+    for (const item of listings) {
       const group = marketCategory(item);
       totals.set(group, (totals.get(group) ?? 0) + 1);
     }
     return totals;
-  }, [symbols]);
+  }, [listings]);
 
   const categories = useMemo(
     () => MARKET_CATEGORIES.filter((item) => (counts.get(item) ?? 0) > 0),
@@ -107,18 +112,18 @@ function MarketPicker({
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return symbols.filter((item) => {
+    return listings.filter((item) => {
       if (category !== "All" && marketCategory(item) !== category) return false;
       if (!needle) return true;
-      return `${item.symbol} ${item.displayName} ${describeSymbol(item.symbol)}`
+      return `${item.symbol} ${item.displayName} ${describeSymbol(item.symbol)} ${sourceName(item.source)}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [category, symbols, query]);
+  }, [category, listings, query]);
 
   const selectedItems = useMemo(
-    () => selected.map((symbol) => enabled.find((item) => item.symbol === symbol)).filter(Boolean) as MarketSymbol[],
-    [enabled, selected],
+    () => selected.map((symbol) => enabled.find((item) => item.symbol === symbol && item.source === selectedSource)).filter(Boolean) as MarketListing[],
+    [enabled, selected, selectedSource],
   );
 
   const closePicker = () => {
@@ -144,7 +149,7 @@ function MarketPicker({
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold">{loading ? "Loading markets…" : "Choose markets"}</span>
           <span className="mt-0.5 block truncate text-xs app-muted">
-            {selectedItems.length > 0 ? selectedItems.map((item) => item.displayName).join(", ") : "Search the complete market catalogue"}
+            {selectedItems.length > 0 ? `${selectedItems.map((item) => item.displayName).join(", ")} · ${sourceName(selectedSource)}` : "Search markets from both data providers"}
           </span>
         </span>
         <ChevronRight size={16} className="shrink-0 app-muted" aria-hidden />
@@ -154,8 +159,8 @@ function MarketPicker({
         <div className="mt-2 flex flex-wrap gap-1.5">
           {selectedItems.map((item) => (
             <span key={item.symbol} className="inline-flex items-center gap-1 rounded-md border app-border px-2 py-1 font-mono text-[11px] font-semibold">
-              {item.displayName}
-              {!singleSelect && <button type="button" aria-label={`Remove ${item.displayName}`} onClick={() => onToggle(item.symbol)}><X size={11} aria-hidden /></button>}
+              {item.displayName} <span className="font-sans font-normal app-muted">{sourceName(item.source)}</span>
+              {!singleSelect && <button type="button" aria-label={`Remove ${item.displayName}`} onClick={() => onToggle(item)}><X size={11} aria-hidden /></button>}
             </span>
           ))}
         </div>
@@ -174,7 +179,7 @@ function MarketPicker({
             <header className="flex items-center justify-between gap-4 border-b app-border px-5 py-4">
               <div>
                 <h2 id="market-picker-title" className="text-lg font-semibold">Choose markets</h2>
-                <p className="mt-0.5 text-xs app-muted">{selected.length} selected · {enabled.length} markets with data</p>
+                <p className="mt-0.5 text-xs app-muted">{selected.length} selected · {enabled.length} provider listings with data</p>
               </div>
               <button type="button" onClick={closePicker} aria-label="Close market picker" className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><X size={17} aria-hidden /></button>
             </header>
@@ -199,7 +204,7 @@ function MarketPicker({
               ) : visible.length > 0 ? (
                 <div className="space-y-0.5">
                   {visible.map((item) => {
-                    const active = selected.includes(item.symbol);
+                    const active = selectedSource === item.source && selected.includes(item.symbol);
                     const locked = isLocked(item.symbol);
                     const group = marketCategory(item);
                     const base = item.baseCurrency;
@@ -214,18 +219,24 @@ function MarketPicker({
                       {active && <Check size={15} className="shrink-0 text-[var(--app-accent-text)]" aria-hidden />}
                       {locked && <span className="shrink-0 rounded-md bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold text-blue-400">Pro</span>}
                       {!item.enabled && <span className="shrink-0 text-[11px] app-muted">No data</span>}
-                      <span className="hidden w-16 shrink-0 text-right text-[11px] app-muted sm:block">{group}</span>
+                      <span className="flex w-[5.75rem] shrink-0 items-center justify-end gap-1.5 text-[11px] app-muted sm:w-28" title={`${sourceName(item.source)} · ${group}`}>
+                        <span className="truncate">{sourceName(item.source)}</span>
+                        <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold ${item.source === "histdata" ? "bg-sky-500/15 text-sky-500" : "bg-emerald-500/15 text-emerald-500"}`} aria-hidden>{item.source === "histdata" ? "H" : "D"}</span>
+                      </span>
                     </>;
-                    if (locked && item.enabled) return <ProLock key={item.symbol} feature="markets" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left opacity-70 transition-colors hover:bg-[var(--app-panel-2)] hover:opacity-100">{row}</ProLock>;
-                    return <button key={item.symbol} type="button" disabled={!item.enabled} aria-pressed={active} onClick={() => { onToggle(item.symbol); if (singleSelect) closePicker(); }} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${active ? "bg-[var(--app-accent-wash)]" : "hover:bg-[var(--app-panel-2)]"}`}>{row}</button>;
+                    if (locked && item.enabled) return <ProLock key={`${item.source}:${item.symbol}`} feature="markets" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left opacity-70 transition-colors hover:bg-[var(--app-panel-2)] hover:opacity-100">{row}</ProLock>;
+                    return <button key={`${item.source}:${item.symbol}`} type="button" disabled={!item.enabled} aria-pressed={active} onClick={() => { onToggle(item); if (singleSelect) closePicker(); }} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${active ? "bg-[var(--app-accent-wash)]" : "hover:bg-[var(--app-panel-2)]"}`}>{row}</button>;
                   })}
                 </div>
               ) : <p className="py-10 text-center text-sm app-muted">No markets match your search.</p>}
             </div>
 
             <footer className="flex items-center justify-between gap-3 border-t app-border px-5 py-3">
-              <button type="button" onClick={onReset} disabled={selected.length === 0} className="text-xs font-medium app-muted hover:text-[var(--app-text)] disabled:opacity-40">Clear selection</button>
-              <button type="button" onClick={closePicker} className="btn-primary px-5 py-2">Done · {selected.length}</button>
+              <div className="min-w-0">
+                <button type="button" onClick={onReset} disabled={selected.length === 0} className="text-xs font-medium app-muted hover:text-[var(--app-text)] disabled:opacity-40">Clear selection</button>
+                <p className="mt-0.5 text-[11px] app-muted">One data provider per replay</p>
+              </div>
+              <button type="button" onClick={closePicker} className="btn-primary shrink-0 px-5 py-2">Done · {selected.length}</button>
             </footer>
           </section>
         </div>
@@ -463,11 +474,10 @@ function SessionDatePicker({
 }
 
 export function SessionSetup({ initialMarket, initialChallenge = null, onStart, busy, error, entitlements }: SessionSetupProps) {
-  const [dataSource, setDataSource] = useState<"dukascopy" | "histdata">("dukascopy");
-  const [histdataAvailable, setHistdataAvailable] = useState(false);
+  const [dataSource, setDataSource] = useState<MarketSource>("dukascopy");
   const [name, setName] = useState("");
   const [tagsText, setTagsText] = useState("");
-  const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
+  const [listings, setListings] = useState<MarketListing[]>([]);
   const [loadingSymbols, setLoadingSymbols] = useState(true);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [range, setRange] = useState<{ startTime: number; endTime: number } | null>(null);
@@ -497,28 +507,33 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
 
   useEffect(() => {
     let active = true;
-    void fetchSymbols("histdata").then((list) => {
-      if (active) setHistdataAvailable(list.some((symbol) => symbol.enabled));
-    }).catch(() => undefined);
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
     setLoadingSymbols(true);
-    setSelectedSymbols([]);
-    setRange(null);
-    setAvailableRanges([]);
-    void fetchSymbols(dataSource)
-      .then((list) => {
+    void Promise.allSettled([fetchSymbols("dukascopy"), fetchSymbols("histdata")])
+      .then(([dukResult, histResult]) => {
         if (!active) return;
-        setSymbols(list);
-        const usable = (item: MarketSymbol) => item.enabled && !symbolLocked(item.symbol);
-        const firstEnabled = list.find((item) => usable(item) && item.symbol === initialMarket) ?? list.find(usable);
-        if (firstEnabled) setSelectedSymbols([firstEnabled.symbol]);
+        const dukascopy = dukResult.status === "fulfilled" ? dukResult.value : [];
+        const histdata = histResult.status === "fulfilled" ? histResult.value : [];
+        const histBySymbol = new Map(histdata.map((item) => [item.symbol, item]));
+        const combined: MarketListing[] = dukascopy.flatMap((item) => {
+          const sibling = histBySymbol.get(item.symbol);
+          return [
+            { ...item, source: "dukascopy" as const },
+            ...(sibling ? [{ ...sibling, source: "histdata" as const }] : []),
+          ];
+        });
+        for (const item of histdata) {
+          if (!dukascopy.some((duk) => duk.symbol === item.symbol)) combined.push({ ...item, source: "histdata" });
+        }
+        setListings(combined);
+        const usable = (item: MarketListing) => item.enabled && !symbolLocked(item.symbol);
+        const firstEnabled = combined.find((item) => usable(item) && item.symbol === initialMarket) ?? combined.find(usable);
+        if (firstEnabled) {
+          setDataSource(firstEnabled.source);
+          setSelectedSymbols([firstEnabled.symbol]);
+        }
       })
       .catch(() => {
-        if (active) setSymbols([]);
+        if (active) setListings([]);
       })
       .finally(() => {
         if (active) setLoadingSymbols(false);
@@ -526,7 +541,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     return () => {
       active = false;
     };
-  }, [dataSource, initialMarket, symbolLocked]);
+  }, [initialMarket, symbolLocked]);
 
   useEffect(() => {
     if (selectedSymbols.length === 0) {
@@ -642,6 +657,17 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     );
   }
 
+  function toggleMarket(item: MarketListing) {
+    if (item.source !== dataSource) {
+      // A replay has one price source. Choosing another provider starts a new
+      // selection from that provider, even when the ticker is the same.
+      setDataSource(item.source);
+      setSelectedSymbols([item.symbol]);
+      return;
+    }
+    toggleSymbol(item.symbol);
+  }
+
   function handleStart(event: React.FormEvent) {
     event.preventDefault();
     if (!range || !canStart) return;
@@ -710,17 +736,6 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {histdataAvailable && (
-          <div className="flex flex-wrap items-center gap-2 border-b app-border px-5 py-3 sm:px-6">
-            <span className="mr-2 text-xs font-medium app-muted">Market data</span>
-            {(["dukascopy", "histdata"] as const).map((source) => (
-              <button key={source} type="button" onClick={() => setDataSource(source)} aria-pressed={dataSource === source}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${dataSource === source ? "border-brand-400 bg-brand-400/10 text-brand-300" : "app-border app-muted hover:bg-[var(--app-panel-2)]"}`}>
-                {source === "dukascopy" ? "Dukascopy" : "HistData"}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="grid shrink-0 gap-4 border-b app-border px-5 py-3 sm:px-6 lg:grid-cols-2 lg:items-start">
           <section>
             <div className="mb-2 flex items-center gap-2">
@@ -741,12 +756,13 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
           </section>
 
           <MarketPicker
-            symbols={symbols}
+            listings={listings}
             loading={loadingSymbols}
             selected={selectedSymbols}
+            selectedSource={dataSource}
             singleSelect={entitlements.maxPairsPerSession === 1}
             isLocked={symbolLocked}
-            onToggle={toggleSymbol}
+            onToggle={toggleMarket}
             onReset={() => setSelectedSymbols([])}
           />
         </div>

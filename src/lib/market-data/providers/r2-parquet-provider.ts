@@ -558,21 +558,36 @@ export class R2ParquetProvider implements MarketDataProvider {
     const last = months[months.length - 1];
     if (!first || !last) return [];
 
+    const groups: StoredMonth[][] = [];
+    for (const month of months) {
+      const group = groups[groups.length - 1];
+      const previous = group?.[group.length - 1];
+      if (!group || !previous || (month.year * 12 + month.month) - (previous.year * 12 + previous.month) > 1) groups.push([month]);
+      else group.push(month);
+    }
+    // Preserve the existing Dukascopy range behaviour; HistData can contain
+    // missing yearly downloads, so expose each contiguous span separately.
+    const spans = sourceForConfig(config) === "histdata-r2" ? groups : [months];
+
     // The exact first and last candle need the first and last months decoded.
     // Remembered per pair of objects, so picking a market in setup does not
     // download two months each time; a new month or a refreshed last month
     // (its key is the same, so the entry also expires) recomputes it.
-    const cacheKey = `${first.key}|${last.key}`;
+    const cacheKey = spans.map((group) => `${group[0]?.key}|${group[group.length - 1]?.key}`).join(";");
     const cached = rangeCache.get(`${config.prefix}:${symbol}`);
     if (cached && cached.key === cacheKey && cached.expiresAt > Date.now()) return cached.ranges;
 
-    const [firstCandles, lastCandles] = await Promise.all([
-      readMonth(config, first),
-      first.key === last.key ? readMonth(config, first) : readMonth(config, last),
-    ]);
-    const startTime = firstCandles[0]?.timestamp;
-    const endTime = lastCandles[lastCandles.length - 1]?.timestamp;
-    const ranges = startTime !== undefined && endTime !== undefined ? [{ startTime, endTime }] : [];
+    const ranges = (await Promise.all(spans.map(async (group) => {
+      const spanFirst = group[0]!;
+      const spanLast = group[group.length - 1]!;
+      const [firstCandles, lastCandles] = await Promise.all([
+        readMonth(config, spanFirst),
+        spanFirst.key === spanLast.key ? readMonth(config, spanFirst) : readMonth(config, spanLast),
+      ]);
+      const startTime = firstCandles[0]?.timestamp;
+      const endTime = lastCandles[lastCandles.length - 1]?.timestamp;
+      return startTime !== undefined && endTime !== undefined ? { startTime, endTime } : null;
+    }))).filter((item): item is DataRange => item !== null);
     rangeCache.set(`${config.prefix}:${symbol}`, { key: cacheKey, ranges, expiresAt: Date.now() + RANGE_CACHE_TTL_MS });
     return ranges;
   }

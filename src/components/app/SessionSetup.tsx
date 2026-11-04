@@ -471,6 +471,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
   const [loadingSymbols, setLoadingSymbols] = useState(true);
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>([]);
   const [range, setRange] = useState<{ startTime: number; endTime: number } | null>(null);
+  const [availableRanges, setAvailableRanges] = useState<{ startTime: number; endTime: number }[]>([]);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [periodDays, setPeriodDays] = useState(() =>
@@ -507,6 +508,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     setLoadingSymbols(true);
     setSelectedSymbols([]);
     setRange(null);
+    setAvailableRanges([]);
     void fetchSymbols(dataSource)
       .then((list) => {
         if (!active) return;
@@ -529,6 +531,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
   useEffect(() => {
     if (selectedSymbols.length === 0) {
       setRange(null);
+      setAvailableRanges([]);
       setStart("");
       setEnd("");
       setLoadingRange(false);
@@ -537,35 +540,35 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
     let cancelled = false;
     setLoadingRange(true);
     setRange(null);
+    setAvailableRanges([]);
     void Promise.all(
-      selectedSymbols.map(async (symbol) => {
-        const ranges = await fetchRanges(symbol, dataSource);
-        return ranges[0] ?? null;
-      }),
+      selectedSymbols.map((symbol) => fetchRanges(symbol, dataSource)),
     )
-      .then((ranges) => {
+      .then((rangesBySymbol) => {
         if (cancelled) return;
         setLoadingRange(false);
-        if (ranges.some((item) => item === null)) {
+        if (rangesBySymbol.some((ranges) => ranges.length === 0)) {
           setStart("");
           setEnd("");
           return;
         }
-        const available = ranges as { startTime: number; endTime: number }[];
-        const commonRange = {
-          startTime: Math.max(...available.map((item) => item.startTime)),
-          endTime: Math.min(...available.map((item) => item.endTime)),
-        };
-        if (commonRange.endTime <= commonRange.startTime) {
+        const common = rangesBySymbol.reduce<{ startTime: number; endTime: number }[]>((current, ranges) =>
+          current.flatMap((left) => ranges.map((right) => ({
+            startTime: Math.max(left.startTime, right.startTime),
+            endTime: Math.min(left.endTime, right.endTime),
+          })).filter((item) => item.endTime > item.startTime)),
+        [{ startTime: Number.NEGATIVE_INFINITY, endTime: Number.POSITIVE_INFINITY }]);
+        if (common.length === 0) {
           setStart("");
           setEnd("");
           return;
         }
-        setRange(commonRange);
+        setAvailableRanges(common);
+        const chosen = common[common.length - 1]!;
+        setRange(chosen);
         setStart((current) => {
-          if (!current) return toDateInput(commonRange.startTime);
-          const selected = newYorkDateStart(current);
-          return toDateInput(Math.min(commonRange.endTime, Math.max(commonRange.startTime, selected)));
+          const selected = current ? newYorkDateStart(current) : Number.NaN;
+          return current && selected >= chosen.startTime && selected <= chosen.endTime ? current : toDateInput(chosen.startTime);
         });
       })
       .catch(() => {
@@ -906,6 +909,22 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
                 Free sessions cover up to {entitlements.maxSessionDays} days, from any point in history.
                 <ProLock feature="history" label="Longer periods" />
               </p>
+            )}
+
+            {availableRanges.length > 1 && (
+              <div className="mt-3">
+                <label htmlFor="setup-history-span" className="mb-1.5 block text-sm font-medium">Available history</label>
+                <select id="setup-history-span" className="app-input w-full text-sm" value={range ? availableRanges.indexOf(range) : availableRanges.length - 1} onChange={(event) => {
+                  const selected = availableRanges[Number(event.target.value)];
+                  if (!selected) return;
+                  setRange(selected);
+                  setStart(toDateInput(selected.startTime));
+                  setEnd("");
+                }}>
+                  {availableRanges.map((item, index) => <option key={`${item.startTime}-${item.endTime}`} value={index}>{friendlyDate(toDateInput(item.startTime))} – {friendlyDate(toDateInput(item.endTime))}</option>)}
+                </select>
+                <p className="mt-1 text-[11px] app-muted">The source has a gap between these periods.</p>
+              </div>
             )}
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2">

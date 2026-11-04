@@ -1,6 +1,7 @@
 """Audit completed monthly Parquet and write the R2 upload manifest."""
 import csv
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8,8 +9,7 @@ import pyarrow.parquet as pq
 
 root = Path(sys.argv[1]).resolve()
 base = root / "parquet"
-rows = []
-for path in sorted((base / "histdata_market_data").rglob("*.parquet")):
+def inspect(path: Path) -> dict[str, object]:
     key = path.relative_to(base).as_posix()
     parquet = pq.ParquetFile(path)
     metadata = parquet.metadata
@@ -23,12 +23,22 @@ for path in sorted((base / "histdata_market_data").rglob("*.parquet")):
     last_date = datetime.fromtimestamp(last / 1000, timezone.utc)
     if (first_date.year, first_date.month) != (int(path.parent.name), int(path.stem)) or (last_date.year, last_date.month) != (int(path.parent.name), int(path.stem)):
         raise ValueError(f"Timestamp outside object month: {key}")
-    rows.append({
+    return {
         "Symbol": path.parts[-3], "Key": key, "Candles": metadata.num_rows,
         "Bytes": path.stat().st_size,
         "FirstUtc": first_date.isoformat(),
         "LastUtc": last_date.isoformat(),
-    })
+    }
+
+paths = list((base / "histdata_market_data").rglob("*.parquet"))
+rows = []
+with ThreadPoolExecutor(max_workers=16) as executor:
+    futures = [executor.submit(inspect, path) for path in paths]
+    for future in as_completed(futures):
+        rows.append(future.result())
+        if len(rows) % 1000 == 0:
+            print(f"Audited {len(rows)}/{len(paths)} Parquet months", flush=True)
+rows.sort(key=lambda row: str(row["Key"]))
 
 expected = {record["Symbol"] for record in csv.DictReader((root / "downloads_verified.csv").open(newline="", encoding="utf-8"))}
 found = {row["Symbol"] for row in rows}

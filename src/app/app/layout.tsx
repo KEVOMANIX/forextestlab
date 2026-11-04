@@ -44,11 +44,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="min-w-0 lg:col-start-2">
           <main id="main" className="min-h-[calc(100dvh-4rem)]">
             {previewFree && (
-              <form action={setPlanPreview} className="flex flex-wrap items-center justify-center gap-3 border-b border-amber-300/30 bg-amber-300/10 px-4 py-2 text-xs text-amber-100">
+              <form action={setPlanPreview} className="flex flex-wrap items-center justify-center gap-3 border-b border-amber-400/30 bg-amber-400/10 px-4 py-2 text-xs text-[var(--app-text)]">
                 <span><strong>Free plan preview.</strong> You&apos;re seeing the app as a Free account does. Only your account is affected.</span>
                 <input type="hidden" name="mode" value="off" />
-                <input type="hidden" name="returnTo" value="/app" />
-                <button type="submit" className="rounded-md border border-amber-200/40 px-2.5 py-1 font-semibold hover:bg-amber-200/10">Exit preview</button>
+                <input type="hidden" name="returnTo" value="/admin" />
+                <button type="submit" className="rounded-md border border-amber-400/50 px-2.5 py-1 font-semibold hover:bg-amber-400/15">Exit preview</button>
               </form>
             )}
             {children}

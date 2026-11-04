@@ -45,10 +45,15 @@ export async function setPlanPreview(formData: FormData) {
   const store = await cookies();
   if (formData.get("mode") === "free") {
     store.set(PLAN_PREVIEW_COOKIE, "free", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 7 * 24 * 60 * 60 });
+    revalidatePath("/app", "layout");
+    revalidatePath("/admin", "layout");
     redirect("/app/backtest");
   }
-  store.delete(PLAN_PREVIEW_COOKIE);
-  redirect(String(formData.get("returnTo") ?? "").startsWith("/") ? String(formData.get("returnTo")) : "/app");
+  store.set(PLAN_PREVIEW_COOKIE, "", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 0 });
+  revalidatePath("/app", "layout");
+  revalidatePath("/admin", "layout");
+  const returnTo = String(formData.get("returnTo") ?? "");
+  redirect(returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/app");
 }
 
 const SELF_CHANGE = "You can't change your own access. Ask another admin to do it.";

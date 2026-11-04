@@ -1,5 +1,6 @@
 "use client";
 
+import { setPlanPreview } from "@/app/admin/actions";
 import { drawingOrderDraft } from "@/lib/backtest/drawing-order";
 import type { DrawingJSON } from "@/lib/chart/drawing/types";
 
@@ -1180,6 +1181,15 @@ export function Backtester({
       </p>
       <TradingOnboarding />
 
+      {entitlements.preview && (
+        <form action={setPlanPreview} className="flex shrink-0 items-center justify-center gap-3 border-b border-amber-400/30 bg-amber-400/10 px-3 py-1.5 text-xs text-[var(--app-text)]">
+          <span>Viewing as Free</span>
+          <input type="hidden" name="mode" value="off" />
+          <input type="hidden" name="returnTo" value="/admin" />
+          <button type="submit" className="rounded-md border border-amber-400/50 px-2 py-0.5 font-semibold hover:bg-amber-400/15">Exit preview</button>
+        </form>
+      )}
+
       {!workspace.settings.distractionFree && <TerminalTopBar
         state={state}
         timeZone={workspace.settings.timeZone}
@@ -1242,7 +1252,7 @@ export function Backtester({
       </TerminalTopBar>}
 
       {workspace.settings.distractionFree && (
-        <div className="absolute right-3 top-3 z-50 flex items-center gap-2">
+        <div className={`absolute right-3 z-50 flex items-center gap-2 ${entitlements.preview ? "top-12" : "top-3"}`}>
           <SettingsButton onOpen={() => openSettings()} />
           <button type="button" onClick={() => workspace.updateSettings({ distractionFree: false })} className="rounded-lg border app-border bg-[var(--app-panel)]/90 px-3 py-2 text-xs font-semibold shadow-xl backdrop-blur">
             Exit focus mode

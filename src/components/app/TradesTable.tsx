@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { tradeExcursion } from "@/lib/backtest/exit-quality";
 import type { ClosedTrade } from "@/lib/backtest/types";
 import { formatNewYorkDateTime } from "@/lib/date-time";
+import { blindTimeLabel } from "@/lib/backtest/blind-replay";
 
 const PAGE_SIZE = 10;
 
@@ -23,8 +24,12 @@ export function TradesTable({
   trades,
   focusedTrade,
   showAll = false,
+  blindStartTime,
+  timeZone = "America/New_York",
 }: {
   trades: ClosedTrade[];
+  blindStartTime?: number;
+  timeZone?: string;
   /** Every trade on one page, without the pager: the PDF export uses it. */
   showAll?: boolean;
   /**
@@ -97,11 +102,11 @@ export function TradesTable({
                   <td className="px-3 py-2 font-semibold">{t.symbol ?? "—"}</td>
                   <td className="px-3 py-2">
                     {t.entryPrice}
-                    <span className="block app-muted">{fmtTime(t.entryTime)}</span>
+                    <span className="block app-muted">{blindStartTime == null ? fmtTime(t.entryTime) : blindTimeLabel(t.entryTime, blindStartTime, timeZone)}</span>
                   </td>
                   <td className="px-3 py-2">
                     {t.exitPrice}
-                    <span className="block app-muted">{fmtTime(t.exitTime)}</span>
+                    <span className="block app-muted">{blindStartTime == null ? fmtTime(t.exitTime) : blindTimeLabel(t.exitTime, blindStartTime, timeZone)}</span>
                   </td>
                   <td className="px-3 py-2">{t.lots}</td>
                   <td className="px-3 py-2">

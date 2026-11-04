@@ -1,0 +1,1 @@
+ALTER TABLE "BacktestSession" ADD COLUMN "blindMode" BOOLEAN NOT NULL DEFAULT false;

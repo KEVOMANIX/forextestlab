@@ -89,6 +89,7 @@ function cacheContext(key: string, candles: Candle[]): void {
 }
 
 export interface CreateSessionParams {
+  blindMode?: boolean;
   dataSource?: ReplayDataSource;
   name: string;
   tags?: string[];
@@ -636,6 +637,7 @@ export async function createSession(
 
   const config = buildSessionConfig({
     name: params.name,
+    blindMode: params.blindMode,
     symbols: params.symbols,
     tags: params.tags,
     symbol: def.symbol,
@@ -690,6 +692,7 @@ export async function createSession(
       timeframe: params.timeframe,
       startTime: BigInt(params.startTime),
       endTime: BigInt(params.endTime),
+      blindMode: Boolean(params.blindMode),
       status: state.status,
       speed: state.speed,
       visibleIndex: state.visibleIndex,

@@ -22,6 +22,9 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     return NextResponse.json({ ok: false, error: "Trade and analytics exports are part of Pro." }, { status: 403 });
   }
   const state = session.ctx.state;
+  if (state.config.blindMode && state.status !== "finished") {
+    return NextResponse.json({ ok: false, error: "Finish this blind replay before exporting dated trades." }, { status: 409 });
+  }
   const trades = analyticsTrades(state.closedTrades);
   return new NextResponse(tradesCsv(trades, state.config.symbol), {
     headers: {

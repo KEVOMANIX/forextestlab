@@ -7,6 +7,7 @@ const getCandles = vi.fn<(request: { symbol: string; startTime: number; endTime:
 
 vi.mock("@/lib/market-data", () => ({
   getMarketDataProvider: () => ({ getCandles }),
+  replayDataSourceFromStored: (source: string) => source,
 }));
 
 const { buildExitQualityReport } = await import("./exit-quality-server");

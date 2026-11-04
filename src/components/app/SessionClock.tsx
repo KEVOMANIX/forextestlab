@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { formatInZone, zoneOffsetLabel } from "@/lib/chart/timezones";
+import { blindTimeLabel } from "@/lib/backtest/blind-replay";
 import { TIMEFRAME_MS, type Timeframe } from "@/lib/market-data/types";
 
 /**
@@ -23,12 +24,14 @@ export function SessionClock({
   speed,
   running,
   zone,
+  blindStartTime,
 }: {
   candleTime: number | null;
   timeframe: Timeframe;
   speed: number;
   running: boolean;
   zone: string;
+  blindStartTime?: number;
 }) {
   const [now, setNow] = useState(candleTime);
   const candleArrivedAt = useRef<number>(0);
@@ -58,7 +61,7 @@ export function SessionClock({
       title={
         at == null
           ? undefined
-          : formatInZone(at, zone, {
+          : blindStartTime != null ? blindTimeLabel(at, blindStartTime, zone) : formatInZone(at, zone, {
               weekday: "long",
               day: "numeric",
               month: "short",

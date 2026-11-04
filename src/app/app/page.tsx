@@ -144,6 +144,7 @@ export default async function AppHome(props: { searchParams?: Promise<{ period?:
         timeframe: true,
         startTime: true,
         endTime: true,
+        blindMode: true,
         status: true,
         visibleIndex: true,
         visibleTime: true,

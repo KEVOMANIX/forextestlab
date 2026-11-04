@@ -35,6 +35,7 @@ export interface RenderCtx {
   candles: Candle[];
   /** The chart's display zone, so a drawing's label agrees with the axis. */
   timeZone: string;
+  blindStartTime?: number;
   theme: "dark" | "light";
   /**
    * The account the position tool sizes against.

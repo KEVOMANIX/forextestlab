@@ -4,6 +4,10 @@ import { actionSchema, createSessionSchema } from "@/lib/backtest/schemas";
 import { SYMBOL_DEFINITIONS } from "@/lib/market-data/symbols";
 
 describe("market symbol codes", () => {
+  it("accepts the persisted blind replay option", () => {
+    const parsed = createSessionSchema.parse({ name: "Blind test", blindMode: true, symbols: ["EURUSD"], startTime: 1, endTime: 2 });
+    expect(parsed.blindMode).toBe(true);
+  });
   // Index codes such as USA30IDXUSD are longer than a currency pair's six letters.
   it.each(SYMBOL_DEFINITIONS.map((definition) => definition.symbol))("starts a session on %s", (symbol) => {
     const parsed = createSessionSchema.safeParse({ name: "Test session", symbols: [symbol], startTime: 1, endTime: 2, startingBalance: "10000" });

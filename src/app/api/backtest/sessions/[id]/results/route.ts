@@ -16,5 +16,8 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
   if (!results) {
     return NextResponse.json({ ok: false, error: "Session not found." }, { status: 404 });
   }
+  if (results.state.config.blindMode && results.state.status !== "finished") {
+    return NextResponse.json({ ok: false, error: "Finish this blind replay to reveal its report." }, { status: 409 });
+  }
   return NextResponse.json({ ok: true, results });
 }

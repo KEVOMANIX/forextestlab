@@ -25,6 +25,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     const duplicate = await createSession({
       dataSource: replayDataSourceFromStored(source.ctx.state.dataSource),
       name: `${config.name || config.symbol} copy`,
+      blindMode: config.blindMode,
       tags: config.tags,
       symbols: config.symbols?.length ? config.symbols : [config.symbol],
       symbol: config.symbol,

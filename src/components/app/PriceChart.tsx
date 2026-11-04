@@ -64,6 +64,7 @@ import {
 import { formatInZone, resolveZone } from "@/lib/chart/timezones";
 import { zoneParts, zoneWallClockToUtc } from "@/lib/backtest/goto";
 import { barLabelTimestamp, barLabelZone, formatCrosshairLabel, formatTickMark, timeframeTickMarkMaxCharacters } from "@/lib/chart/tick-marks";
+import { blindTickLabel, blindTimeLabel } from "@/lib/backtest/blind-replay";
 import { historyBeforeReplay, mergeOpeningHistoryBucket } from "@/lib/chart/opening-history";
 import { aggregateCandles, candleBucketStart } from "@/lib/market-data/aggregation";
 import {
@@ -264,6 +265,7 @@ interface PriceChartProps {
   lastCandles: Candle[];
   replaySeries?: Candle[];
   replaySessionId?: string;
+  blindStartTime?: number;
   /** Reattach this cell to the live edge when replay starts or resumes. */
   replayRunning?: boolean;
   /** A newly loaded symbol must open on the session's current replay candle. */
@@ -774,6 +776,7 @@ function MarketSessionLayer({
   indicator,
   timeframe,
   chartTimeZone,
+  blindStartTime,
   crosshairX,
 }: {
   chart: IChartApi;
@@ -783,6 +786,7 @@ function MarketSessionLayer({
   timeframe: Timeframe;
   /** The axis zone, which can differ from the session's calculation zone. */
   chartTimeZone: string;
+  blindStartTime?: number;
   crosshairX: number | null;
 }) {
   // Range discovery is data work, not viewport work. Keeping it memoized means
@@ -865,7 +869,7 @@ function MarketSessionLayer({
             style={{ color: readableCanvasColor("#0b0f1a", session.lineColor), backgroundColor: session.lineColor,
               visibility: crosshairX != null && Math.abs(left - crosshairX) < 190 ? "hidden" : "visible" }}
           >
-            {formatInZone(timestamp, chartTimeZone, SESSION_LINE_AXIS_FORMAT)}
+            {blindStartTime == null ? formatInZone(timestamp, chartTimeZone, SESSION_LINE_AXIS_FORMAT) : blindTimeLabel(timestamp, blindStartTime, chartTimeZone)}
           </span>
         </div>,
       );
@@ -945,6 +949,7 @@ export default function PriceChart({
   lastCandles,
   replaySeries,
   replaySessionId,
+  blindStartTime,
   replayRunning = false,
   alignToReplayClockOnLoad = false,
   markers,
@@ -1008,6 +1013,8 @@ export default function PriceChart({
   const viewStorageKey = viewKey ?? storageKey;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
+  const blindStartTimeRef = useRef(blindStartTime);
+  blindStartTimeRef.current = blindStartTime;
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const contextSeriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const futureTimeSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
@@ -2294,17 +2301,17 @@ export default function PriceChart({
         ignoreWhitespaceIndices: false,
         shiftVisibleRangeOnNewBar: false,
         tickMarkFormatter: (time: Time, tickMarkType: number) =>
-          formatTickMark(chartTimeMs(time), tickMarkType, timeZoneRef.current, displayTimeframeRef.current),
+          blindStartTimeRef.current == null
+            ? formatTickMark(chartTimeMs(time), tickMarkType, timeZoneRef.current, displayTimeframeRef.current)
+            : blindTickLabel(chartTimeMs(time), tickMarkType, blindStartTimeRef.current, timeZoneRef.current),
       },
       localization: {
         // The zone is named once, in the axis corner, so the label does not
         // repeat an offset on every hover.
         timeFormatter: (time: Time) =>
-          formatCrosshairLabel(
-            chartTimeMs(time),
-            timeZoneRef.current,
-            TIMEFRAME_MS[displayTimeframeRef.current],
-          ),
+          blindStartTimeRef.current == null
+            ? formatCrosshairLabel(chartTimeMs(time), timeZoneRef.current, TIMEFRAME_MS[displayTimeframeRef.current])
+            : blindTimeLabel(chartTimeMs(time), blindStartTimeRef.current, timeZoneRef.current, TIMEFRAME_MS[displayTimeframeRef.current] < TIMEFRAME_MS["1d"]),
       },
       crosshair: { mode: CrosshairMode.Hidden },
       handleScroll: true,
@@ -2609,10 +2616,17 @@ export default function PriceChart({
         timeVisible: TIMEFRAME_MS[displayTimeframe] < TIMEFRAME_MS["1d"],
         tickMarkMaxCharacterLength: timeframeTickMarkMaxCharacters(displayTimeframe),
         tickMarkFormatter: (time: Time, tickMarkType: number) =>
-          formatTickMark(chartTimeMs(time), tickMarkType, settings.timeZone, displayTimeframe),
+          blindStartTime == null
+            ? formatTickMark(chartTimeMs(time), tickMarkType, settings.timeZone, displayTimeframe)
+            : blindTickLabel(chartTimeMs(time), tickMarkType, blindStartTime, settings.timeZone),
+      },
+      localization: {
+        timeFormatter: (time: Time) => blindStartTime == null
+          ? formatCrosshairLabel(chartTimeMs(time), settings.timeZone, TIMEFRAME_MS[displayTimeframe])
+          : blindTimeLabel(chartTimeMs(time), blindStartTime, settings.timeZone, TIMEFRAME_MS[displayTimeframe] < TIMEFRAME_MS["1d"]),
       },
     });
-  }, [settings.timeZone, displayTimeframe]);
+  }, [settings.timeZone, displayTimeframe, blindStartTime]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -3169,11 +3183,9 @@ export default function PriceChart({
     }
     if (point.at != null) {
       const at = point.at;
-      const label = formatCrosshairLabel(
-        at,
-        settings.timeZone,
-        TIMEFRAME_MS[displayTimeframe],
-      );
+      const label = blindStartTime == null
+        ? formatCrosshairLabel(at, settings.timeZone, TIMEFRAME_MS[displayTimeframe])
+        : blindTimeLabel(at, blindStartTime, settings.timeZone, TIMEFRAME_MS[displayTimeframe] < TIMEFRAME_MS["1d"]);
       items.push({
         id: "copy-time",
         label: `Copy time ${label}`,
@@ -3361,10 +3373,9 @@ export default function PriceChart({
     const stamp = rawCandlesRef.current.at(-1)?.timestamp ?? Date.now();
     // EURUSD-15m-2025-01-06-0859.png — sorts chronologically inside an instrument.
     const moment = new Date(stamp).toISOString();
-    const name = `${symbolLabel.replace(/[^\w.-]+/g, "")}-${displayTimeframe}-${moment.slice(
-      0,
-      10,
-    )}-${moment.slice(11, 16).replace(":", "")}.png`;
+    const name = blindStartTime == null
+      ? `${symbolLabel.replace(/[^\w.-]+/g, "")}-${displayTimeframe}-${moment.slice(0, 10)}-${moment.slice(11, 16).replace(":", "")}.png`
+      : `${symbolLabel.replace(/[^\w.-]+/g, "")}-${displayTimeframe}-blind-replay.png`;
 
     if (action === "download") {
       const link = document.createElement("a");
@@ -4331,6 +4342,7 @@ export default function PriceChart({
           chart={chartApi}
           series={priceSeries}
           timeZone={settings.timeZone}
+          blindStartTime={blindStartTime}
           theme={theme}
           tool={drawTool}
           keyboardEnabled={showControls}
@@ -4371,6 +4383,7 @@ export default function PriceChart({
             indicator={indicator}
             timeframe={displayTimeframe}
             chartTimeZone={settings.timeZone}
+            blindStartTime={blindStartTime}
             crosshairX={crosshairX}
           />
         ))}
@@ -4634,13 +4647,13 @@ export default function PriceChart({
                 {legend ? (
                   <>
                     <span className="text-[var(--chart-muted)]">
-                      {formatInZone(
-                        barLabelTimestamp(legend.at, TIMEFRAME_MS[displayTimeframe]),
-                        barLabelZone(TIMEFRAME_MS[displayTimeframe], settings.timeZone),
-                        TIMEFRAME_MS[displayTimeframe] >= TIMEFRAME_MS["1d"]
-                          ? LEGEND_DATE_ONLY
-                          : LEGEND_DATE_FORMAT,
-                      )}
+                      {blindStartTime == null
+                        ? formatInZone(
+                            barLabelTimestamp(legend.at, TIMEFRAME_MS[displayTimeframe]),
+                            barLabelZone(TIMEFRAME_MS[displayTimeframe], settings.timeZone),
+                            TIMEFRAME_MS[displayTimeframe] >= TIMEFRAME_MS["1d"] ? LEGEND_DATE_ONLY : LEGEND_DATE_FORMAT,
+                          )
+                        : blindTimeLabel(legend.at, blindStartTime, settings.timeZone, TIMEFRAME_MS[displayTimeframe] < TIMEFRAME_MS["1d"])}
                     </span>
                     <span className="h-3 w-px bg-[var(--app-border)]" aria-hidden />
                     {legend.kind === "ohlc" ? (
@@ -5211,6 +5224,7 @@ export default function PriceChart({
         return inst ? (
           <IndicatorSettingsDialog
             value={inst}
+            blindStartTime={blindStartTime}
             onChange={(patch) => updateIndicator(inst.id, patch)}
             onClose={() => setIndicatorEditing(null)}
             onPickAnchor={(key) => { setIndicatorEditing(null); setAnchorPick({ id: inst.id, key }); }}

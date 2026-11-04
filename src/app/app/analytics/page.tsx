@@ -67,7 +67,7 @@ export default async function AnalyticsHubPage({
     where: { userId: user.id, anonymous: false },
     orderBy: { updatedAt: "desc" },
     take: 50,
-    select: { id: true, symbol: true, timeframe: true, status: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, startingBalance: true, depositedFunds: true, balance: true, updatedAt: true, challengeStatus: true },
+    select: { id: true, symbol: true, timeframe: true, status: true, blindMode: true, startTime: true, endTime: true, visibleTime: true, visibleIndex: true, startingBalance: true, depositedFunds: true, balance: true, updatedAt: true, challengeStatus: true },
   });
   const metadataRows = sessions.length
     ? await prisma.$queryRaw<SessionMetadataRow[]>(Prisma.sql`
@@ -81,7 +81,7 @@ export default async function AnalyticsHubPage({
     : [];
   const metadata = new Map(metadataRows.map((row) => [row.id, row]));
   const choices = sessions
-    .filter((session) => !metadata.get(session.id)?.archived)
+    .filter((session) => !metadata.get(session.id)?.archived && !(session.blindMode && session.status !== "finished"))
     .map((session) => {
       const details = metadata.get(session.id);
       const symbols = Array.isArray(details?.symbols)

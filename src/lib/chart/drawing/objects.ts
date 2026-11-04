@@ -5,6 +5,7 @@
  */
 
 import { formatInZone } from "@/lib/chart/timezones";
+import { blindTimeLabel } from "@/lib/backtest/blind-replay";
 import type { CoordinateMapper } from "./coords";
 import {
   DrawingObject,
@@ -253,7 +254,7 @@ class HorizontalLine extends DrawingObject {
 }
 
 class VerticalLine extends DrawingObject {
-  render({ ctx, mapper, timeZone }: RenderCtx): void {
+  render({ ctx, mapper, timeZone, blindStartTime }: RenderCtx): void {
     const x = mapper.timeToX(this.points[0]!.time);
     if (x == null) return;
     this.applyStroke(ctx);
@@ -263,7 +264,9 @@ class VerticalLine extends DrawingObject {
     ctx.stroke();
     // Highlight the day/date/time on the bottom time scale, like TradingView.
     if (this.style.showLabels && this.points[0]!.time) {
-      const label = formatInZone(this.points[0]!.time * 1000, timeZone, VLINE_TIME_FMT);
+      const label = blindStartTime == null
+        ? formatInZone(this.points[0]!.time * 1000, timeZone, VLINE_TIME_FMT)
+        : blindTimeLabel(this.points[0]!.time * 1000, blindStartTime, timeZone);
       centerChip(ctx, x, mapper.height - 11, [label], withAlpha(this.style.color, 1), "#0b0f1a", 10);
     }
   }

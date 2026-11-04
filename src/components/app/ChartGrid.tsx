@@ -887,6 +887,7 @@ function ChartCellView({
         lastCandles={reveal.newCandles}
         replaySeries={isSession ? sessionSeries : pair?.candles}
         replaySessionId={state.sessionId}
+        blindStartTime={state.config.blindMode && state.status !== "finished" ? state.config.startTime : undefined}
         replayRunning={state.status === "running"}
         alignToReplayClockOnLoad={!isSession}
         markers={tradable ? cellMarkers : []}
@@ -937,7 +938,7 @@ function ChartCellView({
         onPositionToolOrder={tradable ? onPositionToolOrder : undefined}
         onPlanAtPrice={tradable ? onPlanAtPrice : undefined}
         onSelectInstrument={onSelectInstrument}
-        settings={workspace.settings}
+        settings={state.config.blindMode && state.status !== "finished" ? { ...workspace.settings, economicEvents: false } : workspace.settings}
         onSettingsChange={workspace.updateSettings}
         onSettingsReset={workspace.resetSettings}
         favorites={workspace.favorites}

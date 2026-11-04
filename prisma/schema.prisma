@@ -472,6 +472,7 @@ model BacktestSession {
   timeframe          String
   startTime          BigInt
   endTime            BigInt
+  blindMode          Boolean           @default(false)
   status             String            @default("idle")
   speed              Float             @default(1)
   visibleIndex       Int               @default(-1)

@@ -16,7 +16,7 @@ export type PortfolioSessionRow = PortfolioContextSession & { id: string };
 /** A trader's saved sessions with their trades, newest first, as the AI reads them. */
 export async function loadPortfolioSessions(userId: string): Promise<PortfolioSessionRow[]> {
   const sessionRows = await prisma.backtestSession.findMany({
-    where: { userId, anonymous: false },
+    where: { userId, anonymous: false, OR: [{ blindMode: false }, { status: "finished" }] },
     orderBy: { updatedAt: "desc" },
     take: 100,
     select: {

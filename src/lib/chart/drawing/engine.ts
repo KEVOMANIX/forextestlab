@@ -72,6 +72,7 @@ interface EngineEnv {
   timeframe: string;
   /** Chart display zone, forwarded to any drawing that stamps a time. */
   timeZone: string;
+  blindStartTime?: number;
   theme: "dark" | "light";
   /** The live account, so the position tool sizes against a real balance. */
   account: DrawingAccount;
@@ -1324,6 +1325,7 @@ export class DrawingEngine {
         pipSize: this.env.pipSize,
         candles: this.env.candles,
         timeZone: this.env.timeZone,
+        blindStartTime: this.env.blindStartTime,
         theme: this.env.theme,
         account: this.env.account,
       };

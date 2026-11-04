@@ -84,6 +84,7 @@ export async function POST(request: Request) {
     if (!sessionId) return bad("A session is required.", 422);
     const results = await getSessionResults(sessionId, user.id);
     if (!results) return bad("Session not found.", 404);
+    if (results.state.config.blindMode && results.state.status !== "finished") return bad("Finish this blind replay before using Analyst insights.", 409);
     context = buildSessionContext(results);
   } else {
     const sessions = await loadPortfolioSessions(user.id);

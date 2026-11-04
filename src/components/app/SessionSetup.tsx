@@ -38,6 +38,7 @@ import { newYorkDateEnd, newYorkDateStart, toNewYorkDateInput } from "@/lib/date
 import { describeSymbol, formatSymbol, marketCategory } from "@/lib/market-data/symbols";
 import type { MarketSymbol } from "@/lib/market-data/types";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
+import { randomBlindWindow, randomBlindWindowAvailable } from "@/lib/backtest/blind-replay";
 
 interface SessionSetupProps {
   initialMarket?: string | null;
@@ -56,7 +57,7 @@ const MARKET_CATEGORIES = ["All", "Stocks", "Futures", "Forex", "Crypto", "Indic
 type MarketCategory = (typeof MARKET_CATEGORIES)[number];
 type MarketSource = "dukascopy" | "histdata";
 type MarketListing = MarketSymbol & { source: MarketSource };
-const sourceName = (source: MarketSource) => source === "dukascopy" ? "Dukascopy" : "HistData.com";
+const sourceName = (source: MarketSource) => source === "dukascopy" ? "Dukascopy" : "HistData";
 
 
 /**
@@ -489,6 +490,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
       : 365,
   );
   const [customPeriod, setCustomPeriod] = useState(false);
+  const [blindMode, setBlindMode] = useState(false);
   const [loadingRange, setLoadingRange] = useState(false);
   /** Null = free practice. Otherwise the challenge phase being attempted. */
   const [challengePreset, setChallengePreset] =
@@ -633,15 +635,13 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
   const canStart = Boolean(
     selectedSymbols.length > 0 &&
       range &&
-      start &&
-      end &&
-      end >= start &&
+      (blindMode ? randomBlindWindowAvailable(availableRanges, allowedPeriodDays) : start && end && end >= start) &&
       !loadingRange &&
       !busy && Number(accountSize) > 0,
   );
 
   const generatedName = selectedSymbols.length > 0
-    ? `${selectedSymbols.map(formatSymbol).join(", ")} · ${start ? new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${start}T12:00:00Z`)) : "Backtest"}`
+    ? `${selectedSymbols.map(formatSymbol).join(", ")} · ${blindMode ? "Blind test" : start ? new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${start}T12:00:00Z`)) : "Backtest"}`
     : "New backtest";
 
   function toggleSymbol(symbol: string) {
@@ -670,14 +670,17 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
   function handleStart(event: React.FormEvent) {
     event.preventDefault();
     if (!range || !canStart) return;
+    const blindWindow = blindMode ? randomBlindWindow(availableRanges, allowedPeriodDays) : null;
+    if (blindMode && !blindWindow) return;
     const rules = challengePreset ? PROP_FIRM_PRESETS[challengePreset] : undefined;
     onStart({
       name: name.trim() || generatedName,
+      blindMode,
       dataSource,
       tags,
       symbols: selectedSymbols,
-      startTime: Math.max(range.startTime, newYorkDateStart(start)),
-      endTime: Math.min(range.endTime, newYorkDateEnd(end)),
+      startTime: blindWindow?.startTime ?? Math.max(range.startTime, newYorkDateStart(start)),
+      endTime: blindWindow?.endTime ?? Math.min(range.endTime, newYorkDateEnd(end)),
       // Both free practice and challenges start from the balance shown here.
       startingBalance: accountSize,
       propFirm: rules,
@@ -892,6 +895,15 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
               <h3 className="text-sm font-semibold">Replay period</h3>
             </div>
 
+            <label className={`mb-3 flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-left transition-colors ${blindMode ? "border-brand-400/50 bg-brand-400/10" : "app-border hover:bg-[var(--app-panel-2)]"}`}>
+              <input type="checkbox" checked={blindMode} onChange={(event) => {
+                setBlindMode(event.target.checked);
+                if (event.target.checked) setCustomPeriod(false);
+              }} className="accent-emerald-500" />
+              <Shuffle size={17} className="shrink-0 text-brand-300" aria-hidden />
+              <span><span className="block text-sm font-semibold">Blind backtest</span><span className="block text-[11px] app-muted">Replay a random period of real market history without seeing its dates.</span></span>
+            </label>
+
             <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Replay duration">
               {REPLAY_PERIODS.map((item) => {
                 const disabled = entitlements.maxSessionDays !== null && item.days > entitlements.maxSessionDays;
@@ -913,8 +925,9 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
               <button
                 type="button"
                 aria-pressed={customPeriod}
+                disabled={blindMode}
                 onClick={() => setCustomPeriod(true)}
-                className={`rounded-md border px-2 py-2 text-[11px] font-semibold transition-colors ${customPeriod ? "border-brand-400/50 bg-[var(--app-panel-2)] text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
+                className={`rounded-md border px-2 py-2 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${customPeriod ? "border-brand-400/50 bg-[var(--app-panel-2)] text-brand-200" : "app-border app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}
               >
                 Custom
               </button>
@@ -926,7 +939,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
               </p>
             )}
 
-            {availableRanges.length > 1 && (
+            {!blindMode && availableRanges.length > 1 && (
               <div className="mt-3">
                 <label htmlFor="setup-history-span" className="mb-1.5 block text-sm font-medium">Available history</label>
                 <select id="setup-history-span" className="app-input w-full text-sm" value={range ? availableRanges.indexOf(range) : availableRanges.length - 1} onChange={(event) => {
@@ -942,7 +955,13 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
               </div>
             )}
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {blindMode ? (
+              <div className="mt-3 rounded-lg border app-border bg-[var(--app-panel-2)] px-3 py-3 text-xs app-muted" aria-live="polite">
+                {loadingRange ? "Checking available history…" : randomBlindWindowAvailable(availableRanges, allowedPeriodDays)
+                  ? `A ${allowedPeriodDays}-day period will be chosen when you start. Dates stay hidden during replay.`
+                  : "No continuous history covers this duration. Choose a shorter period or another market."}
+              </div>
+            ) : <><div className="mt-3 grid gap-3 sm:grid-cols-2">
               <SessionDatePicker
                 id="setup-start"
                 label="Start date"
@@ -995,6 +1014,7 @@ export function SessionSetup({ initialMarket, initialChallenge = null, onStart, 
                 <Shuffle size={11} aria-hidden /> Random start
               </button>
             </div>
+            </>}
           </section>
         </div>
         </div>

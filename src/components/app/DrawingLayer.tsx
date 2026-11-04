@@ -50,6 +50,7 @@ interface Props {
   timeframe: string;
   /** Chart display zone, so a vertical line stamps the same clock as the axis. */
   timeZone: string;
+  blindStartTime?: number;
   theme: "dark" | "light";
   timeframes: string[];
   candles: Candle[];
@@ -84,6 +85,7 @@ export function DrawingLayer({
   account,
   timeframe,
   timeZone,
+  blindStartTime,
   theme,
   timeframes,
   candles,
@@ -219,13 +221,14 @@ export function DrawingLayer({
       pipSize,
       timeframe,
       timeZone,
+      blindStartTime,
       theme,
       account,
       candles: candlesRef.current,
       futureTimes: futureTimesRef.current,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, keyboardEnabled, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, theme, account, candles, futureTimes, chart, series, storageKey]);
+  }, [tool, keyboardEnabled, selectionEnabled, magnet, precision, pipSize, timeframe, timeZone, blindStartTime, theme, account, candles, futureTimes, chart, series, storageKey]);
 
   // Re-render objects when the chart view moves.
   useEffect(() => {

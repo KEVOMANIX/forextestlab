@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 
 import { AnalyticsDesignPrototype } from "@/components/app/AnalyticsDesignPrototype";
@@ -28,6 +29,9 @@ export default async function ResultsPage(props: { params: Promise<{ sessionId: 
     getUserEntitlements(user.id),
   ]);
   if (!results) notFound();
+  if (results.state.config.blindMode && results.state.status !== "finished") {
+    return <div className="mx-auto max-w-xl px-6 py-20 text-center"><h1 className="text-2xl font-semibold">Blind replay in progress</h1><p className="mt-3 text-sm app-muted">This report reveals the historical dates after you finish the session.</p><Link href={`/app/backtest?session=${encodeURIComponent(params.sessionId)}`} className="btn-primary mt-6 inline-flex">Continue replay</Link></div>;
+  }
   // Only ever computed for a finished session: the candles it walks are the
   // ones a running replay has not revealed.
   // Advanced reports are Pro: the analysis is only computed, and sent, for Pro.

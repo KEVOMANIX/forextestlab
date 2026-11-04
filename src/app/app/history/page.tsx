@@ -72,6 +72,7 @@ export default async function HistoryPage(props: { searchParams?: Promise<{ view
       status: true,
       startTime: true,
       endTime: true,
+      blindMode: true,
       visibleTime: true,
       visibleIndex: true,
       startingBalance: true,
@@ -141,7 +142,8 @@ export default async function HistoryPage(props: { searchParams?: Promise<{ view
               {sessions.map((session) => {
                 const net = netResult(session);
                 const finished = session.status === "finished";
-                const sessionLabel = `${formatSymbol(session.symbol)} · ${formatNewYorkDate(Number(session.startTime), { month: "short", year: "numeric" })}`;
+                const concealed = session.blindMode && !finished;
+                const sessionLabel = `${formatSymbol(session.symbol)} · ${concealed ? "Blind test" : formatNewYorkDate(Number(session.startTime), { month: "short", year: "numeric" })}`;
                 const progress = replayProgress(session);
                 const replayPosition = replayTime(session);
                 return (
@@ -153,7 +155,7 @@ export default async function HistoryPage(props: { searchParams?: Promise<{ view
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] app-muted"><span>{session.timeframe}</span><span aria-hidden>•</span><span>{formatNewYorkDate(session.updatedAt.getTime(), { month: "short", day: "numeric" })}</span></div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs app-muted xl:w-[20rem] xl:shrink-0"><CalendarDays size={14} className="shrink-0 text-brand-300" aria-hidden /><span>{formatNewYorkDate(Number(session.startTime), { month: "short", day: "numeric", year: "numeric" })} – {formatNewYorkDate(Number(session.endTime), { month: "short", day: "numeric", year: "numeric" })}</span></div>
+                    <div className="flex items-center gap-2 text-xs app-muted xl:w-[20rem] xl:shrink-0"><CalendarDays size={14} className="shrink-0 text-brand-300" aria-hidden /><span>{concealed ? "Dates hidden until replay ends" : `${formatNewYorkDate(Number(session.startTime), { month: "short", day: "numeric", year: "numeric" })} – ${formatNewYorkDate(Number(session.endTime), { month: "short", day: "numeric", year: "numeric" })}`}</span></div>
                     <div className="xl:w-40 xl:shrink-0">
                       <div className="flex items-center justify-end text-[11px] app-muted"><span className="font-mono font-semibold text-[var(--app-text)]">{progress.toFixed(0)}%</span></div>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-brand-500" style={{ width: `${progress}%` }} /></div>

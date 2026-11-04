@@ -17,6 +17,7 @@ import type { ActionInput } from "./schemas";
 
 export interface CreateSessionBody {
   name: string;
+  blindMode?: boolean;
   dataSource?: "dukascopy" | "histdata";
   tags?: string[];
   symbols: string[];

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { formatInZone } from "@/lib/chart/timezones";
+import { blindDayLabel } from "@/lib/backtest/blind-replay";
 import { useEffect, useRef, useState } from "react";
 import {
   BarChart3,
@@ -164,7 +165,7 @@ export function TerminalTopBar({
           title={`Session: ${state.config.name || "Backtest session"}. Each chart shows its own selected market and timeframe.`}
         >
           <FolderOpen size={14} className="shrink-0 app-muted" aria-hidden />
-          <span className="min-w-0 text-left leading-tight"><span className="block text-[8px] uppercase tracking-wider app-muted">Session{state.currentTime != null ? ` · ${formatInZone(state.currentTime, timeZone, { day: "2-digit", month: "short", year: "numeric" })}` : ""}</span><span className="block truncate">{state.config.name || "Backtest session"}</span></span>
+          <span className="min-w-0 text-left leading-tight"><span className="block text-[8px] uppercase tracking-wider app-muted">Session{state.currentTime != null ? ` · ${state.config.blindMode && state.status !== "finished" ? blindDayLabel(state.currentTime, state.config.startTime) : formatInZone(state.currentTime, timeZone, { day: "2-digit", month: "short", year: "numeric" })}` : ""}</span><span className="block truncate">{state.config.name || "Backtest session"}</span></span>
           <ChevronDown
             size={13}
             className={`shrink-0 app-muted transition-transform ${menuOpen ? "rotate-180" : ""}`}
@@ -183,7 +184,7 @@ export function TerminalTopBar({
             <button type="button" role="menuitem" onClick={() => navigate("/app/history")} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-[var(--app-panel-2)]">
               <BookOpenText size={15} className="app-muted" aria-hidden /> Sessions
             </button>
-            {!state.anonymous && (
+            {!state.anonymous && !(state.config.blindMode && state.status !== "finished") && (
               <button type="button" role="menuitem" onClick={() => navigate(`/app/results/${state.sessionId}`)} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs hover:bg-[var(--app-panel-2)]">
                 <BarChart3 size={15} className="app-muted" aria-hidden /> Analytics
               </button>
@@ -356,7 +357,7 @@ export function TerminalRightRail({
       >
         <BookOpenText size={18} aria-hidden /><span className="w-full truncate text-[9px] font-semibold leading-none">Saved</span>
       </Link>
-      {!state.anonymous && (
+      {!state.anonymous && !(state.config.blindMode && state.status !== "finished") && (
         <Link
           href={`/app/results/${state.sessionId}`}
           onClick={(event) => {
@@ -371,9 +372,9 @@ export function TerminalRightRail({
         </Link>
       )}
       <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
-      <RailButton label="News" showLabel active={calendarOpen} onClick={onToggleCalendar}>
+      {!(state.config.blindMode && state.status !== "finished") && <RailButton label="News" showLabel active={calendarOpen} onClick={onToggleCalendar}>
         <CalendarClock size={18} aria-hidden />
-      </RailButton>
+      </RailButton>}
       <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
       {/*
         Settings live on the rail rather than in the header. The header is read

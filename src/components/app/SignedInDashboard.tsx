@@ -21,6 +21,7 @@ export interface DashboardSession {
   timeframe: string;
   startTime: bigint;
   endTime: bigint;
+  blindMode?: boolean;
   status: string;
   visibleIndex: number;
   visibleTime: bigint | null;
@@ -112,7 +113,7 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
       name: session.name,
       symbols: pairs.join(", "),
       pairs,
-      dateRange: `${formatNewYorkDate(Number(session.startTime), { day: "numeric", month: "short" })} – ${formatNewYorkDate(Number(session.endTime), { day: "numeric", month: "short", year: "numeric" })}`,
+      dateRange: session.blindMode && session.status !== "finished" ? "Blind backtest · dates hidden" : `${formatNewYorkDate(Number(session.startTime), { day: "numeric", month: "short" })} – ${formatNewYorkDate(Number(session.endTime), { day: "numeric", month: "short", year: "numeric" })}`,
       status: session.status === "finished" ? "Completed" : "Active",
       notStarted: sessionNotStarted(session),
       updatedAt: session.updatedAt.getTime(),

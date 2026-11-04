@@ -31,6 +31,7 @@ export function EndOfDataModal({
   sessionStartTime,
   maxSessionDays,
   isTrial,
+  blindMode = false,
   busy,
   error,
   onAddData,
@@ -41,6 +42,7 @@ export function EndOfDataModal({
   sessionStartTime: number;
   maxSessionDays: number | null;
   isTrial: boolean;
+  blindMode?: boolean;
   busy: boolean;
   error: string | null;
   onAddData: (endTime: number) => Promise<boolean>;
@@ -178,11 +180,11 @@ export function EndOfDataModal({
             You reached the end of this session
           </h2>
           <p className="mt-2 text-sm leading-6 app-muted">
-            Extend the date range to continue replaying this market, or finish
-            the session and review your analytics.
+            {blindMode ? "Continue with another month of hidden history, or finish the session and review your analytics." : "Extend the date range to continue replaying this market, or finish"}
+            {!blindMode && " the session and review your analytics."}
           </p>
 
-          <div className="mt-6 rounded-xl border app-border bg-[var(--app-panel-2)]/65 p-4">
+          {!blindMode && <div className="mt-6 rounded-xl border app-border bg-[var(--app-panel-2)]/65 p-4">
             <label htmlFor="extended-session-date" className="text-xs font-semibold uppercase tracking-[0.12em] app-muted">
               Continue replay until
             </label>
@@ -213,7 +215,7 @@ export function EndOfDataModal({
                 {error}
               </p>
             )}
-          </div>
+          </div>}
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t app-border bg-[var(--app-panel-2)]/55 px-6 py-4 sm:flex-row sm:justify-end">
@@ -237,7 +239,7 @@ export function EndOfDataModal({
                 Loading data…
               </>
             ) : (
-              "Add more data"
+              blindMode ? "Continue blind replay" : "Add more data"
             )}
           </button>
         </div>

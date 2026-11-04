@@ -1200,7 +1200,7 @@ export function Backtester({
               ref={goToButtonRef}
               type="button"
               onClick={openGoTo}
-              disabled={bt.busy || state.status === "finished"}
+              disabled={bt.busy || state.status === "finished" || Boolean(state.config.blindMode)}
               title="Go to a time, a session or a price"
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -1409,7 +1409,7 @@ export function Backtester({
           )}
         </div>
 
-        {!workspace.settings.distractionFree && calendarOpen && (
+        {!state.config.blindMode && !workspace.settings.distractionFree && calendarOpen && (
           <EconomicCalendarPanel
             open={calendarOpen}
             onClose={() => setCalendarOpen(false)}
@@ -1434,7 +1434,7 @@ export function Backtester({
         />}
       </div>
 
-      {analyticsOpen && (
+      {analyticsOpen && !(state.config.blindMode && state.status !== "finished") && (
         <SessionAnalyticsScreen
           state={state}
           fullAccess={entitlements.fullAnalytics}
@@ -1509,7 +1509,7 @@ export function Backtester({
           onClose={closeSettings}
         />
       )}
-      <GoToModal
+      {!state.config.blindMode && <GoToModal
         open={goToOpen}
         onClose={closeGoTo}
         anchor={goToAnchor}
@@ -1530,7 +1530,7 @@ export function Backtester({
         busy={bt.busy}
         onJump={runJump}
         onSessionHoursChange={(sessionHours) => workspace.updateSettings({ sessionHours })}
-      />
+      />}
       <SymbolPickerModal
         open={symbolPickerOpen}
         onClose={closeSymbolPicker}
@@ -1584,6 +1584,7 @@ export function Backtester({
         balance={state.balance}
         deposited={depositedFunds(state)}
         accountCurrency={state.config.accountCurrency}
+        blindStartTime={state.config.blindMode && state.status !== "finished" ? state.config.startTime : undefined}
         busy={bt.busy}
         error={bt.error}
         onAddFunds={(amount) => void actions.addFunds(amount)}
@@ -1599,6 +1600,7 @@ export function Backtester({
         sessionStartTime={state.config.startTime}
         maxSessionDays={entitlements.maxSessionDays}
         isTrial={entitlements.plan === "free"}
+        blindMode={state.config.blindMode}
         busy={bt.busy}
         error={bt.error}
         onAddData={actions.extendSessionData}

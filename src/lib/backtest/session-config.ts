@@ -23,6 +23,7 @@ export const INITIAL_VISIBLE_CANDLES = 60;
 
 export interface BuildConfigInput {
   name?: string;
+  blindMode?: boolean;
   symbols?: string[];
   tags?: string[];
   symbol: string;
@@ -45,6 +46,7 @@ export function buildSessionConfig(input: BuildConfigInput): SessionConfig {
   const defaults = simulationDefaults();
   return {
     name: input.name,
+    blindMode: input.blindMode,
     symbols: input.symbols,
     tags: input.tags,
     symbol: input.symbol,

@@ -43,6 +43,7 @@ export async function POST(request: Request, context: Context) {
   const entitlements = await getUserEntitlements(result.user!.id);
   if (!entitlements.exports) return json({ error: "Analytics sharing is part of Pro." }, 403);
   const state = await readSavedSessionState(result.session!);
+  if (state.config.blindMode && state.status !== "finished") return json({ error: "Finish this blind replay before sharing its report." }, 409);
   const snapshotJson = JSON.stringify(createShareSnapshot(state, fundedBalance(state)));
   if (Buffer.byteLength(snapshotJson) > 8_000_000) return json({ error: "This report is too large to share. Use PDF export instead." }, 413);
   const data = { token: randomBytes(32).toString("base64url"), snapshotJson, createdAt: new Date(), expiresAt: new Date(Date.now() + 30 * 86400_000) };

@@ -139,6 +139,8 @@ export interface SessionConfig {
   tags?: string[];
   /** Archived sessions are hidden from the default recent-session view. */
   archived?: boolean;
+  /** Random historical window with calendar dates concealed during replay. */
+  blindMode?: boolean;
   symbol: string;
   baseCurrency: string;
   quoteCurrency: string;

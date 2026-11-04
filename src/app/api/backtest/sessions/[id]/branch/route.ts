@@ -30,6 +30,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     const branch = await createSession({
       dataSource: replayDataSourceFromStored(source.ctx.state.dataSource),
       name: branchName,
+      blindMode: config.blindMode,
       tags: config.tags,
       symbols: config.symbols?.length ? config.symbols : [config.symbol],
       symbol: config.symbol,

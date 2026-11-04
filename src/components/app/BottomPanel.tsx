@@ -5,6 +5,7 @@ import { BarChart3, ChevronDown, ChevronUp, NotebookText, Save } from "lucide-re
 import { useEffect, useState } from "react";
 
 import type { PublicSessionState, TradeJournalUpdate } from "@/lib/backtest/types";
+import { blindTimeLabel } from "@/lib/backtest/blind-replay";
 import { AccountSummary } from "./AccountSummary";
 import { SessionClock } from "./SessionClock";
 import { TradesTable } from "./TradesTable";
@@ -142,7 +143,7 @@ export function BottomPanel({
               <p className="p-4 text-sm app-muted">No open positions.</p>
             ))}
 
-          {tab === "trades" && <TradesTable trades={state.closedTrades} />}
+          {tab === "trades" && <TradesTable trades={state.closedTrades} blindStartTime={state.config.blindMode && state.status !== "finished" ? state.config.startTime : undefined} timeZone={timeZone} />}
 
           {tab === "orders" && (
             state.pendingOrders.length > 0 ? (
@@ -173,9 +174,9 @@ export function BottomPanel({
                           {order.direction === "long" ? "BUY" : "SELL"}
                         </td>
                         <td>{order.lots}</td><td>{order.fillPrice ?? order.entryPrice}</td>
-                        <td>{new Date(order.createdTime).toLocaleString()}</td>
-                        <td>{new Date(order.updatedTime).toLocaleString()}</td>
-                        <td>{order.expiresAt ? new Date(order.expiresAt).toLocaleString() : "GTC"}</td>
+                        <td>{state.config.blindMode && state.status !== "finished" ? blindTimeLabel(order.createdTime, state.config.startTime, timeZone) : new Date(order.createdTime).toLocaleString()}</td>
+                        <td>{state.config.blindMode && state.status !== "finished" ? blindTimeLabel(order.updatedTime, state.config.startTime, timeZone) : new Date(order.updatedTime).toLocaleString()}</td>
+                        <td>{order.expiresAt ? state.config.blindMode && state.status !== "finished" ? blindTimeLabel(order.expiresAt, state.config.startTime, timeZone) : new Date(order.expiresAt).toLocaleString() : "GTC"}</td>
                         <td className="pr-3 text-right">
                           {order.status === "pending" && (
                             <button type="button" onClick={() => onCancelPending(order.id)} disabled={busy} className="rounded border border-loss/30 px-2 py-1 text-[10px] font-semibold text-loss hover:bg-loss/10 disabled:opacity-50">
@@ -329,6 +330,7 @@ export function BottomPanel({
                   speed={state.speed}
                   running={state.status === "running"}
                   zone={timeZone}
+                  blindStartTime={state.config.blindMode && state.status !== "finished" ? state.config.startTime : undefined}
                 />
               }
             />
@@ -337,6 +339,8 @@ export function BottomPanel({
             id="analytics-button"
             type="button"
             onClick={onOpenAnalytics}
+            disabled={Boolean(state.config.blindMode && state.status !== "finished")}
+            title={state.config.blindMode && state.status !== "finished" ? "Analytics reveal the dates after this blind replay ends" : "Open analytics"}
             className="ml-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-brand-500 px-2.5 font-semibold text-surface-950 transition-colors hover:bg-brand-400"
             aria-haspopup="dialog"
             aria-label="Analytics"

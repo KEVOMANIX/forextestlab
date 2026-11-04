@@ -5,6 +5,7 @@ import { BarChart3, Loader2, Skull, Wallet } from "lucide-react";
 
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { formatNewYorkDateTime } from "@/lib/date-time";
+import { blindTimeLabel } from "@/lib/backtest/blind-replay";
 import type { AccountBlowout } from "@/lib/backtest/types";
 
 /**
@@ -23,6 +24,7 @@ export function AccountBlownModal({
   balance,
   deposited,
   accountCurrency,
+  blindStartTime,
   busy,
   error,
   onAddFunds,
@@ -36,6 +38,7 @@ export function AccountBlownModal({
   /** Demo funds already added to this session. */
   deposited: string;
   accountCurrency: string;
+  blindStartTime?: number;
   busy: boolean;
   error: string | null;
   onAddFunds: (amount: string) => void;
@@ -97,13 +100,13 @@ export function AccountBlownModal({
             <p className="mt-2 text-sm leading-6 app-muted">
               Equity reached zero
               {blowout
-                ? ` on ${formatNewYorkDateTime(blowout.time, {
+                ? ` on ${blindStartTime == null ? formatNewYorkDateTime(blowout.time, {
                     month: "short",
                     day: "numeric",
                     year: "numeric",
                     hour: "2-digit",
                     minute: "2-digit",
-                  })}`
+                  }) : blindTimeLabel(blowout.time, blindStartTime, "America/New_York")}`
                 : ""}
               , so every open position was closed and every resting order was
               cancelled. Add demo funds to carry on from this candle, or end the

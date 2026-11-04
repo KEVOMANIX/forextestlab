@@ -41,6 +41,18 @@ export function pointsInRange(points: PnlPoint[], range: EquityChartRange): PnlP
   return [{ time: cutoff.getTime(), value: previous.value + (next.value - previous.value) * fraction }, ...points.slice(first)];
 }
 
+/** Closed-trade equity holds its last value until the next exit. */
+export function realisedPointsInRange(points: PnlPoint[], range: EquityChartRange): PnlPoint[] {
+  if (range === "All" || points.length < 2) return points;
+  const latest = points.at(-1)!.time;
+  const cutoff = new Date(latest);
+  if (range === "1Y") cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 1);
+  else cutoff.setUTCMonth(cutoff.getUTCMonth() - (range === "1M" ? 1 : 3));
+  const first = points.findIndex((point) => point.time >= cutoff.getTime());
+  if (first <= 0) return points;
+  return [{ time: cutoff.getTime(), value: points[first - 1]!.value }, ...points.slice(first)];
+}
+
 export function deepestDrawdown(points: PnlPoint[]): { index: number; amount: number } {
   let peak = points[0]?.value ?? 0;
   let deepest = { index: 0, amount: 0 };

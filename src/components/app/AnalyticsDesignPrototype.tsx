@@ -550,7 +550,6 @@ export function AnalyticsDesignPrototype({
           <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.75fr)]">
             <AnalyticsEquityChart
               key={demo ? "sample" : sessionId ?? "session"}
-              equityCurve={demo ? DEMO_ANALYTICS_EQUITY_CURVE : scopedEquityCurve}
               trades={demo ? DEMO_ANALYTICS_SCOPED_TRADES : scopedTrades}
               startingBalance={Number(demo ? "100000" : startingBalance)}
               startTime={demo ? DEMO_ANALYTICS_PERIOD.startTime : startTime}

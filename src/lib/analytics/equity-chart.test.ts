@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { cumulativePnlPoints, deepestDrawdown, pointsInRange, samplePnlPoints } from "./equity-chart";
+import { cumulativePnlPoints, deepestDrawdown, pointsInRange, realisedPointsInRange, samplePnlPoints } from "./equity-chart";
 import type { ClosedTrade, EquityPoint } from "@/lib/backtest/types";
 
 describe("analytics equity chart", () => {
@@ -40,6 +40,20 @@ describe("analytics equity chart", () => {
     expect(filtered[0]?.time).toBe(Date.UTC(2025, 1, 15));
     expect(filtered[0]?.value).toBeCloseTo(200 * 45 / 59);
     expect(filtered.at(-1)).toEqual({ time: midMarch, value: 300 });
+  });
+
+  it("holds realised equity flat at a range boundary until the next trade closes", () => {
+    const jan = Date.UTC(2025, 0, 1);
+    const mar = Date.UTC(2025, 2, 1);
+    const midMarch = Date.UTC(2025, 2, 15);
+    const points = [{ time: jan, value: 0 }, { time: mar, value: 200 }, { time: midMarch, value: 150 }];
+    const filtered = realisedPointsInRange(points, "1M");
+    expect(filtered).toEqual([
+      { time: Date.UTC(2025, 1, 15), value: 0 },
+      { time: mar, value: 200 },
+      { time: midMarch, value: 150 },
+    ]);
+    expect(deepestDrawdown(filtered)).toEqual({ index: 2, amount: 50 });
   });
 
   it("keeps the deepest loss visible when downsampling", () => {

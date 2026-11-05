@@ -40,7 +40,12 @@ function queueWhere(queue: string, agentId: string): Prisma.SupportConversationW
   if (queue === "unassigned") {
     return { assignedAgentId: null, status: { in: [...ACTIVE_STATUSES] } };
   }
-  return { status: { in: ["new", "open", "waiting_support"] } };
+  // An unread customer message must stay visible even if its conversation was
+  // moved to another queue before an agent read it.
+  return { OR: [
+    { status: { in: ["new", "open", "waiting_support"] } },
+    { agentUnreadCount: { gt: 0 } },
+  ] };
 }
 
 function orderFor(sort: string): Prisma.SupportConversationOrderByWithRelationInput[] {

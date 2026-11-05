@@ -14,6 +14,7 @@ vi.mock("nodemailer", () => ({
 
 import {
   sendContactEmail,
+  sendSupportTeamNotice,
   sendFeedbackEmail,
   sendContactReceipt,
   sendDirectSupportEmail,
@@ -98,6 +99,26 @@ describe("sendContactEmail", () => {
     try {
       await sendContactEmail({ name: "Kelvin", email: "kelvin@example.com", subject: "Hi", message: "Hello", consent: true });
       expect(sendMail.mock.calls[0]?.[0].to).toBe("team@example.com");
+    } finally {
+      delete process.env.RESEND_INBOUND_FORWARD_TO;
+    }
+  });
+
+  it("alerts the team to a customer reply with a tracked inbox link", async () => {
+    process.env.RESEND_INBOUND_FORWARD_TO = "team@example.com";
+    try {
+      await sendSupportTeamNotice({
+        conversationId: "conversation 1",
+        name: "Kelvin",
+        email: "kelvin@example.com",
+        subject: "Replay issue",
+        message: "The chart still freezes <again>.",
+      });
+      const message = sendMail.mock.calls[0]?.[0];
+      expect(message.to).toBe("team@example.com");
+      expect(message.subject).toBe("[ForexTestLab] New reply: Replay issue");
+      expect(message.text).toContain("/support-team?conversation=conversation%201");
+      expect(message.html).toContain("&lt;again&gt;");
     } finally {
       delete process.env.RESEND_INBOUND_FORWARD_TO;
     }

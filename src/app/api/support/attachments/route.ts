@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
+import { sendSupportTeamNotice } from "@/lib/contact-email";
 import { prisma } from "@/lib/db";
+import { recordEmailFailure } from "@/lib/email-failures";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { publishSupportConversationChanged } from "@/lib/support-realtime";
 import {
@@ -108,5 +110,12 @@ export async function POST(request: Request) {
     return created;
   });
   publishSupportConversationChanged(conversationId);
+  after(() => sendSupportTeamNotice({
+    conversationId,
+    name: conversation.customerName ?? "Customer",
+    email: conversation.customerEmail,
+    subject: conversation.subject,
+    message: `${message.body}\nAttachment: ${file.name}`,
+  }).catch((error) => recordEmailFailure("support_conversation", conversationId, error)));
   return NextResponse.json({ ok: true, message }, { status: 201 });
 }

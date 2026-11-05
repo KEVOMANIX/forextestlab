@@ -320,6 +320,47 @@ export async function sendContactEmail(
   });
 }
 
+/** Alert the team when a customer adds to an existing in-app conversation. */
+export async function sendSupportTeamNotice({
+  conversationId,
+  name,
+  email,
+  subject,
+  message,
+}: {
+  conversationId: string;
+  name: string;
+  email: string | null;
+  subject: string;
+  message: string;
+}): Promise<void> {
+  const config = getSmtpConfig();
+  const inbox = `${siteUrl()}/support-team?conversation=${encodeURIComponent(conversationId)}`;
+  await deliver(config, {
+    from: sender("ForexTestLab Support", config.from),
+    to: teamMailbox(config),
+    ...(email ? { replyTo: { name, address: email } } : {}),
+    subject: `[ForexTestLab] New reply: ${subject}`,
+    text: [
+      `${name} sent a new message in an existing support conversation.`,
+      email ? `Email: ${email}` : "",
+      `Subject: ${subject}`,
+      "",
+      message,
+      "",
+      `Open the conversation: ${inbox}`,
+    ].filter(Boolean).join("\n"),
+    html: renderBrandEmail({
+      preheader: `${name} sent a new support message.`,
+      eyebrow: "Customer reply",
+      title: subject,
+      intro: `${name} added a message to an existing support conversation.`,
+      contentHtml: `<p style="font-family:Arial,sans-serif;font-size:15px;line-height:25px;color:#344a5a">${escapeHtml(message).replace(/\r?\n/g, "<br>")}</p>`,
+      action: { label: "Open conversation", href: inbox },
+    }),
+  });
+}
+
 export async function sendContactReceipt(
   submission: ContactSubmission,
 ): Promise<void> {

@@ -1,6 +1,6 @@
 import { after, NextResponse } from "next/server";
 
-import { sendContactEmail, sendContactReceipt } from "@/lib/contact-email";
+import { sendContactEmail, sendContactReceipt, sendSupportTeamNotice } from "@/lib/contact-email";
 import { prisma } from "@/lib/db";
 import { recordEmailFailure } from "@/lib/email-failures";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -370,6 +370,13 @@ export async function POST(request: Request) {
     });
   });
   publishSupportConversationChanged(conversationId);
+  after(() => sendSupportTeamNotice({
+    conversationId,
+    name: clean(input.name, 120) || conversation.customerName || "Customer",
+    email: conversation.customerEmail,
+    subject: conversation.subject,
+    message,
+  }).catch((error) => recordEmailFailure("support_conversation", conversationId, error)));
   return NextResponse.json({
     ok: true,
     conversation: publicConversation(updated),

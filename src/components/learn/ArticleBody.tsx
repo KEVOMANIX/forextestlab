@@ -1,5 +1,4 @@
 import { AlertTriangle, Info, Lightbulb } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -56,8 +55,10 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
           );
           case "img": return (
             <figure key={index} className="mb-8 mt-2">
-              <a href={block.src} target="_blank" rel="noopener noreferrer" className="relative block aspect-[16/10] overflow-hidden rounded-xl border border-white/10 bg-surface-900" aria-label={`Open full screenshot: ${block.alt}`}>
-                <Image src={block.src} alt={block.alt} fill sizes="(min-width: 768px) 700px, 100vw" className="object-contain" />
+              <a href={block.src} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-xl border border-white/10 bg-surface-900" aria-label={`Open full screenshot: ${block.alt}`}>
+                {/* Preserve each product screenshot's actual aspect ratio and full resolution. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={block.src} alt={block.alt} decoding="async" className="block h-auto w-full" />
               </a>
               {block.caption && <figcaption className="mt-2 text-sm text-slate-400">{block.caption}</figcaption>}
             </figure>

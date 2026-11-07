@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 
-import { StructuredData } from "@/components/StructuredData";
 import { SupportChatWidget } from "@/components/SupportChatWidget";
 import { ProductAnalytics } from "@/components/ProductAnalytics";
 import { siteConfig } from "@/lib/site";
@@ -106,7 +105,6 @@ export default function RootLayout({
         {children}
         <ProductAnalytics />
         <SupportChatWidget />
-        <StructuredData />
       </body>
     </html>
   );

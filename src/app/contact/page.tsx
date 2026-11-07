@@ -1,14 +1,13 @@
-import type { Metadata } from "next";
-
 import { ContactSection } from "@/components/ContactSection";
 import { PageShell } from "@/components/PageShell";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Contact",
   description:
     "Get in touch with the ForexTestLab team. Questions, feedback, and partnership enquiries welcome.",
-  alternates: { canonical: "/contact" },
-};
+  path: "/contact",
+});
 
 export default function ContactPage() {
   return (

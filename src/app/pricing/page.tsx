@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 
 import { LocalizedPricing } from "@/components/billing/LocalizedPricing";
 import { PageShell } from "@/components/PageShell";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 import { billingEnabled } from "@/lib/billing/availability";
 import { proTrialEligible } from "@/lib/billing/checkout";
 import { paddleBrowserEnvironment, requiredPaddleClientToken } from "@/lib/billing/paddle";
@@ -11,11 +11,11 @@ import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from "@/lib/billing/plan-copy";
 import { getPricingTiers, proTrialPricesConfigured } from "@/lib/billing/tiers";
 import { getCurrentUser } from "@/lib/supabase/server";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Pricing",
   description: "Free for the major pairs every month; Pro for every market, the full history, multi-pair replay, full analytics and Prop Firm Challenge mode.",
-  alternates: { canonical: "/pricing" },
-};
+  path: "/pricing",
+});
 
 export const dynamic = "force-dynamic";
 

@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { Hero } from "@/components/Hero";
 import { Navbar } from "@/components/Navbar";
 import { ProductPreview } from "@/components/ProductPreview";
+import { StructuredData } from "@/components/StructuredData";
 
 const EXPLORE = [
   { href: "/features", title: "Explore the workspace", text: "See the replay, execution, journal, and analytics tools." },
@@ -15,6 +16,7 @@ const EXPLORE = [
 export default function HomePage() {
   return (
     <div className="marketing-site marketing-light min-h-screen">
+      <StructuredData />
       <Navbar />
       <main id="main" className="pt-16">
         <Hero />

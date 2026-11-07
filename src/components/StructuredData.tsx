@@ -26,8 +26,9 @@ export function StructuredData() {
     offers: {
       "@type": "Offer",
       price: "0",
-      priceCurrency: "KES",
+      priceCurrency: "USD",
       availability: "https://schema.org/InStock",
+      url: `${siteConfig.url}/pricing`,
     },
   };
 

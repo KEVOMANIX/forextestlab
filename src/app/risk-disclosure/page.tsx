@@ -1,15 +1,14 @@
-import type { Metadata } from "next";
-
 import { LegalPage, LegalSection } from "@/components/LegalPage";
 import { PageShell } from "@/components/PageShell";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 import { siteConfig } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Forex Risk Disclosure",
   description:
     "Important risk disclosure regarding forex trading, leverage, and the limitations of simulated and historical results.",
-  alternates: { canonical: "/risk-disclosure" },
-};
+  path: "/risk-disclosure",
+});
 
 export default function RiskDisclosurePage() {
   return (

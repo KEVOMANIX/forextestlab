@@ -1,14 +1,13 @@
-import type { Metadata } from "next";
-
 import { LegalPage, LegalSection } from "@/components/LegalPage";
 import { PageShell } from "@/components/PageShell";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 import { siteConfig } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Refund and Cancellation Policy",
   description: "How ForexTestLab subscription cancellations and refund requests are handled.",
-  alternates: { canonical: "/refund-policy" },
-};
+  path: "/refund-policy",
+});
 
 export default function RefundPolicyPage() {
   return (

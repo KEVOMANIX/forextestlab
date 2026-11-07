@@ -1,16 +1,15 @@
-import type { Metadata } from "next";
-
 import { PageShell } from "@/components/PageShell";
 import { LearnIndex } from "@/components/learn/LearnIndex";
 import { getLearnArticles, toSummary } from "@/lib/learn";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 
 export const revalidate = 86400;
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Learn",
   description: "Practical guides to backtesting, journaling, risk, analytics, and ForexTestLab chart tools.",
-  alternates: { canonical: "/learn" },
-};
+  path: "/learn",
+});
 
 export default function LearnPage() {
   const articles = getLearnArticles().map(toSummary);

@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Plus } from "lucide-react";
 
 import { PageShell } from "@/components/PageShell";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Frequently Asked Questions",
   description: "Answers about ForexTestLab data, replay, simulated trading, trials, billing, and account access.",
-  alternates: { canonical: "/faq" },
-};
+  path: "/faq",
+});
 
 const GROUPS = [
   { title: "Product", items: [

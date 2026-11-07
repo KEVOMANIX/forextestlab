@@ -1,16 +1,16 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 
 import { PageShell } from "@/components/PageShell";
 import { ProductDemoVideo } from "@/components/ProductDemoVideo";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Backtesting Features",
   description: "Replay historical markets, practise execution, journal decisions, and review strategy performance in one connected workspace.",
-  alternates: { canonical: "/features" },
-};
+  path: "/features",
+});
 
 const WORKFLOW = [
   { number: "01", title: "Define", text: "Choose the markets, dates, account size, and testing rules." },

@@ -21,17 +21,29 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const article = getLearnArticle(slug);
   if (!article) return {};
+  const url = `${siteConfig.url}/learn/${slug}`;
   return {
     title: article.title,
     description: article.description,
     alternates: { canonical: `/learn/${slug}` },
     openGraph: {
       type: "article",
+      url,
+      siteName: siteConfig.name,
       title: article.title,
       description: article.description,
       publishedTime: article.date,
       modifiedTime: article.updated,
-      ...(article.cover ? { images: [{ url: article.cover, alt: article.coverAlt }] } : {}),
+      images: [{
+        url: article.cover ?? siteConfig.ogImage,
+        alt: article.coverAlt || `${siteConfig.name} trading guide`,
+      }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: article.title,
+      description: article.description,
+      images: [article.cover ?? siteConfig.ogImage],
     },
   };
 }

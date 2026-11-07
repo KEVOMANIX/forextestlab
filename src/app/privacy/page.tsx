@@ -1,15 +1,14 @@
-import type { Metadata } from "next";
-
 import { LegalPage, LegalSection } from "@/components/LegalPage";
 import { PageShell } from "@/components/PageShell";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 import { siteConfig } from "@/lib/site";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Privacy Policy",
   description:
     "How ForexTestLab collects, uses, and protects personal information submitted through this website.",
-  alternates: { canonical: "/privacy" },
-};
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (

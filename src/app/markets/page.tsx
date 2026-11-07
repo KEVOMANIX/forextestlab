@@ -1,14 +1,13 @@
-import type { Metadata } from "next";
-
 import { MarketsExplorer } from "@/components/MarketsExplorer";
 import { PageShell } from "@/components/PageShell";
+import { marketingMetadata } from "@/lib/marketing-metadata";
 import { SYMBOL_DEFINITIONS } from "@/lib/market-data/symbols";
 
-export const metadata: Metadata = {
+export const metadata = marketingMetadata({
   title: "Markets",
   description: "Explore forex, index, cryptocurrency, metals and energy data from Dukascopy and HistData for historical replay in ForexTestLab.",
-  alternates: { canonical: "/markets" },
-};
+  path: "/markets",
+});
 
 const INITIAL_MARKETS = SYMBOL_DEFINITIONS.map((market) => ({
   symbol: market.symbol,

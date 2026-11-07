@@ -27,6 +27,12 @@ const nextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
   },
+  async redirects() {
+    return [
+      { source: "/how-it-works", destination: "/features#workflow", permanent: true },
+      { source: "/waitlist", destination: "/sign-up", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

@@ -36,7 +36,7 @@ export function ArticleCover({ article, sizes, priority = false, className = "as
   return (
     <div className={`relative overflow-hidden rounded-xl border border-white/10 bg-surface-900 ${className}`}>
       {article.cover ? (
-        <Image src={article.cover} alt={article.coverAlt} fill sizes={sizes} priority={priority} className="object-cover object-left-top" />
+        <Image src={article.cover} alt={article.coverAlt} fill sizes={sizes} priority={priority} className="object-contain" />
       ) : (
         <svg viewBox="0 0 800 450" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 h-full w-full" aria-hidden>
           <defs>

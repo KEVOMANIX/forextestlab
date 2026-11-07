@@ -56,9 +56,9 @@ export function ArticleBody({ blocks }: { blocks: Block[] }) {
           );
           case "img": return (
             <figure key={index} className="mb-8 mt-2">
-              <div className="relative aspect-[16/9] overflow-hidden rounded-xl border border-white/10 bg-surface-900">
-                <Image src={block.src} alt={block.alt} fill sizes="(min-width: 768px) 700px, 100vw" className="object-cover" />
-              </div>
+              <a href={block.src} target="_blank" rel="noopener noreferrer" className="relative block aspect-[16/10] overflow-hidden rounded-xl border border-white/10 bg-surface-900" aria-label={`Open full screenshot: ${block.alt}`}>
+                <Image src={block.src} alt={block.alt} fill sizes="(min-width: 768px) 700px, 100vw" className="object-contain" />
+              </a>
               {block.caption && <figcaption className="mt-2 text-sm text-slate-400">{block.caption}</figcaption>}
             </figure>
           );

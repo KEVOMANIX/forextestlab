@@ -5,14 +5,14 @@ import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { getMarketDataProvider, histDataReplayEnabled } from "@/lib/market-data";
 import { DemoDataProvider } from "@/lib/market-data/providers/demo-data-provider";
+import { R2ParquetProvider } from "@/lib/market-data/providers/r2-parquet-provider";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
-import { TIMEFRAME_MS } from "@/lib/market-data/types";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { siteConfig } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { parseStrategy } from "@/lib/strategy-language/parser";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
-import { runStrategy } from "@/lib/strategy-language/run";
+import { runStrategyRange } from "@/lib/strategy-language/run-range";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,31 +41,38 @@ export async function POST(request: Request) {
   const parsedCode = parseStrategy(input.code);
   if (!parsedCode.ok) return json({ ok: false, error: "Fix the language errors before running.", diagnostics: parsedCode.diagnostics }, 400);
   const entitlements = user ? await getUserEntitlements(user.id) : null;
-  const maxDays = entitlements ? Math.min(90, entitlements.maxSessionDays ?? 90) : 14;
-  if (input.endTime <= input.startTime || input.endTime - input.startTime > maxDays * day) return json({ ok: false, error: `Choose a period of at most ${maxDays} days.` }, 400);
+  if (input.endTime <= input.startTime) return json({ ok: false, error: "Through must be after From." }, 400);
   if (entitlements?.allowedSymbols && !entitlements.allowedSymbols.includes(input.symbol)) return json({ ok: false, error: "This FX pair requires Pro." }, 403);
   if (!user && (input.source !== "demo" || input.startTime < DEMO_RANGE_START || input.endTime > DEMO_RANGE_END)) return json({ ok: false, error: "Sign in to test real market history. The preview uses sample data only." }, 403);
   if (user && input.source === "demo") return json({ ok: false, error: "Choose a historical data provider." }, 400);
   if (input.source === "histdata" && !histDataReplayEnabled()) return json({ ok: false, error: "HistData is not available right now." }, 400);
   if (!rateLimit(`strategy-test:${user?.id ?? clientIp(request)}`, 12, 60 * 60_000).ok) return json({ ok: false, error: "Test limit reached. Try again later." }, 429);
   const symbol = getSymbolDefinition(input.symbol)!;
-  try {
-    const provider = input.source === "demo" ? new DemoDataProvider() : getMarketDataProvider(input.source);
-    // Leave room for weekends and the largest declared indicator to warm up
-    // before the first selected test candle; warmup bars are excluded in the runner.
-    const periods = parsedCode.program.signals.flatMap(signal => [signal.left, signal.right]).map(operand => operand.kind === "NUMBER" || operand.kind === "CLOSE" ? 0 : operand.period);
-    const warmupBars = Math.max(60, Math.max(...periods) * 2);
-    const warmupStart = Math.max(0, input.startTime - TIMEFRAME_MS[parsedCode.program.timeframe] * warmupBars);
-    const candles = await provider.getCandles({ symbol: input.symbol, timeframe: parsedCode.program.timeframe, startTime: warmupStart, endTime: input.endTime, limit: 5_001 });
-    if (candles.length > 5_000) return json({ ok: false, error: "This test has too many candles. Choose a shorter period or a larger timeframe." }, 400);
-    if (candles.filter(candle => candle.timestamp >= input.startTime).length < 2) return json({ ok: false, error: "Too few candles in this period. Choose another market or date range." }, 422);
-    const report = runStrategy(parsedCode.program, candles, {
-      symbol, startTime: input.startTime, startingBalance: String(input.startingBalance),
-      spreadPips: String(input.spreadPips), slippagePips: String(input.slippagePips), commissionPerLot: String(input.commissionPerLot),
-    });
-    return json({ ok: true, report });
-  } catch (error) {
-    console.error("Strategy test failed", error);
-    return json({ ok: false, error: "Could not complete this strategy test. Try a shorter period." }, 500);
+  // The app's general Dukascopy provider may substitute synthetic sample bars
+  // when R2 is empty. A historical strategy test must never do that.
+  const provider = input.source === "demo" ? new DemoDataProvider() : input.source === "dukascopy" ? new R2ParquetProvider() : getMarketDataProvider("histdata");
+  let ranges;
+  try { ranges = await provider.getAvailableRanges(input.symbol, parsedCode.program.timeframe); }
+  catch (error) { console.error("Strategy market range failed", error); return json({ ok: false, error: "Could not load available market history." }, 503); }
+  if (!ranges.some(range => input.startTime >= range.startTime && input.startTime <= range.endTime && input.endTime >= range.startTime && input.endTime <= range.endTime + day)) {
+    return json({ ok: false, error: "Choose dates inside one available history range for this market." }, 422);
   }
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      const heartbeat = setInterval(() => { try { send({ type: "heartbeat" }); } catch { /* disconnected */ } }, 10_000);
+      try {
+        const report = await runStrategyRange(provider, parsedCode.program, {
+          symbol, startTime: input.startTime, endTime: input.endTime, startingBalance: String(input.startingBalance),
+          spreadPips: String(input.spreadPips), slippagePips: String(input.slippagePips), commissionPerLot: String(input.commissionPerLot),
+          signal: request.signal, onProgress: progress => send({ type: "progress", ...progress }),
+        });
+        send({ type: "result", report });
+      } catch (error) {
+        if (!request.signal.aborted) { console.error("Strategy test failed", error); send({ type: "error", error: error instanceof Error ? error.message : "Could not complete this strategy test." }); }
+      } finally { clearInterval(heartbeat); try { controller.close(); } catch { /* disconnected */ } }
+    },
+  });
+  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "private, no-store, no-transform", "X-Accel-Buffering": "no" } });
 }

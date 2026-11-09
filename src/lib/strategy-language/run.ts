@@ -47,76 +47,81 @@ export interface StrategyRunOptions {
   commissionPerLot: string;
 }
 
-function indicatorKey(indicator: Indicator): string {
-  return indicator.kind === "CLOSE" ? "CLOSE" : `${indicator.kind}:${indicator.period}`;
-}
+type IndicatorTracker = { previous: number; current: number; push(close: number): void };
+const keyOf = (indicator: Indicator): string => indicator.kind === "CLOSE" ? "CLOSE" : `${indicator.kind}:${indicator.period}`;
 
-/** NaN means the indicator has not accumulated enough prior CLOSED candles. */
-function indicatorSeries(indicator: Indicator, candles: Candle[]): number[] {
-  const closes = candles.map(candle => Number(candle.close));
-  if (indicator.kind === "CLOSE") return closes;
-  const output = Array<number>(closes.length).fill(NaN);
+/** Indicators retain at most their lookback, so a 20-year test needs no 20-year candle array. */
+function createTracker(indicator: Indicator): IndicatorTracker {
+  let previous = NaN;
+  let current = NaN;
+  if (indicator.kind === "CLOSE") return {
+    get previous() { return previous; }, get current() { return current; },
+    push(close) { previous = current; current = close; },
+  };
   const period = indicator.period;
-  if (closes.length < period) return output;
-  if (indicator.kind === "SMA") {
-    let sum = 0;
-    for (let i = 0; i < closes.length; i++) {
-      sum += closes[i]!;
-      if (i >= period) sum -= closes[i - period]!;
-      if (i >= period - 1) output[i] = sum / period;
-    }
-  } else if (indicator.kind === "EMA") {
-    const seed = closes.slice(0, period).reduce((sum, close) => sum + close, 0) / period;
-    output[period - 1] = seed;
-    const alpha = 2 / (period + 1);
-    for (let i = period; i < closes.length; i++) output[i] = alpha * closes[i]! + (1 - alpha) * output[i - 1]!;
-  } else {
-    if (closes.length <= period) return output;
-    let gains = 0;
-    let losses = 0;
-    for (let i = 1; i <= period; i++) {
-      const change = closes[i]! - closes[i - 1]!;
-      gains += Math.max(0, change);
-      losses += Math.max(0, -change);
-    }
-    gains /= period;
-    losses /= period;
-    const value = () => gains === 0 && losses === 0 ? 50 : losses === 0 ? 100 : 100 - 100 / (1 + gains / losses);
-    output[period] = value();
-    for (let i = period + 1; i < closes.length; i++) {
-      const change = closes[i]! - closes[i - 1]!;
-      gains = (gains * (period - 1) + Math.max(0, change)) / period;
-      losses = (losses * (period - 1) + Math.max(0, -change)) / period;
-      output[i] = value();
-    }
-  }
-  return output;
+  let count = 0;
+  let sum = 0;
+  const window: number[] = [];
+  let priorClose = NaN;
+  let averageGain = 0;
+  let averageLoss = 0;
+  return {
+    get previous() { return previous; }, get current() { return current; },
+    push(close) {
+      previous = current;
+      count++;
+      if (indicator.kind === "SMA") {
+        window.push(close);
+        sum += close;
+        if (window.length > period) sum -= window.shift()!;
+        current = window.length === period ? sum / period : NaN;
+        return;
+      }
+      if (indicator.kind === "EMA") {
+        if (count <= period) {
+          sum += close;
+          current = count === period ? sum / period : NaN;
+        } else current = close * (2 / (period + 1)) + current * (1 - 2 / (period + 1));
+        return;
+      }
+      if (Number.isFinite(priorClose)) {
+        const change = close - priorClose;
+        const gain = Math.max(0, change);
+        const loss = Math.max(0, -change);
+        if (count <= period + 1) { averageGain += gain; averageLoss += loss; }
+        else { averageGain = (averageGain * (period - 1) + gain) / period; averageLoss = (averageLoss * (period - 1) + loss) / period; }
+      }
+      priorClose = close;
+      if (count < period + 1) { current = NaN; return; }
+      if (count === period + 1) { averageGain /= period; averageLoss /= period; }
+      current = averageGain === 0 && averageLoss === 0 ? 50 : averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+    },
+  };
 }
 
-function evaluateSignal(signal: StrategySignal, index: number, series: Map<string, number[]>): boolean {
-  const value = (operand: Operand, i: number): number => operand.kind === "NUMBER" ? operand.value : series.get(indicatorKey(operand))?.[i] ?? NaN;
-  const left = value(signal.left, index);
-  const right = value(signal.right, index);
+function signalMatches(signal: StrategySignal, trackers: Map<string, IndicatorTracker>): boolean {
+  const read = (operand: Operand, previous: boolean): number => operand.kind === "NUMBER" ? operand.value : (previous ? trackers.get(keyOf(operand))?.previous : trackers.get(keyOf(operand))?.current) ?? NaN;
+  const left = read(signal.left, false);
+  const right = read(signal.right, false);
   if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
   if (signal.comparison === "ABOVE") return left > right;
   if (signal.comparison === "BELOW") return left < right;
-  const beforeLeft = value(signal.left, index - 1);
-  const beforeRight = value(signal.right, index - 1);
+  const beforeLeft = read(signal.left, true);
+  const beforeRight = read(signal.right, true);
   if (!Number.isFinite(beforeLeft) || !Number.isFinite(beforeRight)) return false;
-  return signal.comparison === "CROSSES ABOVE"
-    ? beforeLeft <= beforeRight && left > right
-    : beforeLeft >= beforeRight && left < right;
+  return signal.comparison === "CROSSES ABOVE" ? beforeLeft <= beforeRight && left > right : beforeLeft >= beforeRight && left < right;
 }
 
-export function runStrategy(program: StrategyProgram, candles: Candle[], options: StrategyRunOptions): StrategyReport {
-  if (candles.length > 5_000) throw new Error("A strategy test is limited to 5,000 candles.");
-  if (candles.some((candle, i) => !Number.isFinite(Number(candle.close)) || (i > 0 && candle.timestamp <= candles[i - 1]!.timestamp))) throw new Error("Market candles must have valid prices in time order.");
+type Position = { direction: TradeDirection; entryTime: number; entryPrice: string; stopLoss: string; takeProfit: string; lots: string; riskAmount: Decimal; commission: string };
+
+/** The caller feeds candles in time order, optionally across many provider chunks. */
+export function createStrategyRunner(program: StrategyProgram, options: StrategyRunOptions) {
   const { symbol } = options;
-  const series = new Map<string, number[]>();
+  const trackers = new Map<string, IndicatorTracker>();
   for (const signal of program.signals) for (const operand of [signal.left, signal.right]) {
     if (operand.kind === "NUMBER") continue;
-    const key = indicatorKey(operand);
-    if (!series.has(key)) series.set(key, indicatorSeries(operand, candles));
+    const key = keyOf(operand);
+    if (!trackers.has(key)) trackers.set(key, createTracker(operand));
   }
   const trades: StrategyTrade[] = [];
   const equity: StrategyReport["equity"] = [{ time: options.startTime, balance: Number(options.startingBalance) }];
@@ -128,7 +133,11 @@ export function runStrategy(program: StrategyProgram, candles: Candle[], options
   let skippedSignals = 0;
   let crossCurrencyApprox = false;
   let pending: StrategySignal | null = null;
-  let position: { direction: TradeDirection; entryTime: number; entryPrice: string; stopLoss: string; takeProfit: string; lots: string; riskAmount: Decimal; commission: string } | null = null;
+  let position: Position | null = null;
+  let lastCandle: Candle | null = null;
+  let bars = 0;
+  let dataSource = "unknown";
+  let finished: StrategyReport | null = null;
 
   const close = (candle: Candle, exitPrice: string, reason: StrategyTrade["reason"], intrabarAmbiguous = false) => {
     if (!position) return;
@@ -147,46 +156,64 @@ export function runStrategy(program: StrategyProgram, candles: Candle[], options
     position = null;
   };
 
-  for (let index = 0; index < candles.length; index++) {
-    const candle = candles[index]!;
-    if (candle.timestamp < options.startTime) continue;
-    if (pending && !position) {
-      const direction: TradeDirection = pending.side === "BUY" ? "long" : "short";
-      const quote = deriveBidAsk(candle, options.spreadPips, symbol.pipSize);
-      const slip = d(options.slippagePips).times(symbol.pipSize);
-      const entry = (direction === "long" ? quote.askOpen.plus(slip) : quote.bidOpen.minus(slip)).toFixed(symbol.pricePrecision);
-      const distance = d(program.stopPips).times(symbol.pipSize);
-      const stopLoss = (direction === "long" ? d(entry).minus(distance) : d(entry).plus(distance)).toFixed(symbol.pricePrecision);
-      const takeProfit = (direction === "long" ? d(entry).plus(d(program.targetPips).times(symbol.pipSize)) : d(entry).minus(d(program.targetPips).times(symbol.pipSize))).toFixed(symbol.pricePrecision);
-      const sizing = calculatePositionSize({ accountBalance: balance.toFixed(2), accountCurrency: "USD", riskPercent: String(program.riskPercent), entryPrice: entry, stopLoss, pipSize: symbol.pipSize, symbol: symbol.symbol, quoteCurrency: symbol.quoteCurrency, baseCurrency: symbol.baseCurrency });
-      crossCurrencyApprox ||= sizing.crossCurrencyApprox;
-      if (d(sizing.lots).lte(0) || d(takeProfit).lte(0) || d(stopLoss).lte(0)) skippedSignals++;
-      else position = { direction, entryTime: candle.timestamp, entryPrice: entry, stopLoss, takeProfit, lots: sizing.lots, riskAmount: d(sizing.maxExpectedLoss === "Not available" ? 0 : sizing.maxExpectedLoss), commission: commissionForLots(options.commissionPerLot, sizing.lots) };
+  const push = (candle: Candle) => {
+    if (finished) throw new Error("Cannot add candles after the test has finished.");
+    if (lastCandle && candle.timestamp <= lastCandle.timestamp) throw new Error("Market candles must be in time order.");
+    const closeValue = Number(candle.close);
+    if (![closeValue, Number(candle.open), Number(candle.high), Number(candle.low)].every(Number.isFinite)) throw new Error("Market candles must have valid prices.");
+    lastCandle = candle;
+    if (dataSource === "unknown") dataSource = candle.source;
+    if (candle.timestamp >= options.startTime) {
+      bars++;
+      if (pending && !position) {
+        const direction: TradeDirection = pending.side === "BUY" ? "long" : "short";
+        const quote = deriveBidAsk(candle, options.spreadPips, symbol.pipSize);
+        const slip = d(options.slippagePips).times(symbol.pipSize);
+        const entry = (direction === "long" ? quote.askOpen.plus(slip) : quote.bidOpen.minus(slip)).toFixed(symbol.pricePrecision);
+        const stopLoss = (direction === "long" ? d(entry).minus(d(program.stopPips).times(symbol.pipSize)) : d(entry).plus(d(program.stopPips).times(symbol.pipSize))).toFixed(symbol.pricePrecision);
+        const takeProfit = (direction === "long" ? d(entry).plus(d(program.targetPips).times(symbol.pipSize)) : d(entry).minus(d(program.targetPips).times(symbol.pipSize))).toFixed(symbol.pricePrecision);
+        const sizing = calculatePositionSize({ accountBalance: balance.toFixed(2), accountCurrency: "USD", riskPercent: String(program.riskPercent), entryPrice: entry, stopLoss, pipSize: symbol.pipSize, symbol: symbol.symbol, quoteCurrency: symbol.quoteCurrency, baseCurrency: symbol.baseCurrency });
+        crossCurrencyApprox ||= sizing.crossCurrencyApprox;
+        if (d(sizing.lots).lte(0) || d(takeProfit).lte(0) || d(stopLoss).lte(0)) skippedSignals++;
+        else position = { direction, entryTime: candle.timestamp, entryPrice: entry, stopLoss, takeProfit, lots: sizing.lots, riskAmount: d(sizing.maxExpectedLoss === "Not available" ? 0 : sizing.maxExpectedLoss), commission: commissionForLots(options.commissionPerLot, sizing.lots) };
+      }
+      pending = null;
+      if (position) {
+        const hit = checkStopTakeProfit(position.direction, position.stopLoss, position.takeProfit, candle, options.spreadPips, symbol.pipSize, "conservative");
+        if (hit) close(candle, hit.price, hit.reason as "stop-loss" | "take-profit", hit.intrabarAmbiguous);
+      }
     }
-    pending = null;
-    if (position) {
-      const hit = checkStopTakeProfit(position.direction, position.stopLoss, position.takeProfit, candle, options.spreadPips, symbol.pipSize, "conservative");
-      if (hit) close(candle, hit.price, hit.reason as "stop-loss" | "take-profit", hit.intrabarAmbiguous);
-    }
-    if (!position && index < candles.length - 1) {
-      const matched = program.signals.filter(signal => evaluateSignal(signal, index, series));
+    // The current close becomes visible only after entries and stops on this bar.
+    for (const tracker of trackers.values()) tracker.push(closeValue);
+    if (candle.timestamp >= options.startTime && !position) {
+      const matched = program.signals.filter(signal => signalMatches(signal, trackers));
       if (matched.length > 1 && new Set(matched.map(signal => signal.side)).size > 1) skippedSignals++;
       else pending = matched[0] ?? null;
     }
-  }
-  if (position && candles.length) {
-    const final = candles.at(-1)!;
-    close(final, exitFillPrice(position.direction, final, options.spreadPips, symbol.pipSize).toString(), "end-of-test");
-  }
-  const wins = trades.filter(trade => d(trade.pnl).gt(0)).length;
-  return {
-    name: program.name, timeframe: program.timeframe,
-    bars: candles.filter(candle => candle.timestamp >= options.startTime).length,
-    startingBalance: d(options.startingBalance).toFixed(2), endingBalance: balance.toFixed(2), netPnl: balance.minus(options.startingBalance).toFixed(2),
-    winRate: trades.length ? wins / trades.length * 100 : 0,
-    profitFactor: grossLoss.gt(0) ? grossProfit.div(grossLoss).toDecimalPlaces(2).toNumber() : null,
-    maxDrawdown: maxDrawdown.toFixed(2), trades, equity, skippedSignals, crossCurrencyApprox,
-    dataSource: candles[0]?.source ?? "unknown",
-    assumptions: { spreadPips: options.spreadPips, slippagePips: options.slippagePips, commissionPerLot: options.commissionPerLot, executionPolicy: "conservative" },
   };
+
+  const finish = (): StrategyReport => {
+    if (finished) return finished;
+    if (position && lastCandle) close(lastCandle, exitFillPrice(position.direction, lastCandle, options.spreadPips, symbol.pipSize).toString(), "end-of-test");
+    const wins = trades.filter(trade => d(trade.pnl).gt(0)).length;
+    const stride = Math.max(1, Math.ceil(equity.length / 1_500));
+    const chartEquity = equity.filter((_, index) => index % stride === 0 || index === equity.length - 1);
+    finished = {
+      name: program.name, timeframe: program.timeframe, bars,
+      startingBalance: d(options.startingBalance).toFixed(2), endingBalance: balance.toFixed(2), netPnl: balance.minus(options.startingBalance).toFixed(2),
+      winRate: trades.length ? wins / trades.length * 100 : 0,
+      profitFactor: grossLoss.gt(0) ? grossProfit.div(grossLoss).toDecimalPlaces(2).toNumber() : null,
+      maxDrawdown: maxDrawdown.toFixed(2), trades, equity: chartEquity, skippedSignals, crossCurrencyApprox, dataSource,
+      assumptions: { spreadPips: options.spreadPips, slippagePips: options.slippagePips, commissionPerLot: options.commissionPerLot, executionPolicy: "conservative" },
+    };
+    return finished;
+  };
+  return { push, finish, get bars() { return bars; } };
+}
+
+/** Convenient batch adapter for tests and small in-memory callers. */
+export function runStrategy(program: StrategyProgram, candles: Candle[], options: StrategyRunOptions): StrategyReport {
+  const runner = createStrategyRunner(program, options);
+  for (const candle of candles) runner.push(candle);
+  return runner.finish();
 }

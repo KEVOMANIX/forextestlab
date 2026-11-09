@@ -14,6 +14,5 @@ export const dynamic = "force-dynamic";
 export default async function StrategiesPage() {
   const user = await getCurrentUser();
   const entitlements = user ? await getUserEntitlements(user.id) : null;
-  const maxDays = entitlements ? Math.min(90, entitlements.maxSessionDays ?? 90) : 14;
-  return <StrategyLab sampleMode={!user} maxDays={maxDays} allowedSymbols={entitlements?.allowedSymbols ?? (user ? null : ["EURUSD"])} />;
+  return <StrategyLab sampleMode={!user} allowedSymbols={entitlements?.allowedSymbols ?? (user ? null : ["EURUSD"])} />;
 }

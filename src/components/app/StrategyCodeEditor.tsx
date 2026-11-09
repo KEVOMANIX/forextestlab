@@ -39,12 +39,12 @@ const language = StreamLanguage.define({
   },
 });
 const codeColors = HighlightStyle.define([
-  { tag: tags.keyword, color: "var(--app-code-keyword)" },
-  { tag: tags.function(tags.variableName), color: "var(--app-code-function)" },
-  { tag: tags.string, color: "var(--app-code-string)" },
-  { tag: tags.number, color: "var(--app-code-number)" },
-  { tag: tags.comment, color: "var(--app-code-comment)" },
-  { tag: tags.variableName, color: "var(--app-text)" },
+  { tag: tags.keyword, color: "#8ee3c7" },
+  { tag: tags.function(tags.variableName), color: "#f3d18e" },
+  { tag: tags.string, color: "#a8c9ff" },
+  { tag: tags.number, color: "#f5b7aa" },
+  { tag: tags.comment, color: "#9cb8ac" },
+  { tag: tags.variableName, color: "#e8edea" },
 ]);
 
 const completions: Completion[] = [
@@ -76,7 +76,7 @@ function diagnosticsFor(source: string, server: StrategyDiagnostic[]): Diagnosti
   });
 }
 
-export function StrategyCodeEditor({ value, onChange, serverDiagnostics }: { value: string; onChange: (value: string) => void; serverDiagnostics: StrategyDiagnostic[] }) {
+export function StrategyCodeEditor({ value, onChange, serverDiagnostics, minimap = true }: { value: string; onChange: (value: string) => void; serverDiagnostics: StrategyDiagnostic[]; minimap?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -124,13 +124,13 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics }: { val
             }
           }),
           EditorView.theme({
-            "&": { height: "420px", backgroundColor: "var(--app-panel-2)", color: "var(--app-text)", fontSize: "13px" },
+            "&": { height: "100%", minHeight: "390px", backgroundColor: "#0b100e", color: "#e8edea", fontSize: "13px" },
             ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", lineHeight: "1.65" },
-            ".cm-gutters": { backgroundColor: "var(--app-panel-2)", color: "var(--app-muted)", borderRight: "1px solid var(--app-border)" },
-            ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "var(--app-hover)" },
-            ".cm-content": { caretColor: "var(--app-accent-text)" },
-            ".cm-selectionBackground": { backgroundColor: "var(--app-accent-wash) !important" },
-            ".cm-tooltip": { backgroundColor: "var(--app-panel-solid)", color: "var(--app-text)", border: "1px solid var(--app-border)" },
+            ".cm-gutters": { backgroundColor: "#0b100e", color: "#83968c", borderRight: "1px solid #27372f" },
+            ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#15221b" },
+            ".cm-content": { caretColor: "#65d8b8" },
+            ".cm-selectionBackground": { backgroundColor: "#315348 !important" },
+            ".cm-tooltip": { backgroundColor: "#18261e", color: "#e8edea", border: "1px solid #385046" },
           }),
         ],
       }),
@@ -147,10 +147,20 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics }: { val
   }, [value]);
   useEffect(() => { if (viewRef.current) forceLinting(viewRef.current); }, [serverDiagnostics]);
 
-  return <div>
-    <div ref={host} aria-label="Strategy script editor" />
-    <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t app-border px-3 py-2 text-[11px] app-muted" aria-live="polite">
-      <span>{hint ? <><strong className="font-mono text-[var(--app-code-function)]">{hint.signature}</strong> · {hint.description}</> : "Ctrl+Space suggestions · Ctrl+F find · Ctrl+H replace · F8 next error"}</span>
+  return <div className="flex h-full min-h-0 flex-col bg-[#0b100e] text-[#e8edea]">
+    <div className="flex min-h-0 flex-1">
+      <div ref={host} aria-label="Strategy script editor" className="min-w-0 flex-1" />
+      {minimap && <button type="button" aria-label="Jump through script" className="hidden w-[92px] shrink-0 flex-col items-start justify-start overflow-hidden border-l border-[#27372f] bg-[#0f1712] px-2 py-3 text-left lg:flex" onClick={event => {
+        const view = viewRef.current;
+        if (!view) return;
+        const ratio = (event.clientY - event.currentTarget.getBoundingClientRect().top) / event.currentTarget.clientHeight;
+        const line = view.state.doc.line(Math.max(1, Math.min(view.state.doc.lines, Math.ceil(ratio * view.state.doc.lines))));
+        view.dispatch({ selection: { anchor: line.from }, effects: EditorView.scrollIntoView(line.from, { y: "center" }) });
+        view.focus();
+      }}><span className="sr-only">Script minimap</span>{value.split("\n").map((line, index) => <span key={index} aria-hidden className="mb-[2px] block h-[3px] rounded-sm opacity-80" style={{ width: `${Math.max(8, Math.min(100, line.length * 1.4))}%`, backgroundColor: line.trim().startsWith("//") ? "#617c69" : line.includes("strategy.") ? "#e1bd83" : line.includes("ta.") ? "#82c4a7" : "#7a94aa" }} />)}</button>}
+    </div>
+    <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-[#27372f] px-3 py-2 text-[11px] text-[#a7bcb0]" aria-live="polite">
+      <span>{hint ? <><strong className="font-mono text-[#f3d18e]">{hint.signature}</strong> · {hint.description}</> : "Ctrl+Space suggestions · Ctrl+F find · Ctrl+H replace · F8 next error"}</span>
       <span>FTL Script</span>
     </div>
   </div>;

@@ -1,4 +1,5 @@
-/** A deliberately small, declarative language. Source text is never evaluated as JavaScript. */
+/** Strategy source is parsed into a fixed execution plan; never evaluated as JavaScript. */
+import { parseScriptStrategy } from "./script-parser";
 export type StrategyTimeframe = "1h" | "4h" | "1d";
 export type Indicator = { kind: "CLOSE" } | { kind: "EMA" | "SMA" | "RSI"; period: number };
 export type Operand = Indicator | { kind: "NUMBER"; value: number };
@@ -35,6 +36,7 @@ function parseIndicator(raw: string): Indicator | null {
 }
 
 export function parseStrategy(source: string): ParseResult {
+  if (/^\s*(?:\/\/[^\n]*\n\s*)*strategy\s*\(/i.test(source)) return parseScriptStrategy(source);
   const diagnostics: StrategyDiagnostic[] = [];
   if (source.length > 4_000) return { ok: false, diagnostics: [{ line: 1, message: "Strategy is limited to 4,000 characters." }] };
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
@@ -88,6 +90,6 @@ export function parseStrategy(source: string): ParseResult {
 }
 
 export const STRATEGY_EXAMPLES = {
-  crossover: `# Signals use a closed candle; entry is at the next candle's open.\nSTRATEGY "EMA crossover"\nTIMEFRAME 1h\nBUY WHEN EMA(9) CROSSES ABOVE EMA(21)\nSELL WHEN EMA(9) CROSSES BELOW EMA(21)\nSTOP 20 PIPS\nTARGET 40 PIPS\nRISK 1%`,
-  pullback: `# One position at a time. Stops and targets are checked on each candle.\nSTRATEGY "RSI pullback"\nTIMEFRAME 4h\nBUY WHEN RSI(14) CROSSES BELOW 30\nSELL WHEN RSI(14) CROSSES ABOVE 70\nSTOP 35 PIPS\nTARGET 70 PIPS\nRISK 0.5%`,
+  crossover: `//@version=1\nstrategy("EMA crossover", timeframe="1h", risk_percent=1)\n\nfast = ta.ema(close, 9)\nslow = ta.ema(close, 21)\nlongSignal = ta.crossover(fast, slow)\nshortSignal = ta.crossunder(fast, slow)\n\nif longSignal\n    strategy.entry("Long", strategy.long)\nif shortSignal\n    strategy.entry("Short", strategy.short)\n\nstrategy.exit("Exit", stop_pips=20, take_profit_pips=40)`,
+  pullback: `//@version=1\nstrategy("RSI pullback", timeframe="4h", risk_percent=0.5)\n\nrsiValue = ta.rsi(close, 14)\nlongSignal = ta.crossunder(rsiValue, 30)\nshortSignal = ta.crossover(rsiValue, 70)\n\nif longSignal\n    strategy.entry("Long", strategy.long)\nif shortSignal\n    strategy.entry("Short", strategy.short)\n\nstrategy.exit("Exit", stop_pips=35, take_profit_pips=70)`,
 } as const;

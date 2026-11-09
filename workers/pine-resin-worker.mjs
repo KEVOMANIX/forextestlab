@@ -13,7 +13,8 @@ function validateInput(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("The Pine request is invalid.");
   const { code, candles, symbol, timeframe, startingBalance } = input;
   if (typeof code !== "string" || code.length < 1 || code.length > MAX_CODE_LENGTH) throw new Error(`Pine code must contain 1 to ${MAX_CODE_LENGTH.toLocaleString()} characters.`);
-  if (!/^\s*\/\/@version=6\s*$/m.test(code)) throw new Error("This runner accepts Pine Script v6 strategies only. Add //@version=6.");
+  if (!/^\s*\/\/@version=6\s*$/m.test(code)) throw new Error("This runner accepts Pine Script v6 scripts only. Add //@version=6.");
+  if (!/^\s*(?:strategy|indicator)\s*\(/m.test(code)) throw new Error("Declare a Pine strategy() or indicator() script.");
   if (/^\s*import\s+/m.test(code)) throw new Error("Imported Pine libraries are not available in this runner.");
   if (/\brequest\s*\./.test(code)) throw new Error("request.* data feeds are not available in this runner.");
   if (/\buse_bar_magnifier\s*=\s*true\b/.test(code)) throw new Error("Bar magnifier is not available because lower-timeframe intrabar data is not supplied.");
@@ -60,8 +61,6 @@ try {
   });
   if (!result.ok) {
     process.stdout.write(JSON.stringify({ ok: false, error: "Fix the Pine script errors before running.", diagnostics: result.errors.map((message) => ({ line: Number(/\(L(\d+):\d+\)/.exec(message)?.[1] ?? 1), message })) }));
-  } else if (!result.isStrategy) {
-    process.stdout.write(JSON.stringify({ ok: false, error: "Use a Pine strategy() script to run a backtest." }));
   } else {
     const context = Context.from(result, data);
     const runBar = compile(result.code)(context);
@@ -73,25 +72,41 @@ try {
         equity.push({ time: candles[i].timestamp, balance: startingBalance + context.strategy.realizedPnl });
       }
     }
-    const trades = context.strategy.closedTradeRecords.map((trade, i) => ({
+    if (!result.isStrategy) {
+      if (context.plots.length > 12) throw new Error("Indicators can display at most 12 plot() series per test.");
+      const plots = context.plots.map((plot, index) => ({
+        title: result.viz.plots[index]?.title ?? `Plot ${index + 1}`,
+        color: result.viz.plots[index]?.color ?? ["#2962FF", "#FF6D00", "#7B1FA2", "#00A86B"][index % 4],
+        style: result.viz.plots[index]?.style ?? "line",
+        linewidth: result.viz.plots[index]?.linewidth ?? 1,
+        values: plot.toArray().map(value => Number.isFinite(value) ? value : null),
+      }));
+      process.stdout.write(JSON.stringify({ ok: true, report: {
+        kind: "indicator", engine: "Resin 0.3.0", symbol, timeframe, dataSource: input.dataSource,
+        compatibility: "Pine v6 historical indicator subset (single chart feed)", overlay: result.viz.overlay,
+        bars: candles.length, times: candles.map(candle => candle.timestamp), close: data.close, plots,
+      } }));
+    } else {
+      const trades = context.strategy.closedTradeRecords.map((trade, i) => ({
       number: i + 1, direction: trade.size >= 0 ? "long" : "short",
       entryTime: trade.entryTime, exitTime: trade.exitTime,
       entryPrice: trade.entryPrice, exitPrice: trade.exitPrice,
       quantity: Math.abs(trade.size), pnl: trade.profit,
       entryId: trade.entryId, exitId: trade.exitId,
     }));
-    const grossProfit = trades.reduce((sum, t) => sum + Math.max(0, t.pnl), 0);
-    const grossLoss = trades.reduce((sum, t) => sum + Math.max(0, -t.pnl), 0);
-    process.stdout.write(JSON.stringify({ ok: true, report: {
-      engine: "Resin 0.3.0", symbol, timeframe, dataSource: input.dataSource,
-      compatibility: "Pine v6 historical strategy subset (single chart feed)",
-      bars: candles.length, startingBalance, netPnl: context.strategy.realizedPnl,
-      endingBalance: startingBalance + context.strategy.realizedPnl,
-      winRate: trades.length ? trades.filter((t) => t.pnl > 0).length / trades.length * 100 : 0,
-      profitFactor: grossLoss > 0 ? grossProfit / grossLoss : null,
-      maxDrawdown: context.strategy.maxDrawdown ?? 0,
-      openPosition: context.strategy.posSize, trades, equity,
-    } }));
+      const grossProfit = trades.reduce((sum, t) => sum + Math.max(0, t.pnl), 0);
+      const grossLoss = trades.reduce((sum, t) => sum + Math.max(0, -t.pnl), 0);
+      process.stdout.write(JSON.stringify({ ok: true, report: {
+        kind: "strategy", engine: "Resin 0.3.0", symbol, timeframe, dataSource: input.dataSource,
+        compatibility: "Pine v6 historical strategy subset (single chart feed)",
+        bars: candles.length, startingBalance, netPnl: context.strategy.realizedPnl,
+        endingBalance: startingBalance + context.strategy.realizedPnl,
+        winRate: trades.length ? trades.filter((t) => t.pnl > 0).length / trades.length * 100 : 0,
+        profitFactor: grossLoss > 0 ? grossProfit / grossLoss : null,
+        maxDrawdown: context.strategy.maxDrawdown ?? 0,
+        openPosition: context.strategy.posSize, trades, equity,
+      } }));
+    }
   }
 } catch (error) {
   process.stdout.write(JSON.stringify({ ok: false, error: error instanceof Error ? error.message : "Pine test failed." }));

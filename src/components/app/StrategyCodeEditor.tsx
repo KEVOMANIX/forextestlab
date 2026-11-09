@@ -24,6 +24,7 @@ const functionHelp = {
   "input.float": { signature: 'input.float(0.5, title="Risk")', description: "Declare a decimal parameter for reuse in the script." },
 } satisfies Record<string, { signature: string; description: string }>;
 const pineFunctionHelp: Record<string, { signature: string; description: string }> = {
+  indicator: { signature: 'indicator("Name", overlay=true)', description: "Declare a Pine indicator that can output plot series." },
   strategy: { signature: 'strategy("Name", overlay=true)', description: "Declare a Pine strategy. Order settings can be set in the script." },
   "strategy.entry": { signature: 'strategy.entry("Long", strategy.long)', description: "Submit a simulated entry order." },
   "strategy.exit": { signature: 'strategy.exit("Exit", from_entry="Long", stop=price, limit=price)', description: "Submit stop and limit exit orders." },
@@ -70,6 +71,7 @@ const completions: Completion[] = [
   { label: "strategy.short", type: "constant", info: "Short trade direction." },
 ];
 const pineCompletions: Completion[] = [
+  snippetCompletion('indicator("${1:Name}", overlay=${2:true})', { label: "indicator", type: "function", detail: "Pine indicator declaration" }),
   snippetCompletion('strategy("${1:Name}", overlay=true)', { label: "strategy", type: "function", detail: "Pine strategy declaration" }),
   snippetCompletion('strategy.entry("${1:Long}", strategy.long)', { label: "strategy.entry", type: "function", detail: "Place an entry order" }),
   snippetCompletion('strategy.exit("${1:Exit}", from_entry="${2:Long}", stop=${3:stopPrice}, limit=${4:targetPrice})', { label: "strategy.exit", type: "function", detail: "Stop and limit exit" }),
@@ -184,7 +186,7 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, mode = 
     </div>
     <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-[#27372f] px-3 py-2 text-[11px] text-[#a7bcb0]" aria-live="polite">
       <span>{hint ? <><strong className="font-mono text-[#f3d18e]">{hint.signature}</strong> · {hint.description}</> : "Ctrl+Space suggestions · Ctrl+F find · Ctrl+H replace · F8 next error"}</span>
-      <span>{mode === "pine" ? "Pine v6 · experimental" : "FTL Script"}</span>
+      <span>{mode === "pine" ? "Pine Script v6" : "FTL Script"}</span>
     </div>
   </div>;
 }

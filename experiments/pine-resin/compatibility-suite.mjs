@@ -34,6 +34,7 @@ if ta.crossunder(fast, slow)
 
 const supported = await run(emaStrategy);
 assert.equal(supported.ok, true, JSON.stringify(supported));
+assert.equal(supported.report.kind, "strategy");
 assert.equal(supported.report.compatibility, "Pine v6 historical strategy subset (single chart feed)");
 assert.ok(supported.report.trades.length > 5);
 assert.ok(supported.report.trades.some(trade => trade.direction === "long"));
@@ -52,7 +53,7 @@ assert.ok(Number.isFinite(bracket.report.trades[0].pnl));
 assert.equal(bracket.report.openPosition, 0);
 
 const rejectedCases = [
-  [emaStrategy.replace("//@version=6", "//@version=5"), "v6 strategies only"],
+  [emaStrategy.replace("//@version=6", "//@version=5"), "v6 scripts only"],
   [`//@version=6\nimport vendor/library/1 as lib\nstrategy("Import")`, "Imported Pine libraries"],
   [`//@version=6\nstrategy("External")\nx = request.security("GBPUSD", "D", close)`, "request.* data feeds"],
   [`//@version=6\nstrategy("Magnifier", use_bar_magnifier=true)`, "Bar magnifier"],
@@ -68,10 +69,22 @@ const malformed = await run(emaStrategy, { candles: [candles[0], { ...candles[1]
 assert.equal(malformed.ok, false);
 assert.match(malformed.error, /invalid OHLC/);
 
+const indicator = await run(`//@version=6
+indicator("EMA pair", overlay=true)
+plot(ta.ema(close, 5), "Fast", color=color.blue, linewidth=2)
+plot(ta.ema(close, 12), "Slow", color=color.orange)`);
+assert.equal(indicator.ok, true, JSON.stringify(indicator));
+assert.equal(indicator.report.kind, "indicator");
+assert.equal(indicator.report.overlay, true);
+assert.equal(indicator.report.plots.length, 2);
+assert.equal(indicator.report.plots[0].title, "Fast");
+assert.equal(indicator.report.plots[0].values.length, candles.length);
+assert.equal(indicator.report.times.length, candles.length);
+
 for (const symbol of ["GBPJPY", "AUDCAD", "USDZAR"]) {
   const result = await run(emaStrategy, { symbol });
   assert.equal(result.ok, true, `${symbol}: ${JSON.stringify(result)}`);
   assert.equal(result.report.symbol, symbol);
 }
 
-console.log(JSON.stringify({ ok: true, supported: { emaReversalTrades: supported.report.trades.length, bracketTrades: bracket.report.trades.length, additionalPairs: ["GBPJPY", "AUDCAD", "USDZAR"] }, rejected: rejectedCases.length + 1, scope: supported.report.compatibility }, null, 2));
+console.log(JSON.stringify({ ok: true, supported: { emaReversalTrades: supported.report.trades.length, bracketTrades: bracket.report.trades.length, indicatorPlots: indicator.report.plots.length, additionalPairs: ["GBPJPY", "AUDCAD", "USDZAR"] }, rejected: rejectedCases.length + 1, scope: supported.report.compatibility }, null, 2));

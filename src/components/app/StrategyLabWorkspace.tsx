@@ -15,11 +15,17 @@ type Market = { symbol: string; source: Source; name: string };
 type SettingsPane = "market" | "period" | null;
 type BottomTab = "results" | "problems" | "reference";
 type PineReport = {
+  kind: "strategy";
   engine: string; symbol: string; timeframe: string; dataSource: string; bars: number;
   startingBalance: number; endingBalance: number; netPnl: number; winRate: number;
   profitFactor: number | null; maxDrawdown: number; openPosition: number;
   equity: { time: number; balance: number }[];
   trades: { number: number; direction: "long" | "short"; entryTime: number; exitTime: number; entryPrice: number; exitPrice: number; quantity: number; pnl: number; entryId: string; exitId: string | null }[];
+};
+type IndicatorReport = {
+  kind: "indicator"; engine: string; symbol: string; timeframe: string; dataSource: string; bars: number;
+  overlay: boolean; times: number[]; close: number[];
+  plots: { title: string; color: string; style: string; linewidth: number; values: (number | null)[] }[];
 };
 const PINE_EXAMPLE = `//@version=6
 strategy("EMA crossover test", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=1, margin_short=1)
@@ -33,6 +39,12 @@ if goShort
     strategy.entry("Short", strategy.short)
 plot(fast, "Fast EMA")
 plot(slow, "Slow EMA")`;
+const PINE_INDICATOR_EXAMPLE = `//@version=6
+indicator("EMA ribbon", overlay=true)
+fast = ta.ema(close, 9)
+slow = ta.ema(close, 21)
+plot(fast, "Fast EMA", color=color.blue, linewidth=2)
+plot(slow, "Slow EMA", color=color.orange, linewidth=2)`;
 const DAY = 86_400_000;
 const date = (time: number) => new Date(time).toISOString().slice(0, 10);
 const timestamp = (value: string) => Date.parse(`${value}T00:00:00Z`);
@@ -59,6 +71,29 @@ function PineResults({ report, visibleTrades, onMore }: { report: PineReport; vi
   </div>;
 }
 
+function IndicatorResults({ report }: { report: IndicatorReport }) {
+  const width = 1000;
+  const height = 360;
+  const step = Math.max(1, Math.ceil(report.bars / 1200));
+  const indexes = Array.from({ length: Math.ceil(report.bars / step) }, (_, index) => Math.min(report.bars - 1, index * step));
+  const series = [...(report.overlay ? [{ title: "Price", color: "#8c9aa3", linewidth: 1, values: report.close as (number | null)[] }] : []), ...report.plots];
+  const finite = series.flatMap(item => indexes.map(index => item.values[index]).filter((value): value is number => typeof value === "number" && Number.isFinite(value)));
+  const low = finite.length ? Math.min(...finite) : 0;
+  const high = finite.length ? Math.max(...finite) : 1;
+  const span = Math.max(Number.EPSILON, high - low);
+  const points = (values: (number | null)[]) => indexes.flatMap((sourceIndex, pointIndex) => {
+    const value = values[sourceIndex];
+    if (typeof value !== "number" || !Number.isFinite(value)) return [];
+    return [`${(pointIndex / Math.max(1, indexes.length - 1)) * width},${height - ((value - low) / span) * height}`];
+  }).join(" ");
+  return <div className="space-y-4">
+    <div><h2 className="text-base font-semibold">Pine indicator · {report.symbol}</h2><p className="text-xs app-muted">{report.engine} · {report.bars.toLocaleString()} {report.timeframe} candles · {report.dataSource} · {report.overlay ? "Price overlay" : "Separate pane"}</p></div>
+    <div className="rounded-lg border app-border bg-[#0b100e] p-3"><svg viewBox={`0 0 ${width} ${height}`} className="h-[360px] w-full" role="img" aria-label={`${report.symbol} indicator plots`}>{series.map(item => <polyline key={item.title} points={points(item.values)} fill="none" stroke={item.color || "#2962FF"} strokeWidth={Math.max(1, item.linewidth)} vectorEffect="non-scaling-stroke" />)}</svg></div>
+    <div className="flex flex-wrap gap-4 text-xs">{series.map(item => <span key={item.title} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full" style={{ backgroundColor: item.color || "#2962FF" }} />{item.title}</span>)}</div>
+    <p className="text-[11px] app-muted">Historical plot preview. TradingView drawing objects, alerts, and realtime ticks are not rendered yet.</p>
+  </div>;
+}
+
 export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMode: boolean; allowedSymbols: readonly string[] | null }) {
   const [code, setCode] = useState<string>(PINE_EXAMPLE);
   const [pineTimeframe, setPineTimeframe] = useState<"15m" | "1h" | "4h" | "1d">("15m");
@@ -78,11 +113,11 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [serverDiagnostics, setServerDiagnostics] = useState<StrategyDiagnostic[]>([]);
-  const [pineReport, setPineReport] = useState<PineReport | null>(null);
+  const [pineReport, setPineReport] = useState<PineReport | IndicatorReport | null>(null);
   const [visibleTrades, setVisibleTrades] = useState(20);
   const issues: StrategyDiagnostic[] = [];
   const marketMatches = markets.filter(item => `${item.symbol} ${item.name} ${item.source}`.toLowerCase().includes(marketSearch.toLowerCase()));
-  const exampleOptions: [string, string][] = [["EMA crossover · Pine v6", PINE_EXAMPLE]];
+  const exampleOptions: [string, string][] = [["EMA crossover strategy", PINE_EXAMPLE], ["EMA ribbon indicator", PINE_INDICATOR_EXAMPLE]];
 
   useEffect(() => {
     try { const pine = localStorage.getItem("ftl:strategy-lab-pine-draft:v1"); if (pine) setCode(pine); } catch { /* browser storage unavailable */ }
@@ -129,7 +164,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
     setBusy(true); setProgress("Starting test…"); setError(null); setServerDiagnostics([]); setBottomOpen(true); setBottomTab("results");
     try {
       const response = await fetch("/api/strategy-tests/pine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, symbol: market.symbol, source: market.source, timeframe: pineTimeframe, startTime, endTime, startingBalance: 10_000 }) });
-      const data = await response.json() as { ok: boolean; report?: PineReport; error?: string; diagnostics?: StrategyDiagnostic[] };
+      const data = await response.json() as { ok: boolean; report?: PineReport | IndicatorReport; error?: string; diagnostics?: StrategyDiagnostic[] };
       if (!response.ok || !data.ok || !data.report) { setError(data.error ?? "The Pine test could not complete."); setServerDiagnostics(data.diagnostics ?? []); setBottomTab("problems"); return; }
       setPineReport(data.report);
       setVisibleTrades(20);
@@ -172,11 +207,11 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
     </main>
 
     <section aria-label="Strategy tester" className="border-t app-border bg-[var(--app-panel-solid)]">
-      <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-3 sm:px-5"><div className="flex items-center gap-1">{([ ["results", "Strategy tester"], ["problems", `Problems ${issues.length + serverDiagnostics.length + (error ? 1 : 0)}`], ["reference", "Reference"] ] as [BottomTab, string][]).map(([tab, label]) => <button key={tab} type="button" onClick={() => chooseTab(tab)} className={`h-10 border-b-2 px-3 text-xs font-semibold ${bottomOpen && bottomTab === tab ? "border-[var(--app-accent)] text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{label}</button>)}</div><div className="flex items-center gap-3"><span className="text-[11px] app-muted" role="status">{progress ?? (pineReport ? `${pineReport.trades.length} trades · ${money(pineReport.netPnl)}` : "Ready")}</span><button type="button" onClick={() => setBottomOpen(!bottomOpen)} aria-label={bottomOpen ? "Collapse bottom panel" : "Open bottom panel"} className="grid size-8 place-items-center rounded-md hover:bg-[var(--app-panel-2)]">{bottomOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button></div></div>
+      <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-3 sm:px-5"><div className="flex items-center gap-1">{([ ["results", "Pine output"], ["problems", `Problems ${issues.length + serverDiagnostics.length + (error ? 1 : 0)}`], ["reference", "Reference"] ] as [BottomTab, string][]).map(([tab, label]) => <button key={tab} type="button" onClick={() => chooseTab(tab)} className={`h-10 border-b-2 px-3 text-xs font-semibold ${bottomOpen && bottomTab === tab ? "border-[var(--app-accent)] text-[var(--app-text)]" : "border-transparent app-muted hover:text-[var(--app-text)]"}`}>{label}</button>)}</div><div className="flex items-center gap-3"><span className="text-[11px] app-muted" role="status">{progress ?? (pineReport ? pineReport.kind === "strategy" ? `${pineReport.trades.length} trades · ${money(pineReport.netPnl)}` : `${pineReport.plots.length} plots · ${pineReport.bars.toLocaleString()} candles` : "Ready")}</span><button type="button" onClick={() => setBottomOpen(!bottomOpen)} aria-label={bottomOpen ? "Collapse bottom panel" : "Open bottom panel"} className="grid size-8 place-items-center rounded-md hover:bg-[var(--app-panel-2)]">{bottomOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}</button></div></div>
       {bottomOpen && <div className="max-h-[55dvh] overflow-y-auto border-t app-border px-4 py-5 sm:px-6">
         {bottomTab === "problems" && <div className="space-y-2 text-sm">{error && <p role="alert" className="flex gap-2 text-loss"><AlertCircle size={16} />{error}</p>}{[...issues, ...serverDiagnostics].map((issue, index) => <p key={`${issue.line}-${index}`} className="flex gap-2 text-loss"><AlertCircle size={15} className="mt-0.5 shrink-0" />Line {issue.line}: {issue.message}</p>)}{!error && !issues.length && !serverDiagnostics.length && <p className="flex items-center gap-2 text-[var(--app-accent-text)]"><Check size={16} />No script errors.</p>}</div>}
-        {bottomTab === "reference" && <div className="max-w-3xl text-xs"><h3 className="font-semibold">Pine Script v6</h3><p className="mt-2 app-muted">Paste a Pine v6 strategy using the selected chart&apos;s OHLCV data. Historical indicators and orders—including sizing, pyramiding, commissions, slippage, stops, limits, and bracket exits—run through Resin. Imported libraries, request.* feeds, bar magnifier, and realtime tick recalculation are not supported. Tests use ForexTestLab candles, not TradingView&apos;s broker feeds, so fill prices and totals can differ. This is a tested subset, not full TradingView parity.</p><p className="mt-2 app-muted">Available: every enabled ForexTestLab FX pair plus XAU/USD · 15m, 1h, 4h, and 1d · up to 30,000 candles. Configure supported costs in strategy().</p></div>}
-        {bottomTab === "results" && (pineReport ? <PineResults report={pineReport} visibleTrades={visibleTrades} onMore={() => setVisibleTrades(count => count + 100)} /> : <p className="py-8 text-center text-sm app-muted">Run a Pine v6 strategy to see its trades and results.</p>)}
+        {bottomTab === "reference" && <div className="max-w-3xl text-xs"><h3 className="font-semibold">Pine Script v6</h3><p className="mt-2 app-muted">Create either a strategy() for simulated trades or an indicator() with up to 12 plot() series. Historical indicators, technical-analysis functions, and strategy orders run through Resin. Imported libraries, request.* feeds, bar magnifier, and realtime tick recalculation are not supported. Tests use ForexTestLab candles, not TradingView&apos;s broker feeds, so values can differ. This is a tested subset, not full TradingView parity.</p><p className="mt-2 app-muted">Available: every enabled ForexTestLab FX pair plus XAU/USD · 15m, 1h, 4h, and 1d · up to 30,000 candles.</p></div>}
+        {bottomTab === "results" && (pineReport ? pineReport.kind === "strategy" ? <PineResults report={pineReport} visibleTrades={visibleTrades} onMore={() => setVisibleTrades(count => count + 100)} /> : <IndicatorResults report={pineReport} /> : <p className="py-8 text-center text-sm app-muted">Run a Pine v6 strategy or indicator to see its output.</p>)}
       </div>}
     </section>
   </div>;

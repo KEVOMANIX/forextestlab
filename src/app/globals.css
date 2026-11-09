@@ -85,6 +85,11 @@
     --app-panel-2: #294038;
     --app-border: #3c5b50;
     --app-text: #f4fff9;
+    --app-code-keyword: #8ee3c7;
+    --app-code-function: #f3d18e;
+    --app-code-string: #a8c9ff;
+    --app-code-number: #f5b7aa;
+    --app-code-comment: #9cb8ac;
     --app-muted: #aac8bc;
     /*
      * Brand colour for text. `brand-300` reads well on a dark panel but drops to
@@ -216,6 +221,11 @@
     --app-panel-2: #eef1ec;
     --app-border: #d7ddd8;
     --app-text: #17201c;
+    --app-code-keyword: #08745c;
+    --app-code-function: #74520b;
+    --app-code-string: #2457a0;
+    --app-code-number: #a24035;
+    --app-code-comment: #66766c;
     --app-muted: #5d6963;
     --app-accent-text: #08745c;
     --app-accent-wash: rgb(15 159 125 / 0.10);

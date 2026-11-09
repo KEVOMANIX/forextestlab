@@ -2,12 +2,15 @@
 
 import { AlertCircle, ArrowRight, Check, ChevronDown, Code2, Loader2, Play, Search, ShieldCheck, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 
 import { fetchRanges, fetchSymbols } from "@/lib/backtest/client";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
 import { STRATEGY_EXAMPLES, parseStrategy, type StrategyDiagnostic } from "@/lib/strategy-language/parser";
 import type { StrategyReport } from "@/lib/strategy-language/run";
+
+const StrategyCodeEditor = dynamic(() => import("./StrategyCodeEditor").then(module => module.StrategyCodeEditor), { ssr: false, loading: () => <div className="grid h-[420px] place-items-center text-sm app-muted">Loading code editor…</div> });
 
 type Source = "dukascopy" | "histdata" | "demo";
 type Market = { symbol: string; source: Source; name: string };
@@ -161,7 +164,7 @@ export function StrategyLab({ sampleMode, allowedSymbols }: { sampleMode: boolea
 
         <section className="rounded-2xl border app-border bg-[var(--app-panel)] p-5 shadow-sm sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--app-accent-text)]">02 · Script</p><h2 className="mt-1 text-lg font-semibold">Code your strategy</h2></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => setCode(STRATEGY_EXAMPLES.crossover)} className="rounded-lg border app-border px-3 py-1.5 text-xs font-semibold hover:bg-[var(--app-panel-2)]">EMA script</button><button type="button" onClick={() => setCode(STRATEGY_EXAMPLES.pullback)} className="rounded-lg border app-border px-3 py-1.5 text-xs font-semibold hover:bg-[var(--app-panel-2)]">RSI script</button>{legacyDraft && <button type="button" onClick={() => setCode(legacyDraft)} className="rounded-lg border app-border px-3 py-1.5 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Previous draft</button>}</div></div>
-          <div className="mt-5 overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]"><div className="flex items-center justify-between border-b app-border px-3 py-2 text-[11px] app-muted"><span>strategy.ftl · Pine-inspired</span><span>Draft saved in this browser</span></div><div className="flex"><div aria-hidden="true" className="select-none border-r app-border px-2.5 py-4 text-right font-mono text-[13px] leading-6 app-muted">{code.split("\n").map((_, index) => <div key={index}>{index + 1}</div>)}</div><textarea aria-label="Strategy code" spellCheck={false} value={code} onChange={event => setCode(event.target.value)} onKeyDown={event => { if (event.key !== "Tab") return; event.preventDefault(); const target = event.currentTarget; const start = target.selectionStart; const end = target.selectionEnd; setCode(value => `${value.slice(0, start)}    ${value.slice(end)}`); requestAnimationFrame(() => { target.selectionStart = target.selectionEnd = start + 4; }); }} className="min-h-[370px] w-full resize-y bg-transparent p-4 font-mono text-[13px] leading-6 text-[var(--app-text)] outline-none" /></div></div>
+          <div className="mt-5 overflow-hidden rounded-xl border app-border bg-[var(--app-panel-2)]"><div className="flex items-center justify-between border-b app-border px-3 py-2 text-[11px] app-muted"><span>strategy.ftl · Pine-inspired</span><span>Draft saved in this browser</span></div><StrategyCodeEditor value={code} onChange={setCode} serverDiagnostics={serverDiagnostics} /></div>
           <div className="mt-3 space-y-1" aria-live="polite">{parsed.ok ? <p className="flex items-center gap-1.5 text-xs text-[var(--app-accent-text)]"><Check size={14} /> Rules valid · {parsed.program.signals.length} entry {parsed.program.signals.length === 1 ? "rule" : "rules"} · {parsed.program.timeframe} candles</p> : parsed.diagnostics.map((item, index) => <p key={`${item.line}-${index}`} className="flex items-start gap-1.5 text-xs text-loss"><AlertCircle size={13} className="mt-0.5 shrink-0" /> Line {item.line}: {item.message}</p>)}{serverDiagnostics.map((item, index) => <p key={`server-${index}`} className="text-xs text-loss">Line {item.line}: {item.message}</p>)}</div>
           {error && <p role="alert" className="mt-3 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-loss">{error}</p>}
           {busy && progress && <p role="status" className="mt-3 text-xs app-muted">{progress}</p>}

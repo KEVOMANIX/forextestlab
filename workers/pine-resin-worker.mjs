@@ -1,8 +1,14 @@
-import { readFileSync } from "node:fs";
 import { transpile, compile, Context } from "@nullarch/resin";
 
 try {
-  const input = JSON.parse(readFileSync(0, "utf8"));
+  const chunks = [];
+  let inputBytes = 0;
+  for await (const chunk of process.stdin) {
+    inputBytes += chunk.length;
+    if (inputBytes > 16_000_000) throw new Error("Pine request exceeds the input limit.");
+    chunks.push(chunk);
+  }
+  const input = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   const { code, candles, symbol, timeframe, startingBalance } = input;
   if (/\brequest\s*\./.test(code)) {
     throw new Error("External request.* data is not connected to this experimental runner yet.");

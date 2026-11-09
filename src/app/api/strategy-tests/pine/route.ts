@@ -50,7 +50,10 @@ function runIsolated(input: unknown, signal: AbortSignal): Promise<unknown> {
     socket.on("connect", () => socket.end(JSON.stringify(input)));
     socket.on("data", (chunk: string) => { output += chunk; if (output.length > 8_000_000) finish(new Error("Pine result exceeded the size limit.")); });
     socket.on("end", () => finish());
-    socket.on("error", () => finish(new Error("The isolated Pine runner is unavailable.")));
+    socket.on("error", (error: NodeJS.ErrnoException) => {
+      console.error("Isolated Pine socket error", { code: error.code, syscall: error.syscall });
+      finish(new Error("The isolated Pine runner is unavailable."));
+    });
     socket.on("close", () => { if (!settled) finish(new Error("The isolated Pine runner closed unexpectedly.")); });
   });
 }
@@ -83,7 +86,7 @@ export async function POST(request: Request) {
     const result = await runIsolated({ ...input, dataSource: input.source, candles }, request.signal);
     return json(result);
   } catch (error) {
-    if (!request.signal.aborted) console.error("Experimental Pine test failed", error);
+    if (!request.signal.aborted) console.error("Experimental Pine test failed", { symbol: input.symbol, source: input.source, timeframe: input.timeframe, error });
     return json({ ok: false, error: error instanceof Error ? error.message : "Could not run the Pine test." }, 503);
   }
 }

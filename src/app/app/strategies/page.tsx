@@ -14,5 +14,5 @@ export const dynamic = "force-dynamic";
 export default async function StrategiesPage() {
   const user = await getCurrentUser();
   const entitlements = user ? await getUserEntitlements(user.id) : null;
-  return <StrategyLabWorkspace sampleMode={!user} allowedSymbols={entitlements?.allowedSymbols ?? (user ? null : ["EURUSD"])} />;
+  return <StrategyLabWorkspace sampleMode={!user} allowedSymbols={entitlements?.allowedSymbols ?? (user ? null : ["EURUSD"])} pineEnabled={process.env.PINE_V6_EXPERIMENTAL === "true"} />;
 }

@@ -48,6 +48,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "@lezer/highlight": "^1.2.5",
+    "@nullarch/resin": "https://codeload.github.com/nullarch/resin/tar.gz/fa683a0ce81bf54832805f3e386c504c144d451a",
     "@prisma/adapter-pg": "6.19.3",
     "@prisma/client": "6.19.3",
     "@supabase/ssr": "^0.12.3",

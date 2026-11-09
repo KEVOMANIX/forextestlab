@@ -23,15 +23,24 @@ const functionHelp = {
   "input.int": { signature: 'input.int(14, title="Length")', description: "Declare an integer parameter for reuse in the script." },
   "input.float": { signature: 'input.float(0.5, title="Risk")', description: "Declare a decimal parameter for reuse in the script." },
 } satisfies Record<string, { signature: string; description: string }>;
-const helpFor = (key: string): { signature: string; description: string } | undefined => (functionHelp as Record<string, { signature: string; description: string }>)[key];
+const pineFunctionHelp: Record<string, { signature: string; description: string }> = {
+  strategy: { signature: 'strategy("Name", overlay=true)', description: "Declare a Pine strategy. Order settings can be set in the script." },
+  "strategy.entry": { signature: 'strategy.entry("Long", strategy.long)', description: "Submit a simulated entry order." },
+  "strategy.exit": { signature: 'strategy.exit("Exit", from_entry="Long", stop=price, limit=price)', description: "Submit stop and limit exit orders." },
+  "strategy.close": { signature: 'strategy.close("Long")', description: "Close the named entry." },
+  "ta.ema": functionHelp["ta.ema"], "ta.sma": functionHelp["ta.sma"], "ta.rsi": functionHelp["ta.rsi"],
+  "ta.crossover": functionHelp["ta.crossover"], "ta.crossunder": functionHelp["ta.crossunder"],
+  "input.int": functionHelp["input.int"], "input.float": functionHelp["input.float"],
+};
+const helpFor = (key: string, mode: "ftl" | "pine"): { signature: string; description: string } | undefined => mode === "pine" ? pineFunctionHelp[key] : (functionHelp as Record<string, { signature: string; description: string }>)[key];
 
 const language = StreamLanguage.define({
   token(stream) {
     if (stream.eatSpace()) return null;
     if (stream.match("//")) { stream.skipToEnd(); return "comment"; }
     if (stream.match(/^"(?:[^"\\]|\\.)*"/)) return "string";
-    if (stream.match(/^(?:strategy\.(?:entry|exit|long|short)|ta\.(?:ema|sma|rsi|crossover|crossunder)|input\.(?:int|float))\b/)) return "variableName.function";
-    if (stream.match(/^(?:strategy|if|close)\b/)) return "keyword";
+    if (stream.match(/^(?:strategy|ta|math|input|request|array|matrix|map|str|timeframe)\.[A-Za-z_][A-Za-z_0-9]*\b/)) return "variableName.function";
+    if (stream.match(/^(?:strategy|indicator|library|if|else|for|while|switch|var|varip|import|export|type|method|true|false|na)\b/)) return "keyword";
     if (stream.match(/^\d+(?:\.\d+)?\b/)) return "number";
     if (stream.match(/^[A-Za-z_][A-Za-z_0-9]*/)) return "variableName";
     stream.next();
@@ -60,10 +69,22 @@ const completions: Completion[] = [
   { label: "strategy.long", type: "constant", info: "Long trade direction." },
   { label: "strategy.short", type: "constant", info: "Short trade direction." },
 ];
+const pineCompletions: Completion[] = [
+  snippetCompletion('strategy("${1:Name}", overlay=true)', { label: "strategy", type: "function", detail: "Pine strategy declaration" }),
+  snippetCompletion('strategy.entry("${1:Long}", strategy.long)', { label: "strategy.entry", type: "function", detail: "Place an entry order" }),
+  snippetCompletion('strategy.exit("${1:Exit}", from_entry="${2:Long}", stop=${3:stopPrice}, limit=${4:targetPrice})', { label: "strategy.exit", type: "function", detail: "Stop and limit exit" }),
+  snippetCompletion('strategy.close("${1:Long}")', { label: "strategy.close", type: "function", detail: "Close an entry" }),
+  ...(["ta.ema", "ta.sma", "ta.rsi"] as const).map(label => snippetCompletion(`${label}(close, \${1:14})`, { label, type: "function" })),
+  ...(["ta.crossover", "ta.crossunder"] as const).map(label => snippetCompletion(`${label}(\${1:fast}, \${2:slow})`, { label, type: "function" })),
+  snippetCompletion('plot(${1:series}, "${2:Title}")', { label: "plot", type: "function" }),
+  snippetCompletion('input.int(${1:14}, title="${2:Length}")', { label: "input.int", type: "function" }),
+  { label: "request.security", type: "function", detail: "Other symbol/timeframe data; feed availability varies" },
+  ...["open", "high", "low", "close", "volume", "strategy.long", "strategy.short", "if", "else"].map(label => ({ label, type: "variable" })),
+];
 
-function diagnosticsFor(source: string, server: StrategyDiagnostic[]): Diagnostic[] {
-  const parsed = parseStrategy(source);
-  const issues = [...(parsed.ok ? [] : parsed.diagnostics), ...server];
+function diagnosticsFor(source: string, server: StrategyDiagnostic[], mode: "ftl" | "pine"): Diagnostic[] {
+  const parsed = mode === "ftl" ? parseStrategy(source) : null;
+  const issues = [...(parsed && !parsed.ok ? parsed.diagnostics : []), ...server];
   const lines = source.split("\n");
   const starts: number[] = [];
   let offset = 0;
@@ -72,18 +93,20 @@ function diagnosticsFor(source: string, server: StrategyDiagnostic[]): Diagnosti
     const lineIndex = Math.max(0, Math.min(lines.length - 1, issue.line - 1));
     const line = lines[lineIndex]!;
     const from = starts[lineIndex]! + (line.search(/\S/) < 0 ? 0 : line.search(/\S/));
-    return { from, to: Math.max(from, starts[lineIndex]! + line.length), severity: "error" as const, message: issue.message, source: "FTL Script" };
+    return { from, to: Math.max(from, starts[lineIndex]! + line.length), severity: "error" as const, message: issue.message, source: mode === "pine" ? "Pine v6" : "FTL Script" };
   });
 }
 
-export function StrategyCodeEditor({ value, onChange, serverDiagnostics, minimap = true }: { value: string; onChange: (value: string) => void; serverDiagnostics: StrategyDiagnostic[]; minimap?: boolean }) {
+export function StrategyCodeEditor({ value, onChange, serverDiagnostics, mode = "ftl", minimap = true }: { value: string; onChange: (value: string) => void; serverDiagnostics: StrategyDiagnostic[]; mode?: "ftl" | "pine"; minimap?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
   const serverRef = useRef(serverDiagnostics);
+  const modeRef = useRef(mode);
   const [hint, setHint] = useState<{ signature: string; description: string } | null>(null);
   changeRef.current = onChange;
   serverRef.current = serverDiagnostics;
+  modeRef.current = mode;
 
   useEffect(() => {
     if (!host.current) return;
@@ -101,16 +124,16 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, minimap
             if (!word || (word.from === word.to && !context.explicit)) return null;
             const prior = context.state.doc.sliceString(0, context.pos);
             const variables = [...prior.matchAll(/^\s*([A-Za-z_][A-Za-z_0-9]*)\s*=/gm)].map(match => match[1]!).filter(name => !["strategy", "close"].includes(name));
-            return { from: word.from, options: [...completions, ...new Set(variables)].map(option => typeof option === "string" ? { label: option, type: "variable" } : option), validFor: /^[A-Za-z_0-9.]*$/ };
+            return { from: word.from, options: [...(modeRef.current === "pine" ? pineCompletions : completions), ...new Set(variables)].map(option => typeof option === "string" ? { label: option, type: "variable" } : option), validFor: /^[A-Za-z_0-9.]*$/ };
           }] }),
           lintGutter(),
-          linter(current => diagnosticsFor(current.state.doc.toString(), serverRef.current), { delay: 300 }),
+          linter(current => diagnosticsFor(current.state.doc.toString(), serverRef.current, modeRef.current), { delay: 300 }),
           hoverTooltip((current, position) => {
             const word = current.state.wordAt(position);
             if (!word) return null;
             const before = current.state.doc.sliceString(Math.max(0, word.from - 20), word.to);
             const key = before.match(/(?:strategy\.|ta\.|input\.)?[A-Za-z_]+$/)?.[0] ?? "";
-            const help = helpFor(key);
+            const help = helpFor(key, modeRef.current);
             if (!help) return null;
             return { pos: word.from, end: word.to, create: () => { const dom = document.createElement("div"); dom.className = "p-2 text-xs"; const strong = document.createElement("strong"); strong.textContent = help.signature; const detail = document.createElement("div"); detail.textContent = help.description; dom.append(strong, detail); return { dom }; } };
           }),
@@ -119,8 +142,8 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, minimap
             if (update.docChanged || update.selectionSet) {
               const cursor = update.state.selection.main.head;
               const before = update.state.doc.lineAt(cursor).text.slice(0, cursor - update.state.doc.lineAt(cursor).from);
-              const key = before.match(/(strategy(?:\.entry|\.exit)?|ta\.(?:ema|sma|rsi|crossover|crossunder)|input\.(?:int|float))\([^()]*$/)?.[1];
-              setHint(key ? helpFor(key) ?? null : null);
+              const key = before.match(/(strategy(?:\.entry|\.exit|\.close)?|ta\.(?:ema|sma|rsi|crossover|crossunder)|input\.(?:int|float))\([^()]*$/)?.[1];
+              setHint(key ? helpFor(key, modeRef.current) ?? null : null);
             }
           }),
           EditorView.theme({
@@ -145,7 +168,7 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, minimap
     const view = viewRef.current;
     if (view && view.state.doc.toString() !== value) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
   }, [value]);
-  useEffect(() => { if (viewRef.current) forceLinting(viewRef.current); }, [serverDiagnostics]);
+  useEffect(() => { if (viewRef.current) forceLinting(viewRef.current); }, [serverDiagnostics, mode]);
 
   return <div className="flex h-full min-h-0 flex-col bg-[#0b100e] text-[#e8edea]">
     <div className="flex min-h-0 flex-1">
@@ -161,7 +184,7 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, minimap
     </div>
     <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-[#27372f] px-3 py-2 text-[11px] text-[#a7bcb0]" aria-live="polite">
       <span>{hint ? <><strong className="font-mono text-[#f3d18e]">{hint.signature}</strong> · {hint.description}</> : "Ctrl+Space suggestions · Ctrl+F find · Ctrl+H replace · F8 next error"}</span>
-      <span>FTL Script</span>
+      <span>{mode === "pine" ? "Pine v6 · experimental" : "FTL Script"}</span>
     </div>
   </div>;
 }

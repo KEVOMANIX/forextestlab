@@ -15,12 +15,12 @@ import { getCurrentUser } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const MAX_BARS = 30_000;
-const TIMEFRAME_MS = { "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 } as const;
+const TIMEFRAME_MS = { "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 } as const;
 const bodySchema = z.object({
   code: z.string().min(1).max(20_000),
-  symbol: z.literal("EURUSD"),
+  symbol: z.enum(["EURUSD", "XAUUSD"]),
   source: z.enum(["dukascopy", "histdata", "demo"]),
-  timeframe: z.enum(["1h", "4h", "1d"]),
+  timeframe: z.enum(["15m", "1h", "4h", "1d"]),
   startTime: z.number().int().nonnegative(),
   endTime: z.number().int().nonnegative(),
   startingBalance: z.number().finite().min(100).max(1_000_000).default(10_000),

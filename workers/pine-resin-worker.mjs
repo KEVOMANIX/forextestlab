@@ -12,9 +12,12 @@ try {
     low: candles.map((c) => Number(c.low)), close: candles.map((c) => Number(c.close)),
     volume: candles.map((c) => Number(c.volume ?? 0)), time: candles.map((c) => c.timestamp),
   };
+  const symbolSettings = symbol === "XAUUSD"
+    ? { ticker: symbol, prefix: "FTL", mintick: 0.01, minmove: 1, pricescale: 100, pointvalue: 1, type: "cfd", timezone: "UTC" }
+    : { ticker: symbol, prefix: "FTL", mintick: 0.00001, minmove: 1, pricescale: 100000, pointvalue: 1, type: "forex", timezone: "UTC" };
   const result = transpile(code, {
-    chartTf: timeframe === "1h" ? "60" : timeframe === "4h" ? "240" : "D",
-    syminfo: { ticker: symbol, prefix: "FTL", mintick: 0.00001, minmove: 1, pricescale: 100000, pointvalue: 1, type: "forex", timezone: "UTC" },
+    chartTf: timeframe === "15m" ? "15" : timeframe === "1h" ? "60" : timeframe === "4h" ? "240" : "D",
+    syminfo: symbolSettings,
     strategy: { initial_capital: startingBalance },
   });
   if (!result.ok) {

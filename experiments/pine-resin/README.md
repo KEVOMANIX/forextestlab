@@ -29,6 +29,14 @@ The app has a separate Pine v6 endpoint and editor mode, shown when `PINE_V6_EXP
 
 `request.*` scripts are rejected because secondary data feeds are not wired up; allowing them to silently use the wrong data would produce misleading results. Existing FTL Script tests continue through the previous endpoint. The Linux socket service is required: the flag alone does not start an unisolated fallback.
 
+### Supported compatibility scope
+
+This is a dedicated **historical Pine Script v6 strategy subset**, not a TradingView replacement. It supports v6 `strategy()` scripts that use the selected chart's OHLCV series, Resin's language and `ta.*` implementation, historical order processing, fixed/default sizing, pyramiding, commissions, slippage, market/limit/stop orders, and bracket exits. The selected ForexTestLab symbol settings and candles determine fills and P/L.
+
+The runner deliberately rejects Pine v5 or older scripts, imported libraries, every `request.*` call, `use_bar_magnifier=true`, and `calc_on_every_tick=true`. Those features need library resolution, secondary/lower-timeframe feeds, or realtime ticks that ForexTestLab does not currently supply. Alerts and drawing pixels are not part of strategy-test output. FX account-currency conversion, arbitrary TradingView broker feeds, and parity for an arbitrary third-party script are not guaranteed.
+
+Run `npm run test:pine-compat` before deploying runner changes. The suite executes the real worker as a child process and covers v6 EMA reversals, next-bar historical fills, a commission/slippage bracket trade, report accounting, unsupported-feature rejection, and malformed-candle rejection. It then runs the original EUR/USD and XAU/USD regression probes.
+
 The exact bidirectional EMA 3/7 Pine v6 example supplied for TradingView is in `ema-gold-15m.pine`. To check the runner's order behavior on ForexTestLab's **synthetic sample** gold candles, run `node --import tsx experiments/pine-resin/run-gold-15m.mjs`. It verifies next-bar entries, opposite-signal reversals, one-unit sizing, and dollar P/L arithmetic. In the user's FOREXCOM:XAUUSD screenshot, the first short moved from 4064.41 to 4059.69, giving +$4.72 for one unit; the next long moved from 4059.69 to 4057.56, giving −$2.13. The test confirms this arithmetic, not matching prices or totals: the sample candles are synthetic, and the real ForexTestLab Dukascopy/HistData feeds differ from FOREXCOM. A same-candle trade export would be needed to establish TradingView parity.
 
 The systemd worker has been checked to reject reads of the app's `.env` file and outbound network access. Keep the socket and service restrictions in place when deploying. TradingView result parity remains unverified.

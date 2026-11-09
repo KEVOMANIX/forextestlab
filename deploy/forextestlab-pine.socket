@@ -1,0 +1,14 @@
+[Unit]
+Description=ForexTestLab Pine runner socket
+
+[Socket]
+ListenStream=/run/forextestlab-pine.sock
+Accept=yes
+SocketUser=ubuntu
+SocketGroup=ubuntu
+SocketMode=0600
+MaxConnections=4
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

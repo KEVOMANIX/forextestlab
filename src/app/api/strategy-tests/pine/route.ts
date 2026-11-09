@@ -1,5 +1,4 @@
-import { spawn } from "node:child_process";
-import { join } from "node:path";
+import { createConnection } from "node:net";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -27,36 +26,32 @@ const bodySchema = z.object({
 });
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 
+const PINE_SOCKET = "/run/forextestlab-pine.sock";
+
 function runIsolated(input: unknown, signal: AbortSignal): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--max-old-space-size=256", "--import", "@nullarch/resin/register", join(process.cwd(), "workers", "pine-resin-worker.mjs")], {
-      cwd: process.cwd(), windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { PATH: process.env.PATH ?? "", NODE_ENV: process.env.NODE_ENV ?? "production" },
-    });
+    const socket = createConnection(PINE_SOCKET);
     let output = "";
-    let stderr = "";
     let settled = false;
     const finish = (error?: Error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);
+      socket.destroy();
       if (error) reject(error);
       else { try { resolve(JSON.parse(output)); } catch { reject(new Error("The Pine engine returned an invalid result.")); } }
     };
-    const abort = () => { child.kill(); finish(new Error("Test canceled.")); };
-    const timer = setTimeout(() => { child.kill(); finish(new Error("Pine test exceeded the 30-second limit.")); }, 30_000);
+    const abort = () => finish(new Error("Test canceled."));
+    const timer = setTimeout(() => finish(new Error("Pine test exceeded the 30-second limit.")), 30_000);
     signal.addEventListener("abort", abort, { once: true });
     if (signal.aborted) { abort(); return; }
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => { output += chunk; if (output.length > 8_000_000) { child.kill(); finish(new Error("Pine result exceeded the size limit.")); } });
-    child.stderr.on("data", (chunk: string) => { stderr = (stderr + chunk).slice(-2_000); });
-    child.on("error", (error) => finish(error));
-    child.on("close", (code) => finish(code === 0 ? undefined : new Error(stderr || `Pine engine exited with code ${code}.`)));
-    child.stdin.on("error", (error: NodeJS.ErrnoException) => { if (error.code !== "EPIPE") finish(error); });
-    child.stdin.end(JSON.stringify(input));
+    socket.setEncoding("utf8");
+    socket.on("connect", () => socket.end(JSON.stringify(input)));
+    socket.on("data", (chunk: string) => { output += chunk; if (output.length > 8_000_000) finish(new Error("Pine result exceeded the size limit.")); });
+    socket.on("end", () => finish());
+    socket.on("error", () => finish(new Error("The isolated Pine runner is unavailable.")));
+    socket.on("close", () => { if (!settled) finish(new Error("The isolated Pine runner closed unexpectedly.")); });
   });
 }
 

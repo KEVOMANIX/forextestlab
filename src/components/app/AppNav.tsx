@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, BookOpenText, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, LifeBuoy, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy, WalletCards } from "lucide-react";
+import { BarChart3, BookOpenText, Braces, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, LifeBuoy, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy, WalletCards } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -26,6 +26,7 @@ const REPLAY: NavItem[] = [
   { label: "Analytics", href: "/app/analytics", icon: BarChart3 },
 ];
 const TOOLS: NavItem[] = [
+  { label: "Strategy Lab", href: "/app/strategies", icon: Braces },
   { label: "AI Analyst", href: "/app/ai", icon: Sparkles },
   { label: "Challenges", href: "/app/challenges", icon: Trophy },
 ];
@@ -158,7 +159,7 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
       )}
     </aside>
 
-    {!fullScreen && <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-7 backdrop-blur lg:flex"><div className="flex min-w-0 items-center gap-3 text-sm"><span className="app-muted">Workspace</span><span className="app-muted">/</span><span className="truncate font-semibold">{pathname.startsWith("/account") ? "Account" : pathname.startsWith("/app/backtest") ? "Backtester" : pathname.startsWith("/app/analytics") ? "Analytics" : pathname.startsWith("/app/history") ? "Sessions" : pathname.startsWith("/app/challenges") ? "Challenges" : pathname.startsWith("/app/ai") ? "AI Analyst" : pathname.startsWith("/app/support") ? "Support" : "Dashboard"}</span></div><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:text-brand-300" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button></header>}
+    {!fullScreen && <header className="sticky top-0 z-40 hidden h-16 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-7 backdrop-blur lg:flex"><div className="flex min-w-0 items-center gap-3 text-sm"><span className="app-muted">Workspace</span><span className="app-muted">/</span><span className="truncate font-semibold">{pathname.startsWith("/account") ? "Account" : pathname.startsWith("/app/backtest") ? "Backtester" : pathname.startsWith("/app/analytics") ? "Analytics" : pathname.startsWith("/app/history") ? "Sessions" : pathname.startsWith("/app/strategies") ? "Strategy Lab" : pathname.startsWith("/app/challenges") ? "Challenges" : pathname.startsWith("/app/ai") ? "AI Analyst" : pathname.startsWith("/app/support") ? "Support" : "Dashboard"}</span></div><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border app-muted transition-colors hover:text-brand-300" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button></header>}
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b app-border bg-[var(--app-bg)]/90 px-4 backdrop-blur lg:hidden"><Link href="/app"><Logo className="h-7" /></Link><div className="flex items-center gap-2"><button type="button" onClick={toggle} className="grid h-9 w-9 place-items-center rounded-lg border app-border" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}>{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button><Menu size={18} className="app-muted" aria-hidden /></div></header>
   </>;
 }

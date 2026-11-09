@@ -2,8 +2,12 @@ import { transpile, compile, Context } from "@nullarch/resin";
 
 const MAX_CODE_LENGTH = 20_000;
 const MAX_BARS = 30_000;
-const SUPPORTED_SYMBOLS = new Set(["EURUSD", "XAUUSD"]);
+const FIAT = new Set(["AUD", "CAD", "CHF", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "JPY", "MXN", "NOK", "NZD", "PLN", "SEK", "SGD", "TRY", "USD", "ZAR"]);
 const SUPPORTED_TIMEFRAMES = new Set(["15m", "1h", "4h", "1d"]);
+
+function isSupportedSymbol(symbol) {
+  return symbol === "XAUUSD" || (typeof symbol === "string" && symbol.length === 6 && FIAT.has(symbol.slice(0, 3)) && FIAT.has(symbol.slice(3)));
+}
 
 function validateInput(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("The Pine request is invalid.");
@@ -14,7 +18,7 @@ function validateInput(input) {
   if (/\brequest\s*\./.test(code)) throw new Error("request.* data feeds are not available in this runner.");
   if (/\buse_bar_magnifier\s*=\s*true\b/.test(code)) throw new Error("Bar magnifier is not available because lower-timeframe intrabar data is not supplied.");
   if (/\bcalc_on_every_tick\s*=\s*true\b/.test(code)) throw new Error("Realtime tick recalculation is not available in historical Pine tests.");
-  if (!SUPPORTED_SYMBOLS.has(symbol) || !SUPPORTED_TIMEFRAMES.has(timeframe)) throw new Error("The Pine market or timeframe is not supported.");
+  if (!isSupportedSymbol(symbol) || !SUPPORTED_TIMEFRAMES.has(timeframe)) throw new Error("The Pine market or timeframe is not supported.");
   if (!Number.isFinite(startingBalance) || startingBalance < 100 || startingBalance > 1_000_000) throw new Error("The Pine starting balance is invalid.");
   if (!Array.isArray(candles) || candles.length < 2 || candles.length > MAX_BARS) throw new Error(`Pine tests require 2 to ${MAX_BARS.toLocaleString()} candles.`);
   let previousTime = -1;
@@ -47,9 +51,8 @@ try {
     low: candles.map((c) => Number(c.low)), close: candles.map((c) => Number(c.close)),
     volume: candles.map((c) => Number(c.volume ?? 0)), time: candles.map((c) => c.timestamp),
   };
-  const symbolSettings = symbol === "XAUUSD"
-    ? { ticker: symbol, prefix: "FTL", mintick: 0.01, minmove: 1, pricescale: 100, pointvalue: 1, type: "cfd", timezone: "UTC" }
-    : { ticker: symbol, prefix: "FTL", mintick: 0.00001, minmove: 1, pricescale: 100000, pointvalue: 1, type: "forex", timezone: "UTC" };
+  const priceScale = symbol === "XAUUSD" ? 100 : symbol.endsWith("JPY") ? 1000 : 100000;
+  const symbolSettings = { ticker: symbol, prefix: "FTL", mintick: 1 / priceScale, minmove: 1, pricescale: priceScale, pointvalue: 1, type: symbol === "XAUUSD" ? "cfd" : "forex", timezone: "UTC" };
   const result = transpile(code, {
     chartTf: timeframe === "15m" ? "15" : timeframe === "1h" ? "60" : timeframe === "4h" ? "240" : "D",
     syminfo: symbolSettings,
@@ -80,7 +83,7 @@ try {
     const grossProfit = trades.reduce((sum, t) => sum + Math.max(0, t.pnl), 0);
     const grossLoss = trades.reduce((sum, t) => sum + Math.max(0, -t.pnl), 0);
     process.stdout.write(JSON.stringify({ ok: true, report: {
-      engine: "Resin 0.3.0 experimental", symbol, timeframe, dataSource: input.dataSource,
+      engine: "Resin 0.3.0", symbol, timeframe, dataSource: input.dataSource,
       compatibility: "Pine v6 historical strategy subset (single chart feed)",
       bars: candles.length, startingBalance, netPnl: context.strategy.realizedPnl,
       endingBalance: startingBalance + context.strategy.realizedPnl,

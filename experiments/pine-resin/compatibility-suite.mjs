@@ -68,4 +68,10 @@ const malformed = await run(emaStrategy, { candles: [candles[0], { ...candles[1]
 assert.equal(malformed.ok, false);
 assert.match(malformed.error, /invalid OHLC/);
 
-console.log(JSON.stringify({ ok: true, supported: { emaReversalTrades: supported.report.trades.length, bracketTrades: bracket.report.trades.length }, rejected: rejectedCases.length + 1, scope: supported.report.compatibility }, null, 2));
+for (const symbol of ["GBPJPY", "AUDCAD", "USDZAR"]) {
+  const result = await run(emaStrategy, { symbol });
+  assert.equal(result.ok, true, `${symbol}: ${JSON.stringify(result)}`);
+  assert.equal(result.report.symbol, symbol);
+}
+
+console.log(JSON.stringify({ ok: true, supported: { emaReversalTrades: supported.report.trades.length, bracketTrades: bracket.report.trades.length, additionalPairs: ["GBPJPY", "AUDCAD", "USDZAR"] }, rejected: rejectedCases.length + 1, scope: supported.report.compatibility }, null, 2));

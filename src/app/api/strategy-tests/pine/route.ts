@@ -9,6 +9,7 @@ import { DemoDataProvider } from "@/lib/market-data/providers/demo-data-provider
 import { R2ParquetProvider } from "@/lib/market-data/providers/r2-parquet-provider";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { siteConfig } from "@/lib/site";
+import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -17,7 +18,7 @@ const MAX_BARS = 30_000;
 const TIMEFRAME_MS = { "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 } as const;
 const bodySchema = z.object({
   code: z.string().min(1).max(20_000),
-  symbol: z.enum(["EURUSD", "XAUUSD"]),
+  symbol: z.string().regex(/^[A-Z0-9]{3,20}$/),
   source: z.enum(["dukascopy", "histdata", "demo"]),
   timeframe: z.enum(["15m", "1h", "4h", "1d"]),
   startTime: z.number().int().nonnegative(),
@@ -59,14 +60,14 @@ function runIsolated(input: unknown, signal: AbortSignal): Promise<unknown> {
 }
 
 export async function POST(request: Request) {
-  if (process.env.PINE_V6_EXPERIMENTAL !== "true") return json({ ok: false, error: "Pine v6 testing is not enabled." }, 404);
   const origin = request.headers.get("origin");
   if (origin && ![new URL(request.url).origin, new URL(siteConfig.url).origin, "https://forextestlab.com", "https://www.forextestlab.com"].includes(origin)) return json({ ok: false, error: "Invalid origin." }, 403);
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return json({ ok: false, error: "Check the script, market, timeframe, and dates." }, 400);
   const input = parsed.data;
+  if (!isStrategyFxMarket(input.symbol) && input.symbol !== "XAUUSD") return json({ ok: false, error: "Choose a supported FX pair or XAU/USD." }, 400);
   if (input.endTime <= input.startTime) return json({ ok: false, error: "Through must be after From." }, 400);
-  if ((input.endTime - input.startTime) / TIMEFRAME_MS[input.timeframe] > MAX_BARS * 1.5) return json({ ok: false, error: `This experimental runner supports up to ${MAX_BARS.toLocaleString()} candles per test. Choose a larger timeframe or shorter period.` }, 422);
+  if ((input.endTime - input.startTime) / TIMEFRAME_MS[input.timeframe] > MAX_BARS * 1.5) return json({ ok: false, error: `The Pine runner supports up to ${MAX_BARS.toLocaleString()} candles per test. Choose a larger timeframe or shorter period.` }, 422);
   const user = await getCurrentUser();
   const entitlements = user ? await getUserEntitlements(user.id) : null;
   if (entitlements?.allowedSymbols && !entitlements.allowedSymbols.includes(input.symbol)) return json({ ok: false, error: "This market requires Pro." }, 403);
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
     const result = await runIsolated({ ...input, dataSource: input.source, candles }, request.signal);
     return json(result);
   } catch (error) {
-    if (!request.signal.aborted) console.error("Experimental Pine test failed", { symbol: input.symbol, source: input.source, timeframe: input.timeframe, error });
+    if (!request.signal.aborted) console.error("Pine test failed", { symbol: input.symbol, source: input.source, timeframe: input.timeframe, error });
     return json({ ok: false, error: error instanceof Error ? error.message : "Could not run the Pine test." }, 503);
   }
 }

@@ -1,4 +1,4 @@
-import type { Comparison, Indicator, Operand, ParseResult, StrategyDiagnostic, StrategySignal, StrategyTimeframe } from "./parser";
+import type { Indicator, Operand, ParseResult, StrategyDiagnostic, StrategySignal, StrategyTimeframe } from "./parser";
 
 type Condition = Pick<StrategySignal, "left" | "comparison" | "right">;
 const identifier = /^[A-Za-z_][A-Za-z_0-9]*$/;

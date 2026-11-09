@@ -9,10 +9,13 @@ const code = readFileSync(join(here, "ema-gold-15m.pine"), "utf8");
 const count = Number(process.argv[2] ?? 120);
 assert.ok(Number.isInteger(count) && count >= 10 && count <= 30_000);
 const symbol = process.argv[3] ?? "XAUUSD";
-assert.ok(symbol === "EURUSD" || symbol === "XAUUSD");
+const fiat = new Set(["AUD", "CAD", "CHF", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "JPY", "MXN", "NOK", "NZD", "PLN", "SEK", "SGD", "TRY", "USD", "ZAR"]);
+assert.ok(symbol === "XAUUSD" || (symbol.length === 6 && fiat.has(symbol.slice(0, 3)) && fiat.has(symbol.slice(3))));
 const candles = Array.from({ length: count }, (_, i) => {
-  const close = symbol === "XAUUSD" ? 2350 + Math.sin(i / 4) * 2 : 1.08 + Math.sin(i / 4) * 0.002;
-  const wick = symbol === "XAUUSD" ? 0.5 : 0.0005;
+  const base = symbol === "XAUUSD" ? 2350 : symbol.endsWith("JPY") ? 150 : 1.08;
+  const amplitude = symbol === "XAUUSD" ? 2 : symbol.endsWith("JPY") ? 0.2 : 0.002;
+  const close = base + Math.sin(i / 4) * amplitude;
+  const wick = symbol === "XAUUSD" ? 0.5 : symbol.endsWith("JPY") ? 0.05 : 0.0005;
   return { timestamp: Date.UTC(2024, 2, 1) + i * 900_000, open: close, high: close + wick, low: close - wick, close, volume: 100 };
 });
 const input = { code, candles, symbol, timeframe: "15m", startingBalance: 10_000, dataSource: "sandbox-probe" };

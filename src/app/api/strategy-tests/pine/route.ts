@@ -84,7 +84,12 @@ export async function POST(request: Request) {
       .sort((a, b) => a.timestamp - b.timestamp);
     if (candles.length < 2 || candles.length > MAX_BARS) return json({ ok: false, error: candles.length > MAX_BARS ? `The period contains more than ${MAX_BARS.toLocaleString()} candles.` : "Too few candles in this period." }, 422);
     if (candles.some((candle, index) => (index > 0 && candle.timestamp <= candles[index - 1]!.timestamp) || ![candle.open, candle.high, candle.low, candle.close].every((value) => Number.isFinite(Number(value))))) return json({ ok: false, error: "Market candles are incomplete or out of order." }, 422);
-    const result = await runIsolated({ ...input, dataSource: input.source, candles }, request.signal);
+    const result = await runIsolated({ ...input, dataSource: input.source, candles }, request.signal) as { ok?: boolean; report?: Record<string, unknown> };
+    // The lab draws the test on a chart, so the report carries the candles it ran on.
+    if (result?.ok && result.report) result.report.candles = {
+      time: candles.map((candle) => candle.timestamp), open: candles.map((candle) => Number(candle.open)),
+      high: candles.map((candle) => Number(candle.high)), low: candles.map((candle) => Number(candle.low)), close: candles.map((candle) => Number(candle.close)),
+    };
     return json(result);
   } catch (error) {
     if (!request.signal.aborted) console.error("Pine test failed", { symbol: input.symbol, source: input.source, timeframe: input.timeframe, error });

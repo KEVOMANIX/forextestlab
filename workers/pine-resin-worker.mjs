@@ -72,15 +72,16 @@ try {
         equity.push({ time: candles[i].timestamp, balance: startingBalance + context.strategy.realizedPnl });
       }
     }
-    if (!result.isStrategy) {
-      if (context.plots.length > 12) throw new Error("Indicators can display at most 12 plot() series per test.");
-      const plots = context.plots.map((plot, index) => ({
+    const plotSeries = () => context.plots.slice(0, 12).map((plot, index) => ({
         title: result.viz.plots[index]?.title ?? `Plot ${index + 1}`,
         color: result.viz.plots[index]?.color ?? ["#2962FF", "#FF6D00", "#7B1FA2", "#00A86B"][index % 4],
         style: result.viz.plots[index]?.style ?? "line",
         linewidth: result.viz.plots[index]?.linewidth ?? 1,
         values: plot.toArray().map(value => Number.isFinite(value) ? value : null),
       }));
+    if (!result.isStrategy) {
+      if (context.plots.length > 12) throw new Error("Indicators can display at most 12 plot() series per test.");
+      const plots = plotSeries();
       process.stdout.write(JSON.stringify({ ok: true, report: {
         kind: "indicator", engine: "Resin 0.3.0", symbol, timeframe, dataSource: input.dataSource,
         compatibility: "Pine v6 historical indicator subset (single chart feed)", overlay: result.viz.overlay,
@@ -105,6 +106,7 @@ try {
         profitFactor: grossLoss > 0 ? grossProfit / grossLoss : null,
         maxDrawdown: context.strategy.maxDrawdown ?? 0,
         openPosition: context.strategy.posSize, trades, equity,
+        overlay: result.viz.overlay, plots: plotSeries(),
       } }));
     }
   }

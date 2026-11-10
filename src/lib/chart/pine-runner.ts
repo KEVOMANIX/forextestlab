@@ -103,15 +103,54 @@ const timeApi = rt.time as unknown as { resolve: TimeFn; resolveClose: TimeFn };
 const engineResolve = timeApi.resolve;
 const inExchangeSession = (ms: number, session?: string | null, zone?: string | null) =>
   !session || !(ms > 0) || !Number.isNaN(engineResolve(ms + pineZoneOffsetMs(ms, zone || PINE_EXCHANGE_TIMEZONE), "1", session));
+/*
+ * TradingView's FX/gold trading day runs 17:00–17:00 New York (weeks open
+ * Sunday 17:00). The engine cuts days at UTC midnight, so on intraday charts
+ * daily/weekly/monthly periods (time("D"), request.security(…, "D"),
+ * time_tradingday) are cut at 17:00 New York instead. The trader's own D/W/M
+ * chart candles are left as they are.
+ */
+const TRADING_DAY_ROLL_MS = 7 * 3_600_000;
+let tradingDays = true;
+const isDayTimeframe = (timeframe: string | null | undefined) => !!timeframe && (/^\d*[DWM]$/.test(timeframe) || (/^\d+$/.test(timeframe) && Number(timeframe) % 1440 === 0));
+const tradingDayShift = (ms: number) => pineZoneOffsetMs(ms, PINE_EXCHANGE_TIMEZONE) + TRADING_DAY_ROLL_MS;
 for (const name of ["resolve", "resolveClose"] as const) {
   const original = timeApi[name];
-  timeApi[name] = (ms, timeframe, session, zone) => (inExchangeSession(ms, session, zone) ? original(ms, timeframe) : NaN);
+  timeApi[name] = (ms, timeframe, session, zone) => {
+    if (!inExchangeSession(ms, session, zone)) return NaN;
+    const shift = tradingDays && ms > 0 && isDayTimeframe(timeframe) ? tradingDayShift(ms) : 0;
+    return original(ms + shift, timeframe) - shift;
+  };
 }
 const datetimeApi = rt.datetime as unknown as Record<string, (ms: number, zone?: string | null) => number>;
 for (const name of ["year", "month", "dayofmonth", "dayofweek", "hour", "minute", "second", "weekofyear"]) {
   const original = datetimeApi[name];
   if (original) datetimeApi[name] = (ms, zone) => original(ms, zone == null || zone === "" ? PINE_EXCHANGE_TIMEZONE : zone);
 }
+const engineTradingDay = datetimeApi.tradingDayStart!;
+datetimeApi.tradingDayStart = (ms) => (tradingDays && ms > 0 ? engineTradingDay(ms + tradingDayShift(ms)) : engineTradingDay(ms));
+type SecurityRows = { barMap: Int32Array; timeOpen: Float64Array; timeClose: Float64Array };
+type ContextInternals = { rawData: { time?: ArrayLike<number> }; securityCache: (SecurityRows | undefined)[]; rebuildSecurityCache(slot: number, timeframe: string): void };
+const contextApi = Context.prototype as unknown as ContextInternals;
+const engineRebuild = contextApi.rebuildSecurityCache;
+contextApi.rebuildSecurityCache = function (this: ContextInternals, slot: number, timeframe: string) {
+  const raw = this.rawData, times = raw.time;
+  if (!tradingDays || !times || !isDayTimeframe(timeframe)) return engineRebuild.call(this, slot, timeframe);
+  this.rawData = { ...raw, time: Array.from(times, (ms) => (ms > 0 ? ms + tradingDayShift(ms) : ms)) };
+  try { engineRebuild.call(this, slot, timeframe); } finally { this.rawData = raw; }
+  const rows = this.securityCache[slot];
+  if (!rows?.barMap || !rows.timeOpen) return;
+  // Report each period's real opening time, not the shifted one.
+  const seen = new Set<number>();
+  for (let index = 0; index < rows.barMap.length; index++) {
+    const period = rows.barMap[index]!;
+    if (period >= 0 && !seen.has(period)) { seen.add(period); rows.timeOpen[period] = times[index]!; }
+  }
+  const count = rows.timeOpen.length;
+  for (let period = 0; period < count; period++) {
+    rows.timeClose[period] = period + 1 < count ? rows.timeOpen[period + 1]! : count > 1 ? rows.timeOpen[period]! + (rows.timeOpen[period]! - rows.timeOpen[period - 1]!) : rows.timeOpen[period]!;
+  }
+};
 
 const DRAWING_LIMIT_DEFAULT = 50;
 /** TradingView keeps the newest N drawings of each kind (indicator(max_lines_count=…), default 50). */
@@ -300,7 +339,10 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
     close: Array.from(data.close), volume: Array.from(data.volume), time: Array.from(data.time),
   };
   try {
+    tradingDays = options.timeframeMs < 86_400_000;
     const ctx = Context.from(result, series);
+    // Requests with a fixed timeframe are built with the context; rebuild their days on the trading day.
+    if (tradingDays) (result.securityTfs as readonly string[] | undefined)?.forEach((tf, slot) => { if (isDayTimeframe(tf)) (ctx as unknown as ContextInternals).rebuildSecurityCache(slot, tf); });
     const bar = run(ctx);
     for (let index = 0; index < ctx.barCount; index++) { ctx.advance(); bar(); }
     if (ctx.plots.length > MAX_PLOTS) return { ok: false, error: `Indicators can draw at most ${MAX_PLOTS} plots.` };

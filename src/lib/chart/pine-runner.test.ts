@@ -217,3 +217,31 @@ describe("chart Pine exchange time", () => {
     expect(result.ok && result.plots[0]!.values[0]).toBe(19);
   });
 });
+
+describe("chart Pine trading day", () => {
+  // 15m candles from Monday 2026-01-05 00:00 UTC; each candle's high is its own index.
+  const start = Date.UTC(2026, 0, 5);
+  const count = 4 * 24 * 2;
+  const f = (values: number[]) => Float64Array.from(values);
+  const index = Array.from({ length: count }, (_, i) => i);
+  const data = { time: f(index.map((i) => start + i * 900_000)), open: f(index), high: f(index), low: f(index), close: f(index), volume: f(index.map(() => 0)) };
+  const run = (line: string) => {
+    const result = runPineIndicator(`//@version=5\nindicator("D", overlay=true)\nplot(${line})\n`, data, options);
+    expect(result.ok).toBe(true);
+    return result.ok ? result.plots[0]!.values : [];
+  };
+  const at = (hour: number) => (hour * 60) / 15; // candle index at that many hours after the start
+
+  it("starts the forex day at 17:00 New York", () => {
+    const opens = run("time('D')");
+    expect(new Date(opens[at(21)]!).toISOString()).toBe("2026-01-04T22:00:00.000Z");
+    expect(new Date(opens[at(22)]!).toISOString()).toBe("2026-01-05T22:00:00.000Z");
+  });
+
+  it("builds request.security daily candles on that day", () => {
+    const low = run("request.security(syminfo.tickerid, 'D', low, lookahead=barmerge.lookahead_on)");
+    expect(low[at(21)]).toBe(0);
+    expect(low[at(22)]).toBe(at(22));
+    expect(low[at(30)]).toBe(at(22));
+  });
+});

@@ -10,10 +10,31 @@ type Colors = (string | null)[] | null;
 export type PinePlot = { title: string; style: string; color: string; colors: Colors; linewidth: number; histbase: number; offset: number; forceOverlay: boolean; values: (number | null)[] };
 export type PineHline = { title: string | null; price: number | null; color: string; linestyle: string; linewidth: number };
 export type PineFillRef = { kind: "plot" | "hline"; index: number };
-export type PineFill = { a: PineFillRef; b: PineFillRef; color: string; colors: Colors };
-export type PineBackground = { color: string | null; colors: Colors; offset: number; forceOverlay: boolean };
-export type PineMarker = { index: number; position: "aboveBar" | "belowBar" | "inBar"; shape: "arrowUp" | "arrowDown" | "circle" | "square"; color: string; text?: string; size: number; overlay: boolean };
-export type PineVisual = { converted?: boolean; overlay: boolean; plots: PinePlot[]; hlines: PineHline[]; fills: PineFill[]; backgrounds: PineBackground[]; markers: PineMarker[]; skipped: string[] };
+export type PineFill = { title: string | null; a: PineFillRef; b: PineFillRef; color: string; colors: Colors };
+export type PineBackground = { title: string | null; color: string | null; colors: Colors; offset: number; forceOverlay: boolean };
+/**
+ * One plotshape()/plotchar()/plotarrow() call: what it draws and where it
+ * appears. `price` is the series value for location.absolute; `value` is the
+ * plotarrow height (its sign gives the direction).
+ */
+export type PineShape = {
+  kind: "shape" | "char" | "arrow";
+  title: string | null;
+  /** shape.* name, the character for plotchar, or "arrow". */
+  style: string;
+  location: string;
+  size: string;
+  text: string | null;
+  textcolor: string | null;
+  color: string | null;
+  colors: Colors;
+  /** plotarrow colors for rising / falling values. */
+  colorup?: string;
+  colordown?: string;
+  overlay: boolean;
+  points: { index: number; price?: number; value?: number }[];
+};
+export type PineVisual = { converted?: boolean; overlay: boolean; plots: PinePlot[]; hlines: PineHline[]; fills: PineFill[]; backgrounds: PineBackground[]; shapes: PineShape[]; skipped: string[] };
 export type PineIndicatorResult = ({ ok: true } & PineVisual) | { ok: false; error: string; diagnostics?: PineDiagnostic[] };
 
 const MAX_PLOTS = 64;
@@ -51,16 +72,37 @@ function compact(colors: (string | null)[] | null | undefined, fallback: string 
   return { color: colors.find((value) => value != null) ?? fallback, colors };
 }
 
-const SHAPES: Record<string, PineMarker["shape"]> = {
-  triangleup: "arrowUp", arrowup: "arrowUp", labelup: "arrowUp",
-  triangledown: "arrowDown", arrowdown: "arrowDown", labeldown: "arrowDown",
-  circle: "circle",
-};
-const SIZES: Record<string, number> = { tiny: 0.5, small: 0.75, normal: 1, auto: 1, large: 1.5, huge: 2 };
-function position(location: string, shape: PineMarker["shape"]): PineMarker["position"] {
-  if (location === "abovebar" || location === "top") return "aboveBar";
-  if (location === "belowbar" || location === "bottom") return "belowBar";
-  return shape === "arrowDown" ? "aboveBar" : shape === "arrowUp" ? "belowBar" : "inBar";
+/**
+ * The compiler keeps only a shown/hidden flag per candle for plotshape() and
+ * plotchar(). For location.absolute the shape sits at the series value, so the
+ * compiled code is patched to also keep the value it flags:
+ *   rt.vizFlag(X)  →  rt.vizFlag((($.__ftlShapeValues ||= {})[slot] ||= [])[$.idx] = (X))
+ */
+function keepShapeValues(code: string, slots: Set<number>): string {
+  if (slots.size === 0) return code;
+  const pattern = /\$\.vizSeries\[(\d+)\]\[\$\.idx\] = rt\.vizFlag\(/g;
+  let output = "";
+  let last = 0;
+  for (const match of code.matchAll(pattern)) {
+    const slot = Number(match[1]);
+    if (!slots.has(slot)) continue;
+    const open = match.index! + match[0].length;
+    let depth = 1;
+    let index = open;
+    let quote: string | null = null;
+    for (; index < code.length && depth > 0; index++) {
+      const char = code[index];
+      if (quote) { if (char === "\\") index++; else if (char === quote) quote = null; continue; }
+      if (char === '"' || char === "'" || char === "`") quote = char;
+      else if (char === "(") depth++;
+      else if (char === ")") depth--;
+    }
+    if (depth !== 0) return code;
+    const close = index - 1;
+    output += code.slice(last, open) + `(($.__ftlShapeValues ||= {})[${slot}] ||= [])[$.idx] = (` + code.slice(open, close) + ")";
+    last = close;
+  }
+  return output + code.slice(last);
 }
 
 /**
@@ -113,7 +155,7 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
       strategy: { initial_capital: 10_000 },
     });
     entry = result.ok
-      ? { result, run: compile(result.code) }
+      ? { result, run: compile(keepShapeValues(result.code, new Set([...result.viz.shapes, ...result.viz.chars].filter((shape: { location: string }) => shape.location === "absolute").map((shape: { conditionSlot: number }) => shape.conditionSlot)))) }
       : { ok: false, error: "Fix the Pine script errors.", diagnostics: result.errors.map((message: string) => ({ line: Number(/\(L(\d+):\d+\)/.exec(message)?.[1] ?? 1), message })) };
     compiled.set(key, entry);
     while (compiled.size > 16) compiled.delete(compiled.keys().next().value!);
@@ -153,49 +195,48 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
       const price = line.price != null && Number.isFinite(line.price) ? line.price : sourcePrices[index] ?? null;
       return { title: line.title, price, color: line.color ?? HLINE_DEFAULT, linestyle: line.linestyle, linewidth: line.linewidth };
     });
-    const fills: PineFill[] = viz.fills.flatMap((fill: { a: PineFillRef | null; b: PineFillRef | null; color: string | null; colorSlot: number | null }) => {
+    const fills: PineFill[] = viz.fills.flatMap((fill: { title: string | null; a: PineFillRef | null; b: PineFillRef | null; color: string | null; colorSlot: number | null }) => {
       if (!fill.a || !fill.b) return [];
       const { color, colors } = compact(colorsOf(fill.colorSlot), fill.color);
-      return [{ a: fill.a, b: fill.b, color: color ?? FILL_DEFAULT, colors }];
+      return [{ title: fill.title, a: fill.a, b: fill.b, color: color ?? FILL_DEFAULT, colors }];
     });
-    const backgrounds: PineBackground[] = viz.bgcolors.map((bg: { color: string | null; colorSlot: number | null; offset: number; forceOverlay: boolean }) => {
+    const backgrounds: PineBackground[] = viz.bgcolors.map((bg: { title: string | null; color: string | null; colorSlot: number | null; offset: number; forceOverlay: boolean }) => {
       const { color, colors } = compact(colorsOf(bg.colorSlot), bg.color);
-      return { color, colors, offset: bg.offset, forceOverlay: bg.forceOverlay };
+      return { title: bg.title, color, colors, offset: bg.offset, forceOverlay: bg.forceOverlay };
     });
 
-    const markers: PineMarker[] = [];
+    const shapes: PineShape[] = [];
     const conditionOf = (slot: number) => ctx.vizSeries[slot] ?? [];
-    for (const shape of viz.shapes as { style: string; location: string; size: string; text: string | null; color: string | null; colorSlot: number | null; conditionSlot: number; offset: number; forceOverlay: boolean }[]) {
-      const kind = SHAPES[shape.style] ?? "square";
-      const perBar = colorsOf(shape.colorSlot);
-      conditionOf(shape.conditionSlot).forEach((flag, index) => {
-        if (flag !== 1) return;
-        markers.push({ index: index + shape.offset, position: position(shape.location, kind), shape: kind, color: perBar?.[index] ?? shape.color ?? PALETTE[0]!, text: shape.text ?? undefined, size: SIZES[shape.size] ?? 1, overlay: viz.overlay || shape.forceOverlay });
+    const captured = (ctx as unknown as { __ftlShapeValues?: Record<number, unknown[]> }).__ftlShapeValues ?? {};
+    const inRange = (index: number) => index >= 0 && index < ctx.barCount;
+    type Marked = { style?: string; char?: string; title: string | null; location: string; size: string; text: string | null; textcolor: string | null; color: string | null; colorSlot: number | null; conditionSlot: number; offset: number; forceOverlay: boolean };
+    const collect = (kind: "shape" | "char", item: Marked) => {
+      const { color, colors } = compact(colorsOf(item.colorSlot), item.color);
+      const values = captured[item.conditionSlot];
+      const points: PineShape["points"] = [];
+      conditionOf(item.conditionSlot).forEach((flag, index) => {
+        if (flag !== 1 || !inRange(index + item.offset)) return;
+        const raw = values?.[index];
+        points.push({ index: index + item.offset, ...(typeof raw === "number" && Number.isFinite(raw) ? { price: raw } : {}) });
       });
-    }
-    for (const char of viz.chars as { char: string; location: string; size: string; text: string | null; color: string | null; colorSlot: number | null; conditionSlot: number; offset: number; forceOverlay: boolean }[]) {
-      const perBar = colorsOf(char.colorSlot);
-      conditionOf(char.conditionSlot).forEach((flag, index) => {
-        if (flag !== 1) return;
-        markers.push({ index: index + char.offset, position: position(char.location, "circle"), shape: "circle", color: perBar?.[index] ?? char.color ?? PALETTE[0]!, text: [char.char, char.text].filter(Boolean).join(" "), size: 0.1, overlay: viz.overlay || char.forceOverlay });
-      });
-    }
-    for (const arrow of viz.arrows as { colorup: string | null; colordown: string | null; seriesSlot: number; offset: number; forceOverlay: boolean }[]) {
+      shapes.push({ kind, title: item.title, style: kind === "char" ? item.char ?? "★" : item.style ?? "xcross", location: item.location, size: item.size, text: item.text, textcolor: item.textcolor, color: color ?? (colors ? null : PALETTE[0]!), colors, overlay: viz.overlay || item.forceOverlay, points: points.slice(-MAX_MARKERS) });
+    };
+    for (const shape of viz.shapes as Marked[]) collect("shape", shape);
+    for (const char of viz.chars as Marked[]) collect("char", char);
+    for (const arrow of viz.arrows as { title: string | null; colorup: string | null; colordown: string | null; seriesSlot: number; offset: number; forceOverlay: boolean }[]) {
+      const points: PineShape["points"] = [];
       conditionOf(arrow.seriesSlot).forEach((value, index) => {
-        if (!Number.isFinite(value) || value === 0) return;
-        markers.push(value > 0
-          ? { index: index + arrow.offset, position: "belowBar", shape: "arrowUp", color: arrow.colorup ?? "#4CAF50", size: 1, overlay: viz.overlay || arrow.forceOverlay }
-          : { index: index + arrow.offset, position: "aboveBar", shape: "arrowDown", color: arrow.colordown ?? "#FF5252", size: 1, overlay: viz.overlay || arrow.forceOverlay });
+        if (Number.isFinite(value) && value !== 0 && inRange(index + arrow.offset)) points.push({ index: index + arrow.offset, value });
       });
+      shapes.push({ kind: "arrow", title: arrow.title, style: "arrow", location: "bar", size: "auto", text: null, textcolor: null, color: null, colors: null, colorup: arrow.colorup ?? "#4CAF50", colordown: arrow.colordown ?? "#FF5252", overlay: viz.overlay || arrow.forceOverlay, points: points.slice(-MAX_MARKERS) });
     }
-    markers.sort((left, right) => left.index - right.index);
 
     const skipped: string[] = [];
     if (viz.barcolors.length) skipped.push("barcolor()");
     if (viz.candles.length || viz.plotbars.length) skipped.push("plotcandle()/plotbar()");
     if (ctx.drawingLog.length) skipped.push("labels, lines, boxes and tables");
 
-    return { ok: true, converted, overlay: Boolean(viz.overlay), plots, hlines, fills, backgrounds, markers: markers.filter((marker) => marker.index >= 0 && marker.index < ctx.barCount).slice(-MAX_MARKERS), skipped };
+    return { ok: true, converted, overlay: Boolean(viz.overlay), plots, hlines, fills, backgrounds, shapes, skipped };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "The script stopped with an error." };
   }

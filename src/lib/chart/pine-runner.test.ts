@@ -79,8 +79,8 @@ barcolor(color.red)
     expect(result.hlines.map((line) => [line.price, line.linestyle])).toEqual([[70, "dashed"], [30, "solid"]]);
     expect(result.fills[0]).toMatchObject({ a: { kind: "hline", index: 0 }, b: { kind: "hline", index: 1 }, color: "#9C27B019" });
     expect(result.backgrounds[0]!.colors?.some((color) => color === "#4CAF5026")).toBe(true);
-    expect(result.markers.length).toBeGreaterThan(0);
-    expect(result.markers[0]).toMatchObject({ position: "belowBar", shape: "arrowUp", text: "B", overlay: false });
+    expect(result.shapes[0]).toMatchObject({ kind: "shape", title: "Up", style: "triangleup", location: "bottom", text: "B", overlay: false });
+    expect(result.shapes[0]!.points.length).toBeGreaterThan(0);
     expect(result.skipped).toContain("barcolor()");
   });
 

@@ -7,14 +7,45 @@ export const PINE_EDITOR_STATE = "forextestlab:pine-editor-state";
 export type PineScript = { id: string; name: string; code: string; updatedAt: number };
 
 /** Style tab overrides, keyed by each plot's / hline's position in the script. */
-export type PinePlotStyle = { visible?: boolean; color?: string; linewidth?: number };
+/** Replacement for each of an element's colors ("Color 0", "Color 1", …), keyed by the script's color (upper-case hex). */
+export type PineColorMap = Record<string, string>;
+export type PinePlotStyle = { visible?: boolean; colors?: PineColorMap; linewidth?: number; /** Earlier single-color override. */ color?: string };
 export type PineStyle = {
   plots?: Record<string, PinePlotStyle>;
+  shapes?: Record<string, { visible?: boolean; colors?: PineColorMap; location?: string }>;
   hlines?: Record<string, { visible?: boolean; color?: string }>;
+  fillItems?: Record<string, { visible?: boolean; colors?: PineColorMap }>;
+  backgroundItems?: Record<string, { visible?: boolean; colors?: PineColorMap }>;
+  /** Output values: decimals for values (null = chart default), price-scale labels, status-line values. */
+  precision?: number | null;
+  priceLabels?: boolean;
+  statusValues?: boolean;
+  /** Earlier all-or-nothing toggles. */
   fills?: boolean;
   backgrounds?: boolean;
   markers?: boolean;
 };
+
+/** The script's color with the user's replacement applied, keeping the script's transparency. */
+export function remapPineColor(color: string | null | undefined, map: PineColorMap | undefined): string | null {
+  if (!color) return null;
+  const replacement = map?.[color.toUpperCase()];
+  if (!replacement) return color;
+  const alpha = /^#[0-9a-f]{6}([0-9a-f]{2})$/i.exec(color)?.[1];
+  return alpha && /^#[0-9a-f]{6}$/i.test(replacement) ? replacement + alpha : replacement;
+}
+
+/** The distinct colors an element uses, in order of first appearance — its "Color 0", "Color 1", … */
+export function distinctPineColors(item: { color: string | null; colors: (string | null)[] | null }, limit = 8): string[] {
+  const seen: string[] = [];
+  for (const color of item.colors ?? [item.color]) {
+    if (!color) continue;
+    const key = color.toUpperCase();
+    if (!seen.includes(key)) seen.push(key);
+    if (seen.length >= limit) break;
+  }
+  return seen;
+}
 export type PineInputSetting = number | boolean | string;
 
 /** A Pine script placed on a chart. The code is copied so the plot survives the saved script being edited or deleted. */

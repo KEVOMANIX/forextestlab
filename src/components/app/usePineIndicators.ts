@@ -127,7 +127,7 @@ export function usePineIndicators({
         const result = results[item.id];
         if (!result) continue;
         next[item.id] = result.ok
-          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, markers: result.markers, skipped: result.skipped, converted: result.converted, times: batch.times, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
+          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, shapes: result.shapes, skipped: result.skipped, converted: result.converted, times: batch.times, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
           : { state: "error", code: item.code, ranAt: now, error: result.error, diagnostics: result.diagnostics };
       }
       return next;

@@ -61,7 +61,20 @@ function inferKind(value: PineInputValue | null, text: string): PineInputKind {
   return "other";
 }
 
+const parsed = new Map<string, PineInput[]>();
+
+/** The script's inputs (cached per code, since the legend asks on every crosshair move). */
 export function parsePineInputs(code: string): PineInput[] {
+  let inputs = parsed.get(code);
+  if (!inputs) {
+    inputs = readInputs(code);
+    parsed.set(code, inputs);
+    while (parsed.size > 32) parsed.delete(parsed.keys().next().value!);
+  }
+  return inputs;
+}
+
+function readInputs(code: string): PineInput[] {
   const calls = [...Object.keys(FUNCTIONS), "input"].flatMap((name) => findCalls(code, name).map((call) => ({ name, call })));
   calls.sort((left, right) => left.call.start - right.call.start);
   return calls.flatMap(({ name, call }, index): PineInput[] => {

@@ -118,7 +118,7 @@ import {
 import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorPicker } from "./IndicatorPicker";
-import { hydratePineIndicator, PINE_INDICATOR_TEMPLATE, pineDeclaredName, savePineScript, type PineChartIndicator, type PineScript } from "@/lib/chart/pine-scripts";
+import { hydratePineIndicator, PINE_EDITOR_STATE, PINE_EDITOR_TOGGLE, PINE_INDICATOR_TEMPLATE, pineDeclaredName, savePineScript, type PineChartIndicator, type PineScript } from "@/lib/chart/pine-scripts";
 import { PineEditorPanel, type PineEditorDraft } from "./PineEditorPanel";
 import { pineValuesAt, usePineIndicators } from "./usePineIndicators";
 import { EconomicEventLayer } from "./EconomicEventLayer";
@@ -373,8 +373,6 @@ interface PriceChartProps {
    * to make room instead of being covered. Floats over the chart without one.
    */
   sidePanelSlot?: HTMLElement | null;
-  /** Market data provider of the session, used to run Pine scripts. */
-  dataSource?: string;
   /**
    * Full-height column on the workspace's left edge to host the drawing rail,
    * and whether this pane is the one that owns it. A multi-chart layout has a
@@ -1008,7 +1006,6 @@ export default function PriceChart({
   actionsSlot = null,
   showControls = true,
   sidePanelSlot = null,
-  dataSource = "dukascopy",
   railSlot = null,
   showRail = true,
   drawingTool,
@@ -3698,19 +3695,17 @@ export default function PriceChart({
     chart: chartRef.current,
     items: pineIndicators,
     symbol: symbolLabel.toUpperCase().replace(/[^A-Z0-9]/g, ""),
-    source: dataSource,
-    timeframe: displayTimeframe,
+    timeframeMs: TIMEFRAME_MS[displayTimeframe],
+    precision,
     epoch: seriesEpoch,
     paneBase: 1 + indicators.filter((indicator) => getDef(indicator.kind)?.pane === "own").length,
-    getRange: () => {
-      const timeline = joinedTimelineCached(historyCandlesRef.current, displayRef.current);
-      // On a timeframe above the replay's own, the newest candle is still forming; the
-      // server would hand back its finished values, so stop at the last closed one.
-      const forming = TIMEFRAME_MS[displayTimeframe] > TIMEFRAME_MS[baseTimeframe] ? 1 : 0;
-      const last = timeline.length - 1 - forming;
-      return last < 1 ? null : { start: Number(timeline[0]!.time), end: Number(timeline[last]!.time) };
-    },
-    endTime: lastCandle?.timestamp ?? lastCandles.at(-1)?.timestamp ?? initialCandles.at(-1)?.timestamp ?? null,
+    // Exactly what the chart shows, forming candle included, so a script
+    // never sees past the replay time and moves with price like on TradingView.
+    getCandles: () => joinedTimelineCached(historyCandlesRef.current, displayRef.current),
+    candleKey: (() => {
+      const candle = lastCandle ?? lastCandles.at(-1) ?? initialCandles.at(-1);
+      return candle ? `${candle.timestamp}:${candle.open}:${candle.high}:${candle.low}:${candle.close}:${lastCandles.length}:${initialCandles.length}` : "";
+    })(),
     container: containerRef.current,
   });
 
@@ -3763,6 +3758,26 @@ export default function PriceChart({
     setPineIndicators((current) => [...current, { id, scriptId: pineDraft.scriptId, name, code: pineDraft.code, visible: true }].slice(-8));
     setPineDraft({ ...pineDraft, instanceId: id, name });
   }
+
+  // The workspace rail's Pine button acts on the focused chart: reopen the
+  // script on the chart, or start a new one.
+  const pineToggleRef = useRef<() => void>(() => {});
+  pineToggleRef.current = () => {
+    if (pineDraft) { setPineDraft(null); return; }
+    const onChart = pineIndicators.at(-1);
+    if (onChart) editPineIndicator(onChart);
+    else newPineScript();
+  };
+  useEffect(() => {
+    if (!showControls) return;
+    const toggle = () => pineToggleRef.current();
+    window.addEventListener(PINE_EDITOR_TOGGLE, toggle);
+    return () => window.removeEventListener(PINE_EDITOR_TOGGLE, toggle);
+  }, [showControls]);
+  const pineEditorOpen = pineDraft != null;
+  useEffect(() => {
+    if (showControls) window.dispatchEvent(new CustomEvent(PINE_EDITOR_STATE, { detail: pineEditorOpen }));
+  }, [pineEditorOpen, showControls]);
 
   function removePineIndicator(id: string) {
     setPineIndicators((current) => current.filter((item) => item.id !== id));
@@ -4122,18 +4137,6 @@ export default function PriceChart({
         </button>
         {menu === "indicators" && <IndicatorPicker theme={theme} onClose={() => setMenu(null)} onSelect={addIndicator} onSelectScript={addPineScript} onEditScript={(script) => openPineEditor({ instanceId: pineIndicators.find((item) => item.scriptId === script.id)?.id ?? null, scriptId: script.id, name: script.name, code: script.code, savedCode: script.code })} onCreateScript={newPineScript} />}
       </div>
-      <button
-        type="button"
-        aria-label="Pine Editor"
-        aria-pressed={pineDraft != null}
-        title="Pine Editor"
-        data-testid="pine-editor-toggle"
-        onClick={() => (pineDraft ? setPineDraft(null) : newPineScript())}
-        className={"inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors " + (pineDraft ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]")}
-      >
-        <Braces size={15} aria-hidden />
-        <span className="hidden xl:inline">Pine Editor</span>
-      </button>
 
     </div>
   );

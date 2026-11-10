@@ -1017,3 +1017,12 @@
     animation: none;
   }
 }
+
+/* Pine Editor drawer slides in over the chart from the workspace rail. */
+@keyframes pine-drawer-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="pine-editor-panel"] { animation: none !important; }
+}

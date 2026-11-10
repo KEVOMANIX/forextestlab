@@ -1,5 +1,9 @@
 export const PINE_SCRIPTS_KEY = "forextestlab:pine-scripts:v1";
 export const PINE_SCRIPTS_CHANGED = "forextestlab:pine-scripts-changed";
+/** The workspace rail asks the focused chart to open or close its Pine Editor. */
+export const PINE_EDITOR_TOGGLE = "forextestlab:pine-editor-toggle";
+/** The focused chart reports whether its Pine Editor is open (detail: boolean). */
+export const PINE_EDITOR_STATE = "forextestlab:pine-editor-state";
 export type PineScript = { id: string; name: string; code: string; updatedAt: number };
 
 /** A Pine script placed on a chart. The code is copied so the plot survives the saved script being edited or deleted. */

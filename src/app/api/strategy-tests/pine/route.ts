@@ -24,10 +24,7 @@ const bodySchema = z.object({
   startTime: z.number().int().nonnegative(),
   endTime: z.number().int().nonnegative(),
   startingBalance: z.number().finite().min(100).max(1_000_000).default(10_000),
-  /** Chart indicators rerun as the replay moves and as scripts are edited, so they get a larger allowance than strategy tests. */
-  purpose: z.enum(["test", "chart"]).default("test"),
 });
-const RUN_LIMITS = { test: 6, chart: 120 } as const;
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 
 const PINE_SOCKET = "/run/forextestlab-pine.sock";
@@ -77,7 +74,7 @@ export async function POST(request: Request) {
   if (!user && (input.source !== "demo" || input.startTime < DEMO_RANGE_START || input.endTime > DEMO_RANGE_END)) return json({ ok: false, error: "Sign in to test real market history." }, 403);
   if (user && input.source === "demo") return json({ ok: false, error: "Choose a historical data provider." }, 400);
   if (input.source === "histdata" && !histDataReplayEnabled()) return json({ ok: false, error: "HistData is not available right now." }, 400);
-  if (!rateLimit(`pine-${input.purpose}:${user?.id ?? clientIp(request)}`, RUN_LIMITS[input.purpose], 60 * 60_000).ok) return json({ ok: false, error: input.purpose === "chart" ? "Pine indicator limit reached for this hour. Try again later." : "Pine test limit reached. Try again later." }, 429);
+  if (!rateLimit(`pine-test:${user?.id ?? clientIp(request)}`, 6, 60 * 60_000).ok) return json({ ok: false, error: "Pine test limit reached. Try again later." }, 429);
   const provider = input.source === "demo" ? new DemoDataProvider() : input.source === "dukascopy" ? new R2ParquetProvider() : getMarketDataProvider("histdata");
   try {
     const ranges = await provider.getAvailableRanges(input.symbol, input.timeframe);
@@ -87,7 +84,7 @@ export async function POST(request: Request) {
       .sort((a, b) => a.timestamp - b.timestamp);
     if (candles.length < 2 || candles.length > MAX_BARS) return json({ ok: false, error: candles.length > MAX_BARS ? `The period contains more than ${MAX_BARS.toLocaleString()} candles.` : "Too few candles in this period." }, 422);
     if (candles.some((candle, index) => (index > 0 && candle.timestamp <= candles[index - 1]!.timestamp) || ![candle.open, candle.high, candle.low, candle.close].every((value) => Number.isFinite(Number(value))))) return json({ ok: false, error: "Market candles are incomplete or out of order." }, 422);
-    const result = await runIsolated({ code: input.code, symbol: input.symbol, source: input.source, timeframe: input.timeframe, startTime: input.startTime, endTime: input.endTime, startingBalance: input.startingBalance, dataSource: input.source, candles }, request.signal);
+    const result = await runIsolated({ ...input, dataSource: input.source, candles }, request.signal);
     return json(result);
   } catch (error) {
     if (!request.signal.aborted) console.error("Pine test failed", { symbol: input.symbol, source: input.source, timeframe: input.timeframe, error });

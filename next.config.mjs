@@ -21,6 +21,8 @@ const buildVersion =
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Pine engine ships TypeScript source; the chart runs it in a browser worker.
+  transpilePackages: ["@nullarch/resin"],
   env: {
     NEXT_PUBLIC_BUILD_VERSION: buildVersion,
   },

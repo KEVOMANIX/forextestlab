@@ -11,7 +11,7 @@ const StrategyCodeEditor = dynamic(() => import("./StrategyCodeEditor").then(mod
   loading: () => <div className="grid h-full place-items-center bg-[#0b100e] text-sm text-[#a7bcb0]">Loading editor…</div>,
 });
 
-const WIDTH_KEY = "forextestlab:pine-editor-width";
+const WIDTH_KEY = "forextestlab:pine-editor-width:v2";
 const MIN_WIDTH = 340;
 
 export type PineEditorDraft = {
@@ -57,7 +57,7 @@ export function PineEditorPanel({
   /** Docked in the workspace column (true) or floating over the chart. */
   docked: boolean;
 }) {
-  const [width, setWidth] = useState(460);
+  const [width, setWidth] = useState(760);
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [scripts, setScripts] = useState<PineScript[]>([]);
@@ -78,7 +78,7 @@ export function PineEditorPanel({
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = width;
-    const max = Math.max(MIN_WIDTH, window.innerWidth * 0.6);
+    const max = Math.max(MIN_WIDTH, window.innerWidth * 0.8);
     let latest = startWidth;
     const move = (moveEvent: PointerEvent) => { latest = Math.round(Math.min(max, Math.max(MIN_WIDTH, startWidth + startX - moveEvent.clientX))); setWidth(latest); };
     const up = () => {
@@ -103,8 +103,8 @@ export function PineEditorPanel({
         if (mod && event.key.toLowerCase() === "s") { event.preventDefault(); onSave(); }
         else if (mod && event.key === "Enter") { event.preventDefault(); event.stopPropagation(); onApply(); }
       }}
-      className={`flex h-full min-h-0 shrink-0 flex-col border-l app-border bg-[var(--app-panel-solid)] text-[var(--app-text)] ${docked ? "relative" : "absolute right-0 top-0 z-40 shadow-2xl"}`}
-      style={{ width: `min(${width}px, 100vw)` }}
+      className={`flex h-full min-h-0 shrink-0 flex-col border-l app-border bg-[var(--app-panel-solid)] text-[var(--app-text)] shadow-[-16px_0_40px_rgba(0,0,0,0.35)] animate-[pine-drawer-in_160ms_ease-out] ${docked ? "relative" : "absolute right-0 top-0 z-40"}`}
+      style={{ width: `min(${width}px, 100%)` }}
     >
       <div role="separator" aria-orientation="vertical" aria-label="Resize Pine Editor" onPointerDown={startResize} className="absolute -left-1 top-0 z-10 hidden h-full w-2 cursor-col-resize hover:bg-brand-400/30 sm:block" />
 

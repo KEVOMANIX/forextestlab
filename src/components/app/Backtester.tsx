@@ -1,5 +1,6 @@
 "use client";
 
+import { PINE_EDITOR_STATE, PINE_EDITOR_TOGGLE } from "@/lib/chart/pine-scripts";
 import { setPlanPreview } from "@/app/admin/actions";
 import { drawingOrderDraft } from "@/lib/backtest/drawing-order";
 import type { DrawingJSON } from "@/lib/chart/drawing/types";
@@ -346,6 +347,12 @@ export function Backtester({
   const goToButtonRef = useRef<HTMLButtonElement | null>(null);
   const [goToAnchor, setGoToAnchor] = useState<{ left: number; bottom: number } | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [pineOpen, setPineOpen] = useState(false);
+  useEffect(() => {
+    const onState = (event: Event) => setPineOpen(Boolean((event as CustomEvent<boolean>).detail));
+    window.addEventListener(PINE_EDITOR_STATE, onState);
+    return () => window.removeEventListener(PINE_EDITOR_STATE, onState);
+  }, []);
   /**
    * The one settings dialog, and the section it should open on. Held here rather
    * than in a chart cell so the header gear and all four cells' right-click
@@ -1379,6 +1386,8 @@ export function Backtester({
               />
             }
           />
+          {/* The focused chart's Pine Editor slides over the chart's right side. */}
+          <div ref={setChartSidePanelSlot} className="pointer-events-none absolute inset-y-0 right-0 z-[45] flex max-w-full [&>*]:pointer-events-auto" />
           <ReplayToolbar
             key={`replay-toolbar-${workspace.revision}`}
             state={activeTradingState ?? state}
@@ -1424,9 +1433,6 @@ export function Backtester({
           )}
         </div>
 
-        {/* The focused chart's Pine Editor docks here, narrowing the chart. */}
-        <div ref={setChartSidePanelSlot} className="flex min-h-0 shrink-0" />
-
         {!state.config.blindMode && !workspace.settings.distractionFree && calendarOpen && (
           <EconomicCalendarPanel
             open={calendarOpen}
@@ -1448,6 +1454,8 @@ export function Backtester({
           onOpenSettings={() => openSettings()}
           calendarOpen={calendarOpen}
           onToggleCalendar={() => setCalendarOpen((value) => !value)}
+          pineOpen={pineOpen}
+          onTogglePine={() => window.dispatchEvent(new Event(PINE_EDITOR_TOGGLE))}
           onStartTour={() => window.dispatchEvent(new Event("forextestlab:start-tour"))}
         />}
       </div>

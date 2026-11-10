@@ -19,7 +19,7 @@ describe("pine chart scripts", () => {
   });
 
   it("reads plot values at the hovered candle", () => {
-    const report = { kind: "indicator", overlay: true, times: [1_000, 2_000, 3_000], plots: [{ title: "Basis", color: "#2962FF", values: [1, null, 3] }] };
+    const report = { overlay: true, times: [1_000, 2_000, 3_000], plots: [{ title: "Basis", color: "#2962FF", linewidth: 1, values: [1, null, 3] }] };
     expect(pineValuesAt(report, 2)).toEqual([{ title: "Basis", color: "#2962FF", value: null }]);
     expect(pineValuesAt(report, 2.5)).toEqual([{ title: "Basis", color: "#2962FF", value: null }]);
     expect(pineValuesAt(report, 3)).toEqual([{ title: "Basis", color: "#2962FF", value: 3 }]);

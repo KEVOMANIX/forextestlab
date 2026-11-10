@@ -6,6 +6,7 @@ import { formatInZone } from "@/lib/chart/timezones";
 import { blindDayLabel } from "@/lib/backtest/blind-replay";
 import { useEffect, useRef, useState } from "react";
 import {
+  Braces,
   BarChart3,
   BookOpenText,
   CalendarClock,
@@ -314,6 +315,8 @@ export function TerminalRightRail({
   onOpenSettings,
   calendarOpen,
   onToggleCalendar,
+  pineOpen = false,
+  onTogglePine,
   onStartTour,
 }: {
   state: PublicSessionState;
@@ -324,6 +327,9 @@ export function TerminalRightRail({
   /** Whether the economic calendar panel is currently docked open. */
   calendarOpen: boolean;
   onToggleCalendar: () => void;
+  /** Whether the Pine Editor drawer is open over the chart. */
+  pineOpen?: boolean;
+  onTogglePine?: () => void;
   /** Replays the anchored backtester walkthrough. */
   onStartTour: () => void;
 }) {
@@ -374,6 +380,9 @@ export function TerminalRightRail({
       <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
       {!(state.config.blindMode && state.status !== "finished") && <RailButton label="News" showLabel active={calendarOpen} onClick={onToggleCalendar}>
         <CalendarClock size={18} aria-hidden />
+      </RailButton>}
+      {onTogglePine && <RailButton label="Pine" showLabel active={pineOpen} onClick={onTogglePine}>
+        <Braces size={18} aria-hidden />
       </RailButton>}
       <span className="my-1 h-px w-6 self-center bg-[var(--app-border)]" aria-hidden />
       {/*

@@ -3,196 +3,257 @@
 import { useEffect, useRef, useState } from "react";
 import { LineSeries, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import type { PineChartIndicator } from "@/lib/chart/pine-scripts";
+import type { OHLCV } from "@/lib/chart/indicators";
+import type { PineDiagnostic, PineIndicatorResult, PinePlot, PineSeriesInput } from "@/lib/chart/pine-runner";
 
-export const PINE_TIMEFRAMES = ["15m", "1h", "4h", "1d"] as const;
-type PineTimeframe = (typeof PINE_TIMEFRAMES)[number];
 const MAX_BARS = 30_000;
-const TIMEFRAME_MS: Record<PineTimeframe, number> = { "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 };
-/** Wait this long after the replay stops moving before recalculating, so playing a session does not fire a run per candle. */
-const REFRESH_DELAY_MS = 2_500;
+/** A run that takes longer than this is treated as an endless loop and stopped. */
+const RUN_TIMEOUT_MS = 8_000;
 
-export type PineDiagnostic = { line: number; message: string };
-type Plot = { title: string; color: string; linewidth?: number; values: (number | null)[] };
-type Report = { kind: string; overlay: boolean; times: number[]; plots: Plot[] };
+export type PineReport = { overlay: boolean; times: ArrayLike<number>; plots: PinePlot[] };
 export type PineRunStatus = {
   state: "loading" | "ready" | "error";
   error?: string;
   diagnostics?: PineDiagnostic[];
-  report?: Report;
-  /** Code that produced `report`, so the editor can tell when the chart is out of date. */
+  report?: PineReport;
+  /** Code that produced this status, so the editor can tell when the chart is out of date. */
   code?: string;
   ranAt?: number;
 };
 
-type Result = { ok: true; report: Report } | { ok: false; error: string; diagnostics?: PineDiagnostic[] };
-const resultCache = new Map<string, Result>();
-function remember(key: string, result: Result) {
-  resultCache.delete(key);
-  resultCache.set(key, result);
-  while (resultCache.size > 24) resultCache.delete(resultCache.keys().next().value!);
-}
+type Batch = { id: number; items: { id: string; code: string }[]; times: Float64Array; timer: number };
 
-async function runPine(input: { code: string; symbol: string; source: string; timeframe: PineTimeframe; startTime: number; endTime: number }, signal: AbortSignal): Promise<Result> {
-  const key = JSON.stringify(input);
-  const cached = resultCache.get(key);
-  if (cached) return cached;
-  const response = await fetch("/api/strategy-tests/pine", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    signal,
-    body: JSON.stringify({ ...input, startingBalance: 10_000, purpose: "chart" }),
+function toSeriesInput(candles: OHLCV[]): PineSeriesInput {
+  const rows = candles.length > MAX_BARS ? candles.slice(-MAX_BARS) : candles;
+  const data = { time: new Float64Array(rows.length), open: new Float64Array(rows.length), high: new Float64Array(rows.length), low: new Float64Array(rows.length), close: new Float64Array(rows.length), volume: new Float64Array(rows.length) };
+  rows.forEach((row, index) => {
+    data.time[index] = Number(row.time) * 1000;
+    data.open[index] = row.open; data.high[index] = row.high; data.low[index] = row.low; data.close[index] = row.close;
+    data.volume[index] = row.volume ?? 0;
   });
-  const data = await response.json().catch(() => null) as { ok?: boolean; error?: string; diagnostics?: PineDiagnostic[]; report?: Report } | null;
-  let result: Result;
-  if (response.ok && data?.ok && data.report?.kind === "indicator") result = { ok: true, report: data.report };
-  else if (response.ok && data?.ok && data.report) result = { ok: false, error: "This is a strategy script. Run strategies in Strategy Lab; the chart shows indicator() scripts." };
-  else result = { ok: false, error: data?.error ?? "Could not run the script.", diagnostics: data?.diagnostics };
-  // Rate limits and outages are transient; script errors and plots are worth keeping.
-  if (result.ok || response.status === 400 || response.status === 422 || result.diagnostics?.length) remember(key, result);
-  return result;
+  return data;
 }
 
 /**
- * Runs the chart's Pine indicators on the candles the chart has revealed so far
- * (never past the replay time) and draws their plot() output.
+ * Runs the chart's Pine indicators in a browser worker on exactly the candles
+ * the chart shows (never past the replay time) and recalculates on every new
+ * or changed candle, the way TradingView updates a script as price moves.
  */
 export function usePineIndicators({
   chart,
+  container,
   items,
-  symbol,
-  source,
-  timeframe,
   epoch,
   paneBase,
-  getRange,
-  endTime,
-  container,
+  getCandles,
+  candleKey,
+  symbol,
+  timeframeMs,
+  precision,
 }: {
   chart: IChartApi | null;
-  items: PineChartIndicator[];
-  symbol: string;
-  source: string;
-  timeframe: string;
-  /** Changes whenever the chart is rebuilt, so series are re-added to the new chart. */
-  epoch: number;
-  /** First free pane index for scripts that are not overlays. */
-  paneBase: number;
-  /** First and last revealed candle times, in seconds. */
-  getRange: () => { start: number; end: number } | null;
-  /** Time of the newest revealed candle; a later value triggers a recalculation. */
-  endTime: number | null;
   /** Chart host element, used to place legends inside script panes. */
   container: HTMLElement | null;
+  items: PineChartIndicator[];
+  /** Changes whenever the chart is rebuilt, so series are re-added to the new chart. */
+  epoch: number;
+  /** Number of panes built-in studies use; scripts' own panes follow them. */
+  paneBase: number;
+  /** The candles currently on the chart, oldest first. */
+  getCandles: () => OHLCV[];
+  /** Changes whenever the newest candle appears or moves. */
+  candleKey: string;
+  symbol: string;
+  timeframeMs: number;
+  precision: number;
 }) {
   const [status, setStatus] = useState<Record<string, PineRunStatus>>({});
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const requestedRef = useRef(new Map<string, string>());
-  const controllersRef = useRef(new Map<string, AbortController>());
-  const seriesRef = useRef<ISeriesApi<"Line">[]>([]);
-  const [settledEnd, setSettledEnd] = useState(endTime);
   const [paneTops, setPaneTops] = useState<Record<string, number>>({});
+  const workerRef = useRef<Worker | null>(null);
+  const batchRef = useRef<Batch | null>(null);
+  const dirtyRef = useRef(false);
+  const nextIdRef = useRef(1);
+  const hungCodeRef = useRef(new Set<string>());
+  const latest = useRef({ items, getCandles, symbol, timeframeMs, precision });
+  latest.current = { items, getCandles, symbol, timeframeMs, precision };
 
-  useEffect(() => {
-    if (settledEnd === endTime) return;
-    const timer = window.setTimeout(() => setSettledEnd(endTime), REFRESH_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [endTime, settledEnd]);
-
-  // Calculation: run each script whose inputs changed.
-  useEffect(() => {
-    const live = new Set(items.map(item => item.id));
-    for (const [id, controller] of controllersRef.current) if (!live.has(id)) { controller.abort(); controllersRef.current.delete(id); requestedRef.current.delete(id); }
-    setStatus(current => Object.fromEntries(Object.entries(current).filter(([id]) => live.has(id))));
-    const range = getRange();
-    if (!range || !symbol) return;
-    const supported = (PINE_TIMEFRAMES as readonly string[]).includes(timeframe);
-    for (const item of items) {
-      const runKey = JSON.stringify([item.code, symbol, source, timeframe, range.end, refreshNonce]);
-      if (requestedRef.current.get(item.id) === runKey) continue;
-      requestedRef.current.set(item.id, runKey);
-      controllersRef.current.get(item.id)?.abort();
-      if (!supported) {
-        setStatus(current => ({ ...current, [item.id]: { state: "error", error: "Pine scripts run on 15m, 1H, 4H and 1D charts. Switch the chart timeframe to see this script.", code: item.code } }));
-        continue;
-      }
-      const tf = timeframe as PineTimeframe;
-      const endMs = range.end * 1000;
-      const startMs = Math.max(range.start * 1000, endMs - TIMEFRAME_MS[tf] * (MAX_BARS - 1));
-      const controller = new AbortController();
-      controllersRef.current.set(item.id, controller);
-      setStatus(current => ({ ...current, [item.id]: { ...current[item.id], state: "loading" } }));
-      void runPine({ code: item.code, symbol, source, timeframe: tf, startTime: startMs, endTime: endMs }, controller.signal)
-        .then(result => {
-          if (controller.signal.aborted) return;
-          setStatus(current => ({
-            ...current,
-            [item.id]: result.ok
-              ? { state: "ready", report: result.report, code: item.code, ranAt: Date.now() }
-              : { state: "error", error: result.error, diagnostics: result.diagnostics, code: item.code, ranAt: Date.now() },
-          }));
-        })
-        .catch(error => {
-          if (controller.signal.aborted) return;
-          requestedRef.current.delete(item.id);
-          setStatus(current => ({ ...current, [item.id]: { state: "error", error: error instanceof Error ? error.message : "Could not run the script.", code: item.code } }));
-        })
-        .finally(() => { if (controllersRef.current.get(item.id) === controller) controllersRef.current.delete(item.id); });
+  const dispatchRef = useRef<() => void>(() => {});
+  dispatchRef.current = () => {
+    if (batchRef.current) { dirtyRef.current = true; return; }
+    dirtyRef.current = false;
+    const { items: current, getCandles: read, symbol: sym, timeframeMs: tf, precision: digits } = latest.current;
+    const runnable = current.filter((item) => !hungCodeRef.current.has(item.code));
+    if (runnable.length === 0) return;
+    const data = toSeriesInput(read());
+    if (data.time.length < 1) return;
+    if (!workerRef.current) {
+      workerRef.current = new Worker(new URL("./pine-chart.worker.ts", import.meta.url), { type: "module" });
+      workerRef.current.onmessage = (event: MessageEvent<{ id: number; results: Record<string, PineIndicatorResult> }>) => finish(event.data.id, event.data.results);
+      workerRef.current.onerror = () => fail("The script runner stopped unexpectedly.");
     }
-    // getRange reads refs; settledEnd stands in for the revealed range.
+    const id = nextIdRef.current++;
+    const batchItems = runnable.map((item) => ({ id: item.id, code: item.code }));
+    const timer = window.setTimeout(() => {
+      // An endless loop never answers: stop the worker and leave that code alone until it is edited.
+      for (const item of batchItems) hungCodeRef.current.add(item.code);
+      fail(`The script took longer than ${RUN_TIMEOUT_MS / 1000} seconds and was stopped. Check for a loop that never ends.`);
+    }, RUN_TIMEOUT_MS);
+    batchRef.current = { id, items: batchItems, times: data.time.slice(), timer };
+    setStatus((previous) => {
+      const next = { ...previous };
+      for (const item of batchItems) if (previous[item.id]?.code !== item.code) next[item.id] = { ...previous[item.id], state: "loading" };
+      return next;
+    });
+    workerRef.current.postMessage({ id, items: batchItems, data, symbol: sym, timeframeMs: tf, precision: digits }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
+  };
+
+  function finish(id: number, results: Record<string, PineIndicatorResult>) {
+    const batch = batchRef.current;
+    if (!batch || batch.id !== id) return;
+    window.clearTimeout(batch.timer);
+    batchRef.current = null;
+    const now = Date.now();
+    setStatus((previous) => {
+      const next = { ...previous };
+      for (const item of batch.items) {
+        const result = results[item.id];
+        if (!result) continue;
+        next[item.id] = result.ok
+          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, times: batch.times, plots: result.plots } }
+          : { state: "error", code: item.code, ranAt: now, error: result.error, diagnostics: result.diagnostics };
+      }
+      return next;
+    });
+    if (dirtyRef.current) dispatchRef.current();
+  }
+
+  function fail(message: string) {
+    const batch = batchRef.current;
+    if (batch) window.clearTimeout(batch.timer);
+    batchRef.current = null;
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    if (batch) {
+      const now = Date.now();
+      setStatus((previous) => {
+        const next = { ...previous };
+        for (const item of batch.items) next[item.id] = { state: "error", code: item.code, ranAt: now, error: message };
+        return next;
+      });
+    }
+    if (dirtyRef.current) dispatchRef.current();
+  }
+
+  // Recalculate whenever the scripts, the market or any candle changes.
+  const codesKey = items.map((item) => `${item.id}:${item.code}`).join("\n");
+  useEffect(() => {
+    setStatus((previous) => {
+      const live = new Set(items.map((item) => item.id));
+      return Object.keys(previous).every((id) => live.has(id)) ? previous : Object.fromEntries(Object.entries(previous).filter(([id]) => live.has(id)));
+    });
+    dispatchRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, symbol, source, timeframe, settledEnd, refreshNonce, epoch]);
+  }, [codesKey, candleKey, symbol, timeframeMs, precision, epoch, refreshNonce]);
 
-  useEffect(() => () => { for (const controller of controllersRef.current.values()) controller.abort(); }, []);
+  useEffect(() => () => {
+    if (batchRef.current) window.clearTimeout(batchRef.current.timer);
+    workerRef.current?.terminate();
+    workerRef.current = null;
+  }, []);
 
-  // Drawing: rebuild the plot series from the latest results.
+  // Drawing. Series are rebuilt only when the set of lines changes; a new
+  // candle appends or updates points in place.
+  const drawnRef = useRef<{ key: string; series: Map<string, ISeriesApi<"Line">[]>; lengths: Map<string, { first: number; length: number }>; panes: Map<string, number> } | null>(null);
+  const structure = [epoch, paneBase, ...items.map((item) => {
+    const report = status[item.id]?.code === item.code ? status[item.id]?.report : undefined;
+    return report ? `${item.id}|${report.overlay}|${report.plots.map((plot) => `${plot.color}/${plot.linewidth}`).join(",")}` : `${item.id}|-`;
+  })].join(";");
+
   useEffect(() => {
     if (!chart) return;
-    const removeAll = () => {
-      for (const series of seriesRef.current) { try { chart.removeSeries(series); } catch { /* The chart was rebuilt. */ } }
-      seriesRef.current = [];
-    };
-    removeAll();
-    // Built-in studies own the panes directly under price; scripts follow them.
-    let pane = chart.panes().length;
-    const panesById = new Map<string, number>();
-    for (const item of items) {
-      const report = status[item.id]?.report;
-      if (!report || status[item.id]?.code !== item.code) continue;
-      const paneIndex = report.overlay ? 0 : pane++;
-      if (paneIndex > 0) panesById.set(item.id, paneIndex);
-      for (const plot of report.plots) {
-        const series = chart.addSeries(LineSeries, { color: plot.color || "#2962FF", lineWidth: Math.min(4, Math.max(1, plot.linewidth ?? 2)) as 1 | 2 | 3 | 4, priceLineVisible: false, lastValueVisible: item.visible, visible: item.visible, crosshairMarkerVisible: item.visible, title: "" }, paneIndex);
-        series.setData(plot.values.flatMap((value, index) => value == null || !Number.isFinite(value) || report.times[index] == null ? [] : [{ time: Math.floor(report.times[index]! / 1000) as UTCTimestamp, value }]));
-        seriesRef.current.push(series);
+    let drawn = drawnRef.current;
+    if (!drawn || drawn.key !== structure) {
+      if (drawn) for (const list of drawn.series.values()) for (const series of list) { try { chart.removeSeries(series); } catch { /* The chart was rebuilt. */ } }
+      drawn = { key: structure, series: new Map(), lengths: new Map(), panes: new Map() };
+      drawnRef.current = drawn;
+      // Built-in studies own the panes directly under price; scripts follow them.
+      let pane = chart.panes().length;
+      for (const item of items) {
+        const report = status[item.id]?.code === item.code ? status[item.id]?.report : undefined;
+        if (!report) continue;
+        const paneIndex = report.overlay ? 0 : pane++;
+        if (paneIndex > 0) drawn.panes.set(item.id, paneIndex);
+        drawn.series.set(item.id, report.plots.map((plot) => chart.addSeries(LineSeries, { color: plot.color || "#2962FF", lineWidth: Math.min(4, Math.max(1, plot.linewidth || 1)) as 1 | 2 | 3 | 4, priceLineVisible: false, title: "" }, paneIndex)));
       }
     }
+    for (const item of items) {
+      const report = status[item.id]?.code === item.code ? status[item.id]?.report : undefined;
+      const list = drawn.series.get(item.id);
+      if (!report || !list) continue;
+      const times = report.times;
+      const previous = drawn.lengths.get(item.id);
+      const first = times.length ? times[0]! : 0;
+      // The same history plus a few new candles: only touch the end of each line.
+      const incremental = previous && previous.first === first && times.length >= previous.length && times.length - previous.length <= 5 && previous.length > 0;
+      list.forEach((series, plotIndex) => {
+        series.applyOptions({ visible: item.visible, lastValueVisible: item.visible, crosshairMarkerVisible: item.visible });
+        const values = report.plots[plotIndex]?.values ?? [];
+        const point = (index: number) => ({ time: Math.floor(times[index]! / 1000) as UTCTimestamp, value: values[index]! });
+        if (incremental) {
+          for (let index = previous.length - 1; index < times.length; index++) {
+            if (values[index] == null) continue;
+            try { series.update(point(index)); } catch { /* Out-of-order point; the next full redraw fixes it. */ }
+          }
+        } else {
+          const rows = [];
+          for (let index = 0; index < times.length; index++) if (values[index] != null) rows.push(point(index));
+          series.setData(rows);
+        }
+      });
+      drawn.lengths.set(item.id, { first, length: times.length });
+    }
+  }, [chart, items, status, structure]);
+
+  useEffect(() => () => {
+    const drawn = drawnRef.current;
+    if (drawn && chart) for (const list of drawn.series.values()) for (const series of list) { try { chart.removeSeries(series); } catch { /* The chart was rebuilt. */ } }
+    drawnRef.current = null;
+  }, [chart, epoch]);
+
+  // Keep script-pane legends seated inside their panes.
+  useEffect(() => {
+    if (!chart || !container) return;
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const host = container?.getBoundingClientRect();
-        if (!host) return;
+        const host = container.getBoundingClientRect();
         const panes = chart.panes();
         const next: Record<string, number> = {};
-        for (const [id, index] of panesById) {
+        for (const [id, index] of drawnRef.current?.panes ?? []) {
           const box = panes[index]?.getHTMLElement()?.getBoundingClientRect();
           if (box) next[id] = box.top - host.top;
         }
-        setPaneTops(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+        setPaneTops((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
       });
     };
     measure();
     const observer = new ResizeObserver(measure);
-    if (container) observer.observe(container);
-    chart.panes().forEach(item => { const element = item.getHTMLElement(); if (element) observer.observe(element); });
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); removeAll(); };
-  }, [chart, container, items, status, paneBase, epoch]);
+    observer.observe(container);
+    chart.panes().forEach((pane) => { const element = pane.getHTMLElement(); if (element) observer.observe(element); });
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+  }, [chart, container, structure]);
 
-  return { status, paneTops, refresh: () => { requestedRef.current.clear(); setRefreshNonce(value => value + 1); } };
+  return {
+    status,
+    paneTops,
+    refresh: () => { hungCodeRef.current.clear(); setRefreshNonce((value) => value + 1); },
+  };
 }
 
 /** Value of each plot at a candle time (seconds), for the legend readout. */
-export function pineValuesAt(report: Report | undefined, timeSeconds: number | null): { title: string; color: string; value: number | null }[] {
+export function pineValuesAt(report: PineReport | undefined, timeSeconds: number | null): { title: string; color: string; value: number | null }[] {
   if (!report) return [];
   let index = report.times.length - 1;
   if (timeSeconds != null) {
@@ -201,5 +262,5 @@ export function pineValuesAt(report: Report | undefined, timeSeconds: number | n
     index = -1;
     while (low <= high) { const mid = (low + high) >> 1; if (report.times[mid]! <= target) { index = mid; low = mid + 1; } else high = mid - 1; }
   }
-  return report.plots.map(plot => ({ title: plot.title, color: plot.color, value: index >= 0 ? plot.values[index] ?? null : null }));
+  return report.plots.map((plot) => ({ title: plot.title, color: plot.color, value: index >= 0 ? plot.values[index] ?? null : null }));
 }

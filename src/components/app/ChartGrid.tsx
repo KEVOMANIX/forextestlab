@@ -929,7 +929,6 @@ function ChartCellView({
         headerSlot={headerSlot}
         actionsSlot={actionsSlot}
         sidePanelSlot={sidePanelSlot}
-        dataSource={state.demoData ? "demo" : state.dataSource === "histdata" ? "histdata" : "dukascopy"}
         showControls={showControls}
         railSlot={railSlot}
         showRail={showRail}

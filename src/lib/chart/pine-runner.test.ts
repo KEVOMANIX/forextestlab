@@ -125,3 +125,25 @@ if barstate.islast
     expect(result.skipped).toEqual([]);
   });
 });
+
+describe("timeframe-limited scripts", () => {
+  it("draws nothing above the script's own timeframe limit until the input is raised", async () => {
+    const { applyPineInputs, parsePineInputs } = await import("./pine-inputs");
+    const code = `//@version=6
+indicator("KZP", "KZP [TFO]", true)
+tf_limit = input.timeframe("30", "Timeframe Limit")
+if timeframe.in_seconds("") <= timeframe.in_seconds(tf_limit)
+    box.new(bar_index, high, bar_index + 1, low)
+`;
+    const closes = Array.from({ length: 30 }, (_, index) => 1 + index * 0.001);
+    const f = (values: number[]) => Float64Array.from(values);
+    const data = () => ({ time: f(closes.map((_, index) => Date.UTC(2024, 2, 4) + index * 3_600_000)), open: f(closes), high: f(closes.map((close) => close + 0.001)), low: f(closes.map((close) => close - 0.001)), close: f(closes), volume: f(closes.map(() => 0)) });
+    const hourly = { symbol: "EURUSD", timeframeMs: 3_600_000, precision: 5 };
+    const before = runPineIndicator(code, data(), hourly);
+    expect(before.ok && before.drawings.length).toBe(0);
+    const input = parsePineInputs(code)[0]!;
+    expect(input).toMatchObject({ kind: "timeframe", title: "Timeframe Limit", defval: "30" });
+    const after = runPineIndicator(applyPineInputs(code, { [input.key]: "240" }), data(), hourly);
+    expect(after.ok && after.drawings.length).toBeGreaterThan(0);
+  });
+});

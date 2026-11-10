@@ -24,6 +24,22 @@ export type PineEditorDraft = {
   savedCode: string | null;
 };
 
+/** Everything a run put on the chart, for the console ("2 plots · 14 drawings"). */
+function drawnCount(status: PineRunStatus): number {
+  const report = status.report;
+  if (!report) return 0;
+  return report.plots.filter((plot) => plot.values.some((value) => value != null)).length + report.hlines.length + report.fills.length
+    + report.backgrounds.filter((background) => background.color || background.colors?.some(Boolean)).length
+    + report.shapes.reduce((sum, shape) => sum + shape.points.length, 0) + (report.drawings?.length ?? 0);
+}
+function drawnSummary(status: PineRunStatus): string {
+  const report = status.report;
+  if (!report) return "";
+  const count = (value: number, word: string) => (value ? `${value} ${word}${value === 1 ? "" : "s"}` : null);
+  const shapes = report.shapes.reduce((sum, shape) => sum + shape.points.length, 0);
+  return [count(report.plots.length, "plot"), count(shapes, "shape"), count(report.drawings?.length ?? 0, "drawing")].filter(Boolean).join(" · ") || "nothing drawn";
+}
+
 function clock(time: number) {
   return new Date(time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
@@ -103,10 +119,10 @@ export function PineEditorPanel({
         if (mod && event.key.toLowerCase() === "s") { event.preventDefault(); onSave(); }
         else if (mod && event.key === "Enter") { event.preventDefault(); event.stopPropagation(); onApply(); }
       }}
-      className={`flex h-full min-h-0 shrink-0 flex-col border-l app-border bg-[var(--app-panel-solid)] text-[var(--app-text)] shadow-[-16px_0_40px_rgba(0,0,0,0.35)] animate-[pine-drawer-in_160ms_ease-out] ${docked ? "relative" : "absolute right-0 top-0 z-40"}`}
+      className={`flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l app-border bg-[var(--app-panel-solid)] text-[var(--app-text)] shadow-[-16px_0_40px_rgba(0,0,0,0.35)] animate-[pine-drawer-in_160ms_ease-out] ${docked ? "relative" : "absolute right-0 top-0 z-40"}`}
       style={{ width: `min(${width}px, 100%)` }}
     >
-      <div role="separator" aria-orientation="vertical" aria-label="Resize Pine Editor" onPointerDown={startResize} className="absolute -left-1 top-0 z-10 hidden h-full w-2 cursor-col-resize hover:bg-brand-400/30 sm:block" />
+      <div role="separator" aria-orientation="vertical" aria-label="Resize Pine Editor" onPointerDown={startResize} className="absolute left-0 top-0 z-10 hidden h-full w-1.5 cursor-col-resize hover:bg-brand-400/30 sm:block" />
 
       <div className="flex min-h-11 items-center gap-1 border-b app-border px-2">
         <Code2 size={16} className="ml-1 shrink-0 text-[var(--app-accent-text)]" aria-hidden />
@@ -159,13 +175,14 @@ export function PineEditorPanel({
       </div>
 
       <div className="min-h-0 flex-1">
-        <StrategyCodeEditor value={draft.code} onChange={(code) => onDraftChange({ code })} serverDiagnostics={current?.diagnostics ?? []} mode="pine" minimap={false} />
+        <StrategyCodeEditor value={draft.code} onChange={(code) => onDraftChange({ code })} serverDiagnostics={current?.diagnostics ?? []} mode="pine" minimap={false} wrap />
       </div>
 
       <div className="max-h-40 min-h-[4.5rem] shrink-0 overflow-y-auto border-t app-border px-3 py-2 font-mono text-[11.5px] leading-5" aria-live="polite" data-testid="pine-console">
         {!onChart && !status && <p className="app-muted">Press <b>Add to chart</b> to run this script on the chart.</p>}
         {status?.state === "loading" && <p className="flex items-center gap-1.5 app-muted"><Loader2 size={12} className="animate-spin" aria-hidden />Compiling and running…</p>}
-        {status?.state === "ready" && status.ranAt && <p className="flex items-center gap-1.5 text-[var(--app-accent-text)]"><CircleCheck size={12} aria-hidden /><span className="app-muted">{clock(status.ranAt)}</span>Added to chart · {status.report?.plots.length ?? 0} plot{status.report?.plots.length === 1 ? "" : "s"}</p>}
+        {status?.state === "ready" && status.ranAt && <p className="flex items-center gap-1.5 text-[var(--app-accent-text)]"><CircleCheck size={12} aria-hidden /><span className="app-muted">{clock(status.ranAt)}</span>Added to chart · {drawnSummary(status)}</p>}
+        {status?.state === "ready" && drawnCount(status) === 0 && <p className="pl-[18px] text-amber-400">Nothing is drawn on this chart. Many scripts only draw on certain timeframes or sessions — check the script&apos;s inputs with the gear on its legend row.</p>}
         {status?.state === "ready" && status.report?.converted ? <p className="pl-[18px] app-muted">Pine v4 script, converted to v5 automatically.</p> : null}
         {status?.state === "ready" && status.report?.skipped?.length ? <p className="pl-[18px] app-muted">Not drawn on this chart yet: {status.report.skipped.join(", ")}.</p> : null}
         {status?.state === "error" && <>

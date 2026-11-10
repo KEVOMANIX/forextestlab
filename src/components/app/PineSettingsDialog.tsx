@@ -10,6 +10,13 @@ import type { PineReport } from "./pine-render";
 type Tab = "inputs" | "style";
 const field = "h-9 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60";
 const SOURCE_LABELS: Record<string, string> = { open: "Open", high: "High", low: "Low", close: "Close", hl2: "(H + L)/2", hlc3: "(H + L + C)/3", ohlc4: "(O + H + L + C)/4", hlcc4: "(H + L + C + C)/4", volume: "Volume" };
+/** input.timeframe() values as TradingView lists them ("" = the chart's own). */
+const TIMEFRAMES: { value: string; label: string }[] = [
+  { value: "", label: "Chart" }, { value: "1", label: "1 minute" }, { value: "3", label: "3 minutes" }, { value: "5", label: "5 minutes" },
+  { value: "15", label: "15 minutes" }, { value: "30", label: "30 minutes" }, { value: "45", label: "45 minutes" }, { value: "60", label: "1 hour" },
+  { value: "120", label: "2 hours" }, { value: "180", label: "3 hours" }, { value: "240", label: "4 hours" }, { value: "D", label: "1 day" },
+  { value: "W", label: "1 week" }, { value: "M", label: "1 month" },
+];
 const LOCATIONS: { value: string; label: string }[] = [
   { value: "abovebar", label: "Above bar" }, { value: "belowbar", label: "Below bar" }, { value: "top", label: "Top" },
   { value: "bottom", label: "Bottom" }, { value: "absolute", label: "Absolute" },
@@ -107,6 +114,15 @@ export function PineSettingsDialog({
       );
     }
     switch (input.kind) {
+      case "timeframe": {
+        const known = TIMEFRAMES.some((option) => option.value === String(value));
+        return (
+          <select value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} className={`${field} min-w-32`} aria-label={input.title}>
+            {!known && <option value={String(value)}>{String(value)}</option>}
+            {TIMEFRAMES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        );
+      }
       case "source":
         return (
           <select value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} className={`${field} min-w-32`} aria-label={input.title}>
@@ -271,6 +287,7 @@ export function PineSettingsDialog({
                   </select>
                 </Row>
                 <Row label={<Check checked={style.priceLabels !== false} onChange={(value) => onChange({ style: { ...style, priceLabels: value } })} label="Labels on price scale" />} />
+                <Row label={<Check checked={style.inputsInStatus !== false} onChange={(value) => onChange({ style: { ...style, inputsInStatus: value } })} label="Inputs in status line" />} />
                 <Row label={<Check checked={style.statusValues !== false} onChange={(value) => onChange({ style: { ...style, statusValues: value } })} label="Values in status line" />} />
               </div>
             )

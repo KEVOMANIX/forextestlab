@@ -118,18 +118,21 @@ import {
 import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorPicker } from "./IndicatorPicker";
-import { hydratePineIndicator, PINE_EDITOR_STATE, PINE_EDITOR_TOGGLE, PINE_INDICATOR_TEMPLATE, pineDeclaredName, savePineScript, type PineChartIndicator, type PineScript } from "@/lib/chart/pine-scripts";
+import { hydratePineIndicator, pineLegendTitle, PINE_EDITOR_STATE, PINE_EDITOR_TOGGLE, PINE_INDICATOR_TEMPLATE, pineDeclaredName, savePineScript, type PineChartIndicator, type PineScript } from "@/lib/chart/pine-scripts";
 import { PineEditorPanel, type PineEditorDraft } from "./PineEditorPanel";
 import { PineSettingsDialog } from "./PineSettingsDialog";
 import { parsePineInputs } from "@/lib/chart/pine-inputs";
 
 /** The input values TradingView prints after a script's name ("Supertrend 10 hl2 3"); switches and colors are left out. */
 function pineInputSummary(item: PineChartIndicator): string {
-  return parsePineInputs(item.code)
+  if (item.style?.inputsInStatus === false) return "";
+  const summary = parsePineInputs(item.code)
     .filter((input) => input.defval != null && input.kind !== "bool" && input.kind !== "color" && input.kind !== "other")
     .map((input) => String(item.inputs?.[input.key] ?? input.defval))
-    .filter((value) => value !== "")
+    // Multi-line text areas would swamp the legend.
+    .filter((value) => value !== "" && !value.includes("\n"))
     .join(" ");
+  return summary.length > 48 ? `${summary.slice(0, 47).trimEnd()}…` : summary;
 }
 import { pineValuesAt, usePineIndicators } from "./usePineIndicators";
 import { EconomicEventLayer } from "./EconomicEventLayer";
@@ -4411,7 +4414,7 @@ export default function PriceChart({
         className={`group pointer-events-auto flex max-w-full items-center gap-1.5 rounded-sm border px-1.5 ${editing ? "border-brand-400/60" : "border-transparent hover:border-[var(--app-border)]"} ${inPane ? "absolute z-30 bg-[var(--app-panel-solid)]/90 " + (showRail && !railSlot ? "left-[3.75rem]" : "left-2") : "min-h-6 py-0.5 text-[0.92em]"}`}
         style={inPane ? { top: (pine.paneTops[item.id] ?? 0) + 5, minHeight: 28, fontSize: Math.max(11, overlayFont - 2) } : undefined}
       >
-        <button type="button" onDoubleClick={() => setPineSettingsId(item.id)} title="Double-click for settings" className={`shrink-0 cursor-default font-medium ${item.visible ? "text-[var(--chart-text)]" : "text-[var(--chart-muted)] line-through"}`}>{item.name}{summary && <span className="ml-1.5 font-normal text-[var(--chart-muted)]">{summary}</span>}</button>
+        <button type="button" onDoubleClick={() => setPineSettingsId(item.id)} title="Double-click for settings" className={`shrink-0 cursor-default font-medium ${item.visible ? "text-[var(--chart-text)]" : "text-[var(--chart-muted)] line-through"}`}>{pineLegendTitle(item.code) ?? item.name}{summary && <span className="ml-1.5 font-normal text-[var(--chart-muted)]">{summary}</span>}</button>
         {run?.state === "loading" && <LoaderCircle size={12} className="shrink-0 animate-spin text-[var(--chart-muted)]" aria-label="Running script" />}
         {run?.state === "error" && (
           <button type="button" onClick={() => editPineIndicator(item)} title={run.error} aria-label={`${item.name} has an error: ${run.error ?? ""}`} className="shrink-0 rounded bg-loss/15 px-1 text-[0.85em] font-semibold text-loss">!</button>

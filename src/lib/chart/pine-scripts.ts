@@ -20,6 +20,8 @@ export type PineStyle = {
   precision?: number | null;
   priceLabels?: boolean;
   statusValues?: boolean;
+  /** Input values after the name in the legend. */
+  inputsInStatus?: boolean;
   /** label/line/box/table drawings. */
   drawings?: boolean;
   /** Earlier all-or-nothing toggles. */
@@ -82,7 +84,18 @@ export function savePineScript(script: PineScript): void {
 
 /** The title declared in indicator("…") or strategy("…"), if any. */
 export function pineDeclaredName(code: string): string | null {
-  return /^\s*(?:indicator|strategy)\s*\(\s*(?:title\s*=\s*)?"([^"]{1,80})"/m.exec(code)?.[1]?.trim() || null;
+  return /^\s*(?:indicator|strategy|study)\s*\(\s*(?:title\s*=\s*)?["']([^"']{1,80})["']/m.exec(code)?.[1]?.trim() || null;
+}
+
+/** What TradingView's legend shows for a script: its shorttitle, else its title. */
+export function pineLegendTitle(code: string): string | null {
+  const call = /^\s*(?:indicator|study)\s*\(([^\n]*)/m.exec(code)?.[1];
+  if (!call) return null;
+  const named = /\bshorttitle\s*=\s*["']([^"']{1,60})["']/.exec(call)?.[1];
+  if (named) return named.trim();
+  // indicator("Title", "Short", …): a second plain string is the short title.
+  const positional = /^\s*["'][^"']*["']\s*,\s*["']([^"']{1,60})["']/.exec(call)?.[1];
+  return positional?.trim() || pineDeclaredName(code);
 }
 
 export function hydratePineIndicator(value: unknown): PineChartIndicator | null {

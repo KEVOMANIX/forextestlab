@@ -1285,7 +1285,9 @@ export function Backtester({
       )}
 
       <div className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1 overflow-hidden">
+        {/* overflow-clip, not hidden: a hidden box can still be scrolled by the browser
+            (e.g. to reveal a caret in the Pine Editor), which slid the whole chart sideways. */}
+        <div className="relative min-w-0 flex-1 overflow-clip">
           <ChartGrid
             onReady={markChartReady}
             key={`${state.sessionId}-${bt.resetNonce}-${workspace.revision}`}
@@ -1387,7 +1389,7 @@ export function Backtester({
             }
           />
           {/* The focused chart's Pine Editor slides over the chart's right side. */}
-          <div ref={setChartSidePanelSlot} className="pointer-events-none absolute inset-y-0 right-0 z-[45] flex max-w-full [&>*]:pointer-events-auto" />
+          <div ref={setChartSidePanelSlot} className="pointer-events-none absolute inset-y-0 right-0 z-[60] flex max-w-full overflow-clip [&>*]:pointer-events-auto" />
           <ReplayToolbar
             key={`replay-toolbar-${workspace.revision}`}
             state={activeTradingState ?? state}

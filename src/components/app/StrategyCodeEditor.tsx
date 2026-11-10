@@ -99,7 +99,7 @@ function diagnosticsFor(source: string, server: StrategyDiagnostic[], mode: "ftl
   });
 }
 
-export function StrategyCodeEditor({ value, onChange, serverDiagnostics, mode = "ftl", minimap = true }: { value: string; onChange: (value: string) => void; serverDiagnostics: StrategyDiagnostic[]; mode?: "ftl" | "pine"; minimap?: boolean }) {
+export function StrategyCodeEditor({ value, onChange, serverDiagnostics, mode = "ftl", minimap = true, wrap = false }: { value: string; onChange: (value: string) => void; serverDiagnostics: StrategyDiagnostic[]; mode?: "ftl" | "pine"; minimap?: boolean; /** Wrap long lines instead of scrolling sideways (narrow panels). */ wrap?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const changeRef = useRef(onChange);
@@ -118,6 +118,7 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, mode = 
         doc: value,
         extensions: [
           basicSetup,
+          ...(wrap ? [EditorView.lineWrapping] : []),
           keymap.of([indentWithTab]),
           language,
           syntaxHighlighting(codeColors),

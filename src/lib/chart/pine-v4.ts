@@ -36,7 +36,7 @@ const INPUT_TYPES: Record<string, string> = {
 const COLOR_ARGUMENT: Record<string, number> = { plot: 2, bgcolor: 0, fill: 2, hline: 2, plotshape: 4, plotchar: 4, plotcandle: 5, plotbar: 5 };
 
 /** Marks each character as code (true) or string/comment (false). */
-function codeMask(source: string): boolean[] {
+export function codeMask(source: string): boolean[] {
   const mask = new Array<boolean>(source.length).fill(true);
   for (let index = 0; index < source.length; index++) {
     const char = source[index]!;
@@ -54,10 +54,10 @@ function codeMask(source: string): boolean[] {
   return mask;
 }
 
-type Call = { start: number; open: number; close: number; args: { start: number; end: number }[] };
+export type Call = { start: number; open: number; close: number; args: { start: number; end: number }[] };
 
 /** Calls of `name(` in code (not after a dot or a word character), with top-level argument spans. */
-function findCalls(source: string, name: string): Call[] {
+export function findCalls(source: string, name: string): Call[] {
   const mask = codeMask(source);
   const calls: Call[] = [];
   const pattern = new RegExp(`(?<![\\w.])${name.replace(".", "\\.")}\\s*\\(`, "g");
@@ -154,15 +154,22 @@ export function convertPineV4(code: string): string {
     source = replaceCalls(source, name, (call, text) => {
       const args = call.args.map((arg) => text.slice(arg.start, arg.end).trim());
       const transpIndex = args.findIndex((arg) => /^transp\s*=/.test(arg));
-      if (transpIndex < 0) return null;
-      const transp = args[transpIndex]!.replace(/^transp\s*=\s*/, "");
-      args.splice(transpIndex, 1);
       const named = args.findIndex((arg) => /^color\s*=/.test(arg));
       const positional = args.slice(0, position + 1).every((arg) => !/^\w+\s*=(?!=)/.test(arg)) && args.length > position ? position : -1;
-      if (named >= 0) args[named] = `color=color.new(${args[named]!.replace(/^color\s*=\s*/, "")}, ${transp})`;
-      else if (positional >= 0) args[positional] = `color.new(${args[positional]}, ${transp})`;
-      else if (name !== "fill" && name !== "bgcolor") args.push(`color=color.new(color.blue, ${transp})`);
-      return `${name}(${args.join(", ")})`;
+      if (transpIndex < 0) {
+        // v4's fill() and bgcolor() are 90% transparent unless told otherwise; v5 has no
+        // such default, so it moves into the color. Colors that carry their own
+        // transparency (color.new, #RRGGBBAA) or na are left alone.
+        if (name !== "fill" && name !== "bgcolor") return null;
+        const color = named >= 0 ? args[named]!.replace(/^color\s*=\s*/, "") : positional >= 0 ? args[positional]! : null;
+        if (!color || /^color\.new\s*\(/.test(color) || /^#[0-9a-f]{8}$/i.test(color) || color === "na") return null;
+        if (named >= 0) args[named] = `color=color.new(${color}, 90)`;
+        else args[positional] = `color.new(${color}, 90)`;
+        return `${name}(${args.join(", ")})`;
+      }
+      const transp = args[transpIndex]!.replace(/^transp\s*=\s*/, "");
+      args.splice(transpIndex, 1);
+      return withTransp(name, args, position, transp);
     });
   }
 
@@ -171,7 +178,19 @@ export function convertPineV4(code: string): string {
     const args = call.args.map((arg) => text.slice(arg.start, arg.end).trim().replace(/^resolution\s*=/, "timeframe="));
     return `indicator(${args.join(", ")})`;
   });
+  return renameBuiltins(source, own);
+}
 
+function withTransp(name: string, args: string[], position: number, transp: string): string {
+  const named = args.findIndex((arg) => /^color\s*=/.test(arg));
+  const positional = args.slice(0, position + 1).every((arg) => !/^\w+\s*=(?!=)/.test(arg)) && args.length > position ? position : -1;
+  if (named >= 0) args[named] = `color=color.new(${args[named]!.replace(/^color\s*=\s*/, "")}, ${transp})`;
+  else if (positional >= 0) args[positional] = `color.new(${args[positional]}, ${transp})`;
+  else if (name !== "fill" && name !== "bgcolor") args.push(`color=color.new(color.blue, ${transp})`);
+  return `${name}(${args.join(", ")})`;
+}
+
+function renameBuiltins(source: string, own: { variables: Set<string>; functions: Set<string> }): string {
   // Namespaced built-ins (calls), skipping names the script defines itself.
   const mask = codeMask(source);
   let output = "";

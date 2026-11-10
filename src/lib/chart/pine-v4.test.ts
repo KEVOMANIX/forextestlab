@@ -133,6 +133,9 @@ describe("Pine v4 conversion", () => {
     expect(own).toContain('"sma(close, 10)"');
 
     expect(convertPineV4(SCRIPTS.supertrend!)).toContain("ta.sma(ta.tr, Periods)");
+    // v4 fill()/bgcolor() default to 90% transparency.
+    expect(convertPineV4('//@version=4\nstudy("X")\np1 = plot(close)\np2 = plot(open)\nfill(p1, p2, color=c)\nbgcolor(color.red)\nbgcolor(color.new(color.red, 50))\nfill(p1, p2, #FF000080)\n'))
+      .toMatch(/fill\(p1, p2, color=color\.new\(c, 90\)\)\nbgcolor\(color\.new\(color\.red, 90\)\)\nbgcolor\(color\.new\(color\.red, 50\)\)\nfill\(p1, p2, #FF000080\)/);
     expect(convertPineV4(SCRIPTS.vwapBands!)).toContain("v = ta.vwap");
   });
 

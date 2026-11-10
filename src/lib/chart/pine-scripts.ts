@@ -6,8 +6,24 @@ export const PINE_EDITOR_TOGGLE = "forextestlab:pine-editor-toggle";
 export const PINE_EDITOR_STATE = "forextestlab:pine-editor-state";
 export type PineScript = { id: string; name: string; code: string; updatedAt: number };
 
+/** Style tab overrides, keyed by each plot's / hline's position in the script. */
+export type PinePlotStyle = { visible?: boolean; color?: string; linewidth?: number };
+export type PineStyle = {
+  plots?: Record<string, PinePlotStyle>;
+  hlines?: Record<string, { visible?: boolean; color?: string }>;
+  fills?: boolean;
+  backgrounds?: boolean;
+  markers?: boolean;
+};
+export type PineInputSetting = number | boolean | string;
+
 /** A Pine script placed on a chart. The code is copied so the plot survives the saved script being edited or deleted. */
-export type PineChartIndicator = { id: string; scriptId: string | null; name: string; code: string; visible: boolean };
+export type PineChartIndicator = {
+  id: string; scriptId: string | null; name: string; code: string; visible: boolean;
+  /** Inputs tab values, keyed by the input's position (see parsePineInputs). */
+  inputs?: Record<string, PineInputSetting>;
+  style?: PineStyle;
+};
 
 export const PINE_INDICATOR_TEMPLATE = `//@version=6
 indicator("My script", overlay=true)
@@ -40,5 +56,9 @@ export function hydratePineIndicator(value: unknown): PineChartIndicator | null 
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
   if (typeof item.id !== "string" || typeof item.name !== "string" || typeof item.code !== "string" || item.code.length > 20_000) return null;
-  return { id: item.id, scriptId: typeof item.scriptId === "string" ? item.scriptId : null, name: item.name.slice(0, 80), code: item.code, visible: item.visible !== false };
+  const inputs = item.inputs && typeof item.inputs === "object" && !Array.isArray(item.inputs)
+    ? Object.fromEntries(Object.entries(item.inputs as Record<string, unknown>).filter((entry): entry is [string, PineInputSetting] => ["number", "boolean", "string"].includes(typeof entry[1])))
+    : undefined;
+  const style = item.style && typeof item.style === "object" && !Array.isArray(item.style) ? item.style as PineStyle : undefined;
+  return { id: item.id, scriptId: typeof item.scriptId === "string" ? item.scriptId : null, name: item.name.slice(0, 80), code: item.code, visible: item.visible !== false, ...(inputs ? { inputs } : {}), ...(style ? { style } : {}) };
 }

@@ -120,6 +120,7 @@ import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorPicker } from "./IndicatorPicker";
 import { hydratePineIndicator, PINE_EDITOR_STATE, PINE_EDITOR_TOGGLE, PINE_INDICATOR_TEMPLATE, pineDeclaredName, savePineScript, type PineChartIndicator, type PineScript } from "@/lib/chart/pine-scripts";
 import { PineEditorPanel, type PineEditorDraft } from "./PineEditorPanel";
+import { PineSettingsDialog } from "./PineSettingsDialog";
 import { pineValuesAt, usePineIndicators } from "./usePineIndicators";
 import { EconomicEventLayer } from "./EconomicEventLayer";
 import { chartPriceFormat } from "@/lib/chart/price-format";
@@ -1191,6 +1192,7 @@ export default function PriceChart({
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
   const [pineIndicators, setPineIndicators] = useState<PineChartIndicator[]>([]);
   const [pineDraft, setPineDraft] = useState<PineEditorDraft | null>(null);
+  const [pineSettingsId, setPineSettingsId] = useState<string | null>(null);
   const [crosshairX, setCrosshairX] = useState<number | null>(null);
   const preferencesRestoredRef = useRef(false);
   const [indicatorPaneLayouts, setIndicatorPaneLayouts] = useState<IndicatorPaneLayout[]>([]);
@@ -4414,6 +4416,9 @@ export default function PriceChart({
           <button type="button" title={item.visible ? "Hide" : "Show"} aria-label={`${item.visible ? "Hide" : "Show"} ${item.name}`} onClick={() => setPineIndicators((current) => current.map((entry) => entry.id === item.id ? { ...entry, visible: !entry.visible } : entry))} className={iconButton}>
             {item.visible ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
           </button>
+          <button type="button" title="Settings" aria-label={`Settings for ${item.name}`} data-testid="pine-settings" onClick={() => setPineSettingsId(item.id)} className={iconButton}>
+            <Settings2 size={12} aria-hidden />
+          </button>
           <button type="button" title="Source code" aria-label={`Source code of ${item.name}`} data-testid="pine-source-code" onClick={() => editPineIndicator(item)} className={iconButton}>
             <Braces size={12} aria-hidden />
           </button>
@@ -5397,6 +5402,18 @@ export default function PriceChart({
         )}
       </div>
 
+      {pineSettingsId && (() => {
+        const item = pineIndicators.find((entry) => entry.id === pineSettingsId);
+        const run = item ? pine.status[item.id] : undefined;
+        return item ? (
+          <PineSettingsDialog
+            item={item}
+            report={run?.code === item.code ? run.report : undefined}
+            onChange={(patch) => setPineIndicators((current) => current.map((entry) => (entry.id === item.id ? { ...entry, ...patch } : entry)))}
+            onClose={() => setPineSettingsId(null)}
+          />
+        ) : null;
+      })()}
       {indicatorEditing && (() => {
         const inst = indicators.find((i) => i.id === indicatorEditing);
         return inst ? (

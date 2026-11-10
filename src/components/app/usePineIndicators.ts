@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 import type { PineChartIndicator } from "@/lib/chart/pine-scripts";
+import { applyPineInputs } from "@/lib/chart/pine-inputs";
 import type { OHLCV } from "@/lib/chart/indicators";
 import type { PineDiagnostic, PineIndicatorResult, PineSeriesInput } from "@/lib/chart/pine-runner";
 import { PineRenderer, pineSignature, type PineReport } from "./pine-render";
@@ -23,7 +24,8 @@ export type PineRunStatus = {
   ranAt?: number;
 };
 
-type Batch = { id: number; items: { id: string; code: string }[]; times: Float64Array; timer: number };
+/** `code` is the script as written; `run` is that code with the Inputs tab values applied. */
+type Batch = { id: number; items: { id: string; code: string; run: string }[]; times: Float64Array; highs: Float64Array; lows: Float64Array; closes: Float64Array; timer: number };
 
 function toSeriesInput(candles: OHLCV[]): PineSeriesInput {
   const rows = candles.length > MAX_BARS ? candles.slice(-MAX_BARS) : candles;
@@ -88,7 +90,7 @@ export function usePineIndicators({
     if (batchRef.current) { dirtyRef.current = true; return; }
     dirtyRef.current = false;
     const { items: current, getCandles: read, symbol: sym, timeframeMs: tf, precision: digits } = latest.current;
-    const runnable = current.filter((item) => !hungCodeRef.current.has(item.code));
+    const runnable = current.map((item) => ({ item, run: applyPineInputs(item.code, item.inputs) })).filter(({ run }) => !hungCodeRef.current.has(run));
     if (runnable.length === 0) return;
     const data = toSeriesInput(read());
     if (data.time.length < 1) return;
@@ -98,19 +100,19 @@ export function usePineIndicators({
       workerRef.current.onerror = () => fail("The script runner stopped unexpectedly.");
     }
     const id = nextIdRef.current++;
-    const batchItems = runnable.map((item) => ({ id: item.id, code: item.code }));
+    const batchItems = runnable.map(({ item, run }) => ({ id: item.id, code: item.code, run }));
     const timer = window.setTimeout(() => {
       // An endless loop never answers: stop the worker and leave that code alone until it is edited.
-      for (const item of batchItems) hungCodeRef.current.add(item.code);
+      for (const item of batchItems) hungCodeRef.current.add(item.run);
       fail(`The script took longer than ${RUN_TIMEOUT_MS / 1000} seconds and was stopped. Check for a loop that never ends.`);
     }, RUN_TIMEOUT_MS);
-    batchRef.current = { id, items: batchItems, times: data.time.slice(), timer };
+    batchRef.current = { id, items: batchItems, times: data.time.slice(), highs: data.high.slice(), lows: data.low.slice(), closes: data.close.slice(), timer };
     setStatus((previous) => {
       const next = { ...previous };
       for (const item of batchItems) if (previous[item.id]?.code !== item.code) next[item.id] = { ...previous[item.id], state: "loading" };
       return next;
     });
-    workerRef.current.postMessage({ id, items: batchItems, data, symbol: sym, timeframeMs: tf, precision: digits }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
+    workerRef.current.postMessage({ id, items: batchItems.map((item) => ({ id: item.id, code: item.run })), data, symbol: sym, timeframeMs: tf, precision: digits }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
   };
 
   function finish(id: number, results: Record<string, PineIndicatorResult>) {
@@ -125,7 +127,7 @@ export function usePineIndicators({
         const result = results[item.id];
         if (!result) continue;
         next[item.id] = result.ok
-          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, markers: result.markers, skipped: result.skipped, converted: result.converted, times: batch.times } }
+          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, markers: result.markers, skipped: result.skipped, converted: result.converted, times: batch.times, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
           : { state: "error", code: item.code, ranAt: now, error: result.error, diagnostics: result.diagnostics };
       }
       return next;
@@ -151,7 +153,7 @@ export function usePineIndicators({
   }
 
   // Recalculate whenever the scripts, the market or any candle changes.
-  const codesKey = items.map((item) => `${item.id}:${item.code}`).join("\n");
+  const codesKey = items.map((item) => `${item.id}:${item.code}:${JSON.stringify(item.inputs ?? {})}`).join("\n");
   useEffect(() => {
     setStatus((previous) => {
       const live = new Set(items.map((item) => item.id));
@@ -197,7 +199,7 @@ export function usePineIndicators({
       const report = reportOf(item);
       const renderer = renderersRef.current.get(item.id);
       if (report && renderer) {
-        try { renderer.update(report, item.visible); } catch { /* A rebuilt chart drops its series; the next layout pass redraws. */ }
+        try { renderer.update(report, item.visible, item.style); } catch { /* A rebuilt chart drops its series; the next layout pass redraws. */ }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

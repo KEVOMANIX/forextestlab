@@ -7,6 +7,7 @@ import { AlertCircle, Check, ChevronDown, ChevronUp, Code2, Loader2, Maximize2, 
 import { fetchRanges, fetchSymbols } from "@/lib/backtest/client";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
+import { readPineScripts, savePineScript } from "@/lib/chart/pine-scripts";
 import type { StrategyDiagnostic } from "@/lib/strategy-language/parser";
 
 const StrategyCodeEditor = dynamic(() => import("./StrategyCodeEditor").then(module => module.StrategyCodeEditor), { ssr: false, loading: () => <div className="grid h-full min-h-[400px] place-items-center bg-[#0b100e] text-sm text-[#a7bcb0]">Loading editor…</div> });
@@ -115,12 +116,17 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
   const [serverDiagnostics, setServerDiagnostics] = useState<StrategyDiagnostic[]>([]);
   const [pineReport, setPineReport] = useState<PineReport | IndicatorReport | null>(null);
   const [visibleTrades, setVisibleTrades] = useState(20);
+  const [scriptId, setScriptId] = useState<string | null>(null);
+  const [scriptName, setScriptName] = useState("");
   const issues: StrategyDiagnostic[] = [];
   const marketMatches = markets.filter(item => `${item.symbol} ${item.name} ${item.source}`.toLowerCase().includes(marketSearch.toLowerCase()));
   const exampleOptions: [string, string][] = [["EMA crossover strategy", PINE_EXAMPLE], ["EMA ribbon indicator", PINE_INDICATOR_EXAMPLE]];
 
   useEffect(() => {
     try { const pine = localStorage.getItem("ftl:strategy-lab-pine-draft:v1"); if (pine) setCode(pine); } catch { /* browser storage unavailable */ }
+    const selected = new URLSearchParams(window.location.search).get("script");
+    const script = readPineScripts().find(item => item.id === selected);
+    if (script) { setCode(script.code); setScriptId(script.id); setScriptName(script.name); }
   }, []);
   useEffect(() => { try { localStorage.setItem("ftl:strategy-lab-pine-draft:v1", code); } catch { /* browser storage unavailable */ } }, [code]);
   useEffect(() => {
@@ -180,6 +186,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
       <div className="flex min-h-14 flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-5">
         <div className="flex min-w-0 items-center gap-3"><Code2 size={18} className="shrink-0 text-[var(--app-accent-text)]" /><div className="min-w-0"><div className="flex items-center gap-2"><span className="text-xs app-muted">Strategy Lab</span><span className="app-muted">/</span><strong className="truncate text-sm font-semibold">Pine v6 strategy</strong></div><span className="text-[11px] app-muted">strategy.pine · Saved in this browser</span></div></div>
         <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => { const name = window.prompt("Script name", scriptName || "My indicator")?.trim(); if (!name) return; const id = scriptId ?? crypto.randomUUID(); savePineScript({ id, name, code, updatedAt: Date.now() }); setScriptId(id); setScriptName(name); }} className="h-9 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Save script</button>
           <div className="relative"><button type="button" onClick={() => { setExamplesOpen(!examplesOpen); setSettings(null); }} aria-expanded={examplesOpen} className="inline-flex h-9 items-center gap-1 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Examples <ChevronDown size={13} /></button>{examplesOpen && <div className="absolute right-0 top-10 z-50 w-48 rounded-lg border app-border bg-[var(--app-panel-solid)] p-1 shadow-xl">{exampleOptions.map(([label, example]) => <button key={label} type="button" onClick={() => { setCode(example); setExamplesOpen(false); }} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-[var(--app-panel-2)]">{label}</button>)}</div>}</div>
           <button type="button" onClick={() => chooseTab("reference")} className="hidden h-9 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)] sm:block">Reference</button>
           <button type="button" onClick={() => setFocusMode(!focusMode)} aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Exit focus mode" : "Focus mode"} className="grid size-9 place-items-center rounded-md border app-border hover:bg-[var(--app-panel-2)]">{focusMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>

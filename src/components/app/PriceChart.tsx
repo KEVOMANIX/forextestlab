@@ -117,6 +117,7 @@ import {
 import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorPicker } from "./IndicatorPicker";
+import type { PineScript } from "@/lib/chart/pine-scripts";
 import { EconomicEventLayer } from "./EconomicEventLayer";
 import { chartPriceFormat } from "@/lib/chart/price-format";
 import { useCalendarEvents } from "./useCalendarEvents";
@@ -1179,6 +1180,9 @@ export default function PriceChart({
   axisFontSizeRef.current = axisFontSize;
   timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
+  const [pineScript, setPineScript] = useState<PineScript | null>(null);
+  const [pineError, setPineError] = useState<string | null>(null);
+  const pineSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
   const [crosshairX, setCrosshairX] = useState<number | null>(null);
   const preferencesRestoredRef = useRef(false);
   const [indicatorPaneLayouts, setIndicatorPaneLayouts] = useState<IndicatorPaneLayout[]>([]);
@@ -3674,6 +3678,39 @@ export default function PriceChart({
     else setIndicatorEditing(inst.id); // open settings so the user sets it themselves
   }
 
+  function addPineScript(script: PineScript) {
+    setPineScript(script);
+    setMenu(null);
+  }
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    for (const series of pineSeriesRef.current) { try { chart?.removeSeries(series); } catch { /* Chart was rebuilt. */ } }
+    pineSeriesRef.current = [];
+    if (!chart || !pineScript) return;
+    const symbol = symbolLabel.replace(/[^A-Z]/g, "");
+    const timeline = joinedTimelineCached(historyCandlesRef.current, displayRef.current).slice(-30_000);
+    if (timeline.length < 2) return;
+    const controller = new AbortController();
+    const run = async () => {
+      try {
+        const source = "dukascopy";
+        const response = await fetch("/api/strategy-tests/pine", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ code: pineScript.code, symbol, source, timeframe: displayTimeframeRef.current, startTime: Number(timeline[0]!.time) * 1000, endTime: Number(timeline.at(-1)!.time) * 1000, startingBalance: 10_000 }) });
+        const result = await response.json() as { ok: boolean; error?: string; report?: { kind: string; overlay: boolean; plots: { title: string; color: string; values: (number | null)[] }[] } };
+        if (!response.ok || !result.ok || result.report?.kind !== "indicator") throw new Error(result.error ?? "Could not render indicator.");
+        if (controller.signal.aborted) return;
+        for (const plot of result.report.plots) {
+          const series = chart.addSeries(LineSeries, { color: plot.color || "#2962FF", lineWidth: 2, priceLineVisible: false, lastValueVisible: true }, result.report.overlay ? 0 : 1);
+          series.setData(plot.values.flatMap((value, index) => value == null ? [] : [{ time: timeline[index]!.time as UTCTimestamp, value }]));
+          pineSeriesRef.current.push(series);
+        }
+        setPineError(null);
+      } catch (error) { if (!controller.signal.aborted) setPineError(error instanceof Error ? error.message : "Could not render indicator."); }
+    };
+    void run();
+    return () => { controller.abort(); for (const series of pineSeriesRef.current) { try { chart.removeSeries(series); } catch { /* Chart was rebuilt. */ } } pineSeriesRef.current = []; };
+  }, [pineScript, symbolLabel, seriesEpoch]);
+
   /** Resolve the chart x-coordinate of a pick click to a candle time. */
   function commitAnchor(clientX: number) {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -4026,7 +4063,8 @@ export default function PriceChart({
           <Activity size={15} />
           <span className="hidden sm:inline">Indicators</span>
         </button>
-        {menu === "indicators" && <IndicatorPicker theme={theme} onClose={() => setMenu(null)} onSelect={addIndicator} />}
+        {menu === "indicators" && <IndicatorPicker theme={theme} onClose={() => setMenu(null)} onSelect={addIndicator} onSelectScript={addPineScript} />}
+        {pineScript && <span className="inline-flex items-center gap-1 rounded bg-brand-400/15 px-2 text-xs text-brand-300" title={pineError ?? pineScript.name}>{pineError ? `${pineScript.name}: ${pineError}` : pineScript.name}<button type="button" aria-label={`Remove ${pineScript.name}`} onClick={() => setPineScript(null)}><X size={13} /></button></span>}
       </div>
 
     </div>

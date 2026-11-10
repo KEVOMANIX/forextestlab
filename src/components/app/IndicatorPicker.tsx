@@ -4,21 +4,24 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Star, X } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_ORDER, defsByCategory, type IndCategory } from "@/lib/chart/indicator-defs";
+import { readPineScripts, type PineScript } from "@/lib/chart/pine-scripts";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 const FAVORITES_KEY = "forextestlab:indicator-favorites";
 const catalog = CATEGORY_ORDER.flatMap(defsByCategory);
-type Section = "all" | "favorites" | IndCategory;
+type Section = "all" | "favorites" | "scripts" | IndCategory;
 
-export function IndicatorPicker({ onClose, onSelect, theme }: { onClose: () => void; onSelect: (kind: string) => void; theme: "dark" | "light" }) {
+export function IndicatorPicker({ onClose, onSelect, onSelectScript, theme }: { onClose: () => void; onSelect: (kind: string) => void; onSelectScript: (script: PineScript) => void; theme: "dark" | "light" }) {
   const [query, setQuery] = useState("");
   const [section, setSection] = useState<Section>("all");
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [scripts, setScripts] = useState<PineScript[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
   const dialogRef = useModalBehavior<HTMLDivElement>({ open: true, onClose, initialFocus: searchRef });
 
   useEffect(() => {
+    setScripts(readPineScripts());
     try {
       const saved: unknown = JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? "[]");
       if (Array.isArray(saved)) setFavorites(saved.filter((kind): kind is string => typeof kind === "string" && catalog.some((def) => def.kind === kind)));
@@ -37,7 +40,7 @@ export function IndicatorPicker({ onClose, onSelect, theme }: { onClose: () => v
     (!search || `${def.name} ${def.kind}`.toLowerCase().includes(search)),
   );
   const navigation: { id: Section; label: string }[] = [
-    { id: "favorites", label: "Favorites" }, { id: "all", label: "All indicators" },
+    { id: "favorites", label: "Favorites" }, { id: "scripts", label: "My scripts" }, { id: "all", label: "All indicators" },
     ...CATEGORY_ORDER.map((id) => ({ id, label: CATEGORY_LABELS[id] })),
   ];
 
@@ -62,7 +65,8 @@ export function IndicatorPicker({ onClose, onSelect, theme }: { onClose: () => v
             </button>)}
           </nav>
           <section aria-label="Available indicators" className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-4">
-            <div className="mb-2 flex items-center justify-between px-2 text-xs app-muted"><span>{navigation.find((item) => item.id === section)?.label}</span><span aria-live="polite">{results.length} indicators</span></div>
+            <div className="mb-2 flex items-center justify-between px-2 text-xs app-muted"><span>{navigation.find((item) => item.id === section)?.label}</span><span aria-live="polite">{section === "scripts" ? scripts.length : results.length} items</span></div>
+            {section === "scripts" && <><a href="/app/strategies" className="mb-2 block rounded-md px-3 py-2 text-sm text-brand-300 hover:bg-[var(--app-panel-2)]">+ Create Pine script</a>{scripts.filter(script => !search || script.name.toLowerCase().includes(search)).map(script => <div key={script.id} className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-[var(--app-panel-2)]"><button type="button" onClick={() => onSelectScript(script)} className="min-w-0 flex-1 truncate text-left text-sm">{script.name}</button><a href={`/app/strategies?script=${encodeURIComponent(script.id)}`} className="px-2 text-xs app-muted hover:text-[var(--app-text)]">Edit</a></div>)}</>}
             {results.map((def) => {
               const starred = favorites.includes(def.kind);
               return <div key={def.kind} className="group flex items-center rounded-md hover:bg-[var(--app-panel-2)]">

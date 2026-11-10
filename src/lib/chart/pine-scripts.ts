@@ -82,6 +82,28 @@ export function savePineScript(script: PineScript): void {
   window.dispatchEvent(new Event(PINE_SCRIPTS_CHANGED));
 }
 
+export function deletePineScript(id: string): void {
+  localStorage.setItem(PINE_SCRIPTS_KEY, JSON.stringify(readPineScripts().filter(item => item.id !== id)));
+  window.dispatchEvent(new Event(PINE_SCRIPTS_CHANGED));
+}
+
+/** True for a strategy() script, false for an indicator. */
+export function isPineStrategy(code: string): boolean {
+  return /^\s*strategy\s*\(/m.test(code);
+}
+
+export const PINE_STRATEGY_TEMPLATE = `//@version=6
+strategy("My strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=1, margin_short=1)
+fast = ta.ema(close, 9)
+slow = ta.ema(close, 21)
+if ta.crossover(fast, slow)
+    strategy.entry("Long", strategy.long)
+if ta.crossunder(fast, slow)
+    strategy.entry("Short", strategy.short)
+plot(fast, "Fast EMA", color=color.blue)
+plot(slow, "Slow EMA", color=color.orange)
+`;
+
 /** The title declared in indicator("…") or strategy("…"), if any. */
 export function pineDeclaredName(code: string): string | null {
   return /^\s*(?:indicator|strategy|study)\s*\(\s*(?:title\s*=\s*)?["']([^"']{1,80})["']/m.exec(code)?.[1]?.trim() || null;

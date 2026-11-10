@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { AlertCircle, Check, ChevronDown, ChevronUp, Code2, Loader2, Maximize2, Minimize2, Play, Search } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronDown, ChevronUp, Loader2, Maximize2, Minimize2, Play, Search } from "lucide-react";
 
 import { useAppTheme } from "@/components/app/ThemeContext";
 import { fetchRanges, fetchSymbols } from "@/lib/backtest/client";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
 import { readPineScripts, savePineScript } from "@/lib/chart/pine-scripts";
+import { maxDrawdownPercent, sampleEquity, savePineResult } from "@/lib/chart/pine-results";
 import type { StrategyDiagnostic } from "@/lib/strategy-language/parser";
 import type { LabCandles, LabPlot, LabTrade } from "./StrategyLabChart";
 
@@ -244,6 +245,15 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
       if (!response.ok || !data.ok || !data.report) { setError(data.error ?? "The Pine test could not complete."); setServerDiagnostics(data.diagnostics ?? []); setTesterTab("problems"); return; }
       setPineReport(data.report);
       setRanTimeframe(pineTimeframe);
+      const report = data.report;
+      if (scriptId && report.kind === "strategy") {
+        const balances = report.equity.map(point => point.balance);
+        savePineResult(scriptId, {
+          ranAt: Date.now(), symbol: report.symbol, timeframe: pineTimeframe, from, through,
+          netPnl: report.netPnl, netPercent: report.netPnl / report.startingBalance * 100, profitFactor: report.profitFactor,
+          winRate: report.winRate, trades: report.trades.length, maxDrawdownPercent: maxDrawdownPercent(balances), equity: sampleEquity(balances),
+        });
+      }
       setVisibleTrades(20);
       setFocusTrade(null);
       setTesterTab(current => current === "problems" ? "overview" : current);
@@ -251,12 +261,16 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
     finally { setBusy(false); setProgress(null); }
   };
 
-  const save = () => {
-    const name = window.prompt("Script name", title)?.trim();
+  const save = (rename = false) => {
+    const name = scriptId && !rename ? title : window.prompt(rename ? "Rename script" : "Script name", title)?.trim();
     if (!name) return;
     const id = scriptId ?? crypto.randomUUID();
-    savePineScript({ id, name, code, updatedAt: Date.now() });
-    setScriptId(id); setScriptName(name); setSavedCode(code);
+    savePineScript({ id, name, code: rename && savedCode !== null ? savedCode : code, updatedAt: Date.now() });
+    setScriptId(id); setScriptName(name);
+    if (!rename || savedCode === null) setSavedCode(code);
+  };
+  const leave = (event: React.MouseEvent) => {
+    if (savedCode !== code && !window.confirm("Leave without saving your changes?")) event.preventDefault();
   };
   const toggleSettings = (pane: SettingsPane) => setSettings(current => current === pane ? null : pane);
   const chooseTab = (tab: TesterTab) => { setTesterTab(tab); setTesterOpen(true); };
@@ -282,16 +296,15 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
   return <div className={`${focusMode ? "fixed inset-0 z-[120] h-dvh" : "min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)]"} flex flex-col bg-[var(--app-panel-solid)] text-[var(--app-text)]`}>
     <header className="relative z-30 shrink-0 border-b app-border bg-[var(--app-panel-solid)]">
       <div className="flex min-h-12 flex-wrap items-center gap-2 px-3 py-1.5 sm:px-4">
-        <Code2 size={17} className="shrink-0 text-[var(--app-accent-text)]" />
-        <span className="text-xs app-muted">Strategy Lab</span><span className="app-muted">/</span>
-        <strong className="max-w-[16rem] truncate text-sm font-semibold">{title}</strong>
+        <a href="/app/strategies" onClick={leave} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><ArrowLeft size={15} />My strategies</a><span className="app-muted">/</span>
+        <button type="button" onClick={() => save(true)} title="Rename" className="max-w-[16rem] truncate rounded px-1 text-sm font-semibold hover:bg-[var(--app-panel-2)]">{title}</button>
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${savedCode === code ? "bg-[var(--app-accent)]/15 text-[var(--app-accent-text)]" : "bg-[var(--app-panel-2)] app-muted"}`}>{savedCode === code ? "Saved" : scriptId ? "Unsaved changes" : "Draft"}</span>
         <span className="mx-1 hidden h-4 w-px bg-[var(--app-border)] sm:block" />
         <button type="button" onClick={() => toggleSettings("market")} aria-expanded={settings === "market"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2.5 text-xs"><strong>{market?.symbol ?? "Choose market"}</strong><span className="app-muted">{market ? sourceName(market.source) : ""}</span><ChevronDown size={12} /></button>
         <select value={pineTimeframe} onChange={event => setPineTimeframe(event.target.value as LabTimeframe)} aria-label="Candles" className="h-8 rounded-md border-0 bg-[var(--app-panel-2)] px-2 text-xs text-[var(--app-text)]"><option value="15m">15m</option><option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option></select>
         <button type="button" onClick={() => toggleSettings("period")} aria-expanded={settings === "period"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2.5 text-xs">{from || "From"} <span className="app-muted">→</span> {through || "Through"}<ChevronDown size={12} /></button>
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={save} className="h-8 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Save</button>
+          <button type="button" onClick={() => save()} className="h-8 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Save</button>
           <button type="button" onClick={() => setFocusMode(!focusMode)} aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Exit focus mode" : "Focus mode"} className="grid size-8 place-items-center rounded-md border app-border hover:bg-[var(--app-panel-2)]">{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
           <button type="button" disabled={!market || busy} onClick={() => void run()} className="inline-flex h-8 items-center gap-2 rounded-md bg-[var(--app-accent)] px-3.5 text-xs font-bold text-[var(--app-accent-ink)] disabled:opacity-50">{busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {busy ? "Running…" : "Run test"}</button>
         </div>

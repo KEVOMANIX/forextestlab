@@ -197,6 +197,8 @@ interface ChartGridProps {
   layoutSlot?: HTMLElement | null;
   /** Right-hand header target for chart actions, such as the screenshot. */
   actionsSlot?: HTMLElement | null;
+  /** Column beside the grid that hosts the focused chart's Pine Editor. */
+  sidePanelSlot?: HTMLElement | null;
   /** Full quote strip for the focused chart. */
   orderTicket?: React.ReactNode;
   /** Smaller quote strip repeated in the other visible layout panes. */
@@ -249,6 +251,7 @@ export default function ChartGrid({
   headerSlot = null,
   layoutSlot = null,
   actionsSlot = null,
+  sidePanelSlot = null,
   orderTicket = null,
   compactOrderTicket = null,
   axisCorner = null,
@@ -662,6 +665,7 @@ export default function ChartGrid({
                 }
                 headerSlot={isFocused ? headerSlot : null}
                 actionsSlot={isFocused ? actionsSlot : null}
+                sidePanelSlot={isFocused ? sidePanelSlot : null}
                 showControls={isFocused}
                 railSlot={railHost}
                 showRail={isFocused}
@@ -740,6 +744,7 @@ interface ChartCellViewProps {
   onTimeframeChange: (timeframe: Timeframe) => void;
   headerSlot: HTMLElement | null;
   actionsSlot: HTMLElement | null;
+  sidePanelSlot: HTMLElement | null;
   showControls: boolean;
   railSlot: HTMLElement | null;
   showRail: boolean;
@@ -790,6 +795,7 @@ function ChartCellView({
   onTimeframeChange,
   headerSlot,
   actionsSlot,
+  sidePanelSlot,
   showControls,
   railSlot,
   showRail,
@@ -922,6 +928,8 @@ function ChartCellView({
         onDisplayTimeframeChange={onTimeframeChange}
         headerSlot={headerSlot}
         actionsSlot={actionsSlot}
+        sidePanelSlot={sidePanelSlot}
+        dataSource={state.demoData ? "demo" : state.dataSource === "histdata" ? "histdata" : "dukascopy"}
         showControls={showControls}
         railSlot={railSlot}
         showRail={showRail}

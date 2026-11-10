@@ -11,6 +11,7 @@ import {
   ArrowDownRight,
   Camera,
   CandlestickChart,
+  Braces,
   ChevronDown,
   ChevronRight,
   Clock,
@@ -117,7 +118,9 @@ import {
 import { ChartContextMenu, type ChartMenuItem } from "./ChartContextMenu";
 import { DrawingLayer } from "./DrawingLayer";
 import { IndicatorPicker } from "./IndicatorPicker";
-import type { PineScript } from "@/lib/chart/pine-scripts";
+import { hydratePineIndicator, PINE_INDICATOR_TEMPLATE, pineDeclaredName, savePineScript, type PineChartIndicator, type PineScript } from "@/lib/chart/pine-scripts";
+import { PineEditorPanel, type PineEditorDraft } from "./PineEditorPanel";
+import { pineValuesAt, usePineIndicators } from "./usePineIndicators";
 import { EconomicEventLayer } from "./EconomicEventLayer";
 import { chartPriceFormat } from "@/lib/chart/price-format";
 import { useCalendarEvents } from "./useCalendarEvents";
@@ -365,6 +368,13 @@ interface PriceChartProps {
    * whichever chart the trader is pointed at, not one stacked above every cell.
    */
   showControls?: boolean;
+  /**
+   * Column beside the chart that hosts the Pine Editor, so the chart narrows
+   * to make room instead of being covered. Floats over the chart without one.
+   */
+  sidePanelSlot?: HTMLElement | null;
+  /** Market data provider of the session, used to run Pine scripts. */
+  dataSource?: string;
   /**
    * Full-height column on the workspace's left edge to host the drawing rail,
    * and whether this pane is the one that owns it. A multi-chart layout has a
@@ -997,6 +1007,8 @@ export default function PriceChart({
   headerSlot = null,
   actionsSlot = null,
   showControls = true,
+  sidePanelSlot = null,
+  dataSource = "dukascopy",
   railSlot = null,
   showRail = true,
   drawingTool,
@@ -1180,9 +1192,8 @@ export default function PriceChart({
   axisFontSizeRef.current = axisFontSize;
   timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
-  const [pineScript, setPineScript] = useState<PineScript | null>(null);
-  const [pineError, setPineError] = useState<string | null>(null);
-  const pineSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
+  const [pineIndicators, setPineIndicators] = useState<PineChartIndicator[]>([]);
+  const [pineDraft, setPineDraft] = useState<PineEditorDraft | null>(null);
   const [crosshairX, setCrosshairX] = useState<number | null>(null);
   const preferencesRestoredRef = useRef(false);
   const [indicatorPaneLayouts, setIndicatorPaneLayouts] = useState<IndicatorPaneLayout[]>([]);
@@ -2355,11 +2366,15 @@ export default function PriceChart({
           timeframe?: Timeframe;
           chartType?: ChartType;
           indicators?: unknown[];
+          pineIndicators?: unknown[];
         };
         if (saved.timeframe && availableTimeframes.includes(saved.timeframe)) setDisplayTimeframe(saved.timeframe);
         if (saved.chartType) setChartType(saved.chartType);
         if (Array.isArray(saved.indicators)) {
           setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
+        }
+        if (Array.isArray(saved.pineIndicators)) {
+          setPineIndicators(saved.pineIndicators.map(hydratePineIndicator).filter((i): i is PineChartIndicator => i != null).slice(0, 8));
         }
         // A chart mount is intentionally a fresh view.  Timeframe, chart type
         // and indicators are preferences; the old pan/zoom is not restored on
@@ -2976,13 +2991,14 @@ export default function PriceChart({
           timeframe: displayTimeframe,
           chartType,
           indicators,
+          pineIndicators,
           preferencesUpdatedAt: Date.now(),
         }),
       );
     } catch {
       // Ignore local storage failures.
     }
-  }, [displayTimeframe, chartType, indicators, viewStorageKey]);
+  }, [displayTimeframe, chartType, indicators, pineIndicators, viewStorageKey]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -3678,38 +3694,79 @@ export default function PriceChart({
     else setIndicatorEditing(inst.id); // open settings so the user sets it themselves
   }
 
+  const pine = usePineIndicators({
+    chart: chartRef.current,
+    items: pineIndicators,
+    symbol: symbolLabel.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+    source: dataSource,
+    timeframe: displayTimeframe,
+    epoch: seriesEpoch,
+    paneBase: 1 + indicators.filter((indicator) => getDef(indicator.kind)?.pane === "own").length,
+    getRange: () => {
+      const timeline = joinedTimelineCached(historyCandlesRef.current, displayRef.current);
+      // On a timeframe above the replay's own, the newest candle is still forming; the
+      // server would hand back its finished values, so stop at the last closed one.
+      const forming = TIMEFRAME_MS[displayTimeframe] > TIMEFRAME_MS[baseTimeframe] ? 1 : 0;
+      const last = timeline.length - 1 - forming;
+      return last < 1 ? null : { start: Number(timeline[0]!.time), end: Number(timeline[last]!.time) };
+    },
+    endTime: lastCandle?.timestamp ?? lastCandles.at(-1)?.timestamp ?? initialCandles.at(-1)?.timestamp ?? null,
+    container: containerRef.current,
+  });
+
+  /** "My scripts" in the indicator picker: put the saved script on the chart. */
   function addPineScript(script: PineScript) {
-    setPineScript(script);
+    setPineIndicators((current) => [...current, { id: crypto.randomUUID(), scriptId: script.id, name: script.name, code: script.code, visible: true }].slice(-8));
     setMenu(null);
   }
 
-  useEffect(() => {
-    const chart = chartRef.current;
-    for (const series of pineSeriesRef.current) { try { chart?.removeSeries(series); } catch { /* Chart was rebuilt. */ } }
-    pineSeriesRef.current = [];
-    if (!chart || !pineScript) return;
-    const symbol = symbolLabel.replace(/[^A-Z]/g, "");
-    const timeline = joinedTimelineCached(historyCandlesRef.current, displayRef.current).slice(-30_000);
-    if (timeline.length < 2) return;
-    const controller = new AbortController();
-    const run = async () => {
-      try {
-        const source = "dukascopy";
-        const response = await fetch("/api/strategy-tests/pine", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify({ code: pineScript.code, symbol, source, timeframe: displayTimeframeRef.current, startTime: Number(timeline[0]!.time) * 1000, endTime: Number(timeline.at(-1)!.time) * 1000, startingBalance: 10_000 }) });
-        const result = await response.json() as { ok: boolean; error?: string; report?: { kind: string; overlay: boolean; plots: { title: string; color: string; values: (number | null)[] }[] } };
-        if (!response.ok || !result.ok || result.report?.kind !== "indicator") throw new Error(result.error ?? "Could not render indicator.");
-        if (controller.signal.aborted) return;
-        for (const plot of result.report.plots) {
-          const series = chart.addSeries(LineSeries, { color: plot.color || "#2962FF", lineWidth: 2, priceLineVisible: false, lastValueVisible: true }, result.report.overlay ? 0 : 1);
-          series.setData(plot.values.flatMap((value, index) => value == null ? [] : [{ time: timeline[index]!.time as UTCTimestamp, value }]));
-          pineSeriesRef.current.push(series);
-        }
-        setPineError(null);
-      } catch (error) { if (!controller.signal.aborted) setPineError(error instanceof Error ? error.message : "Could not render indicator."); }
-    };
-    void run();
-    return () => { controller.abort(); for (const series of pineSeriesRef.current) { try { chart.removeSeries(series); } catch { /* Chart was rebuilt. */ } } pineSeriesRef.current = []; };
-  }, [pineScript, symbolLabel, seriesEpoch]);
+  function openPineEditor(draft: PineEditorDraft) {
+    setPineDraft(draft);
+    setMenu(null);
+  }
+
+  /** The legend's source-code button. */
+  function editPineIndicator(item: PineChartIndicator) {
+    openPineEditor({ instanceId: item.id, scriptId: item.scriptId, name: item.name, code: item.code, savedCode: item.scriptId ? item.code : null });
+  }
+
+  function newPineScript() {
+    openPineEditor({ instanceId: null, scriptId: null, name: "My script", code: PINE_INDICATOR_TEMPLATE, savedCode: null });
+  }
+
+  function draftName(draft: PineEditorDraft) {
+    return draft.name === "My script" ? pineDeclaredName(draft.code) ?? draft.name : draft.name;
+  }
+
+  function savePineDraft() {
+    if (!pineDraft) return;
+    const name = draftName(pineDraft);
+    const scriptId = pineDraft.scriptId ?? crypto.randomUUID();
+    try { savePineScript({ id: scriptId, name, code: pineDraft.code, updatedAt: Date.now() }); } catch { return; }
+    setPineDraft({ ...pineDraft, scriptId, name, savedCode: pineDraft.code });
+    if (pineDraft.instanceId) setPineIndicators((current) => current.map((item) => item.id === pineDraft.instanceId ? { ...item, scriptId, name } : item));
+  }
+
+  /** Add to chart / Update on chart. */
+  function applyPineDraft() {
+    if (!pineDraft) return;
+    const name = draftName(pineDraft);
+    const instanceId = pineDraft.instanceId;
+    if (instanceId && pineIndicators.some((item) => item.id === instanceId)) {
+      setPineIndicators((current) => current.map((item) => item.id === instanceId ? { ...item, name, code: pineDraft.code, scriptId: pineDraft.scriptId, visible: true } : item));
+      // Unchanged code: run it again, e.g. after a failure.
+      if (pine.status[instanceId]?.code === pineDraft.code) pine.refresh();
+      setPineDraft({ ...pineDraft, name });
+      return;
+    }
+    const id = crypto.randomUUID();
+    setPineIndicators((current) => [...current, { id, scriptId: pineDraft.scriptId, name, code: pineDraft.code, visible: true }].slice(-8));
+    setPineDraft({ ...pineDraft, instanceId: id, name });
+  }
+
+  function removePineIndicator(id: string) {
+    setPineIndicators((current) => current.filter((item) => item.id !== id));
+  }
 
   /** Resolve the chart x-coordinate of a pick click to a candle time. */
   function commitAnchor(clientX: number) {
@@ -4063,9 +4120,20 @@ export default function PriceChart({
           <Activity size={15} />
           <span className="hidden sm:inline">Indicators</span>
         </button>
-        {menu === "indicators" && <IndicatorPicker theme={theme} onClose={() => setMenu(null)} onSelect={addIndicator} onSelectScript={addPineScript} />}
-        {pineScript && <span className="inline-flex items-center gap-1 rounded bg-brand-400/15 px-2 text-xs text-brand-300" title={pineError ?? pineScript.name}>{pineError ? `${pineScript.name}: ${pineError}` : pineScript.name}<button type="button" aria-label={`Remove ${pineScript.name}`} onClick={() => setPineScript(null)}><X size={13} /></button></span>}
+        {menu === "indicators" && <IndicatorPicker theme={theme} onClose={() => setMenu(null)} onSelect={addIndicator} onSelectScript={addPineScript} onEditScript={(script) => openPineEditor({ instanceId: pineIndicators.find((item) => item.scriptId === script.id)?.id ?? null, scriptId: script.id, name: script.name, code: script.code, savedCode: script.code })} onCreateScript={newPineScript} />}
       </div>
+      <button
+        type="button"
+        aria-label="Pine Editor"
+        aria-pressed={pineDraft != null}
+        title="Pine Editor"
+        data-testid="pine-editor-toggle"
+        onClick={() => (pineDraft ? setPineDraft(null) : newPineScript())}
+        className={"inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-semibold transition-colors " + (pineDraft ? "bg-brand-400/15 text-brand-300" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]")}
+      >
+        <Braces size={15} aria-hidden />
+        <span className="hidden xl:inline">Pine Editor</span>
+      </button>
 
     </div>
   );
@@ -4308,8 +4376,72 @@ export default function PriceChart({
     </div>
   );
 
+  /**
+   * A Pine script's legend row, as TradingView shows it: the script name and
+   * its plot values, with hide, source code and remove on hover.
+   */
+  const pineLegendRow = (item: PineChartIndicator, inPane: boolean) => {
+    const run = pine.status[item.id];
+    const values = item.visible && run?.state === "ready" ? pineValuesAt(run.report, legend ? Math.floor(legend.at / 1000) : null) : [];
+    const editing = pineDraft?.instanceId === item.id;
+    const iconButton = "grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-[var(--app-panel-2)] hover:text-[var(--chart-text)]";
+    return (
+      <div
+        key={item.id}
+        data-testid="pine-legend-row"
+        className={`group pointer-events-auto flex max-w-full items-center gap-1.5 rounded-sm border px-1.5 ${editing ? "border-brand-400/60" : "border-transparent hover:border-[var(--app-border)]"} ${inPane ? "absolute z-30 bg-[var(--app-panel-solid)]/90 " + (showRail && !railSlot ? "left-[3.75rem]" : "left-2") : "min-h-6 py-0.5 text-[0.92em]"}`}
+        style={inPane ? { top: (pine.paneTops[item.id] ?? 0) + 5, minHeight: 28, fontSize: Math.max(11, overlayFont - 2) } : undefined}
+      >
+        <span className={`shrink-0 font-medium ${item.visible ? "text-[var(--chart-text)]" : "text-[var(--chart-muted)] line-through"}`}>{item.name}</span>
+        {run?.state === "loading" && <LoaderCircle size={12} className="shrink-0 animate-spin text-[var(--chart-muted)]" aria-label="Running script" />}
+        {run?.state === "error" && (
+          <button type="button" onClick={() => editPineIndicator(item)} title={run.error} aria-label={`${item.name} has an error: ${run.error ?? ""}`} className="shrink-0 rounded bg-loss/15 px-1 text-[0.85em] font-semibold text-loss">!</button>
+        )}
+        {values.length > 0 && (
+          <span className="flex min-w-0 items-center gap-1.5 overflow-hidden font-mono text-[0.92em]">
+            {values.map((value, index) => (
+              <b key={index} className="shrink-0 font-semibold" style={{ color: indicatorColorForTheme(value.color || "#2962FF", theme, 4.5) }} title={value.title}>
+                {value.value == null || !Number.isFinite(value.value) ? "∅" : value.value.toFixed(precision)}
+              </b>
+            ))}
+          </span>
+        )}
+        <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+          <button type="button" title={item.visible ? "Hide" : "Show"} aria-label={`${item.visible ? "Hide" : "Show"} ${item.name}`} onClick={() => setPineIndicators((current) => current.map((entry) => entry.id === item.id ? { ...entry, visible: !entry.visible } : entry))} className={iconButton}>
+            {item.visible ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
+          </button>
+          <button type="button" title="Source code" aria-label={`Source code of ${item.name}`} data-testid="pine-source-code" onClick={() => editPineIndicator(item)} className={iconButton}>
+            <Braces size={12} aria-hidden />
+          </button>
+          <button type="button" title="Remove" aria-label={`Remove ${item.name}`} onClick={() => removePineIndicator(item.id)} className="grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-loss/15 hover:text-loss">
+            <Trash2 size={12} aria-hidden />
+          </button>
+        </span>
+      </div>
+    );
+  };
+
+  const pineEditor = pineDraft && showControls ? (
+    <PineEditorPanel
+      draft={pineDraft}
+      onDraftChange={(patch) => setPineDraft((current) => (current ? { ...current, ...patch } : current))}
+      onSave={savePineDraft}
+      onApply={applyPineDraft}
+      onOpenScript={(script) => openPineEditor({ instanceId: pineIndicators.find((item) => item.scriptId === script.id)?.id ?? null, scriptId: script.id, name: script.name, code: script.code, savedCode: script.code })}
+      onNew={newPineScript}
+      onClose={() => {
+        if (pineDraft.code !== pineDraft.savedCode && !pineIndicators.some((item) => item.id === pineDraft.instanceId && item.code === pineDraft.code) && !window.confirm("Close the Pine Editor? Unsaved changes to this script will be lost.")) return;
+        setPineDraft(null);
+      }}
+      onChart={pineDraft.instanceId != null && pineIndicators.some((item) => item.id === pineDraft.instanceId)}
+      status={pineDraft.instanceId ? pine.status[pineDraft.instanceId] : undefined}
+      docked={sidePanelSlot != null}
+    />
+  ) : null;
+
   return (
     <div className="relative flex h-full w-full flex-col">
+      {pineEditor && sidePanelSlot ? createPortal(pineEditor, sidePanelSlot) : null}
       {/* Timeframe, chart-type, indicators and the screenshot action: one
           instance acting on whichever pane is focused, not one stacked above
           every cell of a multi-chart layout. A pane that isn't showing its
@@ -4736,8 +4868,9 @@ export default function PriceChart({
 
             {/* Price overlays stay below OHLC; own-pane studies are labelled in
                 the pane that contains their plots. */}
-            {indicators.some((indicator) => getDef(indicator.kind)?.pane !== "own") && (
+            {(indicators.some((indicator) => getDef(indicator.kind)?.pane !== "own") || pineIndicators.some((item) => pine.paneTops[item.id] == null)) && (
               <div className="pointer-events-auto flex flex-col items-start gap-0.5">
+                {pineIndicators.filter((item) => pine.paneTops[item.id] == null).map((item) => pineLegendRow(item, false))}
                 {indicators.filter((indicator) => getDef(indicator.kind)?.pane !== "own").map((inst) => {
                   return (
                     <div key={inst.id} className="group relative flex min-h-6 items-center gap-1.5 px-2 py-0.5 text-[0.92em]">
@@ -4814,6 +4947,8 @@ export default function PriceChart({
             </div>
           );
         })}
+
+        {pineIndicators.filter((item) => pine.paneTops[item.id] != null).map((item) => pineLegendRow(item, true))}
 
         {pendingOrders.filter((order) => order.status === "pending").map((order) => (
           <div
@@ -5242,6 +5377,7 @@ export default function PriceChart({
             </div>
           </div>
         )}
+        {pineEditor && !sidePanelSlot ? pineEditor : null}
         {error && (
           <div className="absolute inset-0 grid place-items-center bg-[var(--app-bg)]/70">
             <span className="max-w-xs text-center text-sm text-loss">{error}</span>

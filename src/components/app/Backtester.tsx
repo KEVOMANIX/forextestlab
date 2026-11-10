@@ -230,6 +230,7 @@ export function Backtester({
   } | null>(null);
   const orderTicketActivationIdRef = useRef(0);
   const [chartHeaderSlot, setChartHeaderSlot] = useState<HTMLDivElement | null>(null);
+  const [chartSidePanelSlot, setChartSidePanelSlot] = useState<HTMLDivElement | null>(null);
   const [chartLayoutSlot, setChartLayoutSlot] = useState<HTMLDivElement | null>(null);
   const [chartActionsSlot, setChartActionsSlot] = useState<HTMLDivElement | null>(null);
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(null);
@@ -1322,6 +1323,7 @@ export function Backtester({
             headerSlot={chartHeaderSlot}
             layoutSlot={chartLayoutSlot}
             actionsSlot={chartActionsSlot}
+            sidePanelSlot={chartSidePanelSlot}
             orderTicket={
               <OrderTicket
                 state={activeTradingState ?? state}
@@ -1421,6 +1423,9 @@ export function Backtester({
             />
           )}
         </div>
+
+        {/* The focused chart's Pine Editor docks here, narrowing the chart. */}
+        <div ref={setChartSidePanelSlot} className="flex min-h-0 shrink-0" />
 
         {!state.config.blindMode && !workspace.settings.distractionFree && calendarOpen && (
           <EconomicCalendarPanel

@@ -3720,6 +3720,7 @@ export default function PriceChart({
       return candle ? `${candle.timestamp}:${candle.open}:${candle.high}:${candle.low}:${candle.close}:${lastCandles.length}:${initialCandles.length}` : "";
     })(),
     container: containerRef.current,
+    theme,
   });
 
   /** "My scripts" in the indicator picker: put the saved script on the chart. */

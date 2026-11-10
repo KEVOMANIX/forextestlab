@@ -89,3 +89,39 @@ barcolor(color.red)
     expect(hlinePricesFromSource(code)).toEqual([70, -20, -30.5, 0, -70, null]);
   });
 });
+
+describe("chart Pine drawings", () => {
+  const closes = Array.from({ length: 40 }, (_, index) => 1 + index * 0.001);
+  const data = () => {
+    const f = (values: number[]) => Float64Array.from(values);
+    return { time: f(closes.map((_, index) => Date.UTC(2024, 2, 4) + index * 900_000)), open: f(closes), high: f(closes.map((close) => close + 0.0005)), low: f(closes.map((close) => close - 0.0005)), close: f(closes), volume: f(closes.map(() => 0)) };
+  };
+  const options = { symbol: "EURUSD", timeframeMs: 900_000, precision: 5 };
+
+  it("keeps live drawings, drops deleted ones, applies the count limit and records table cells", () => {
+    const result = runPineIndicator(`//@version=5
+indicator("D", overlay=true, max_lines_count=5)
+var boxes = array.new_box()
+if bar_index % 10 == 0
+    boxes.unshift(box.new(bar_index, high, bar_index + 3, low, bgcolor=color.new(color.blue, 80)))
+    if boxes.size() > 2
+        boxes.pop().delete()
+line.new(bar_index, high, bar_index + 1, high, color=color.red)
+if barstate.islast
+    label.new(bar_index, high, "Last", textcolor=chart.fg_color, color=#ffffff00)
+    var t = table.new(position.top_right, 2, 2, bgcolor=chart.bg_color)
+    table.cell(t, 0, 0, "Range")
+    table.cell(t, 1, 0, "12%")
+`, data(), { ...options, theme: "dark" });
+    if (!result.ok) throw new Error(result.error);
+    const count = (kind: string) => result.drawings.filter((drawing) => drawing.kind === kind).length;
+    expect(count("box")).toBe(2);
+    expect(count("line")).toBe(5);
+    expect(count("label")).toBe(1);
+    const label = result.drawings.find((drawing) => drawing.kind === "label")!;
+    expect(label.state).toMatchObject({ text: "Last", textcolor: "#D1D4DC" });
+    const table = result.drawings.find((drawing) => drawing.kind === "table")!;
+    expect(table.state).toMatchObject({ position: "top_right", "cell:0,0": "Range", "cell:1,0": "12%" });
+    expect(result.skipped).toEqual([]);
+  });
+});

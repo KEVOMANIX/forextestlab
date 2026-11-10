@@ -55,6 +55,7 @@ export function usePineIndicators({
   symbol,
   timeframeMs,
   precision,
+  theme = "dark",
 }: {
   chart: IChartApi | null;
   /** The candle series, which carries overlay markers and backgrounds. */
@@ -73,6 +74,8 @@ export function usePineIndicators({
   symbol: string;
   timeframeMs: number;
   precision: number;
+  /** Chart theme, which scripts read as chart.fg_color / chart.bg_color. */
+  theme?: "dark" | "light";
 }) {
   const [status, setStatus] = useState<Record<string, PineRunStatus>>({});
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -82,14 +85,14 @@ export function usePineIndicators({
   const dirtyRef = useRef(false);
   const nextIdRef = useRef(1);
   const hungCodeRef = useRef(new Set<string>());
-  const latest = useRef({ items, getCandles, symbol, timeframeMs, precision });
-  latest.current = { items, getCandles, symbol, timeframeMs, precision };
+  const latest = useRef({ items, getCandles, symbol, timeframeMs, precision, theme });
+  latest.current = { items, getCandles, symbol, timeframeMs, precision, theme };
 
   const dispatchRef = useRef<() => void>(() => {});
   dispatchRef.current = () => {
     if (batchRef.current) { dirtyRef.current = true; return; }
     dirtyRef.current = false;
-    const { items: current, getCandles: read, symbol: sym, timeframeMs: tf, precision: digits } = latest.current;
+    const { items: current, getCandles: read, symbol: sym, timeframeMs: tf, precision: digits, theme: chartTheme } = latest.current;
     const runnable = current.map((item) => ({ item, run: applyPineInputs(item.code, item.inputs) })).filter(({ run }) => !hungCodeRef.current.has(run));
     if (runnable.length === 0) return;
     const data = toSeriesInput(read());
@@ -112,7 +115,7 @@ export function usePineIndicators({
       for (const item of batchItems) if (previous[item.id]?.code !== item.code) next[item.id] = { ...previous[item.id], state: "loading" };
       return next;
     });
-    workerRef.current.postMessage({ id, items: batchItems.map((item) => ({ id: item.id, code: item.run })), data, symbol: sym, timeframeMs: tf, precision: digits }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
+    workerRef.current.postMessage({ id, items: batchItems.map((item) => ({ id: item.id, code: item.run })), data, symbol: sym, timeframeMs: tf, precision: digits, theme: chartTheme }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
   };
 
   function finish(id: number, results: Record<string, PineIndicatorResult>) {
@@ -127,7 +130,7 @@ export function usePineIndicators({
         const result = results[item.id];
         if (!result) continue;
         next[item.id] = result.ok
-          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, shapes: result.shapes, skipped: result.skipped, converted: result.converted, times: batch.times, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
+          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, shapes: result.shapes, drawings: result.drawings, skipped: result.skipped, converted: result.converted, times: batch.times, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
           : { state: "error", code: item.code, ranAt: now, error: result.error, diagnostics: result.diagnostics };
       }
       return next;
@@ -161,7 +164,7 @@ export function usePineIndicators({
     });
     dispatchRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [codesKey, candleKey, symbol, timeframeMs, precision, epoch, refreshNonce]);
+  }, [codesKey, candleKey, symbol, timeframeMs, precision, theme, epoch, refreshNonce]);
 
   useEffect(() => () => {
     if (batchRef.current) window.clearTimeout(batchRef.current.timer);

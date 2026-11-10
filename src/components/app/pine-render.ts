@@ -17,7 +17,8 @@ import {
 import type { PinePlot, PineShape, PineVisual } from "@/lib/chart/pine-runner";
 import { remapPineColor, type PineColorMap, type PineStyle } from "@/lib/chart/pine-scripts";
 
-export type PineReport = Omit<PineVisual, "skipped"> & {
+export type PineReport = Omit<PineVisual, "skipped" | "drawings"> & {
+  drawings?: PineVisual["drawings"];
   skipped?: string[];
   times: ArrayLike<number>;
   /** Candle highs/lows/closes, which place shapes above/below bars. */
@@ -54,6 +55,7 @@ export function pineSignature(report: PineReport | undefined): string {
     report.backgrounds.length ? "b" : "",
     report.shapes.some((shape) => shape.overlay) ? "S" : "",
     report.shapes.some((shape) => !shape.overlay) ? "s" : "",
+    report.drawings?.length ? "d" : "",
   ].join("|");
 }
 
@@ -294,7 +296,239 @@ function drawArrow(ctx: CanvasRenderingContext2D, shape: PineShape, value: numbe
   ctx.restore();
 }
 
-const LINE_STYLES: Record<string, LineStyle> = { solid: LineStyle.Solid, dotted: LineStyle.Dotted, dashed: LineStyle.Dashed };
+type DrawingState = Record<string, number | string | null>;
+const DRAWING_FONT: Record<string, number> = { tiny: 10, small: 11, auto: 12, normal: 12, large: 14, huge: 18 };
+const DASHES: Record<string, number[]> = { dashed: [6, 4], dotted: [2, 3] };
+const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+const str = (value: unknown) => (typeof value === "string" ? value : null);
+const transparent = (color: string | null) => !color || /^#[0-9a-f]{6}00$/i.test(color);
+
+/**
+ * label.new/line.new/box.new/table.new drawings in their final state, as
+ * TradingView shows them: boxes and lines in chart coordinates (bar time or
+ * bar index, extendable to the pane edge), labels in their label styles and
+ * tables pinned to their screen corner.
+ */
+class DrawingLayer extends Layer {
+  constructor() { super("top"); }
+
+  /** x pixel for a drawing coordinate; past the last candle it continues at the bar spacing. */
+  private xOf(chart: IChartApi, report: PineReport, xloc: string | null, value: number | null): number | null {
+    if (value == null) return null;
+    const times = report.times;
+    const last = times.length - 1;
+    if (last < 0) return null;
+    const timeScale = chart.timeScale();
+    const spacing = timeScale.options().barSpacing;
+    const at = (index: number) => timeScale.timeToCoordinate(seconds(times[index]!));
+    if (xloc !== "bar_time") {
+      const index = Math.round(value);
+      if (index >= 0 && index <= last) return at(index);
+      const edge = at(index < 0 ? 0 : last);
+      return edge == null ? null : edge + (index < 0 ? index : index - last) * spacing;
+    }
+    let low = 0, high = last;
+    while (low < high) { const mid = (low + high + 1) >> 1; if (times[mid]! <= value) low = mid; else high = mid - 1; }
+    const base = at(low);
+    if (base == null) return null;
+    const step = low < last ? times[low + 1]! - times[low]! : last > 0 ? times[last]! - times[last - 1]! : 1;
+    return base + ((value - times[low]!) / (step || 1)) * spacing;
+  }
+
+  protected draw(target: Target, chart: IChartApi, series: AnySeries, report: PineReport) {
+    const drawings = report.drawings ?? [];
+    if (!drawings.length || this.style.drawings === false) return;
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      const y = (price: unknown) => { const value = num(price); return value == null ? null : series.priceToCoordinate(value); };
+      for (const pass of ["box", "line", "label", "table"] as const) {
+        for (const drawing of drawings) {
+          if (drawing.kind !== pass) continue;
+          const state = drawing.state;
+          ctx.save();
+          if (pass === "box") this.box(ctx, chart, report, state, y, mediaSize.width);
+          else if (pass === "line") this.line(ctx, chart, report, state, y, mediaSize.width, mediaSize.height);
+          else if (pass === "label") this.label(ctx, chart, report, state, y);
+          else this.table(ctx, chart, state, mediaSize);
+          ctx.restore();
+        }
+      }
+    });
+  }
+
+  private box(ctx: CanvasRenderingContext2D, chart: IChartApi, report: PineReport, state: DrawingState, y: (price: unknown) => number | null, width: number) {
+    const xloc = str(state.xloc);
+    let left = this.xOf(chart, report, xloc, num(state.left));
+    let right = this.xOf(chart, report, xloc, num(state.right));
+    const top = y(state.top), bottom = y(state.bottom);
+    if (left == null || right == null || top == null || bottom == null) return;
+    const extend = str(state.extend);
+    if (extend === "left" || extend === "both") left = 0;
+    if (extend === "right" || extend === "both") right = width;
+    const fill = cssColor(str(state.bgcolor) ?? "#2196F333");
+    if (fill && !transparent(str(state.bgcolor))) { ctx.fillStyle = fill; ctx.fillRect(left, top, right - left, bottom - top); }
+    const border = str(state.border_color) ?? "#2196F3";
+    const borderWidth = num(state.border_width) ?? 1;
+    if (!transparent(border) && borderWidth > 0) {
+      ctx.strokeStyle = cssColor(border)!;
+      ctx.lineWidth = borderWidth;
+      ctx.setLineDash(DASHES[str(state.border_style) ?? ""] ?? []);
+      ctx.strokeRect(left + 0.5, top + 0.5, right - left, bottom - top);
+    }
+    const text = str(state.text);
+    if (text) {
+      ctx.fillStyle = cssColor(str(state.text_color)) ?? "#D1D4DC";
+      ctx.font = `${DRAWING_FONT[str(state.text_size) ?? "auto"] ?? 12}px ${FONT}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, (left + right) / 2, (top + bottom) / 2);
+    }
+  }
+
+  private line(ctx: CanvasRenderingContext2D, chart: IChartApi, report: PineReport, state: DrawingState, y: (price: unknown) => number | null, width: number, height: number) {
+    const xloc = str(state.xloc);
+    let x1 = this.xOf(chart, report, xloc, num(state.x1)), x2 = this.xOf(chart, report, xloc, num(state.x2));
+    let y1 = y(state.y1), y2 = y(state.y2);
+    if (x1 == null || x2 == null || y1 == null || y2 == null) return;
+    const color = str(state.color) ?? "#2196F3";
+    if (transparent(color)) return;
+    const extend = str(state.extend);
+    if (extend && extend !== "none") {
+      if (Math.abs(x2 - x1) < 0.5) {
+        // A vertical line (session dividers, timestamps) extends up and/or down the pane.
+        const up = y1 <= y2;
+        if (extend === "both") { y1 = 0; y2 = height; }
+        else if (extend === "right") { if (up) y2 = height; else y1 = height; }
+        else { if (up) y1 = 0; else y2 = 0; }
+      } else {
+        // Otherwise the line keeps its slope out to the pane edge.
+        const slope = (y2 - y1) / (x2 - x1);
+        if (extend === "left" || extend === "both") { if (x1 <= x2) { y1 -= slope * x1; x1 = 0; } else { y2 -= slope * x2; x2 = 0; } }
+        if (extend === "right" || extend === "both") { if (x2 >= x1) { y2 += slope * (width - x2); x2 = width; } else { y1 += slope * (width - x1); x1 = width; } }
+      }
+    }
+    const style = str(state.style) ?? "solid";
+    ctx.strokeStyle = cssColor(color)!;
+    ctx.lineWidth = num(state.width) ?? 1;
+    ctx.setLineDash(DASHES[style] ?? []);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const head = (fromX: number, fromY: number, toX: number, toY: number) => {
+      const angle = Math.atan2(toY - fromY, toX - fromX);
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - 8 * Math.cos(angle - 0.45), toY - 8 * Math.sin(angle - 0.45));
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - 8 * Math.cos(angle + 0.45), toY - 8 * Math.sin(angle + 0.45));
+      ctx.stroke();
+    };
+    if (style === "arrow_right" || style === "arrow_both") head(x1, y1, x2, y2);
+    if (style === "arrow_left" || style === "arrow_both") head(x2, y2, x1, y1);
+  }
+
+  private label(ctx: CanvasRenderingContext2D, chart: IChartApi, report: PineReport, state: DrawingState, y: (price: unknown) => number | null) {
+    const x = this.xOf(chart, report, str(state.xloc), num(state.x));
+    if (x == null) return;
+    const yloc = str(state.yloc);
+    let anchor: number | null;
+    // yloc.abovebar/belowbar place the label at that candle's high/low instead of its y.
+    if (yloc === "abovebar" || yloc === "belowbar") {
+      const xValue = num(state.x) ?? 0;
+      const index = str(state.xloc) === "bar_time" ? Array.prototype.findIndex.call(report.times, (time: number) => time >= xValue) : Math.round(xValue);
+      anchor = y(yloc === "abovebar" ? report.highs?.[index] : report.lows?.[index]);
+    } else anchor = y(state.y);
+    if (anchor == null) return;
+    const text = str(state.text) ?? "";
+    const style = (str(state.style) ?? "label_down").replace(/^style_/, "");
+    const background = str(state.color) ?? "#2196F3";
+    const filled = !transparent(background);
+    const fontSize = DRAWING_FONT[str(state.size) ?? "normal"] ?? 12;
+    ctx.font = `${fontSize}px ${FONT}`;
+    const lines = text.split("\n");
+    const textWidth = Math.max(0, ...lines.map((line) => ctx.measureText(line).width));
+    const lineHeight = fontSize + 3;
+    const padX = 6, padY = 3, pointer = filled ? 5 : 2;
+    const boxWidth = textWidth + padX * 2, boxHeight = lines.length * lineHeight + padY * 2;
+    let left = x - boxWidth / 2, top = anchor - boxHeight / 2;
+    if (style === "label_down" || style === "arrowdown" || style === "triangledown") top = anchor - pointer - boxHeight;
+    else if (style === "label_up" || style === "arrowup" || style === "triangleup") top = anchor + pointer;
+    else if (style === "label_left") left = x + pointer;
+    else if (style === "label_right") left = x - pointer - boxWidth;
+    else if (style === "label_upper_left") { left = x + pointer; top = anchor + pointer; }
+    else if (style === "label_upper_right") { left = x - pointer - boxWidth; top = anchor + pointer; }
+    else if (style === "label_lower_left") { left = x + pointer; top = anchor - pointer - boxHeight; }
+    else if (style === "label_lower_right") { left = x - pointer - boxWidth; top = anchor - pointer - boxHeight; }
+    const boxStyle = style.startsWith("label_") && style !== "label_center";
+    if (filled && (boxStyle || style === "label_center")) {
+      ctx.fillStyle = cssColor(background)!;
+      ctx.beginPath();
+      ctx.roundRect(left, top, boxWidth, boxHeight, 3);
+      ctx.fill();
+      ctx.beginPath();
+      if (style === "label_down") { ctx.moveTo(x - pointer, top + boxHeight - 0.5); ctx.lineTo(x, anchor); ctx.lineTo(x + pointer, top + boxHeight - 0.5); }
+      else if (style === "label_up") { ctx.moveTo(x - pointer, top + 0.5); ctx.lineTo(x, anchor); ctx.lineTo(x + pointer, top + 0.5); }
+      else if (style === "label_left") { ctx.moveTo(left + 0.5, anchor - pointer); ctx.lineTo(x, anchor); ctx.lineTo(left + 0.5, anchor + pointer); }
+      else if (style === "label_right") { ctx.moveTo(left + boxWidth - 0.5, anchor - pointer); ctx.lineTo(x, anchor); ctx.lineTo(left + boxWidth - 0.5, anchor + pointer); }
+      ctx.fill();
+    } else if (filled && !boxStyle) {
+      // Shape styles (circle, square, cross, …) draw their shape at the point with the text beside it.
+      ctx.fillStyle = cssColor(background)!;
+      ctx.beginPath();
+      ctx.arc(x, anchor, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (!text) return;
+    ctx.fillStyle = cssColor(str(state.textcolor)) ?? (filled ? "#FFFFFF" : "#D1D4DC");
+    ctx.textBaseline = "middle";
+    const align = str(state.textalign);
+    ctx.textAlign = align === "left" ? "left" : align === "right" ? "right" : "center";
+    const textX = ctx.textAlign === "left" ? left + padX : ctx.textAlign === "right" ? left + boxWidth - padX : left + boxWidth / 2;
+    lines.forEach((line, index) => ctx.fillText(line, textX, top + padY + lineHeight * index + lineHeight / 2));
+  }
+
+  private table(ctx: CanvasRenderingContext2D, chart: IChartApi, state: DrawingState, size: { width: number; height: number }) {
+    const cells = Object.entries(state).filter(([key]) => key.startsWith("cell:")).map(([key, value]) => {
+      const [column, row] = key.slice(5).split(",").map(Number);
+      return { column: column!, row: row!, text: String(value ?? "") };
+    });
+    if (cells.length === 0) return;
+    // table.cell() colors are not carried by the engine, so the table takes the chart's own panel colors.
+    const styles = getComputedStyle(chart.chartElement());
+    const panel = styles.getPropertyValue("--app-panel-solid").trim() || "#1e302a";
+    const border = styles.getPropertyValue("--app-border").trim() || "rgba(255,255,255,0.15)";
+    const ink = styles.getPropertyValue("--chart-text").trim() || "#D1D4DC";
+    ctx.font = `11px ${FONT}`;
+    const columns = Math.max(...cells.map((cell) => cell.column)) + 1;
+    const rows = Math.max(...cells.map((cell) => cell.row)) + 1;
+    const widths = Array.from({ length: columns }, (_, column) => Math.max(18, ...cells.filter((cell) => cell.column === column).map((cell) => Math.max(...cell.text.split("\n").map((line) => ctx.measureText(line).width)) + 12)));
+    const heights = Array.from({ length: rows }, (_, row) => Math.max(20, ...cells.filter((cell) => cell.row === row).map((cell) => cell.text.split("\n").length * 14 + 6)));
+    const tableWidth = widths.reduce((sum, value) => sum + value, 0), tableHeight = heights.reduce((sum, value) => sum + value, 0);
+    const position = str(state.position) ?? "top_right";
+    const margin = 8;
+    const left = position.endsWith("left") ? margin : position.endsWith("center") ? (size.width - tableWidth) / 2 : size.width - tableWidth - margin;
+    const top = position.startsWith("top") ? margin + 24 : position.startsWith("middle") ? (size.height - tableHeight) / 2 : size.height - tableHeight - margin;
+    ctx.fillStyle = panel;
+    ctx.globalAlpha = 0.92;
+    ctx.fillRect(left, top, tableWidth, tableHeight);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(left + 0.5, top + 0.5, tableWidth, tableHeight);
+    ctx.fillStyle = ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const cell of cells) {
+      const x = left + widths.slice(0, cell.column).reduce((sum, value) => sum + value, 0);
+      const yTop = top + heights.slice(0, cell.row).reduce((sum, value) => sum + value, 0);
+      const lines = cell.text.split("\n");
+      lines.forEach((line, index) => ctx.fillText(line, x + widths[cell.column]! / 2, yTop + heights[cell.row]! / 2 + (index - (lines.length - 1) / 2) * 14));
+    }
+  }
+}
+
+const LINE_STYLES: Record<string, LineStyle> ={ solid: LineStyle.Solid, dotted: LineStyle.Dotted, dashed: LineStyle.Dashed };
 const lineWidth = (value: number) => Math.min(4, Math.max(1, Math.round(value) || 1)) as 1 | 2 | 3 | 4;
 const hiddenAnchor = { lineVisible: false, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, color: TRANSPARENT, autoscaleInfoProvider: () => null };
 
@@ -355,6 +589,7 @@ export class PineRenderer {
     // Shapes on the price pane are placed against candle highs/lows on the candle scale.
     if (report.shapes.some((shape) => shape.overlay) && (price || this.paneIndex === 0)) this.attach(new ShapeLayer(true, (shape) => shape.overlay), price ?? host);
     if (report.shapes.some((shape) => !shape.overlay) && this.paneIndex > 0) this.attach(new ShapeLayer(false, (shape) => !shape.overlay), host);
+    if (report.drawings?.length) this.attach(new DrawingLayer(), this.paneIndex === 0 ? price ?? host : host);
   }
 
   private addPlot(plot: PinePlot, pane: number): AnySeries {

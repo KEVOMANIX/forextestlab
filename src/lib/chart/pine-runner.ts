@@ -1,4 +1,4 @@
-import { transpile, compile, Context } from "@nullarch/resin";
+import { transpile, compile, Context, rt } from "@nullarch/resin";
 import { convertPineV4, isPineV4 } from "./pine-v4";
 
 /** Candles as parallel arrays; times are epoch milliseconds. */
@@ -34,8 +34,47 @@ export type PineShape = {
   overlay: boolean;
   points: { index: number; price?: number; value?: number }[];
 };
-export type PineVisual = { converted?: boolean; overlay: boolean; plots: PinePlot[]; hlines: PineHline[]; fills: PineFill[]; backgrounds: PineBackground[]; shapes: PineShape[]; skipped: string[] };
+/**
+ * A label/line/box/table the script created and did not delete, in its final
+ * state. Table cells are kept as `cell:<column>,<row>` text entries.
+ */
+export type PineDrawing = { kind: "label" | "line" | "box" | "table"; state: Record<string, number | string | null> };
+export type PineVisual = { converted?: boolean; overlay: boolean; plots: PinePlot[]; hlines: PineHline[]; fills: PineFill[]; backgrounds: PineBackground[]; shapes: PineShape[]; drawings: PineDrawing[]; skipped: string[] };
 export type PineIndicatorResult = ({ ok: true } & PineVisual) | { ok: false; error: string; diagnostics?: PineDiagnostic[] };
+
+/*
+ * The engine records every drawing a script creates but treats delete() and
+ * table cells as no-ops. On the chart those matter (killzone scripts delete old
+ * boxes; data tables are all cells), so they are recorded on the drawing's state.
+ */
+type Handle = { state?: Record<string, number | string | null> } | null | undefined;
+const drawingApi = rt as unknown as Record<string, Record<string, (...args: unknown[]) => unknown>>;
+for (const kind of ["label", "line", "box", "table", "polyline", "linefill"]) {
+  if (drawingApi[kind]) drawingApi[kind].delete = (handle: unknown) => { const state = (handle as Handle)?.state; if (state) state.__deleted = 1; };
+}
+if (drawingApi.table) {
+  const setCell = (handle: unknown, column: unknown, row: unknown, text: unknown) => {
+    const state = (handle as Handle)?.state;
+    if (state && typeof column === "number" && typeof row === "number") state[`cell:${column},${row}`] = text == null ? "" : String(text);
+  };
+  drawingApi.table.cell = setCell;
+  drawingApi.table.cell_set_text = setCell;
+  drawingApi.table.clear = (handle: unknown) => {
+    const state = (handle as Handle)?.state;
+    if (state) for (const key of Object.keys(state)) if (key.startsWith("cell:")) delete state[key];
+  };
+}
+const DRAWING_LIMIT_DEFAULT = 50;
+/** TradingView keeps the newest N drawings of each kind (indicator(max_lines_count=…), default 50). */
+function drawingLimits(code: string): Record<string, number> {
+  const read = (name: string) => Math.min(500, Math.max(1, Number(new RegExp(`${name}\\s*=\\s*(\\d+)`).exec(code)?.[1] ?? DRAWING_LIMIT_DEFAULT)));
+  return { label: read("max_labels_count"), line: read("max_lines_count"), box: read("max_boxes_count"), table: 50 };
+}
+/** chart.fg_color / chart.bg_color are compile-time constants; give them the chart's actual theme. */
+function withThemeColors(code: string, theme: "dark" | "light"): string {
+  const [fg, bg] = theme === "dark" ? ["#D1D4DC", "#131722"] : ["#131722", "#FFFFFF"];
+  return code.replace(/\bchart\.fg_color\b/g, fg).replace(/\bchart\.bg_color\b/g, bg);
+}
 
 const MAX_PLOTS = 64;
 const MAX_MARKERS = 3_000;
@@ -55,7 +94,7 @@ export function pineTimeframe(ms: number): string {
 
 /** Checks that apply before compiling: what this chart feed can and cannot supply. */
 export function pineChartPrecheck(code: string): string | null {
-  if (code.length < 1 || code.length > 20_000) return "Pine code must contain 1 to 20,000 characters.";
+  if (code.length < 1 || code.length > 100_000) return "Pine code must contain 1 to 100,000 characters.";
   if (!/^\s*\/\/\s*@version\s*=\s*[56]\s*$/m.test(code)) return "Add //@version=4, 5 or 6 on its own line. Pine versions 1 to 3 are not supported.";
   if (/^\s*strategy\s*\(/m.test(code)) return "This is a strategy script. Run strategies in Strategy Lab; the chart shows indicator() scripts.";
   if (!/^\s*indicator\s*\(/m.test(code)) return "Declare the script with indicator(\"Name\").";
@@ -138,7 +177,8 @@ const compiled = new Map<string, Compiled | PineIndicatorResult>();
  * over the given candles, returning what it draws: plots in their styles,
  * horizontal levels, fills, background colors and markers.
  */
-export function runPineIndicator(code: string, data: PineSeriesInput, options: { symbol: string; timeframeMs: number; precision: number }): PineIndicatorResult {
+export function runPineIndicator(code: string, data: PineSeriesInput, options: { symbol: string; timeframeMs: number; precision: number; theme?: "dark" | "light" }): PineIndicatorResult {
+  code = withThemeColors(code, options.theme ?? "dark");
   // Version 4 scripts are converted to v5 first, the way TradingView's converter does.
   const converted = isPineV4(code);
   if (converted) code = convertPineV4(code);
@@ -234,9 +274,22 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
     const skipped: string[] = [];
     if (viz.barcolors.length) skipped.push("barcolor()");
     if (viz.candles.length || viz.plotbars.length) skipped.push("plotcandle()/plotbar()");
-    if (ctx.drawingLog.length) skipped.push("labels, lines, boxes and tables");
 
-    return { ok: true, converted, overlay: Boolean(viz.overlay), plots, hlines, fills, backgrounds, shapes, skipped };
+    // Drawings still alive at the end, newest N per kind like TradingView's garbage collection.
+    const limits = drawingLimits(code);
+    const kept: Record<string, number> = {};
+    const drawings: PineDrawing[] = [];
+    for (let index = ctx.drawingLog.length - 1; index >= 0; index--) {
+      const record = ctx.drawingLog[index]!;
+      if (!(record.kind in limits) || record.state.__deleted) continue;
+      kept[record.kind] = (kept[record.kind] ?? 0) + 1;
+      if (kept[record.kind]! > limits[record.kind]!) continue;
+      drawings.push({ kind: record.kind as PineDrawing["kind"], state: { ...record.state } });
+    }
+    drawings.reverse();
+    if (ctx.drawingLog.some((record) => record.kind === "polyline" || record.kind === "linefill")) skipped.push("polylines and linefills");
+
+    return { ok: true, converted, overlay: Boolean(viz.overlay), plots, hlines, fills, backgrounds, shapes, drawings, skipped };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "The script stopped with an error." };
   }

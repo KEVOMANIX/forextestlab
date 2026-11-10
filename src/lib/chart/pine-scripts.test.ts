@@ -14,7 +14,7 @@ describe("pine chart scripts", () => {
     expect(hydratePineIndicator({ id: "a", name: "EMA", code: "plot(close)" })).toEqual({ id: "a", scriptId: null, name: "EMA", code: "plot(close)", visible: true });
     expect(hydratePineIndicator({ id: "a", name: "EMA", code: "x", scriptId: "s", visible: false })?.visible).toBe(false);
     expect(hydratePineIndicator({ id: "a", name: "EMA" })).toBeNull();
-    expect(hydratePineIndicator({ id: "a", name: "EMA", code: "x".repeat(20_001) })).toBeNull();
+    expect(hydratePineIndicator({ id: "a", name: "EMA", code: "x".repeat(100_001) })).toBeNull();
     expect(hydratePineIndicator(null)).toBeNull();
   });
 

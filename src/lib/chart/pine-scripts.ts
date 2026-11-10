@@ -20,6 +20,8 @@ export type PineStyle = {
   precision?: number | null;
   priceLabels?: boolean;
   statusValues?: boolean;
+  /** label/line/box/table drawings. */
+  drawings?: boolean;
   /** Earlier all-or-nothing toggles. */
   fills?: boolean;
   backgrounds?: boolean;
@@ -86,7 +88,7 @@ export function pineDeclaredName(code: string): string | null {
 export function hydratePineIndicator(value: unknown): PineChartIndicator | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
-  if (typeof item.id !== "string" || typeof item.name !== "string" || typeof item.code !== "string" || item.code.length > 20_000) return null;
+  if (typeof item.id !== "string" || typeof item.name !== "string" || typeof item.code !== "string" || item.code.length > 100_000) return null;
   const inputs = item.inputs && typeof item.inputs === "object" && !Array.isArray(item.inputs)
     ? Object.fromEntries(Object.entries(item.inputs as Record<string, unknown>).filter((entry): entry is [string, PineInputSetting] => ["number", "boolean", "string"].includes(typeof entry[1])))
     : undefined;

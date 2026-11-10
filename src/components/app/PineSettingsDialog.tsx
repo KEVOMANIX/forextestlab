@@ -261,6 +261,8 @@ export function PineSettingsDialog({
                   );
                 })}
 
+                {(report.drawings?.length ?? 0) > 0 && <Row label={<Check checked={style.drawings !== false} onChange={(value) => onChange({ style: { ...style, drawings: value } })} label="Labels, lines, boxes and tables" />} />}
+
                 <p className={section}>Output values</p>
                 <Row label={<span className="app-muted">Precision</span>}>
                   <select value={style.precision ?? ""} onChange={(event) => onChange({ style: { ...style, precision: event.target.value === "" ? null : Number(event.target.value) } })} className={`${field} w-28`} aria-label="Precision">

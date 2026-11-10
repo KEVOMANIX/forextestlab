@@ -9,7 +9,7 @@ import { useAppTheme } from "@/components/app/ThemeContext";
 import { fetchRanges, fetchSymbols } from "@/lib/backtest/client";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
-import { readPineScripts, savePineScript, withPineTitle } from "@/lib/chart/pine-scripts";
+import { loadPineScripts, savePineScript, withPineTitle } from "@/lib/chart/pine-scripts";
 import { MAX_TEST_CANDLES, earliestStartWithinLimit, estimateCandles } from "@/lib/chart/candle-budget";
 import { maxDrawdownPercent, sampleEquity, savePineResult } from "@/lib/chart/pine-results";
 import type { StrategyDiagnostic } from "@/lib/strategy-language/parser";
@@ -214,8 +214,10 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
     try { const pine = localStorage.getItem("ftl:strategy-lab-pine-draft:v1"); if (pine) setCode(pine); } catch { /* browser storage unavailable */ }
     try { const width = Number(localStorage.getItem(EDITOR_WIDTH_KEY)); if (width >= EDITOR_MIN) setEditorWidth(width); } catch { /* default width */ }
     const selected = new URLSearchParams(window.location.search).get("script");
-    const script = readPineScripts().find(item => item.id === selected);
-    if (script) { setCode(script.code); setScriptId(script.id); setScriptName(script.name); setSavedCode(script.code); }
+    if (selected) void loadPineScripts().then(scripts => {
+      const script = scripts.find(item => item.id === selected);
+      if (script) { setCode(script.code); setScriptId(script.id); setScriptName(script.name); setSavedCode(script.code); }
+    });
   }, []);
   useEffect(() => { try { localStorage.setItem("ftl:strategy-lab-pine-draft:v1", code); } catch { /* browser storage unavailable */ } }, [code]);
   useEffect(() => {
@@ -282,7 +284,11 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
 
   const persist = (name: string, scriptCode: string) => {
     const id = scriptId ?? crypto.randomUUID();
-    savePineScript({ id, name, code: scriptCode, updatedAt: Date.now() });
+    void savePineScript({ id, name, code: scriptCode, updatedAt: Date.now() }).then(ok => {
+      if (ok) return;
+      setSavedCode(null);
+      setError("Couldn't save to your account. Check your connection and press Save again.");
+    });
     setScriptId(id); setScriptName(name);
   };
   const save = () => { persist(title, code); setSavedCode(code); };

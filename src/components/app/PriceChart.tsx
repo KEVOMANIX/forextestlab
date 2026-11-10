@@ -3756,7 +3756,9 @@ export default function PriceChart({
     if (!pineDraft) return;
     const name = draftName(pineDraft);
     const scriptId = pineDraft.scriptId ?? crypto.randomUUID();
-    try { savePineScript({ id: scriptId, name, code: pineDraft.code, updatedAt: Date.now() }); } catch { return; }
+    const previous = pineDraft.savedCode;
+    // A failed save to the account shows the script as unsaved again.
+    void savePineScript({ id: scriptId, name, code: pineDraft.code, updatedAt: Date.now() }).then((ok) => { if (!ok) setPineDraft((draft) => draft && draft.scriptId === scriptId ? { ...draft, savedCode: previous } : draft); });
     setPineDraft({ ...pineDraft, scriptId, name, savedCode: pineDraft.code });
     if (pineDraft.instanceId) setPineIndicators((current) => current.map((item) => item.id === pineDraft.instanceId ? { ...item, scriptId, name } : item));
   }

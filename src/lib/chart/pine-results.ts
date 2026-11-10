@@ -1,5 +1,8 @@
-/** The last Strategy Lab test of each saved script, for the Strategy Lab dashboard. */
-export const PINE_RESULTS_KEY = "forextestlab:pine-results:v1";
+import { sendPine } from "./pine-sync";
+
+/** The last Strategy Lab test of each saved script, kept with the script in the account. */
+/** Where earlier versions kept results in the browser; moved into the account with the scripts. */
+export const PINE_LEGACY_RESULTS_KEY = "forextestlab:pine-results:v1";
 
 export type PineTestSummary = {
   ranAt: number;
@@ -19,31 +22,34 @@ export type PineTestSummary = {
 
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
-function isSummary(value: unknown): value is PineTestSummary {
+export function isPineSummary(value: unknown): value is PineTestSummary {
   const item = value as PineTestSummary | null;
-  return Boolean(item && finite(item.ranAt) && typeof item.symbol === "string" && typeof item.timeframe === "string" && finite(item.netPercent) && finite(item.winRate) && finite(item.trades) && Array.isArray(item.equity));
+  return Boolean(item && typeof item === "object" && finite(item.ranAt) && typeof item.symbol === "string" && typeof item.timeframe === "string"
+    && typeof item.from === "string" && typeof item.through === "string" && finite(item.netPnl) && finite(item.netPercent)
+    && (item.profitFactor === null || finite(item.profitFactor)) && finite(item.winRate) && finite(item.trades) && finite(item.maxDrawdownPercent)
+    && Array.isArray(item.equity) && item.equity.length <= 200 && item.equity.every(finite));
+}
+
+let cache: Record<string, PineTestSummary> = {};
+
+/** Filled by loadPineScripts() from the account. */
+export function setPineResultsCache(value: Record<string, unknown>): void {
+  cache = Object.fromEntries(Object.entries(value).filter(([, summary]) => isPineSummary(summary))) as Record<string, PineTestSummary>;
 }
 
 export function readPineResults(): Record<string, PineTestSummary> {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(PINE_RESULTS_KEY) ?? "{}");
-    if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-    return Object.fromEntries(Object.entries(value).filter(([, summary]) => isSummary(summary))) as Record<string, PineTestSummary>;
-  } catch { return {}; }
+  return { ...cache };
 }
 
-function write(results: Record<string, PineTestSummary>) {
-  try { localStorage.setItem(PINE_RESULTS_KEY, JSON.stringify(results)); } catch { /* Results are a convenience. */ }
+export function savePineResult(scriptId: string, summary: PineTestSummary): Promise<boolean> {
+  cache = { ...cache, [scriptId]: summary };
+  return sendPine("PUT", { action: "result", id: scriptId, result: summary });
 }
 
-export function savePineResult(scriptId: string, summary: PineTestSummary): void {
-  write({ ...readPineResults(), [scriptId]: summary });
-}
-
+/** Deleting the script deletes its result in the account; this forgets it on the page. */
 export function deletePineResult(scriptId: string): void {
-  const results = readPineResults();
-  delete results[scriptId];
-  write(results);
+  cache = { ...cache };
+  delete cache[scriptId];
 }
 
 /** Evenly spaced samples of a series, always keeping the last value. */

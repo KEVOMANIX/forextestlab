@@ -62,6 +62,7 @@ model UserProfile {
   freeSessionUsage       FreeSessionUsage[]
   aiChats                AiChat[]
   tradingPlan            TradingPlan?
+  pineScripts            PineScript[]
 
   @@index([createdAt])
 }
@@ -681,4 +682,19 @@ model TradingPlan {
   user      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
   rules     String
   updatedAt DateTime    @updatedAt
+}
+
+/// A saved Pine script (indicator or strategy) and its last Strategy Lab test.
+/// The id is made by the browser so a script keeps its id when it is created offline.
+model PineScript {
+  id         String      @id
+  userId     String
+  user       UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  code       String
+  resultJson String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([userId, updatedAt])
 }

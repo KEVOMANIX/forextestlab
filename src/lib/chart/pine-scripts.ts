@@ -1,3 +1,7 @@
+import { PINE_LEGACY_RESULTS_KEY, setPineResultsCache } from "./pine-results";
+import { pineSyncIdle, sendPine } from "./pine-sync";
+
+/** Browser storage, used only while signed out; moved into the account on the next signed-in visit. */
 export const PINE_SCRIPTS_KEY = "forextestlab:pine-scripts:v1";
 export const PINE_SCRIPTS_CHANGED = "forextestlab:pine-scripts-changed";
 /** The workspace rail asks the focused chart to open or close its Pine Editor. */
@@ -69,22 +73,105 @@ basis = ta.sma(close, length)
 plot(basis, "Basis", color=color.blue, linewidth=2)
 `;
 
-export function readPineScripts(): PineScript[] {
+const isScript = (item: unknown): item is PineScript => {
+  const value = item as PineScript | null;
+  return Boolean(value && typeof value.id === "string" && typeof value.name === "string" && typeof value.code === "string");
+};
+
+function readLocal(): PineScript[] {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(PINE_SCRIPTS_KEY) ?? "[]");
-    return Array.isArray(value) ? value.filter((item): item is PineScript => Boolean(item && typeof item.id === "string" && typeof item.name === "string" && typeof item.code === "string")) : [];
+    return Array.isArray(value) ? value.filter(isScript) : [];
   } catch { return []; }
 }
 
-export function savePineScript(script: PineScript): void {
-  const scripts = readPineScripts().filter(item => item.id !== script.id);
-  localStorage.setItem(PINE_SCRIPTS_KEY, JSON.stringify([script, ...scripts]));
-  window.dispatchEvent(new Event(PINE_SCRIPTS_CHANGED));
+/*
+ * Saved scripts live in the account (/api/pine-scripts). This module keeps them in memory for the page.
+ * Signed out (sample mode) they stay in this browser and move into the account at the next signed-in visit.
+ */
+let cache: PineScript[] = [];
+let mode: "loading" | "cloud" | "local" = "loading";
+let loading: Promise<PineScript[]> | null = null;
+let edits = 0;
+const notify = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(PINE_SCRIPTS_CHANGED)); };
+
+/** True once the account's scripts (or, signed out, this browser's) have been read. */
+export function pineScriptsLoaded(): boolean { return mode !== "loading"; }
+
+export function readPineScripts(): PineScript[] {
+  if (mode === "local") return readLocal();
+  if (mode === "loading") void loadPineScripts();
+  return cache.slice();
 }
 
-export function deletePineScript(id: string): void {
-  localStorage.setItem(PINE_SCRIPTS_KEY, JSON.stringify(readPineScripts().filter(item => item.id !== id)));
-  window.dispatchEvent(new Event(PINE_SCRIPTS_CHANGED));
+async function importLocalScripts(): Promise<void> {
+  const scripts = readLocal();
+  if (!scripts.length) return;
+  let results: unknown = {};
+  try { results = JSON.parse(localStorage.getItem(PINE_LEGACY_RESULTS_KEY) ?? "{}"); } catch { /* scripts still move */ }
+  if (await sendPine("PUT", { action: "import", scripts, results })) {
+    localStorage.removeItem(PINE_SCRIPTS_KEY);
+    localStorage.removeItem(PINE_LEGACY_RESULTS_KEY);
+  }
+}
+
+/** Reads the account's scripts; `refresh` reads them again (another tab or device may have changed them). */
+export function loadPineScripts(refresh = false): Promise<PineScript[]> {
+  if (typeof window === "undefined") return Promise.resolve([]);
+  if (refresh && loading && mode !== "loading") loading = null;
+  loading ??= (async () => {
+    try {
+      await pineSyncIdle();
+      const edited = edits;
+      const response = await fetch("/api/pine-scripts", { cache: "no-store" });
+      if (response.status === 401) { mode = "local"; notify(); return readLocal(); }
+      if (readLocal().length) {
+        await importLocalScripts();
+        loading = null;
+        return loadPineScripts();
+      }
+      // A save made while this was loading is newer than the answer; keep it.
+      if (edited !== edits) { loading = null; return loadPineScripts(); }
+      const body = await response.json() as { ok?: boolean; scripts?: unknown[]; results?: Record<string, unknown> };
+      if (!response.ok || !body.ok) throw new Error("load failed");
+      cache = (body.scripts ?? []).filter(isScript);
+      setPineResultsCache(body.results ?? {});
+      mode = "cloud";
+      notify();
+    } catch { loading = null; }
+    return cache.slice();
+  })();
+  return loading;
+}
+
+/** Saves to the account; resolves false when the account could not be reached. */
+export function savePineScript(script: PineScript): Promise<boolean> {
+  if (mode === "local") {
+    try { localStorage.setItem(PINE_SCRIPTS_KEY, JSON.stringify([script, ...readLocal().filter(item => item.id !== script.id)])); } catch { return Promise.resolve(false); }
+    notify();
+    return Promise.resolve(true);
+  }
+  cache = [script, ...cache.filter(item => item.id !== script.id)];
+  edits += 1;
+  notify();
+  return sendPine("PUT", { action: "save", script: { id: script.id, name: script.name, code: script.code } });
+}
+
+export function deletePineScript(id: string): Promise<boolean> {
+  if (mode === "local") {
+    try { localStorage.setItem(PINE_SCRIPTS_KEY, JSON.stringify(readLocal().filter(item => item.id !== id))); } catch { /* nothing saved */ }
+    notify();
+    return Promise.resolve(true);
+  }
+  cache = cache.filter(item => item.id !== id);
+  edits += 1;
+  notify();
+  return sendPine("DELETE", undefined, `?id=${encodeURIComponent(id)}`);
+}
+
+if (typeof window !== "undefined") {
+  // Pick up changes made in another tab or on another device when the user comes back.
+  window.addEventListener("focus", () => { if (mode === "cloud") void loadPineScripts(true); });
 }
 
 /** True for a strategy() script, false for an indicator. */

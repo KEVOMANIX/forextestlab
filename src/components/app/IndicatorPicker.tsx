@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Braces, Plus, Search, Star, X } from "lucide-react";
 import { CATEGORY_LABELS, CATEGORY_ORDER, defsByCategory, type IndCategory } from "@/lib/chart/indicator-defs";
-import { readPineScripts, type PineScript } from "@/lib/chart/pine-scripts";
+import { PINE_SCRIPTS_CHANGED, readPineScripts, type PineScript } from "@/lib/chart/pine-scripts";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 
 const FAVORITES_KEY = "forextestlab:indicator-favorites";
@@ -21,7 +21,13 @@ export function IndicatorPicker({ onClose, onSelect, onSelectScript, onEditScrip
   const dialogRef = useModalBehavior<HTMLDivElement>({ open: true, onClose, initialFocus: searchRef });
 
   useEffect(() => {
-    setScripts(readPineScripts());
+    const load = () => setScripts(readPineScripts());
+    load();
+    window.addEventListener(PINE_SCRIPTS_CHANGED, load);
+    return () => window.removeEventListener(PINE_SCRIPTS_CHANGED, load);
+  }, []);
+
+  useEffect(() => {
     try {
       const saved: unknown = JSON.parse(localStorage.getItem(FAVORITES_KEY) ?? "[]");
       if (Array.isArray(saved)) setFavorites(saved.filter((kind): kind is string => typeof kind === "string" && catalog.some((def) => def.kind === kind)));

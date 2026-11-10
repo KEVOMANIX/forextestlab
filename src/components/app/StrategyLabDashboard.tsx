@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Copy, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
-import { PINE_SCRIPTS_CHANGED, PINE_STRATEGY_TEMPLATE, deletePineScript, isPineStrategy, readPineScripts, savePineScript, withPineTitle, type PineScript } from "@/lib/chart/pine-scripts";
+import { PINE_SCRIPTS_CHANGED, PINE_STRATEGY_TEMPLATE, deletePineScript, isPineStrategy, pineScriptsLoaded, readPineScripts, savePineScript, withPineTitle, type PineScript } from "@/lib/chart/pine-scripts";
 import { deletePineResult, readPineResults, type PineTestSummary } from "@/lib/chart/pine-results";
 import { useLabDialog } from "./LabDialog";
 
@@ -73,7 +73,7 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
   const [sort, setSort] = useState<Sort>("edited");
 
   useEffect(() => {
-    const load = () => { setScripts(readPineScripts()); setResults(readPineResults()); };
+    const load = () => { const list = readPineScripts(); if (pineScriptsLoaded()) { setScripts(list); setResults(readPineResults()); } };
     load();
     window.addEventListener(PINE_SCRIPTS_CHANGED, load);
     window.addEventListener("storage", load);
@@ -121,10 +121,10 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
           <button type="button" onClick={() => create(PINE_STRATEGY_TEMPLATE)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--app-accent)] px-3.5 text-xs font-bold text-[var(--app-accent-ink)]"><Plus size={15} />New strategy</button>
         </div>
       </div>
-      {sampleMode && <p className="mt-4 rounded-lg border border-amber-400/35 bg-amber-400/10 px-3 py-2 text-xs"><strong>Sample data.</strong> Scripts are saved in this browser; sign in to test them on real history. <a href="/sign-in?next=%2Fapp%2Fstrategies" className="font-semibold underline">Sign in</a></p>}
+      {sampleMode && <p className="mt-4 rounded-lg border border-amber-400/35 bg-amber-400/10 px-3 py-2 text-xs"><strong>Sample data.</strong> Scripts stay in this browser until you sign in, then move to your account. Sign in to test them on real history. <a href="/sign-in?next=%2Fapp%2Fstrategies" className="font-semibold underline">Sign in</a></p>}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <p className="text-xs app-muted">{scripts === null ? "Loading…" : (() => { const count = scripts.filter(script => isPineStrategy(script.code)).length; return `${count} ${count === 1 ? "strategy" : "strategies"}`; })()} · saved in this browser</p>
+        <p className="text-xs app-muted">{scripts === null ? "Loading…" : (() => { const count = scripts.filter(script => isPineStrategy(script.code)).length; return `${count} ${count === 1 ? "strategy" : "strategies"}`; })()}{sampleMode ? " · saved in this browser until you sign in" : " · synced to your account"}</p>
         <label className="relative ml-auto inline-flex items-center text-xs app-muted">Sort
           <select value={sort} onChange={event => setSort(event.target.value as Sort)} className="ml-2 h-8 appearance-none rounded-full border app-border bg-[var(--app-panel-solid)] pl-3 pr-7 text-xs text-[var(--app-text)]">{SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <ChevronDown size={13} className="pointer-events-none absolute right-2.5" />

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Code2, Copy, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, Copy, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import { PINE_SCRIPTS_CHANGED, PINE_STRATEGY_TEMPLATE, deletePineScript, isPineStrategy, readPineScripts, savePineScript, withPineTitle, type PineScript } from "@/lib/chart/pine-scripts";
 import { deletePineResult, readPineResults, type PineTestSummary } from "@/lib/chart/pine-results";
@@ -12,6 +12,7 @@ type Sort = "edited" | "net" | "name";
 const SORTS: [Sort, string][] = [["edited", "Last edited"], ["net", "Net profit"], ["name", "Name"]];
 
 const percent = (value: number) => { const digits = Math.abs(value) >= 10 ? 1 : 2; const text = Math.abs(value).toFixed(digits); return `${Number(text) === 0 ? "" : value > 0 ? "+" : "−"}${text}%`; };
+const signedMoney = (value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Math.abs(value))}`;
 const shortDate = (time: string) => { const date = new Date(`${time}T00:00:00Z`); return Number.isFinite(date.getTime()) ? date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" }) : time; };
 function ago(time: number) {
   const minutes = Math.round((Date.now() - time) / 60_000);
@@ -24,13 +25,20 @@ function ago(time: number) {
   return new Date(time).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+/** Realized equity with a dashed starting-balance line; green above it, red below. */
 function EquityLine({ values, positive }: { values: number[]; positive: boolean }) {
-  if (values.length < 2) return <div className="h-[60px]" />;
-  const low = Math.min(...values), high = Math.max(...values), span = high - low || 1;
-  const path = values.map((value, index) => `${index ? "L" : "M"}${(index / (values.length - 1) * 260).toFixed(1)},${(56 - (value - low) / span * 52).toFixed(1)}`).join("");
-  return <svg viewBox="0 0 260 60" preserveAspectRatio="none" className="h-[60px] w-full" aria-hidden>
-    <path d={`${path} L260,60 L0,60Z`} fill={positive ? "rgb(var(--trade-profit-rgb, 47 210 154) / .13)" : "rgb(var(--trade-loss-rgb, 242 101 107) / .13)"} />
-    <path d={path} fill="none" stroke={positive ? "rgb(var(--trade-profit-rgb, 47 210 154))" : "rgb(var(--trade-loss-rgb, 242 101 107))"} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+  const gradient = useId();
+  if (values.length < 2) return <div className="h-[74px]" />;
+  const start = values[0]!;
+  const low = Math.min(...values, start), high = Math.max(...values, start), span = high - low || 1;
+  const y = (value: number) => 70 - (value - low) / span * 64;
+  const path = values.map((value, index) => `${index ? "L" : "M"}${(index / (values.length - 1) * 300).toFixed(1)},${y(value).toFixed(1)}`).join("");
+  const color = positive ? "rgb(var(--trade-profit-rgb, 47 210 154))" : "rgb(var(--trade-loss-rgb, 242 101 107))";
+  return <svg viewBox="0 0 300 74" preserveAspectRatio="none" className="h-[74px] w-full" aria-hidden>
+    <defs><linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity={0.28} /><stop offset="1" stopColor={color} stopOpacity={0} /></linearGradient></defs>
+    <line x1={0} x2={300} y1={y(start)} y2={y(start)} stroke="var(--app-border)" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
+    <path d={`${path} L300,74 L0,74Z`} fill={`url(#${gradient})`} />
+    <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
   </svg>;
 }
 
@@ -124,28 +132,42 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
       </div>
 
       {scripts === null ? <div className="mt-5 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{[0, 1, 2].map(index => <div key={index} className="h-[236px] animate-pulse rounded-xl border app-border bg-[var(--app-panel-solid)]" />)}</div>
-        : <div className="mt-5 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="strategy-cards">
+        : <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="strategy-cards">
           {visible.map(script => {
-            const strategy = isPineStrategy(script.code);
-            const result = strategy ? results[script.id] : undefined;
+            const result = results[script.id];
+            const tone = !result ? "app-muted" : result.netPnl > 0 ? "text-profit" : result.netPnl < 0 ? "text-loss" : "";
+            const metrics: [string, string, string][] = [
+              ["Profit factor", result?.profitFactor != null ? result.profitFactor.toFixed(2) : "—", result ? "" : "app-muted"],
+              ["Win rate", result ? `${result.winRate.toFixed(1)}%` : "—", result ? "" : "app-muted"],
+              ["Trades", result ? result.trades.toLocaleString() : "—", result ? "" : "app-muted"],
+              ["Max DD", result ? `−${result.maxDrawdownPercent.toFixed(1)}%` : "—", result ? "text-loss" : "app-muted"],
+            ];
             return <div key={script.id} role="link" tabIndex={0} onClick={() => open(script.id)} onKeyDown={event => { if (event.key === "Enter") open(script.id); }} data-testid="strategy-card"
-              className="group flex min-h-[236px] cursor-pointer flex-col rounded-xl border app-border bg-[var(--app-panel-solid)] p-4 transition-colors hover:border-[var(--app-accent)] focus-visible:border-[var(--app-accent)] focus-visible:outline-none">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0"><h2 className="truncate text-sm font-semibold">{script.name}</h2><p className="mt-0.5 truncate text-[11px] app-muted">{result ? `${result.symbol} ${result.timeframe} · ${shortDate(result.from)} – ${shortDate(result.through)}` : `${strategy ? "Not tested yet" : "Indicator"} · edited ${ago(script.updatedAt)}`}</p></div>
-                <div className="flex shrink-0 items-center gap-1"><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${strategy ? "bg-[var(--app-accent)]/15 text-[var(--app-accent-text)]" : "bg-[var(--app-panel-2)] app-muted"}`}>{strategy ? "Strategy" : "Indicator"}</span><CardMenu onRename={() => void rename(script)} onDuplicate={() => duplicate(script)} onDelete={() => void remove(script)} /></div>
+              className="group relative flex cursor-pointer flex-col rounded-2xl border app-border bg-[var(--app-panel-solid)] p-[18px] shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition duration-150 hover:-translate-y-0.5 hover:border-[var(--app-accent)] focus-visible:border-[var(--app-accent)] focus-visible:outline-none">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-[15px] font-semibold">{script.name}</h2>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">{result
+                    ? <><span className="rounded-md bg-[var(--app-panel-2)] px-2 py-0.5 text-[11px] font-semibold app-muted">{result.symbol}</span><span className="rounded-md bg-[var(--app-panel-2)] px-2 py-0.5 text-[11px] font-semibold app-muted">{result.timeframe}</span></>
+                    : <span className="rounded-md bg-[var(--app-panel-2)] px-2 py-0.5 text-[11px] font-semibold app-muted">Not tested yet</span>}</div>
+                </div>
+                {result
+                  ? <div className="shrink-0 text-right"><p className={`font-mono text-xl font-bold leading-tight tabular-nums ${tone}`}>{signedMoney(result.netPnl)}</p><p className={`font-mono text-xs tabular-nums ${tone}`}>{percent(result.netPercent)}</p></div>
+                  : <CardMenu onRename={() => void rename(script)} onDuplicate={() => duplicate(script)} onDelete={() => void remove(script)} />}
               </div>
-              <div className="mt-3 flex-1">
-                {result ? <EquityLine values={result.equity} positive={result.netPnl >= 0} />
-                  : <div className="grid h-[60px] place-items-center rounded-lg border border-dashed app-border px-3 text-center text-[11px] app-muted">{strategy ? "Open it and press Run test to see results" : "Indicators draw on the chart. Add it from the chart's Indicators menu."}</div>}
+              <div className="mt-3">{result ? <EquityLine values={result.equity} positive={result.netPnl >= 0} />
+                : <div className="grid h-[74px] place-items-center rounded-xl border border-dashed app-border text-xs app-muted"><span>Open it and press <strong className="text-[var(--app-text)]">Run test</strong></span></div>}</div>
+              <div className="mt-3 grid grid-cols-4 border-t app-border pt-3">
+                {metrics.map(([label, value, color], index) => <div key={label} className={index ? "border-l app-border pl-2.5" : ""}><p className="text-[10px] uppercase tracking-wide app-muted">{label}</p><p className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${color}`}>{value}</p></div>)}
               </div>
-              {strategy ? <div className="mt-3 grid grid-cols-3 gap-2 border-t app-border pt-3">
-                {([["Net", result ? percent(result.netPercent) : "—", result ? result.netPnl > 0 ? "text-profit" : result.netPnl < 0 ? "text-loss" : "" : "app-muted"], ["Profit factor", result?.profitFactor != null ? result.profitFactor.toFixed(2) : "—", result ? "" : "app-muted"], ["Win rate", result ? `${result.winRate.toFixed(1)}%` : "—", result ? "" : "app-muted"]] as [string, string, string][]).map(([label, value, color]) => <div key={label}><p className="text-[10px] uppercase tracking-wide app-muted">{label}</p><p className={`font-mono text-sm font-semibold tabular-nums ${color}`}>{value}</p></div>)}
-              </div> : <p className="mt-3 flex items-center gap-1.5 border-t app-border pt-3 text-[11px] app-muted group-hover:text-[var(--app-text)]"><Code2 size={13} />Open in editor</p>}
-              {result && <p className="mt-2 text-[10.5px] app-muted">{result.trades} trades · max drawdown −{result.maxDrawdownPercent.toFixed(1)}% · edited {ago(script.updatedAt)}</p>}
+              <div className="mt-3 flex items-center justify-between gap-2 text-[11px] app-muted">
+                <span className="truncate">{result ? `${shortDate(result.from)} – ${shortDate(result.through)} · ` : ""}edited {ago(script.updatedAt)}</span>
+                <span className="flex shrink-0 items-center gap-1"><span className="font-bold text-[var(--app-accent-text)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">Open →</span>{result && <CardMenu onRename={() => void rename(script)} onDuplicate={() => duplicate(script)} onDelete={() => void remove(script)} />}</span>
+              </div>
             </div>;
           })}
-          {!query && <button type="button" onClick={() => create(PINE_STRATEGY_TEMPLATE)} className="grid min-h-[236px] place-items-center rounded-xl border border-dashed app-border p-4 text-center app-muted transition-colors hover:border-[var(--app-accent)] hover:text-[var(--app-text)]">
-            <span><Plus size={26} className="mx-auto" /><strong className="mt-2 block text-sm text-[var(--app-text)]">New strategy</strong><span className="mt-1 block text-[11px]">Starts from an EMA crossover you can edit,<br />or paste a TradingView script</span></span>
+          {!query && <button type="button" onClick={() => create(PINE_STRATEGY_TEMPLATE)} className="grid min-h-[268px] place-items-center rounded-2xl border-[1.5px] border-dashed app-border p-4 text-center app-muted transition-colors hover:border-[var(--app-accent)] hover:text-[var(--app-text)]">
+            <span><span className="mx-auto grid size-11 place-items-center rounded-xl bg-[var(--app-panel-2)] text-[var(--app-accent-text)]"><Plus size={22} /></span><strong className="mt-2.5 block text-sm text-[var(--app-text)]">New strategy</strong><span className="mt-1 block text-xs">Start from an EMA crossover<br />or paste a TradingView script</span></span>
           </button>}
           {query && !visible.length && <p className="col-span-full py-12 text-center text-sm app-muted">No strategies match.</p>}
         </div>}

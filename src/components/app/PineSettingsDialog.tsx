@@ -6,6 +6,7 @@ import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { parsePineInputs, PINE_SOURCES, type PineInput, type PineInputValue } from "@/lib/chart/pine-inputs";
 import { distinctPineColors, pineLegendTitle, remapPineColor, type PineChartIndicator, type PineColorMap, type PineStyle } from "@/lib/chart/pine-scripts";
 import type { PineReport } from "./pine-render";
+import { ColorSwatch } from "./PineColorPicker";
 
 type Tab = "inputs" | "style";
 const field = "h-9 rounded-lg border app-border bg-[var(--app-panel-solid)] px-2 text-xs text-[var(--app-text)] outline-none focus:border-brand-400/60";
@@ -45,15 +46,9 @@ function Check({ checked, onChange, label }: { checked: boolean; onChange: (valu
 }
 
 /** A color swatch over a checkerboard, so transparent script colors still read as colors. */
-function Swatch({ color, onChange, label }: { color: string; onChange: (hex: string) => void; label: string }) {
-  const alpha = /^#[0-9a-f]{6}([0-9a-f]{2})$/i.exec(color)?.[1];
-  const opacity = alpha ? parseInt(alpha, 16) / 255 : 1;
-  return (
-    <label className="relative grid h-9 w-9 cursor-pointer place-items-center overflow-hidden rounded-lg border app-border bg-[conic-gradient(#8884_25%,transparent_0_50%,#8884_0_75%,transparent_0)] bg-[length:8px_8px]" title={label}>
-      <span className="absolute inset-1.5 rounded" style={{ backgroundColor: color.slice(0, 7), opacity: Math.max(opacity, 0.12) }} />
-      <input type="color" value={color.slice(0, 7)} onChange={(event) => onChange(event.target.value.toUpperCase())} className="absolute inset-0 cursor-pointer opacity-0" aria-label={label} />
-    </label>
-  );
+/** A color swatch with TradingView's picker (palette, custom colors, opacity); emits "#RRGGBBAA". */
+function Swatch({ color, onChange, label }: { color: string; onChange: (color: string) => void; label: string }) {
+  return <ColorSwatch color={color} onChange={onChange} label={label} />;
 }
 
 /** One swatch per distinct color the element uses; a single color sits on its row. */
@@ -135,7 +130,7 @@ export function PineSettingsDialog({
         );
       case "color":
         // The picker sets the hue; the script's own transparency is kept.
-        return <Swatch color={String(value)} onChange={(hex) => setInput(input.key, hex + (/^#[0-9a-f]{6}([0-9a-f]{2})$/i.exec(String(value))?.[1] ?? ""))} label={input.title} />;
+        return <Swatch color={String(value)} onChange={(next) => setInput(input.key, next)} label={input.title} />;
       case "int":
       case "float":
         return (

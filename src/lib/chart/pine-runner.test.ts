@@ -42,7 +42,7 @@ describe("chart Pine runner", () => {
     expect(runPineIndicator('//@version=6\nstrategy("S")\n', series([1, 2]), options)).toMatchObject({ ok: false, error: expect.stringContaining("Strategy Lab") });
     expect(runPineIndicator('//@version=6\nindicator("X")\nplot(request.security("GBPUSD", "60", close))\n', series([1, 2]), options)).toMatchObject({ ok: false });
     expect(runPineIndicator('indicator("X")\nplot(close)\n', series([1, 2]), options)).toMatchObject({ ok: false, error: expect.stringContaining("@version") });
-    expect(runPineIndicator('//@version=4\nstudy("X")\nplot(close)\n', series([1, 2]), options)).toMatchObject({ ok: false });
+    expect(runPineIndicator('//@version=3\nstudy("X")\nplot(close)\n', series([1, 2]), options)).toMatchObject({ ok: false });
   });
 
   it("maps candle lengths to Pine timeframes", () => {

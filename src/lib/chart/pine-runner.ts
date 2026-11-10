@@ -1,4 +1,5 @@
 import { transpile, compile, Context } from "@nullarch/resin";
+import { convertPineV4, isPineV4 } from "./pine-v4";
 
 /** Candles as parallel arrays; times are epoch milliseconds. */
 export type PineSeriesInput = { time: Float64Array; open: Float64Array; high: Float64Array; low: Float64Array; close: Float64Array; volume: Float64Array };
@@ -12,7 +13,7 @@ export type PineFillRef = { kind: "plot" | "hline"; index: number };
 export type PineFill = { a: PineFillRef; b: PineFillRef; color: string; colors: Colors };
 export type PineBackground = { color: string | null; colors: Colors; offset: number; forceOverlay: boolean };
 export type PineMarker = { index: number; position: "aboveBar" | "belowBar" | "inBar"; shape: "arrowUp" | "arrowDown" | "circle" | "square"; color: string; text?: string; size: number; overlay: boolean };
-export type PineVisual = { overlay: boolean; plots: PinePlot[]; hlines: PineHline[]; fills: PineFill[]; backgrounds: PineBackground[]; markers: PineMarker[]; skipped: string[] };
+export type PineVisual = { converted?: boolean; overlay: boolean; plots: PinePlot[]; hlines: PineHline[]; fills: PineFill[]; backgrounds: PineBackground[]; markers: PineMarker[]; skipped: string[] };
 export type PineIndicatorResult = ({ ok: true } & PineVisual) | { ok: false; error: string; diagnostics?: PineDiagnostic[] };
 
 const MAX_PLOTS = 64;
@@ -34,7 +35,7 @@ export function pineTimeframe(ms: number): string {
 /** Checks that apply before compiling: what this chart feed can and cannot supply. */
 export function pineChartPrecheck(code: string): string | null {
   if (code.length < 1 || code.length > 20_000) return "Pine code must contain 1 to 20,000 characters.";
-  if (!/^\s*\/\/\s*@version\s*=\s*[56]\s*$/m.test(code)) return "Add //@version=5 or //@version=6 on its own line. Older Pine versions are not supported.";
+  if (!/^\s*\/\/\s*@version\s*=\s*[56]\s*$/m.test(code)) return "Add //@version=4, 5 or 6 on its own line. Pine versions 1 to 3 are not supported.";
   if (/^\s*strategy\s*\(/m.test(code)) return "This is a strategy script. Run strategies in Strategy Lab; the chart shows indicator() scripts.";
   if (!/^\s*indicator\s*\(/m.test(code)) return "Declare the script with indicator(\"Name\").";
   if (/^\s*import\s+/m.test(code)) return "Imported Pine libraries are not available on the chart.";
@@ -96,6 +97,9 @@ const compiled = new Map<string, Compiled | PineIndicatorResult>();
  * horizontal levels, fills, background colors and markers.
  */
 export function runPineIndicator(code: string, data: PineSeriesInput, options: { symbol: string; timeframeMs: number; precision: number }): PineIndicatorResult {
+  // Version 4 scripts are converted to v5 first, the way TradingView's converter does.
+  const converted = isPineV4(code);
+  if (converted) code = convertPineV4(code);
   const problem = pineChartPrecheck(code);
   if (problem) return { ok: false, error: problem };
   if (data.close.length < 1) return { ok: false, error: "No candles to calculate on yet." };
@@ -191,7 +195,7 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
     if (viz.candles.length || viz.plotbars.length) skipped.push("plotcandle()/plotbar()");
     if (ctx.drawingLog.length) skipped.push("labels, lines, boxes and tables");
 
-    return { ok: true, overlay: Boolean(viz.overlay), plots, hlines, fills, backgrounds, markers: markers.filter((marker) => marker.index >= 0 && marker.index < ctx.barCount).slice(-MAX_MARKERS), skipped };
+    return { ok: true, converted, overlay: Boolean(viz.overlay), plots, hlines, fills, backgrounds, markers: markers.filter((marker) => marker.index >= 0 && marker.index < ctx.barCount).slice(-MAX_MARKERS), skipped };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "The script stopped with an error." };
   }

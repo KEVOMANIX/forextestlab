@@ -166,6 +166,7 @@ export function PineEditorPanel({
         {!onChart && !status && <p className="app-muted">Press <b>Add to chart</b> to run this script on the chart.</p>}
         {status?.state === "loading" && <p className="flex items-center gap-1.5 app-muted"><Loader2 size={12} className="animate-spin" aria-hidden />Compiling and running…</p>}
         {status?.state === "ready" && status.ranAt && <p className="flex items-center gap-1.5 text-[var(--app-accent-text)]"><CircleCheck size={12} aria-hidden /><span className="app-muted">{clock(status.ranAt)}</span>Added to chart · {status.report?.plots.length ?? 0} plot{status.report?.plots.length === 1 ? "" : "s"}</p>}
+        {status?.state === "ready" && status.report?.converted ? <p className="pl-[18px] app-muted">Pine v4 script, converted to v5 automatically.</p> : null}
         {status?.state === "ready" && status.report?.skipped?.length ? <p className="pl-[18px] app-muted">Not drawn on this chart yet: {status.report.skipped.join(", ")}.</p> : null}
         {status?.state === "error" && <>
           <p className="flex items-start gap-1.5 text-loss"><AlertCircle size={12} className="mt-1 shrink-0" aria-hidden /><span>{status.ranAt && <span className="app-muted">{clock(status.ranAt)} </span>}{status.error}</span></p>

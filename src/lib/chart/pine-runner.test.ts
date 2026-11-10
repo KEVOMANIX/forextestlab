@@ -147,3 +147,32 @@ if timeframe.in_seconds("") <= timeframe.in_seconds(tf_limit)
     expect(after.ok && after.drawings.length).toBeGreaterThan(0);
   });
 });
+
+describe("request.security on the chart", () => {
+  const bars = 96 * 3;
+  const closes = Array.from({ length: bars }, (_, index) => 1.1 + Math.sin(index / 20) * 0.01);
+  const f = (values: number[]) => Float64Array.from(values);
+  const data = () => ({ time: f(closes.map((_, index) => Date.UTC(2024, 2, 4) + index * 900_000)), open: f(closes), high: f(closes.map((close) => close + 0.0005)), low: f(closes.map((close) => close - 0.0005)), close: f(closes), volume: f(closes.map(() => 1)) });
+  const options = { symbol: "EURUSD", timeframeMs: 900_000, precision: 5 };
+  const run = (line: string, extra = "") => runPineIndicator(`//@version=5\nindicator("S", overlay=true)\n${extra}v = ${line}\nplot(v)\n`, data(), options);
+
+  it("builds higher timeframes of the chart's own market", () => {
+    for (const [line, extra] of [
+      ['request.security(syminfo.tickerid, "D", high)', ""],
+      ['request.security(syminfo.ticker, "240", close)', ""],
+      ['request.security(syminfo.tickerid, "D", high[1], lookahead = barmerge.lookahead_on)', ""],
+      ["request.security(syminfo.tickerid, tf, close)", 'tf = input.timeframe("60", "TF")\n'],
+      ['request.security(sym, "D", close)', 'sym = input.symbol("", "Symbol")\n'],
+    ]) {
+      const result = run(line!, extra);
+      if (!result.ok) throw new Error(`${line}: ${result.error}`);
+      expect(result.plots[0]!.values.some((value) => value != null)).toBe(true);
+    }
+  });
+
+  it("refuses data the chart does not have", () => {
+    expect(run('request.security("GBPUSD", "D", close)')).toMatchObject({ ok: false, error: expect.stringContaining("another market") });
+    expect(run('request.security(syminfo.tickerid, "5", close)')).toMatchObject({ ok: false, error: expect.stringContaining("lower than the chart") });
+    expect(run('request.financial(syminfo.tickerid, "EBITDA", "FQ")')).toMatchObject({ ok: false, error: expect.stringContaining("request.financial") });
+  });
+});

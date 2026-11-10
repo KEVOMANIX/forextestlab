@@ -1,5 +1,5 @@
 import { transpile, compile, Context, rt } from "@nullarch/resin";
-import { convertPineV4, isPineV4 } from "./pine-v4";
+import { codeMask, convertPineV4, findCalls, isPineV4 } from "./pine-v4";
 
 /** Candles as parallel arrays; times are epoch milliseconds. */
 export type PineSeriesInput = { time: Float64Array; open: Float64Array; high: Float64Array; low: Float64Array; close: Float64Array; volume: Float64Array };
@@ -93,13 +93,57 @@ export function pineTimeframe(ms: number): string {
 }
 
 /** Checks that apply before compiling: what this chart feed can and cannot supply. */
-export function pineChartPrecheck(code: string): string | null {
+export function pineChartPrecheck(code: string, chartTimeframeMs?: number): string | null {
   if (code.length < 1 || code.length > 100_000) return "Pine code must contain 1 to 100,000 characters.";
   if (!/^\s*\/\/\s*@version\s*=\s*[56]\s*$/m.test(code)) return "Add //@version=4, 5 or 6 on its own line. Pine versions 1 to 3 are not supported.";
   if (/^\s*strategy\s*\(/m.test(code)) return "This is a strategy script. Run strategies in Strategy Lab; the chart shows indicator() scripts.";
   if (!/^\s*indicator\s*\(/m.test(code)) return "Declare the script with indicator(\"Name\").";
   if (/^\s*import\s+/m.test(code)) return "Imported Pine libraries are not available on the chart.";
-  if (/\brequest\s*\./.test(code)) return "request.* data from other symbols or timeframes is not available on the chart.";
+  return requestProblem(code, chartTimeframeMs);
+}
+
+/** Milliseconds in a Pine timeframe string ("15", "60", "240", "D", "1W", "3M", "30S"), or null. */
+export function pineTimeframeMs(value: string): number | null {
+  const match = /^(\d*)([SDWM]?)$/i.exec(value.trim());
+  if (!match || (!match[1] && !match[2])) return null;
+  const count = match[1] ? Number(match[1]) : 1;
+  const unit = match[2]!.toUpperCase();
+  const minute = 60_000;
+  return count * (unit === "S" ? 1000 : unit === "D" ? 1440 * minute : unit === "W" ? 10_080 * minute : unit === "M" ? 43_200 * minute : minute);
+}
+
+/**
+ * request.security() on the chart's own market at the chart's or a higher
+ * timeframe is built from the chart's candles, as TradingView does. Anything
+ * the chart has no data for — another market, a lower timeframe, financials —
+ * would silently read the chart's own candles, so it is refused instead.
+ */
+function requestProblem(code: string, chartTimeframeMs?: number): string | null {
+  const mask = codeMask(code);
+  for (const match of code.matchAll(/\brequest\s*\.\s*(\w+)/g)) {
+    if (!mask[match.index!]) continue;
+    if (match[1] !== "security") return `request.${match[1]}() needs data the chart does not have. Only request.security() on this chart's market is available.`;
+  }
+  const own = (symbol: string): boolean => {
+    const text = symbol.trim();
+    if (/^(syminfo\.(tickerid|ticker)|""|'')$/.test(text)) return true;
+    if (/^ticker\.(new|modify)\s*\(\s*(syminfo\.(prefix|tickerid|ticker))/.test(text)) return true;
+    // A variable set to the chart's own ticker, or a symbol input left empty.
+    const assigned = new RegExp(`^\\s*(?:var\\s+)?(?:string\\s+)?${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*=\\s*(.+)$`, "m").exec(code)?.[1];
+    if (!assigned || assigned.trim() === text) return false;
+    const input = /^input(?:\.symbol)?\s*\(\s*(?:defval\s*=\s*)?([^,)]+)/.exec(assigned.trim());
+    return own(input ? input[1]! : assigned);
+  };
+  for (const call of findCalls(code, "request.security")) {
+    const args = call.args.map((arg) => code.slice(arg.start, arg.end).trim().replace(/^(symbol|timeframe|expression)\s*=\s*/, ""));
+    const symbol = args[0] ?? "";
+    if (!own(symbol)) return `request.security() asks for another market (${symbol.slice(0, 40)}). The chart only has this market's candles, so scripts can read its other timeframes but not other symbols.`;
+    const timeframe = /^["']([^"']*)["']$/.exec(args[1] ?? "")?.[1];
+    if (timeframe && chartTimeframeMs) {
+      const ms = pineTimeframeMs(timeframe);
+      if (ms != null && ms < chartTimeframeMs) return `request.security() asks for the ${timeframe} timeframe, which is lower than the chart's. Switch the chart to ${timeframe} or lower to use this script.`;
+    }
+  }
   return null;
 }
 
@@ -182,7 +226,7 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
   // Version 4 scripts are converted to v5 first, the way TradingView's converter does.
   const converted = isPineV4(code);
   if (converted) code = convertPineV4(code);
-  const problem = pineChartPrecheck(code);
+  const problem = pineChartPrecheck(code, options.timeframeMs);
   if (problem) return { ok: false, error: problem };
   if (data.close.length < 1) return { ok: false, error: "No candles to calculate on yet." };
   const priceScale = 10 ** Math.max(0, Math.min(8, Math.round(options.precision)));

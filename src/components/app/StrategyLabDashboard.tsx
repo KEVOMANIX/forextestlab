@@ -4,10 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Code2, Copy, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
-import { PINE_INDICATOR_TEMPLATE, PINE_SCRIPTS_CHANGED, PINE_STRATEGY_TEMPLATE, deletePineScript, isPineStrategy, readPineScripts, savePineScript, type PineScript } from "@/lib/chart/pine-scripts";
+import { PINE_SCRIPTS_CHANGED, PINE_STRATEGY_TEMPLATE, deletePineScript, isPineStrategy, readPineScripts, savePineScript, type PineScript } from "@/lib/chart/pine-scripts";
 import { deletePineResult, readPineResults, type PineTestSummary } from "@/lib/chart/pine-results";
 
-type Filter = "all" | "strategies" | "indicators";
 type Sort = "edited" | "net" | "name";
 const SORTS: [Sort, string][] = [["edited", "Last edited"], ["net", "Net profit"], ["name", "Name"]];
 
@@ -61,7 +60,6 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
   const [scripts, setScripts] = useState<PineScript[] | null>(null);
   const [results, setResults] = useState<Record<string, PineTestSummary>>({});
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("edited");
 
   useEffect(() => {
@@ -91,37 +89,30 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
     deletePineScript(script.id); deletePineResult(script.id); setResults(readPineResults());
   };
 
-  const counts = useMemo(() => {
-    const list = scripts ?? [];
-    const strategies = list.filter(script => isPineStrategy(script.code)).length;
-    return { all: list.length, strategies, indicators: list.length - strategies };
-  }, [scripts]);
   const visible = useMemo(() => {
     const words = query.trim().toLowerCase();
     return (scripts ?? [])
-      .filter(script => filter === "all" || (filter === "strategies") === isPineStrategy(script.code))
+      .filter(script => isPineStrategy(script.code))
       .filter(script => !words || script.name.toLowerCase().includes(words) || (results[script.id]?.symbol ?? "").toLowerCase().includes(words))
       .sort((a, b) => sort === "name" ? a.name.localeCompare(b.name)
         : sort === "net" ? (results[b.id]?.netPercent ?? -Infinity) - (results[a.id]?.netPercent ?? -Infinity) || b.updatedAt - a.updatedAt
         : b.updatedAt - a.updatedAt);
-  }, [scripts, results, query, filter, sort]);
+  }, [scripts, results, query, sort]);
 
-  const chip = (value: Filter, label: string, count: number) => <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`h-8 rounded-full border px-3 text-xs font-semibold ${filter === value ? "border-[var(--app-accent)] bg-[var(--app-accent)] text-[var(--app-accent-ink)]" : "app-border app-muted hover:text-[var(--app-text)]"}`}>{label} {count}</button>;
 
   return <div className="min-h-[calc(100dvh-4rem)] bg-[var(--app-bg)] px-4 py-6 text-[var(--app-text)] sm:px-7">
     <div className="mx-auto max-w-7xl">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-2xl font-bold">Strategy Lab</h1><p className="mt-1 text-sm app-muted">Write Pine strategies and test them on real history.</p></div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="relative"><Search size={15} className="absolute left-3 top-2.5 app-muted" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search scripts or markets" className="h-9 w-56 rounded-lg border app-border bg-[var(--app-panel-solid)] pl-9 pr-3 text-sm outline-none focus:border-[var(--app-accent)]" /></label>
-          <button type="button" onClick={() => create(PINE_INDICATOR_TEMPLATE)} className="h-9 rounded-lg border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">New indicator</button>
+          <label className="relative"><Search size={15} className="absolute left-3 top-2.5 app-muted" /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search strategies or markets" className="h-9 w-56 rounded-lg border app-border bg-[var(--app-panel-solid)] pl-9 pr-3 text-sm outline-none focus:border-[var(--app-accent)]" /></label>
           <button type="button" onClick={() => create(PINE_STRATEGY_TEMPLATE)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--app-accent)] px-3.5 text-xs font-bold text-[var(--app-accent-ink)]"><Plus size={15} />New strategy</button>
         </div>
       </div>
       {sampleMode && <p className="mt-4 rounded-lg border border-amber-400/35 bg-amber-400/10 px-3 py-2 text-xs"><strong>Sample data.</strong> Scripts are saved in this browser; sign in to test them on real history. <a href="/sign-in?next=%2Fapp%2Fstrategies" className="font-semibold underline">Sign in</a></p>}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        {chip("all", "All", counts.all)}{chip("strategies", "Strategies", counts.strategies)}{chip("indicators", "Indicators", counts.indicators)}
+        <p className="text-xs app-muted">{scripts === null ? "Loading…" : `${(scripts ?? []).filter(script => isPineStrategy(script.code)).length} strategies`} · saved in this browser</p>
         <label className="relative ml-auto inline-flex items-center text-xs app-muted">Sort
           <select value={sort} onChange={event => setSort(event.target.value as Sort)} className="ml-2 h-8 appearance-none rounded-full border app-border bg-[var(--app-panel-solid)] pl-3 pr-7 text-xs text-[var(--app-text)]">{SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <ChevronDown size={13} className="pointer-events-none absolute right-2.5" />
@@ -149,10 +140,10 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
               {result && <p className="mt-2 text-[10.5px] app-muted">{result.trades} trades · max drawdown −{result.maxDrawdownPercent.toFixed(1)}% · edited {ago(script.updatedAt)}</p>}
             </div>;
           })}
-          {!query && filter !== "indicators" && <button type="button" onClick={() => create(PINE_STRATEGY_TEMPLATE)} className="grid min-h-[236px] place-items-center rounded-xl border border-dashed app-border p-4 text-center app-muted transition-colors hover:border-[var(--app-accent)] hover:text-[var(--app-text)]">
+          {!query && <button type="button" onClick={() => create(PINE_STRATEGY_TEMPLATE)} className="grid min-h-[236px] place-items-center rounded-xl border border-dashed app-border p-4 text-center app-muted transition-colors hover:border-[var(--app-accent)] hover:text-[var(--app-text)]">
             <span><Plus size={26} className="mx-auto" /><strong className="mt-2 block text-sm text-[var(--app-text)]">New strategy</strong><span className="mt-1 block text-[11px]">Starts from an EMA crossover you can edit,<br />or paste a TradingView script</span></span>
           </button>}
-          {(query || filter === "indicators") && !visible.length && <p className="col-span-full py-12 text-center text-sm app-muted">No scripts match.</p>}
+          {query && !visible.length && <p className="col-span-full py-12 text-center text-sm app-muted">No strategies match.</p>}
         </div>}
     </div>
   </div>;

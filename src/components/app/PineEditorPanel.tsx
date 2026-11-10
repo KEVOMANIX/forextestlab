@@ -8,7 +8,7 @@ import type { PineRunStatus } from "./usePineIndicators";
 
 const StrategyCodeEditor = dynamic(() => import("./StrategyCodeEditor").then(module => module.StrategyCodeEditor), {
   ssr: false,
-  loading: () => <div className="grid h-full place-items-center bg-[#0b100e] text-sm text-[#a7bcb0]">Loading editor…</div>,
+  loading: () => <div className="grid h-full place-items-center bg-[var(--code-bg)] text-sm text-[var(--code-muted)]">Loading editor…</div>,
 });
 
 const WIDTH_KEY = "forextestlab:pine-editor-width:v2";

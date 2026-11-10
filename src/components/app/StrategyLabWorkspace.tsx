@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, Check, ChevronDown, ChevronUp, Loader2, Maximize2, Minimize2, Play, Search } from "lucide-react";
 
 import { useAppTheme } from "@/components/app/ThemeContext";
@@ -12,8 +13,9 @@ import { readPineScripts, savePineScript } from "@/lib/chart/pine-scripts";
 import { maxDrawdownPercent, sampleEquity, savePineResult } from "@/lib/chart/pine-results";
 import type { StrategyDiagnostic } from "@/lib/strategy-language/parser";
 import type { LabCandles, LabPlot, LabTrade } from "./StrategyLabChart";
+import { useLabDialog } from "./LabDialog";
 
-const StrategyCodeEditor = dynamic(() => import("./StrategyCodeEditor").then(module => module.StrategyCodeEditor), { ssr: false, loading: () => <div className="grid h-full min-h-[300px] place-items-center bg-[#0b100e] text-sm text-[#a7bcb0]">Loading editor…</div> });
+const StrategyCodeEditor = dynamic(() => import("./StrategyCodeEditor").then(module => module.StrategyCodeEditor), { ssr: false, loading: () => <div className="grid h-full min-h-[300px] place-items-center bg-[var(--code-bg)] text-sm text-[var(--code-muted)]">Loading editor…</div> });
 const StrategyLabChart = dynamic(() => import("./StrategyLabChart").then(module => module.StrategyLabChart), { ssr: false });
 const StrategyEquityChart = dynamic(() => import("./StrategyLabChart").then(module => module.StrategyEquityChart), { ssr: false });
 type Source = "dukascopy" | "histdata" | "demo";
@@ -150,7 +152,7 @@ function TradeList({ report, visibleTrades, onMore, focusTrade, onFocus }: { rep
     <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="app-muted">{report.trades.length} closed trades · newest first · click a trade to see it on the chart</span><label className="app-muted">Times <select value={timeZone} onChange={event => setTimeZone(event.target.value as "UTC" | "America/New_York")} className="ml-1 rounded border app-border bg-[var(--app-panel-2)] px-2 py-1 text-[var(--app-text)]"><option value="America/New_York">New York</option><option value="UTC">UTC</option></select></label></div>
     <div className="overflow-x-auto"><table className="w-full min-w-[860px] text-left text-xs"><thead><tr className="border-b app-border app-muted"><th className="py-2 font-medium">#</th><th className="font-medium">Side</th><th className="font-medium">Entry time</th><th className="font-medium">Entry</th><th className="font-medium">Exit time</th><th className="font-medium">Exit</th><th className="font-medium">Qty</th><th className="text-right font-medium">P/L</th><th className="pr-2 text-right font-medium">Cumulative</th></tr></thead>
       <tbody>{[...report.trades].reverse().slice(0, visibleTrades).map(trade => <tr key={trade.number} onClick={() => onFocus(trade.number)} className={`cursor-pointer border-b app-border hover:bg-[var(--app-panel-2)] ${focusTrade === trade.number ? "bg-[var(--app-panel-2)]" : ""}`}>
-        <td className="py-1.5">{trade.number}</td><td className={trade.direction === "long" ? "text-[#5b9cf6]" : "text-[#f77c80]"}>{trade.direction === "long" ? "Long" : "Short"}</td>
+        <td className="py-1.5">{trade.number}</td><td className={trade.direction === "long" ? "text-[var(--lab-long)]" : "text-[var(--lab-short)]"}>{trade.direction === "long" ? "Long" : "Short"}</td>
         <td>{formatter.format(new Date(trade.entryTime))}</td><td className="font-mono tabular-nums">{price(trade.entryPrice)}</td>
         <td>{formatter.format(new Date(trade.exitTime))}</td><td className="font-mono tabular-nums">{price(trade.exitPrice)}</td><td>{trade.quantity}</td>
         <td className={`text-right font-mono tabular-nums ${tone(trade.pnl)}`}>{pineMoney(trade.pnl)}</td><td className={`pr-2 text-right font-mono tabular-nums ${tone(totals.get(trade.number) ?? 0)}`}>{pineMoney(totals.get(trade.number) ?? 0)}</td>
@@ -160,6 +162,9 @@ function TradeList({ report, visibleTrades, onMore, focusTrade, onFocus }: { rep
 
 export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMode: boolean; allowedSymbols: readonly string[] | null }) {
   const { theme } = useAppTheme();
+  const router = useRouter();
+  const dialogs = useLabDialog();
+  const [renaming, setRenaming] = useState(false);
   const [code, setCode] = useState<string>(PINE_EXAMPLE);
   const [pineTimeframe, setPineTimeframe] = useState<LabTimeframe>("15m");
   const [markets, setMarkets] = useState<Market[]>(sampleMode ? [{ symbol: "EURUSD", source: "demo", name: "EUR/USD" }] : []);
@@ -261,16 +266,24 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
     finally { setBusy(false); setProgress(null); }
   };
 
-  const save = (rename = false) => {
-    const name = scriptId && !rename ? title : window.prompt(rename ? "Rename script" : "Script name", title)?.trim();
-    if (!name) return;
+  const persist = (name: string, scriptCode: string) => {
     const id = scriptId ?? crypto.randomUUID();
-    savePineScript({ id, name, code: rename && savedCode !== null ? savedCode : code, updatedAt: Date.now() });
+    savePineScript({ id, name, code: scriptCode, updatedAt: Date.now() });
     setScriptId(id); setScriptName(name);
-    if (!rename || savedCode === null) setSavedCode(code);
   };
-  const leave = (event: React.MouseEvent) => {
-    if (savedCode !== code && !window.confirm("Leave without saving your changes?")) event.preventDefault();
+  const save = () => { persist(title, code); setSavedCode(code); };
+  // Renaming keeps the last saved code; unsaved edits stay unsaved.
+  const rename = (value: string) => {
+    setRenaming(false);
+    const name = value.trim();
+    if (!name || name === title) return;
+    persist(name, savedCode ?? code);
+    if (savedCode === null) setSavedCode(code);
+  };
+  const leave = async (event: React.MouseEvent) => {
+    if (savedCode === code) return;
+    event.preventDefault();
+    if (await dialogs.confirm({ title: "Leave without saving?", message: "Your latest code changes haven't been saved.", confirmLabel: "Leave" })) router.push("/app/strategies");
   };
   const toggleSettings = (pane: SettingsPane) => setSettings(current => current === pane ? null : pane);
   const chooseTab = (tab: TesterTab) => { setTesterTab(tab); setTesterOpen(true); };
@@ -294,17 +307,20 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
   const activeTab = tabs.some(([tab]) => tab === testerTab) ? testerTab : "overview";
 
   return <div className={`${focusMode ? "fixed inset-0 z-[120] h-dvh" : "min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)]"} flex flex-col bg-[var(--app-panel-solid)] text-[var(--app-text)]`}>
+    {dialogs.dialog}
     <header className="relative z-30 shrink-0 border-b app-border bg-[var(--app-panel-solid)]">
       <div className="flex min-h-12 flex-wrap items-center gap-2 px-3 py-1.5 sm:px-4">
-        <a href="/app/strategies" onClick={leave} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><ArrowLeft size={15} />My strategies</a><span className="app-muted">/</span>
-        <button type="button" onClick={() => save(true)} title="Rename" className="max-w-[16rem] truncate rounded px-1 text-sm font-semibold hover:bg-[var(--app-panel-2)]">{title}</button>
+        <a href="/app/strategies" onClick={event => void leave(event)} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"><ArrowLeft size={15} />My strategies</a><span className="app-muted">/</span>
+        {renaming
+          ? <input autoFocus defaultValue={title} maxLength={80} aria-label="Strategy name" onFocus={event => event.currentTarget.select()} onBlur={event => rename(event.currentTarget.value)} onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); if (event.key === "Escape") setRenaming(false); }} className="h-8 w-56 rounded-md border border-[var(--app-accent)] bg-[var(--app-panel-2)] px-2 text-sm font-semibold text-[var(--app-text)] outline-none selection:bg-[var(--app-accent)] selection:text-[var(--app-accent-ink)]" />
+          : <button type="button" onClick={() => setRenaming(true)} title="Rename" className="max-w-[16rem] truncate rounded px-1 text-sm font-semibold hover:bg-[var(--app-panel-2)]">{title}</button>}
         <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${savedCode === code ? "bg-[var(--app-accent)]/15 text-[var(--app-accent-text)]" : "bg-[var(--app-panel-2)] app-muted"}`}>{savedCode === code ? "Saved" : scriptId ? "Unsaved changes" : "Draft"}</span>
         <span className="mx-1 hidden h-4 w-px bg-[var(--app-border)] sm:block" />
         <button type="button" onClick={() => toggleSettings("market")} aria-expanded={settings === "market"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2.5 text-xs"><strong>{market?.symbol ?? "Choose market"}</strong><span className="app-muted">{market ? sourceName(market.source) : ""}</span><ChevronDown size={12} /></button>
         <select value={pineTimeframe} onChange={event => setPineTimeframe(event.target.value as LabTimeframe)} aria-label="Candles" className="h-8 rounded-md border-0 bg-[var(--app-panel-2)] px-2 text-xs text-[var(--app-text)]"><option value="15m">15m</option><option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option></select>
         <button type="button" onClick={() => toggleSettings("period")} aria-expanded={settings === "period"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2.5 text-xs">{from || "From"} <span className="app-muted">→</span> {through || "Through"}<ChevronDown size={12} /></button>
         <div className="ml-auto flex items-center gap-2">
-          <button type="button" onClick={() => save()} className="h-8 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Save</button>
+          <button type="button" onClick={save} className="h-8 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Save</button>
           <button type="button" onClick={() => setFocusMode(!focusMode)} aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Exit focus mode" : "Focus mode"} className="grid size-8 place-items-center rounded-md border app-border hover:bg-[var(--app-panel-2)]">{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
           <button type="button" disabled={!market || busy} onClick={() => void run()} className="inline-flex h-8 items-center gap-2 rounded-md bg-[var(--app-accent)] px-3.5 text-xs font-bold text-[var(--app-accent-ink)] disabled:opacity-50">{busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {busy ? "Running…" : "Run test"}</button>
         </div>
@@ -355,9 +371,9 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
         </section>
       </div>
 
-      <aside aria-label="Pine editor" className="relative flex min-h-[420px] shrink-0 flex-col border-t app-border bg-[#0b100e] lg:min-h-0 lg:w-[var(--lab-editor-width)] lg:border-l lg:border-t-0" style={{ "--lab-editor-width": `${editorWidth}px` } as React.CSSProperties}>
+      <aside aria-label="Pine editor" className="relative flex min-h-[420px] shrink-0 flex-col border-t app-border bg-[var(--code-bg)] lg:min-h-0 lg:w-[var(--lab-editor-width)] lg:border-l lg:border-t-0" style={{ "--lab-editor-width": `${editorWidth}px` } as React.CSSProperties}>
         <div onPointerDown={resizeEditor} role="separator" aria-orientation="vertical" aria-label="Resize editor" className="absolute inset-y-0 left-0 z-10 hidden w-1.5 -translate-x-1/2 cursor-col-resize hover:bg-[var(--app-accent)]/40 lg:block" />
-        <div className="flex h-9 shrink-0 items-center justify-between border-b border-[#28392f] bg-[#111a14] px-3 text-[11px] text-[#a7bcb0]"><span className="truncate font-mono text-[#e8edea]">{title}.pine</span><span>{serverDiagnostics.length ? <span className="text-[#f2a7a7]">{serverDiagnostics.length} {serverDiagnostics.length === 1 ? "error" : "errors"}</span> : pineReport ? <span className="text-[#8ee3c7]">✓ Compiled</span> : <span>Compiles on run</span>}</span></div>
+        <div className="flex h-9 shrink-0 items-center justify-between border-b border-[var(--code-border)] bg-[var(--code-bar)] px-3 text-[11px] text-[var(--code-muted)]"><span className="truncate font-mono text-[var(--code-text)]">{title}.pine</span><span>{serverDiagnostics.length ? <span className="text-[var(--code-error)]">{serverDiagnostics.length} {serverDiagnostics.length === 1 ? "error" : "errors"}</span> : pineReport ? <span className="text-[var(--code-ok)]">✓ Compiled</span> : <span>Compiles on run</span>}</span></div>
         <div className="min-h-0 flex-1"><StrategyCodeEditor value={code} onChange={setCode} serverDiagnostics={serverDiagnostics} mode="pine" wrap minimap={false} /></div>
       </aside>
     </div>

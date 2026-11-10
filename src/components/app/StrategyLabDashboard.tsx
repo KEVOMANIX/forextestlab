@@ -6,6 +6,7 @@ import { ChevronDown, Code2, Copy, MoreHorizontal, Pencil, Plus, Search, Trash2 
 
 import { PINE_SCRIPTS_CHANGED, PINE_STRATEGY_TEMPLATE, deletePineScript, isPineStrategy, readPineScripts, savePineScript, type PineScript } from "@/lib/chart/pine-scripts";
 import { deletePineResult, readPineResults, type PineTestSummary } from "@/lib/chart/pine-results";
+import { useLabDialog } from "./LabDialog";
 
 type Sort = "edited" | "net" | "name";
 const SORTS: [Sort, string][] = [["edited", "Last edited"], ["net", "Net profit"], ["name", "Name"]];
@@ -28,8 +29,8 @@ function EquityLine({ values, positive }: { values: number[]; positive: boolean 
   const low = Math.min(...values), high = Math.max(...values), span = high - low || 1;
   const path = values.map((value, index) => `${index ? "L" : "M"}${(index / (values.length - 1) * 260).toFixed(1)},${(56 - (value - low) / span * 52).toFixed(1)}`).join("");
   return <svg viewBox="0 0 260 60" preserveAspectRatio="none" className="h-[60px] w-full" aria-hidden>
-    <path d={`${path} L260,60 L0,60Z`} fill={positive ? "rgba(47,210,154,.13)" : "rgba(242,101,107,.13)"} />
-    <path d={path} fill="none" stroke={positive ? "#2fd29a" : "#f2656b"} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+    <path d={`${path} L260,60 L0,60Z`} fill={positive ? "rgb(var(--trade-profit-rgb, 47 210 154) / .13)" : "rgb(var(--trade-loss-rgb, 242 101 107) / .13)"} />
+    <path d={path} fill="none" stroke={positive ? "rgb(var(--trade-profit-rgb, 47 210 154))" : "rgb(var(--trade-loss-rgb, 242 101 107))"} strokeWidth={2} vectorEffect="non-scaling-stroke" />
   </svg>;
 }
 
@@ -57,6 +58,7 @@ function CardMenu({ onRename, onDuplicate, onDelete }: { onRename: () => void; o
 /** Strategy Lab home: every saved Pine script as a card with its last test. */
 export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
   const router = useRouter();
+  const dialogs = useLabDialog();
   const [scripts, setScripts] = useState<PineScript[] | null>(null);
   const [results, setResults] = useState<Record<string, PineTestSummary>>({});
   const [query, setQuery] = useState("");
@@ -71,21 +73,22 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
   }, []);
 
   const open = (id: string) => router.push(`/app/strategies?script=${encodeURIComponent(id)}`);
+  // New strategies open straight away; the name is changed by clicking it in the editor.
   const create = (code: string) => {
-    const kind = isPineStrategy(code) ? "strategy" : "indicator";
-    const name = window.prompt(`Name your ${kind}`, kind === "strategy" ? "My strategy" : "My indicator")?.trim();
-    if (!name) return;
+    const taken = new Set((scripts ?? []).map(script => script.name));
+    let name = "My strategy";
+    for (let number = 2; taken.has(name); number++) name = `My strategy ${number}`;
     const id = crypto.randomUUID();
     savePineScript({ id, name, code: code.replace(/^(\s*(?:strategy|indicator)\s*\(\s*)"[^"]*"/m, (_, start: string) => `${start}${JSON.stringify(name)}`), updatedAt: Date.now() });
     open(id);
   };
-  const rename = (script: PineScript) => {
-    const name = window.prompt("Rename script", script.name)?.trim();
+  const rename = async (script: PineScript) => {
+    const name = await dialogs.prompt({ title: "Rename strategy", label: "Name", value: script.name });
     if (name && name !== script.name) savePineScript({ ...script, name, updatedAt: Date.now() });
   };
   const duplicate = (script: PineScript) => savePineScript({ ...script, id: crypto.randomUUID(), name: `${script.name} (copy)`, updatedAt: Date.now() });
-  const remove = (script: PineScript) => {
-    if (!window.confirm(`Delete “${script.name}”? This can't be undone.`)) return;
+  const remove = async (script: PineScript) => {
+    if (!await dialogs.confirm({ title: "Delete strategy?", message: `“${script.name}” and its last test result will be removed. This can't be undone.`, confirmLabel: "Delete", danger: true })) return;
     deletePineScript(script.id); deletePineResult(script.id); setResults(readPineResults());
   };
 
@@ -101,6 +104,7 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
 
 
   return <div className="min-h-[calc(100dvh-4rem)] bg-[var(--app-bg)] px-4 py-6 text-[var(--app-text)] sm:px-7">
+    {dialogs.dialog}
     <div className="mx-auto max-w-7xl">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-2xl font-bold">Strategy Lab</h1><p className="mt-1 text-sm app-muted">Write Pine strategies and test them on real history.</p></div>
@@ -112,7 +116,7 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
       {sampleMode && <p className="mt-4 rounded-lg border border-amber-400/35 bg-amber-400/10 px-3 py-2 text-xs"><strong>Sample data.</strong> Scripts are saved in this browser; sign in to test them on real history. <a href="/sign-in?next=%2Fapp%2Fstrategies" className="font-semibold underline">Sign in</a></p>}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <p className="text-xs app-muted">{scripts === null ? "Loading…" : `${(scripts ?? []).filter(script => isPineStrategy(script.code)).length} strategies`} · saved in this browser</p>
+        <p className="text-xs app-muted">{scripts === null ? "Loading…" : (() => { const count = scripts.filter(script => isPineStrategy(script.code)).length; return `${count} ${count === 1 ? "strategy" : "strategies"}`; })()} · saved in this browser</p>
         <label className="relative ml-auto inline-flex items-center text-xs app-muted">Sort
           <select value={sort} onChange={event => setSort(event.target.value as Sort)} className="ml-2 h-8 appearance-none rounded-full border app-border bg-[var(--app-panel-solid)] pl-3 pr-7 text-xs text-[var(--app-text)]">{SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <ChevronDown size={13} className="pointer-events-none absolute right-2.5" />
@@ -128,7 +132,7 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
               className="group flex min-h-[236px] cursor-pointer flex-col rounded-xl border app-border bg-[var(--app-panel-solid)] p-4 transition-colors hover:border-[var(--app-accent)] focus-visible:border-[var(--app-accent)] focus-visible:outline-none">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0"><h2 className="truncate text-sm font-semibold">{script.name}</h2><p className="mt-0.5 truncate text-[11px] app-muted">{result ? `${result.symbol} ${result.timeframe} · ${shortDate(result.from)} – ${shortDate(result.through)}` : `${strategy ? "Not tested yet" : "Indicator"} · edited ${ago(script.updatedAt)}`}</p></div>
-                <div className="flex shrink-0 items-center gap-1"><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${strategy ? "bg-[var(--app-accent)]/15 text-[var(--app-accent-text)]" : "bg-[var(--app-panel-2)] app-muted"}`}>{strategy ? "Strategy" : "Indicator"}</span><CardMenu onRename={() => rename(script)} onDuplicate={() => duplicate(script)} onDelete={() => remove(script)} /></div>
+                <div className="flex shrink-0 items-center gap-1"><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${strategy ? "bg-[var(--app-accent)]/15 text-[var(--app-accent-text)]" : "bg-[var(--app-panel-2)] app-muted"}`}>{strategy ? "Strategy" : "Indicator"}</span><CardMenu onRename={() => void rename(script)} onDuplicate={() => duplicate(script)} onDelete={() => void remove(script)} /></div>
               </div>
               <div className="mt-3 flex-1">
                 {result ? <EquityLine values={result.equity} positive={result.netPnl >= 0} />

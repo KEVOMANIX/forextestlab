@@ -49,12 +49,12 @@ const language = StreamLanguage.define({
   },
 });
 const codeColors = HighlightStyle.define([
-  { tag: tags.keyword, color: "#8ee3c7" },
-  { tag: tags.function(tags.variableName), color: "#f3d18e" },
-  { tag: tags.string, color: "#a8c9ff" },
-  { tag: tags.number, color: "#f5b7aa" },
-  { tag: tags.comment, color: "#9cb8ac" },
-  { tag: tags.variableName, color: "#e8edea" },
+  { tag: tags.keyword, color: "var(--code-keyword, #8ee3c7)" },
+  { tag: tags.function(tags.variableName), color: "var(--code-function, #f3d18e)" },
+  { tag: tags.string, color: "var(--code-string, #a8c9ff)" },
+  { tag: tags.number, color: "var(--code-number, #f5b7aa)" },
+  { tag: tags.comment, color: "var(--code-comment, #9cb8ac)" },
+  { tag: tags.variableName, color: "var(--code-text, #e8edea)" },
 ]);
 
 const completions: Completion[] = [
@@ -150,13 +150,21 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, mode = 
             }
           }),
           EditorView.theme({
-            "&": { height: "100%", minHeight: "390px", backgroundColor: "#0b100e", color: "#e8edea", fontSize: "13px" },
+            "&": { height: "100%", minHeight: "390px", backgroundColor: "var(--code-bg, #0b100e)", color: "var(--code-text, #e8edea)", fontSize: "13px" },
+            "&.cm-focused": { outline: "none" },
             ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", lineHeight: "1.65" },
-            ".cm-gutters": { backgroundColor: "#0b100e", color: "#83968c", borderRight: "1px solid #27372f" },
-            ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#15221b" },
-            ".cm-content": { caretColor: "#65d8b8" },
-            ".cm-selectionBackground": { backgroundColor: "#315348 !important" },
-            ".cm-tooltip": { backgroundColor: "#18261e", color: "#e8edea", border: "1px solid #385046" },
+            ".cm-gutters": { backgroundColor: "var(--code-bg, #0b100e)", color: "var(--code-gutter, #83968c)", borderRight: "1px solid var(--code-border, #27372f)" },
+            ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "var(--code-active, #15221b)" },
+            ".cm-content": { caretColor: "var(--code-caret, #7be8c4)" },
+            // CodeMirror draws its own cursor; without this it is black on the dark editor.
+            ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--code-caret, #7be8c4)", borderLeftWidth: "2px" },
+            "&.cm-focused .cm-matchingBracket": { backgroundColor: "var(--code-selection, #315348)", color: "inherit" },
+            ".cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-content ::selection": { backgroundColor: "var(--code-selection, #315348) !important" },
+            ".cm-selectionMatch": { backgroundColor: "color-mix(in srgb, var(--code-selection, #315348) 60%, transparent)" },
+            ".cm-panels": { backgroundColor: "var(--code-bar, #111a14)", color: "var(--code-text, #e8edea)" },
+            ".cm-panels input, .cm-panels button": { color: "var(--code-text, #e8edea)" },
+            ".cm-tooltip": { backgroundColor: "var(--code-tooltip, #18261e)", color: "var(--code-text, #e8edea)", border: "1px solid var(--code-tooltip-border, #385046)" },
+            ".cm-tooltip-autocomplete ul li[aria-selected]": { backgroundColor: "var(--code-selection, #315348)", color: "var(--code-text, #e8edea)" },
           }),
         ],
       }),
@@ -173,10 +181,10 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, mode = 
   }, [value]);
   useEffect(() => { if (viewRef.current) forceLinting(viewRef.current); }, [serverDiagnostics, mode]);
 
-  return <div className="flex h-full min-h-0 flex-col bg-[#0b100e] text-[#e8edea]">
+  return <div className="flex h-full min-h-0 flex-col bg-[var(--code-bg)] text-[var(--code-text)]">
     <div className="flex min-h-0 flex-1">
       <div ref={host} aria-label="Strategy script editor" className="min-w-0 flex-1" />
-      {minimap && <button type="button" aria-label="Jump through script" className="hidden w-[92px] shrink-0 flex-col items-start justify-start overflow-hidden border-l border-[#27372f] bg-[#0f1712] px-2 py-3 text-left lg:flex" onClick={event => {
+      {minimap && <button type="button" aria-label="Jump through script" className="hidden w-[92px] shrink-0 flex-col items-start justify-start overflow-hidden border-l border-[var(--code-border)] bg-[var(--code-minimap)] px-2 py-3 text-left lg:flex" onClick={event => {
         const view = viewRef.current;
         if (!view) return;
         const ratio = (event.clientY - event.currentTarget.getBoundingClientRect().top) / event.currentTarget.clientHeight;
@@ -185,8 +193,8 @@ export function StrategyCodeEditor({ value, onChange, serverDiagnostics, mode = 
         view.focus();
       }}><span className="sr-only">Script minimap</span>{value.split("\n").map((line, index) => <span key={index} aria-hidden className="mb-[2px] block h-[3px] rounded-sm opacity-80" style={{ width: `${Math.max(8, Math.min(100, line.length * 1.4))}%`, backgroundColor: line.trim().startsWith("//") ? "#617c69" : line.includes("strategy.") ? "#e1bd83" : line.includes("ta.") ? "#82c4a7" : "#7a94aa" }} />)}</button>}
     </div>
-    <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-[#27372f] px-3 py-2 text-[11px] text-[#a7bcb0]" aria-live="polite">
-      <span>{hint ? <><strong className="font-mono text-[#f3d18e]">{hint.signature}</strong> · {hint.description}</> : "Ctrl+Space suggestions · Ctrl+F find · Ctrl+H replace · F8 next error"}</span>
+    <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-t border-[var(--code-border)] px-3 py-2 text-[11px] text-[var(--code-muted)]" aria-live="polite">
+      <span>{hint ? <><strong className="font-mono text-[var(--code-function)]">{hint.signature}</strong> · {hint.description}</> : "Ctrl+Space suggestions · Ctrl+F find · Ctrl+H replace · F8 next error"}</span>
       <span>{mode === "pine" ? "Pine Script v6" : "FTL Script"}</span>
     </div>
   </div>;

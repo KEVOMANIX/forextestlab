@@ -155,6 +155,7 @@ import {
 import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
 import { VolumeProfileOverlay } from "./VolumeProfileOverlay";
 import { TradePlanOverlay } from "./TradePlanOverlay";
+import { useLabDialog } from "./LabDialog";
 
 export interface ChartMarker {
   symbol?: string;
@@ -1205,6 +1206,7 @@ export default function PriceChart({
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
   const [pineIndicators, setPineIndicators] = useState<PineChartIndicator[]>([]);
   const [pineDraft, setPineDraft] = useState<PineEditorDraft | null>(null);
+  const pineDialogs = useLabDialog();
   const [pineSettingsId, setPineSettingsId] = useState<string | null>(null);
   const [crosshairX, setCrosshairX] = useState<number | null>(null);
   const preferencesRestoredRef = useRef(false);
@@ -4454,8 +4456,9 @@ export default function PriceChart({
       onApply={applyPineDraft}
       onOpenScript={(script) => openPineEditor({ instanceId: pineIndicators.find((item) => item.scriptId === script.id)?.id ?? null, scriptId: script.id, name: script.name, code: script.code, savedCode: script.code })}
       onNew={newPineScript}
-      onClose={() => {
-        if (pineDraft.code !== pineDraft.savedCode && !pineIndicators.some((item) => item.id === pineDraft.instanceId && item.code === pineDraft.code) && !window.confirm("Close the Pine Editor? Unsaved changes to this script will be lost.")) return;
+      onClose={async () => {
+        if (pineDraft.code !== pineDraft.savedCode && !pineIndicators.some((item) => item.id === pineDraft.instanceId && item.code === pineDraft.code)
+          && !await pineDialogs.confirm({ title: "Close the Pine Editor?", message: "Unsaved changes to this script will be lost.", confirmLabel: "Close" })) return;
         setPineDraft(null);
       }}
       onChart={pineDraft.instanceId != null && pineIndicators.some((item) => item.id === pineDraft.instanceId)}
@@ -4467,6 +4470,7 @@ export default function PriceChart({
   return (
     <div className="relative flex h-full w-full flex-col">
       {pineEditor && sidePanelSlot ? createPortal(pineEditor, sidePanelSlot) : null}
+      {pineDialogs.dialog}
       {/* Timeframe, chart-type, indicators and the screenshot action: one
           instance acting on whichever pane is focused, not one stacked above
           every cell of a multi-chart layout. A pane that isn't showing its

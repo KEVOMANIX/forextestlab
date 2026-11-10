@@ -256,6 +256,56 @@
     color-scheme: light;
   }
 
+  /* Pine/strategy code editor: follows the app theme (cursor included). */
+  .app-shell,
+  .app-theme-surface {
+    --code-bg: #0b100e;
+    --code-bar: #111a14;
+    --code-border: #27372f;
+    --code-text: #e8edea;
+    --code-muted: #a7bcb0;
+    --code-gutter: #83968c;
+    --code-active: #15221b;
+    --code-selection: #315348;
+    --code-caret: #7be8c4;
+    --code-tooltip: #18261e;
+    --code-tooltip-border: #385046;
+    --code-minimap: #0f1712;
+    --code-keyword: #8ee3c7;
+    --code-function: #f3d18e;
+    --code-string: #a8c9ff;
+    --code-number: #f5b7aa;
+    --code-comment: #9cb8ac;
+    --code-error: #f2a7a7;
+    --code-ok: #8ee3c7;
+    --lab-long: #5b9cf6;
+    --lab-short: #f77c80;
+  }
+  .app-shell.light,
+  .app-theme-surface.light {
+    --code-bg: #ffffff;
+    --code-bar: #f4f6f3;
+    --code-border: #d7ddd8;
+    --code-text: #17201c;
+    --code-muted: #5d6963;
+    --code-gutter: #8a958f;
+    --code-active: #f0f5f2;
+    --code-selection: #c9e8dc;
+    --code-caret: #08745c;
+    --code-tooltip: #ffffff;
+    --code-tooltip-border: #d7ddd8;
+    --code-minimap: #f7f9f7;
+    --code-keyword: #0a7a5c;
+    --code-function: #9a5b00;
+    --code-string: #1f5fbf;
+    --code-number: #b0402e;
+    --code-comment: #6f7b75;
+    --code-error: #b42335;
+    --code-ok: #08745c;
+    --lab-long: #1f5fd6;
+    --lab-short: #c8283d;
+  }
+
   .app-shell.light .app-logo-dark {
     display: none;
   }

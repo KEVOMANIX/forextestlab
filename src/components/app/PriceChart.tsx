@@ -3693,6 +3693,7 @@ export default function PriceChart({
 
   const pine = usePineIndicators({
     chart: chartRef.current,
+    priceSeries: seriesRef.current,
     items: pineIndicators,
     symbol: symbolLabel.toUpperCase().replace(/[^A-Z0-9]/g, ""),
     timeframeMs: TIMEFRAME_MS[displayTimeframe],

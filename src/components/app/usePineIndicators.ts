@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LineSeries, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
+import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 import type { PineChartIndicator } from "@/lib/chart/pine-scripts";
 import type { OHLCV } from "@/lib/chart/indicators";
-import type { PineDiagnostic, PineIndicatorResult, PinePlot, PineSeriesInput } from "@/lib/chart/pine-runner";
+import type { PineDiagnostic, PineIndicatorResult, PineSeriesInput } from "@/lib/chart/pine-runner";
+import { PineRenderer, pineSignature, type PineReport } from "./pine-render";
+
+export type { PineReport };
 
 const MAX_BARS = 30_000;
 /** A run that takes longer than this is treated as an endless loop and stopped. */
 const RUN_TIMEOUT_MS = 8_000;
 
-export type PineReport = { overlay: boolean; times: ArrayLike<number>; plots: PinePlot[] };
 export type PineRunStatus = {
   state: "loading" | "ready" | "error";
   error?: string;
@@ -41,6 +43,7 @@ function toSeriesInput(candles: OHLCV[]): PineSeriesInput {
  */
 export function usePineIndicators({
   chart,
+  priceSeries,
   container,
   items,
   epoch,
@@ -52,6 +55,8 @@ export function usePineIndicators({
   precision,
 }: {
   chart: IChartApi | null;
+  /** The candle series, which carries overlay markers and backgrounds. */
+  priceSeries: ISeriesApi<SeriesType> | null;
   /** Chart host element, used to place legends inside script panes. */
   container: HTMLElement | null;
   items: PineChartIndicator[];
@@ -120,7 +125,7 @@ export function usePineIndicators({
         const result = results[item.id];
         if (!result) continue;
         next[item.id] = result.ok
-          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, times: batch.times, plots: result.plots } }
+          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, markers: result.markers, skipped: result.skipped, times: batch.times } }
           : { state: "error", code: item.code, ranAt: now, error: result.error, diagnostics: result.diagnostics };
       }
       return next;
@@ -162,64 +167,41 @@ export function usePineIndicators({
     workerRef.current = null;
   }, []);
 
-  // Drawing. Series are rebuilt only when the set of lines changes; a new
-  // candle appends or updates points in place.
-  const drawnRef = useRef<{ key: string; series: Map<string, ISeriesApi<"Line">[]>; lengths: Map<string, { first: number; length: number }>; panes: Map<string, number> } | null>(null);
-  const structure = [epoch, paneBase, ...items.map((item) => {
-    const report = status[item.id]?.code === item.code ? status[item.id]?.report : undefined;
-    return report ? `${item.id}|${report.overlay}|${report.plots.map((plot) => `${plot.color}/${plot.linewidth}`).join(",")}` : `${item.id}|-`;
-  })].join(";");
+  // Drawing. Each script's chart objects are rebuilt only when what it draws
+  // changes shape (see pineSignature); a new candle just feeds them values.
+  const renderersRef = useRef(new Map<string, PineRenderer>());
+  const reportOf = (item: PineChartIndicator) => (status[item.id]?.code === item.code ? status[item.id]?.report : undefined);
+  const layoutKey = [epoch, paneBase, ...items.map((item) => `${item.id}=${pineSignature(reportOf(item))}`)].join(";");
 
   useEffect(() => {
     if (!chart) return;
-    let drawn = drawnRef.current;
-    if (!drawn || drawn.key !== structure) {
-      if (drawn) for (const list of drawn.series.values()) for (const series of list) { try { chart.removeSeries(series); } catch { /* The chart was rebuilt. */ } }
-      drawn = { key: structure, series: new Map(), lengths: new Map(), panes: new Map() };
-      drawnRef.current = drawn;
-      // Built-in studies own the panes directly under price; scripts follow them.
-      let pane = chart.panes().length;
-      for (const item of items) {
-        const report = status[item.id]?.code === item.code ? status[item.id]?.report : undefined;
-        if (!report) continue;
-        const paneIndex = report.overlay ? 0 : pane++;
-        if (paneIndex > 0) drawn.panes.set(item.id, paneIndex);
-        drawn.series.set(item.id, report.plots.map((plot) => chart.addSeries(LineSeries, { color: plot.color || "#2962FF", lineWidth: Math.min(4, Math.max(1, plot.linewidth || 1)) as 1 | 2 | 3 | 4, priceLineVisible: false, title: "" }, paneIndex)));
+    const renderers = new Map<string, PineRenderer>();
+    // Built-in studies own the panes directly under price; scripts follow them.
+    let pane = chart.panes().length;
+    for (const item of items) {
+      const report = reportOf(item);
+      if (!report) continue;
+      renderers.set(item.id, new PineRenderer(chart, report.overlay ? 0 : pane++, priceSeries));
+    }
+    renderersRef.current = renderers;
+    return () => {
+      for (const renderer of renderers.values()) renderer.dispose();
+      if (renderersRef.current === renderers) renderersRef.current = new Map();
+    };
+    // The layout key captures every input that changes the chart objects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart, priceSeries, layoutKey]);
+
+  useEffect(() => {
+    for (const item of items) {
+      const report = reportOf(item);
+      const renderer = renderersRef.current.get(item.id);
+      if (report && renderer) {
+        try { renderer.update(report, item.visible); } catch { /* A rebuilt chart drops its series; the next layout pass redraws. */ }
       }
     }
-    for (const item of items) {
-      const report = status[item.id]?.code === item.code ? status[item.id]?.report : undefined;
-      const list = drawn.series.get(item.id);
-      if (!report || !list) continue;
-      const times = report.times;
-      const previous = drawn.lengths.get(item.id);
-      const first = times.length ? times[0]! : 0;
-      // The same history plus a few new candles: only touch the end of each line.
-      const incremental = previous && previous.first === first && times.length >= previous.length && times.length - previous.length <= 5 && previous.length > 0;
-      list.forEach((series, plotIndex) => {
-        series.applyOptions({ visible: item.visible, lastValueVisible: item.visible, crosshairMarkerVisible: item.visible });
-        const values = report.plots[plotIndex]?.values ?? [];
-        const point = (index: number) => ({ time: Math.floor(times[index]! / 1000) as UTCTimestamp, value: values[index]! });
-        if (incremental) {
-          for (let index = previous.length - 1; index < times.length; index++) {
-            if (values[index] == null) continue;
-            try { series.update(point(index)); } catch { /* Out-of-order point; the next full redraw fixes it. */ }
-          }
-        } else {
-          const rows = [];
-          for (let index = 0; index < times.length; index++) if (values[index] != null) rows.push(point(index));
-          series.setData(rows);
-        }
-      });
-      drawn.lengths.set(item.id, { first, length: times.length });
-    }
-  }, [chart, items, status, structure]);
-
-  useEffect(() => () => {
-    const drawn = drawnRef.current;
-    if (drawn && chart) for (const list of drawn.series.values()) for (const series of list) { try { chart.removeSeries(series); } catch { /* The chart was rebuilt. */ } }
-    drawnRef.current = null;
-  }, [chart, epoch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, status, layoutKey]);
 
   // Keep script-pane legends seated inside their panes.
   useEffect(() => {
@@ -231,8 +213,9 @@ export function usePineIndicators({
         const host = container.getBoundingClientRect();
         const panes = chart.panes();
         const next: Record<string, number> = {};
-        for (const [id, index] of drawnRef.current?.panes ?? []) {
-          const box = panes[index]?.getHTMLElement()?.getBoundingClientRect();
+        for (const [id, renderer] of renderersRef.current) {
+          if (renderer.paneIndex === 0) continue;
+          const box = panes[renderer.paneIndex]?.getHTMLElement()?.getBoundingClientRect();
           if (box) next[id] = box.top - host.top;
         }
         setPaneTops((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
@@ -243,7 +226,7 @@ export function usePineIndicators({
     observer.observe(container);
     chart.panes().forEach((pane) => { const element = pane.getHTMLElement(); if (element) observer.observe(element); });
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
-  }, [chart, container, structure]);
+  }, [chart, container, layoutKey]);
 
   return {
     status,
@@ -253,7 +236,7 @@ export function usePineIndicators({
 }
 
 /** Value of each plot at a candle time (seconds), for the legend readout. */
-export function pineValuesAt(report: PineReport | undefined, timeSeconds: number | null): { title: string; color: string; value: number | null }[] {
+export function pineValuesAt(report: { times: ArrayLike<number>; plots: { title: string; color: string; values: (number | null)[] }[] } | undefined, timeSeconds: number | null): { title: string; color: string; value: number | null }[] {
   if (!report) return [];
   let index = report.times.length - 1;
   if (timeSeconds != null) {

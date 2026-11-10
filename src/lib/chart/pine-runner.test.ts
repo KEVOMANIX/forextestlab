@@ -176,3 +176,44 @@ describe("request.security on the chart", () => {
     expect(run('request.financial(syminfo.tickerid, "EBITDA", "FQ")')).toMatchObject({ ok: false, error: expect.stringContaining("request.financial") });
   });
 });
+
+describe("chart Pine exchange time", () => {
+  // Two days of 15m candles in January (New York is UTC-5) and two in July (UTC-4).
+  const candles = (start: number) => {
+    const f = (values: number[]) => Float64Array.from(values);
+    const closes = Array.from({ length: 192 }, (_, index) => 1.1 + Math.sin(index / 7) * 0.002);
+    return { time: f(closes.map((_, index) => start + index * 900_000)), open: f(closes), high: f(closes.map((close) => close + 0.0005)), low: f(closes.map((close) => close - 0.0005)), close: f(closes), volume: f(closes.map(() => 0)) };
+  };
+  const ASIA = [
+    "//@version=5",
+    'indicator("Asia", overlay=true)',
+    'asia = input.session("1900-0001", "Asia")',
+    "in_session(sess) => not na(time(timeframe.period, sess))",
+    "var int start = na",
+    "start := in_session(asia) and not in_session(asia)[1] ? time : start",
+    "_box = box(na)",
+    "if in_session(asia)",
+    "    box.delete(_box[1])",
+    "    _box := box.new(start, high, time, low, xloc=xloc.bar_time)",
+    "plot(hour)",
+  ].join("\n");
+  const boxes = (start: number) => {
+    const result = runPineIndicator(ASIA, candles(start), options);
+    expect(result.ok).toBe(true);
+    return result.ok ? result.drawings.filter((drawing) => drawing.kind === "box" && !drawing.state.__deleted && Number.isFinite(drawing.state.left)) : [];
+  };
+
+  it("reads sessions in New York time like TradingView's forex symbols", () => {
+    const winter = boxes(Date.UTC(2026, 0, 5));
+    expect(new Date(Number(winter[0]!.state.left)).toISOString()).toBe("2026-01-06T00:00:00.000Z");
+    expect(winter.length).toBeGreaterThan(0);
+    expect(new Date(Number(winter[0]!.state.right)).toISOString()).toBe("2026-01-06T05:00:00.000Z");
+    const summer = boxes(Date.UTC(2026, 6, 6));
+    expect(new Date(Number(summer[0]!.state.left)).toISOString()).toBe("2026-07-06T23:00:00.000Z");
+  });
+
+  it("gives hour in New York time", () => {
+    const result = runPineIndicator(ASIA, candles(Date.UTC(2026, 0, 5)), options);
+    expect(result.ok && result.plots[0]!.values[0]).toBe(19);
+  });
+});

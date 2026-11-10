@@ -64,6 +64,55 @@ if (drawingApi.table) {
     if (state) for (const key of Object.keys(state)) if (key.startsWith("cell:")) delete state[key];
   };
 }
+/*
+ * TradingView reads session strings ("1900-0001") and hour/dayofweek… in the
+ * exchange's timezone — New York for FX and gold. The engine always uses UTC,
+ * which put killzone boxes five hours early, so both are read in New York time
+ * unless the script names a timezone.
+ */
+export const PINE_EXCHANGE_TIMEZONE = "America/New_York";
+const zoneFormatters = new Map<string, Intl.DateTimeFormat | null>();
+const zoneOffsets = new Map<string, number>();
+/** Milliseconds the zone's wall clock is ahead of UTC at `ms` (0 for unknown zones). */
+export function pineZoneOffsetMs(ms: number, zone: string): number {
+  const fixed = /^(?:UTC|GMT)\s*([+-])(\d{1,2})(?::?(\d{2}))?$/i.exec(zone.trim());
+  if (fixed) return (fixed[1] === "-" ? -1 : 1) * (Number(fixed[2]) * 60 + Number(fixed[3] ?? 0)) * 60_000;
+  if (/^(?:UTC|GMT|Etc\/UTC)$/i.test(zone.trim())) return 0;
+  const hour = Math.floor(ms / 3_600_000);
+  const cacheKey = `${zone}|${hour}`;
+  const cached = zoneOffsets.get(cacheKey);
+  if (cached !== undefined) return cached;
+  let formatter = zoneFormatters.get(zone);
+  if (formatter === undefined) {
+    try { formatter = new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" }); } catch { formatter = null; }
+    zoneFormatters.set(zone, formatter);
+  }
+  let offset = 0;
+  if (formatter) {
+    const at = hour * 3_600_000;
+    const parts: Record<string, number> = Object.fromEntries(formatter.formatToParts(at).map((part) => [part.type, Number(part.value)]));
+    const part = (type: string) => parts[type] ?? 0;
+    offset = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute")) - at;
+  }
+  if (zoneOffsets.size > 50_000) zoneOffsets.clear();
+  zoneOffsets.set(cacheKey, offset);
+  return offset;
+}
+type TimeFn = (ms: number, timeframe: string | null, session?: string | null, zone?: string | null) => number;
+const timeApi = rt.time as unknown as { resolve: TimeFn; resolveClose: TimeFn };
+const engineResolve = timeApi.resolve;
+const inExchangeSession = (ms: number, session?: string | null, zone?: string | null) =>
+  !session || !(ms > 0) || !Number.isNaN(engineResolve(ms + pineZoneOffsetMs(ms, zone || PINE_EXCHANGE_TIMEZONE), "1", session));
+for (const name of ["resolve", "resolveClose"] as const) {
+  const original = timeApi[name];
+  timeApi[name] = (ms, timeframe, session, zone) => (inExchangeSession(ms, session, zone) ? original(ms, timeframe) : NaN);
+}
+const datetimeApi = rt.datetime as unknown as Record<string, (ms: number, zone?: string | null) => number>;
+for (const name of ["year", "month", "dayofmonth", "dayofweek", "hour", "minute", "second", "weekofyear"]) {
+  const original = datetimeApi[name];
+  if (original) datetimeApi[name] = (ms, zone) => original(ms, zone == null || zone === "" ? PINE_EXCHANGE_TIMEZONE : zone);
+}
+
 const DRAWING_LIMIT_DEFAULT = 50;
 /** TradingView keeps the newest N drawings of each kind (indicator(max_lines_count=…), default 50). */
 function drawingLimits(code: string): Record<string, number> {
@@ -235,7 +284,7 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
   if (!entry) {
     const result = transpile(code, {
       chartTf: pineTimeframe(options.timeframeMs),
-      syminfo: { ticker: options.symbol, prefix: "FTL", mintick: 1 / priceScale, minmove: 1, pricescale: priceScale, pointvalue: 1, type: options.symbol === "XAUUSD" ? "cfd" : "forex", timezone: "UTC" },
+      syminfo: { ticker: options.symbol, prefix: "FTL", mintick: 1 / priceScale, minmove: 1, pricescale: priceScale, pointvalue: 1, type: options.symbol === "XAUUSD" ? "cfd" : "forex", timezone: PINE_EXCHANGE_TIMEZONE },
       strategy: { initial_capital: 10_000 },
     });
     entry = result.ok

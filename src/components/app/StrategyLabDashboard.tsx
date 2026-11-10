@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Code2, Copy, MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
-import { PINE_SCRIPTS_CHANGED, PINE_STRATEGY_TEMPLATE, deletePineScript, isPineStrategy, readPineScripts, savePineScript, type PineScript } from "@/lib/chart/pine-scripts";
+import { PINE_SCRIPTS_CHANGED, PINE_STRATEGY_TEMPLATE, deletePineScript, isPineStrategy, readPineScripts, savePineScript, withPineTitle, type PineScript } from "@/lib/chart/pine-scripts";
 import { deletePineResult, readPineResults, type PineTestSummary } from "@/lib/chart/pine-results";
 import { useLabDialog } from "./LabDialog";
 
 type Sort = "edited" | "net" | "name";
 const SORTS: [Sort, string][] = [["edited", "Last edited"], ["net", "Net profit"], ["name", "Name"]];
 
-const percent = (value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(1)}%`;
+const percent = (value: number) => { const digits = Math.abs(value) >= 10 ? 1 : 2; const text = Math.abs(value).toFixed(digits); return `${Number(text) === 0 ? "" : value > 0 ? "+" : "−"}${text}%`; };
 const shortDate = (time: string) => { const date = new Date(`${time}T00:00:00Z`); return Number.isFinite(date.getTime()) ? date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" }) : time; };
 function ago(time: number) {
   const minutes = Math.round((Date.now() - time) / 60_000);
@@ -84,7 +84,7 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
   };
   const rename = async (script: PineScript) => {
     const name = await dialogs.prompt({ title: "Rename strategy", label: "Name", value: script.name });
-    if (name && name !== script.name) savePineScript({ ...script, name, updatedAt: Date.now() });
+    if (name && name !== script.name) savePineScript({ ...script, name, code: withPineTitle(script.code, name), updatedAt: Date.now() });
   };
   const duplicate = (script: PineScript) => savePineScript({ ...script, id: crypto.randomUUID(), name: `${script.name} (copy)`, updatedAt: Date.now() });
   const remove = async (script: PineScript) => {

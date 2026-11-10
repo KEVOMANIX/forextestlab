@@ -9,7 +9,8 @@ import { useAppTheme } from "@/components/app/ThemeContext";
 import { fetchRanges, fetchSymbols } from "@/lib/backtest/client";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
-import { readPineScripts, savePineScript } from "@/lib/chart/pine-scripts";
+import { readPineScripts, savePineScript, withPineTitle } from "@/lib/chart/pine-scripts";
+import { MAX_TEST_CANDLES, earliestStartWithinLimit, estimateCandles } from "@/lib/chart/candle-budget";
 import { maxDrawdownPercent, sampleEquity, savePineResult } from "@/lib/chart/pine-results";
 import type { StrategyDiagnostic } from "@/lib/strategy-language/parser";
 import type { LabCandles, LabPlot, LabTrade } from "./StrategyLabChart";
@@ -38,7 +39,7 @@ type IndicatorReport = {
   plots: LabPlot[]; candles?: LabCandles;
 };
 const PINE_EXAMPLE = `//@version=6
-strategy("EMA crossover test", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=1, margin_short=1)
+strategy("EMA crossover test", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=10000, margin_long=1, margin_short=1)
 fast = ta.ema(close, 3)
 slow = ta.ema(close, 7)
 goLong = ta.crossover(fast, slow)
@@ -194,7 +195,20 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
   const marketMatches = markets.filter(item => `${item.symbol} ${item.name} ${item.source}`.toLowerCase().includes(marketSearch.toLowerCase()));
   const problemCount = serverDiagnostics.length + (error ? 1 : 0);
   const declaredName = /^\s*(?:strategy|indicator)\s*\(\s*(?:title\s*=\s*)?["']([^"']+)["']/m.exec(code)?.[1];
-  const title = scriptName || declaredName || "Untitled script";
+  // The name in strategy("…") is the script's name, so editing it renames the script.
+  const title = declaredName || scriptName || "Untitled strategy";
+  const periodStart = timestamp(from), periodEnd = timestamp(through);
+  const candleEstimate = Number.isFinite(periodStart) && Number.isFinite(periodEnd) ? estimateCandles(periodStart, periodEnd, BAR_MS[pineTimeframe]) : 0;
+  const overLimit = candleEstimate > MAX_TEST_CANDLES;
+  const lastDay = availableRange ? date(availableRange.endTime) : through;
+  const fitStart = (end: string) => date(earliestStartWithinLimit(timestamp(end), BAR_MS[pineTimeframe], availableRange?.startTime));
+  const presets: [string, number][] = [["1 week", 7], ["1 month", 30], ["3 months", 91], ["6 months", 182], ["1 year", 365]];
+  const applyPreset = (days: number) => {
+    if (!lastDay) return;
+    const earliest = availableRange?.startTime ?? -Infinity;
+    const start = Math.max(earliest, timestamp(lastDay) - (days - 1) * DAY, timestamp(fitStart(lastDay)));
+    setFrom(date(start)); setThrough(lastDay);
+  };
 
   useEffect(() => {
     try { const pine = localStorage.getItem("ftl:strategy-lab-pine-draft:v1"); if (pine) setCode(pine); } catch { /* browser storage unavailable */ }
@@ -272,13 +286,16 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
     setScriptId(id); setScriptName(name);
   };
   const save = () => { persist(title, code); setSavedCode(code); };
-  // Renaming keeps the last saved code; unsaved edits stay unsaved.
+  // Renaming rewrites the name in strategy("…") too; unsaved edits stay unsaved.
   const rename = (value: string) => {
     setRenaming(false);
-    const name = value.trim();
+    const name = value.trim().replace(/["\\]/g, "");
     if (!name || name === title) return;
-    persist(name, savedCode ?? code);
-    if (savedCode === null) setSavedCode(code);
+    const renamed = withPineTitle(code, name);
+    const saved = savedCode === null || savedCode === code ? renamed : withPineTitle(savedCode, name);
+    setCode(renamed);
+    persist(name, saved);
+    setSavedCode(saved);
   };
   const leave = async (event: React.MouseEvent) => {
     if (savedCode === code) return;
@@ -318,16 +335,30 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
         <span className="mx-1 hidden h-4 w-px bg-[var(--app-border)] sm:block" />
         <button type="button" onClick={() => toggleSettings("market")} aria-expanded={settings === "market"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2.5 text-xs"><strong>{market?.symbol ?? "Choose market"}</strong><span className="app-muted">{market ? sourceName(market.source) : ""}</span><ChevronDown size={12} /></button>
         <select value={pineTimeframe} onChange={event => setPineTimeframe(event.target.value as LabTimeframe)} aria-label="Candles" className="h-8 rounded-md border-0 bg-[var(--app-panel-2)] px-2 text-xs text-[var(--app-text)]"><option value="15m">15m</option><option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option></select>
-        <button type="button" onClick={() => toggleSettings("period")} aria-expanded={settings === "period"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2.5 text-xs">{from || "From"} <span className="app-muted">→</span> {through || "Through"}<ChevronDown size={12} /></button>
+        <button type="button" onClick={() => toggleSettings("period")} aria-expanded={settings === "period"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2.5 text-xs">{from || "From"} <span className="app-muted">→</span> {through || "Through"}{candleEstimate > 0 && <span className={`ml-1 rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${overLimit ? "bg-loss/15 text-loss" : "app-muted"}`}>{overLimit ? "Too many candles" : `≈${candleEstimate.toLocaleString()} candles`}</span>}<ChevronDown size={12} /></button>
         <div className="ml-auto flex items-center gap-2">
           <button type="button" onClick={save} className="h-8 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Save</button>
           <button type="button" onClick={() => setFocusMode(!focusMode)} aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Exit focus mode" : "Focus mode"} className="grid size-8 place-items-center rounded-md border app-border hover:bg-[var(--app-panel-2)]">{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
-          <button type="button" disabled={!market || busy} onClick={() => void run()} className="inline-flex h-8 items-center gap-2 rounded-md bg-[var(--app-accent)] px-3.5 text-xs font-bold text-[var(--app-accent-ink)] disabled:opacity-50">{busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {busy ? "Running…" : "Run test"}</button>
+          <button type="button" disabled={!market || busy || overLimit} title={overLimit ? `This period has about ${candleEstimate.toLocaleString()} candles. Tests can use up to ${MAX_TEST_CANDLES.toLocaleString()}.` : undefined} onClick={() => void run()} className="inline-flex h-8 items-center gap-2 rounded-md bg-[var(--app-accent)] px-3.5 text-xs font-bold text-[var(--app-accent-ink)] disabled:opacity-50">{busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {busy ? "Running…" : "Run test"}</button>
         </div>
       </div>
       {settings && <div className="absolute inset-x-0 top-full border-y app-border bg-[var(--app-panel-solid)] px-4 py-4 shadow-xl sm:px-6">
         {settings === "market" && <div className="max-w-xl"><label className="relative block"><Search size={15} className="absolute left-3 top-3 app-muted" /><input autoFocus value={marketSearch} onChange={event => setMarketSearch(event.target.value)} placeholder="Search markets or providers" className="h-10 w-full rounded-md border app-border bg-[var(--app-panel-2)] pl-9 pr-3 text-sm outline-none" /></label><div className="mt-2 max-h-52 overflow-y-auto">{marketMatches.map(item => <button key={`${item.symbol}:${item.source}`} type="button" onClick={() => { setMarket(item); setSettings(null); setMarketSearch(""); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-[var(--app-panel-2)]"><span>{item.name}</span><span className="text-xs app-muted">{sourceName(item.source)}</span></button>)}{!marketMatches.length && <p className="p-3 text-xs app-muted">No matching markets.</p>}</div></div>}
-        {settings === "period" && <div className="flex flex-wrap items-end gap-3"><label className="text-xs app-muted">From<input type="date" value={from} onChange={event => setFrom(event.target.value)} className="mt-1 block h-10 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-sm text-[var(--app-text)]" /></label><label className="text-xs app-muted">Through<input type="date" value={through} onChange={event => setThrough(event.target.value)} className="mt-1 block h-10 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-sm text-[var(--app-text)]" /></label>{availableRange && <button type="button" onClick={() => { setFrom(date(availableRange.startTime)); setThrough(date(availableRange.endTime)); }} className="h-10 rounded-md border app-border px-3 text-xs font-semibold">Use full history</button>}<span className="pb-2 text-xs app-muted">{rangeText}</span><button type="button" onClick={() => setSettings(null)} className="ml-auto h-10 rounded-md bg-[var(--app-panel-2)] px-3 text-xs font-semibold">Done</button></div>}
+        {settings === "period" && <div className="max-w-3xl space-y-3" data-testid="lab-period">
+          <div className="flex flex-wrap items-center gap-1.5"><span className="mr-1 text-xs app-muted">Quick pick</span>{presets.map(([label, days]) => <button key={label} type="button" onClick={() => applyPreset(days)} className="h-8 rounded-full border app-border px-3 text-xs font-semibold hover:border-[var(--app-accent)]">{label}</button>)}{lastDay && <button type="button" onClick={() => { setFrom(fitStart(lastDay)); setThrough(lastDay); }} className="h-8 rounded-full border app-border px-3 text-xs font-semibold hover:border-[var(--app-accent)]">Longest for {pineTimeframe}</button>}</div>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-xs app-muted">From<input type="date" value={from} min={availableRange ? date(availableRange.startTime) : undefined} max={through || undefined} onChange={event => setFrom(event.target.value)} className="mt-1 block h-10 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-sm text-[var(--app-text)]" /></label>
+            <label className="text-xs app-muted">Through<input type="date" value={through} min={from || undefined} max={availableRange ? date(availableRange.endTime) : undefined} onChange={event => setThrough(event.target.value)} className="mt-1 block h-10 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-sm text-[var(--app-text)]" /></label>
+            <label className="text-xs app-muted">Candles<select value={pineTimeframe} onChange={event => setPineTimeframe(event.target.value as LabTimeframe)} className="mt-1 block h-10 rounded-md border app-border bg-[var(--app-panel-2)] px-2 text-sm text-[var(--app-text)]"><option value="15m">15m</option><option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option></select></label>
+            <span className="pb-2.5 text-xs app-muted">{rangeText}</span>
+            <button type="button" onClick={() => setSettings(null)} className="ml-auto h-10 rounded-md bg-[var(--app-accent)] px-4 text-xs font-bold text-[var(--app-accent-ink)]">Done</button>
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-xs"><span className={overLimit ? "font-semibold text-loss" : "app-muted"}>≈{candleEstimate.toLocaleString()} {pineTimeframe} candles</span><span className="app-muted">limit {MAX_TEST_CANDLES.toLocaleString()} per test</span></div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--app-panel-2)]"><div className={`h-full rounded-full ${overLimit ? "bg-loss" : candleEstimate > MAX_TEST_CANDLES * 0.8 ? "bg-amber-400" : "bg-[var(--app-accent)]"}`} style={{ width: `${Math.min(100, candleEstimate / MAX_TEST_CANDLES * 100)}%` }} /></div>
+            {overLimit && <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-xs"><AlertCircle size={14} className="shrink-0 text-loss" /><span>Too long for {pineTimeframe} candles. Shorten the dates or pick a bigger timeframe.</span><button type="button" onClick={() => setFrom(fitStart(through))} className="ml-auto h-7 rounded-md bg-loss px-2.5 font-semibold text-white">Fit to {MAX_TEST_CANDLES.toLocaleString()} candles</button></div>}
+          </div>
+        </div>}
       </div>}
     </header>
 

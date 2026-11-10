@@ -93,7 +93,7 @@ export function isPineStrategy(code: string): boolean {
 }
 
 export const PINE_STRATEGY_TEMPLATE = `//@version=6
-strategy("My strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=1, margin_long=1, margin_short=1)
+strategy("My strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=10000, margin_long=1, margin_short=1)
 fast = ta.ema(close, 9)
 slow = ta.ema(close, 21)
 if ta.crossover(fast, slow)
@@ -103,6 +103,11 @@ if ta.crossunder(fast, slow)
 plot(fast, "Fast EMA", color=color.blue)
 plot(slow, "Slow EMA", color=color.orange)
 `;
+
+/** The script with its indicator("…")/strategy("…") title replaced by `name`. */
+export function withPineTitle(code: string, name: string): string {
+  return code.replace(/^(\s*(?:indicator|strategy|study)\s*\(\s*(?:title\s*=\s*)?)(["'])[^"'\n]*\2/m, (_, start: string) => `${start}${JSON.stringify(name.replace(/["\\\n]/g, ""))}`);
+}
 
 /** The title declared in indicator("…") or strategy("…"), if any. */
 export function pineDeclaredName(code: string): string | null {

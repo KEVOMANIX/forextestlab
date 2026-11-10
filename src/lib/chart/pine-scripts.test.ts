@@ -27,3 +27,12 @@ describe("pine chart scripts", () => {
     expect(pineValuesAt(report, 0)[0]!.value).toBeNull();
   });
 });
+
+describe("withPineTitle", () => {
+  it("renames the declared script title", async () => {
+    const { withPineTitle, pineDeclaredName } = await import("./pine-scripts");
+    expect(pineDeclaredName(withPineTitle('//@version=6\nstrategy("Old", overlay=true)\nplot(close)', "London \"Break\""))).toBe("London Break");
+    expect(withPineTitle("//@version=6\nindicator(title='A')", "B")).toContain('indicator(title="B")');
+    expect(withPineTitle("plot(close)", "B")).toBe("plot(close)");
+  });
+});

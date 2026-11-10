@@ -302,6 +302,8 @@ const DASHES: Record<string, number[]> = { dashed: [6, 4], dotted: [2, 3] };
 const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 const str = (value: unknown) => (typeof value === "string" ? value : null);
 const transparent = (color: string | null) => !color || /^#[0-9a-f]{6}00$/i.test(color);
+/** A drawing color: the default when the script never set it, none when it set na. */
+const colorField = (state: DrawingState, key: string, fallback: string): string | null => (key in state ? str(state[key]) : fallback);
 
 /**
  * label.new/line.new/box.new/table.new drawings in their final state, as
@@ -364,9 +366,9 @@ class DrawingLayer extends Layer {
     const extend = str(state.extend);
     if (extend === "left" || extend === "both") left = 0;
     if (extend === "right" || extend === "both") right = width;
-    const fill = cssColor(str(state.bgcolor) ?? "#2196F333");
-    if (fill && !transparent(str(state.bgcolor))) { ctx.fillStyle = fill; ctx.fillRect(left, top, right - left, bottom - top); }
-    const border = str(state.border_color) ?? "#2196F3";
+    const fill = colorField(state, "bgcolor", "#2196F333");
+    if (!transparent(fill)) { ctx.fillStyle = cssColor(fill)!; ctx.fillRect(left, top, right - left, bottom - top); }
+    const border = colorField(state, "border_color", "#2196F3");
     const borderWidth = num(state.border_width) ?? 1;
     if (!transparent(border) && borderWidth > 0) {
       ctx.strokeStyle = cssColor(border)!;
@@ -376,7 +378,7 @@ class DrawingLayer extends Layer {
     }
     const text = str(state.text);
     if (text) {
-      ctx.fillStyle = cssColor(str(state.text_color)) ?? "#D1D4DC";
+      ctx.fillStyle = cssColor(colorField(state, "text_color", "#D1D4DC")) ?? "transparent";
       ctx.font = `${DRAWING_FONT[str(state.text_size) ?? "auto"] ?? 12}px ${FONT}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -389,7 +391,7 @@ class DrawingLayer extends Layer {
     let x1 = this.xOf(chart, report, xloc, num(state.x1)), x2 = this.xOf(chart, report, xloc, num(state.x2));
     let y1 = y(state.y1), y2 = y(state.y2);
     if (x1 == null || x2 == null || y1 == null || y2 == null) return;
-    const color = str(state.color) ?? "#2196F3";
+    const color = colorField(state, "color", "#2196F3");
     if (transparent(color)) return;
     const extend = str(state.extend);
     if (extend && extend !== "none") {
@@ -442,7 +444,7 @@ class DrawingLayer extends Layer {
     if (anchor == null) return;
     const text = str(state.text) ?? "";
     const style = (str(state.style) ?? "label_down").replace(/^style_/, "");
-    const background = str(state.color) ?? "#2196F3";
+    const background = colorField(state, "color", "#2196F3");
     const filled = !transparent(background);
     const fontSize = DRAWING_FONT[str(state.size) ?? "normal"] ?? 12;
     ctx.font = `${fontSize}px ${FONT}`;
@@ -479,8 +481,9 @@ class DrawingLayer extends Layer {
       ctx.arc(x, anchor, 4, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (!text) return;
-    ctx.fillStyle = cssColor(str(state.textcolor)) ?? (filled ? "#FFFFFF" : "#D1D4DC");
+    const textColor = colorField(state, "textcolor", filled ? "#FFFFFF" : "#D1D4DC");
+    if (!text || transparent(textColor)) return;
+    ctx.fillStyle = cssColor(textColor)!;
     ctx.textBaseline = "middle";
     const align = str(state.textalign);
     ctx.textAlign = align === "left" ? "left" : align === "right" ? "right" : "center";

@@ -61,3 +61,30 @@ describe("Pine inputs", () => {
     expect(applyPineInputs(V5, { 2: "not a source", 5: "red" })).toBe(V5);
   });
 });
+
+describe("Pine input layout", () => {
+  const KZ = `//@version=6
+indicator("KZP", "KZP [TFO]", true)
+var default_transparency = 60
+var g_KZ            = "Killzones"
+show_kz             = input.bool(true, "Show Boxes", tooltip = "Killzone times", group = g_KZ)
+use_kz1             = input.bool(true, "", inline = "KZ1", group = g_KZ)
+kz1_color           = input.color(color.new(color.blue, default_transparency), "", inline = "KZ1", group = g_KZ)
+kz1_txt             = input.string("ASIA", "", inline = "KZ1", group = g_KZ)
+kz1_session         = input.session("2000-0000", "", inline = "KZ1", group = g_KZ)
+var g_GLOBAL        = "Global"
+tf_limit            = input.timeframe("30", "Timeframe Limit", group = g_GLOBAL)
+levels              = input.text_area("0.25\\n0.5", title = "Multipliers", group = g_GLOBAL)
+`;
+  it("reads groups, inline rows, blank titles and color.new defaults", () => {
+    const inputs = parsePineInputs(KZ);
+    expect(inputs.map((input) => [input.rawTitle, input.group, input.inline ?? null])).toEqual([
+      ["Show Boxes", "Killzones", null], ["", "Killzones", "KZ1"], ["", "Killzones", "KZ1"], ["", "Killzones", "KZ1"], ["", "Killzones", "KZ1"],
+      ["Timeframe Limit", "Global", null], ["Multipliers", "Global", null],
+    ]);
+    expect(inputs[2]).toMatchObject({ kind: "color", defval: "#2196F366" });
+    expect(inputs[0]!.tooltip).toBe("Killzone times");
+    expect(inputs[6]!.defval).toBe("0.25\n0.5");
+    expect(applyPineInputs(KZ, { 2: "#FF000066" })).toContain('kz1_color           = input.color(#FF000066, "", inline = "KZ1"');
+  });
+});

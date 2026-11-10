@@ -12,7 +12,14 @@ export type PineInput = {
   /** Position among the script's inputs; the key settings are stored under. */
   key: string;
   kind: PineInputKind;
+  /** The title, or the variable it is assigned to when the script gives none. */
   title: string;
+  /** The title exactly as written ("" when the script leaves it blank, as inline rows often do). */
+  rawTitle: string;
+  /** group= section heading and inline= row key, as TradingView lays inputs out. */
+  group?: string;
+  inline?: string;
+  tooltip?: string;
   /** The default as written, when it is a plain literal; otherwise null (shown, not editable). */
   defval: PineInputValue | null;
   defvalText: string;
@@ -42,16 +49,50 @@ const V4_TYPES: Record<string, PineInputKind> = {
   "input.resolution": "timeframe", "input.session": "session", "input.symbol": "symbol", "input.color": "color",
 };
 
-function literal(text: string, kind: PineInputKind): PineInputValue | null {
+type Constants = Map<string, PineInputValue>;
+
+/** Opacity byte for a Pine transparency (0 = opaque, 100 = invisible). */
+const alphaHex = (transparency: number) => Math.round(((100 - Math.min(100, Math.max(0, transparency))) / 100) * 255).toString(16).padStart(2, "0").toUpperCase();
+
+function literal(text: string, kind: PineInputKind, constants: Constants = new Map()): PineInputValue | null {
   const value = text.trim();
   if (/^[+-]?\d+(\.\d+)?$/.test(value) || /^[+-]?\.\d+$/.test(value)) return Number(value);
   if (value === "true" || value === "false") return value === "true";
   const quoted = /^(["'])((?:\\.|(?!\1).)*)\1$/.exec(value);
-  if (quoted) return quoted[2]!.replace(/\\(.)/g, "$1");
+  if (quoted) return quoted[2]!.replace(/\\n/g, "\n").replace(/\\(.)/g, "$1");
   if (SOURCE_SET.has(value)) return value;
   if (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value)) return value.toUpperCase();
-  if (kind === "color" && NAMED_COLORS[value]) return NAMED_COLORS[value]!;
+  if (NAMED_COLORS[value]) return NAMED_COLORS[value]!;
+  // color.new(color.blue, 60) / color.new(#2962FF, transparency) / color.rgb(r, g, b[, t])
+  const colorNew = /^color\.new\s*\(\s*([^,]+?)\s*,\s*([^)]+?)\s*\)$/.exec(value);
+  if (colorNew) {
+    const base = literal(colorNew[1]!, "color", constants);
+    const transparency = literal(colorNew[2]!, "float", constants);
+    if (typeof base === "string" && base.startsWith("#") && typeof transparency === "number") return base.slice(0, 7) + alphaHex(transparency);
+  }
+  const rgb = /^color\.rgb\s*\(([^)]*)\)$/.exec(value);
+  if (rgb) {
+    const parts = rgb[1]!.split(",").map((part) => literal(part, "float", constants));
+    if (parts.length >= 3 && parts.every((part) => typeof part === "number")) {
+      const [r, g, b, t] = parts as number[];
+      return `#${[r!, g!, b!].map((channel) => Math.round(channel).toString(16).padStart(2, "0")).join("")}${alphaHex(t ?? 0)}`.toUpperCase();
+    }
+  }
+  if (constants.has(value)) return constants.get(value)!;
+  void kind;
   return null;
+}
+
+/** Simple constants the script declares (var g_KZ = "Killzones", default_transparency = 60), for groups and defaults. */
+function readConstants(code: string): Constants {
+  const constants: Constants = new Map();
+  const source = code.replace(/\/\/.*$/gm, "");
+  for (const match of source.matchAll(/^\s*(?:var\s+|varip\s+|const\s+)?(?:(?:int|float|bool|string|color)\s+)?([A-Za-z_]\w*)\s*=(?!=)\s*(.+?)\s*$/gm)) {
+    if (/\binput\b/.test(match[2]!)) continue;
+    const value = literal(match[2]!, "other", constants);
+    if (value != null) constants.set(match[1]!, value);
+  }
+  return constants;
 }
 
 function inferKind(value: PineInputValue | null, text: string): PineInputKind {
@@ -75,6 +116,7 @@ export function parsePineInputs(code: string): PineInput[] {
 }
 
 function readInputs(code: string): PineInput[] {
+  const constants = readConstants(code);
   const calls = [...Object.keys(FUNCTIONS), "input"].flatMap((name) => findCalls(code, name).map((call) => ({ name, call })));
   calls.sort((left, right) => left.call.start - right.call.start);
   return calls.flatMap(({ name, call }, index): PineInput[] => {
@@ -93,22 +135,30 @@ function readInputs(code: string): PineInput[] {
     let kind: PineInputKind = FUNCTIONS[name] ?? "other";
     if (name === "input") {
       const type = named("type")?.text ?? (positional[2] && /^input\.\w+$/.test(positional[2].text) ? positional[2].text : undefined);
-      kind = type ? V4_TYPES[type] ?? "other" : inferKind(literal(defArg.text, "other"), defArg.text);
+      kind = type ? V4_TYPES[type] ?? "other" : inferKind(literal(defArg.text, "other", constants), defArg.text);
     }
     const titleText = named("title")?.text ?? (positional[1] && /^["']/.test(positional[1].text) ? positional[1].text : undefined);
-    const titleValue = titleText ? literal(titleText, "string") : null;
+    const titleValue = titleText ? literal(titleText, "string", constants) : null;
+    const textOf = (key: string) => { const arg = named(key); const value = arg ? literal(arg.text, "string", constants) : null; return typeof value === "string" ? value : undefined; };
     const lineStart = code.lastIndexOf("\n", call.start) + 1;
     const variable = /([A-Za-z_]\w*)\s*:?=\s*$/.exec(code.slice(lineStart, call.start))?.[1];
     const number = (text: string | undefined) => (text != null && /^[+-]?\d*\.?\d+$/.test(text.trim()) ? Number(text) : undefined);
     // input.int/float(defval, title, minval, maxval, step) also take limits by position.
     const byPosition = (slot: number) => (name === "input.int" || name === "input.float") && !/^\[/.test(positional[2]?.text ?? "") ? positional[slot]?.text : undefined;
     const optionsText = named("options")?.text ?? (/^\[/.test(positional[2]?.text ?? "") ? positional[2]!.text : undefined);
-    const options = optionsText ? optionsText.replace(/^\[|\]$/g, "").split(",").map((item) => literal(item, kind)).filter((item): item is PineInputValue => item != null) : undefined;
+    const options = optionsText ? optionsText.replace(/^\[|\]$/g, "").split(",").map((item) => literal(item, kind, constants)).filter((item): item is PineInputValue => item != null) : undefined;
+    const rawTitle = typeof titleValue === "string" ? titleValue : "";
+    const defval = literal(defArg.text, kind, constants);
     return [{
       key: String(index),
       kind,
-      title: typeof titleValue === "string" && titleValue ? titleValue : variable ?? `Input ${index + 1}`,
-      defval: literal(defArg.text, kind),
+      title: rawTitle || variable || `Input ${index + 1}`,
+      rawTitle,
+      group: textOf("group"),
+      inline: textOf("inline"),
+      tooltip: textOf("tooltip"),
+      // A color default must resolve to a color; anything else stays code.
+      defval: kind === "color" && !(typeof defval === "string" && defval.startsWith("#")) ? null : defval,
       defvalText: defArg.text,
       minval: number(named("minval")?.text ?? byPosition(2)),
       maxval: number(named("maxval")?.text ?? byPosition(3)),

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, Check, ChevronDown, CircleCheck, Code2, ExternalLink, FilePlus2, Loader2, Play, Save, X } from "lucide-react";
+import { AlertCircle, Check, ChevronDown, CircleCheck, Code2, ExternalLink, FilePlus2, Loader2, PanelLeft, PanelRight, Play, Save, X } from "lucide-react";
 import { readPineScripts, PINE_SCRIPTS_CHANGED, type PineScript } from "@/lib/chart/pine-scripts";
 import type { PineRunStatus } from "./usePineIndicators";
 
@@ -12,6 +12,8 @@ const StrategyCodeEditor = dynamic(() => import("./StrategyCodeEditor").then(mod
 });
 
 const WIDTH_KEY = "forextestlab:pine-editor-width:v2";
+/** Which side of the chart the editor docks to; right unless the trader moves it. */
+const SIDE_KEY = "forextestlab:pine-editor-side";
 const MIN_WIDTH = 340;
 
 export type PineEditorDraft = {
@@ -74,6 +76,7 @@ export function PineEditorPanel({
   docked: boolean;
 }) {
   const [width, setWidth] = useState(760);
+  const [side, setSide] = useState<"right" | "left">("right");
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [scripts, setScripts] = useState<PineScript[]>([]);
@@ -84,6 +87,7 @@ export function PineEditorPanel({
 
   useEffect(() => {
     try { const saved = Number(localStorage.getItem(WIDTH_KEY)); if (saved >= MIN_WIDTH) setWidth(saved); } catch { /* Use the default width. */ }
+    try { if (localStorage.getItem(SIDE_KEY) === "left") setSide("left"); } catch { /* Docked right by default. */ }
     const load = () => setScripts(readPineScripts());
     load();
     window.addEventListener(PINE_SCRIPTS_CHANGED, load);
@@ -96,7 +100,7 @@ export function PineEditorPanel({
     const startWidth = width;
     const max = Math.max(MIN_WIDTH, window.innerWidth * 0.8);
     let latest = startWidth;
-    const move = (moveEvent: PointerEvent) => { latest = Math.round(Math.min(max, Math.max(MIN_WIDTH, startWidth + startX - moveEvent.clientX))); setWidth(latest); };
+    const move = (moveEvent: PointerEvent) => { latest = Math.round(Math.min(max, Math.max(MIN_WIDTH, startWidth + (side === "right" ? startX - moveEvent.clientX : moveEvent.clientX - startX)))); setWidth(latest); };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -119,10 +123,11 @@ export function PineEditorPanel({
         if (mod && event.key.toLowerCase() === "s") { event.preventDefault(); onSave(); }
         else if (mod && event.key === "Enter") { event.preventDefault(); event.stopPropagation(); onApply(); }
       }}
-      className={`flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l app-border bg-[var(--app-panel-solid)] text-[var(--app-text)] shadow-[-16px_0_40px_rgba(0,0,0,0.35)] animate-[pine-drawer-in_160ms_ease-out] ${docked ? "relative" : "absolute right-0 top-0 z-40"}`}
+      data-side={side}
+      className={`flex h-full min-h-0 shrink-0 flex-col overflow-hidden app-border bg-[var(--app-panel-solid)] text-[var(--app-text)] animate-[pine-drawer-in_160ms_ease-out] ${side === "right" ? "ml-auto border-l shadow-[-16px_0_40px_rgba(0,0,0,0.35)]" : "mr-auto border-r shadow-[16px_0_40px_rgba(0,0,0,0.35)]"} ${docked ? "relative" : `absolute top-0 z-40 ${side === "right" ? "right-0" : "left-0"}`}`}
       style={{ width: `min(${width}px, 100%)` }}
     >
-      <div role="separator" aria-orientation="vertical" aria-label="Resize Pine Editor" onPointerDown={startResize} className="absolute left-0 top-0 z-10 hidden h-full w-1.5 cursor-col-resize hover:bg-brand-400/30 sm:block" />
+      <div role="separator" aria-orientation="vertical" aria-label="Resize Pine Editor" onPointerDown={startResize} className={`absolute top-0 z-10 hidden h-full w-1.5 cursor-col-resize hover:bg-brand-400/30 sm:block ${side === "right" ? "left-0" : "right-0"}`} />
 
       <div className="flex min-h-11 items-center gap-1 border-b app-border px-2">
         <Code2 size={16} className="ml-1 shrink-0 text-[var(--app-accent-text)]" aria-hidden />
@@ -168,6 +173,16 @@ export function PineEditorPanel({
         <button type="button" onClick={onApply} title={`${applyLabel} (Ctrl+Enter)`} className={`inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-xs font-semibold ${outOfDate || !onChart ? "bg-brand-500 text-white hover:bg-brand-600" : "hover:bg-[var(--app-panel-2)]"}`}>
           {status?.state === "loading" ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Play size={14} aria-hidden />}
           <span className="hidden sm:inline">{applyLabel}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => { const next = side === "right" ? "left" : "right"; setSide(next); try { localStorage.setItem(SIDE_KEY, next); } catch { /* Side is a convenience. */ } }}
+          aria-label={side === "right" ? "Dock Pine Editor on the left" : "Dock Pine Editor on the right"}
+          title={side === "right" ? "Move to the left" : "Move to the right"}
+          data-testid="pine-editor-dock"
+          className="grid size-8 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"
+        >
+          {side === "right" ? <PanelLeft size={16} aria-hidden /> : <PanelRight size={16} aria-hidden />}
         </button>
         <button type="button" onClick={onClose} aria-label="Close Pine Editor" title="Close" className="grid size-8 place-items-center rounded app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
           <X size={16} aria-hidden />

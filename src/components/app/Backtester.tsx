@@ -1388,8 +1388,8 @@ export function Backtester({
               />
             }
           />
-          {/* The focused chart's Pine Editor slides over the chart's right side. */}
-          <div ref={setChartSidePanelSlot} className="pointer-events-none absolute inset-y-0 right-0 z-[60] flex max-w-full overflow-clip [&>*]:pointer-events-auto" />
+          {/* The focused chart's Pine Editor slides over the chart, docked right or left. */}
+          <div ref={setChartSidePanelSlot} className="pointer-events-none absolute inset-0 z-[60] flex overflow-clip [&>*]:pointer-events-auto" />
           <ReplayToolbar
             key={`replay-toolbar-${workspace.revision}`}
             state={activeTradingState ?? state}

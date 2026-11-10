@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useModalBehavior } from "@/lib/ui/use-modal-behavior";
 import { parsePineInputs, PINE_SOURCES, type PineInput, type PineInputValue } from "@/lib/chart/pine-inputs";
-import { distinctPineColors, remapPineColor, type PineChartIndicator, type PineColorMap, type PineStyle } from "@/lib/chart/pine-scripts";
+import { distinctPineColors, pineLegendTitle, remapPineColor, type PineChartIndicator, type PineColorMap, type PineStyle } from "@/lib/chart/pine-scripts";
 import type { PineReport } from "./pine-render";
 
 type Tab = "inputs" | "style";
@@ -101,23 +101,27 @@ export function PineSettingsDialog({
   const patch = <K extends "plots" | "shapes" | "hlines" | "fillItems" | "backgroundItems">(group: K, index: number, change: NonNullable<PineStyle[K]>[string]) =>
     onChange({ style: { ...style, [group]: { ...style[group], [index]: { ...style[group]?.[index], ...change } } } });
 
-  const renderInput = (input: PineInput) => {
+  /** One input's control; `compact` for controls sharing an inline row. */
+  const renderInput = (input: PineInput, compact = false) => {
     const value = item.inputs?.[input.key] ?? input.defval;
+    const width = (wide: string, narrow: string) => (compact ? narrow : wide);
     if (input.defval == null || input.kind === "other") {
       return <code className="max-w-44 truncate rounded bg-[var(--app-panel-2)] px-2 py-1 text-[11px] app-muted" title="Set in the script's code">{input.defvalText}</code>;
     }
     if (input.options) {
       return (
-        <select value={String(value)} onChange={(event) => setInput(input.key, input.kind === "int" || input.kind === "float" ? Number(event.target.value) : event.target.value)} className={`${field} min-w-28`} aria-label={input.title}>
+        <select value={String(value)} onChange={(event) => setInput(input.key, input.kind === "int" || input.kind === "float" ? Number(event.target.value) : event.target.value)} className={`${field} ${width("min-w-28", "min-w-0 max-w-32")}`} aria-label={input.title}>
           {input.options.map((option) => <option key={String(option)} value={String(option)}>{String(option)}</option>)}
         </select>
       );
     }
     switch (input.kind) {
+      case "bool":
+        return <input type="checkbox" checked={value === true} onChange={(event) => setInput(input.key, event.target.checked)} className="h-4 w-4 shrink-0 accent-brand-400" aria-label={input.title} />;
       case "timeframe": {
         const known = TIMEFRAMES.some((option) => option.value === String(value));
         return (
-          <select value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} className={`${field} min-w-32`} aria-label={input.title}>
+          <select value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} className={`${field} ${width("min-w-32", "min-w-0 max-w-32")}`} aria-label={input.title}>
             {!known && <option value={String(value)}>{String(value)}</option>}
             {TIMEFRAMES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -125,12 +129,13 @@ export function PineSettingsDialog({
       }
       case "source":
         return (
-          <select value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} className={`${field} min-w-32`} aria-label={input.title}>
+          <select value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} className={`${field} ${width("min-w-32", "min-w-0 max-w-32")}`} aria-label={input.title}>
             {PINE_SOURCES.map((source) => <option key={source} value={source}>{SOURCE_LABELS[source]}</option>)}
           </select>
         );
       case "color":
-        return <Swatch color={String(value)} onChange={(hex) => setInput(input.key, hex)} label={input.title} />;
+        // The picker sets the hue; the script's own transparency is kept.
+        return <Swatch color={String(value)} onChange={(hex) => setInput(input.key, hex + (/^#[0-9a-f]{6}([0-9a-f]{2})$/i.exec(String(value))?.[1] ?? ""))} label={input.title} />;
       case "int":
       case "float":
         return (
@@ -148,12 +153,57 @@ export function PineSettingsDialog({
               if (input.maxval != null) next = Math.min(input.maxval, next);
               setInput(input.key, input.kind === "int" ? Math.round(next) : next);
             }}
-            className={`${field} w-28 text-right`}
+            className={`${field} ${width("w-28", "w-16")} text-right`}
           />
         );
       default:
-        return <input type="text" value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} className={`${field} w-40 text-right`} aria-label={input.title} />;
+        if (typeof input.defval === "string" && input.defval.includes("\n")) {
+          return <textarea value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} rows={Math.min(6, String(value).split("\n").length + 1)} className={`${field} h-auto w-full py-2 font-mono leading-5`} aria-label={input.title} />;
+        }
+        return <input type="text" value={String(value)} onChange={(event) => setInput(input.key, event.target.value)} className={`${field} ${input.kind === "session" ? width("w-36", "w-28") : width("w-40", "w-24")} text-right`} aria-label={input.title} />;
     }
+  };
+
+  /** Inputs laid out as TradingView does: group headings, and inputs sharing inline= on one row. */
+  const layout: { heading?: string; inputs: PineInput[] }[] = [];
+  let lastGroup: string | undefined;
+  for (const input of inputs) {
+    const previous = layout.at(-1);
+    const heading = input.group && input.group !== lastGroup ? input.group : undefined;
+    lastGroup = input.group ?? lastGroup;
+    if (!heading && previous && input.inline && previous.inputs[0]?.inline === input.inline && previous.inputs[0]?.group === input.group) previous.inputs.push(input);
+    else layout.push({ heading, inputs: [input] });
+  }
+
+  const renderRow = (row: PineInput[]) => {
+    const [first] = row;
+    if (!first) return null;
+    const multiline = row.length === 1 && typeof first.defval === "string" && first.defval.includes("\n");
+    if (multiline) {
+      return (
+        <div className="py-1.5 text-xs">
+          <p className="mb-1.5 app-muted" title={first.tooltip}>{first.title}</p>
+          {renderInput(first)}
+        </div>
+      );
+    }
+    if (row.length === 1) {
+      return first.kind === "bool" && first.defval != null
+        ? <Row label={<span title={first.tooltip}><Check checked={(item.inputs?.[first.key] ?? first.defval) === true} onChange={(value) => setInput(first.key, value)} label={first.title} /></span>} />
+        : <Row label={<span className="app-muted" title={first.tooltip ?? first.title}>{first.title}</span>}>{renderInput(first)}</Row>;
+    }
+    // An inline row: each input in order, titled only where the script titles it.
+    return (
+      <div className="flex min-h-11 flex-wrap items-center gap-2 py-1 text-xs">
+        {row.map((input) => (
+          <span key={input.key} className="flex min-w-0 items-center gap-2" title={input.tooltip}>
+            {input.kind === "bool" && input.defval != null
+              ? <Check checked={(item.inputs?.[input.key] ?? input.defval) === true} onChange={(value) => setInput(input.key, value)} label={input.rawTitle} />
+              : <>{input.rawTitle && <span className="app-muted">{input.rawTitle}</span>}{renderInput(input, true)}</>}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   const plots = report?.plots ?? [];
@@ -176,7 +226,7 @@ export function PineSettingsDialog({
         onPointerDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b app-border px-5 py-4">
-          <h3 className="truncate text-base font-semibold">{item.name}</h3>
+          <h3 className="truncate text-base font-semibold">{pineLegendTitle(item.code) ?? item.name}</h3>
           <button type="button" aria-label="Close" onClick={cancel} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]">
             <X size={16} />
           </button>
@@ -197,9 +247,12 @@ export function PineSettingsDialog({
                 <select disabled className={`${field} min-w-28 opacity-70`} title="Scripts run on the chart's own timeframe"><option>Chart</option></select>
               </Row>
               {inputs.length === 0 && <p className="py-4 text-center text-xs app-muted">This script has no other inputs.</p>}
-              {inputs.map((input) => input.kind === "bool" && input.defval != null
-                ? <Row key={input.key} label={<Check checked={(item.inputs?.[input.key] ?? input.defval) === true} onChange={(value) => setInput(input.key, value)} label={input.title} />} />
-                : <Row key={input.key} label={<span className="app-muted" title={input.title}>{input.title}</span>}>{renderInput(input)}</Row>)}
+              {layout.map((row) => (
+                <div key={row.inputs[0]!.key}>
+                  {row.heading && <p className={section}>{row.heading}</p>}
+                  {renderRow(row.inputs)}
+                </div>
+              ))}
             </div>
           )}
 

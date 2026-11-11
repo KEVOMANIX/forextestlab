@@ -1076,3 +1076,14 @@
 @media (prefers-reduced-motion: reduce) {
   [data-testid="pine-editor-panel"] { animation: none !important; }
 }
+
+/* Items in the analytics header's "⋯" menu: flat full-width rows, whatever button they come from. */
+@layer components {
+  .analytics-menu > a,
+  .analytics-menu > button,
+  .analytics-menu > span,
+  .analytics-menu > div > button {
+    @apply flex h-9 w-full items-center justify-start gap-2 rounded-lg border-0 bg-transparent px-2.5 text-xs font-semibold text-[var(--app-text)] transition-colors hover:bg-[var(--app-panel-2)];
+  }
+  .analytics-menu > div { @apply w-full; }
+}

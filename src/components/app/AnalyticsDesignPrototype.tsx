@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -16,6 +16,7 @@ import {
   FlaskConical,
   Gauge,
   LineChart,
+  MoreHorizontal,
   ListOrdered,
   Lock,
   NotebookPen,
@@ -459,16 +460,33 @@ export function AnalyticsDesignPrototype({
   );
   const showingLiveSample = mode === "live" && showDemoData;
   const canPreviewSample = mode === "live" && !readOnly && !showDemoData;
+  // Share, exports and the demo live in one "⋯" menu so the header stays quiet.
+  const menuItems = [
+    !demo && !readOnly && fullAccess && sessionId && <ShareAnalyticsButton key="share" sessionId={sessionId} />,
+    !demo && fullAccess && <ExportAnalyticsPdfButton key="pdf" getElement={() => exportRef.current} name={displayedSessionName} onExporting={setExportingPdf} />,
+    !demo && !readOnly && fullAccess && <ExportTradesButton key="csv" tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact />,
+    reportsLocked && !readOnly && <ProLock key="share-lock" feature="share" className={lockedAction}><Share2 size={14} aria-hidden /> Share <Lock size={11} aria-label="Pro" /></ProLock>,
+    reportsLocked && !readOnly && <ProLock key="pdf-lock" feature="exports" className={lockedAction}><FileText size={14} aria-hidden /> Export PDF <Lock size={11} aria-label="Pro" /></ProLock>,
+    reportsLocked && !readOnly && <ProLock key="csv-lock" feature="exports" className={lockedAction}><Download size={14} aria-hidden /> Export CSV <Lock size={11} aria-label="Pro" /></ProLock>,
+  ].filter(Boolean) as ReactNode[];
+  const continueReplay = !demo && !readOnly
+    ? (onClose
+      ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button>
+      : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>)
+    : null;
   const headerActions = (
-    <div className="flex flex-wrap items-center gap-2">
-      {!demo && !readOnly && fullAccess && sessionId && <ShareAnalyticsButton key={sessionId} sessionId={sessionId} />}
-      {!demo && fullAccess && <ExportAnalyticsPdfButton getElement={() => exportRef.current} name={displayedSessionName} onExporting={setExportingPdf} />}
-      {reportsLocked && !readOnly && <>
-        <ProLock feature="share" className={lockedAction}><Share2 size={14} aria-hidden /> Share <Lock size={11} aria-label="Pro" /></ProLock>
-        <ProLock feature="exports" className={lockedAction}><FileText size={14} aria-hidden /> PDF <Lock size={11} aria-label="Pro" /></ProLock>
-      </>}
-      {!readOnly && (demo ? <span className="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-semibold app-muted"><FlaskConical size={14} /> Sample report</span> : fullAccess ? <ExportTradesButton tradeCount={scopedTrades.length} sessionId={sessionId ?? "session"} compact /> : <ProLock feature="exports" className={lockedAction}><Download size={14} aria-hidden /> Export CSV <Lock size={11} aria-label="Pro" /></ProLock>)}
-      {!demo && !readOnly && (onClose ? <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> Continue replay</button> : <Link href={resumeHref} className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-500 px-4 text-xs font-bold text-surface-950 shadow-sm hover:bg-brand-400"><Play size={14} /> {status === "finished" ? "Replay again" : "Continue replay"}</Link>)}
+    <div className="flex items-center justify-end gap-2">
+      {showReturn && onClose && !continueReplay && <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Session</button>}
+      {showingLiveSample && !readOnly
+        ? <button type="button" onClick={() => setShowDemoData(false)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-amber-300/40 bg-[var(--app-panel)] px-3 text-xs font-semibold"><X size={14} aria-hidden /> Close demo</button>
+        : (menuItems.length > 0 || (canPreviewSample && !exportingPdf)) && <HeaderMenu>
+          {menuItems}
+          {canPreviewSample && !exportingPdf && <>
+            {menuItems.length > 0 && <hr className="my-1 border-[var(--app-border)]" />}
+            <button type="button" onClick={() => setShowDemoData(true)} className="text-[var(--app-accent-text)]"><FlaskConical size={14} aria-hidden /> View demo data</button>
+          </>}
+        </HeaderMenu>}
+      {!showingLiveSample && continueReplay}
     </div>
   );
   const sessionMetadata = (
@@ -490,43 +508,32 @@ export function AnalyticsDesignPrototype({
   return (
     <TradeFocusProvider value={tradeFocus}>
     <div ref={exportRef} className="analytics-workspace mx-auto max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
-      {showReturn && onClose && <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onClick={onClose} className="inline-flex items-center gap-2 text-xs font-semibold app-muted hover:text-[var(--app-text)]"><ArrowLeft size={14} aria-hidden /> Continue session</button>
-      </div>}
-
       {!demo && notice}
 
-      {sessionSelector ? (
-        <header data-pdf-part="Overview" className="mt-4 border-b app-border pb-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <h1 className="text-2xl font-bold tracking-[-0.025em] sm:text-3xl">Analytics</h1>
-            {!showingLiveSample && headerActions}
-          </div>
-          {showingLiveSample ? (
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span>
-              <div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div>
-              <div className="hidden sm:block">{sessionMetadata}</div>
-              {!readOnly && <button type="button" onClick={() => setShowDemoData(false)} className="ml-auto inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-amber-300/40 bg-[var(--app-panel)] px-3 text-xs font-semibold text-[var(--app-text)] transition-colors hover:bg-[var(--app-panel-2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"><X size={14} aria-hidden /> Close demo</button>}
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>
-          )}
-        </header>
-      ) : (
-        <header data-pdf-part="Overview" className="mt-4 flex flex-col gap-4 border-b app-border pb-4 lg:flex-row lg:items-end lg:justify-between"><div className="min-w-0"><h1 className="truncate text-2xl font-bold tracking-[-0.025em] sm:text-3xl">{displayedSessionName}</h1><div className="mt-2">{sessionMetadata}</div></div>{showingLiveSample && !readOnly ? <button type="button" onClick={() => setShowDemoData(false)} className="inline-flex h-9 items-center gap-2 rounded-lg border app-border bg-[var(--app-panel)] px-3 text-xs font-semibold"><X size={14} aria-hidden /> Close demo</button> : headerActions}</header>
-      )}
-
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-        <nav className="w-fit max-w-full overflow-x-auto rounded-2xl border app-border bg-[var(--app-panel)] p-1.5 shadow-[0_14px_36px_-32px_rgba(0,0,0,0.65)]" aria-label="Analytics sections">
-          <div className="flex min-w-max items-center gap-1">
-            {TABS.filter((item) => !readOnly || (item.id !== "journal" && item.id !== "optimizer")).map(({ id, label, icon: Icon }) => (
-              <button key={id} type="button" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] ${tab === id ? "bg-[var(--app-accent)] text-[var(--app-accent-ink)] shadow-sm" : "app-muted hover:bg-[var(--app-panel-2)] hover:text-[var(--app-text)]"}`}><Icon size={15} aria-hidden />{label}{id === "trades" && model.closedTrades > 0 && <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] ${tab === id ? "bg-black/10" : "bg-[var(--app-panel-2)]"}`}>{model.closedTrades}</span>}{(id === "reports" || id === "optimizer") && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
+      <header data-pdf-part="Overview" className="grid items-center gap-4 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-bold tracking-[-0.02em] sm:text-2xl">{sessionSelector ? "Analytics" : displayedSessionName}</h1>
+          {!sessionSelector && <div className="mt-1">{sessionMetadata}</div>}
+        </div>
+        <nav className="w-fit max-w-full overflow-x-auto rounded-full border app-border bg-[var(--app-panel)] p-1 xl:justify-self-center" aria-label="Analytics sections">
+          <div className="flex min-w-max items-center gap-0.5">
+            {TABS.filter((item) => !readOnly || (item.id !== "journal" && item.id !== "optimizer")).map(({ id, label }) => (
+              <button key={id} type="button" onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined} className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)] ${tab === id ? "bg-[var(--app-text)] text-[var(--app-bg)] shadow-sm" : "app-muted hover:text-[var(--app-text)]"}`}>{label}{id === "trades" && model.closedTrades > 0 && <span className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] ${tab === id ? "bg-black/10" : "bg-[var(--app-panel-2)]"}`}>{model.closedTrades}</span>}{(id === "reports" || id === "optimizer") && reportsLocked && <Lock size={11} aria-label="Pro" />}</button>
             ))}
           </div>
         </nav>
-        {canPreviewSample && !exportingPdf && <button type="button" onClick={() => setShowDemoData(true)} className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border app-border bg-[var(--app-panel)] px-4 text-xs font-semibold text-[var(--app-accent-text)] shadow-sm transition-colors hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-wash)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--app-accent)]"><FlaskConical size={15} aria-hidden /> View demo</button>}
-      </div>
+        <div data-html2canvas-ignore="true" className="xl:justify-self-end">{headerActions}</div>
+      </header>
+
+      {sessionSelector && (showingLiveSample ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.10),var(--app-panel))] px-4 py-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-300/10 text-amber-200"><FlaskConical size={16} aria-hidden /></span>
+          <div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200">Sample analytics</p><p className="mt-0.5 truncate text-sm font-semibold">Completed strategy report</p></div>
+          <div className="hidden sm:block">{sessionMetadata}</div>
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-5 rounded-2xl border app-border bg-[var(--app-panel)] px-4 py-3.5 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(32rem,1.35fr)] lg:items-center"><div className="min-w-0">{sessionSelector}<div className="mt-2 pl-12">{sessionMetadata}</div></div>{sessionContinuation}</div>
+      ))}
 
       {(tab === "overview" || exportingPdf) && (
         <main data-pdf-part="Overview" className="mt-5 space-y-4">
@@ -976,4 +983,26 @@ function ReportCard({ eyebrow, title, icon: Icon, info, children }: { eyebrow: s
 
 function PrototypePlaceholder({ icon: Icon, title, description }: { icon: typeof LineChart; title: string; description: string }) {
   return <section className="mt-5 grid min-h-[420px] place-items-center rounded-2xl bg-[var(--app-panel)] p-8 text-center"><div className="max-w-md"><span className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-brand-400/10 text-brand-300"><Icon size={22}/></span><h2 className="mt-4 text-xl font-semibold">{title}</h2><p className="mt-2 text-sm leading-6 app-muted">{description}</p><p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-200">Prototype view</p></div></section>;
+}
+
+/** The header's "⋯" menu. Items stay mounted while closed so Share's dialog and a running PDF export survive. */
+function HeaderMenu({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", escape); };
+  }, [open]);
+  return (
+    <div ref={root} className="relative">
+      <button type="button" onClick={() => setOpen((value) => !value)} aria-haspopup="menu" aria-expanded={open} aria-label="More actions" className="grid h-9 w-9 place-items-center rounded-lg border app-border bg-[var(--app-panel)] app-muted transition-colors hover:text-[var(--app-text)]"><MoreHorizontal size={16} aria-hidden /></button>
+      <div role="menu" onClick={(event) => { const target = event.target as HTMLElement; if (target.closest("a,button") && !target.closest("dialog")) setOpen(false); }} className={`${open ? "" : "hidden "}analytics-menu absolute right-0 top-11 z-30 w-52 rounded-xl border app-border bg-[var(--app-panel-solid)] p-1.5 shadow-2xl`}>
+        {children}
+      </div>
+    </div>
+  );
 }

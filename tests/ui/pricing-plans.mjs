@@ -57,17 +57,14 @@ try {
     assert.ok(Math.abs(freeBox.height - proBox.height) <= 1, "Cards have equal heights on desktop and mobile");
     if (width === 1280) {
       const discountBox = await page.getByTestId("discount-offer").boundingBox();
-      assert.ok(discountBox.y + discountBox.height <= 1100, "Prices, CTAs, compact plan summary and offer fit the desktop viewport");
+      assert.ok(discountBox.y + discountBox.height <= 1100, "Prices, CTAs, every feature and the offer fit the desktop viewport");
     }
     for (const plan of ["plan-free", "plan-pro"]) {
       await expect(page.getByTestId(plan).getByText("Simulated market & pending orders", { exact: true })).toBeVisible();
       await expect(page.getByTestId(plan).getByText("Stop-loss, take-profit & risk sizing", { exact: true })).toBeVisible();
     }
     await expect(page.getByTestId("plan-pro").getByText("Advanced analytics & reports", { exact: true })).toBeVisible();
-    for (const feature of ["Prop Firm Challenges", "CSV trade exports", "PDF reports & analytics sharing"]) {
-      await expect(page.getByTestId("plan-pro").getByText(feature, { exact: false })).toBeHidden();
-    }
-    await page.getByTestId("plan-pro").getByText("View all Pro features", { exact: false }).click();
+    // Every feature shows at once; nothing is folded away.
     for (const feature of ["Prop Firm Challenges", "CSV trade exports", "PDF reports & analytics sharing"]) {
       await expect(page.getByTestId("plan-pro").getByText(feature, { exact: false })).toBeVisible();
     }

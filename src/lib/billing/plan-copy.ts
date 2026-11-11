@@ -37,5 +37,20 @@ export const PRO_PLAN_FEATURES = [
   "Pine request.security() on other markets",
 ] as const;
 
+/** The pricing cards: each plan's features in groups, all shown at once. */
+export type PlanFeatureGroup = { title: string; items: readonly string[] };
+
+export const FREE_PLAN_GROUPS: readonly PlanFeatureGroup[] = [
+  { title: "Replay", items: ["3 sessions / month", "7 major FX pairs", "31 days of history / session", "Single-pair replay", "Replay speeds up to 1,200×", "Simulated market & pending orders", "Stop-loss, take-profit & risk sizing", "Trading journal"] },
+  { title: "Analytics", items: ["Basic session results"] },
+  { title: "Pine & Strategy Lab", items: ["1 Pine indicator per chart", "5 saved scripts", "2 strategy tests / day", "5,000 candles / test"] },
+];
+
+export const PRO_PLAN_GROUPS: readonly PlanFeatureGroup[] = [
+  { title: "Replay", items: ["Unlimited sessions", "All available markets", "Full available history", "Multi-pair replay", "All replay speeds", "Simulated market & pending orders", "Stop-loss, take-profit & risk sizing", "Trading journal & session results"] },
+  { title: "Analytics", items: ["Advanced analytics & reports", "AI Analyst", "Prop Firm Challenges", "CSV trade exports", "PDF reports & analytics sharing"] },
+  { title: "Pine & Strategy Lab", items: ["25 Pine indicators per chart", "500 saved scripts", "100,000 candles / test", "request.security() on other markets"] },
+];
+
 export const PRO_TRIAL_SUMMARY =
   "Try every Pro feature free for 7 days. Choose monthly or yearly.";

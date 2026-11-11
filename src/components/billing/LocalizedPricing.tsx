@@ -4,7 +4,7 @@ import { ArrowRight, Check, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { FREE_PLAN_FEATURES } from "@/lib/billing/plan-copy";
+import { FREE_PLAN_GROUPS, PRO_PLAN_GROUPS, type PlanFeatureGroup } from "@/lib/billing/plan-copy";
 import { CopyWelcomeCode } from "@/components/WelcomeOffer";
 import { WELCOME_OFFER } from "@/lib/promotions";
 import type { BillingInterval, Tier } from "@/lib/billing/tier-types";
@@ -109,6 +109,28 @@ function formattedPrices(response: PaddlePricePreviewResponse): PaddlePrices {
     prices[item.price.id] = item.formattedTotals.total;
     return prices;
   }, {});
+}
+
+/** A plan's features in titled groups, two columns wide, every one visible. */
+function FeatureGroups({ groups, tone }: { groups: readonly PlanFeatureGroup[]; tone: "free" | "pro" }) {
+  const rule = tone === "pro" ? "border-brand-400/20" : "border-white/10";
+  return (
+    <div className="mt-2">
+      {groups.map((group) => (
+        <div key={group.title} className={`mt-3 border-t ${rule} pt-3`}>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">{group.title}</p>
+          <ul className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+            {group.items.map((feature) => (
+              <li key={feature} className={`flex gap-2 text-[13px] leading-5 ${tone === "pro" ? "text-slate-200" : "text-slate-300"}`}>
+                <Check size={15} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function LocalizedPricing({
@@ -264,29 +286,22 @@ export function LocalizedPricing({
 
       {error && <div role="alert" className="mx-auto mt-5 max-w-xl rounded-xl border border-red-400/25 bg-red-400/10 px-4 py-3 text-center text-sm text-red-200">{error}</div>}
 
-      <div className="mx-auto grid max-w-3xl auto-rows-fr gap-5 md:grid-cols-2">
-        <article data-testid="plan-free" className="relative flex h-full flex-col rounded-2xl border border-white/10 bg-surface-900 p-5 shadow-card sm:p-6">
-          <p className="text-lg font-semibold text-white">Free</p>
-          <div className="mt-3 flex min-h-11 items-end gap-2">
-            <strong className="text-4xl font-bold tracking-tight text-white">$0</strong>
-            <span className="pb-1 text-sm text-slate-500">/ forever</span>
+      <div className="mx-auto grid max-w-5xl auto-rows-fr gap-4 md:grid-cols-2">
+        <article data-testid="plan-free" className="relative flex h-full flex-col rounded-2xl border border-white/10 bg-surface-900 p-5 shadow-card">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-base font-semibold text-white">Free</p>
+              <div className="mt-1 flex items-end gap-2">
+                <strong className="text-3xl font-bold tracking-tight text-white">$0</strong>
+                <span className="pb-1 text-sm text-slate-500">/ forever</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">No card required.</p>
+            </div>
+            <Link href={browserIdentity.userId ? "/app/backtest" : "/sign-up"} className="btn-secondary w-full shrink-0 text-center sm:mt-2 sm:w-48">
+              {browserIdentity.userId ? "Start a free session" : "Start free"} <ArrowRight size={15} aria-hidden />
+            </Link>
           </div>
-          <p className="mt-3 text-xs text-slate-400">No card required.</p>
-          <Link href={browserIdentity.userId ? "/app/backtest" : "/sign-up"} className="btn-secondary mt-4 w-full text-center">
-            {browserIdentity.userId ? "Start a free session" : "Start free"} <ArrowRight size={15} aria-hidden />
-          </Link>
-          <ul className="mt-4 space-y-2 border-t border-white/10 pt-4">
-            {FREE_PLAN_FEATURES.slice(0, 7).map((feature) => (
-              <li key={feature} className="flex gap-2.5 text-sm text-slate-300">
-                <Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden />
-                <span>{feature}</span>
-              </li>
-            ))}
-          </ul>
-          <details className="group mt-3 border-t border-white/10 pt-3 text-left">
-            <summary className="cursor-pointer list-none text-xs font-semibold text-brand-200 after:ml-1 after:content-['+'] group-open:after:content-['−']">View all Free features</summary>
-            <ul className="mt-3 space-y-2">{FREE_PLAN_FEATURES.slice(7).map((feature) => <li key={feature} className="flex gap-2.5 text-sm text-slate-300"><Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden /><span>{feature}</span></li>)}</ul>
-          </details>
+          <FeatureGroups groups={FREE_PLAN_GROUPS} tone="free" />
         </article>
 
         {tiers.map((tier) => {
@@ -297,40 +312,38 @@ export function LocalizedPricing({
             <article
               key={tier.id}
               data-testid="plan-pro"
-              className={`relative flex h-full flex-col rounded-2xl border bg-surface-900 p-5 shadow-card sm:p-6 ${tier.featured ? "border-brand-400/60" : "border-white/10"}`}
+              className={`relative flex h-full flex-col rounded-2xl border bg-surface-900 p-5 shadow-card ${tier.featured ? "border-brand-400/60" : "border-white/10"}`}
             >
-              <div className="flex items-center justify-between gap-3"><p className="text-lg font-semibold text-white">{tier.name}</p><span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-3 py-1 text-[11px] font-semibold text-brand-200">{trialOffer ? "7 days free" : "Full access"}</span></div>
-              <div className="mt-3 flex min-h-11 items-end gap-2">
-                {loading || !price ? <span className="h-11 w-32 animate-pulse rounded-lg bg-white/10" aria-label="Loading localized price" /> : <strong className="text-4xl font-bold tracking-tight text-white">{price}</strong>}
-                <span className="pb-1 text-sm text-slate-500">/ {interval}</span>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2"><p className="text-base font-semibold text-white">{tier.name}</p><span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand-200">{trialOffer ? "7 days free" : "Full access"}</span></div>
+                  <div className="mt-1 flex items-end gap-2">
+                    {loading || !price ? <span className="h-9 w-28 animate-pulse rounded-lg bg-white/10" aria-label="Loading localized price" /> : <strong className="text-3xl font-bold tracking-tight text-white">{price}</strong>}
+                    <span className="pb-1 text-sm text-slate-500">/ {interval}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">Every tool. Every market.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void subscribe(tier)}
+                  disabled={!paddle || loading || !price || Boolean(openingPriceId)}
+                  className={`${tier.featured ? "btn-primary" : "btn-secondary"} w-full shrink-0 sm:mt-2 sm:w-48`}
+                >
+                  {opening ? <><Loader2 size={15} className="animate-spin" aria-hidden /> Opening checkout</> : <>Choose Pro <ArrowRight size={15} aria-hidden /></>}
+                </button>
               </div>
-              <p className="mt-3 text-xs text-slate-400">Every tool. Every market.</p>
-              <button
-                type="button"
-                onClick={() => void subscribe(tier)}
-                disabled={!paddle || loading || !price || Boolean(openingPriceId)}
-                className={tier.featured ? "btn-primary mt-4 w-full" : "btn-secondary mt-4 w-full"}
-              >
-                {opening ? <><Loader2 size={15} className="animate-spin" aria-hidden /> Opening checkout</> : <>Choose Pro <ArrowRight size={15} aria-hidden /></>}
-              </button>
-              <ul className="mt-4 space-y-2 border-t border-brand-400/20 pt-4">
-                {[...tier.features.slice(0, 4), ...tier.features.slice(5, 7), ...tier.features.slice(8, 10)].map((feature) => <li key={feature} className="flex gap-2.5 text-sm text-slate-200"><Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden /><span>{feature}</span></li>)}
-              </ul>
-              <details className="group mt-3 border-t border-brand-400/15 pt-3 text-left">
-                <summary className="cursor-pointer list-none text-xs font-semibold text-brand-200 after:ml-1 after:content-['+'] group-open:after:content-['−']">View all Pro features</summary>
-                <ul className="mt-3 space-y-2">{tier.features.filter((_, index) => ![0, 1, 2, 3, 5, 6, 8, 9].includes(index)).map((feature) => <li key={feature} className="flex gap-2.5 text-sm text-slate-200"><Check size={16} className="mt-0.5 shrink-0 text-brand-300" aria-hidden /><span>{feature}</span></li>)}</ul>
-              </details>
+              <FeatureGroups groups={PRO_PLAN_GROUPS} tone="pro" />
             </article>
           );
         })}
       </div>
 
-      <aside data-testid="discount-offer" className="mx-auto mt-4 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-white/15 bg-surface-900/60 px-5 py-3">
+      <aside data-testid="discount-offer" className="mx-auto mt-4 flex max-w-5xl flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-white/15 bg-surface-900/60 px-5 py-3">
         <p className="text-sm text-slate-200">{WELCOME_OFFER.discountLabel}<span className="ml-2 text-xs text-slate-400">Monthly plans</span></p>
         <CopyWelcomeCode />
       </aside>
 
-      <div className="mx-auto mt-3 max-w-3xl text-center text-xs leading-5 text-slate-400">
+      <div className="mx-auto mt-3 max-w-5xl text-center text-xs leading-5 text-slate-400">
         <p data-testid={`terms-${interval}`}>
           {trialOffer
             ? <>Trial: card required. Then {selectedPrice ?? "the checkout total"} / {interval}; renews until canceled. One trial per account.</>

@@ -62,6 +62,8 @@ export type PineChartIndicator = {
   /** Inputs tab values, keyed by the input's position (see parsePineInputs). */
   inputs?: Record<string, PineInputSetting>;
   style?: PineStyle;
+  /** Settings → Indicator timeframe ("240", "D"…); unset runs on the chart's timeframe. */
+  timeframe?: string;
 };
 
 export const PINE_INDICATOR_TEMPLATE = `//@version=6
@@ -220,5 +222,5 @@ export function hydratePineIndicator(value: unknown): PineChartIndicator | null 
     ? Object.fromEntries(Object.entries(item.inputs as Record<string, unknown>).filter((entry): entry is [string, PineInputSetting] => ["number", "boolean", "string"].includes(typeof entry[1])))
     : undefined;
   const style = item.style && typeof item.style === "object" && !Array.isArray(item.style) ? item.style as PineStyle : undefined;
-  return { id: item.id, scriptId: typeof item.scriptId === "string" ? item.scriptId : null, name: item.name.slice(0, 80), code: item.code, visible: item.visible !== false, ...(inputs ? { inputs } : {}), ...(style ? { style } : {}) };
+  return { id: item.id, scriptId: typeof item.scriptId === "string" ? item.scriptId : null, name: item.name.slice(0, 80), code: item.code, visible: item.visible !== false, ...(inputs ? { inputs } : {}), ...(style ? { style } : {}), ...(typeof item.timeframe === "string" && /^\d{0,4}[SDWM]?$/.test(item.timeframe) && item.timeframe ? { timeframe: item.timeframe } : {}) };
 }

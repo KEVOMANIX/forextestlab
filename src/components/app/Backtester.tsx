@@ -7,7 +7,8 @@ import type { DrawingJSON } from "@/lib/chart/drawing/types";
 
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { CalendarClock, CircleAlert, Plus, Settings, X } from "lucide-react";
+import { CalendarClock, CircleAlert, Plus, X } from "lucide-react";
+import { SettingsIcon } from "@/components/icons/SettingsIcon";
 import {
   useCallback,
   useEffect,
@@ -126,7 +127,7 @@ function SettingsButton({ onOpen }: { onOpen: () => void }) {
       title="Settings"
       className="grid h-8 w-8 place-items-center rounded-md app-muted hover:bg-white/[0.06] hover:text-brand-300"
     >
-      <Settings size={15} aria-hidden />
+      <SettingsIcon size={15} aria-hidden />
     </button>
   );
 }

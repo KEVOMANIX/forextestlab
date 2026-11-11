@@ -3,9 +3,9 @@ import {
   Clock,
   Inbox,
   Layers,
-  Settings,
   UserRoundCheck,
 } from "lucide-react";
+import { SettingsIcon } from "@/components/icons/SettingsIcon";
 import Link from "next/link";
 
 import { SupportTeamRefresh } from "@/components/support/SupportTeamRefresh";
@@ -105,7 +105,7 @@ export function QueueRail({
           title="Admin settings"
           className="flex items-center justify-center rounded-lg px-2 py-2.5 text-xs font-medium app-muted transition-colors hover:bg-white/[0.04] hover:text-[var(--app-text)] min-[1440px]:justify-start min-[1440px]:gap-2.5 min-[1440px]:px-3"
         >
-          <Settings size={16} aria-hidden className="shrink-0" />
+          <SettingsIcon size={16} aria-hidden className="shrink-0" />
           <span className="hidden min-[1440px]:inline">Settings and admin</span>
         </Link>
       </div>

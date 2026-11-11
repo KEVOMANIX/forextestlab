@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hlinePricesFromSource, pineTimeframe, runPineIndicator, type PineSeriesInput } from "./pine-runner";
+import { hlinePricesFromSource, pineTimeframe, runPineIndicator, runPineIndicatorOn, type PineSeriesInput } from "./pine-runner";
 
 function series(closes: number[]): PineSeriesInput {
   const f = (values: number[]) => Float64Array.from(values);
@@ -243,5 +243,20 @@ describe("chart Pine trading day", () => {
     expect(low[at(21)]).toBe(0);
     expect(low[at(22)]).toBe(at(22));
     expect(low[at(30)]).toBe(at(22));
+  });
+});
+
+describe("indicator timeframe setting", () => {
+  const CLOSE = '//@version=6\nindicator("C", overlay=true)\nplot(close, "C")\nplotshape(close > 5, "Up")\n';
+  it("runs on higher-timeframe candles and spreads them over the chart", () => {
+    const result = runPineIndicatorOn("60", CLOSE, series([1, 2, 3, 4, 5, 6, 7, 8]), options);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plots[0]!.values).toEqual([4, 4, 4, 4, 8, 8, 8, 8]);
+    expect(result.shapes[0]!.points.map((point) => point.index)).toEqual([7]);
+  });
+  it("leaves the chart timeframe as it is", () => {
+    const result = runPineIndicatorOn("15", CLOSE, series([1, 2, 3]), options);
+    expect(result.ok && result.plots[0]!.values).toEqual([1, 2, 3]);
   });
 });

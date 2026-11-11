@@ -14,11 +14,11 @@ import {
   Minus,
   PaintBucket,
   PencilLine,
-  Settings2,
   SendToBack,
   SquareStack,
   Trash2,
 } from "lucide-react";
+import { SettingsIcon } from "@/components/icons/SettingsIcon";
 import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 
 import { DrawingEngine, type ContextMenuRequest } from "@/lib/chart/drawing/engine";
@@ -446,7 +446,7 @@ export function DrawingLayer({
             className="fixed z-50 w-44 rounded-lg border app-border bg-[var(--app-panel-solid)] py-1 text-xs shadow-2xl"
             style={{ left: menu.clientX, top: menu.clientY }}
           >
-            <MenuItem icon={<Settings2 size={13} />} label="Settings" onClick={() => { const j = eng()?.getSelected(); if (j) setSettings(j); setMenu(null); }} />
+            <MenuItem icon={<SettingsIcon size={13} />} label="Settings" onClick={() => { const j = eng()?.getSelected(); if (j) setSettings(j); setMenu(null); }} />
             <MenuItem
               icon={selection?.locked ? <LockOpen size={13} /> : <Lock size={13} />}
               label={selection?.locked ? "Unlock" : "Lock"}

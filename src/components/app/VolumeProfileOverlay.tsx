@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
-import { Eye, EyeOff, Settings2, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Trash2 } from "lucide-react";
+import { SettingsIcon } from "@/components/icons/SettingsIcon";
 
 import { getDef, type IndicatorInstance } from "@/lib/chart/indicator-defs";
 import type { OHLCV } from "@/lib/chart/indicators";
@@ -178,7 +179,7 @@ export function VolumeProfileOverlay({ instance, chart, series, candles, theme, 
           {instance.visible ? <Eye size={12} /> : <EyeOff size={12} />}
         </button>
         <button type="button" aria-label="Settings" onClick={onEdit} className="app-muted opacity-0 transition-opacity hover:text-[var(--app-text)] group-hover:opacity-100">
-          <Settings2 size={12} />
+          <SettingsIcon size={12} />
         </button>
         <button type="button" aria-label="Remove" onClick={onRemove} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100">
           <Trash2 size={12} />

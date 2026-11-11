@@ -21,13 +21,13 @@ import {
   MousePointer2,
   RotateCcw,
   Save,
-  Settings,
   Loader2,
   CloudOff,
   Sun,
   Target,
   Trash2,
 } from "lucide-react";
+import { SettingsIcon } from "@/components/icons/SettingsIcon";
 
 import type { PublicSessionState } from "@/lib/backtest/types";
 import logoMark from "../../../public/logo-mark.png";
@@ -393,7 +393,7 @@ export function TerminalRightRail({
         belongs.
       */}
       <RailButton label="Settings" showLabel onClick={onOpenSettings}>
-        <Settings size={18} aria-hidden />
+        <SettingsIcon size={18} aria-hidden />
       </RailButton>
       <RailButton label="Help" showLabel onClick={onStartTour}>
         <CircleHelp size={18} aria-hidden />

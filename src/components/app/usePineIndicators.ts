@@ -25,7 +25,7 @@ export type PineRunStatus = {
 };
 
 /** `code` is the script as written; `run` is that code with the Inputs tab values applied. */
-type Batch = { id: number; items: { id: string; code: string; run: string }[]; times: Float64Array; highs: Float64Array; lows: Float64Array; closes: Float64Array; timer: number };
+type Batch = { id: number; items: { id: string; code: string; run: string; timeframe?: string }[]; times: Float64Array; highs: Float64Array; lows: Float64Array; closes: Float64Array; timer: number };
 
 function toSeriesInput(candles: OHLCV[]): PineSeriesInput {
   const rows = candles.length > MAX_BARS ? candles.slice(-MAX_BARS) : candles;
@@ -103,7 +103,7 @@ export function usePineIndicators({
       workerRef.current.onerror = () => fail("The script runner stopped unexpectedly.");
     }
     const id = nextIdRef.current++;
-    const batchItems = runnable.map(({ item, run }) => ({ id: item.id, code: item.code, run }));
+    const batchItems = runnable.map(({ item, run }) => ({ id: item.id, code: item.code, run, timeframe: item.timeframe }));
     const timer = window.setTimeout(() => {
       // An endless loop never answers: stop the worker and leave that code alone until it is edited.
       for (const item of batchItems) hungCodeRef.current.add(item.run);
@@ -115,7 +115,7 @@ export function usePineIndicators({
       for (const item of batchItems) if (previous[item.id]?.code !== item.code) next[item.id] = { ...previous[item.id], state: "loading" };
       return next;
     });
-    workerRef.current.postMessage({ id, items: batchItems.map((item) => ({ id: item.id, code: item.run })), data, symbol: sym, timeframeMs: tf, precision: digits, theme: chartTheme }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
+    workerRef.current.postMessage({ id, items: batchItems.map((item) => ({ id: item.id, code: item.run, timeframe: item.timeframe })), data, symbol: sym, timeframeMs: tf, precision: digits, theme: chartTheme }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
   };
 
   function finish(id: number, results: Record<string, PineIndicatorResult>) {
@@ -156,7 +156,7 @@ export function usePineIndicators({
   }
 
   // Recalculate whenever the scripts, the market or any candle changes.
-  const codesKey = items.map((item) => `${item.id}:${item.code}:${JSON.stringify(item.inputs ?? {})}`).join("\n");
+  const codesKey = items.map((item) => `${item.id}:${item.timeframe ?? ""}:${item.code}:${JSON.stringify(item.inputs ?? {})}`).join("\n");
   useEffect(() => {
     setStatus((previous) => {
       const live = new Set(items.map((item) => item.id));

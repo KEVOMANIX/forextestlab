@@ -28,8 +28,6 @@ import {
   Minus,
   Redo2,
   RotateCcw,
-  Settings,
-  Settings2,
   Star,
   Tag,
   Trash2,
@@ -37,6 +35,7 @@ import {
   Unlock,
   X,
 } from "lucide-react";
+import { SettingsIcon } from "@/components/icons/SettingsIcon";
 import {
   AreaSeries,
   BarSeries,
@@ -3283,7 +3282,7 @@ export default function PriceChart({
     items.push({
       id: "settings",
       label: "Settings…",
-      icon: Settings,
+      icon: SettingsIcon,
       groupStart: true,
       onSelect: () => (onOpenSettings ? onOpenSettings() : setSettingsOpen(true)),
     });
@@ -4437,7 +4436,7 @@ export default function PriceChart({
             {item.visible ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
           </button>
           <button type="button" title="Settings" aria-label={`Settings for ${item.name}`} data-testid="pine-settings" onClick={() => setPineSettingsId(item.id)} className={iconButton}>
-            <Settings2 size={12} aria-hidden />
+            <SettingsIcon size={12} aria-hidden />
           </button>
           <button type="button" title="Source code" aria-label={`Source code of ${item.name}`} data-testid="pine-source-code" onClick={() => editPineIndicator(item)} className={iconButton}>
             <Braces size={12} aria-hidden />
@@ -4910,7 +4909,7 @@ export default function PriceChart({
                         {inst.visible ? <Eye size={12} /> : <EyeOff size={12} />}
                       </button>
                       <button type="button" aria-label="Settings" onClick={() => setIndicatorEditing(inst.id)} className="text-[var(--chart-muted)] opacity-0 transition-opacity hover:text-[var(--chart-text)] group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-                        <Settings2 size={12} />
+                        <SettingsIcon size={12} />
                       </button>
                       <button type="button" aria-label="Remove" onClick={() => removeIndicator(inst.id)} className="app-muted opacity-0 transition-opacity hover:text-loss group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                         <Trash2 size={12} />
@@ -4966,7 +4965,7 @@ export default function PriceChart({
                   {inst.visible ? <Eye size={12} aria-hidden /> : <EyeOff size={12} aria-hidden />}
                 </button>
                 <button type="button" title="Indicator settings" aria-label={`Settings for ${def.name}`} onClick={() => setIndicatorEditing(inst.id)} className="grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-[var(--app-panel-2)] hover:text-[var(--chart-text)]">
-                  <Settings2 size={12} aria-hidden />
+                  <SettingsIcon size={12} aria-hidden />
                 </button>
                 <button type="button" title={collapsed ? "Expand pane" : "Collapse pane"} aria-label={`${collapsed ? "Expand" : "Collapse"} ${def.name} pane`} onClick={() => toggleIndicatorPane(inst.id)} className="grid h-6 w-6 place-items-center rounded text-[var(--chart-muted)] hover:bg-[var(--app-panel-2)] hover:text-[var(--chart-text)]">
                   {collapsed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}
@@ -5431,6 +5430,7 @@ export default function PriceChart({
           <PineSettingsDialog
             item={item}
             report={run?.code === item.code ? run.report : undefined}
+            chartTimeframeMs={TIMEFRAME_MS[displayTimeframe]}
             onChange={(patch) => setPineIndicators((current) => current.map((entry) => (entry.id === item.id ? { ...entry, ...patch } : entry)))}
             onClose={() => setPineSettingsId(null)}
           />

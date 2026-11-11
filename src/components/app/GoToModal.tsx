@@ -6,9 +6,9 @@ import {
   ArrowUpToLine,
   Clock,
   Hourglass,
-  Settings2,
   X,
 } from "lucide-react";
+import { SettingsIcon } from "@/components/icons/SettingsIcon";
 
 import {
   minutesToClock,
@@ -410,7 +410,7 @@ export function GoToModal({
               title="Times are read in the chart's zone — change it"
               className="flex min-h-9 items-center gap-2 rounded-md px-2 text-xs app-muted hover:bg-[var(--app-panel-2)]"
             >
-              <Settings2 size={14} aria-hidden /> Settings
+              <SettingsIcon size={14} aria-hidden /> Settings
             </button>
             <button
               ref={closeRef}

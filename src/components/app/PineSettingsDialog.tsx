@@ -18,6 +18,8 @@ const TIMEFRAMES: { value: string; label: string }[] = [
   { value: "120", label: "2 hours" }, { value: "180", label: "3 hours" }, { value: "240", label: "4 hours" }, { value: "D", label: "1 day" },
   { value: "W", label: "1 week" }, { value: "M", label: "1 month" },
 ];
+/** Minutes in one of the TIMEFRAMES values (a month counted as 30 days). */
+const timeframeMinutes = (value: string) => (value === "D" ? 1440 : value === "W" ? 10_080 : value === "M" ? 43_200 : Number(value) || 0);
 const LOCATIONS: { value: string; label: string }[] = [
   { value: "abovebar", label: "Above bar" }, { value: "belowbar", label: "Below bar" }, { value: "top", label: "Top" },
   { value: "bottom", label: "Bottom" }, { value: "absolute", label: "Absolute" },
@@ -77,16 +79,19 @@ function ColorRows({ item, map, onChange, label }: { item: { color: string | nul
 export function PineSettingsDialog({
   item,
   report,
+  chartTimeframeMs,
   onChange,
   onClose,
 }: {
   item: PineChartIndicator;
   report: PineReport | undefined;
-  onChange: (patch: Partial<Pick<PineChartIndicator, "inputs" | "style">>) => void;
+  /** The chart's candle length: the indicator can run on this or a higher timeframe. */
+  chartTimeframeMs: number;
+  onChange: (patch: Partial<Pick<PineChartIndicator, "inputs" | "style" | "timeframe">>) => void;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<Tab>("inputs");
-  const opened = useRef({ inputs: item.inputs ?? {}, style: item.style ?? {} });
+  const opened = useRef({ inputs: item.inputs ?? {}, style: item.style ?? {}, timeframe: item.timeframe });
   const cancel = () => { onChange(opened.current); onClose(); };
   const dialogRef = useModalBehavior<HTMLDivElement>({ open: true, onClose: cancel });
   const inputs = useMemo(() => parsePineInputs(item.code), [item.code]);
@@ -239,7 +244,9 @@ export function PineSettingsDialog({
           {tab === "inputs" && (
             <div>
               <Row label={<span className="app-muted">Indicator timeframe</span>}>
-                <select disabled className={`${field} min-w-28 opacity-70`} title="Scripts run on the chart's own timeframe"><option>Chart</option></select>
+                <select value={item.timeframe ?? ""} onChange={(event) => onChange({ timeframe: event.target.value || undefined })} className={`${field} min-w-28`} aria-label="Indicator timeframe">
+                  {TIMEFRAMES.filter((option) => option.value === "" || option.value === item.timeframe || timeframeMinutes(option.value) * 60_000 > chartTimeframeMs).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
               </Row>
               {inputs.length === 0 && <p className="py-4 text-center text-xs app-muted">This script has no other inputs.</p>}
               {layout.map((row) => (

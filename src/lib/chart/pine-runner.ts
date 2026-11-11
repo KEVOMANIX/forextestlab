@@ -429,3 +429,59 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
     return { ok: false, error: error instanceof Error ? error.message : "The script stopped with an error." };
   }
 }
+
+/**
+ * The settings dialog's "Indicator timeframe": the script runs on candles of a
+ * higher timeframe built from the chart's own, and what it draws is laid back
+ * over the chart's candles — each chart candle shows the value of the
+ * higher-timeframe candle it belongs to, the forming one included, and markers
+ * sit on the last chart candle of their period. The chart's timeframe or a
+ * lower one runs the script as it is.
+ */
+export function runPineIndicatorOn(timeframe: string | undefined, code: string, data: PineSeriesInput, options: { symbol: string; timeframeMs: number; precision: number; theme?: "dark" | "light" }): PineIndicatorResult {
+  const targetMs = timeframe ? pineTimeframeMs(timeframe) : null;
+  if (!timeframe || !targetMs || targetMs <= options.timeframeMs) return runPineIndicator(code, data, options);
+  const count = data.time.length;
+  tradingDays = options.timeframeMs < 86_400_000;
+  const group = new Int32Array(count);
+  const last: number[] = [];
+  const time: number[] = [], open: number[] = [], high: number[] = [], low: number[] = [], close: number[] = [], volume: number[] = [];
+  let key = NaN;
+  for (let index = 0; index < count; index++) {
+    const at = data.time[index]!;
+    const start = timeApi.resolve(at, timeframe);
+    const period = Number.isFinite(start) ? start : at;
+    if (index === 0 || period !== key) {
+      key = period;
+      time.push(period); open.push(data.open[index]!); high.push(data.high[index]!); low.push(data.low[index]!); close.push(data.close[index]!); volume.push(data.volume[index]!);
+      last.push(index);
+    } else {
+      const bar = time.length - 1;
+      high[bar] = Math.max(high[bar]!, data.high[index]!); low[bar] = Math.min(low[bar]!, data.low[index]!);
+      close[bar] = data.close[index]!; volume[bar] = volume[bar]! + data.volume[index]!;
+      last[bar] = index;
+    }
+    group[index] = time.length - 1;
+  }
+  const result = runPineIndicator(code, {
+    time: Float64Array.from(time), open: Float64Array.from(open), high: Float64Array.from(high),
+    low: Float64Array.from(low), close: Float64Array.from(close), volume: Float64Array.from(volume),
+  }, { ...options, timeframeMs: targetMs });
+  if (!result.ok) return result;
+  const spread = <T>(values: T[]): T[] => Array.from(group, (bar) => values[bar] as T);
+  const spreadColors = (colors: Colors): Colors => (colors ? spread(colors) : null);
+  const toChart = (bar: number) => last[Math.max(0, Math.min(last.length - 1, Math.round(bar)))] ?? bar;
+  return {
+    ...result,
+    plots: result.plots.map((plot) => ({ ...plot, values: spread(plot.values), colors: spreadColors(plot.colors) })),
+    fills: result.fills.map((fill) => ({ ...fill, colors: spreadColors(fill.colors) })),
+    backgrounds: result.backgrounds.map((bg) => ({ ...bg, colors: spreadColors(bg.colors) })),
+    shapes: result.shapes.map((shape) => ({ ...shape, colors: spreadColors(shape.colors), points: shape.points.map((point) => ({ ...point, index: toChart(point.index) })) })),
+    drawings: result.drawings.map((drawing) => {
+      if (drawing.state.xloc === "bar_time" || drawing.kind === "table") return drawing;
+      const state = { ...drawing.state };
+      for (const name of ["x", "x1", "x2", "left", "right"]) if (typeof state[name] === "number") state[name] = toChart(state[name] as number);
+      return { ...drawing, state };
+    }),
+  };
+}

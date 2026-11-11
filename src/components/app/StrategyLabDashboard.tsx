@@ -64,7 +64,7 @@ function CardMenu({ onRename, onDuplicate, onDelete }: { onRename: () => void; o
 }
 
 /** Strategy Lab home: every saved Pine script as a card with its last test. */
-export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
+export function StrategyLabDashboard({ sampleMode, scriptLimit = 500, pro = false }: { sampleMode: boolean; scriptLimit?: number; pro?: boolean }) {
   const router = useRouter();
   const dialogs = useLabDialog();
   const [scripts, setScripts] = useState<PineScript[] | null>(null);
@@ -82,7 +82,14 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
 
   const open = (id: string) => router.push(`/app/strategies?script=${encodeURIComponent(id)}`);
   // New strategies open straight away; the name is changed by clicking it in the editor.
-  const create = (code: string) => {
+  /** Free keeps a few scripts; past that, offer Pro instead of saving. */
+  const atLimit = async () => {
+    if (sampleMode || pro || (scripts ?? []).length < scriptLimit) return false;
+    if (await dialogs.confirm({ title: "Script limit reached", message: `Free keeps up to ${scriptLimit} scripts (strategies and indicators). Delete one, or upgrade to Pro to keep up to 500.`, confirmLabel: "See Pro" })) router.push("/pricing");
+    return true;
+  };
+  const create = async (code: string) => {
+    if (await atLimit()) return;
     const taken = new Set((scripts ?? []).map(script => script.name));
     let name = "My strategy";
     for (let number = 2; taken.has(name); number++) name = `My strategy ${number}`;
@@ -94,7 +101,7 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
     const name = await dialogs.prompt({ title: "Rename strategy", label: "Name", value: script.name });
     if (name && name !== script.name) savePineScript({ ...script, name, code: withPineTitle(script.code, name), updatedAt: Date.now() });
   };
-  const duplicate = (script: PineScript) => savePineScript({ ...script, id: crypto.randomUUID(), name: `${script.name} (copy)`, updatedAt: Date.now() });
+  const duplicate = async (script: PineScript) => !await atLimit() && savePineScript({ ...script, id: crypto.randomUUID(), name: `${script.name} (copy)`, updatedAt: Date.now() });
   const remove = async (script: PineScript) => {
     if (!await dialogs.confirm({ title: "Delete strategy?", message: `“${script.name}” and its last test result will be removed. This can't be undone.`, confirmLabel: "Delete", danger: true })) return;
     deletePineScript(script.id); deletePineResult(script.id); setResults(readPineResults());
@@ -124,7 +131,7 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
       {sampleMode && <p className="mt-4 rounded-lg border border-amber-400/35 bg-amber-400/10 px-3 py-2 text-xs"><strong>Sample data.</strong> Scripts stay in this browser until you sign in, then move to your account. Sign in to test them on real history. <a href="/sign-in?next=%2Fapp%2Fstrategies" className="font-semibold underline">Sign in</a></p>}
 
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <p className="text-xs app-muted">{scripts === null ? "Loading…" : (() => { const count = scripts.filter(script => isPineStrategy(script.code)).length; return `${count} ${count === 1 ? "strategy" : "strategies"}`; })()}{sampleMode ? " · saved in this browser until you sign in" : " · synced to your account"}</p>
+        <p className="text-xs app-muted">{scripts === null ? "Loading…" : (() => { const count = scripts.filter(script => isPineStrategy(script.code)).length; return `${count} ${count === 1 ? "strategy" : "strategies"}`; })()}{sampleMode ? " · saved in this browser until you sign in" : " · synced to your account"}{!sampleMode && !pro && scripts !== null ? ` · ${scripts.length} of ${scriptLimit} scripts on Free` : ""}</p>
         <label className="relative ml-auto inline-flex items-center text-xs app-muted">Sort
           <select value={sort} onChange={event => setSort(event.target.value as Sort)} className="ml-2 h-8 appearance-none rounded-full border app-border bg-[var(--app-panel-solid)] pl-3 pr-7 text-xs text-[var(--app-text)]">{SORTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
           <ChevronDown size={13} className="pointer-events-none absolute right-2.5" />
@@ -153,7 +160,7 @@ export function StrategyLabDashboard({ sampleMode }: { sampleMode: boolean }) {
                 </div>
                 {result
                   ? <div className="shrink-0 text-right"><p className={`font-mono text-xl font-bold leading-tight tabular-nums ${tone}`}>{signedMoney(result.netPnl)}</p><p className={`font-mono text-xs tabular-nums ${tone}`}>{percent(result.netPercent)}</p></div>
-                  : <CardMenu onRename={() => void rename(script)} onDuplicate={() => duplicate(script)} onDelete={() => void remove(script)} />}
+                  : <CardMenu onRename={() => void rename(script)} onDuplicate={() => void duplicate(script)} onDelete={() => void remove(script)} />}
               </div>
               <div className="mt-3">{result ? <EquityLine values={result.equity} positive={result.netPnl >= 0} />
                 : <div className="grid h-[74px] place-items-center rounded-xl border border-dashed app-border text-xs app-muted"><span>Open it and press <strong className="text-[var(--app-text)]">Run test</strong></span></div>}</div>

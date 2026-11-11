@@ -315,6 +315,8 @@ interface PriceChartProps {
   theme: "dark" | "light";
   onStopLossChange: (price: string | null) => void;
   onTakeProfitChange: (price: string | null) => void;
+  /** Pine indicators this chart may show (the plan's limit). */
+  pineIndicatorLimit?: number;
   onLoadHistory: (
     timeframe: Timeframe,
     before: number,
@@ -972,6 +974,7 @@ export default function PriceChart({
   lastCandles,
   replaySeries,
   replaySessionId,
+  pineIndicatorLimit = 25,
   blindStartTime,
   replayRunning = false,
   alignToReplayClockOnLoad = false,
@@ -1204,6 +1207,12 @@ export default function PriceChart({
   timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
   const [pineIndicators, setPineIndicators] = useState<PineChartIndicator[]>([]);
+  const [pineLimitNotice, setPineLimitNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pineLimitNotice) return;
+    const timer = window.setTimeout(() => setPineLimitNotice(null), 8_000);
+    return () => window.clearTimeout(timer);
+  }, [pineLimitNotice]);
   const [pineDraft, setPineDraft] = useState<PineEditorDraft | null>(null);
   const pineDialogs = useLabDialog();
   const [pineSettingsId, setPineSettingsId] = useState<string | null>(null);
@@ -2387,7 +2396,7 @@ export default function PriceChart({
           setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
         }
         if (Array.isArray(saved.pineIndicators)) {
-          setPineIndicators(saved.pineIndicators.map(hydratePineIndicator).filter((i): i is PineChartIndicator => i != null).slice(0, 8));
+          setPineIndicators(saved.pineIndicators.map(hydratePineIndicator).filter((i): i is PineChartIndicator => i != null).slice(0, 25));
         }
         // A chart mount is intentionally a fresh view.  Timeframe, chart type
         // and indicators are preferences; the old pan/zoom is not restored on
@@ -3710,7 +3719,8 @@ export default function PriceChart({
   const pine = usePineIndicators({
     chart: chartRef.current,
     priceSeries: seriesRef.current,
-    items: pineIndicators,
+    // A chart saved on Pro keeps its scripts on Free, but only the plan's number run.
+    items: pineIndicators.slice(0, pineIndicatorLimit),
     symbol: symbolLabel.toUpperCase().replace(/[^A-Z0-9]/g, ""),
     timeframeMs: TIMEFRAME_MS[displayTimeframe],
     precision,
@@ -3728,8 +3738,18 @@ export default function PriceChart({
   });
 
   /** "My scripts" in the indicator picker: put the saved script on the chart. */
+  /** The plan's Pine indicator limit: true (and an upgrade note) when the chart is full. */
+  function pineChartFull(): boolean {
+    if (pineIndicators.length < pineIndicatorLimit) return false;
+    setPineLimitNotice(pineIndicatorLimit < 25
+      ? `Free shows ${pineIndicatorLimit} Pine indicator${pineIndicatorLimit === 1 ? "" : "s"} per chart. Remove it to add another, or upgrade to Pro for up to 25.`
+      : `Charts show up to ${pineIndicatorLimit} Pine indicators. Remove one to add another.`);
+    return true;
+  }
+
   function addPineScript(script: PineScript) {
-    setPineIndicators((current) => [...current, { id: crypto.randomUUID(), scriptId: script.id, name: script.name, code: script.code, visible: true }].slice(-8));
+    if (pineChartFull()) { setMenu(null); return; }
+    setPineIndicators((current) => [...current, { id: crypto.randomUUID(), scriptId: script.id, name: script.name, code: script.code, visible: true }].slice(-25));
     setMenu(null);
   }
 
@@ -3774,8 +3794,9 @@ export default function PriceChart({
       setPineDraft({ ...pineDraft, name });
       return;
     }
+    if (pineChartFull()) return;
     const id = crypto.randomUUID();
-    setPineIndicators((current) => [...current, { id, scriptId: pineDraft.scriptId, name, code: pineDraft.code, visible: true }].slice(-8));
+    setPineIndicators((current) => [...current, { id, scriptId: pineDraft.scriptId, name, code: pineDraft.code, visible: true }].slice(-25));
     setPineDraft({ ...pineDraft, instanceId: id, name });
   }
 
@@ -4900,7 +4921,7 @@ export default function PriceChart({
                 the pane that contains their plots. */}
             {(indicators.some((indicator) => getDef(indicator.kind)?.pane !== "own") || pineIndicators.some((item) => pine.paneTops[item.id] == null)) && (
               <div className="pointer-events-auto flex flex-col items-start gap-0.5">
-                {pineIndicators.filter((item) => pine.paneTops[item.id] == null).map((item) => pineLegendRow(item, false))}
+                {pineIndicators.slice(0, pineIndicatorLimit).filter((item) => pine.paneTops[item.id] == null).map((item) => pineLegendRow(item, false))}
                 {indicators.filter((indicator) => getDef(indicator.kind)?.pane !== "own").map((inst) => {
                   return (
                     <div key={inst.id} className="group relative flex min-h-6 items-center gap-1.5 px-2 py-0.5 text-[0.92em]">
@@ -4978,7 +4999,7 @@ export default function PriceChart({
           );
         })}
 
-        {pineIndicators.filter((item) => pine.paneTops[item.id] != null).map((item) => pineLegendRow(item, true))}
+        {pineIndicators.slice(0, pineIndicatorLimit).filter((item) => pine.paneTops[item.id] != null).map((item) => pineLegendRow(item, true))}
 
         {pendingOrders.filter((order) => order.status === "pending").map((order) => (
           <div
@@ -5423,6 +5444,13 @@ export default function PriceChart({
         )}
       </div>
 
+      {pineLimitNotice && (
+        <div role="status" className="absolute left-1/2 top-12 z-40 flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-3 rounded-lg border app-border bg-[var(--app-panel-solid)] px-3 py-2 text-xs shadow-lg">
+          <span>{pineLimitNotice}</span>
+          {pineIndicatorLimit < 25 && <a href="/pricing" className="shrink-0 font-semibold text-brand-400 hover:underline">See Pro</a>}
+          <button type="button" aria-label="Dismiss" onClick={() => setPineLimitNotice(null)} className="shrink-0 app-muted hover:text-[var(--app-text)]">×</button>
+        </div>
+      )}
       {pineSettingsId && (() => {
         const item = pineIndicators.find((entry) => entry.id === pineSettingsId);
         const run = item ? pine.status[item.id] : undefined;

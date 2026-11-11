@@ -157,10 +157,15 @@ export function savePineScript(script: PineScript): Promise<boolean> {
     notify();
     return Promise.resolve(true);
   }
+  const existed = cache.some(item => item.id === script.id);
   cache = [script, ...cache.filter(item => item.id !== script.id)];
   edits += 1;
   notify();
-  return sendPine("PUT", { action: "save", script: { id: script.id, name: script.name, code: script.code } });
+  return sendPine("PUT", { action: "save", script: { id: script.id, name: script.name, code: script.code } }).then(ok => {
+    // A new script the account refused (the plan's script limit) is taken back off the list.
+    if (!ok && !existed) { cache = cache.filter(item => item.id !== script.id); notify(); }
+    return ok;
+  });
 }
 
 export function deletePineScript(id: string): Promise<boolean> {

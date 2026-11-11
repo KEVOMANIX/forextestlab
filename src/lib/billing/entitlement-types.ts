@@ -1,3 +1,5 @@
+import type { PinePlanLimits } from "./plan-limits";
+
 /** What an account may do, decided on the server and passed to the UI. */
 export interface PlanEntitlements {
   plan: "free" | "pro";
@@ -24,4 +26,6 @@ export interface PlanEntitlements {
   exports: boolean;
   /** Prop Firm Challenge mode. */
   propFirmChallenges: boolean;
+  /** Pine scripts and Strategy Lab limits. */
+  pine: PinePlanLimits;
 }

@@ -10,12 +10,14 @@ import { freePreviewActive } from "./plan-preview";
 import {
   FREE_MAX_REPLAY_SPEED,
   FREE_MONTHLY_SESSIONS,
+  FREE_PINE_LIMITS,
   FREE_SESSION_DAYS,
   FREE_SESSION_MAX_MS,
   FREE_SYMBOLS,
   formatQuotaReset,
   isFreeSymbol,
   PRO_MAX_REPLAY_SPEED,
+  PRO_PINE_LIMITS,
   quotaMonth,
   quotaResetsAt,
 } from "./plan-limits";
@@ -64,6 +66,7 @@ export function planEntitlements(
       fullAnalytics: true,
       exports: true,
       propFirmChallenges: true,
+      pine: PRO_PINE_LIMITS,
     };
   }
   const used = Math.max(0, options.freeSessionsUsed ?? 0);
@@ -84,6 +87,7 @@ export function planEntitlements(
     fullAnalytics: false,
     exports: false,
     propFirmChallenges: false,
+    pine: FREE_PINE_LIMITS,
   };
 }
 

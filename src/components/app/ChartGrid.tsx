@@ -184,6 +184,8 @@ interface ChartGridProps {
   theme: "dark" | "light";
   onStopLossChange: (price: string | null) => void;
   onTakeProfitChange: (price: string | null) => void;
+  /** Pine indicators one chart may show (the plan's limit). */
+  pineIndicatorLimit?: number;
   onLoadHistory: (
     symbol: string,
     timeframe: Timeframe,
@@ -245,6 +247,7 @@ export default function ChartGrid({
   onStopLossChange,
   onTakeProfitChange,
   onLoadHistory,
+  pineIndicatorLimit,
   loading = false,
   error = null,
   storageKey,
@@ -654,6 +657,7 @@ export default function ChartGrid({
                 onStopLossChange={onStopLossChange}
                 onTakeProfitChange={onTakeProfitChange}
                 onLoadHistory={onLoadHistory}
+                pineIndicatorLimit={pineIndicatorLimit}
                 loading={loading}
                 error={error}
                 storageKey={storageKey}
@@ -732,6 +736,8 @@ interface ChartCellViewProps {
   theme: "dark" | "light";
   onStopLossChange: (price: string | null) => void;
   onTakeProfitChange: (price: string | null) => void;
+  /** Pine indicators one chart may show (the plan's limit). */
+  pineIndicatorLimit?: number;
   onLoadHistory: (
     symbol: string,
     timeframe: Timeframe,
@@ -788,6 +794,7 @@ function ChartCellView({
   onStopLossChange,
   onTakeProfitChange,
   onLoadHistory,
+  pineIndicatorLimit,
   loading,
   error,
   storageKey,
@@ -919,6 +926,7 @@ function ChartCellView({
         onStopLossChange={tradable && showControls ? onStopLossChange : noop}
         onTakeProfitChange={tradable && showControls ? onTakeProfitChange : noop}
         onLoadHistory={loadHistory}
+        pineIndicatorLimit={pineIndicatorLimit}
         loading={isSession ? loading : pairLoading && !pair}
         error={isSession ? error : null}
         noReplayData={!hasCandleAtReplayTime(replaySource, state.currentTime, TIMEFRAME_MS[state.config.timeframe])}

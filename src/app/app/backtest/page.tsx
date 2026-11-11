@@ -5,7 +5,7 @@ import { ensureUserProfile } from "@/lib/auth";
 import { parseChallengeStart } from "@/lib/backtest/challenge-record";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import type { PlanEntitlements } from "@/lib/billing/entitlement-types";
-import { FREE_MAX_REPLAY_SPEED, FREE_SESSION_DAYS, FREE_SYMBOLS } from "@/lib/billing/plan-limits";
+import { FREE_MAX_REPLAY_SPEED, FREE_PINE_LIMITS, FREE_SESSION_DAYS, FREE_SYMBOLS } from "@/lib/billing/plan-limits";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
@@ -33,6 +33,7 @@ const DEMO_ENTITLEMENTS: PlanEntitlements = {
   fullAnalytics: false,
   exports: false,
   propFirmChallenges: false,
+  pine: FREE_PINE_LIMITS,
 };
 
 export default async function BacktestPage(

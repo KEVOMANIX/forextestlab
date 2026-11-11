@@ -14,6 +14,8 @@ export const FREE_PLAN_FEATURES = [
   "Stop-loss, take-profit & risk sizing",
   "Trading journal",
   "Basic session results",
+  "1 Pine indicator per chart, 5 saved scripts",
+  "Strategy Lab: 2 tests / day, 5,000 candles",
 ] as const;
 
 export const PRO_PLAN_FEATURES = [
@@ -30,6 +32,9 @@ export const PRO_PLAN_FEATURES = [
   "Prop Firm Challenges",
   "CSV trade exports",
   "PDF reports & analytics sharing",
+  "25 Pine indicators per chart, 500 saved scripts",
+  "Strategy Lab tests up to 100,000 candles",
+  "Pine request.security() on other markets",
 ] as const;
 
 export const PRO_TRIAL_SUMMARY =

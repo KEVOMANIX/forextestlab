@@ -10,7 +10,9 @@ import { fetchRanges, fetchSymbols } from "@/lib/backtest/client";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
 import { loadPineScripts, savePineScript, withPineTitle } from "@/lib/chart/pine-scripts";
-import { MAX_TEST_CANDLES, earliestStartWithinLimit, estimateCandles } from "@/lib/chart/candle-budget";
+import { earliestStartWithinLimit, estimateCandles } from "@/lib/chart/candle-budget";
+import { FREE_PINE_LIMITS, PRO_PINE_LIMITS, type PinePlanLimits } from "@/lib/billing/plan-limits";
+import { pineSyncError } from "@/lib/chart/pine-sync";
 import { maxDrawdownPercent, sampleEquity, savePineResult } from "@/lib/chart/pine-results";
 import type { StrategyDiagnostic } from "@/lib/strategy-language/parser";
 import type { LabCandles, LabPlot, LabTrade } from "./StrategyLabChart";
@@ -161,7 +163,9 @@ function TradeList({ report, visibleTrades, onMore, focusTrade, onFocus }: { rep
   </div>;
 }
 
-export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMode: boolean; allowedSymbols: readonly string[] | null }) {
+export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE_PINE_LIMITS }: { sampleMode: boolean; allowedSymbols: readonly string[] | null; limits?: PinePlanLimits }) {
+  const MAX_TEST_CANDLES = limits.testCandles;
+  const proCandles = limits.testCandles < PRO_PINE_LIMITS.testCandles;
   const { theme } = useAppTheme();
   const router = useRouter();
   const dialogs = useLabDialog();
@@ -201,7 +205,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
   const candleEstimate = Number.isFinite(periodStart) && Number.isFinite(periodEnd) ? estimateCandles(periodStart, periodEnd, BAR_MS[pineTimeframe]) : 0;
   const overLimit = candleEstimate > MAX_TEST_CANDLES;
   const lastDay = availableRange ? date(availableRange.endTime) : through;
-  const fitStart = (end: string) => date(earliestStartWithinLimit(timestamp(end), BAR_MS[pineTimeframe], availableRange?.startTime));
+  const fitStart = (end: string) => date(earliestStartWithinLimit(timestamp(end), BAR_MS[pineTimeframe], availableRange?.startTime, MAX_TEST_CANDLES));
   const presets: [string, number][] = [["1 week", 7], ["1 month", 30], ["3 months", 91], ["6 months", 182], ["1 year", 365]];
   const applyPreset = (days: number) => {
     if (!lastDay) return;
@@ -287,7 +291,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
     void savePineScript({ id, name, code: scriptCode, updatedAt: Date.now() }).then(ok => {
       if (ok) return;
       setSavedCode(null);
-      setError("Couldn't save to your account. Check your connection and press Save again.");
+      setError(pineSyncError() ?? "Couldn't save to your account. Check your connection and press Save again.");
     });
     setScriptId(id); setScriptName(name);
   };
@@ -360,9 +364,10 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols }: { sampleMod
             <button type="button" onClick={() => setSettings(null)} className="ml-auto h-10 rounded-md bg-[var(--app-accent)] px-4 text-xs font-bold text-[var(--app-accent-ink)]">Done</button>
           </div>
           <div>
-            <div className="flex items-center justify-between text-xs"><span className={overLimit ? "font-semibold text-loss" : "app-muted"}>≈{candleEstimate.toLocaleString()} {pineTimeframe} candles</span><span className="app-muted">limit {MAX_TEST_CANDLES.toLocaleString()} per test</span></div>
+            <div className="flex items-center justify-between text-xs"><span className={overLimit ? "font-semibold text-loss" : "app-muted"}>≈{candleEstimate.toLocaleString()} {pineTimeframe} candles</span><span className="app-muted">limit {MAX_TEST_CANDLES.toLocaleString()} per test{proCandles && <> · <a href="/pricing" className="font-semibold text-[var(--app-accent)] hover:underline">Pro: {PRO_PINE_LIMITS.testCandles.toLocaleString()}</a></>}</span></div>
             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--app-panel-2)]"><div className={`h-full rounded-full ${overLimit ? "bg-loss" : candleEstimate > MAX_TEST_CANDLES * 0.8 ? "bg-amber-400" : "bg-[var(--app-accent)]"}`} style={{ width: `${Math.min(100, candleEstimate / MAX_TEST_CANDLES * 100)}%` }} /></div>
             {overLimit && <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-xs"><AlertCircle size={14} className="shrink-0 text-loss" /><span>Too long for {pineTimeframe} candles. Shorten the dates or pick a bigger timeframe.</span><button type="button" onClick={() => setFrom(fitStart(through))} className="ml-auto h-7 rounded-md bg-loss px-2.5 font-semibold text-white">Fit to {MAX_TEST_CANDLES.toLocaleString()} candles</button></div>}
+            {limits.testsPerDay !== null && !sampleMode && <p className="mt-2 text-[11px] app-muted">Free includes {limits.testsPerDay} tests a day. <a href="/pricing" className="font-semibold text-[var(--app-accent)] hover:underline">Upgrade to Pro</a> for longer and more frequent tests.</p>}
           </div>
         </div>}
       </div>}

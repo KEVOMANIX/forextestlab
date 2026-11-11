@@ -60,6 +60,7 @@ model UserProfile {
   billingPayments        BillingPayment[]
   billingSubscriptions   BillingSubscription[]
   freeSessionUsage       FreeSessionUsage[]
+  pineTestUsage          PineTestUsage[]
   aiChats                AiChat[]
   tradingPlan            TradingPlan?
   pineScripts            PineScript[]
@@ -78,6 +79,17 @@ model FreeSessionUsage {
   updatedAt DateTime    @updatedAt
 
   @@id([userId, month])
+}
+
+/// Strategy Lab tests run on a UTC day, for the Free plan's daily allowance.
+model PineTestUsage {
+  user      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  day       String
+  used      Int         @default(0)
+  updatedAt DateTime    @updatedAt
+
+  @@id([userId, day])
 }
 
 /// Contact-form enquiries retained for support follow-up in the admin console.

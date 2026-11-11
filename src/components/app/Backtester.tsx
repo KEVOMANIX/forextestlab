@@ -1320,6 +1320,7 @@ export function Backtester({
             onStopLossChange={changeStop}
             onTakeProfitChange={changeTarget}
             onLoadHistory={actions.loadHistory}
+            pineIndicatorLimit={entitlements.pine.chartIndicators}
             theme={theme}
             storageKey={String(state.sessionId)}
             focusedSymbol={activeSymbol}

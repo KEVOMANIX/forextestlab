@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { ensureUserProfile } from "@/lib/auth";
+import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { isPineSummary, type PineTestSummary } from "@/lib/chart/pine-results";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -59,8 +60,12 @@ export async function PUT(request: Request) {
     if (!script) return NextResponse.json({ ok: false, error: "Invalid script." }, { status: 422 });
     const existing = await prisma.pineScript.findUnique({ where: { id: script.id }, select: { userId: true } });
     if (existing && existing.userId !== id) return NextResponse.json({ ok: false, error: "Not found." }, { status: 404 });
-    if (!existing && await prisma.pineScript.count({ where: { userId: id } }) >= MAX_SCRIPTS) {
-      return NextResponse.json({ ok: false, error: `You can keep up to ${MAX_SCRIPTS} scripts.` }, { status: 422 });
+    if (!existing) {
+      const { plan, pine } = await getUserEntitlements(id);
+      if (await prisma.pineScript.count({ where: { userId: id } }) >= pine.savedScripts) {
+        const error = plan === "pro" ? `You can keep up to ${pine.savedScripts} scripts.` : `Free keeps up to ${pine.savedScripts} scripts. Delete one or upgrade to Pro to keep up to 500.`;
+        return NextResponse.json({ ok: false, code: "plan_limit", error }, { status: 422 });
+      }
     }
     await prisma.pineScript.upsert({ where: { id: script.id }, create: { ...script, userId: id }, update: { name: script.name, code: script.code } });
     return NextResponse.json({ ok: true });
@@ -82,7 +87,8 @@ export async function PUT(request: Request) {
     const scripts = (Array.isArray(body.scripts) ? body.scripts : []).map(cleanScript).filter(script => script !== null).slice(0, MAX_SCRIPTS);
     const results = body.results && typeof body.results === "object" ? body.results : {};
     const have = await prisma.pineScript.count({ where: { userId: id } });
-    const fresh = scripts.slice(0, Math.max(0, MAX_SCRIPTS - have)).map(script => {
+    const { pine } = await getUserEntitlements(id);
+    const fresh = scripts.slice(0, Math.max(0, pine.savedScripts - have)).map(script => {
       const result = results[script.id];
       return { ...script, userId: id, resultJson: isPineSummary(result) ? JSON.stringify(result) : null };
     });

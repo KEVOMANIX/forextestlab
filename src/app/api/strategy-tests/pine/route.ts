@@ -2,7 +2,9 @@ import { createConnection } from "node:net";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { prisma } from "@/lib/db";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
+import { FREE_PINE_LIMITS, PRO_PINE_LIMITS, PRO_TESTS_PER_HOUR } from "@/lib/billing/plan-limits";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { getMarketDataProvider, histDataReplayEnabled } from "@/lib/market-data";
 import { DemoDataProvider } from "@/lib/market-data/providers/demo-data-provider";
@@ -14,7 +16,6 @@ import { getCurrentUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const MAX_BARS = 100_000;
 const TIMEFRAME_MS = { "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 } as const;
 const bodySchema = z.object({
   code: z.string().min(1).max(20_000),
@@ -67,14 +68,24 @@ export async function POST(request: Request) {
   const input = parsed.data;
   if (!isStrategyFxMarket(input.symbol) && input.symbol !== "XAUUSD") return json({ ok: false, error: "Choose a supported FX pair or XAU/USD." }, 400);
   if (input.endTime <= input.startTime) return json({ ok: false, error: "Through must be after From." }, 400);
-  if ((input.endTime - input.startTime) / TIMEFRAME_MS[input.timeframe] > MAX_BARS * 1.5) return json({ ok: false, error: `The Pine runner supports up to ${MAX_BARS.toLocaleString()} candles per test. Choose a larger timeframe or shorter period.` }, 422);
   const user = await getCurrentUser();
   const entitlements = user ? await getUserEntitlements(user.id) : null;
+  const limits = entitlements?.pine ?? FREE_PINE_LIMITS;
+  const MAX_BARS = limits.testCandles;
+  const upgrade = limits === PRO_PINE_LIMITS || entitlements?.plan === "pro" ? "" : " Pro tests up to 100,000.";
+  if ((input.endTime - input.startTime) / TIMEFRAME_MS[input.timeframe] > MAX_BARS * 1.5) return json({ ok: false, error: `Your plan tests up to ${MAX_BARS.toLocaleString()} candles at a time.${upgrade} Choose a larger timeframe or a shorter period.` }, 422);
   if (entitlements?.allowedSymbols && !entitlements.allowedSymbols.includes(input.symbol)) return json({ ok: false, error: "This market requires Pro." }, 403);
   if (!user && (input.source !== "demo" || input.startTime < DEMO_RANGE_START || input.endTime > DEMO_RANGE_END)) return json({ ok: false, error: "Sign in to test real market history." }, 403);
   if (user && input.source === "demo") return json({ ok: false, error: "Choose a historical data provider." }, 400);
   if (input.source === "histdata" && !histDataReplayEnabled()) return json({ ok: false, error: "HistData is not available right now." }, 400);
-  if (!rateLimit(`pine-test:${user?.id ?? clientIp(request)}`, 6, 60 * 60_000).ok) return json({ ok: false, error: "Pine test limit reached. Try again later." }, 429);
+  const day = new Date().toISOString().slice(0, 10);
+  if (limits.testsPerDay !== null) {
+    const used = user
+      ? (await prisma.pineTestUsage.findUnique({ where: { userId_day: { userId: user.id, day } }, select: { used: true } }))?.used ?? 0
+      : 0;
+    const allowed = user ? used < limits.testsPerDay : rateLimit(`pine-test-day:${clientIp(request)}`, limits.testsPerDay, 86_400_000).ok;
+    if (!allowed) return json({ ok: false, code: "plan_limit", error: `Free includes ${limits.testsPerDay} strategy tests a day. Upgrade to Pro for more, or test again tomorrow.` }, 429);
+  } else if (!rateLimit(`pine-test:${user?.id ?? clientIp(request)}`, PRO_TESTS_PER_HOUR, 60 * 60_000).ok) return json({ ok: false, error: "Pine test limit reached. Try again later." }, 429);
   const provider = input.source === "demo" ? new DemoDataProvider() : input.source === "dukascopy" ? new R2ParquetProvider() : getMarketDataProvider("histdata");
   try {
     const ranges = await provider.getAvailableRanges(input.symbol, input.timeframe);
@@ -84,6 +95,9 @@ export async function POST(request: Request) {
       .sort((a, b) => a.timestamp - b.timestamp);
     if (candles.length < 2 || candles.length > MAX_BARS) return json({ ok: false, error: candles.length > MAX_BARS ? `The period contains more than ${MAX_BARS.toLocaleString()} candles.` : "Too few candles in this period." }, 422);
     if (candles.some((candle, index) => (index > 0 && candle.timestamp <= candles[index - 1]!.timestamp) || ![candle.open, candle.high, candle.low, candle.close].every((value) => Number.isFinite(Number(value))))) return json({ ok: false, error: "Market candles are incomplete or out of order." }, 422);
+    if (user && limits.testsPerDay !== null) {
+      await prisma.pineTestUsage.upsert({ where: { userId_day: { userId: user.id, day } }, create: { userId: user.id, day, used: 1 }, update: { used: { increment: 1 } } });
+    }
     const result = await runIsolated({ ...input, dataSource: input.source, candles }, request.signal) as { ok?: boolean; report?: Record<string, unknown> };
     // The lab draws the test on a chart, so the report carries the candles it ran on.
     if (result?.ok && result.report) result.report.candles = {

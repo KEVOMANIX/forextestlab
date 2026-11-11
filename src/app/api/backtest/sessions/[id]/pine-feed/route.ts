@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { canAccessSession } from "@/lib/backtest/session-access";
 import { getPineFeed, loadSession } from "@/lib/backtest/session-store";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
-import { isFreeSymbol } from "@/lib/billing/plan-limits";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { isTimeframe } from "@/lib/market-data/types";
 import { rateLimit } from "@/lib/rate-limit";
@@ -36,11 +35,10 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   if (!getSymbolDefinition(symbol)) {
     return NextResponse.json({ ok: false, error: `${symbol} is not a market ForexTestLab has data for.` }, { status: 404 });
   }
-  if (!isFreeSymbol(symbol)) {
-    const entitlements = user ? await getUserEntitlements(user.id) : null;
-    if (!entitlements || (entitlements.allowedSymbols && !entitlements.allowedSymbols.includes(symbol))) {
-      return NextResponse.json({ ok: false, error: `${symbol} data requires Pro.` }, { status: 403 });
-    }
+  // Reading other markets and lower timeframes from scripts is part of Pro.
+  const entitlements = user ? await getUserEntitlements(user.id) : null;
+  if (!entitlements?.pine.otherMarkets) {
+    return NextResponse.json({ ok: false, code: "plan_limit", error: "Pine scripts read other markets and lower timeframes on Pro. Free scripts use this chart's market at its timeframe or higher." }, { status: 403 });
   }
   try {
     const candles = await getPineFeed(session, symbol, timeframe, from);

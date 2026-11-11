@@ -14,7 +14,7 @@ import { getCurrentUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const MAX_BARS = 30_000;
+const MAX_BARS = 100_000;
 const TIMEFRAME_MS = { "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 } as const;
 const bodySchema = z.object({
   code: z.string().min(1).max(20_000),
@@ -49,7 +49,7 @@ function runIsolated(input: unknown, signal: AbortSignal): Promise<unknown> {
     if (signal.aborted) { abort(); return; }
     socket.setEncoding("utf8");
     socket.on("connect", () => socket.end(JSON.stringify(input)));
-    socket.on("data", (chunk: string) => { output += chunk; if (output.length > 8_000_000) finish(new Error("Pine result exceeded the size limit.")); });
+    socket.on("data", (chunk: string) => { output += chunk; if (output.length > 48_000_000) finish(new Error("Pine result exceeded the size limit.")); });
     socket.on("end", () => finish());
     socket.on("error", (error: NodeJS.ErrnoException) => {
       console.error("Isolated Pine socket error", { code: error.code, syscall: error.syscall });

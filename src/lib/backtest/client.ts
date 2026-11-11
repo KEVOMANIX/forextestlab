@@ -373,6 +373,25 @@ export async function getChartHistory(
   }
 }
 
+/** Candles for a chart Pine script's request.security() on another market or a lower timeframe. */
+export async function getPineFeed(
+  sessionId: string,
+  token: string | null,
+  symbol: string,
+  timeframe: Timeframe,
+  from: number,
+): Promise<{ ok: true; candles: Candle[] } | ApiErr> {
+  const query = new URLSearchParams({ symbol, timeframe, from: String(Math.floor(from)) });
+  try {
+    return await fetchChartData<{ ok: true; candles: Candle[] } | ApiErr>(
+      `/api/backtest/sessions/${sessionId}/pine-feed?${query}`,
+      { headers: token ? { "x-session-token": token } : undefined },
+    );
+  } catch {
+    return { ok: false, error: `${symbol} data could not be loaded.` };
+  }
+}
+
 /** Convert a market-time multiplier into wall-clock replay cadence. */
 export function replayIntervalMs(
   speed: ReplaySpeed,

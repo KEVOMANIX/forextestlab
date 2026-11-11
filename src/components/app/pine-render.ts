@@ -1,5 +1,7 @@
 import {
   AreaSeries,
+  BarSeries,
+  CandlestickSeries,
   HistogramSeries,
   LineSeries,
   LineStyle,
@@ -21,7 +23,8 @@ export type PineReport = Omit<PineVisual, "skipped" | "drawings"> & {
   drawings?: PineVisual["drawings"];
   skipped?: string[];
   times: ArrayLike<number>;
-  /** Candle highs/lows/closes, which place shapes above/below bars. */
+  /** Candle opens/highs/lows/closes: shapes sit above/below bars, barcolor() repaints them. */
+  opens?: ArrayLike<number>;
   highs?: ArrayLike<number>;
   lows?: ArrayLike<number>;
   closes?: ArrayLike<number>;
@@ -56,6 +59,8 @@ export function pineSignature(report: PineReport | undefined): string {
     report.shapes.some((shape) => shape.overlay) ? "S" : "",
     report.shapes.some((shape) => !shape.overlay) ? "s" : "",
     report.drawings?.length ? "d" : "",
+    report.barcolors?.length ? "c" : "",
+    (report.candles ?? []).map((item) => `${item.kind}${item.forceOverlay ? "!" : ""}`).join(","),
   ].join("|");
 }
 
@@ -116,6 +121,35 @@ class BackgroundLayer extends Layer {
           context.fillRect(Math.floor(left * hr - half), 0, Math.ceil(half * 2) + 1, bitmapSize.height);
         }
       });
+    });
+  }
+}
+
+/** barcolor(): repaints the chart's candles (body, border and wick) in the script's colors. */
+class BarColorLayer extends Layer {
+  constructor() { super("top"); }
+  protected draw(target: Target, chart: IChartApi, series: AnySeries, report: PineReport, span: [number, number]) {
+    const { opens, highs, lows, closes, barcolors } = report;
+    if (!opens || !highs || !lows || !closes || !barcolors?.length || this.style.barColors === false) return;
+    const timeScale = chart.timeScale();
+    target.useBitmapCoordinateSpace(({ context, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
+      const spacing = timeScale.options().barSpacing * hr;
+      const body = Math.max(1, Math.floor(spacing * 0.8)) | 0;
+      const wick = Math.max(1, Math.floor(hr));
+      for (let index = span[0]; index <= span[1]; index++) {
+        // The last barcolor() call that gives this candle a color wins, as on TradingView.
+        let color: string | null = null;
+        for (const bar of barcolors) { const source = index - bar.offset; const value = source >= 0 ? paint(bar, source, undefined) : null; if (value) color = value; }
+        const x = timeScale.timeToCoordinate(seconds(report.times[index]!));
+        const open = series.priceToCoordinate(opens[index]!), close = series.priceToCoordinate(closes[index]!);
+        const high = series.priceToCoordinate(highs[index]!), low = series.priceToCoordinate(lows[index]!);
+        if (!color || x == null || open == null || close == null || high == null || low == null) continue;
+        const center = Math.round(x * hr);
+        context.fillStyle = color;
+        context.fillRect(center - Math.floor(wick / 2), Math.round(high * vr), wick, Math.max(1, Math.round((low - high) * vr)));
+        const top = Math.round(Math.min(open, close) * vr), height = Math.max(1, Math.round(Math.abs(close - open) * vr));
+        context.fillRect(center - Math.floor(body / 2), top, body, height);
+      }
     });
   }
 }
@@ -342,12 +376,14 @@ class DrawingLayer extends Layer {
     if (!drawings.length || this.style.drawings === false) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const y = (price: unknown) => { const value = num(price); return value == null ? null : series.priceToCoordinate(value); };
-      for (const pass of ["box", "line", "label", "table"] as const) {
+      for (const pass of ["linefill", "box", "polyline", "line", "label", "table"] as const) {
         for (const drawing of drawings) {
           if (drawing.kind !== pass) continue;
           const state = drawing.state;
           ctx.save();
-          if (pass === "box") this.box(ctx, chart, report, state, y, mediaSize.width);
+          if (pass === "linefill") this.linefill(ctx, chart, report, state, y);
+          else if (pass === "polyline") this.polyline(ctx, chart, report, state, y);
+          else if (pass === "box") this.box(ctx, chart, report, state, y, mediaSize.width);
           else if (pass === "line") this.line(ctx, chart, report, state, y, mediaSize.width, mediaSize.height);
           else if (pass === "label") this.label(ctx, chart, report, state, y);
           else this.table(ctx, chart, state, mediaSize);
@@ -355,6 +391,56 @@ class DrawingLayer extends Layer {
         }
       }
     });
+  }
+
+  /** linefill.new(): the area between two lines. */
+  private linefill(ctx: CanvasRenderingContext2D, chart: IChartApi, report: PineReport, state: DrawingState, y: (price: unknown) => number | null) {
+    const color = str(state.color);
+    if (transparent(color)) return;
+    const xloc = str(state.xloc);
+    const corners = [["ax1", "ay1"], ["ax2", "ay2"], ["bx2", "by2"], ["bx1", "by1"]].map(([xKey, yKey]) => [this.xOf(chart, report, xloc, num(state[xKey!])), y(state[yKey!])] as const);
+    if (corners.some(([x, value]) => x == null || value == null)) return;
+    ctx.fillStyle = cssColor(color)!;
+    ctx.beginPath();
+    corners.forEach(([x, value], index) => (index ? ctx.lineTo(x!, value!) : ctx.moveTo(x!, value!)));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /** polyline.new(): a path through chart points, optionally curved, closed and filled. */
+  private polyline(ctx: CanvasRenderingContext2D, chart: IChartApi, report: PineReport, state: DrawingState, y: (price: unknown) => number | null) {
+    let raw: unknown;
+    try { raw = JSON.parse(str(state.points) ?? "[]"); } catch { return; }
+    if (!Array.isArray(raw)) return;
+    const byTime = str(state.xloc) === "bar_time";
+    const points: [number, number][] = [];
+    for (const item of raw as (number | null)[][]) {
+      const x = this.xOf(chart, report, byTime ? "bar_time" : "bar_index", byTime ? item[1] ?? null : item[0] ?? item[1] ?? null);
+      const value = y(item[2]);
+      if (x != null && value != null) points.push([x, value]);
+    }
+    if (points.length < 2) return;
+    const closed = state.closed === 1;
+    ctx.beginPath();
+    ctx.moveTo(points[0]![0], points[0]![1]);
+    if (state.curved === 1 && points.length > 2) {
+      // A smooth path through the midpoints, the way TradingView rounds curved polylines.
+      for (let index = 1; index < points.length - 1; index++) {
+        const [x, value] = points[index]!, [nextX, nextValue] = points[index + 1]!;
+        ctx.quadraticCurveTo(x, value, (x + nextX) / 2, (value + nextValue) / 2);
+      }
+      ctx.lineTo(points.at(-1)![0], points.at(-1)![1]);
+    } else for (const [x, value] of points.slice(1)) ctx.lineTo(x, value);
+    if (closed) ctx.closePath();
+    const fill = str(state.fill_color);
+    if (!transparent(fill)) { ctx.fillStyle = cssColor(fill)!; ctx.fill(); }
+    const color = str(state.line_color);
+    const width = num(state.line_width) ?? 1;
+    if (transparent(color) || width <= 0) return;
+    ctx.strokeStyle = cssColor(color)!;
+    ctx.lineWidth = width;
+    ctx.setLineDash(DASHES[str(state.line_style) ?? ""] ?? []);
+    ctx.stroke();
   }
 
   private box(ctx: CanvasRenderingContext2D, chart: IChartApi, report: PineReport, state: DrawingState, y: (price: unknown) => number | null, width: number) {
@@ -548,11 +634,13 @@ function plotColors(plot: PinePlot, custom: PineStyle["plots"] extends Record<st
  */
 export class PineRenderer {
   private plots: AnySeries[] = [];
+  private candles: AnySeries[] = [];
   private hlines: ISeriesApi<"Line">[] = [];
   private anchor: ISeriesApi<"Line"> | null = null;
   private layers: { layer: Layer; host: AnySeries }[] = [];
   private previous: { first: number; length: number; style: string } | null = null;
   private forceOverlay: boolean[] = [];
+  private candleOverlay: boolean[] = [];
   private built = false;
 
   constructor(private readonly chart: IChartApi, readonly paneIndex: number, private readonly priceSeries: AnySeries | null) {}
@@ -560,7 +648,7 @@ export class PineRenderer {
   /** First series in the script's own pane, for pane-level layers. */
   private paneHost(): AnySeries {
     if (this.paneIndex === 0 && this.priceSeries) return this.priceSeries;
-    const own = this.plots.find((_, index) => !this.forceOverlay[index]) ?? this.hlines[0];
+    const own = this.plots.find((_, index) => !this.forceOverlay[index]) ?? this.hlines[0] ?? this.candles.find((_, index) => !this.candleOverlay[index]);
     if (own) return own;
     this.anchor ??= this.chart.addSeries(LineSeries, hiddenAnchor, this.paneIndex);
     return this.anchor;
@@ -576,8 +664,13 @@ export class PineRenderer {
       lineWidth: lineWidth(line.linewidth), lineStyle: LINE_STYLES[line.linestyle] ?? LineStyle.Dashed,
       lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, title: "",
     }, this.paneIndex));
+    this.candleOverlay = (report.candles ?? []).map((item) => item.forceOverlay);
+    this.candles = (report.candles ?? []).map((item) => this.chart.addSeries(item.kind === "bar" ? BarSeries : CandlestickSeries, {
+      lastValueVisible: false, priceLineVisible: false, title: "", ...(item.kind === "bar" ? { thinBars: true } : {}),
+    }, item.forceOverlay ? 0 : this.paneIndex));
     const host = this.paneHost();
     const price = this.priceSeries;
+    if (report.barcolors?.length && (price || this.paneIndex === 0)) this.attach(new BarColorLayer(), price ?? host);
     if (report.backgrounds.some((background) => !background.forceOverlay || this.paneIndex === 0)) {
       this.attach(new BackgroundLayer((index) => this.paneIndex === 0 || !report.backgrounds[index]?.forceOverlay), host);
     }
@@ -667,6 +760,18 @@ export class PineRenderer {
       const price = line?.price;
       if (price != null) write(series, (index) => ({ time: seconds(times[index]!), value: price }));
     });
+    this.candles.forEach((series, candleIndex) => {
+      const item = report.candles?.[candleIndex];
+      if (!item) return;
+      series.applyOptions({ visible: visible && style.candles?.[String(candleIndex)]?.visible !== false });
+      write(series, (index) => {
+        const open = item.open[index], high = item.high[index], low = item.low[index], close = item.close[index];
+        const time = seconds(times[index]!);
+        if (open == null || high == null || low == null || close == null) return { time };
+        const color = paint(item, index, undefined) ?? "#2962FF";
+        return { time, open, high, low, close, color, wickColor: cssColor(item.wickcolor) ?? color, borderColor: cssColor(item.bordercolor) ?? color };
+      });
+    });
     if (this.anchor) write(this.anchor, (index) => ({ time: seconds(times[index]!), value: 0 }));
     for (const { layer } of this.layers) layer.set(report, visible, style);
     this.previous = { first, length: times.length, style: styleKey };
@@ -674,8 +779,8 @@ export class PineRenderer {
 
   dispose() {
     for (const { layer, host } of this.layers) { try { host.detachPrimitive(layer); } catch { /* The chart was rebuilt. */ } }
-    for (const series of [...this.plots, ...this.hlines, ...(this.anchor ? [this.anchor] : [])]) { try { this.chart.removeSeries(series); } catch { /* The chart was rebuilt. */ } }
-    this.plots = []; this.hlines = []; this.anchor = null; this.layers = [];
+    for (const series of [...this.plots, ...this.candles, ...this.hlines, ...(this.anchor ? [this.anchor] : [])]) { try { this.chart.removeSeries(series); } catch { /* The chart was rebuilt. */ } }
+    this.plots = []; this.candles = []; this.hlines = []; this.anchor = null; this.layers = [];
   }
 }
 

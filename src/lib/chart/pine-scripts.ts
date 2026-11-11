@@ -32,6 +32,10 @@ export type PineStyle = {
   fills?: boolean;
   backgrounds?: boolean;
   markers?: boolean;
+  /** barcolor() candle colors. */
+  barColors?: boolean;
+  /** plotcandle()/plotbar() candles, by position. */
+  candles?: Record<string, { visible?: boolean }>;
 };
 
 /** The script's color with the user's replacement applied, keeping the script's transparency. */

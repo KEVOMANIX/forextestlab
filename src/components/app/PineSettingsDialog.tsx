@@ -332,7 +332,11 @@ export function PineSettingsDialog({
                   );
                 })}
 
-                {(report.drawings?.length ?? 0) > 0 && <Row label={<Check checked={style.drawings !== false} onChange={(value) => onChange({ style: { ...style, drawings: value } })} label="Labels, lines, boxes and tables" />} />}
+                {(report.candles ?? []).map((item, index) => (
+                  <Row key={`candles-${index}`} label={<Check checked={style.candles?.[index]?.visible !== false} onChange={(value) => onChange({ style: { ...style, candles: { ...style.candles, [index]: { visible: value } } } })} label={item.title || (item.kind === "bar" ? "Bars" : "Candles")} />} />
+                ))}
+                {(report.barcolors?.length ?? 0) > 0 && <Row label={<Check checked={style.barColors !== false} onChange={(value) => onChange({ style: { ...style, barColors: value } })} label="Bar colors" />} />}
+                {(report.drawings?.length ?? 0) > 0 && <Row label={<Check checked={style.drawings !== false} onChange={(value) => onChange({ style: { ...style, drawings: value } })} label="Labels, lines, boxes, polylines and tables" />} />}
 
                 <p className={section}>Output values</p>
                 <Row label={<span className="app-muted">Precision</span>}>

@@ -1,5 +1,17 @@
 import { transpile, compile, Context, rt } from "@nullarch/resin";
 import { codeMask, convertPineV4, findCalls, isPineV4 } from "./pine-v4";
+import { TIMEFRAME_MS, type Timeframe } from "@/lib/market-data/types";
+
+/** Candle timeframes the data store serves for script feeds, smallest first (calendar months excluded). */
+const FEED_TIMEFRAMES = (Object.entries(TIMEFRAME_MS) as [Timeframe, number][]).filter(([, ms]) => ms <= 7 * 86_400_000).sort((a, b) => a[1] - b[1]);
+/** The stored timeframe a script timeframe is built from: the same one, else the largest that divides it. */
+export function pineFeedTimeframe(ms: number): [Timeframe, number] | null {
+  let best: [Timeframe, number] | null = null;
+  for (const entry of FEED_TIMEFRAMES) if (entry[1] <= ms && ms % entry[1] === 0) best = entry;
+  return best;
+}
+/** "OANDA:GBPUSD" → "GBPUSD". */
+const tickerOf = (symbol: string) => (symbol.split(":").pop() ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 /** Candles as parallel arrays; times are epoch milliseconds. */
 export type PineSeriesInput = { time: Float64Array; open: Float64Array; high: Float64Array; low: Float64Array; close: Float64Array; volume: Float64Array };
@@ -38,9 +50,17 @@ export type PineShape = {
  * A label/line/box/table the script created and did not delete, in its final
  * state. Table cells are kept as `cell:<column>,<row>` text entries.
  */
-export type PineDrawing = { kind: "label" | "line" | "box" | "table"; state: Record<string, number | string | null> };
-export type PineVisual = { converted?: boolean; overlay: boolean; plots: PinePlot[]; hlines: PineHline[]; fills: PineFill[]; backgrounds: PineBackground[]; shapes: PineShape[]; drawings: PineDrawing[]; skipped: string[] };
-export type PineIndicatorResult = ({ ok: true } & PineVisual) | { ok: false; error: string; diagnostics?: PineDiagnostic[] };
+export type PineDrawing = { kind: "label" | "line" | "box" | "table" | "polyline" | "linefill"; state: Record<string, number | string | null> };
+/** barcolor(): recolors the chart's candles. */
+export type PineBarColor = { title: string | null; offset: number; color: string | null; colors: Colors };
+/** plotcandle()/plotbar(): candles the script draws itself. */
+export type PineCandles = { kind: "candle" | "bar"; title: string | null; color: string | null; colors: Colors; wickcolor: string | null; bordercolor: string | null; forceOverlay: boolean; open: (number | null)[]; high: (number | null)[]; low: (number | null)[]; close: (number | null)[] };
+export type PineVisual = { converted?: boolean; overlay: boolean; plots: PinePlot[]; hlines: PineHline[]; fills: PineFill[]; backgrounds: PineBackground[]; shapes: PineShape[]; drawings: PineDrawing[]; barcolors?: PineBarColor[]; candles?: PineCandles[]; skipped: string[] };
+/** Candles a script's request.security() needs from outside the chart: another market or a lower timeframe. */
+export type PineFeedNeed = { key: string; symbol: string; timeframe: Timeframe; timeframeMs: number };
+/** Those candles, keyed like PineFeedNeed.key; `timeframe` is their Pine timeframe ("15", "60", "D"). */
+export type PineFeed = { time: number[]; open: number[]; high: number[]; low: number[]; close: number[]; volume: number[]; timeframe: string };
+export type PineIndicatorResult = ({ ok: true } & PineVisual) | { ok: false; error: string; diagnostics?: PineDiagnostic[]; needs?: PineFeedNeed[] };
 
 /*
  * The engine records every drawing a script creates but treats delete() and
@@ -63,6 +83,84 @@ if (drawingApi.table) {
     const state = (handle as Handle)?.state;
     if (state) for (const key of Object.keys(state)) if (key.startsWith("cell:")) delete state[key];
   };
+}
+/*
+ * The engine treats polyline.new() and linefill.new() as no-ops. They are made
+ * real here: each gets a handle in the drawing log (borrowed from label.new,
+ * then re-marked with __kind), polylines keep their points as JSON, and a
+ * linefill remembers its two lines so it is drawn where they finally are.
+ */
+type PinePoint = { time?: number | null; index?: number | null; price?: number | null } | null;
+type DrawingStateMap = Record<string, number | string | null>;
+const linefillLines = new WeakMap<object, [Handle, Handle]>();
+const colorValue = (value: unknown) => (typeof value === "string" && value ? value : null);
+function borrowHandle(kind: string): { state: DrawingStateMap } | null {
+  const handle = drawingApi.label?.new?.(NaN, NaN, "") as { state?: DrawingStateMap } | undefined;
+  if (!handle?.state) return null;
+  for (const key of Object.keys(handle.state)) delete handle.state[key];
+  handle.state.__kind = kind;
+  return handle as { state: DrawingStateMap };
+}
+if (drawingApi.polyline) {
+  drawingApi.polyline.new = (points, curved, closed, xloc, lineColor, fillColor, lineStyle, lineWidth) => {
+    const handle = borrowHandle("polyline");
+    if (!handle) return null;
+    const list = Array.isArray(points) ? (points as PinePoint[]) : [];
+    const finite = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+    handle.state.points = JSON.stringify(list.slice(0, 10_000).map((point) => [finite(point?.index), finite(point?.time), finite(point?.price)]));
+    handle.state.curved = curved === true ? 1 : 0;
+    handle.state.closed = closed === true ? 1 : 0;
+    handle.state.xloc = typeof xloc === "string" ? xloc : "bar_index";
+    handle.state.line_color = lineColor === undefined ? "#2962FF" : colorValue(lineColor);
+    handle.state.fill_color = colorValue(fillColor);
+    handle.state.line_style = typeof lineStyle === "string" ? lineStyle : "solid";
+    handle.state.line_width = typeof lineWidth === "number" && Number.isFinite(lineWidth) ? lineWidth : 1;
+    return handle;
+  };
+}
+if (drawingApi.linefill) {
+  drawingApi.linefill.new = (line1, line2, color) => {
+    const handle = borrowHandle("linefill");
+    if (!handle) return null;
+    handle.state.color = colorValue(color);
+    linefillLines.set(handle.state, [line1 as Handle, line2 as Handle]);
+    return handle;
+  };
+  drawingApi.linefill.set_color = (handle, color) => { const state = (handle as Handle)?.state; if (state) state.color = colorValue(color); };
+  drawingApi.linefill.get_line1 = (handle) => { const state = (handle as Handle)?.state; return state ? linefillLines.get(state)?.[0] ?? null : null; };
+  drawingApi.linefill.get_line2 = (handle) => { const state = (handle as Handle)?.state; return state ? linefillLines.get(state)?.[1] ?? null : null; };
+}
+/** A linefill drawn from its two lines' final coordinates, or null when either is gone. */
+function linefillState(state: DrawingStateMap): DrawingStateMap | null {
+  const lines = linefillLines.get(state);
+  const a = lines?.[0]?.state, b = lines?.[1]?.state;
+  if (!a || !b || a.__deleted || b.__deleted) return null;
+  return { color: state.color ?? null, xloc: a.xloc ?? "bar_index", extend: a.extend ?? "none", ax1: a.x1 ?? null, ay1: a.y1 ?? null, ax2: a.x2 ?? null, ay2: a.y2 ?? null, bx1: b.x1 ?? null, by1: b.y1 ?? null, bx2: b.x2 ?? null, by2: b.y2 ?? null };
+}
+/** The positional order of polyline.new()/linefill.new(), so their named arguments reach the handlers above. */
+const DRAWING_PARAMS: Record<string, string[]> = {
+  "polyline.new": ["points", "curved", "closed", "xloc", "line_color", "fill_color", "line_style", "line_width", "force_overlay"],
+  "linefill.new": ["line1", "line2", "color"],
+};
+/** Rewrites named arguments of those calls as positional ones (na for the gaps); line numbers are kept. */
+export function positionalDrawingArgs(code: string): string {
+  for (const [name, params] of Object.entries(DRAWING_PARAMS)) {
+    for (const call of findCalls(code, name).reverse()) {
+      const args = call.args.map((arg) => code.slice(arg.start, arg.end));
+      const named = args.map((arg) => /^\s*([A-Za-z_]\w*)\s*=(?!=)([\s\S]*)$/.exec(arg));
+      if (!named.some(Boolean)) continue;
+      const slots: string[] = [];
+      args.forEach((arg, index) => {
+        const match = named[index];
+        if (!match) { slots[index] = arg.trim(); return; }
+        const slot = params.indexOf(match[1]!);
+        if (slot >= 0) slots[slot] = match[2]!.trim();
+      });
+      const text = Array.from({ length: slots.length }, (_, index) => slots[index] ?? "na").join(", ");
+      code = code.slice(0, call.open + 1) + text + code.slice(call.close);
+    }
+  }
+  return code;
 }
 /*
  * TradingView reads session strings ("1900-0001") and hour/dayofweek… in the
@@ -156,7 +254,7 @@ const DRAWING_LIMIT_DEFAULT = 50;
 /** TradingView keeps the newest N drawings of each kind (indicator(max_lines_count=…), default 50). */
 function drawingLimits(code: string): Record<string, number> {
   const read = (name: string) => Math.min(500, Math.max(1, Number(new RegExp(`${name}\\s*=\\s*(\\d+)`).exec(code)?.[1] ?? DRAWING_LIMIT_DEFAULT)));
-  return { label: read("max_labels_count"), line: read("max_lines_count"), box: read("max_boxes_count"), table: 50 };
+  return { label: read("max_labels_count"), line: read("max_lines_count"), box: read("max_boxes_count"), polyline: read("max_polylines_count"), linefill: 50, table: 50 };
 }
 /** chart.fg_color / chart.bg_color are compile-time constants; give them the chart's actual theme. */
 function withThemeColors(code: string, theme: "dark" | "light"): string {
@@ -210,7 +308,7 @@ function requestProblem(code: string, chartTimeframeMs?: number): string | null 
   const mask = codeMask(code);
   for (const match of code.matchAll(/\brequest\s*\.\s*(\w+)/g)) {
     if (!mask[match.index!]) continue;
-    if (match[1] !== "security") return `request.${match[1]}() needs data the chart does not have. Only request.security() on this chart's market is available.`;
+    if (match[1] !== "security") return `request.${match[1]}() needs data the chart does not have. request.security() is available, for this market or another one.`;
   }
   const own = (symbol: string): boolean => {
     const text = symbol.trim();
@@ -222,16 +320,24 @@ function requestProblem(code: string, chartTimeframeMs?: number): string | null 
     const input = /^input(?:\.symbol)?\s*\(\s*(?:defval\s*=\s*)?([^,)]+)/.exec(assigned.trim());
     return own(input ? input[1]! : assigned);
   };
+  // A fixed market name ("GBPUSD", "OANDA:GBPUSD", or a symbol input's default) can be loaded.
+  const fixed = (symbol: string): boolean => {
+    const text = symbol.trim();
+    if (/^["'][^"']+["']$/.test(text)) return true;
+    const assigned = new RegExp(`^\\s*(?:var\\s+)?(?:string\\s+)?${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*=\\s*(.+)$`, "m").exec(code)?.[1];
+    if (!assigned || assigned.trim() === text) return false;
+    const input = /^input(?:\.symbol)?\s*\(\s*(?:defval\s*=\s*)?([^,)]+)/.exec(assigned.trim());
+    return fixed(input ? input[1]! : assigned);
+  };
   for (const call of findCalls(code, "request.security")) {
     const args = call.args.map((arg) => code.slice(arg.start, arg.end).trim().replace(/^(symbol|timeframe|expression)\s*=\s*/, ""));
     const symbol = args[0] ?? "";
-    if (!own(symbol)) return `request.security() asks for another market (${symbol.slice(0, 40)}). The chart only has this market's candles, so scripts can read its other timeframes but not other symbols.`;
+    if (!own(symbol) && !fixed(symbol)) return `request.security() needs a fixed market name such as "GBPUSD" (got ${symbol.slice(0, 40)}).`;
     const timeframe = /^["']([^"']*)["']$/.exec(args[1] ?? "")?.[1];
-    if (timeframe && chartTimeframeMs) {
-      const ms = pineTimeframeMs(timeframe);
-      if (ms != null && ms < chartTimeframeMs) return `request.security() asks for the ${timeframe} timeframe, which is lower than the chart's. Switch the chart to ${timeframe} or lower to use this script.`;
-    }
+    const ms = timeframe ? pineTimeframeMs(timeframe) : null;
+    if (ms != null && ms < 60_000) return `request.security() asks for the ${timeframe} timeframe. The smallest timeframe available is 1 minute.`;
   }
+  void chartTimeframeMs;
   return null;
 }
 
@@ -309,13 +415,14 @@ const compiled = new Map<string, Compiled | PineIndicatorResult>();
  * over the given candles, returning what it draws: plots in their styles,
  * horizontal levels, fills, background colors and markers.
  */
-export function runPineIndicator(code: string, data: PineSeriesInput, options: { symbol: string; timeframeMs: number; precision: number; theme?: "dark" | "light" }): PineIndicatorResult {
+export function runPineIndicator(code: string, data: PineSeriesInput, options: { symbol: string; timeframeMs: number; precision: number; theme?: "dark" | "light"; feeds?: Record<string, PineFeed> }): PineIndicatorResult {
   code = withThemeColors(code, options.theme ?? "dark");
   // Version 4 scripts are converted to v5 first, the way TradingView's converter does.
   const converted = isPineV4(code);
   if (converted) code = convertPineV4(code);
   const problem = pineChartPrecheck(code, options.timeframeMs);
   if (problem) return { ok: false, error: problem };
+  code = positionalDrawingArgs(code);
   if (data.close.length < 1) return { ok: false, error: "No candles to calculate on yet." };
   const priceScale = 10 ** Math.max(0, Math.min(8, Math.round(options.precision)));
   const key = JSON.stringify([code, options.symbol, options.timeframeMs, priceScale]);
@@ -334,15 +441,34 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
   }
   if ("ok" in entry) return entry;
   const { result, run } = entry;
+  // request.security() on another market, or below the chart's timeframe, reads candles loaded for it.
+  const symbols = (result.securitySymbols ?? []) as (string | null)[];
+  const needs = new Map<string, PineFeedNeed>();
+  const fed = new Set<number>();
+  (result.securityTfs as string[] | undefined ?? []).forEach((tf, slot) => {
+    const symbol = symbols[slot];
+    if (!symbol) return;
+    const ticker = tickerOf(symbol);
+    const ms = pineTimeframeMs(tf) ?? options.timeframeMs;
+    if (ticker === options.symbol && ms >= options.timeframeMs) return;
+    const stored = pineFeedTimeframe(ms);
+    if (!stored) return;
+    const key = `${symbol}:${tf}`;
+    fed.add(slot);
+    if (!needs.has(key)) needs.set(key, { key, symbol: ticker, timeframe: stored[0], timeframeMs: stored[1] });
+  });
+  const missing = [...needs.values()].filter((need) => !options.feeds?.[need.key]);
+  if (missing.length) return { ok: false, error: `Loading ${missing.map((need) => `${need.symbol} ${need.timeframe}`).join(", ")} for request.security()…`, needs: [...needs.values()] };
   const series = {
     open: Array.from(data.open), high: Array.from(data.high), low: Array.from(data.low),
     close: Array.from(data.close), volume: Array.from(data.volume), time: Array.from(data.time),
   };
   try {
     tradingDays = options.timeframeMs < 86_400_000;
-    const ctx = Context.from(result, series);
+    const security = needs.size ? Object.fromEntries([...needs.keys()].map((key) => [key, options.feeds![key]!])) : undefined;
+    const ctx = Context.from(result, series, security ? { security } : {});
     // Requests with a fixed timeframe are built with the context; rebuild their days on the trading day.
-    if (tradingDays) (result.securityTfs as readonly string[] | undefined)?.forEach((tf, slot) => { if (isDayTimeframe(tf)) (ctx as unknown as ContextInternals).rebuildSecurityCache(slot, tf); });
+    if (tradingDays) (result.securityTfs as readonly string[] | undefined)?.forEach((tf, slot) => { if (isDayTimeframe(tf) && !fed.has(slot)) (ctx as unknown as ContextInternals).rebuildSecurityCache(slot, tf); });
     const bar = run(ctx);
     for (let index = 0; index < ctx.barCount; index++) { ctx.advance(); bar(); }
     if (ctx.plots.length > MAX_PLOTS) return { ok: false, error: `Indicators can draw at most ${MAX_PLOTS} plots.` };
@@ -407,8 +533,17 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
     }
 
     const skipped: string[] = [];
-    if (viz.barcolors.length) skipped.push("barcolor()");
-    if (viz.candles.length || viz.plotbars.length) skipped.push("plotcandle()/plotbar()");
+    const barcolors: PineBarColor[] = viz.barcolors.map((bar: { title: string | null; color: string | null; colorSlot: number | null; offset: number }) => {
+      const { color, colors } = compact(colorsOf(bar.colorSlot), bar.color);
+      return { title: bar.title, offset: bar.offset, color, colors };
+    });
+    const seriesOf = (slot: number) => Array.from((ctx.vizSeries[slot] ?? []) as ArrayLike<number>, (value) => (Number.isFinite(value) ? value : null));
+    type CandleMeta = { title: string | null; color: string | null; colorSlot: number | null; wickcolor: string | null; bordercolor: string | null; forceOverlay: boolean; openSlot: number; highSlot: number; lowSlot: number; closeSlot: number };
+    const candleSets: ["candle" | "bar", CandleMeta][] = [...(viz.candles as CandleMeta[]).map((item) => ["candle", item] as ["candle", CandleMeta]), ...(viz.plotbars as CandleMeta[]).map((item) => ["bar", item] as ["bar", CandleMeta])];
+    const candles: PineCandles[] = candleSets.map(([kind, item]) => {
+      const { color, colors } = compact(colorsOf(item.colorSlot), item.color);
+      return { kind, title: item.title, color: color ?? (colors ? null : "#2962FF"), colors, wickcolor: item.wickcolor, bordercolor: item.bordercolor, forceOverlay: Boolean(item.forceOverlay), open: seriesOf(item.openSlot), high: seriesOf(item.highSlot), low: seriesOf(item.lowSlot), close: seriesOf(item.closeSlot) };
+    });
 
     // Drawings still alive at the end, newest N per kind like TradingView's garbage collection.
     const limits = drawingLimits(code);
@@ -416,15 +551,16 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
     const drawings: PineDrawing[] = [];
     for (let index = ctx.drawingLog.length - 1; index >= 0; index--) {
       const record = ctx.drawingLog[index]!;
-      if (!(record.kind in limits) || record.state.__deleted) continue;
-      kept[record.kind] = (kept[record.kind] ?? 0) + 1;
-      if (kept[record.kind]! > limits[record.kind]!) continue;
-      drawings.push({ kind: record.kind as PineDrawing["kind"], state: { ...record.state } });
+      const kind = typeof record.state.__kind === "string" ? record.state.__kind : record.kind;
+      if (!(kind in limits) || record.state.__deleted) continue;
+      kept[kind] = (kept[kind] ?? 0) + 1;
+      if (kept[kind]! > limits[kind]!) continue;
+      const state = kind === "linefill" ? linefillState(record.state) : { ...record.state };
+      if (state) drawings.push({ kind: kind as PineDrawing["kind"], state });
     }
     drawings.reverse();
-    if (ctx.drawingLog.some((record) => record.kind === "polyline" || record.kind === "linefill")) skipped.push("polylines and linefills");
 
-    return { ok: true, converted, overlay: Boolean(viz.overlay), plots, hlines, fills, backgrounds, shapes, drawings, skipped };
+    return { ok: true, converted, overlay: Boolean(viz.overlay), plots, hlines, fills, backgrounds, shapes, drawings, barcolors, candles, skipped };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "The script stopped with an error." };
   }
@@ -438,7 +574,7 @@ export function runPineIndicator(code: string, data: PineSeriesInput, options: {
  * sit on the last chart candle of their period. The chart's timeframe or a
  * lower one runs the script as it is.
  */
-export function runPineIndicatorOn(timeframe: string | undefined, code: string, data: PineSeriesInput, options: { symbol: string; timeframeMs: number; precision: number; theme?: "dark" | "light" }): PineIndicatorResult {
+export function runPineIndicatorOn(timeframe: string | undefined, code: string, data: PineSeriesInput, options: { symbol: string; timeframeMs: number; precision: number; theme?: "dark" | "light"; feeds?: Record<string, PineFeed> }): PineIndicatorResult {
   const targetMs = timeframe ? pineTimeframeMs(timeframe) : null;
   if (!timeframe || !targetMs || targetMs <= options.timeframeMs) return runPineIndicator(code, data, options);
   const count = data.time.length;
@@ -476,11 +612,14 @@ export function runPineIndicatorOn(timeframe: string | undefined, code: string, 
     plots: result.plots.map((plot) => ({ ...plot, values: spread(plot.values), colors: spreadColors(plot.colors) })),
     fills: result.fills.map((fill) => ({ ...fill, colors: spreadColors(fill.colors) })),
     backgrounds: result.backgrounds.map((bg) => ({ ...bg, colors: spreadColors(bg.colors) })),
+    barcolors: result.barcolors?.map((bar) => ({ ...bar, colors: spreadColors(bar.colors) })),
+    candles: result.candles?.map((item) => ({ ...item, colors: spreadColors(item.colors), open: spread(item.open), high: spread(item.high), low: spread(item.low), close: spread(item.close) })),
     shapes: result.shapes.map((shape) => ({ ...shape, colors: spreadColors(shape.colors), points: shape.points.map((point) => ({ ...point, index: toChart(point.index) })) })),
     drawings: result.drawings.map((drawing) => {
       if (drawing.state.xloc === "bar_time" || drawing.kind === "table") return drawing;
       const state = { ...drawing.state };
-      for (const name of ["x", "x1", "x2", "left", "right"]) if (typeof state[name] === "number") state[name] = toChart(state[name] as number);
+      for (const name of ["x", "x1", "x2", "left", "right", "ax1", "ax2", "bx1", "bx2"]) if (typeof state[name] === "number") state[name] = toChart(state[name] as number);
+      if (typeof state.points === "string") state.points = JSON.stringify((JSON.parse(state.points) as (number | null)[][]).map(([index, time, price]) => [index == null ? null : toChart(index), time, price]));
       return { ...drawing, state };
     }),
   };

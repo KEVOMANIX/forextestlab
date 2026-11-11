@@ -81,7 +81,7 @@ barcolor(color.red)
     expect(result.backgrounds[0]!.colors?.some((color) => color === "#4CAF5026")).toBe(true);
     expect(result.shapes[0]).toMatchObject({ kind: "shape", title: "Up", style: "triangleup", location: "bottom", text: "B", overlay: false });
     expect(result.shapes[0]!.points.length).toBeGreaterThan(0);
-    expect(result.skipped).toContain("barcolor()");
+    expect(result.barcolors).toHaveLength(1);
   });
 
   it("reads hline prices the compiler leaves open", () => {
@@ -170,9 +170,10 @@ describe("request.security on the chart", () => {
     }
   });
 
-  it("refuses data the chart does not have", () => {
-    expect(run('request.security("GBPUSD", "D", close)')).toMatchObject({ ok: false, error: expect.stringContaining("another market") });
-    expect(run('request.security(syminfo.tickerid, "5", close)')).toMatchObject({ ok: false, error: expect.stringContaining("lower than the chart") });
+  it("asks for other markets and lower timeframes, and refuses data no one has", () => {
+    expect(run('request.security("GBPUSD", "D", close)')).toMatchObject({ ok: false, needs: [expect.objectContaining({ symbol: "GBPUSD", timeframe: "1d" })] });
+    expect(run('request.security(syminfo.tickerid, "5", close)')).toMatchObject({ ok: false, needs: [expect.objectContaining({ symbol: "EURUSD", timeframe: "5m" })] });
+    expect(run('request.security(syminfo.tickerid, "30S", close)')).toMatchObject({ ok: false, error: expect.stringContaining("1 minute") });
     expect(run('request.financial(syminfo.tickerid, "EBITDA", "FQ")')).toMatchObject({ ok: false, error: expect.stringContaining("request.financial") });
   });
 });

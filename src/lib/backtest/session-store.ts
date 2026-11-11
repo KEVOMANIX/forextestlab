@@ -429,6 +429,33 @@ export async function getChartContextPage(
   };
 }
 
+const MAX_PINE_FEED_CANDLES = 30_000;
+const PINE_FEED_SLACK_MS = 86_400_000;
+
+/**
+ * Candles a chart Pine script reads through request.security(): another
+ * market, or this one at a lower timeframe. They run from `from` to a little
+ * past the replay clock, which the chart's own buffer already covers; the
+ * chart trims anything after the candle it is showing before the script sees it.
+ */
+export async function getPineFeed(
+  session: LoadedSession,
+  symbol: string,
+  timeframe: Timeframe,
+  from: number,
+): Promise<Candle[]> {
+  const replayStartTime = session.ctx.candles[0]?.timestamp ?? session.ctx.state.config.startTime;
+  const engineClock = currentCandleOf(session.ctx)?.timestamp ?? replayStartTime;
+  const checkpoint = await prisma.backtestSession.findUnique({ where: { id: session.id }, select: { visibleTime: true } });
+  const saved = checkpoint?.visibleTime == null ? engineClock : Number(checkpoint.visibleTime);
+  const clock = Math.max(engineClock, Number.isFinite(saved) ? saved : engineClock);
+  const endTime = clock + Math.max(PINE_FEED_SLACK_MS, TIMEFRAME_MS[session.ctx.state.config.timeframe] * 500);
+  const startTime = Math.max(from, endTime - TIMEFRAME_MS[timeframe] * MAX_PINE_FEED_CANDLES * 1.6);
+  if (startTime >= endTime) return [];
+  const candles = await getMarketDataProvider(replayDataSourceFromStored(session.ctx.state.dataSource)).getCandles({ symbol, timeframe, startTime, endTime });
+  return candles.filter((candle) => candle.timestamp >= startTime && candle.timestamp <= endTime).slice(-MAX_PINE_FEED_CANDLES);
+}
+
 async function fetchSeries(
   symbol: string,
   timeframe: Timeframe,

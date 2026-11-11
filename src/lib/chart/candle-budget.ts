@@ -1,5 +1,5 @@
 /** Strategy Lab tests run on at most this many candles (the Pine runner's limit). */
-export const MAX_TEST_CANDLES = 30_000;
+export const MAX_TEST_CANDLES = 100_000;
 const DAY = 86_400_000;
 
 const isWeekday = (dayStart: number) => { const weekday = new Date(dayStart).getUTCDay(); return weekday !== 0 && weekday !== 6; };

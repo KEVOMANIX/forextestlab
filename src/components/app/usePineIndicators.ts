@@ -5,7 +5,9 @@ import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 import type { PineChartIndicator } from "@/lib/chart/pine-scripts";
 import { applyPineInputs } from "@/lib/chart/pine-inputs";
 import type { OHLCV } from "@/lib/chart/indicators";
-import type { PineDiagnostic, PineIndicatorResult, PineSeriesInput } from "@/lib/chart/pine-runner";
+import type { PineDiagnostic, PineFeed, PineFeedNeed, PineIndicatorResult, PineSeriesInput } from "@/lib/chart/pine-runner";
+import { pineFeedLoader } from "@/lib/chart/pine-feeds";
+import type { Candle } from "@/lib/market-data/types";
 import { PineRenderer, pineSignature, type PineReport } from "./pine-render";
 
 export type { PineReport };
@@ -25,7 +27,20 @@ export type PineRunStatus = {
 };
 
 /** `code` is the script as written; `run` is that code with the Inputs tab values applied. */
-type Batch = { id: number; items: { id: string; code: string; run: string; timeframe?: string }[]; times: Float64Array; highs: Float64Array; lows: Float64Array; closes: Float64Array; timer: number };
+type Batch = { id: number; items: { id: string; code: string; run: string; timeframe?: string }[]; from: number; times: Float64Array; opens: Float64Array; highs: Float64Array; lows: Float64Array; closes: Float64Array; timer: number };
+
+/** Candles loaded for a script's request.security() (another market or a lower timeframe). */
+type FeedEntry = { need: PineFeedNeed; candles: Candle[]; loading: boolean; error?: string; checkedAt: number };
+
+/** A feed trimmed to the candles that had closed by `until` (the chart's newest candle), so no script sees ahead of the replay. */
+function feedUntil(entry: FeedEntry, until: number, timeframe: string): PineFeed {
+  const rows = entry.candles.filter((candle) => candle.timestamp + entry.need.timeframeMs <= until);
+  return {
+    time: rows.map((row) => row.timestamp), open: rows.map((row) => Number(row.open)), high: rows.map((row) => Number(row.high)),
+    low: rows.map((row) => Number(row.low)), close: rows.map((row) => Number(row.close)), volume: rows.map((row) => Number(row.volume ?? 0)), timeframe,
+  };
+}
+const pineTf = (ms: number) => { const minutes = Math.round(ms / 60_000); return minutes % 10_080 === 0 ? `${minutes / 10_080}W` : minutes % 1440 === 0 ? `${minutes / 1440}D` : String(minutes); };
 
 function toSeriesInput(candles: OHLCV[]): PineSeriesInput {
   const rows = candles.length > MAX_BARS ? candles.slice(-MAX_BARS) : candles;
@@ -85,6 +100,33 @@ export function usePineIndicators({
   const dirtyRef = useRef(false);
   const nextIdRef = useRef(1);
   const hungCodeRef = useRef(new Set<string>());
+  const feedsRef = useRef(new Map<string, FeedEntry>());
+  const feedSymbolRef = useRef(symbol);
+  if (feedSymbolRef.current !== symbol) { feedSymbolRef.current = symbol; feedsRef.current.clear(); }
+
+  /** Loads (or tops up) one feed, then recalculates. */
+  function loadFeed(need: PineFeedNeed, from: number) {
+    const load = pineFeedLoader();
+    const known = feedsRef.current.get(need.key);
+    if (known?.loading) return;
+    const entry: FeedEntry = known ?? { need, candles: [], loading: false, checkedAt: 0 };
+    feedsRef.current.set(need.key, entry);
+    if (!load) { entry.error = "Other markets and lower timeframes load inside a replay session."; return; }
+    entry.loading = true;
+    entry.checkedAt = Date.now();
+    const start = entry.candles.length ? entry.candles[entry.candles.length - 1]!.timestamp : from;
+    load(need.symbol, need.timeframe, start).then((candles) => {
+      if (feedsRef.current.get(need.key) !== entry) return;
+      const merged = entry.candles.filter((candle) => candle.timestamp < (candles[0]?.timestamp ?? Infinity));
+      entry.candles = [...merged, ...candles].slice(-MAX_BARS);
+      entry.error = undefined;
+    }).catch((error: unknown) => {
+      entry.error = error instanceof Error ? error.message : `${need.symbol} data could not be loaded.`;
+    }).finally(() => {
+      entry.loading = false;
+      dispatchRef.current();
+    });
+  }
   const latest = useRef({ items, getCandles, symbol, timeframeMs, precision, theme });
   latest.current = { items, getCandles, symbol, timeframeMs, precision, theme };
 
@@ -97,6 +139,15 @@ export function usePineIndicators({
     if (runnable.length === 0) return;
     const data = toSeriesInput(read());
     if (data.time.length < 1) return;
+    const until = data.time[data.time.length - 1]!;
+    const feeds: Record<string, PineFeed> = {};
+    for (const [key, entry] of feedsRef.current) {
+      if (!entry.candles.length && entry.error) continue;
+      if (entry.candles.length || !entry.loading) feeds[key] = feedUntil(entry, until, pineTf(entry.need.timeframeMs));
+      // Replay moved past the loaded candles: fetch the newer ones (at most every few seconds).
+      const last = entry.candles[entry.candles.length - 1]?.timestamp ?? -Infinity;
+      if (!entry.loading && until > last + entry.need.timeframeMs && Date.now() - entry.checkedAt > 3_000) loadFeed(entry.need, data.time[0]!);
+    }
     if (!workerRef.current) {
       workerRef.current = new Worker(new URL("./pine-chart.worker.ts", import.meta.url), { type: "module" });
       workerRef.current.onmessage = (event: MessageEvent<{ id: number; results: Record<string, PineIndicatorResult> }>) => finish(event.data.id, event.data.results);
@@ -109,13 +160,13 @@ export function usePineIndicators({
       for (const item of batchItems) hungCodeRef.current.add(item.run);
       fail(`The script took longer than ${RUN_TIMEOUT_MS / 1000} seconds and was stopped. Check for a loop that never ends.`);
     }, RUN_TIMEOUT_MS);
-    batchRef.current = { id, items: batchItems, times: data.time.slice(), highs: data.high.slice(), lows: data.low.slice(), closes: data.close.slice(), timer };
+    batchRef.current = { id, items: batchItems, from: data.time[0]!, times: data.time.slice(), opens: data.open.slice(), highs: data.high.slice(), lows: data.low.slice(), closes: data.close.slice(), timer };
     setStatus((previous) => {
       const next = { ...previous };
       for (const item of batchItems) if (previous[item.id]?.code !== item.code) next[item.id] = { ...previous[item.id], state: "loading" };
       return next;
     });
-    workerRef.current.postMessage({ id, items: batchItems.map((item) => ({ id: item.id, code: item.run, timeframe: item.timeframe })), data, symbol: sym, timeframeMs: tf, precision: digits, theme: chartTheme }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
+    workerRef.current.postMessage({ id, items: batchItems.map((item) => ({ id: item.id, code: item.run, timeframe: item.timeframe })), data, feeds, symbol: sym, timeframeMs: tf, precision: digits, theme: chartTheme }, [data.time.buffer, data.open.buffer, data.high.buffer, data.low.buffer, data.close.buffer, data.volume.buffer]);
   };
 
   function finish(id: number, results: Record<string, PineIndicatorResult>) {
@@ -124,14 +175,21 @@ export function usePineIndicators({
     window.clearTimeout(batch.timer);
     batchRef.current = null;
     const now = Date.now();
+    // Scripts waiting for other markets: start those loads, and show a load failure instead of "Loading…".
+    for (const [itemId, result] of Object.entries(results)) {
+      if (result.ok || !result.needs) continue;
+      for (const need of result.needs) if (!feedsRef.current.has(need.key)) loadFeed(need, batch.from);
+      const failed = result.needs.map((need) => feedsRef.current.get(need.key)?.error).find(Boolean);
+      results[itemId] = failed ? { ok: false, error: failed } : result;
+    }
     setStatus((previous) => {
       const next = { ...previous };
       for (const item of batch.items) {
         const result = results[item.id];
         if (!result) continue;
         next[item.id] = result.ok
-          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, shapes: result.shapes, drawings: result.drawings, skipped: result.skipped, converted: result.converted, times: batch.times, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
-          : { state: "error", code: item.code, ranAt: now, error: result.error, diagnostics: result.diagnostics };
+          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, shapes: result.shapes, drawings: result.drawings, barcolors: result.barcolors, candles: result.candles, skipped: result.skipped, converted: result.converted, times: batch.times, opens: batch.opens, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
+          : result.needs ? { ...previous[item.id], state: "loading", code: item.code, error: result.error } : { state: "error", code: item.code, ranAt: now, error: result.error, diagnostics: result.diagnostics };
       }
       return next;
     });

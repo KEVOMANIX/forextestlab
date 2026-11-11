@@ -9,6 +9,7 @@ import {
   extendSessionRange,
   getPairChart,
   getChartHistory,
+  getPineFeed,
   getStateWithToken,
   sendAction,
   sendCheckpoint,
@@ -17,6 +18,7 @@ import {
   type CreatedSession,
   type PairChartData,
 } from "@/lib/backtest/client";
+import { setPineFeedLoader } from "@/lib/chart/pine-feeds";
 import type {
   EngineContext,
   OrderRequest,
@@ -2002,6 +2004,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [],
   );
+  // Chart Pine scripts read other markets and lower timeframes through this session.
+  useEffect(() => setPineFeedLoader(async (symbol, timeframe, from) => {
+    const id = sessionIdRef.current;
+    if (!id) throw new Error("Open a replay session to load other markets for Pine scripts.");
+    const result = await getPineFeed(id, tokenRef.current, symbol, timeframe, from);
+    if (!result.ok) throw new Error(result.error);
+    return result.candles;
+  }), []);
   const newSession = useCallback(() => {
     tokenRef.current = null;
     sessionIdRef.current = null;

@@ -1,7 +1,9 @@
 import { transpile, compile, Context } from "@nullarch/resin";
 
 const MAX_CODE_LENGTH = 20_000;
-const MAX_BARS = 30_000;
+const MAX_BARS = 100_000;
+/** Plot values keep 8 significant digits: plenty for any price, and results stay small at 100,000 candles. */
+const compactNumber = (value) => (Number.isFinite(value) ? Number(value.toPrecision(8)) : null);
 const FIAT = new Set(["AUD", "CAD", "CHF", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "JPY", "MXN", "NOK", "NZD", "PLN", "SEK", "SGD", "TRY", "USD", "ZAR"]);
 const SUPPORTED_TIMEFRAMES = new Set(["15m", "1h", "4h", "1d"]);
 
@@ -41,7 +43,7 @@ try {
   let inputBytes = 0;
   for await (const chunk of process.stdin) {
     inputBytes += chunk.length;
-    if (inputBytes > 16_000_000) throw new Error("Pine request exceeds the input limit.");
+    if (inputBytes > 40_000_000) throw new Error("Pine request exceeds the input limit.");
     chunks.push(chunk);
   }
   const input = JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -77,7 +79,7 @@ try {
         color: result.viz.plots[index]?.color ?? ["#2962FF", "#FF6D00", "#7B1FA2", "#00A86B"][index % 4],
         style: result.viz.plots[index]?.style ?? "line",
         linewidth: result.viz.plots[index]?.linewidth ?? 1,
-        values: plot.toArray().map(value => Number.isFinite(value) ? value : null),
+        values: plot.toArray().map(compactNumber),
       }));
     if (!result.isStrategy) {
       if (context.plots.length > 12) throw new Error("Indicators can display at most 12 plot() series per test.");

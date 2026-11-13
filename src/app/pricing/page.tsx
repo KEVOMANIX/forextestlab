@@ -58,7 +58,7 @@ function EarlyAccessPricing() {
           <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-amber-200">Included in early access</span>
         </div>
         <p className="mt-3 min-h-12 text-sm leading-6 text-slate-400">
-          During early access every account has the full Pro workspace at no charge. Monthly and yearly plans, with a 7-day free trial, will be announced before any payment is taken.
+          During early access every account has the full Pro workspace at no charge. Monthly and yearly plans, with a 14-day free trial, will be announced before any payment is taken.
         </p>
         <div className="mt-7">
           <strong className="text-2xl font-bold tracking-tight text-white">Free during early access</strong>

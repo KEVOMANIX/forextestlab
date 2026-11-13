@@ -70,7 +70,7 @@ export function SubscriptionRenewalControls({
               <p className="mt-1 text-sm app-muted">
                 {trial
                   ? renewing
-                    ? `Your trial ends on ${nextPaymentLabel ?? "its seventh day"}, when your card is charged for your plan unless you cancel before then.`
+                    ? `Your trial ends on ${nextPaymentLabel ?? "its fourteenth day"}, when your card is charged for your plan unless you cancel before then.`
                     : `Cancelled: you won't be charged. Pro stays until ${nextPaymentLabel ?? "the trial ends"}, then your account moves to Free.`
                   : renewing
                   ? nextPaymentLabel

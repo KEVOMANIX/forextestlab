@@ -33,7 +33,7 @@ export default async function WelcomePage() {
   const trialEnd = trial?.trialEndsAt ?? trial?.nextPaymentAt;
   if (trial && trialEnd) {
     const end = LONG_DATE.format(trialEnd);
-    return <BillingResultCard icon={CircleCheck} tone="success" eyebrow="Pro trial started" title="Pro is unlocked for 7 days" message={`Your trial runs until ${end}. Your card is charged for your plan on ${end} unless you cancel before then from Account → Billing, where Pro stays until the trial ends and you are not charged.`}><Link href="/app" className="btn-primary w-full">Open dashboard <ArrowRight size={15} aria-hidden /></Link></BillingResultCard>;
+    return <BillingResultCard icon={CircleCheck} tone="success" eyebrow="Pro trial started" title="Pro is unlocked for 14 days" message={`Your trial runs until ${end}. Your card is charged for your plan on ${end} unless you cancel before then from Account → Billing, where Pro stays until the trial ends and you are not charged.`}><Link href="/app" className="btn-primary w-full">Open dashboard <ArrowRight size={15} aria-hidden /></Link></BillingResultCard>;
   }
   return <BillingResultCard icon={CircleCheck} tone="success" eyebrow="Subscription active" title="Your workspace is ready" message="Your subscription is active and every Pro feature is unlocked."><Link href="/app" className="btn-primary w-full">Open dashboard <ArrowRight size={15} aria-hidden /></Link></BillingResultCard>;
 }

@@ -17,7 +17,7 @@ const TIER_COPY: Omit<Tier, "priceId">[] = [
 /**
  * Paddle prices. `PADDLE_<MODE>_PRO_<MONTH|YEAR>_PRICE_ID` is the plain
  * subscription; `..._TRIAL_PRICE_ID` is the same plan and amount created in
- * Paddle with a 7-day `trial_period` and `requires_payment_method: true`. A
+ * Paddle with a 14-day `trial_period` and `requires_payment_method: true`. A
  * trial lives on the price in Paddle, so returning customers need the plain
  * one; the server picks which (see checkout.ts).
  */

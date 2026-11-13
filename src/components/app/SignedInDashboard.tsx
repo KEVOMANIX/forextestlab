@@ -1,5 +1,6 @@
 "use client";
 
+import { TrialBanner } from "@/components/app/TrialBanner";
 import Link from "next/link";
 import { ListChecks, Play } from "lucide-react";
 import { ChallengeStrip } from "@/components/app/ChallengeStrip";
@@ -92,7 +93,7 @@ function updatedLabel(updatedAt: Date, now: Date): string {
   return formatNewYorkDate(updatedAt, { day: "numeric", month: "short" });
 }
 
-export function SignedInDashboard({ sessions, displayName, metrics, activeChallenge = null, performance = null, period = "all" }: {
+export function SignedInDashboard({ sessions, displayName, metrics, activeChallenge = null, performance = null, period = "all", trialOffer = false }: {
   sessions: DashboardSession[];
   displayName: string;
   metrics: DashboardPracticeMetrics;
@@ -101,6 +102,8 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
   /** Practice results for `period`; null when it holds no practice trades. */
   performance?: PracticePerformance | null;
   period?: PerformancePeriod;
+  /** Eligible for the 14-day Pro trial: shows the trial banner. */
+  trialOffer?: boolean;
 }) {
   const now = new Date();
   const visibleSessions = sessions.filter((session) => !session.archived);
@@ -148,6 +151,7 @@ export function SignedInDashboard({ sessions, displayName, metrics, activeChalle
         )}
       </header>
 
+      {trialOffer && <TrialBanner />}
       {activeChallenge && <ChallengeStrip challenge={activeChallenge} />}
 
       {visibleSessions.length === 0 ? (

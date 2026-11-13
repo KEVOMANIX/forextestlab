@@ -16,7 +16,7 @@ const requestSchema = z.object({ interval: z.enum(["month", "year"]) });
 
 /**
  * Creates the Paddle checkout for a Pro plan. The server chooses the price, so
- * the 7-day trial is offered only to an eligible account and cannot be claimed
+ * the 14-day trial is offered only to an eligible account and cannot be claimed
  * twice by sending a different price from the browser.
  */
 export async function POST(request: Request) {

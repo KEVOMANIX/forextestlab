@@ -2,7 +2,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
+import { billingEnabled } from "@/lib/billing/availability";
+import { proTrialPricesConfigured } from "@/lib/billing/tiers";
+import { PRO_TRIAL_SIGN_UP_PATH, TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { ProductDemoVideo } from "@/components/ProductDemoVideo";
 
 function ScreenFrame({
@@ -92,6 +94,7 @@ const PROOF_POINTS = [
 ];
 
 export function Hero() {
+  const trial = billingEnabled() && proTrialPricesConfigured();
   return (
     <section className="relative isolate overflow-hidden pb-12 pt-8 sm:pt-10 lg:pb-16 lg:pt-12">
       <div
@@ -128,25 +131,25 @@ export function Hero() {
             <div className="flex flex-col items-center justify-center gap-5 animate-fade-up sm:flex-row sm:items-start sm:gap-4">
               <div className="w-full sm:w-[340px]">
                 <Link
-                  href={TRIAL_SIGN_UP_PATH}
+                  href={trial ? PRO_TRIAL_SIGN_UP_PATH : TRIAL_SIGN_UP_PATH}
                   className="btn-primary min-h-14 w-full rounded-full px-7 text-base shadow-glow"
                 >
-                  Start backtesting free
+                  {trial ? "Get 14 days of Pro free" : "Start backtesting free"}
                   <ArrowRight size={17} aria-hidden />
                 </Link>
                 <p className="mt-2.5 text-[13px] text-slate-400">
-                  Free plan. No card required.
+                  {trial ? "✓ Every Pro feature  ✓ Cancel anytime" : "Free plan. No card required."}
                 </p>
               </div>
               <div className="w-full sm:w-[340px]">
                 <Link
-                  href="#product-preview"
+                  href={trial ? TRIAL_SIGN_UP_PATH : "#product-preview"}
                   className="btn-secondary min-h-14 w-full rounded-full px-7 text-base"
                 >
-                  Explore the workspace
+                  {trial ? "Start on the Free plan" : "Explore the workspace"}
                 </Link>
                 <p className="mt-2.5 text-[13px] text-slate-400">
-                  Sessions auto-save as you trade.
+                  {trial ? "No card required." : "Sessions auto-save as you trade."}
                 </p>
               </div>
             </div>

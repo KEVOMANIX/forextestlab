@@ -165,9 +165,9 @@ export function trialStartedEmail(input: {
   planName: string;
   trialEndsAt: Date | null;
 }): LifecycleEmail {
-  const end = input.trialEndsAt ? emailDate(input.trialEndsAt) : "the end of your 7-day trial";
+  const end = input.trialEndsAt ? emailDate(input.trialEndsAt) : "the end of your 14-day trial";
   return {
-    subject: "Your 7-day ForexTestLab Pro trial has started",
+    subject: "Your 14-day ForexTestLab Pro trial has started",
     text: [
       `Hi ${firstName(input.name)},`,
       "",
@@ -181,7 +181,7 @@ export function trialStartedEmail(input: {
       preheader: `Pro is unlocked until ${end}.`,
       eyebrow: "Pro trial",
       title: "Your Pro trial has started",
-      intro: `Hi ${firstName(input.name)}, everything in Pro is unlocked for 7 days.`,
+      intro: `Hi ${firstName(input.name)}, everything in Pro is unlocked for 14 days.`,
       contentHtml: `${rows([["Plan after the trial", input.planName], ["Trial ends and first charge", end]])}<div style="height:22px"></div>${checklist(PRO_FEATURES)}${note(`Your card is charged automatically on ${escape(end)} unless you cancel before then. Cancel from Account → Billing: Pro stays until the trial ends and you are not charged.`)}`,
       action: { label: "Open ForexTestLab", href: `${siteUrl()}/app` },
       closing: "The ForexTestLab team",

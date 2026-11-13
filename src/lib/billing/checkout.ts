@@ -6,7 +6,7 @@ import { configuredPaddleTierPriceId, proTrialPricesConfigured } from "./tiers";
 import type { BillingInterval } from "./tier-types";
 
 /**
- * Whether an account may start the 7-day Pro trial: one per account, never
+ * Whether an account may start the 14-day Pro trial: one per account, never
  * after an earlier trial, and not while already on Pro. Paddle does not
  * limit repeat trials itself, so this is the rule, applied when the server
  * builds the checkout.

@@ -53,4 +53,4 @@ export const PRO_PLAN_GROUPS: readonly PlanFeatureGroup[] = [
 ];
 
 export const PRO_TRIAL_SUMMARY =
-  "Try every Pro feature free for 7 days. Choose monthly or yearly.";
+  "Try every Pro feature free for 14 days. Choose monthly or yearly.";

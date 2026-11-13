@@ -25,6 +25,10 @@ export const siteConfig = {
 export const TRIAL_START_PATH = "/app/backtest";
 export const TRIAL_SIGN_UP_PATH = `/sign-up?next=${encodeURIComponent(TRIAL_START_PATH)}`;
 
+/** The 14-day Pro trial: pricing with `trial=1` opens the trial checkout. */
+export const PRO_TRIAL_PATH = "/pricing?trial=1";
+export const PRO_TRIAL_SIGN_UP_PATH = `/sign-up?next=${encodeURIComponent(PRO_TRIAL_PATH)}`;
+
 /** Primary marketing navigation. Each destination is independently addressable. */
 export const mainNav = [
   { label: "Home", href: "/" },

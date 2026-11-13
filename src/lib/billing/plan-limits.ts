@@ -11,7 +11,7 @@ export const FREE_SESSION_DAYS = 31;
 export const FREE_SESSION_MAX_MS = FREE_SESSION_DAYS * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000;
 export const FREE_MAX_REPLAY_SPEED = 1200;
 export const PRO_MAX_REPLAY_SPEED = 7200;
-export const PRO_TRIAL_DAYS = 7;
+export const PRO_TRIAL_DAYS = 14;
 
 /** Pine scripts and Strategy Lab, TradingView-style: what each plan may use. */
 export type PinePlanLimits = {

@@ -91,7 +91,7 @@ interface LocalizedPricingProps {
   environment: Environments;
   compact?: boolean;
   /**
-   * Whether this visitor would get the 7-day trial: signed out (any new
+   * Whether this visitor would get the 14-day trial: signed out (any new
    * account can), or signed in and eligible. The server decides again at
    * checkout; this only chooses the wording.
    */
@@ -258,6 +258,21 @@ export function LocalizedPricing({
 
   const trialTier = tiers[0];
   const selectedPrice = trialTier ? prices[trialTier.priceId[interval]] : undefined;
+  const [autoTrialDone, setAutoTrialDone] = useState(false);
+
+  // "Start free trial" adverts land on /pricing?trial=1: open the trial
+  // checkout straight away once the account and the price are known.
+  useEffect(() => {
+    if (autoTrialDone || !trialOffer || !trialAvailable || !trialTier || !selectedPrice || !paddle || !browserIdentity.userId) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("trial") !== "1") return;
+    setAutoTrialDone(true);
+    url.searchParams.delete("trial");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    void subscribe(trialTier);
+    // subscribe reads current state; it is not a dependency to re-run on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTrialDone, trialOffer, trialAvailable, trialTier, selectedPrice, paddle, browserIdentity.userId]);
 
   return (
     <div>
@@ -278,7 +293,7 @@ export function LocalizedPricing({
       {trialAvailable && trialTier && trialOffer && (
         <div data-testid="trial-callout" className="text-xs">
           <button type="button" onClick={() => void subscribe(trialTier)} disabled={!paddle || loading || !selectedPrice || Boolean(openingPriceId)} className="inline-flex items-center gap-1.5 py-2 font-semibold text-brand-200 underline underline-offset-4 disabled:opacity-50">
-            {openingPriceId ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Opening checkout</> : <>Try Pro free for 7 days <ArrowRight size={14} aria-hidden /></>}
+            {openingPriceId ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Opening checkout</> : <>Try Pro free for 14 days <ArrowRight size={14} aria-hidden /></>}
           </button>
         </div>
       )}
@@ -316,7 +331,7 @@ export function LocalizedPricing({
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <div className="flex items-center gap-2"><p className="text-base font-semibold text-white">{tier.name}</p><span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand-200">{trialOffer ? "7 days free" : "Full access"}</span></div>
+                  <div className="flex items-center gap-2"><p className="text-base font-semibold text-white">{tier.name}</p><span className="rounded-full border border-brand-400/25 bg-brand-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-brand-200">{trialOffer ? "14 days free" : "Full access"}</span></div>
                   <div className="mt-1 flex items-end gap-2">
                     {loading || !price ? <span className="h-9 w-28 animate-pulse rounded-lg bg-white/10" aria-label="Loading localized price" /> : <strong className="text-3xl font-bold tracking-tight text-white">{price}</strong>}
                     <span className="pb-1 text-sm text-slate-500">/ {interval}</span>

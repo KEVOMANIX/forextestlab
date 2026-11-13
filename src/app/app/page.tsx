@@ -18,6 +18,8 @@ import { ensureUserProfile } from "@/lib/auth";
 import { loadActiveChallengeCard } from "@/lib/backtest/challenge-queries";
 import { PERFORMANCE_PERIOD_COOKIE, parsePerformancePeriod } from "@/lib/backtest/practice-performance";
 import { loadPracticePerformance } from "@/lib/backtest/practice-performance-query";
+import { billingEnabled } from "@/lib/billing/availability";
+import { proTrialEligible } from "@/lib/billing/checkout";
 import { prisma } from "@/lib/db";
 import { TRIAL_SIGN_UP_PATH } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -264,6 +266,7 @@ export default async function AppHome(props: { searchParams?: Promise<{ period?:
       activeChallenge={activeChallenge}
       performance={performance}
       period={period}
+      trialOffer={billingEnabled() && await proTrialEligible(user.id)}
       metrics={{
         practiceMinutes,
         practiceMinutesByDay,

@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Check, Lock, X } from "lucide-react";
+
+import { fetchTrialOffer } from "@/lib/billing/trial-offer-client";
+import { PRO_TRIAL_PATH } from "@/lib/site";
 
 /**
  * What each Pro-only feature gives, in the words the lock explains it with.
@@ -67,6 +70,7 @@ export function ProLock({ feature, className = "", label = "Pro", children }: { 
   const copy = PRO_FEATURE_COPY[feature];
   const rest = (Object.keys(PRO_FEATURE_COPY) as ProFeature[]).filter((key) => key !== feature);
   const close = () => dialog.current?.close();
+  const [trial, setTrial] = useState(false);
   return (
     <>
       <button
@@ -75,6 +79,7 @@ export function ProLock({ feature, className = "", label = "Pro", children }: { 
           event.preventDefault();
           event.stopPropagation();
           dialog.current?.showModal();
+          void fetchTrialOffer().then((offer) => setTrial(offer.eligible));
         }}
         aria-haspopup="dialog"
         aria-label={children ? undefined : `${copy.title} is part of Pro. Learn more`}
@@ -113,8 +118,18 @@ export function ProLock({ feature, className = "", label = "Pro", children }: { 
             </ul>
           </div>
           <footer className="border-t app-border px-5 py-4">
-            <Link href={`/pricing?feature=${feature}`} onClick={close} className="btn-primary w-full py-2.5 text-sm">Compare Pro plans</Link>
-            <p className="mt-2 text-center text-[11px] app-muted">Choose monthly or yearly access to every Pro feature.</p>
+            {trial ? (
+              <>
+                <p className="mb-2 text-center text-[13px] font-semibold">Try it free: Pro is free for your first 14 days.</p>
+                <Link href={`${PRO_TRIAL_PATH}&feature=${feature}`} onClick={close} className="btn-primary w-full py-2.5 text-sm shadow-glow">Start 14-day free trial</Link>
+                <Link href={`/pricing?feature=${feature}`} onClick={close} className="mt-2 block text-center text-[11px] font-semibold app-muted underline-offset-4 hover:underline">Compare plans</Link>
+              </>
+            ) : (
+              <>
+                <Link href={`/pricing?feature=${feature}`} onClick={close} className="btn-primary w-full py-2.5 text-sm">Compare Pro plans</Link>
+                <p className="mt-2 text-center text-[11px] app-muted">Choose monthly or yearly access to every Pro feature.</p>
+              </>
+            )}
           </footer>
         </div>
       </dialog>

@@ -6,6 +6,7 @@ import { Hero } from "@/components/Hero";
 import { Navbar } from "@/components/Navbar";
 import { ProductPreview } from "@/components/ProductPreview";
 import { StructuredData } from "@/components/StructuredData";
+import { TrialSpotlight } from "@/components/TrialSpotlight";
 
 const EXPLORE = [
   { href: "/features", title: "Explore the workspace", text: "See the replay, execution, journal, and analytics tools." },
@@ -20,6 +21,7 @@ export default function HomePage() {
       <Navbar />
       <main id="main" className="pt-16">
         <Hero />
+        <TrialSpotlight />
         <ProductPreview />
         <section className="border-t border-white/10 py-16 sm:py-20">
           <div className="container-page">

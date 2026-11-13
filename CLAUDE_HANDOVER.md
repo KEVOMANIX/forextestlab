@@ -14,6 +14,12 @@
 
 # ForexTestLab operational handover
 
+### 2026-11-13 — 14-day Pro trial, advertised (Spotlight design)
+
+- Live Paddle monthly/yearly trial prices changed from 7 to 14 days with `scripts/set-paddle-trial-days.ts 14 --apply` (dry run by default). Amounts ($10/$80), card requirement and one-trial-per-account rule unchanged; existing trials keep their original length. `PRO_TRIAL_DAYS = 14` and all copy/emails updated.
+- Adverts: hero primary CTA "Get 14 days of Pro free", navbar "Start free trial", dismissible corner card `TrialSpotlight` on public pages (7-day localStorage dismiss), dashboard `TrialBanner` for eligible accounts, and Pro locks offer the trial when eligible. Eligibility comes from `GET /api/billing/trial` (advisory; checkout re-checks).
+- Trial links go to `/pricing?trial=1` (via sign-up when signed out), which opens the trial checkout automatically for eligible signed-in accounts.
+
 ### 2026-10-29 — Permanent Pro for the sole administrator
 
 - Sidebar now explicitly shows a crown/Pro badge above the profile in expanded mode and in the collapsed rail. It uses the server Free-plan summary, so permanent-admin and paid Pro accounts show Pro, Free accounts keep their quota/upgrade line, and signed-out visitors do not receive a Pro badge.

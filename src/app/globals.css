@@ -636,6 +636,21 @@
 .marketing-saved-sessions {
   background: linear-gradient(145deg, rgb(69 214 168 / 0.12), rgb(30 48 42 / 0.72));
 }
+.trial-spotlight {
+  border-color: rgb(56 189 248 / 0.4);
+  background: linear-gradient(160deg, #0c2a4a, #071223);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.55), 0 0 40px rgb(14 165 233 / 0.25);
+}
+.trial-spotlight-chip { border-color: rgb(255 255 255 / 0.12); background: rgb(255 255 255 / 0.05); }
+.trial-spotlight-close:hover { background: rgb(255 255 255 / 0.1); color: #fff; }
+.marketing-light .trial-spotlight {
+  border-color: rgb(8 116 92 / 0.25);
+  background: linear-gradient(160deg, #ffffff, #eef8f3);
+  box-shadow: 0 20px 50px rgb(16 37 29 / 0.16), 0 0 0 1px rgb(255 255 255 / 0.6) inset;
+}
+.marketing-light .trial-spotlight-chip { border-color: rgb(16 37 29 / 0.14); background: rgb(16 37 29 / 0.04); }
+.marketing-light .trial-spotlight-close:hover { background: rgb(16 37 29 / 0.06); color: var(--marketing-text-primary); }
+
 .marketing-light {
   min-height: 100vh;
   color-scheme: light;

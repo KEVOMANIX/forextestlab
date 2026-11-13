@@ -20,6 +20,7 @@ const apiKey = process.env.PADDLE_LIVE_API_KEY?.trim();
 if (!apiKey?.startsWith("pdl_live_")) throw new Error("PADDLE_LIVE_API_KEY must contain a live Paddle API key.");
 const paddle = new Paddle(apiKey, { environment: Environment.production });
 
+async function main() {
 for (const interval of ["MONTH", "YEAR"] as const) {
   const variable = `PADDLE_LIVE_PRO_${interval}_TRIAL_PRICE_ID`;
   const id = process.env[variable]?.trim();
@@ -32,3 +33,6 @@ for (const interval of ["MONTH", "YEAR"] as const) {
   console.log(`${label}: now ${after.trialPeriod?.frequency} ${after.trialPeriod?.interval}, ${after.unitPrice.amount} ${after.unitPrice.currencyCode}`);
 }
 if (!apply) console.log(`Dry run. Re-run with --apply to set ${days}-day trials.`);
+}
+
+void main();

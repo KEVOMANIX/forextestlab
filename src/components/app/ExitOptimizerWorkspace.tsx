@@ -46,7 +46,7 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
 
   const best = report?.rules.filter(row => row.validationPassed).sort((a, b) => objectiveScore(b, objective) - objectiveScore(a, objective))[0] ?? null;
   const ruleCount = GROUPS.filter(group => selected.has(group.id)).reduce((sum, group) => sum + group.rules.length, 0);
-  const canRun = status === "finished" && Boolean(sessionId) && ruleCount > 0 && !running;
+  const canRun = Boolean(sessionId) && ruleCount > 0 && !running;
   const toggle = (id: string) => setSelected(current => {
     const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next;
   });
@@ -126,7 +126,7 @@ export function ExitOptimizerWorkspace({ sessionId, status }: { sessionId?: stri
         </section> : report && phase <= 2 ? <ExitOptimizerResults report={report} best={best} objective={objective} onDeploy={() => setPhase(6)} /> : report && best && isAnalysisPhase(phase) ?
           <section className={`${styles.panel} ${styles.phaseContent}`}><ExitOptimizerPhases report={report} best={best} activePhase={phase} /></section> : null}
 
-        {status !== "finished" ? <p className={styles.warning}>Finish this replay before running the optimizer.</p> : !sessionId ? <p className={styles.warning}>Select a real session to run the optimizer.</p> : null}
+        {!sessionId ? <p className={styles.warning}>Select a real session to run the optimizer.</p> : status !== "finished" ? <p className={styles.note}>Session still running: the optimizer uses your closed trades and only the candles replayed so far, so results can change as you continue.</p> : null}
         {error && <p role="alert" className={styles.error}>{error}</p>}
       </div>
 

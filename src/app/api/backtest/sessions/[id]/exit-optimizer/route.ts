@@ -5,6 +5,7 @@ import { buildExitQualityReport } from "@/lib/backtest/exit-quality-server";
 import type { OptimizerStreamEvent } from "@/lib/backtest/optimizer-progress";
 import { ALL_EXIT_RULES } from "@/lib/backtest/exit-optimizer";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
+import { prisma } from "@/lib/db";
 import { siteConfig } from "@/lib/site";
 import { getCurrentUser } from "@/lib/supabase/server";
 
@@ -26,7 +27,15 @@ export async function POST(request: Request, context: Context) {
   const [results, entitlements] = await Promise.all([getSessionResults(id, user.id), getUserEntitlements(user.id)]);
   if (!results) return json({ ok: false, error: "Session not found." }, 404);
   if (!entitlements.fullAnalytics) return json({ ok: false, error: "The Exit Optimizer is part of Pro." }, 403);
-  if (results.state.status !== "finished") return json({ ok: false, error: "Finish this replay before running the optimizer." }, 409);
+  // An unfinished replay is optimised on the candles revealed so far: the
+  // saved replay clock, never earlier than the last trade's exit.
+  let revealedUntil: number | undefined;
+  if (results.state.status !== "finished") {
+    const row = await prisma.backtestSession.findFirst({ where: { id, userId: user.id }, select: { visibleTime: true } });
+    const lastExit = Math.max(0, ...results.state.closedTrades.map((trade) => trade.exitTime));
+    revealedUntil = Math.max(row?.visibleTime == null ? 0 : Number(row.visibleTime), lastExit);
+    if (!revealedUntil) return json({ ok: false, error: "Close at least one trade before running the optimizer." }, 409);
+  }
 
   let requested: unknown = [];
   try { requested = (await request.json()).ruleIds; } catch { /* all rules */ }
@@ -34,7 +43,7 @@ export async function POST(request: Request, context: Context) {
   const ruleIds = Array.isArray(requested) ? requested.filter((id): id is string => typeof id === "string" && allowed.has(id)).slice(0, allowed.size) : [];
   if (!ruleIds.length) return json({ ok: false, error: "Select at least one exit-rule group." }, 400);
 
-  const options = { includePlan: false, includeOptimizer: true, optimizerRuleIds: ruleIds };
+  const options = { includePlan: false, includeOptimizer: true, optimizerRuleIds: ruleIds, revealedUntil };
   const noTrades = "No eligible trades were found. Trades need an initial stop and recorded risk.";
   if (!request.headers.get("accept")?.includes("application/x-ndjson")) {
     const report = await buildExitQualityReport(results.state, options);

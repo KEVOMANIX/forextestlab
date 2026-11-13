@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       : 0;
     const allowed = user ? used < limits.testsPerDay : rateLimit(`pine-test-day:${clientIp(request)}`, limits.testsPerDay, 86_400_000).ok;
     if (!allowed) return json({ ok: false, code: "plan_limit", error: `Free includes ${limits.testsPerDay} strategy tests a day. Upgrade to Pro for more, or test again tomorrow.` }, 429);
-  } else if (!rateLimit(`pine-test:${user?.id ?? clientIp(request)}`, PRO_TESTS_PER_HOUR, 60 * 60_000).ok) return json({ ok: false, error: "Pine test limit reached. Try again later." }, 429);
+  } else if (!rateLimit(`pine-test:${user?.id ?? clientIp(request)}`, PRO_TESTS_PER_HOUR, 60 * 60_000).ok) return json({ ok: false, error: `Pro includes ${PRO_TESTS_PER_HOUR} strategy tests an hour. Try again in a few minutes.` }, 429);
   const provider = input.source === "demo" ? new DemoDataProvider() : input.source === "dukascopy" ? new R2ParquetProvider() : getMarketDataProvider("histdata");
   try {
     const ranges = await provider.getAvailableRanges(input.symbol, input.timeframe);

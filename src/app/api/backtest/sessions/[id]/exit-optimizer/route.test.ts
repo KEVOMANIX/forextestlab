@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ user: vi.fn(), results: vi.fn(), entitlements: vi.fn(), build: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), results: vi.fn(), entitlements: vi.fn(), build: vi.fn(), session: vi.fn() }));
+vi.mock("@/lib/db", () => ({ prisma: { backtestSession: { findFirst: mocks.session } } }));
 vi.mock("@/lib/supabase/server", () => ({ getCurrentUser: mocks.user }));
 vi.mock("@/lib/backtest/results", () => ({ getSessionResults: mocks.results }));
 vi.mock("@/lib/billing/entitlements", () => ({ getUserEntitlements: mocks.entitlements }));
@@ -35,13 +36,21 @@ describe("optimizer progress endpoint", () => {
     const empty = await POST(request(), context);
     expect(await empty.text()).toContain('"type":"error"');
   });
-  it("rejects unauthenticated, Free and unfinished sessions before streaming", async () => {
+  it("rejects unauthenticated, Free and untraded unfinished sessions before streaming", async () => {
     mocks.user.mockResolvedValue(null);
     expect((await POST(request(), context)).status).toBe(401);
     mocks.user.mockResolvedValue({ id: "owner" }); mocks.entitlements.mockResolvedValue({ fullAnalytics: false });
     expect((await POST(request(), context)).status).toBe(403);
-    mocks.entitlements.mockResolvedValue({ fullAnalytics: true }); mocks.results.mockResolvedValue({ state: { status: "running" } });
+    mocks.entitlements.mockResolvedValue({ fullAnalytics: true });
+    mocks.results.mockResolvedValue({ state: { status: "running", closedTrades: [] } }); mocks.session.mockResolvedValue({ visibleTime: null });
     expect((await POST(request(), context)).status).toBe(409);
     expect(mocks.build).not.toHaveBeenCalled();
+  });
+  it("optimises an unfinished session only up to its replay clock", async () => {
+    mocks.results.mockResolvedValue({ state: { status: "running", closedTrades: [{ exitTime: 1_000 }] } });
+    mocks.session.mockResolvedValue({ visibleTime: BigInt(5_000) });
+    mocks.build.mockResolvedValue({ optimizer: { rules: [] } });
+    expect((await POST(request(false), context)).status).toBe(200);
+    expect(mocks.build).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ revealedUntil: 5_000, includePlan: false }));
   });
 });

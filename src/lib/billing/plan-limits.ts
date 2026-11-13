@@ -29,7 +29,7 @@ export type PinePlanLimits = {
 export const FREE_PINE_LIMITS: PinePlanLimits = { chartIndicators: 1, savedScripts: 5, testsPerDay: 2, testCandles: 5_000, otherMarkets: false };
 export const PRO_PINE_LIMITS: PinePlanLimits = { chartIndicators: 25, savedScripts: 500, testsPerDay: null, testCandles: 100_000, otherMarkets: true };
 /** Pro's fair-use limit on strategy tests. */
-export const PRO_TESTS_PER_HOUR = 6;
+export const PRO_TESTS_PER_HOUR = 30;
 
 /**
  * Free markets: the seven major FX pairs, each quoted against the US dollar.

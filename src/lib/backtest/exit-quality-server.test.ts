@@ -109,6 +109,23 @@ describe("building the exit quality report", () => {
     }
   });
 
+  it("optimises a running session only on candles up to the replay clock", async () => {
+    getCandles.mockResolvedValue([
+      candle(1_000, "1.10250", "1.09950"),
+      candle(2_000, "1.10450", "1.10100"),
+      candle(9_000, "1.20000", "1.00000"), // past the clock: must never be walked
+    ]);
+    const running = state({ status: "paused" });
+    expect(await buildExitQualityReport(running, { revealedUntil: 2_000 })).toBeNull(); // no plan test while running
+    const report = await buildExitQualityReport(running, { includePlan: false, revealedUntil: 2_000 });
+    expect(getCandles).toHaveBeenCalledWith(expect.objectContaining({ endTime: 2_000 }));
+    expect(report?.optimizer?.eligibleTrades).toBe(1);
+    const unrevealed = await buildExitQualityReport(running, { includePlan: false, revealedUntil: 2_000 });
+    expect(JSON.stringify(unrevealed)).toBe(JSON.stringify(report));
+    getCandles.mockResolvedValue([candle(1_000, "1.10250", "1.09950"), candle(2_000, "1.10450", "1.10100")]);
+    expect(JSON.stringify(await buildExitQualityReport(running, { includePlan: false, revealedUntil: 2_000 }))).toBe(JSON.stringify(report));
+  });
+
   it("tests a hand-closed trade against the plan it was opened with", async () => {
     getCandles.mockResolvedValue([
       candle(1_000, "1.10100", "1.09950"),

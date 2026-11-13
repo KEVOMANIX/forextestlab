@@ -4,6 +4,8 @@
  * Kept server-side and behind a finished-session check. The candles this walks
  * are the ones a running replay has not revealed yet, so nothing here may
  * reach the browser until the session is over — see the note in exit-quality.
+ * The one exception is `revealedUntil`: on a session still being replayed the
+ * optimizer may run, but every candle after the replay clock is cut first.
  */
 
 import "server-only";
@@ -45,10 +47,17 @@ export interface ExitQualityReport {
  */
 export async function buildExitQualityReport(
   state: SessionState,
-  options: { includePlan?: boolean; includeOptimizer?: boolean; optimizerRuleIds?: string[]; onProgress?: (progress: OptimizerProgress) => void; signal?: AbortSignal } = {},
+  options: {
+    includePlan?: boolean; includeOptimizer?: boolean; optimizerRuleIds?: string[]; onProgress?: (progress: OptimizerProgress) => void; signal?: AbortSignal;
+    /** Unfinished session: the replay clock. Optimizer only; no candle after it is read. */
+    revealedUntil?: number;
+  } = {},
 ): Promise<ExitQualityReport | null> {
   options.signal?.throwIfAborted();
-  if (!planTestable(state)) return null;
+  const revealedUntil = state.status === "finished" ? undefined : options.revealedUntil;
+  if (!planTestable(state) && revealedUntil === undefined) return null;
+  // The plan test is for finished sessions only; an unfinished run gets the optimizer alone.
+  if (revealedUntil !== undefined && options.includePlan !== false) return null;
   const includePlan = options.includePlan ?? true;
   const includeOptimizer = options.includeOptimizer ?? true;
 
@@ -89,8 +98,8 @@ export async function buildExitQualityReport(
         symbol,
         timeframe: state.config.timeframe,
         startTime: Math.min(...group.map((trade) => trade.entryTime)),
-        endTime: state.config.endTime,
-      });
+        endTime: revealedUntil === undefined ? state.config.endTime : Math.min(state.config.endTime, revealedUntil),
+      }).then((rows) => (revealedUntil === undefined ? rows : rows.filter((candle) => candle.timestamp <= revealedUntil)));
       options.signal?.throwIfAborted();
       options.onProgress?.({ stage: "loading", message: `Loaded ${symbol} · ${candles.length.toLocaleString()} candles`, symbol, completed: ++loaded, total: bySymbol.size });
       return [symbol, candles] as const;

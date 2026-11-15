@@ -7,6 +7,7 @@ import { applyPineInputs } from "@/lib/chart/pine-inputs";
 import type { OHLCV } from "@/lib/chart/indicators";
 import type { PineDiagnostic, PineFeed, PineFeedNeed, PineIndicatorResult, PineSeriesInput } from "@/lib/chart/pine-runner";
 import { pineFeedLoader } from "@/lib/chart/pine-feeds";
+import { samePineScope } from "@/lib/chart/pine-run-key";
 import type { Candle } from "@/lib/market-data/types";
 import { PineRenderer, pineSignature, type PineReport } from "./pine-render";
 
@@ -24,10 +25,13 @@ export type PineRunStatus = {
   /** Code that produced this status, so the editor can tell when the chart is out of date. */
   code?: string;
   ranAt?: number;
+  /** Market and chart timeframe the report was calculated on; a report from another one is never drawn. */
+  symbol?: string;
+  timeframeMs?: number;
 };
 
 /** `code` is the script as written; `run` is that code with the Inputs tab values applied. */
-type Batch = { id: number; items: { id: string; code: string; run: string; timeframe?: string }[]; from: number; times: Float64Array; opens: Float64Array; highs: Float64Array; lows: Float64Array; closes: Float64Array; timer: number };
+type Batch = { id: number; symbol: string; timeframeMs: number; items: { id: string; code: string; run: string; timeframe?: string }[]; from: number; times: Float64Array; opens: Float64Array; highs: Float64Array; lows: Float64Array; closes: Float64Array; timer: number };
 
 /** Candles loaded for a script's request.security() (another market or a lower timeframe). */
 type FeedEntry = { need: PineFeedNeed; candles: Candle[]; loading: boolean; error?: string; checkedAt: number };
@@ -160,7 +164,7 @@ export function usePineIndicators({
       for (const item of batchItems) hungCodeRef.current.add(item.run);
       fail(`The script took longer than ${RUN_TIMEOUT_MS / 1000} seconds and was stopped. Check for a loop that never ends.`);
     }, RUN_TIMEOUT_MS);
-    batchRef.current = { id, items: batchItems, from: data.time[0]!, times: data.time.slice(), opens: data.open.slice(), highs: data.high.slice(), lows: data.low.slice(), closes: data.close.slice(), timer };
+    batchRef.current = { id, symbol: sym, timeframeMs: tf, items: batchItems, from: data.time[0]!, times: data.time.slice(), opens: data.open.slice(), highs: data.high.slice(), lows: data.low.slice(), closes: data.close.slice(), timer };
     setStatus((previous) => {
       const next = { ...previous };
       for (const item of batchItems) if (previous[item.id]?.code !== item.code) next[item.id] = { ...previous[item.id], state: "loading" };
@@ -174,6 +178,9 @@ export function usePineIndicators({
     if (!batch || batch.id !== id) return;
     window.clearTimeout(batch.timer);
     batchRef.current = null;
+    // The chart changed market or timeframe while this ran: its output belongs
+    // to the other chart, so drop it and run again on the candles shown now.
+    if (!samePineScope(batch, latest.current)) { dispatchRef.current(); return; }
     const now = Date.now();
     // Scripts waiting for other markets: start those loads, and show a load failure instead of "Loading…".
     for (const [itemId, result] of Object.entries(results)) {
@@ -188,7 +195,7 @@ export function usePineIndicators({
         const result = results[item.id];
         if (!result) continue;
         next[item.id] = result.ok
-          ? { state: "ready", code: item.code, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, shapes: result.shapes, drawings: result.drawings, barcolors: result.barcolors, candles: result.candles, skipped: result.skipped, converted: result.converted, times: batch.times, opens: batch.opens, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
+          ? { state: "ready", code: item.code, symbol: batch.symbol, timeframeMs: batch.timeframeMs, ranAt: previous[item.id]?.code === item.code && previous[item.id]?.state === "ready" ? previous[item.id]!.ranAt : now, report: { overlay: result.overlay, plots: result.plots, hlines: result.hlines, fills: result.fills, backgrounds: result.backgrounds, shapes: result.shapes, drawings: result.drawings, barcolors: result.barcolors, candles: result.candles, skipped: result.skipped, converted: result.converted, times: batch.times, opens: batch.opens, highs: batch.highs, lows: batch.lows, closes: batch.closes } }
           : result.needs ? { ...previous[item.id], state: "loading", code: item.code, error: result.error } : { state: "error", code: item.code, ranAt: now, error: result.error, diagnostics: result.diagnostics };
       }
       return next;
@@ -233,7 +240,10 @@ export function usePineIndicators({
   // Drawing. Each script's chart objects are rebuilt only when what it draws
   // changes shape (see pineSignature); a new candle just feeds them values.
   const renderersRef = useRef(new Map<string, PineRenderer>());
-  const reportOf = (item: PineChartIndicator) => (status[item.id]?.code === item.code ? status[item.id]?.report : undefined);
+  const reportOf = (item: PineChartIndicator) => {
+    const entry = status[item.id];
+    return entry?.code === item.code && samePineScope(entry, { symbol, timeframeMs }) ? entry.report : undefined;
+  };
   const layoutKey = [epoch, paneBase, ...items.map((item) => `${item.id}=${pineSignature(reportOf(item))}`)].join(";");
 
   useEffect(() => {

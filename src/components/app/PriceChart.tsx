@@ -134,6 +134,7 @@ function pineInputSummary(item: PineChartIndicator): string {
   return summary.length > 48 ? `${summary.slice(0, 47).trimEnd()}…` : summary;
 }
 import { pineValuesAt, usePineIndicators } from "./usePineIndicators";
+import { pineCandleKey } from "@/lib/chart/pine-run-key";
 import { EconomicEventLayer } from "./EconomicEventLayer";
 import { chartPriceFormat } from "@/lib/chart/price-format";
 import { useCalendarEvents } from "./useCalendarEvents";
@@ -1156,6 +1157,18 @@ export default function PriceChart({
    */
   const resetViewIdentityRef = useRef<string | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
+  /**
+   * Bumped whenever the loaded history is replaced. Pine scripts run on
+   * history + revealed candles, and older candles arriving (opening load,
+   * cached snapshot, scroll-back page) never move the newest candle, so the
+   * script run must key on this as well or it keeps its first, short result.
+   */
+  const [historyRevision, setHistoryRevision] = useState(0);
+  function setHistoryCandles(candles: Candle[]) {
+    if (historyCandlesRef.current === candles) return;
+    historyCandlesRef.current = candles;
+    setHistoryRevision((value) => value + 1);
+  }
   const historyPagesRef = useRef<ChartHistoryPageCache | null>(null);
   if (historyPagesRef.current === null) historyPagesRef.current = new ChartHistoryPageCache();
   // Keep the trusted pre-replay fragment even when shared-cache safety checks
@@ -1364,7 +1377,7 @@ export default function PriceChart({
       const replayStart = rawCandlesRef.current[0]?.timestamp;
       const merged = replayStart === undefined ? [] : adjacentHistory(sorted, replayStart, subscribedTimeframe, historyCandlesRef.current);
       const discardedIslands = merged.length < sorted.filter((candle) => replayStart !== undefined && candle.timestamp < replayStart).length;
-      historyCandlesRef.current = merged;
+      setHistoryCandles(merged);
       historyTimeframeRef.current = subscribedTimeframe;
       historyHasMoreRef.current = snapshot.hasMore || discardedIslands;
       setHasOlderHistory(snapshot.hasMore || discardedIslands);
@@ -1429,7 +1442,7 @@ export default function PriceChart({
       const byTime = new Map<number, Candle>();
       for (const candle of [...page.candles, ...existing]) byTime.set(candle.timestamp, candle);
       const merged = [...byTime.values()].sort((a, b) => a.timestamp - b.timestamp);
-      historyCandlesRef.current = merged;
+      setHistoryCandles(merged);
       historyTimeframeRef.current = requestedTimeframe;
       drawingCandlesRef.current = joinTimeline(merged, displayRef.current);
       historyHasMoreRef.current = page.hasMore;
@@ -1503,7 +1516,7 @@ export default function PriceChart({
     // Invalidate pending responses as well as the already-painted prefix.
     historyRequestRef.current += 1;
     historyLoadingRef.current = false;
-    historyCandlesRef.current = [];
+    setHistoryCandles([]);
     openingHistoryRef.current = null;
     setOlderHistoryLoading(false);
     setInitialHistoryPending(true);
@@ -2942,7 +2955,7 @@ export default function PriceChart({
     }
     if (initialHistoryPending && !historyLoadingRef.current) {
       if (displayTimeframeRef.current === baseTimeframe && contextCandles.length > 0) {
-        historyCandlesRef.current = contextCandles;
+        setHistoryCandles(contextCandles);
         historyTimeframeRef.current = displayTimeframeRef.current;
         setInitialHistoryPending(false);
       } else {
@@ -2965,14 +2978,14 @@ export default function PriceChart({
     // timeframe's history in the drawing mapper while the price series already
     // held the new timeframe, shifting anchors by hundreds of logical bars.
     if (displayTimeframe === baseTimeframe && contextCandles.length > 0) {
-      historyCandlesRef.current = contextCandles;
+      setHistoryCandles(contextCandles);
       historyTimeframeRef.current = displayTimeframe;
       historyHasMoreRef.current = true;
       renderContextSeries();
       setHistoryLoading(false);
       setInitialHistoryPending(false);
     } else {
-      historyCandlesRef.current = [];
+      setHistoryCandles([]);
       historyTimeframeRef.current = displayTimeframe;
       historyHasMoreRef.current = true;
       if (contextSeriesRef.current) applyData(contextSeriesRef.current, chartTypeRef.current, []);
@@ -3729,10 +3742,8 @@ export default function PriceChart({
     // Exactly what the chart shows, forming candle included, so a script
     // never sees past the replay time and moves with price like on TradingView.
     getCandles: () => joinedTimelineCached(historyCandlesRef.current, displayRef.current),
-    candleKey: (() => {
-      const candle = lastCandle ?? lastCandles.at(-1) ?? initialCandles.at(-1);
-      return candle ? `${candle.timestamp}:${candle.open}:${candle.high}:${candle.low}:${candle.close}:${lastCandles.length}:${initialCandles.length}` : "";
-    })(),
+    // Older history arriving later re-runs the scripts too (see pineCandleKey).
+    candleKey: pineCandleKey(lastCandle ?? lastCandles.at(-1) ?? initialCandles.at(-1), lastCandles.length, initialCandles.length, historyRevision),
     container: containerRef.current,
     theme,
   });

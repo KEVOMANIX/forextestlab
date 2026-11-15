@@ -10,6 +10,8 @@ import type { OpenPosition, OrderType, PendingOrder, PublicSessionState } from "
 import { TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import type { DrawingJSON, ToolKind } from "@/lib/chart/drawing/types";
 import type { IndicatorInstance } from "@/lib/chart/indicator-defs";
+import { planLayoutSync, type LayoutSyncPayload } from "@/lib/chart/layout-sync";
+import type { PineChartIndicator } from "@/lib/chart/pine-scripts";
 
 import { useCompactViewport } from "@/lib/ui/use-media-query";
 import {
@@ -95,6 +97,9 @@ interface LayoutSyncSnapshot {
   revision: number;
   sourceId: string;
   indicators: IndicatorInstance[];
+  /** null: the source sent no Pine scripts, so each pane keeps its own. */
+  pineIndicators: PineChartIndicator[] | null;
+  allowEmpty: boolean;
 }
 
 /**
@@ -393,55 +398,29 @@ export default function ChartGrid({
 
   const focusCell = useCallback((id: string) => setFocusedId(id), []);
 
-  const syncLayoutFromCell = useCallback((sourceId: string, snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[]; allowEmpty?: boolean }) => {
+  const syncLayoutFromCell = useCallback((sourceId: string, snapshot: LayoutSyncPayload) => {
     const syncSource = `layout-sync-${Date.now()}`;
     const sourceCell = cells.find((cell) => cell.id === sourceId) ?? focused;
-    const sourceViewKey = `forextestlab:chart:${storageKey}:${sourceCell.id}:${sourceCell.symbol}`;
-    let savedSourceIndicators: IndicatorInstance[] = [];
-    try {
-      const savedSource = JSON.parse(window.localStorage.getItem(sourceViewKey) ?? "{}") as { indicators?: unknown };
-      if (Array.isArray(savedSource.indicators)) savedSourceIndicators = savedSource.indicators as IndicatorInstance[];
-    } catch {
-      // The live snapshot remains the source if its saved counterpart is malformed.
-    }
-    // A chart can receive this action on the same render in which its saved
-    // studies hydrate. Never let that short state-transition window broadcast
-    // an empty list and erase the other panes.
-    const sourceIndicators = snapshot.indicators.length > 0 || snapshot.allowEmpty
-      ? snapshot.indicators
-      : savedSourceIndicators;
-    const nextIndicators = sourceIndicators.map((indicator) => ({
-      ...indicator,
-      inputs: { ...indicator.inputs },
-      style: Object.fromEntries(Object.entries(indicator.style).map(([key, value]) => [key, { ...value }])),
-    }));
-    const nextDrawings = snapshot.drawings;
-
+    const viewKey = (cell: { id: string; symbol: string }) => `forextestlab:chart:${storageKey}:${cell.id}:${cell.symbol}`;
+    const readView = (cell: { id: string; symbol: string }) => {
+      try { return JSON.parse(window.localStorage.getItem(viewKey(cell)) ?? "{}") as Record<string, unknown>; } catch { return {}; }
+    };
     // Hidden panes are included too: opening a wider layout later should show
     // the same studies and markings without requiring a second sync.
-    for (const cell of cells) {
-      if (cell.id === sourceCell.id) continue;
+    const plan = planLayoutSync(sourceCell, cells, snapshot, readView);
+    const drawingsSent = new Set<string>();
+    for (const target of plan.targets) {
       try {
-        const viewKey = `forextestlab:chart:${storageKey}:${cell.id}:${cell.symbol}`;
-        const existing = JSON.parse(window.localStorage.getItem(viewKey) ?? "{}") as Record<string, unknown>;
-        const existingIndicators = Array.isArray(existing.indicators) ? existing.indicators as IndicatorInstance[] : [];
-        const sourceIncludesSessions = nextIndicators.some((indicator) => indicator.kind === "sessions");
-        // Sessions are a workspace-level overlay: copying another pane must
-        // never remove one already enabled on this pane. When the source has
-        // Sessions its exact configuration still replaces the local copy.
-        const targetIndicators = nextIndicators.length === 0
-          ? existingIndicators
-          : sourceIncludesSessions
-            ? nextIndicators
-            : [...nextIndicators, ...existingIndicators.filter((indicator) => indicator.kind === "sessions")];
-        window.localStorage.setItem(viewKey, JSON.stringify({ ...existing, indicators: targetIndicators }));
-
-        const drawingKey = `forextestlab:drawings:${storageKey}:${cell.symbol}`;
-        window.localStorage.setItem(drawingKey, JSON.stringify(nextDrawings));
+        window.localStorage.setItem(viewKey({ id: target.cellId, symbol: target.symbol }), JSON.stringify({ ...readView({ id: target.cellId, symbol: target.symbol }), indicators: target.indicators, pineIndicators: target.pineIndicators }));
+        // Drawings are stored per pair, so one write reaches every pane on it.
+        if (!target.drawings || drawingsSent.has(target.symbol)) continue;
+        drawingsSent.add(target.symbol);
+        const drawingKey = `forextestlab:drawings:${storageKey}:${target.symbol}`;
+        window.localStorage.setItem(drawingKey, JSON.stringify(target.drawings));
         // Mounted drawing layers hear this immediately; the local-storage write
         // above ensures panes that mount later receive the same snapshot.
         window.dispatchEvent(new CustomEvent("forextestlab:drawings-change", {
-          detail: { key: drawingKey, source: syncSource, drawings: nextDrawings },
+          detail: { key: drawingKey, source: syncSource, drawings: target.drawings },
         }));
       } catch {
         // A full or unavailable browser store should not block the visible panes.
@@ -451,7 +430,9 @@ export default function ChartGrid({
     setLayoutSync((current) => ({
       revision: (current?.revision ?? 0) + 1,
       sourceId: sourceCell.id,
-      indicators: nextIndicators,
+      indicators: plan.indicators,
+      pineIndicators: plan.pineIndicators,
+      allowEmpty: !!snapshot.allowEmpty,
     }));
   }, [cells, focused, storageKey]);
 
@@ -757,7 +738,7 @@ interface ChartCellViewProps {
   drawingTool: ToolKind | null;
   onDrawingToolChange: (tool: ToolKind | null) => void;
   canSyncLayout: boolean;
-  onSyncToLayout: ((snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[]; allowEmpty?: boolean }) => void) | undefined;
+  onSyncToLayout: ((snapshot: LayoutSyncPayload) => void) | undefined;
   linkedLayout: boolean;
   layoutSync: LayoutSyncSnapshot | null;
   orderTicket: React.ReactNode;

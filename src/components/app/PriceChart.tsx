@@ -135,6 +135,7 @@ function pineInputSummary(item: PineChartIndicator): string {
 }
 import { pineValuesAt, usePineIndicators } from "./usePineIndicators";
 import { pineCandleKey } from "@/lib/chart/pine-run-key";
+import type { LayoutSyncPayload } from "@/lib/chart/layout-sync";
 import { EconomicEventLayer } from "./EconomicEventLayer";
 import { chartPriceFormat } from "@/lib/chart/price-format";
 import { useCalendarEvents } from "./useCalendarEvents";
@@ -402,11 +403,11 @@ interface PriceChartProps {
   onDrawingToolChange?: (tool: DrawTool) => void;
   /** Lets the focused pane copy its studies and drawings to the other panes. */
   canSyncLayout?: boolean;
-  onSyncToLayout?: (snapshot: { indicators: IndicatorInstance[]; drawings: DrawingJSON[]; allowEmpty?: boolean }) => void;
+  onSyncToLayout?: (snapshot: LayoutSyncPayload) => void;
   /** Once copied, subsequent study and drawing edits stay linked across panes. */
   linkedLayout?: boolean;
   /** A snapshot delivered by the grid when another pane is synchronised. */
-  layoutSync?: { revision: number; indicators: IndicatorInstance[] } | null;
+  layoutSync?: { revision: number; indicators: IndicatorInstance[]; pineIndicators: PineChartIndicator[] | null; allowEmpty: boolean } | null;
   /** Buy/Sell order ticket, floated over the chart's top-left (TradingView-style). */
   orderTicket?: React.ReactNode;
   /**
@@ -1219,7 +1220,9 @@ export default function PriceChart({
   axisFontSizeRef.current = axisFontSize;
   timeZoneRef.current = settings.timeZone;
   const [indicators, setIndicators] = useState<IndicatorInstance[]>([]);
-  const [pineIndicators, setPineIndicators] = useState<PineChartIndicator[]>([]);
+  const [pineIndicators, setPineIndicatorsState] = useState<PineChartIndicator[]>([]);
+  const pineIndicatorsRef = useRef<PineChartIndicator[]>(pineIndicators);
+  pineIndicatorsRef.current = pineIndicators;
   const [pineLimitNotice, setPineLimitNotice] = useState<string | null>(null);
   useEffect(() => {
     if (!pineLimitNotice) return;
@@ -1259,9 +1262,20 @@ export default function PriceChart({
     if (linkedLayout && onSyncToLayout) {
       onSyncToLayout({
         indicators: cloneIndicatorsForLayout(next),
-        drawings: drawingEngineRef.current?.serialize() ?? [],
+        pineIndicators: pineIndicatorsRef.current,
         allowEmpty: true,
       });
+    }
+  };
+
+  /** Pine scripts on this pane; once the layout is linked, every change reaches the other panes too. */
+  const setPineIndicators = (update: PineChartIndicator[] | ((current: PineChartIndicator[]) => PineChartIndicator[])) => {
+    const next = typeof update === "function" ? update(pineIndicatorsRef.current) : update;
+    if (next === pineIndicatorsRef.current) return;
+    pineIndicatorsRef.current = next;
+    setPineIndicatorsState(next);
+    if (linkedLayout && onSyncToLayout) {
+      onSyncToLayout({ indicators: cloneIndicatorsForLayout(indicatorsRef.current), pineIndicators: next, allowEmpty: true });
     }
   };
 
@@ -1270,12 +1284,18 @@ export default function PriceChart({
   // every overlay reconcile exactly as if the trader had added them here.
   useEffect(() => {
     if (!layoutSync) return;
+    // Pine scripts arrive as a whole list (the source pane's exact scripts and settings).
+    if (layoutSync.pineIndicators) {
+      const scripts = layoutSync.pineIndicators.map(hydratePineIndicator).filter((item): item is PineChartIndicator => item != null).slice(0, 25);
+      if (scripts.length > 0 || layoutSync.allowEmpty) setPineIndicatorsState(scripts);
+    }
     const incoming = layoutSync.indicators
       .map((indicator) => hydrateInstance({ ...indicator, inputs: { ...indicator.inputs } }))
       .filter((indicator): indicator is IndicatorInstance => indicator != null);
     setIndicators((current) => {
-      // An incomplete source must be a no-op, never a destructive clear.
-      if (incoming.length === 0) return current;
+      // An incomplete source must be a no-op, never a destructive clear; an
+      // explicit removal of the last study in a linked layout does clear.
+      if (incoming.length === 0) return layoutSync.allowEmpty ? current.filter((indicator) => indicator.kind === "sessions") : current;
       // Market Sessions is intended to stay visible across the workspace. A
       // copy from a pane that has no Sessions indicator must not erase one in
       // its destination; a source that does have it still supplies its exact
@@ -2409,7 +2429,7 @@ export default function PriceChart({
           setIndicators(saved.indicators.map(hydrateInstance).filter((i): i is IndicatorInstance => i != null));
         }
         if (Array.isArray(saved.pineIndicators)) {
-          setPineIndicators(saved.pineIndicators.map(hydratePineIndicator).filter((i): i is PineChartIndicator => i != null).slice(0, 25));
+          setPineIndicatorsState(saved.pineIndicators.map(hydratePineIndicator).filter((i): i is PineChartIndicator => i != null).slice(0, 25));
         }
         // A chart mount is intentionally a fresh view.  Timeframe, chart type
         // and indicators are preferences; the old pan/zoom is not restored on
@@ -4413,14 +4433,15 @@ export default function PriceChart({
       {canSyncLayout && onSyncToLayout && (
         <div className="mt-auto flex flex-col items-center border-t app-border pt-1">
           <ToolButton
-            label="Copy indicators and drawings to all layout charts"
+            label="Copy indicators, scripts and drawings to all layout charts"
             onClick={() => {
               onSyncToLayout({
                 // Read the current ref rather than the render closure. This
                 // prevents an indicator that has just hydrated or been edited
                 // from being replaced with an older (sometimes empty) list.
                 indicators: cloneIndicatorsForLayout(indicatorsRef.current),
-                drawings: drawingEngineRef.current?.serialize() ?? [],
+                pineIndicators: pineIndicatorsRef.current,
+                drawings: drawingEngineRef.current?.serialize(),
               });
             }}
           >
@@ -4600,7 +4621,7 @@ export default function PriceChart({
           onCountChange={setDrawCount}
           onDrawingsChange={(drawings) => {
             if (!linkedLayout || !onSyncToLayout) return;
-            onSyncToLayout({ indicators: cloneIndicatorsForLayout(indicatorsRef.current), drawings });
+            onSyncToLayout({ indicators: cloneIndicatorsForLayout(indicatorsRef.current), pineIndicators: pineIndicatorsRef.current, drawings });
           }}
           engineRef={drawingEngineRef}
           storageKey={storageKey}

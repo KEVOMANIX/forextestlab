@@ -106,6 +106,7 @@ import { IntervalPrompt } from "./IntervalPrompt";
 import { readableCanvasColor, type DrawingAccount } from "@/lib/chart/drawing/object";
 import { renderedLivePrice } from "@/lib/chart/live-price";
 import { subscribeReplayVisual } from "@/lib/backtest/replay-visual-bus";
+import { partialCandle } from "@/lib/backtest/intrabar";
 import type { DrawingEngine } from "@/lib/chart/drawing/engine";
 import {
   AUTO_BACKGROUND,
@@ -1158,6 +1159,10 @@ export default function PriceChart({
    */
   const resetViewIdentityRef = useRef<string | null>(null);
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
+  /** Tick replay's forming candle while it is the last entry of rawCandlesRef. */
+  const formingCandleRef = useRef<Candle | null>(null);
+  const formingPrecisionRef = useRef(precision);
+  formingPrecisionRef.current = precision;
   /**
    * Bumped whenever the loaded history is replaced. Pine scripts run on
    * history + revealed candles, and older candles arriving (opening load,
@@ -2892,11 +2897,19 @@ export default function PriceChart({
 
   useEffect(() => {
     if (!replaySessionId) return;
-    return subscribeReplayVisual(replaySessionId, ({ currentTime }) => {
+    return subscribeReplayVisual(replaySessionId, ({ currentTime, formingAt }) => {
       replayCurrentTimeRef.current = currentTime;
       const source = replaySeriesRef.current;
       if (!source) return;
       const raw = rawCandlesRef.current;
+      // Tick replay: the forming candle is a temporary last bar. Take it off
+      // first; it is redrawn below if the minute is still forming.
+      const hadForming = formingCandleRef.current !== null && raw[raw.length - 1] === formingCandleRef.current;
+      if (hadForming) {
+        raw.pop();
+        currentPriceRef.current = Number(raw[raw.length - 1]?.close ?? currentPriceRef.current);
+      }
+      formingCandleRef.current = null;
       const lastTime = raw[raw.length - 1]?.timestamp ?? -Infinity;
       if (currentTime < lastTime) {
         const withinLoadedWindow = raw.length > 0 && currentTime >= raw[0]!.timestamp;
@@ -2928,7 +2941,18 @@ export default function PriceChart({
         cursor += 1;
         appended = true;
       }
-      if (appended) scheduleRender();
+      // Draw the next minute as far as the replay clock has reached into it,
+      // following its real tick path (see lib/backtest/intrabar.ts).
+      const next = formingAt == null ? undefined : source[cursor];
+      if (next && formingAt! >= next.timestamp && formingAt! < next.timestamp + TIMEFRAME_MS["1m"]) {
+        const forming = partialCandle(next, formingAt! - next.timestamp, formingPrecisionRef.current);
+        if (forming) {
+          raw.push(forming);
+          formingCandleRef.current = forming;
+          currentPriceRef.current = Number(forming.close);
+        }
+      }
+      if (appended || hadForming || formingCandleRef.current) scheduleRender();
     });
     // The listener reads changing series data through replaySeriesRef.
     // eslint-disable-next-line react-hooks/exhaustive-deps

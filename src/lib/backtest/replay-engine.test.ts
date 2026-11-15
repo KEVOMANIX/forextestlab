@@ -284,6 +284,24 @@ describe("orders and step-back locking", () => {
     expect(e.state.openPositions[1]?.entryPrice).toBe("1.10100");
   });
 
+  it("uses the candle's tick path: a buy stop filled after the low is not stopped by that low", () => {
+    const placeBuyStop = (path?: Candle["path"]) => {
+      const e = ctx([
+        c(0, "1.10000", "1.10010", "1.09990", "1.10000"),
+        { ...c(1, "1.10000", "1.10120", "1.09850", "1.10050"), path },
+      ]);
+      placeOrder(e, { direction: "long", orderType: "stop", entryPrice: "1.10100", stopLoss: "1.09900", sizingMode: "fixed-lots", lots: "0.1" });
+      revealNext(e);
+      return e;
+    };
+    // Without ticks the whole candle counts, so its low stops the new position.
+    expect(placeBuyStop().state.closedTrades[0]?.exitReason).toBe("stop-loss");
+    // Ticks: down to the low first, then up through the entry; the position survives.
+    const e = placeBuyStop({ t: [0, 20_000, 40_000, 59_000], p: [1.1, 1.0985, 1.1012, 1.1005] });
+    expect(e.state.closedTrades).toHaveLength(0);
+    expect(e.state.openPositions[0]?.entryPrice).toBe("1.10100");
+  });
+
   it("fills a stop at the opening quote when a candle gaps through it", () => {
     const e = ctx([
       c(0, "1.10000", "1.10010", "1.09990", "1.10000"),

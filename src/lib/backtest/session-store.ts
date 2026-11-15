@@ -24,6 +24,7 @@ import {
   planEntitlements,
 } from "@/lib/billing/entitlements";
 import { getMarketDataProvider, replayDataSourceFromStored, type ReplayDataSource } from "@/lib/market-data";
+import { attachTickPaths } from "@/lib/market-data/ticks/paths";
 import { getSymbolDefinition } from "@/lib/market-data/symbols";
 import { nextTimeframeTimestamp, TIMEFRAME_MS, type Candle, type Timeframe } from "@/lib/market-data/types";
 import {
@@ -472,7 +473,9 @@ async function fetchSeries(
     endTime,
     limit,
   });
-  return candles.slice(0, limit);
+  // Real tick paths decide which level a candle reached first, identically in
+  // the browser replay and this server's checkpoint replay.
+  return attachTickPaths(candles.slice(0, limit), symbol, timeframe);
 }
 
 export async function loadResumeSessionSnapshot(

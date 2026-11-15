@@ -9,6 +9,7 @@
 import { Decimal, d, isFiniteNumeric } from "@/lib/decimal";
 import type { Candle } from "@/lib/market-data/types";
 import type { ExecutionPolicy, ExitReason, TradeDirection } from "./types";
+import { firstLevelHit, pathOf } from "./intrabar";
 
 /** Bid/ask view of a candle's OHLC, as Decimals. */
 export interface BidAskCandle {
@@ -120,10 +121,30 @@ export function exitFillPrice(
   return direction === "long" ? ba.bidClose : ba.askClose;
 }
 
+/** Candles left to the execution policy during recordAmbiguousCandles (see ticks/paths.ts). */
+let ambiguityRecorder: Set<number> | null = null;
+
+/**
+ * Runs a synchronous simulation and reports the timestamps of the candles
+ * where both levels were hit and no tick path could separate them.
+ */
+export function recordAmbiguousCandles<T>(run: () => T): { result: T; ambiguous: Set<number> } {
+  const previous = ambiguityRecorder;
+  const ambiguous = new Set<number>();
+  ambiguityRecorder = ambiguous;
+  try {
+    return { result: run(), ambiguous };
+  } finally {
+    ambiguityRecorder = previous;
+  }
+}
+
 export interface ExitCheck {
   price: string;
   reason: ExitReason;
   intrabarAmbiguous: boolean;
+  /** Both levels were inside the candle and its tick path decided which came first. */
+  resolvedByTicks?: boolean;
 }
 
 /**
@@ -131,9 +152,9 @@ export interface ExitCheck {
  * given candle. Returns null when neither is hit.
  *
  * Long positions are managed on the BID; short positions on the ASK.
- * When both levels are touched in the same candle, `intrabarAmbiguous` is set
- * and the execution policy decides which fills first (conservative → the
- * adverse stop-loss).
+ * When both levels are touched in the same candle, the candle's tick path (if
+ * attached) decides which came first; otherwise `intrabarAmbiguous` is set
+ * and the execution policy decides (conservative → the adverse stop-loss).
  */
 export function checkStopTakeProfit(
   direction: TradeDirection,
@@ -178,6 +199,11 @@ export function checkStopTakeProfit(
 
   const ambiguous = slHit && tpHit;
   if (ambiguous) {
+    // Real ticks say which level price reached first.
+    const path = pathOf(candle);
+    const first = path ? firstLevelHit(path, direction, Number(stopLoss), Number(takeProfit), Number(d(spreadPips).times(pipSize).dividedBy(2))) : null;
+    if (first) return { price: (first === "stop-loss" ? stopLoss : takeProfit) as string, reason: first, intrabarAmbiguous: false, resolvedByTicks: true };
+    ambiguityRecorder?.add(candle.timestamp);
     // Conservative assumes the adverse level (stop-loss) was reached first.
     const takeStop = policy === "conservative";
     return {

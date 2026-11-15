@@ -43,6 +43,7 @@ import type {
 } from "./types";
 import { DEFAULT_REPLAY_SPEED } from "./types";
 import { configForSymbol, recordSymbol } from "./instrument-config";
+import { candleAfter, pathOf, pendingTouchIndex } from "./intrabar";
 import {
   captureTradeSnapshot,
   createTradeJournal,
@@ -804,7 +805,7 @@ export function revealNext(ctx: EngineContext): boolean {
         previousTime,
         candle.timestamp,
       )) {
-        processPendingOrders(ctx, symbolCandle, symbol);
+        const filledInside = processPendingOrders(ctx, symbolCandle, symbol);
         for (const position of [...state.openPositions]) {
           if (recordSymbol(position, state.config) !== symbol) continue;
           updateExcursion(ctx, position, symbolCandle);
@@ -812,7 +813,7 @@ export function revealNext(ctx: EngineContext): boolean {
             position.direction,
             position.stopLoss,
             position.takeProfit,
-            symbolCandle,
+            filledInside.get(position.id) ?? symbolCandle,
             config.spreadPips,
             config.pipSize,
             config.executionPolicy,
@@ -1033,7 +1034,7 @@ function pendingExecutablePrices(
   ctx: EngineContext,
   candle: Candle,
   order: PendingOrder,
-): { touched: boolean; fillPrice: string | null } {
+): { touched: boolean; fillPrice: string | null; pathIndex: number; entryMid: number } {
   const config = configForSymbol(
     ctx.state.config,
     recordSymbol(order, ctx.state.config),
@@ -1065,7 +1066,13 @@ function pendingExecutablePrices(
       : isBuy
         ? high.greaterThanOrEqualTo(requested)
         : low.lessThanOrEqualTo(requested));
-  if (!touched) return { touched: false, fillPrice: null };
+  if (!touched) return { touched: false, fillPrice: null, pathIndex: -1, entryMid: NaN };
+  // Where inside the candle the order filled, from its tick path: only what
+  // price did after that point can stop or pay the new position.
+  const half = Number(d(config.spreadPips).times(config.pipSize).dividedBy(2));
+  const path = pathOf(candle);
+  const pathIndex = !path ? -1 : gapThrough ? 0 : pendingTouchIndex(path, isBuy, order.orderType === "limit" ? "limit" : "stop", Number(requested), half);
+  const entryMid = gapThrough ? Number(candle.open) : isBuy ? Number(requested) - half : Number(requested) + half;
 
   // Gap rule: execute at the first tradable opening quote. Intrabar touches
   // execute at the requested level; stop orders therefore preserve realistic
@@ -1083,6 +1090,8 @@ function pendingExecutablePrices(
   return {
     touched: true,
     fillPrice: fill.toFixed(config.pricePrecision),
+    pathIndex,
+    entryMid,
   };
 }
 
@@ -1152,11 +1161,17 @@ function activatePendingOrder(
   order.activatedPositionId = position.id;
 }
 
+/**
+ * Activates pending orders the candle reaches. Returns, for each position
+ * opened inside this candle with a known fill point, the rest of the candle
+ * after that point (see candleAfter).
+ */
 function processPendingOrders(
   ctx: EngineContext,
   candle: Candle,
   symbol: string,
-): void {
+): Map<string, Candle> {
+  const remainders = new Map<string, Candle>();
   for (const order of ctx.state.pendingOrders) {
     if (order.status !== "pending") continue;
     if (recordSymbol(order, ctx.state.config) !== symbol) continue;
@@ -1169,8 +1184,13 @@ function processPendingOrders(
     const result = pendingExecutablePrices(ctx, candle, order);
     if (result.touched && result.fillPrice) {
       activatePendingOrder(ctx, order, candle, result.fillPrice);
+      if (result.pathIndex >= 0 && order.activatedPositionId) {
+        const precision = configForSymbol(ctx.state.config, symbol).pricePrecision;
+        remainders.set(order.activatedPositionId, candleAfter(candle, result.pathIndex, result.entryMid, precision));
+      }
     }
   }
+  return remainders;
 }
 
 export function expirePendingOrders(ctx: EngineContext): void {

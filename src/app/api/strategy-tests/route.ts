@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { attachTickPaths } from "@/lib/market-data/ticks/paths";
 import { z } from "zod";
 
 import { getUserEntitlements } from "@/lib/billing/entitlements";
@@ -67,6 +68,8 @@ export async function POST(request: Request) {
           symbol, startTime: input.startTime, endTime: input.endTime, startingBalance: String(input.startingBalance),
           spreadPips: String(input.spreadPips), slippagePips: String(input.slippagePips), commissionPerLot: String(input.commissionPerLot),
           signal: request.signal, onProgress: progress => send({ type: "progress", ...progress }),
+          // Real ticks decide stop-versus-target inside a candle that holds both.
+          attachPath: async (candle, timeframe) => (await attachTickPaths([candle], symbol.symbol, timeframe, { timeoutMs: 10_000 }))[0] ?? candle,
         });
         send({ type: "result", report });
       } catch (error) {

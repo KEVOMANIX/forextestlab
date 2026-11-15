@@ -208,7 +208,18 @@ export function createStrategyRunner(program: StrategyProgram, options: Strategy
     };
     return finished;
   };
-  return { push, finish, get bars() { return bars; } };
+  /**
+   * True when this candle could hold both a position's stop and its target
+   * (a position is open, or one opens at this candle's open, and its range
+   * spans both levels): then its real tick path decides which came first.
+   */
+  const mayNeedPath = (candle: Candle) => {
+    if (!position && !pending) return false;
+    const span = d(program.stopPips).plus(program.targetPips).minus(options.spreadPips).times(symbol.pipSize);
+    return d(candle.high).minus(candle.low).gte(span);
+  };
+
+  return { push, finish, mayNeedPath, get bars() { return bars; } };
 }
 
 /** Convenient batch adapter for tests and small in-memory callers. */

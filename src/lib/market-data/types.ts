@@ -210,6 +210,13 @@ export interface Candle {
   askClose?: string;
   /** Where this candle came from, e.g. "demo", "manual-import", "dukascopy-r2". */
   source: string;
+  /**
+   * Intrabar price path from real ticks (see lib/backtest/intrabar.ts):
+   * `t` ms after the open, `p` mid prices in this candle's own price space.
+   * Decides which level was reached first inside the candle; absent when no
+   * ticks cover it.
+   */
+  path?: { t: number[]; p: number[] };
 }
 
 export interface CandleRequest {

@@ -32,6 +32,8 @@ import { configForSymbol, recordSymbol } from "@/lib/backtest/instrument-config"
 import type { SessionState } from "@/lib/backtest/types";
 import { getMarketDataProvider, replayDataSourceFromStored } from "@/lib/market-data";
 import type { Candle } from "@/lib/market-data/types";
+import { recordAmbiguousCandles } from "@/lib/backtest/execution";
+import { simulateWithTickPaths } from "@/lib/market-data/ticks/paths";
 import { isAnalyticsTrade } from "@/lib/analytics/trade-scope";
 
 export interface ExitQualityReport {
@@ -137,23 +139,28 @@ export async function buildExitQualityReport(
       // every candidate rule would repeatedly rescan hundreds of thousands of
       // candles and make opening Reports progressively slower with history.
       const tradeCandles = candles.filter((candle) => candle.timestamp >= trade.entryTime).slice(0, 10_000);
-      if (tradePlanTestable(trade)) {
-        const result = testTradePlan(trade, tradeCandles, planConfig);
-        if (result) tests.push(result);
-      }
-      if (optimizerTradeEligible(trade)) {
-        for (const row of optimizedByRule.values()) {
-          const result = simulateExitRule(trade, tradeNumbers.get(trade.id) ?? 0, tradeCandles, planConfig, row.rule);
-          if (result) row.trades.push(result);
-          completedSimulations++;
-          if (options.onProgress && (Date.now() - lastYield >= 80 || completedSimulations === totalSimulations)) {
-            options.onProgress({ stage: "replaying", message: `Testing ${row.rule.label}`, symbol, rule: row.rule.label,
-              tradeNumber: tradeNumbers.get(trade.id), completed: completedSimulations, total: totalSimulations });
-            // Let queued progress reach the browser and allow disconnects to cancel work.
-            await new Promise<void>(resolve => setImmediate(resolve));
-            options.signal?.throwIfAborted();
-            lastYield = Date.now();
-          }
+      // Where a stop and a target fall inside one candle, its real ticks
+      // decide which was reached first: run, fetch ticks for just those
+      // candles, run again.
+      const rows = [...optimizedByRule.values()];
+      const tradeNumber = tradeNumbers.get(trade.id) ?? 0;
+      const outcome = await simulateWithTickPaths(tradeCandles, symbol, state.config.timeframe, (series) => recordAmbiguousCandles(() => ({
+        plan: tradePlanTestable(trade) ? testTradePlan(trade, series, planConfig) : null,
+        optimized: optimizerTradeEligible(trade) ? rows.map((row) => simulateExitRule(trade, tradeNumber, series, planConfig, row.rule)) : [],
+      })));
+      options.signal?.throwIfAborted();
+      if (outcome.plan) tests.push(outcome.plan);
+      outcome.optimized.forEach((result, index) => { if (result) rows[index]!.trades.push(result); });
+      if (outcome.optimized.length) {
+        completedSimulations += outcome.optimized.length;
+        if (options.onProgress && (Date.now() - lastYield >= 80 || completedSimulations === totalSimulations)) {
+          const rule = rows[rows.length - 1]?.rule.label;
+          options.onProgress({ stage: "replaying", message: `Testing ${rule ?? "exits"}`, symbol, rule,
+            tradeNumber, completed: completedSimulations, total: totalSimulations });
+          // Let queued progress reach the browser and allow disconnects to cancel work.
+          await new Promise<void>(resolve => setImmediate(resolve));
+          options.signal?.throwIfAborted();
+          lastYield = Date.now();
         }
       }
     }

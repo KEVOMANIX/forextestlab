@@ -968,13 +968,50 @@ export function useBacktester(resumeSessionId: string | null = null) {
 
   const status = s.state?.status;
 
+  /** Wall time of the last tick-replay frame published, and whether a forming candle is on the charts. */
+  const formingPublishedRef = useRef({ at: 0, shown: false });
+
+  /** Takes the forming (tick replay) candle off the charts, e.g. when replay pauses. */
+  const clearFormingCandle = useCallback(() => {
+    const engine = localEngineRef.current;
+    if (!formingPublishedRef.current.shown || !engine) return;
+    formingPublishedRef.current.shown = false;
+    const candle = engine.candles[engine.state.visibleIndex];
+    if (candle) publishReplayVisual({ sessionId: engine.state.sessionId, currentTime: candle.timestamp, visibleIndex: engine.state.visibleIndex, currentPrice: Number(candle.close) });
+  }, []);
+
   const stopLocalScheduler = useCallback(() => {
     if (replayFrameRef.current != null) cancelAnimationFrame(replayFrameRef.current);
     replayFrameRef.current = null;
     replayLastFrameRef.current = null;
     replayAccumulatorRef.current = 0;
     replayFrameBusyRef.current = false;
-  }, []);
+    clearFormingCandle();
+  }, [clearFormingCandle]);
+
+  /**
+   * Tick replay. Between two one-minute steps, tell the charts how far into
+   * the next minute the clock is; each chart draws that minute forming from
+   * its candle's real tick path. Only when steps are slow enough to watch
+   * (STEP 1m, at most ~7 steps a second), and at most ten updates a second.
+   */
+  const publishFormingCandle = (engine: EngineContext, stepCount: number, now: number) => {
+    const cadence = (TIMEFRAME_MS[engine.state.config.timeframe] * stepCount) / engine.state.speed;
+    if (engine.state.config.timeframe !== "1m" || stepCount !== 1 || cadence < 150 || replayFrameBusyRef.current) return;
+    if (now - formingPublishedRef.current.at < 100) return;
+    const candle = engine.candles[engine.state.visibleIndex];
+    const next = engine.candles[engine.state.visibleIndex + 1];
+    if (!candle || !next?.path) return;
+    formingPublishedRef.current = { at: now, shown: true };
+    const fraction = Math.min(0.999, Math.max(0, replayAccumulatorRef.current / cadence));
+    publishReplayVisual({
+      sessionId: engine.state.sessionId,
+      currentTime: candle.timestamp,
+      visibleIndex: engine.state.visibleIndex,
+      currentPrice: Number(candle.close),
+      formingAt: next.timestamp + fraction * TIMEFRAME_MS["1m"],
+    });
+  };
 
   const startLocalScheduler = useCallback(() => {
     stopLocalScheduler();
@@ -1008,7 +1045,9 @@ export function useBacktester(resumeSessionId: string | null = null) {
           replayFrameBusyRef.current = true;
           await stepRef.current(batch.batchSize);
           replayFrameBusyRef.current = false;
+          formingPublishedRef.current.shown = false;
         }
+        publishFormingCandle(current, stepCount, now);
         if (localEngineRef.current?.state.status === "running") schedule();
       });
     };

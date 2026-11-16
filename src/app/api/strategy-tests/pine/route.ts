@@ -12,6 +12,9 @@ import { R2ParquetProvider } from "@/lib/market-data/providers/r2-parquet-provid
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { siteConfig } from "@/lib/site";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
+import { runPineWithTicks } from "@/lib/strategy-language/pine-ticks";
+import { attachTickPaths } from "@/lib/market-data/ticks/paths";
+import type { IntrabarPath } from "@/lib/backtest/intrabar";
 import { getCurrentUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -98,7 +101,17 @@ export async function POST(request: Request) {
     if (user && limits.testsPerDay !== null) {
       await prisma.pineTestUsage.upsert({ where: { userId_day: { userId: user.id, day } }, create: { userId: user.id, day, used: 1 }, update: { used: { increment: 1 } } });
     }
-    const result = await runIsolated({ ...input, dataSource: input.source, candles }, request.signal) as { ok?: boolean; report?: Record<string, unknown> };
+    const result = await runPineWithTicks(
+      (paths) => runIsolated({ ...input, dataSource: input.source, candles, ...(paths ? { paths } : {}) }, request.signal) as Promise<{ ok?: boolean; report?: Record<string, unknown> }>,
+      async (indexes, budgetMs) => {
+        const found = new Map<number, IntrabarPath>();
+        if (input.source === "demo") return found;
+        const wanted = new Set(indexes);
+        const withPaths = await attachTickPaths(candles, input.symbol, input.timeframe, { want: (index) => wanted.has(index), timeoutMs: budgetMs });
+        for (const index of indexes) { const path = withPaths[index]?.path; if (path) found.set(index, path); }
+        return found;
+      },
+    );
     // The lab draws the test on a chart, so the report carries the candles it ran on.
     if (result?.ok && result.report) result.report.candles = {
       time: candles.map((candle) => candle.timestamp), open: candles.map((candle) => Number(candle.open)),

@@ -2,6 +2,8 @@ import { transpile, compile, Context } from "@nullarch/resin";
 
 const MAX_CODE_LENGTH = 20_000;
 const MAX_BARS = 100_000;
+const MAX_PATH_BARS = 20_000;
+const MAX_PATH_POINTS = 4_000;
 /** Plot values keep 8 significant digits: plenty for any price, and results stay small at 100,000 candles. */
 const compactNumber = (value) => (Number.isFinite(value) ? Number(value.toPrecision(8)) : null);
 const FIAT = new Set(["AUD", "CAD", "CHF", "CZK", "DKK", "EUR", "GBP", "HKD", "HUF", "JPY", "MXN", "NOK", "NZD", "PLN", "SEK", "SGD", "TRY", "USD", "ZAR"]);
@@ -36,6 +38,40 @@ function validateInput(input) {
     if (high < Math.max(open, low, close) || low > Math.min(open, high, close) || volume < 0) throw new Error("Market candles contain an invalid OHLC or volume value.");
     previousTime = timestamp;
   }
+  if (input.paths !== undefined) {
+    if (!Array.isArray(input.paths) || input.paths.length > MAX_PATH_BARS) throw new Error("The tick paths are invalid.");
+    let previous = -1;
+    for (const entry of input.paths) {
+      const bar = candles[entry?.i];
+      const t = entry?.t, p = entry?.p;
+      if (!Number.isInteger(entry?.i) || entry.i <= previous || !bar || !Array.isArray(t) || !Array.isArray(p) || p.length < 2 || p.length !== t.length || p.length > MAX_PATH_POINTS) throw new Error("The tick paths are invalid.");
+      const next = candles[entry.i + 1]?.timestamp ?? Infinity;
+      for (let k = 0; k < p.length; k++) {
+        if (!Number.isFinite(t[k]) || !Number.isFinite(p[k]) || t[k] < 0 || bar.timestamp + t[k] >= next || (k > 0 && t[k] < t[k - 1])) throw new Error("The tick paths are invalid.");
+      }
+      previous = entry.i;
+    }
+  }
+}
+
+/**
+ * Tick paths (from the app's tick archive) as the bar magnifier's feed: each
+ * monotone leg of a bar's path becomes one sub-bar, so a stop and a target in
+ * the same bar fill in the order price really reached them. Bars without a
+ * path have no sub-bars and keep Resin's open → nearer extreme → farther path.
+ */
+function magnifierFrom(candles, paths) {
+  const feed = { time: [], open: [], high: [], low: [], close: [], volume: [] };
+  for (const { i, t, p } of paths) {
+    const bar = candles[i], low = Number(bar.low), high = Number(bar.high);
+    const clamp = (value) => Math.min(high, Math.max(low, value));
+    for (let k = 0; k + 1 < p.length; k++) {
+      const from = clamp(p[k]), to = clamp(p[k + 1]);
+      feed.time.push(bar.timestamp + t[k]); feed.open.push(from); feed.close.push(to);
+      feed.high.push(Math.max(from, to)); feed.low.push(Math.min(from, to)); feed.volume.push(0);
+    }
+  }
+  return feed;
 }
 
 try {
@@ -64,11 +100,18 @@ try {
   if (!result.ok) {
     process.stdout.write(JSON.stringify({ ok: false, error: "Fix the Pine script errors before running.", diagnostics: result.errors.map((message) => ({ line: Number(/\(L(\d+):\d+\)/.exec(message)?.[1] ?? 1), message })) }));
   } else {
-    const context = Context.from(result, data);
+    const paths = result.isStrategy && Array.isArray(input.paths) ? input.paths : [];
+    const context = Context.from(result, data, paths.length ? { magnifier: magnifierFrom(candles, paths) } : undefined);
     const runBar = compile(result.code)(context);
+    // Bars judged on ticks use them whatever the script's use_bar_magnifier says.
+    if (paths.length) context.strategy.useBarMagnifier = true;
     const equity = [];
+    // Bars where an order filled: the server attaches tick paths to these and runs again.
+    const fillBars = [];
     for (let i = 0; i < context.barCount; i++) {
+      const fillsBefore = context.strategy.fillCount;
       context.advance();
+      if (context.strategy.fillCount > fillsBefore) fillBars.push(i);
       runBar();
       if (i % Math.max(1, Math.ceil(context.barCount / 1500)) === 0 || i === context.barCount - 1) {
         equity.push({ time: candles[i].timestamp, balance: startingBalance + context.strategy.realizedPnl });
@@ -107,7 +150,7 @@ try {
         winRate: trades.length ? trades.filter((t) => t.pnl > 0).length / trades.length * 100 : 0,
         profitFactor: grossLoss > 0 ? grossProfit / grossLoss : null,
         maxDrawdown: context.strategy.maxDrawdown ?? 0,
-        openPosition: context.strategy.posSize, trades, equity,
+        openPosition: context.strategy.posSize, trades, equity, fillBars, tickBars: paths.length,
         overlay: result.viz.overlay, plots: plotSeries(),
       } }));
     }

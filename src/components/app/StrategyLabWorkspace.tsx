@@ -30,7 +30,7 @@ type PineReport = {
   kind: "strategy";
   engine: string; symbol: string; timeframe: string; dataSource: string; bars: number;
   startingBalance: number; endingBalance: number; netPnl: number; winRate: number;
-  profitFactor: number | null; maxDrawdown: number; openPosition: number;
+  profitFactor: number | null; maxDrawdown: number; openPosition: number; tickBars?: number;
   equity: { time: number; balance: number }[];
   trades: LabTrade[];
   overlay?: boolean; plots?: LabPlot[]; candles?: LabCandles;
@@ -406,8 +406,8 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
             {activeTab === "trades" && strategy && <TradeList report={strategy} visibleTrades={visibleTrades} onMore={() => setVisibleTrades(count => count + 100)} focusTrade={focusTrade} onFocus={setFocusTrade} />}
             {activeTab === "problems" && <div className="space-y-2 text-sm">{error && <p role="alert" className="flex gap-2 text-loss"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</p>}{serverDiagnostics.map((issue, index) => <p key={`${issue.line}-${index}`} className="flex gap-2 text-loss"><AlertCircle size={15} className="mt-0.5 shrink-0" />Line {issue.line}: {issue.message}</p>)}{!problemCount && <p className="flex items-center gap-2 text-[var(--app-accent-text)]"><Check size={16} />No script errors.</p>}</div>}
             {activeTab === "properties" && <div className="grid max-w-3xl gap-x-8 gap-y-1.5 text-xs sm:grid-cols-2">
-              {([["Market", market ? `${market.symbol} · ${sourceName(market.source)}` : "—"], ["Candles", pineTimeframe], ["Period", `${from || "—"} → ${through || "—"}`], ["Starting balance", money(10_000)], ["Engine", pineReport?.engine ?? "Resin"], ["History", rangeText]] as [string, string][]).map(([label, value]) => <p key={label} className="flex justify-between gap-4 border-b app-border py-1.5"><span className="app-muted">{label}</span><span className="text-right">{value}</span></p>)}
-              <p className="mt-3 leading-5 app-muted sm:col-span-2">Pine Script v6 strategy() and indicator() scripts run through Resin on ForexTestLab candles, so results can differ from TradingView&apos;s broker feeds. Imported libraries, request.* feeds, bar magnifier and realtime recalculation are not supported. Up to {MAX_TEST_CANDLES.toLocaleString()} candles per test; each script keeps its latest result in your account.</p>
+              {([["Market", market ? `${market.symbol} · ${sourceName(market.source)}` : "—"], ["Candles", pineTimeframe], ["Period", `${from || "—"} → ${through || "—"}`], ["Starting balance", money(10_000)], ["Engine", pineReport?.engine ?? "Resin"], ["History", rangeText], ["Fills", strategy?.tickBars ? `Real ticks on ${strategy.tickBars.toLocaleString()} candles` : "Candle high/low"]] as [string, string][]).map(([label, value]) => <p key={label} className="flex justify-between gap-4 border-b app-border py-1.5"><span className="app-muted">{label}</span><span className="text-right">{value}</span></p>)}
+              <p className="mt-3 leading-5 app-muted sm:col-span-2">Pine Script v6 strategy() and indicator() scripts run through Resin on ForexTestLab candles, so results can differ from TradingView&apos;s broker feeds. Where orders fill, real ticks decide what price reached first inside a candle (where the tick archive covers it). Imported libraries, request.* feeds and realtime recalculation are not supported. Up to {MAX_TEST_CANDLES.toLocaleString()} candles per test; each script keeps its latest result in your account.</p>
             </div>}
           </div>}
         </section>

@@ -65,4 +65,4 @@ export const RISK_WARNING =
 
 /** Shown wherever the site says it runs Pine Script. */
 export const PINE_TRADEMARK_NOTICE =
-  "Pine Script™ is a trademark of TradingView, Inc. ForexTestLab is independent and is not affiliated with, sponsored by, or endorsed by TradingView. Pine scripts run on Resin, an independent open-source runtime.";
+  "Product names and trademarks mentioned on this site belong to their respective owners.";

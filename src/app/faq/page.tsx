@@ -26,7 +26,6 @@ const GROUPS = [
   { title: "Risk and independence", items: [
     ["Is ForexTestLab a broker?", "No. ForexTestLab does not accept trading deposits or execute live-market orders."],
     ["Does backtesting guarantee profitable results?", "No. Historical and simulated results cannot guarantee future performance."],
-    ["Is ForexTestLab affiliated with TradingView?", "No. ForexTestLab is an independent product and is not sponsored or endorsed by TradingView."],
   ] },
 ] as const;
 

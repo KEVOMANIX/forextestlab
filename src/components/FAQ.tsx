@@ -31,10 +31,6 @@ const FAQS = [
     q: "Does backtesting guarantee profitable results?",
     a: "No. Historical and simulated results do not guarantee future performance.",
   },
-  {
-    q: "Is ForexTestLab affiliated with TradingView?",
-    a: "No. ForexTestLab is an independent product and is not sponsored or endorsed by TradingView.",
-  },
 ];
 
 export function FAQ() {

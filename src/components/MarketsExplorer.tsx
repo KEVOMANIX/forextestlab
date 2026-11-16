@@ -7,6 +7,7 @@ import { ArrowRight, BarChart3, Check, Coins, Flame, Search } from "lucide-react
 import { CurrencyFlag, hasCurrencyFlag } from "@/components/app/CurrencyFlag";
 import { fetchSymbols } from "@/lib/backtest/client";
 import { describeSymbol } from "@/lib/market-data/symbols";
+import { hasTickData } from "@/lib/market-data/ticks/format";
 import type { MarketSymbol } from "@/lib/market-data/types";
 
 type Category = "All" | "Forex" | "Indices" | "Crypto" | "Metals" | "Energies";
@@ -79,7 +80,7 @@ function MarketCard({ market, selected, onSelect }: { market: Listing; selected:
 
     <div className="mt-6 grid grid-cols-3 gap-2 border-t border-white/10 pt-4">
       <div><p className="text-[9px] uppercase tracking-[.13em] text-slate-500">Data starts</p><p className="mt-1 font-mono text-sm font-semibold text-slate-100">{market.availableFromYear ?? "—"}</p></div>
-      <div><p className="text-[9px] uppercase tracking-[.13em] text-slate-500">Base</p><p className="mt-1 font-mono text-sm font-semibold text-slate-100">1 minute</p></div>
+      <div><p className="text-[9px] uppercase tracking-[.13em] text-slate-500">Base</p><p className={`mt-1 font-mono text-sm font-semibold ${hasTickData(market.symbol) ? "text-brand-200" : "text-slate-100"}`}>{hasTickData(market.symbol) ? "1m + ticks" : "1 minute"}</p></div>
       <div><p className="text-[9px] uppercase tracking-[.13em] text-slate-500">Source</p><p className="mt-1 truncate text-xs font-semibold text-brand-200">{sourceName(market.source)}</p></div>
     </div>
 
@@ -179,6 +180,7 @@ export function MarketsExplorer({ initialMarkets }: { initialMarkets: MarketSymb
           <dl className="mt-5 divide-y divide-white/10 border-y border-white/10">
             <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Source</dt><dd className="text-sm font-semibold text-brand-200">{sourceName(activeMarket.source)}</dd></div>
             <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Base timeframe</dt><dd className="font-mono text-sm font-semibold text-slate-200">1 minute</dd></div>
+            <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Fills inside candles</dt><dd className={`text-sm font-semibold ${hasTickData(activeMarket.symbol) ? "text-brand-200" : "text-slate-200"}`}>{hasTickData(activeMarket.symbol) ? "Real tick data" : "Candle high/low"}</dd></div>
             <div className="flex items-center justify-between gap-4 py-3.5"><dt className="text-sm text-slate-500">Asset class</dt><dd className="text-sm font-semibold text-slate-200">{categoryFor(activeMarket)}</dd></div>
           </dl>
 

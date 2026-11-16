@@ -27,10 +27,11 @@ export default function MarketsPage() {
           <div>
             <p className="mb-3 text-xs font-bold uppercase tracking-[.16em] text-[#08745c]">Market archive</p>
             <h1 className="text-4xl font-bold leading-tight tracking-[-.04em] text-[#10251d] sm:text-5xl">Find a market. Replay its history.</h1>
-            <p className="mt-3 text-sm text-[#3f5a50]">Search instruments and compare data providers before starting a backtest.</p>
+            <p className="mt-3 text-sm text-[#3f5a50]">Search instruments and compare data providers. On forex, metals and US indices, real ticks decide stops, targets and fills inside each candle.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-[#3f5a50]">
-            <span className="rounded-full border border-[#d7e2dc] bg-white px-3 py-2">1-minute base data</span>
+            <span className="rounded-full border border-[#d7e2dc] bg-white px-3 py-2">1-minute candles</span>
+            <span className="rounded-full border border-[#b9d7c8] bg-[#eaf6ef] px-3 py-2">Real tick data on 33 markets</span>
             <span className="rounded-full border border-[#b9d7c8] bg-[#eaf6ef] px-3 py-2">Dukascopy + HistData</span>
           </div>
         </div>

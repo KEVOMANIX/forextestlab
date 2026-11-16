@@ -29,6 +29,19 @@ export function tickSymbolFor(symbol: string): string {
   return TICK_SYMBOL_ALIASES[upper] ?? upper;
 }
 
+/** Tick archive symbols (HistData). Keep in step with histdata-monthly.ps1. */
+const TICK_ARCHIVE = new Set([
+  "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "NZDUSD", "USDCAD",
+  "EURGBP", "EURJPY", "GBPJPY", "EURCHF", "EURAUD", "EURCAD", "EURNZD", "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD",
+  "AUDJPY", "AUDCAD", "AUDCHF", "AUDNZD", "NZDJPY", "NZDCAD", "NZDCHF", "CADJPY", "CADCHF", "CHFJPY",
+  "XAUUSD", "XAGUSD", "NSXUSD", "SPXUSD", "UDXUSD",
+]);
+
+/** Whether real ticks decide fills inside this market's candles. */
+export function hasTickData(symbol: string): boolean {
+  return TICK_ARCHIVE.has(tickSymbolFor(symbol));
+}
+
 export const DAY_MS = 86_400_000;
 
 /** `YYYY-MM` for a UTC time. */

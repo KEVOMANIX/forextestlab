@@ -161,6 +161,8 @@ export async function sendCheckpoint(
   requiresReplay = false,
   /** Market timestamp of `targetIndex`, so saved progress can be read in days. */
   targetTime?: number,
+  /** Tick stepping: how far into candle `targetIndex` the replay is. */
+  targetMs?: number,
 ): Promise<CheckpointOk | ApiErr> {
   const res = await fetch(`/api/backtest/sessions/${sessionId}/action`, {
     method: "POST",
@@ -172,6 +174,7 @@ export async function sendCheckpoint(
       type: "sync",
       targetIndex,
       targetTime,
+      ...(targetMs ? { targetMs } : {}),
       status,
       requiresReplay,
     }),

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 import { prisma } from "@/lib/db";
 import { actionSchema } from "@/lib/backtest/schemas";
@@ -18,6 +19,7 @@ import {
   modifyStopLoss,
   modifyTakeProfit,
   modifyTrailingStop,
+  advanceReplayTo,
   moveReplayToIndex,
   placeOrder,
   restart,
@@ -55,6 +57,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   }
 
   const action = parsed.data;
+  // Tick stepping: how far into candle `targetIndex` the browser's replay is.
+  const targetMs = z.number().int().positive().max(86_400_000).optional().catch(undefined)
+    .parse((body as { targetMs?: unknown } | null)?.targetMs);
   const user = await getCurrentUser();
   const token = request.headers.get("x-session-token");
   const limit = rateLimit(`action:${params.id}`, 1200, 60_000);
@@ -85,7 +90,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     if (!canAccessSession(access, user?.id ?? null, token)) {
       return NextResponse.json({ ok: false, error: "Unauthorised." }, { status: 403 });
     }
-    const cursorUnchanged = action.targetIndex === access.visibleIndex;
+    const cursorUnchanged = action.targetIndex === access.visibleIndex && targetMs === undefined;
     if (!action.requiresReplay || cursorUnchanged) {
       // Do not clamp against totalCandles here. Older extended sessions may
       // legitimately have a cursor beyond their stale loaded-batch count; a
@@ -134,10 +139,9 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
   const requestedIndex = "targetIndex" in action ? action.targetIndex : undefined;
   if (requestedIndex !== undefined && action.type !== "prev") {
-    const target = Math.min(requestedIndex, ctx.state.totalCandles - 1);
-    while (ctx.state.visibleIndex < target && revealNext(ctx)) {
-      // Reproduce every intervening candle so SL/TP and equity remain exact.
-    }
+    // Reproduce every intervening candle (and, when tick stepping, the ticks
+    // into the last one) so SL/TP and equity remain exact.
+    advanceReplayTo(ctx, requestedIndex, targetMs);
   }
 
   switch (action.type) {

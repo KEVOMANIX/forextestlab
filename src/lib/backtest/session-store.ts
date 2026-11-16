@@ -179,7 +179,9 @@ export function toPublicState(
 
 /** Candles revealed so far, used to initialise the visible chart series. */
 export function visibleCandles(ctx: EngineContext): Candle[] {
-  return ctx.candles.slice(0, ctx.state.visibleIndex + 1);
+  // A candle part-revealed by tick stepping is not sent whole; the browser
+  // draws it forming from its tick path.
+  return ctx.candles.slice(0, ctx.state.visibleIndex + (ctx.state.intrabarMs != null ? 0 : 1));
 }
 
 /**

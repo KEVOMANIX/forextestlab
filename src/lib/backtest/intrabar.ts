@@ -138,27 +138,56 @@ export function candleAfter(candle: Candle, index: number, entryMid: number, pre
   return { ...candle, open: fixed(entryMid), high: fixed(Math.max(...p)), low: fixed(Math.min(...p)), path: { t, p } };
 }
 
+/** Price on the path `ms` after the candle opened, interpolated between points. */
+export function priceAt(path: IntrabarPath, ms: number): number {
+  if (ms <= path.t[0]!) return path.p[0]!;
+  for (let index = 1; index < path.p.length; index++) {
+    const at = path.t[index]!;
+    if (at < ms) continue;
+    const before = path.t[index - 1]!, from = path.p[index - 1]!;
+    return at > before ? from + ((path.p[index]! - from) * (ms - before)) / (at - before) : path.p[index]!;
+  }
+  return path.p[path.p.length - 1]!;
+}
+
+/**
+ * The part of a candle after `fromMs` up to and including `toMs`, as a candle
+ * of its own whose path is just that stretch. Tick stepping runs the engine
+ * on these pieces, so orders only see price that has actually been shown.
+ * Null without a path.
+ */
+export function candleBetween(candle: Candle, fromMs: number, toMs: number, precision: number): Candle | null {
+  const path = pathOf(candle);
+  if (!path || !(toMs > fromMs)) return null;
+  const round = (value: number) => Number(value.toFixed(precision));
+  const t: number[] = [fromMs], p: number[] = [round(fromMs <= 0 ? Number(candle.open) : priceAt(path, fromMs))];
+  for (let index = 0; index < path.p.length; index++) {
+    const at = path.t[index]!;
+    if (at > fromMs && at <= toMs) { t.push(at); p.push(path.p[index]!); }
+  }
+  if (t[t.length - 1]! < toMs && toMs < path.t[path.t.length - 1]!) { t.push(toMs); p.push(round(priceAt(path, toMs))); }
+  if (p.length === 1) { t.push(toMs); p.push(p[0]!); }
+  const fixed = (value: number) => value.toFixed(precision);
+  return { ...candle, open: fixed(p[0]!), high: fixed(Math.max(...p)), low: fixed(Math.min(...p)), close: fixed(p[p.length - 1]!), path: { t, p } };
+}
+
 /**
  * The candle as it stood `elapsedMs` after it opened, following its tick path
  * (prices between two path points are interpolated). Tick replay draws this
  * while the minute is still forming. Null without a path.
  */
 export function partialCandle(candle: Candle, elapsedMs: number, precision: number): Candle | null {
-  const path = pathOf(candle);
-  if (!path || elapsedMs < 0) return null;
-  let high = path.p[0]!, low = path.p[0]!, close = path.p[0]!;
-  for (let index = 1; index < path.p.length; index++) {
-    const at = path.t[index]!, price = path.p[index]!;
-    if (at <= elapsedMs) {
-      close = price;
-    } else {
-      const before = path.t[index - 1]!, from = path.p[index - 1]!;
-      close = at > before ? from + ((price - from) * (elapsedMs - before)) / (at - before) : from;
-    }
-    if (close > high) high = close;
-    if (close < low) low = close;
-    if (at > elapsedMs) break;
-  }
+  if (!pathOf(candle) || elapsedMs < 0) return null;
+  const piece = candleBetween(candle, 0, Math.max(1, elapsedMs), precision)!;
   const fixed = (value: number) => value.toFixed(precision);
-  return { timestamp: candle.timestamp, open: candle.open, high: fixed(Math.max(high, Number(candle.open))), low: fixed(Math.min(low, Number(candle.open))), close: fixed(close), source: "forming" };
+  const open = Number(candle.open);
+  return { timestamp: candle.timestamp, open: candle.open, high: fixed(Math.max(Number(piece.high), open)), low: fixed(Math.min(Number(piece.low), open)), close: piece.close, source: "forming" };
+}
+
+/** Path point times after `elapsedMs`: where the next "tick" step lands. */
+export function nextPathTime(candle: Candle, elapsedMs: number): number | null {
+  const path = pathOf(candle);
+  if (!path) return null;
+  for (const at of path.t) if (at > elapsedMs) return at;
+  return null;
 }

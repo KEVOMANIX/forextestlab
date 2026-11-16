@@ -351,6 +351,11 @@ export interface SessionState {
   accountBlown?: AccountBlowout | null;
   /** Demo deposits, oldest first. Absent on sessions that never needed one. */
   topUps?: AccountTopUp[];
+  /**
+   * Tick stepping: candle `visibleIndex` is only revealed this many ms into
+   * itself (along its tick path). Null/absent when the candle is complete.
+   */
+  intrabarMs?: number | null;
 }
 
 /** The subset of engine state that is safe to send to the browser. */
@@ -378,6 +383,8 @@ export interface PublicSessionState {
   demoData: boolean;
   /** Anonymous demonstrations are temporary and are not saved to user history. */
   anonymous: boolean;
+  /** See SessionState.intrabarMs. */
+  intrabarMs?: number | null;
   propFirm?: PropFirmRuntime;
   accountBlown?: AccountBlowout | null;
   topUps?: AccountTopUp[];

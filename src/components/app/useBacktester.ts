@@ -40,6 +40,8 @@ import {
   placeOrder as placeLocalOrder,
   publicSessionState,
   revealNext,
+  advanceIntrabar,
+  currentCandle as engineCurrentCandle,
   fastForwardIdleTo,
   stepBackTo as stepBackLocalTo,
 } from "@/lib/backtest/replay-engine";
@@ -51,6 +53,37 @@ import { exhaustedReplayPairs, focusedMarketResumeIndex, unexpectedReplayGap } f
 import { mergePairSeries } from "@/lib/backtest/pair-series";
 import { updateTradeJournal as updateLocalTradeJournal } from "@/lib/backtest/trade-journal";
 import { recordReplayMetric } from "@/lib/performance/replay-metrics";
+import { nextPathTime, pathOf } from "@/lib/backtest/intrabar";
+
+/**
+ * Where the charts should stand for an engine position. A minute
+ * part-revealed by tick stepping is drawn forming after the last whole candle.
+ */
+function replayVisualOf(engine: EngineContext) {
+  const { state, candles } = engine;
+  if (state.intrabarMs != null) {
+    const forming = candles[state.visibleIndex];
+    const before = candles[state.visibleIndex - 1];
+    if (forming && before) {
+      return {
+        sessionId: state.sessionId,
+        currentTime: before.timestamp,
+        visibleIndex: state.visibleIndex - 1,
+        currentPrice: Number(engineCurrentCandle(engine)?.close ?? forming.open),
+        formingAt: forming.timestamp + state.intrabarMs,
+      };
+    }
+  }
+  const candle = candles[state.visibleIndex];
+  return candle
+    ? { sessionId: state.sessionId, currentTime: candle.timestamp, visibleIndex: state.visibleIndex, currentPrice: Number(candle.close) }
+    : null;
+}
+
+/** The newest whole candle the charts hold. */
+function lastWholeCandle(engine: EngineContext): Candle | null {
+  return engine.candles[engine.state.visibleIndex - (engine.state.intrabarMs != null ? 1 : 0)] ?? null;
+}
 import { publishReplayVisual } from "@/lib/backtest/replay-visual-bus";
 import {
   replayBufferTargetCandles,
@@ -188,6 +221,8 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const checkpointPendingRef = useRef<Promise<void> | null>(null);
   const checkpointLatestRef = useRef<{
     targetIndex: number;
+    /** Tick stepping: how far into candle `targetIndex` the replay is. */
+    targetMs?: number;
     /** Replay clock at `targetIndex`, so saved progress can be read in days. */
     targetTime?: number;
     statusOverride?: "running" | "paused";
@@ -218,6 +253,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const [replayStepMinutes, setReplayStepMinutes] = useState<ReplayStepMinutes>(1);
   const wantsReplayRunningRef = useRef(false);
   const stepRef = useRef<(batchSize?: number, displayTimeframe?: Timeframe) => Promise<void>>(async () => {});
+  const stepNextRef = useRef<(displayTimeframe?: Timeframe) => Promise<void>>(async () => {});
   const manualStepPendingRef = useRef(false);
   const replayFrameRef = useRef<number | null>(null);
   const replayLastFrameRef = useRef<number | null>(null);
@@ -271,6 +307,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
       // and extend at the last candle actually downloaded.
       engine.state.totalCandles = candles.length;
       localEngineRef.current = engine;
+      if (engine.state.intrabarMs != null) {
+        const visual = replayVisualOf(engine);
+        if (visual) publishReplayVisual(visual);
+      }
       // The server just handed this book over, so it already agrees with it.
       // Seeding avoids forcing a replay on the first checkpoint of every load.
       checkpointedBookRef.current = bookSignature(engine);
@@ -567,6 +607,15 @@ export function useBacktester(resumeSessionId: string | null = null) {
         (autoStepPendingRef.current || interactiveBusyRef.current)
       ) return;
       if (showBusy && interactiveBusyRef.current) return;
+      // Tick stepping: the server replays to the same point inside the minute.
+      const engineNow = localEngineRef.current;
+      if (
+        engineNow?.state.intrabarMs != null &&
+        "targetIndex" in action &&
+        action.targetIndex === engineNow.state.visibleIndex
+      ) {
+        action = { ...action, targetMs: engineNow.state.intrabarMs } as unknown as typeof action;
+      }
       lastActionRef.current = action;
 
       if (background) autoStepPendingRef.current = true;
@@ -969,15 +1018,15 @@ export function useBacktester(resumeSessionId: string | null = null) {
   const status = s.state?.status;
 
   /** Wall time of the last tick-replay frame published, and whether a forming candle is on the charts. */
-  const formingPublishedRef = useRef({ at: 0, shown: false });
+  const formingPublishedRef = useRef({ at: 0, shown: false, elapsed: 0 });
 
   /** Takes the forming (tick replay) candle off the charts, e.g. when replay pauses. */
   const clearFormingCandle = useCallback(() => {
     const engine = localEngineRef.current;
     if (!formingPublishedRef.current.shown || !engine) return;
     formingPublishedRef.current.shown = false;
-    const candle = engine.candles[engine.state.visibleIndex];
-    if (candle) publishReplayVisual({ sessionId: engine.state.sessionId, currentTime: candle.timestamp, visibleIndex: engine.state.visibleIndex, currentPrice: Number(candle.close) });
+    const visual = replayVisualOf(engine);
+    if (visual) publishReplayVisual(visual);
   }, []);
 
   const stopLocalScheduler = useCallback(() => {
@@ -999,17 +1048,19 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const cadence = (TIMEFRAME_MS[engine.state.config.timeframe] * stepCount) / engine.state.speed;
     if (engine.state.config.timeframe !== "1m" || stepCount !== 1 || cadence < 150 || replayFrameBusyRef.current) return;
     if (now - formingPublishedRef.current.at < 100) return;
-    const candle = engine.candles[engine.state.visibleIndex];
-    const next = engine.candles[engine.state.visibleIndex + 1];
+    const partial = engine.state.intrabarMs != null;
+    const candle = engine.candles[engine.state.visibleIndex - (partial ? 1 : 0)];
+    const next = engine.candles[engine.state.visibleIndex + (partial ? 0 : 1)];
     if (!candle || !next?.path) return;
-    formingPublishedRef.current = { at: now, shown: true };
     const fraction = Math.min(0.999, Math.max(0, replayAccumulatorRef.current / cadence));
+    const elapsed = Math.max(fraction * TIMEFRAME_MS["1m"], engine.state.intrabarMs ?? 0);
+    formingPublishedRef.current = { at: now, shown: true, elapsed };
     publishReplayVisual({
       sessionId: engine.state.sessionId,
       currentTime: candle.timestamp,
-      visibleIndex: engine.state.visibleIndex,
+      visibleIndex: engine.state.visibleIndex - (partial ? 1 : 0),
       currentPrice: Number(candle.close),
-      formingAt: next.timestamp + fraction * TIMEFRAME_MS["1m"],
+      formingAt: next.timestamp + elapsed,
     });
   };
 
@@ -1052,6 +1103,10 @@ export function useBacktester(resumeSessionId: string | null = null) {
       });
     };
     replayLastFrameRef.current = null;
+    const resumed = localEngineRef.current;
+    if (resumed?.state.intrabarMs != null) {
+      replayAccumulatorRef.current = resumed.state.intrabarMs / resumed.state.speed;
+    }
     schedule();
   }, [stopLocalScheduler]);
 
@@ -1064,12 +1119,14 @@ export function useBacktester(resumeSessionId: string | null = null) {
     const book = bookSignature(engine);
     checkpointLatestRef.current = {
       targetIndex: engine.state.visibleIndex,
+      targetMs: engine.state.intrabarMs ?? undefined,
       targetTime: engine.candles[engine.state.visibleIndex]?.timestamp,
       statusOverride,
       // Anything live still needs replaying, and so does a book that has
       // changed since the server last agreed with it — that difference is
       // exactly a fill or an exit the server has not seen.
       requiresReplay:
+        engine.state.intrabarMs != null ||
         engine.state.openPositions.length > 0 ||
         engine.state.pendingOrders.length > 0 ||
         book !== checkpointedBookRef.current,
@@ -1095,6 +1152,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
               requested.statusOverride,
               requested.requiresReplay,
               requested.targetTime,
+              requested.targetMs,
             ),
           );
           actionQueueRef.current = task.then(
@@ -1142,6 +1200,53 @@ export function useBacktester(resumeSessionId: string | null = null) {
     return () => window.clearInterval(timer);
   }, [checkpoint, status]);
 
+  /** Keeps a minute that tick replay was drawing as part-revealed engine state. */
+  const freezeFormingMinute = (engine: EngineContext) => {
+    const forming = formingPublishedRef.current;
+    if (!forming.shown || !(forming.elapsed > 0)) return;
+    advanceIntrabar(engine, Math.round(forming.elapsed / 100) * 100);
+  };
+
+  /** Shows the engine's position on every chart and in the UI. */
+  const publishEnginePosition = (engine: EngineContext, advanced: Candle[] = []) => {
+    const visual = replayVisualOf(engine);
+    if (visual) publishReplayVisual(visual);
+    formingPublishedRef.current = { at: performance.now(), shown: engine.state.intrabarMs != null, elapsed: engine.state.intrabarMs ?? 0 };
+    setS((prev) => ({
+      ...prev,
+      state: publicSessionState(engine, prev.state?.anonymous ?? false),
+      lastCandle: lastWholeCandle(engine),
+      lastCandles: advanced,
+    }));
+  };
+
+  /**
+   * Tick stepping: reveal the replay up to the next price turn inside the
+   * minute (from real ticks). Orders and exits act on exactly that price.
+   * Without ticks for the minute, or at its last turn, the minute completes.
+   */
+  const stepTick = useCallback(() => {
+    const engine = localEngineRef.current;
+    if (!engine || s.endOfData || manualStepPendingRef.current) return;
+    if (engine.state.status === "finished" || engine.state.accountBlown) return;
+    wantsReplayRunningRef.current = false;
+    engine.state.status = "paused";
+    freezeFormingMinute(engine);
+    stopLocalScheduler();
+    engineGenerationRef.current += 1;
+    const partial = engine.state.intrabarMs != null;
+    const candle = engine.candles[engine.state.visibleIndex + (partial ? 0 : 1)];
+    const path = candle ? pathOf(candle) : undefined;
+    const at = candle ? nextPathTime(candle, engine.state.intrabarMs ?? 0) : null;
+    if (!path || at == null || at >= path.t[path.t.length - 1]! || !advanceIntrabar(engine, at)) {
+      void stepNextRef.current(engine.state.config.timeframe);
+      return;
+    }
+    publishEnginePosition(engine);
+    void checkpoint("paused");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkpoint, s.endOfData, stopLocalScheduler]);
+
   const play = useCallback(() => {
     if (s.endOfData) return Promise.resolve();
     // Nothing to play on: every position was flattened and the account has no
@@ -1167,6 +1272,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     // behind any candle request that is already in flight.
     const engine = localEngineRef.current;
     if (engine) engine.state.status = "paused";
+    if (engine) freezeFormingMinute(engine);
     setS((prev) => {
       if (!prev.state) return prev;
       return {
@@ -1187,6 +1293,15 @@ export function useBacktester(resumeSessionId: string | null = null) {
       wantsReplayRunningRef.current = false;
       stopLocalScheduler();
       engine.state.status = "paused";
+      // From mid-minute (tick stepping), Next completes that minute.
+      if (engine.state.intrabarMs != null) {
+        engineGenerationRef.current += 1;
+        revealNext(engine);
+        const candle = engine.candles[engine.state.visibleIndex];
+        publishEnginePosition(engine, candle ? [candle] : []);
+        void checkpoint("paused");
+        return;
+      }
       const generation = ++engineGenerationRef.current;
       manualStepPendingRef.current = true;
       try {
@@ -1198,6 +1313,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
     },
     [checkpoint, s.endOfData, stopLocalScheduler],
   );
+  stepNextRef.current = stepNext;
   const stepPrev = useCallback((displayTimeframe?: Timeframe) => {
     const engine = localEngineRef.current;
     if (!engine) return;
@@ -2079,6 +2195,7 @@ export function useBacktester(resumeSessionId: string | null = null) {
       play,
       pause,
       stepNext,
+      stepTick,
       stepPrev,
       jumpTo,
       cancelJump: () => {

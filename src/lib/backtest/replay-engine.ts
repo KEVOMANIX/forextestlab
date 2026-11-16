@@ -43,7 +43,8 @@ import type {
 } from "./types";
 import { DEFAULT_REPLAY_SPEED } from "./types";
 import { configForSymbol, recordSymbol } from "./instrument-config";
-import { candleAfter, pathOf, pendingTouchIndex } from "./intrabar";
+import { candleAfter, candleBetween, partialCandle, pathOf, pendingTouchIndex } from "./intrabar";
+import { TIMEFRAME_MS } from "@/lib/market-data/types";
 import {
   captureTradeSnapshot,
   createTradeJournal,
@@ -132,7 +133,7 @@ export function publicSessionState(
     // already-immutable points on every visual publication.
     equityCurve: equityCurve.slice(),
     currentPrice: candle?.close ?? null,
-    currentTime: candle?.timestamp ?? null,
+    currentTime: candle ? candle.timestamp + (ctx.state.intrabarMs ?? 0) : null,
     anonymous,
   };
 }
@@ -149,7 +150,12 @@ export function currentCandle(ctx: EngineContext): Candle | null {
   if (state.visibleIndex < 0 || state.visibleIndex >= candles.length) {
     return null;
   }
-  return candles[state.visibleIndex] ?? null;
+  const candle = candles[state.visibleIndex] ?? null;
+  // Tick stepping: only the part of the candle the replay has reached exists.
+  if (candle && state.intrabarMs != null) {
+    return partialCandle(candle, state.intrabarMs, state.config.pricePrecision) ?? candle;
+  }
+  return candle;
 }
 
 /** Latest candle for `symbol` at the primary session's replay clock. */
@@ -768,6 +774,7 @@ function enforcePropFirm(ctx: EngineContext, candle: Candle): void {
  */
 export function revealNext(ctx: EngineContext): boolean {
   const { state, candles } = ctx;
+  if (state.intrabarMs != null) return finishFormingCandle(ctx);
   if (state.visibleIndex >= state.totalCandles - 1) {
     finishSession(ctx);
     return false;
@@ -778,62 +785,8 @@ export function revealNext(ctx: EngineContext): boolean {
   const candle = candles[state.visibleIndex];
 
   if (candle) {
-    rollPropFirmDay(ctx, candle);
-    for (const order of state.pendingOrders) {
-      if (
-        order.status === "pending" &&
-        order.expiresAt != null &&
-        candle.timestamp >= order.expiresAt
-      ) {
-        order.status = "expired";
-        order.expiredTime = candle.timestamp;
-        order.updatedTime = candle.timestamp;
-      }
-    }
-    const symbols = new Set<string>([
-      state.config.symbol,
-      ...state.pendingOrders
-        .filter((order) => order.status === "pending")
-        .map((order) => recordSymbol(order, state.config)),
-      ...state.openPositions.map((position) => recordSymbol(position, state.config)),
-    ]);
-    for (const symbol of symbols) {
-      const config = configForSymbol(state.config, symbol);
-      for (const symbolCandle of symbolCandlesBetween(
-        ctx,
-        symbol,
-        previousTime,
-        candle.timestamp,
-      )) {
-        const filledInside = processPendingOrders(ctx, symbolCandle, symbol);
-        for (const position of [...state.openPositions]) {
-          if (recordSymbol(position, state.config) !== symbol) continue;
-          updateExcursion(ctx, position, symbolCandle);
-          const hit = checkStopTakeProfit(
-            position.direction,
-            position.stopLoss,
-            position.takeProfit,
-            filledInside.get(position.id) ?? symbolCandle,
-            config.spreadPips,
-            config.pipSize,
-            config.executionPolicy,
-          );
-          if (hit) {
-            closeAt(
-              ctx,
-              position.id,
-              hit.price,
-              hit.reason,
-              hit.intrabarAmbiguous,
-              undefined,
-              symbolCandle,
-            );
-          } else {
-            tightenTrailingStop(ctx, position, symbolCandle);
-          }
-        }
-      }
-    }
+    openCandle(ctx, candle);
+    processCandle(ctx, previousTime, candle, "whole", true);
   }
 
   recomputeEquity(ctx, true);
@@ -844,12 +797,172 @@ export function revealNext(ctx: EngineContext): boolean {
   return true;
 }
 
+/** Start-of-candle bookkeeping: the challenge day and expiring orders. */
+function openCandle(ctx: EngineContext, candle: Candle): void {
+  rollPropFirmDay(ctx, candle);
+  for (const order of ctx.state.pendingOrders) {
+    if (
+      order.status === "pending" &&
+      order.expiresAt != null &&
+      candle.timestamp >= order.expiresAt
+    ) {
+      order.status = "expired";
+      order.expiredTime = candle.timestamp;
+      order.updatedTime = candle.timestamp;
+    }
+  }
+}
+
+/**
+ * Fills, exits and trailing stops for the price moves of one replay step.
+ * `primary` is what the session's own market showed: the whole candle, a
+ * piece of it (tick stepping), or nothing. Other markets with live trades
+ * move by their own candles up to this candle's time, only when `others`.
+ */
+function processCandle(
+  ctx: EngineContext,
+  previousTime: number,
+  candle: Candle,
+  primary: "whole" | Candle | null,
+  others: boolean,
+): void {
+  const { state } = ctx;
+  const symbols = new Set<string>([
+    state.config.symbol,
+    ...state.pendingOrders
+      .filter((order) => order.status === "pending")
+      .map((order) => recordSymbol(order, state.config)),
+    ...state.openPositions.map((position) => recordSymbol(position, state.config)),
+  ]);
+  for (const symbol of symbols) {
+    const isPrimary = symbol === state.config.symbol;
+    if (isPrimary ? primary === null : !others) continue;
+    const config = configForSymbol(state.config, symbol);
+    const moves = !isPrimary
+      ? symbolCandlesBetween(ctx, symbol, previousTime, candle.timestamp)
+      : [primary === "whole" || primary === null ? candle : primary];
+    for (const symbolCandle of moves) {
+      const filledInside = processPendingOrders(ctx, symbolCandle, symbol);
+      for (const position of [...state.openPositions]) {
+        if (recordSymbol(position, state.config) !== symbol) continue;
+        updateExcursion(ctx, position, symbolCandle);
+        const hit = checkStopTakeProfit(
+          position.direction,
+          position.stopLoss,
+          position.takeProfit,
+          filledInside.get(position.id) ?? symbolCandle,
+          config.spreadPips,
+          config.pipSize,
+          config.executionPolicy,
+        );
+        if (hit) {
+          closeAt(
+            ctx,
+            position.id,
+            hit.price,
+            hit.reason,
+            hit.intrabarAmbiguous,
+            undefined,
+            symbolCandle,
+          );
+        } else {
+          tightenTrailingStop(ctx, position, symbolCandle);
+        }
+      }
+    }
+  }
+}
+
+/** Length of one session candle. */
+function candleSpanMs(ctx: EngineContext): number {
+  return TIMEFRAME_MS[ctx.state.config.timeframe] ?? 60_000;
+}
+
+/**
+ * Tick stepping: reveal the replay up to `elapsedMs` into the next candle (or
+ * further into the candle already forming), following its real tick path.
+ * Orders fill and exits trigger on exactly the price shown so far; market
+ * orders placed now fill at the forming price. Returns false when the candle
+ * has no tick path or `elapsedMs` is not ahead of the replay.
+ */
+export function advanceIntrabar(ctx: EngineContext, elapsedMs: number): boolean {
+  const { state, candles } = ctx;
+  if (state.status === "finished" || state.accountBlown) return false;
+  const span = candleSpanMs(ctx);
+  const at = Math.round(elapsedMs);
+  if (!(at > (state.intrabarMs ?? 0) && at < span)) return false;
+  let candle: Candle | undefined;
+  let from: number;
+  if (state.intrabarMs == null) {
+    if (state.visibleIndex >= state.totalCandles - 1) return false;
+    candle = candles[state.visibleIndex + 1];
+    if (!candle || !pathOf(candle)) return false;
+    state.visibleIndex += 1;
+    openCandle(ctx, candle);
+    from = 0;
+  } else {
+    candle = candles[state.visibleIndex];
+    if (!candle) return false;
+    from = state.intrabarMs;
+  }
+  const piece = candleBetween(candle, from, at, state.config.pricePrecision);
+  state.intrabarMs = at;
+  if (piece) processCandle(ctx, Number.NEGATIVE_INFINITY, candle, piece, false);
+  recomputeEquity(ctx, false);
+  enforceBlowout(ctx);
+  return true;
+}
+
+/** Completes a candle that tick stepping left part-way: the rest of its path, and every other market. */
+function finishFormingCandle(ctx: EngineContext): boolean {
+  const { state, candles } = ctx;
+  const from = state.intrabarMs ?? 0;
+  state.intrabarMs = null;
+  const candle = candles[state.visibleIndex];
+  if (candle) {
+    const previousTime = candles[state.visibleIndex - 1]?.timestamp ?? Number.NEGATIVE_INFINITY;
+    const rest = candleBetween(candle, from, candleSpanMs(ctx), state.config.pricePrecision);
+    processCandle(ctx, previousTime, candle, rest ?? candle, true);
+  }
+  recomputeEquity(ctx, true);
+  if (candle) enforcePropFirm(ctx, candle);
+  enforceBlowout(ctx);
+  return true;
+}
+
+/**
+ * Brings the replay forward to candle `index`, optionally `elapsedMs` into it
+ * (tick stepping). Never moves backwards.
+ */
+export function advanceReplayTo(ctx: EngineContext, index: number, elapsedMs?: number | null): void {
+  const target = Math.min(Math.floor(index), ctx.state.totalCandles - 1);
+  const ms = elapsedMs != null && elapsedMs > 0 ? elapsedMs : null;
+  for (let guard = 0; guard < 10_000_000; guard++) {
+    const { state } = ctx;
+    if (state.intrabarMs != null) {
+      if (state.visibleIndex === target && ms != null) {
+        if (ms > state.intrabarMs) advanceIntrabar(ctx, ms);
+        return;
+      }
+      if (state.visibleIndex > target) return;
+      if (!revealNext(ctx)) return;
+      continue;
+    }
+    if (state.visibleIndex >= target) return;
+    if (ms != null && state.visibleIndex === target - 1) {
+      if (!advanceIntrabar(ctx, ms)) revealNext(ctx);
+      return;
+    }
+    if (!revealNext(ctx)) return;
+  }
+}
+
 /** Skip a flat, inactive stretch without repeating identical accounting.
  * Orders and challenge accounts must still process every candle.
  */
 export function fastForwardIdleTo(ctx: EngineContext, targetIndex: number): boolean {
   const { state } = ctx;
-  if (state.config.propFirm || state.propFirm || state.accountBlown ||
+  if (state.config.propFirm || state.propFirm || state.accountBlown || state.intrabarMs != null ||
       state.status === "finished" || !(Number(state.balance) > 0) ||
       state.openPositions.length || state.pendingOrders.some((order) => order.status === "pending")) return false;
   const target = Math.min(Math.floor(targetIndex), state.totalCandles - 1, ctx.candles.length - 1);
@@ -874,6 +987,8 @@ export function stepBackTo(ctx: EngineContext, targetIndex: number): boolean {
   const target = Math.max(0, Math.floor(targetIndex));
   const canStep = target < state.visibleIndex;
   if (!canStep) return false;
+  // A part-revealed candle is left behind with the rest of what is undone.
+  state.intrabarMs = null;
 
   // Crossing back over an entry cancels that decision. This is not a market
   // close, so it must not create a closed-trade or journal record.
@@ -985,9 +1100,9 @@ export function moveReplayToIndex(
     Math.max(0, Math.floor(requestedIndex)),
     ctx.state.totalCandles - 1,
   );
-  while (ctx.state.visibleIndex < target && revealNext(ctx)) {
-    // Reproduce every intervening candle so execution remains deterministic.
-  }
+  // Reproduce every intervening candle so execution remains deterministic.
+  advanceReplayTo(ctx, target);
+  if (ctx.state.visibleIndex === target && ctx.state.intrabarMs != null) return revealNext(ctx);
   if (ctx.state.visibleIndex === target) return true;
   return stepBackTo(ctx, target);
 }

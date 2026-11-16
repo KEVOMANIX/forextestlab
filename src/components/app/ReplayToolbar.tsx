@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronRight,
+  ChevronsRight,
   Ellipsis,
   GripHorizontal,
   LocateFixed,
@@ -34,6 +35,8 @@ interface ReplayToolbarProps {
   onPlay: () => void;
   onPause: () => void;
   onNext: () => void;
+  /** Tick stepping (1m sessions): reveal the next price turn inside the minute. */
+  onNextTick?: () => void;
   onPrev: () => void;
   onRestart: () => void;
   onEnd: () => void;
@@ -109,6 +112,7 @@ export function ReplayToolbar({
   onPlay,
   onPause,
   onNext,
+  onNextTick,
   onPrev,
   onRestart,
   onEnd,
@@ -357,6 +361,16 @@ export function ReplayToolbar({
           <ControlBtn label="Next candle" onClick={onNext} disabled={busy || finished}>
             <ChevronRight size={15} aria-hidden />
           </ControlBtn>
+          {onNextTick && (
+            <ControlBtn
+              label="Next tick"
+              title="Next tick: move to the next price turn inside the minute, from real ticks (Shift + next-candle key)"
+              onClick={onNextTick}
+              disabled={busy || finished}
+            >
+              <ChevronsRight size={15} aria-hidden />
+            </ControlBtn>
+          )}
         </div>
         <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--app-border)]" aria-hidden />
         <div className="relative flex shrink-0 items-center">

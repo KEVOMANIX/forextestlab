@@ -1161,6 +1161,8 @@ export default function PriceChart({
   const historyCandlesRef = useRef<Candle[]>(contextCandles);
   /** Tick replay's forming candle while it is the last entry of rawCandlesRef. */
   const formingCandleRef = useRef<Candle | null>(null);
+  /** Forming time announced on the replay clock but not drawn yet (no series loaded). */
+  const pendingFormingAtRef = useRef<number | null>(null);
   const formingPrecisionRef = useRef(precision);
   formingPrecisionRef.current = precision;
   /**
@@ -2870,6 +2872,20 @@ export default function PriceChart({
       cursor += 1;
       appended = true;
     }
+    // A minute part-revealed by tick stepping that was announced before this
+    // series arrived (a reload mid-minute).
+    const formingAt = pendingFormingAtRef.current;
+    const next = formingAt == null || formingCandleRef.current ? undefined : replaySeries[cursor];
+    if (next && formingAt! >= next.timestamp && formingAt! < next.timestamp + TIMEFRAME_MS["1m"]) {
+      const forming = partialCandle(next, formingAt! - next.timestamp, formingPrecisionRef.current);
+      if (forming) {
+        raw.push(forming);
+        formingCandleRef.current = forming;
+        currentPriceRef.current = Number(forming.close);
+        pendingFormingAtRef.current = null;
+        appended = true;
+      }
+    }
     if (appended) scheduleRender();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replaySeries]);
@@ -2899,6 +2915,7 @@ export default function PriceChart({
     if (!replaySessionId) return;
     return subscribeReplayVisual(replaySessionId, ({ currentTime, formingAt }) => {
       replayCurrentTimeRef.current = currentTime;
+      pendingFormingAtRef.current = formingAt ?? null;
       const source = replaySeriesRef.current;
       if (!source) return;
       const raw = rawCandlesRef.current;
@@ -2952,6 +2969,7 @@ export default function PriceChart({
           currentPriceRef.current = Number(forming.close);
         }
       }
+      if (formingCandleRef.current) pendingFormingAtRef.current = null;
       if (appended || hadForming || formingCandleRef.current) scheduleRender();
     });
     // The listener reads changing series data through replaySeriesRef.

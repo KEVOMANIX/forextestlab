@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import {
   RISK_WARNING,
+  PINE_TRADEMARK_NOTICE,
   footerNav,
   siteConfig,
 } from "@/lib/site";
@@ -79,6 +80,7 @@ export function Footer() {
           </p>
           <p>Made for research, practice, and strategy evaluation.</p>
         </div>
+        <p className="mt-4 text-xs leading-relaxed text-slate-500">{PINE_TRADEMARK_NOTICE}</p>
       </div>
     </footer>
   );

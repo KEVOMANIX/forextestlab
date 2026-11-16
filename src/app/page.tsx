@@ -7,6 +7,7 @@ import { Navbar } from "@/components/Navbar";
 import { ProductPreview } from "@/components/ProductPreview";
 import { StructuredData } from "@/components/StructuredData";
 import { TrialSpotlight } from "@/components/TrialSpotlight";
+import { PINE_TRADEMARK_NOTICE } from "@/lib/site";
 
 const EXPLORE = [
   { href: "/features", title: "Explore the workspace", text: "See the replay, execution, journal, and analytics tools." },
@@ -37,6 +38,17 @@ export default function HomePage() {
                 </Link>
               ))}
             </div>
+          </div>
+        </section>
+        <section className="border-t border-white/10 py-16 sm:py-20">
+          <div className="container-page grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[.16em] text-brand-300">Strategy Lab</p>
+              <h2 className="mt-3 text-3xl font-bold tracking-tight text-white">Runs Pine Script&trade; v6 strategies and indicators.</h2>
+              <p className="mt-3 text-base leading-7 text-slate-400">Paste a Pine Script strategy you wrote or are allowed to use, test it on years of market history, and see its signals on the replay chart. On 33 markets, real ticks decide where stops, targets and orders fill inside each candle.</p>
+              <p className="mt-5 text-xs leading-5 text-slate-500">{PINE_TRADEMARK_NOTICE}</p>
+            </div>
+            <Link href="/sign-up" className="btn-primary self-start lg:self-auto">Try it free <ArrowRight size={16} aria-hidden /></Link>
           </div>
         </section>
       </main>

@@ -62,3 +62,7 @@ export const footerNav = {
 
 export const RISK_WARNING =
   "Forex and leveraged trading involve substantial risk and may not be suitable for every person. Historical or simulated results do not guarantee future performance. ForexTestLab is an educational and analytical software platform and does not provide investment, brokerage, or financial-advisory services.";
+
+/** Shown wherever the site says it runs Pine Script. */
+export const PINE_TRADEMARK_NOTICE =
+  "Pine Script™ is a trademark of TradingView, Inc. ForexTestLab is independent and is not affiliated with, sponsored by, or endorsed by TradingView. Pine scripts run on Resin, an independent open-source runtime.";

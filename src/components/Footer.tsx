@@ -39,7 +39,7 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-white/10 bg-surface-900">
+    <footer className="site-footer border-t border-white/10 bg-surface-900">
       <div className="container-page py-14">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
@@ -65,7 +65,7 @@ export function Footer() {
           <FooterColumn title="Legal" links={footerNav.legal} />
         </div>
 
-        <div className="mt-10 rounded-xl border border-white/10 bg-surface-800/50 p-5">
+        <div className="site-footer-risk mt-10 rounded-xl border border-white/10 bg-surface-800/50 p-5">
           <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">
             Risk Warning
           </h3>

@@ -714,6 +714,8 @@
 .marketing-light [class*="bg-surface-950/"] { background-color: rgb(251 252 251 / 0.96) !important; }
 .marketing-light [class*="bg-surface-900/"] { background-color: rgb(255 255 255 / 0.94) !important; }
 .marketing-light [class*="bg-surface-800/"] { background-color: rgb(237 243 239 / 0.94) !important; }
+.marketing-light .site-footer { background-color: #eef5f1 !important; }
+.marketing-light .site-footer .site-footer-risk { background-color: #ffffff !important; }
 .marketing-light [class*="bg-white/"] { background-color: rgb(16 33 27 / 0.045) !important; }
 .marketing-light [class*="border-white/"] { border-color: #d7e2dc !important; }
 .marketing-light [class*="divide-white/"] > :not([hidden]) ~ :not([hidden]) { border-color: #d7e2dc !important; }

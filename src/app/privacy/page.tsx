@@ -15,7 +15,7 @@ export default function PrivacyPage() {
     <PageShell>
       <LegalPage
         title="Privacy Policy"
-        lastUpdated="21 July 2026"
+        lastUpdated="18 November 2026"
         intro={
           <p>
             This Privacy Policy explains how {siteConfig.name} (&ldquo;we&rdquo;,
@@ -45,7 +45,34 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="3. How and why we process information">
+        <LegalSection heading="3. Signing in with Google">
+          <p>
+            If you choose to sign in with Google, Google shares your name, email
+            address, and profile picture with us, with your permission. We use
+            this information only to create and identify your account and to
+            show your name and picture in the app. We do not request access to
+            your Gmail, contacts, files, or any other Google data, and we do not
+            sell or share this information or use it for advertising.
+          </p>
+          <p>
+            ForexTestLab&apos;s use of information received from Google APIs
+            adheres to the{" "}
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              className="underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Google API Services User Data Policy
+            </a>
+            , including the Limited Use requirements. You can remove
+            ForexTestLab&apos;s access at any time from your Google Account
+            settings, and you can ask us to delete your account data using the
+            contact details below.
+          </p>
+        </LegalSection>
+
+        <LegalSection heading="4. How and why we process information">
           <p>
             We process information to perform our agreement with you, operate
             and secure the service, comply with legal obligations, respond to
@@ -55,7 +82,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="4. Cookies">
+        <LegalSection heading="5. Cookies">
           <p>
             We use essential cookies and similar storage required for secure
             authentication, session continuity, account preferences, and fraud
@@ -64,7 +91,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="5. Analytics">
+        <LegalSection heading="6. Analytics">
           <p>
             We process limited usage and diagnostic information to maintain
             security, measure service reliability, and improve product
@@ -72,7 +99,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="6. Data retention">
+        <LegalSection heading="7. Data retention">
           <p>
             We retain information for as long as necessary to provide the
             service, meet contractual and legal obligations, resolve disputes,
@@ -81,7 +108,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="7. Service providers and payments">
+        <LegalSection heading="8. Service providers and payments">
           <p>
             We rely on third-party providers for hosting, authentication, email,
             storage, and payments. Paddle acts as our merchant of record and
@@ -90,7 +117,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="8. International processing">
+        <LegalSection heading="9. International processing">
           <p>
             Our service providers may process information in countries other
             than your own. Where required, we use contractual and legal
@@ -99,7 +126,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="9. Security">
+        <LegalSection heading="10. Security">
           <p>
             We take reasonable technical and organisational measures to protect
             your information. However, no method of transmission or storage is
@@ -107,7 +134,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="10. Your rights">
+        <LegalSection heading="11. Your rights">
           <p>
             Depending on where you live, you may have rights to access, correct,
             export, or delete your personal information, and to object to or
@@ -116,7 +143,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="11. Children&apos;s privacy">
+        <LegalSection heading="12. Children&apos;s privacy">
           <p>
             ForexTestLab is not directed to children. We do not knowingly
             collect personal information from anyone who is not legally able to
@@ -124,7 +151,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="12. Policy updates">
+        <LegalSection heading="13. Policy updates">
           <p>
             We update this policy when our services or legal obligations
             change. The effective date shown above identifies the current
@@ -133,7 +160,7 @@ export default function PrivacyPage() {
           </p>
         </LegalSection>
 
-        <LegalSection heading="13. Contact">
+        <LegalSection heading="14. Contact">
           <p>
             For any privacy questions or requests, email us at{" "}
             <a

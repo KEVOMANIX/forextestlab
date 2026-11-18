@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { Logo } from "@/components/Logo";
 import {
-  RISK_WARNING,
   PINE_TRADEMARK_NOTICE,
   footerNav,
   siteConfig,
@@ -40,7 +39,7 @@ export function Footer() {
 
   return (
     <footer className="site-footer border-t border-white/10 bg-surface-900">
-      <div className="container-page py-14">
+      <div className="container-page pb-12 pt-14">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <Logo />
@@ -65,22 +64,22 @@ export function Footer() {
           <FooterColumn title="Legal" links={footerNav.legal} />
         </div>
 
-        <div className="site-footer-risk mt-10 rounded-xl border border-white/10 bg-surface-800/50 p-5">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-            Risk Warning
-          </h3>
-          <p className="mt-2 text-xs leading-relaxed text-slate-500">
-            {RISK_WARNING}
-          </p>
-        </div>
+      </div>
 
-        <div className="mt-8 flex flex-col items-start justify-between gap-3 border-t border-white/5 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center">
-          <p>
-            © {year} {siteConfig.company}. All rights reserved.
+      <div className="bg-[#0f3d2e]">
+        <div className="container-page py-6">
+          <div className="flex flex-col items-start justify-between gap-2 text-[13px] text-[#d6e8df] sm:flex-row sm:items-center">
+            <p>
+              <span className="font-semibold text-[#ffffff]">ForexTestLab</span>
+              <span className="mx-2 text-[#5f8b78]">·</span>© {year} {siteConfig.company}
+            </p>
+            <p className="font-medium text-[#7fd1ad]">Backtest · Analyze · Improve</p>
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-[#8fb3a3]">
+            Trading involves risk. Simulated results don&apos;t guarantee future performance. Not
+            investment advice. {PINE_TRADEMARK_NOTICE}
           </p>
-          <p>Made for research, practice, and strategy evaluation.</p>
         </div>
-        <p className="mt-4 text-xs leading-relaxed text-slate-500">{PINE_TRADEMARK_NOTICE}</p>
       </div>
     </footer>
   );

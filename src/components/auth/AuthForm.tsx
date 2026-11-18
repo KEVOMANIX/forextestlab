@@ -68,7 +68,7 @@ export function AuthForm({
   }
 
   function callbackUrl(next: string): string {
-    // OAuth must return to the public origin that initiated the flow.
+    // Email links must return to the public origin that initiated the flow.
     const origin =
       typeof window === "undefined" ? siteConfig.url : window.location.origin;
     const callback = new URL("/auth/callback", origin);
@@ -76,33 +76,13 @@ export function AuthForm({
     return callback.toString();
   }
 
-  async function continueWithGoogle() {
-    const supabase = createBrowserSupabaseClient();
-    if (!supabase) {
-      setError(
-        `Sign-in is temporarily unavailable. Please contact ${siteConfig.emails.support}.`,
-      );
-      return;
-    }
-
+  function continueWithGoogle() {
     setBusy("google");
     setError(null);
     setMessage(null);
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: callbackUrl(safeNextPath()),
-        queryParams: {
-          access_type: "offline",
-          prompt: "select_account",
-        },
-      },
-    });
-
-    if (oauthError) {
-      setError(oauthError.message);
-      setBusy(null);
-    }
+    // The server picks the flow: direct Google (our domain shown on Google's
+    // account chooser) or the Supabase-hosted OAuth fallback.
+    window.location.assign(`/auth/google/start?next=${encodeURIComponent(safeNextPath())}`);
   }
 
   async function submit(event: React.FormEvent) {

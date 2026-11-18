@@ -1,10 +1,8 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-import { welcomeEmail } from "@/lib/lifecycle-email";
-import { accountName, sendLifecycleEmail } from "@/lib/lifecycle-send";
+import { afterSignIn } from "@/lib/auth/after-sign-in";
 import { getPublicRequestOrigin } from "@/lib/request-origin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { recordProductEventOncePerUser } from "@/lib/product-analytics";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -22,14 +20,7 @@ export async function GET(request: Request) {
     if (!error) {
       const { data } = await supabase.auth.getUser();
       const user = data.user;
-      if (user) {
-        await recordProductEventOncePerUser({ name: "signup_completed", userId: user.id, path: next }).catch(() => undefined);
-        // Only accounts created in the last two days are welcomed: every
-        // sign-in comes through here, and older accounts never had one.
-        if (Date.now() - Date.parse(user.created_at) < 2 * 86_400_000) {
-          after(() => sendLifecycleEmail(`welcome:${user.id}`, user.email, welcomeEmail(accountName(user))));
-        }
-      }
+      if (user) await afterSignIn(user, next);
       return NextResponse.redirect(new URL(next, publicOrigin));
     }
     console.error("Supabase authentication callback failed", {

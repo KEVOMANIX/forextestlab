@@ -199,6 +199,12 @@ Important variable groups in the environment file:
   query Cloudflare's account-level operation analytics.
 - Market data: `MARKET_DATA_PROVIDER`, `DUKASCOPY_DATA_AUTHORIZED`, provider flags/keys
 - Google OAuth: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+  - `GOOGLE_DIRECT_SIGNIN=on` (since 2026-11-18): Google sign-in runs via
+    `/auth/google/start` → Google → `/auth/google/callback` →
+    `supabase.auth.signInWithIdToken`, so Google shows forextestlab.com, not the
+    Supabase host. Client `406881379967-i59dj…` must keep both
+    `https://(www.)forextestlab.com/auth/google/callback` redirect URIs. Set
+    `off` + restart to fall back to Supabase-hosted OAuth (`/auth/callback`).
 - AI: `GEMINI_API_KEY`, `GEMINI_MODEL`
 - Email: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USERNAME`,
   `SMTP_PASSWORD`, `CONTACT_FROM_EMAIL`, `CONTACT_TO_EMAIL`

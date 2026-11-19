@@ -25,8 +25,8 @@ export default async function SupportTeamLayout({
 }) {
   const { agent } = await requireSupportAgent();
   return (
-    <AppThemeProvider>
-      <div className="app-shell flex h-[100dvh] flex-col overflow-hidden bg-[var(--app-bg)]">
+    <AppThemeProvider forcedTheme="light">
+      <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--app-bg)] text-[var(--app-text)]">
         <header className="flex h-16 shrink-0 items-center gap-3 border-b app-border bg-[var(--app-panel)] px-4 sm:px-5">
           <Logo className="h-7" />
           <span className="h-5 w-px bg-[var(--app-border)]" />

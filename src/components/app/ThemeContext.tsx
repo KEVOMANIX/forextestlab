@@ -41,18 +41,22 @@ function persist(theme: Theme) {
 export function AppThemeProvider({
   children,
   initialTheme = null,
+  forcedTheme,
 }: {
   children: ReactNode;
   /** Theme from the cookie, so light-mode users never get a dark first paint. */
   initialTheme?: Theme | null;
+  /** Always this theme, ignoring the saved app preference (support inbox). */
+  forcedTheme?: Theme;
 }) {
-  const [theme, setTheme] = useState<Theme>(initialTheme ?? "dark");
+  const [storedTheme, setTheme] = useState<Theme>(initialTheme ?? "dark");
+  const theme = forcedTheme ?? storedTheme;
 
   useEffect(() => {
     // Only consult localStorage for visitors who have no cookie yet. Once the
     // cookie exists it is authoritative, and re-reading storage here would undo
     // the server-rendered choice on every navigation.
-    if (initialTheme) return;
+    if (initialTheme || forcedTheme) return;
     try {
       const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
       if (isAppTheme(stored)) {
@@ -62,7 +66,7 @@ export function AppThemeProvider({
     } catch {
       // Ignore storage access errors (private mode, etc.).
     }
-  }, [initialTheme]);
+  }, [initialTheme, forcedTheme]);
 
   const toggle = useCallback(() => {
     setTheme((previous) => {

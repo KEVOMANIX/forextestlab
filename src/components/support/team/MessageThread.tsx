@@ -2,7 +2,40 @@ import { MessagesSquare, Paperclip } from "lucide-react";
 
 import { ScrollToLatest } from "@/components/support/ScrollToLatest";
 import { formatNewYorkDateTime } from "@/lib/date-time";
+import { EmailHtmlFrame } from "./EmailHtmlFrame";
 import { cleanMessageBody, formatBytes, initials, shortAgo } from "./format";
+
+/** Plain text with web links made clickable. */
+function Linked({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s<>\]\[)"']+)/g);
+  return (
+    <>
+      {parts.map((part, index) =>
+        index % 2 ? (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="break-all text-sky-300 underline underline-offset-2"
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+function hasEmailHtml(metadataJson: string | null) {
+  try {
+    return Boolean((JSON.parse(metadataJson ?? "{}") as { resendEmailId?: unknown }).resendEmailId);
+  } catch {
+    return false;
+  }
+}
 
 export type ThreadMessage = {
   id: string;
@@ -12,17 +45,20 @@ export type ThreadMessage = {
   body: string;
   createdAt: Date;
   deletedAt: Date | null;
+  metadataJson: string | null;
   attachments: Array<{ id: string; fileName: string; size: number }>;
 };
 
 export function MessageThread({
   conversationId,
   subject,
+  customerEmail,
   messages,
   now,
 }: {
   conversationId: string;
   subject?: string;
+  customerEmail?: string | null;
   messages: ThreadMessage[];
   now: number;
 }) {
@@ -64,9 +100,23 @@ export function MessageThread({
                 ? "bg-slate-500 text-white"
                 : "bg-brand-500 text-surface-950";
           const body = message.deletedAt ? "This message was deleted." : cleanMessageBody(message.body);
+          const showEmail =
+            fromCustomer && customerEmail && message.senderName !== customerEmail;
+          const text = (
+            <p
+              className={`whitespace-pre-wrap break-words text-[14px] leading-6 ${
+                message.deletedAt ? "italic app-muted" : ""
+              }`}
+            >
+              <Linked text={body} />
+            </p>
+          );
           return (
+            <div key={message.id}>
+            {index === lastIndex && (
+              <ScrollToLatest marker={`${conversationId}:${messages.length}`} block="start" />
+            )}
             <details
-              key={message.id}
               open={index === lastIndex || undefined}
               className={`group border-b app-border ${
                 internal ? "rounded-lg border-l-[3px] border-l-amber-300/70 bg-amber-300/[0.06]" : ""
@@ -80,9 +130,14 @@ export function MessageThread({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline gap-3">
-                    <strong className={`truncate text-sm font-semibold ${internal ? "text-amber-200" : ""}`}>
-                      {name}
-                    </strong>
+                    <span className="min-w-0 truncate">
+                      <strong className={`text-sm font-semibold ${internal ? "text-amber-200" : ""}`}>
+                        {name}
+                      </strong>
+                      {showEmail && (
+                        <span className="ml-1.5 text-xs app-muted">&lt;{customerEmail}&gt;</span>
+                      )}
+                    </span>
                     <span className="ml-auto shrink-0 text-xs app-muted">
                       {formatNewYorkDateTime(message.createdAt)}
                       <span className="hidden sm:inline"> ({shortAgo(message.createdAt, now)} ago)</span>
@@ -97,13 +152,11 @@ export function MessageThread({
                 </span>
               </summary>
               <div className="pb-5 pl-3 pr-4 sm:pl-[68px]">
-                <p
-                  className={`whitespace-pre-wrap break-words text-sm leading-[1.65] ${
-                    message.deletedAt ? "italic app-muted" : ""
-                  }`}
-                >
-                  {body}
-                </p>
+                {fromCustomer && !message.deletedAt && hasEmailHtml(message.metadataJson) ? (
+                  <EmailHtmlFrame messageId={message.id}>{text}</EmailHtmlFrame>
+                ) : (
+                  text
+                )}
                 {!message.deletedAt &&
                   message.attachments.map((attachment) => (
                     <a
@@ -118,9 +171,9 @@ export function MessageThread({
                   ))}
               </div>
             </details>
+            </div>
           );
         })}
-        <ScrollToLatest marker={`${conversationId}:${messages.length}`} />
       </div>
     </div>
   );

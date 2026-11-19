@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { Headphones } from "lucide-react";
 
-import { Composer } from "@/components/support/team/Composer";
+import { ReplyLauncher } from "@/components/support/team/ReplyLauncher";
 import { ConversationHeader } from "@/components/support/team/ConversationHeader";
 import {
   ConversationList,
@@ -106,6 +106,7 @@ function loadConversation(id: string) {
           body: true,
           createdAt: true,
           deletedAt: true,
+          metadataJson: true,
           // Never select attachment `data` here: the bytes belong to the
           // download route, not to every inbox render.
           attachments: { select: { id: true, fileName: true, size: true } },
@@ -329,6 +330,7 @@ export default async function SupportTeamPage(props: {
               <MessageThread
                 conversationId={selected.id}
                 subject={selected.subject}
+                customerEmail={selected.customerEmail}
                 messages={selected.messages}
                 now={now}
               />
@@ -339,7 +341,8 @@ export default async function SupportTeamPage(props: {
                   </p>
                 </div>
               ) : (
-                <Composer
+                <ReplyLauncher
+                  key={selected.id}
                   conversationId={selected.id}
                   customerName={selected.customerName || "the customer"}
                   channel={selected.channel}

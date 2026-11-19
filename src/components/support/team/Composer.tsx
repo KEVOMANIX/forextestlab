@@ -28,14 +28,23 @@ export function Composer({
   channel,
   savedReplies,
   closed,
+  initialMode = "reply",
+  autoFocus = false,
 }: {
   conversationId: string;
   customerName: string;
   channel: string;
   savedReplies: SavedReply[];
   closed: boolean;
+  initialMode?: "reply" | "note";
+  autoFocus?: boolean;
 }) {
-  const [mode, setMode] = useState<"reply" | "note">("reply");
+  const [mode, setMode] = useState<"reply" | "note">(initialMode);
+  useEffect(() => {
+    if (autoFocus) textareaRef.current?.focus();
+    // Focus once, when the composer opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [value, setValue] = useState("");
   const [saveOpen, setSaveOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);

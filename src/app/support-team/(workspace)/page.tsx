@@ -161,6 +161,14 @@ export default async function SupportTeamPage(props: {
   // click. Ten independent reads do not need one snapshot. The selected
   // conversation loads alongside them whenever the URL names it.
   const selectedFromUrl = searchParams?.conversation ?? null;
+  // Opening a conversation reads it (like Gmail), before the counts load so
+  // the list and badges already show it as read.
+  if (selectedFromUrl) {
+    await prisma.supportConversation.updateMany({
+      where: { id: selectedFromUrl, agentUnreadCount: { gt: 0 } },
+      data: { agentUnreadCount: 0, agentLastReadAt: new Date() },
+    });
+  }
   const [
     [
       conversations,

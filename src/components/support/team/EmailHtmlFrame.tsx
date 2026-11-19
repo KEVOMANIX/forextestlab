@@ -51,6 +51,13 @@ export function EmailHtmlFrame({
 
   return (
     <>
+      {state === "loading" && (
+        <div aria-hidden className="space-y-2.5 rounded-lg bg-white/[0.03] p-5">
+          <div className="h-3 w-3/5 animate-pulse rounded bg-white/[0.08]" />
+          <div className="h-3 w-4/5 animate-pulse rounded bg-white/[0.08]" />
+          <div className="h-3 w-2/5 animate-pulse rounded bg-white/[0.08]" />
+        </div>
+      )}
       {state !== "text" && (
         <iframe
           ref={ref}
@@ -58,11 +65,11 @@ export function EmailHtmlFrame({
           src={`/api/support/messages/${messageId}/html`}
           sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
           referrerPolicy="no-referrer"
-          style={{ height }}
-          className={`w-full rounded-lg border-0 bg-white ${state === "loading" ? "invisible absolute" : ""}`}
+          style={{ height: state === "html" ? height : 0 }}
+          className="block w-full rounded-lg border-0 bg-white"
         />
       )}
-      {state !== "html" && children}
+      {state === "text" && children}
     </>
   );
 }

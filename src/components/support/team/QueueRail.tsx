@@ -3,6 +3,9 @@ import {
   Clock,
   Inbox,
   Layers,
+  Send,
+  Star,
+  Tag,
   UserRoundCheck,
 } from "lucide-react";
 import { SettingsIcon } from "@/components/icons/SettingsIcon";
@@ -10,10 +13,12 @@ import Link from "next/link";
 
 import { SupportTeamRefresh } from "@/components/support/SupportTeamRefresh";
 import { InboxSound } from "./InboxSound";
+import { NewConversation } from "./NewConversation";
 
 export type QueueCounts = {
   waiting: number;
   mine: number;
+  starred: number;
   snoozed: number;
   resolved: number;
   all: number;
@@ -22,91 +27,97 @@ export type QueueCounts = {
 const QUEUES = [
   { id: "waiting", label: "Inbox", icon: Inbox },
   { id: "mine", label: "Assigned to me", icon: UserRoundCheck },
+  { id: "starred", label: "Starred", icon: Star },
   { id: "snoozed", label: "Snoozed", icon: Clock },
   { id: "resolved", label: "Resolved", icon: CheckCircle2 },
+  { id: "sent", label: "Sent", icon: Send },
   { id: "all", label: "All conversations", icon: Layers },
 ] as const;
 
+export type RailLabel = { id: string; name: string; color: string };
+
 /**
- * Navigation only. Operations metrics, SLA statistics, agent workload and team
- * access management deliberately do not live beside an open customer
- * conversation; account administration stays in /admin.
+ * Gmail-style navigation: a compose button, the queues with their counts, and
+ * the conversation labels (support tags) underneath. Account administration
+ * stays in /admin.
  */
 export function QueueRail({
   queue,
   counts,
-  query,
   unread,
+  labels,
+  activeLabel,
 }: {
   queue: string;
   counts: QueueCounts;
-  query: string;
   unread: number;
+  labels: RailLabel[];
+  activeLabel: string | null;
 }) {
-  const suffix = query ? `&q=${encodeURIComponent(query)}` : "";
+  const item = (active: boolean) =>
+    `flex items-center gap-3 rounded-r-full py-2 pl-5 pr-4 text-[13px] transition-colors ${
+      active
+        ? "bg-brand-400/[0.14] font-semibold text-brand-200"
+        : "app-muted hover:bg-white/[0.05] hover:text-[var(--app-text)]"
+    }`;
+
   return (
     <nav
       aria-label="Support queues"
-      className="hidden w-[72px] shrink-0 flex-col border-r app-border bg-[var(--app-panel-2)] lg:flex min-[1440px]:w-[216px]"
+      className="hidden w-[232px] shrink-0 flex-col bg-[var(--app-bg)] lg:flex"
     >
-      <div className="flex h-16 shrink-0 items-center justify-center gap-2 border-b app-border px-3 min-[1440px]:justify-between min-[1440px]:px-4">
-        <span className="hidden text-sm font-semibold min-[1440px]:inline">
-          Team inbox
-        </span>
+      <div className="flex items-center justify-between px-3 pb-3 pt-4">
+        <NewConversation variant="compose" />
         <span className="flex items-center gap-1">
           <SupportTeamRefresh />
           <InboxSound unread={unread} />
         </span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2 min-[1440px]:p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-3 pr-3">
         {QUEUES.map(({ id, label, icon: Icon }) => {
-          const active = queue === id;
-          const count = counts[id];
+          const active = !activeLabel && (queue === id || (id === "waiting" && queue === "customer"));
+          const count = id in counts ? counts[id as keyof QueueCounts] : 0;
           return (
             <Link
               key={id}
-              href={`/support-team?queue=${id}${suffix}`}
-              title={label}
+              href={`/support-team?queue=${id}`}
               aria-current={active ? "page" : undefined}
-              className={`relative mb-0.5 flex items-center justify-center rounded-lg px-2 py-2.5 text-xs font-medium transition-colors min-[1440px]:justify-start min-[1440px]:gap-2.5 min-[1440px]:px-3 ${
-                active
-                  ? "bg-brand-400/[0.09] text-brand-200"
-                  : "app-muted hover:bg-white/[0.04] hover:text-[var(--app-text)]"
-              }`}
+              className={item(active)}
             >
-              {active && (
-                <span
-                  aria-hidden
-                  className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-400"
-                />
-              )}
-              <Icon size={16} aria-hidden className="shrink-0" />
-              <span className="hidden min-w-0 flex-1 truncate min-[1440px]:inline">
-                {label}
-              </span>
-              {count > 0 && (
-                <span
-                  className={`absolute right-1.5 top-1.5 rounded-full px-1.5 text-[10px] font-semibold min-[1440px]:static min-[1440px]:translate-y-0 ${
-                    active ? "bg-brand-400/15 text-brand-200" : "bg-white/[0.06] app-muted"
-                  }`}
-                >
-                  {count > 99 ? "99+" : count}
-                </span>
+              <Icon size={17} aria-hidden className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate">{label}</span>
+              {count > 0 && id !== "all" && id !== "resolved" && (
+                <span className="text-[12px] font-semibold">{count > 999 ? "999+" : count}</span>
               )}
             </Link>
           );
         })}
+
+        <div className="mb-1 mt-5 flex items-center justify-between pl-5 pr-2 text-[13px] font-semibold">
+          Labels
+        </div>
+        {labels.length ? (
+          labels.map((label) => (
+            <Link
+              key={label.id}
+              href={`/support-team?queue=all&label=${label.id}`}
+              aria-current={activeLabel === label.id ? "page" : undefined}
+              className={item(activeLabel === label.id)}
+            >
+              <Tag size={15} aria-hidden className="shrink-0" style={{ color: label.color }} />
+              <span className="min-w-0 flex-1 truncate capitalize">{label.name}</span>
+            </Link>
+          ))
+        ) : (
+          <p className="pl-5 text-[12px] app-muted">Labels added to conversations show here.</p>
+        )}
       </div>
 
-      <div className="shrink-0 border-t app-border p-2 min-[1440px]:p-3">
-        <Link
-          href="/admin"
-          title="Admin settings"
-          className="flex items-center justify-center rounded-lg px-2 py-2.5 text-xs font-medium app-muted transition-colors hover:bg-white/[0.04] hover:text-[var(--app-text)] min-[1440px]:justify-start min-[1440px]:gap-2.5 min-[1440px]:px-3"
-        >
-          <SettingsIcon size={16} aria-hidden className="shrink-0" />
-          <span className="hidden min-[1440px]:inline">Settings and admin</span>
+      <div className="shrink-0 pb-3 pr-3">
+        <Link href="/admin" className={item(false)}>
+          <SettingsIcon size={17} aria-hidden className="shrink-0" />
+          <span>Settings and admin</span>
         </Link>
       </div>
     </nav>

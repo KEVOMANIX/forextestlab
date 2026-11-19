@@ -1,7 +1,7 @@
-import { ArrowLeft, CheckCircle2, Download, MoreHorizontal, UserPlus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, MoreHorizontal, Star, UserPlus } from "lucide-react";
 import Link from "next/link";
 
-import { assignConversation, snoozeConversation, updateConversation } from "@/app/support-team/actions";
+import { assignConversation, snoozeConversation, toggleConversationStar, updateConversation } from "@/app/support-team/actions";
 import { SUPPORT_PRIORITIES, SUPPORT_STATUSES } from "@/lib/support";
 import { AutoSubmitSelect, DetailsDrawer, PopoverMenu, SubmitButton } from "./controls";
 import { initials, priorityTone, statusTone } from "./format";
@@ -16,6 +16,7 @@ export function ConversationHeader({
   conversation: {
     id: string;
     subject: string;
+    starred: boolean;
     status: string;
     priority: string;
     category: string;
@@ -47,17 +48,35 @@ export function ConversationHeader({
     .join(" · ");
 
   return (
-    <header className="flex h-[68px] shrink-0 items-center gap-3 border-b app-border bg-[var(--app-panel)] px-4 sm:px-5">
+    <header className="flex h-[60px] shrink-0 items-center gap-2 border-b app-border bg-[var(--app-panel)] px-3 sm:px-4">
       <Link
         href={backHref}
         aria-label="Back to inbox"
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg app-muted transition-colors hover:bg-white/[0.06] hover:text-[var(--app-text)] lg:hidden"
+        title="Back to inbox"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full app-muted transition-colors hover:bg-white/[0.06] hover:text-[var(--app-text)]"
       >
-        <ArrowLeft size={16} aria-hidden />
+        <ArrowLeft size={18} aria-hidden />
       </Link>
 
+      <form action={toggleConversationStar} className="shrink-0">
+        <input type="hidden" name="conversationId" value={conversation.id} />
+        <input type="hidden" name="starred" value={String(!conversation.starred)} />
+        <button
+          type="submit"
+          disabled={readOnly}
+          aria-label={conversation.starred ? "Unstar" : "Star"}
+          title={conversation.starred ? "Unstar" : "Star"}
+          className="grid h-9 w-9 place-items-center rounded-full transition-colors hover:bg-white/[0.06]"
+        >
+          <Star
+            size={17}
+            aria-hidden
+            className={conversation.starred ? "fill-amber-300 text-amber-300" : "app-muted"}
+          />
+        </button>
+      </form>
+
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-sm font-semibold">{conversation.subject}</h1>
         <p className="mt-0.5 truncate text-[11px] app-muted" title={meta}>
           {meta}
         </p>

@@ -23,6 +23,9 @@ const ACTIVE_STATUSES = [
 
 const QUEUE_LABELS: Record<string, string> = {
   waiting: "Inbox",
+  customer: "Waiting on customer",
+  starred: "Starred",
+  sent: "Sent",
   mine: "Assigned to me",
   snoozed: "Snoozed",
   resolved: "Resolved",
@@ -35,6 +38,11 @@ function queueWhere(queue: string, agentId: string): Prisma.SupportConversationW
     return { assignedAgentId: agentId, status: { in: [...ACTIVE_STATUSES] } };
   }
   if (queue === "snoozed") return { status: "snoozed" };
+  if (queue === "customer") return { status: "waiting_customer" };
+  if (queue === "starred") return { starred: true };
+  if (queue === "sent") {
+    return { messages: { some: { senderType: "agent", visibility: { not: "internal" } } } };
+  }
   if (queue === "resolved") return { status: { in: ["resolved", "closed"] } };
   if (queue === "all") return {};
   if (queue === "unassigned") {
@@ -74,6 +82,7 @@ function loadConversation(id: string) {
       id: true,
       userId: true,
       subject: true,
+      starred: true,
       status: true,
       priority: true,
       category: true,
@@ -112,6 +121,7 @@ export default async function SupportTeamPage(props: {
     conversation?: string;
     q?: string;
     sort?: string;
+    label?: string;
   }>;
 }) {
   const searchParams = await props.searchParams;
@@ -124,7 +134,11 @@ export default async function SupportTeamPage(props: {
     : "recent";
   const readOnly = agent.role === "viewer";
 
-  const base = queueWhere(queue, agent.id);
+  const label = searchParams?.label?.slice(0, 40) || null;
+  const queueBase = queueWhere(queue, agent.id);
+  const base: Prisma.SupportConversationWhereInput = label
+    ? { AND: [queueBase, { tags: { some: { tagId: label } } }] }
+    : queueBase;
   const where: Prisma.SupportConversationWhereInput = query
     ? {
         AND: [
@@ -158,6 +172,9 @@ export default async function SupportTeamPage(props: {
       agents,
       savedReplies,
       unreadTotal,
+      starredCount,
+      customerCount,
+      labels,
     ],
     preloaded,
   ] = await Promise.all([Promise.all([
@@ -172,6 +189,7 @@ export default async function SupportTeamPage(props: {
           customerEmail: true,
           status: true,
           priority: true,
+          starred: true,
           agentUnreadCount: true,
           createdAt: true,
           lastMessageAt: true,
@@ -181,6 +199,8 @@ export default async function SupportTeamPage(props: {
             take: 1,
             select: { body: true },
           },
+          tags: { select: { tag: { select: { id: true, name: true, color: true } } } },
+          _count: { select: { messages: true } },
         },
       }),
       prisma.supportConversation.count({ where }),
@@ -205,18 +225,27 @@ export default async function SupportTeamPage(props: {
       // Total unread customer messages: the notification chime watches this
       // number across the poller's re-renders.
       prisma.supportConversation.aggregate({ _sum: { agentUnreadCount: true } }),
+      prisma.supportConversation.count({ where: queueWhere("starred", agent.id) }),
+      prisma.supportConversation.count({ where: queueWhere("customer", agent.id) }),
+      prisma.supportTag.findMany({
+        where: { conversations: { some: {} } },
+        orderBy: { name: "asc" },
+        take: 30,
+        select: { id: true, name: true, color: true },
+      }),
     ]), selectedFromUrl ? loadConversation(selectedFromUrl) : null]);
 
   const queueCounts = {
     waiting: waitingCount,
     mine: mineCount,
+    starred: starredCount,
     snoozed: snoozedCount,
     resolved: resolvedCount,
     all: allCount,
   };
 
-  const selectedId = selectedFromUrl ?? conversations[0]?.id ?? null;
-  const selected = selectedFromUrl ? preloaded : selectedId ? await loadConversation(selectedId) : null;
+  // Gmail-style: the list fills the screen until a conversation is opened.
+  const selected = selectedFromUrl ? preloaded : null;
 
   const customer = selected?.userId
     ? await prisma.userProfile.findUnique({
@@ -243,10 +272,9 @@ export default async function SupportTeamPage(props: {
     : null;
 
   const now = Date.now();
-  const threadFocus = Boolean(searchParams?.conversation);
   const listHref = `/support-team?queue=${queue}&sort=${sort}${
     query ? `&q=${encodeURIComponent(query)}` : ""
-  }`;
+  }${label ? `&label=${label}` : ""}`;
   const linkedSession =
     customer?.sessions.find((session) => session.id === selected?.linkedSessionId) ??
     null;
@@ -256,86 +284,85 @@ export default async function SupportTeamPage(props: {
       <QueueRail
         queue={queue}
         counts={queueCounts}
-        query={query}
         unread={unreadTotal._sum.agentUnreadCount ?? 0}
+        labels={labels}
+        activeLabel={label}
       />
 
-      <ConversationList
-        conversations={conversations}
-        queue={queue}
-        queueLabel={QUEUE_LABELS[queue] ?? "Conversations"}
-        queueCount={queueCount}
-        query={query}
-        sort={sort}
-        selectedId={selectedId}
-        now={now}
-        mobileHidden={threadFocus}
-      />
-
-      <section
-        className={`min-h-0 min-w-0 flex-1 flex-col bg-[var(--app-bg)] lg:flex ${
-          threadFocus ? "flex" : "hidden"
-        }`}
-      >
-        {selected ? (
-          <>
-            <ConversationHeader
-              conversation={selected}
-              agentId={agent.id}
-              backHref={listHref}
-              readOnly={readOnly}
-              details={
-                <DetailsPanel
-                  conversation={selected}
-                  customer={customer}
-                  context={parseContext(selected.contextJson)}
-                  agents={agents}
-                  linkedSession={linkedSession}
-                  readOnly={readOnly}
-                />
-              }
-            />
-            <MessageThread
-              conversationId={selected.id}
-              messages={selected.messages}
-              now={now}
-            />
-            {readOnly ? (
-              <div className="shrink-0 border-t app-border px-6 py-5">
-                <p className="mx-auto max-w-[800px] rounded-xl border app-border bg-[var(--app-panel-2)] px-4 py-3 text-center text-xs app-muted">
-                  Your support role is read-only, so replies are disabled.
-                </p>
-              </div>
-            ) : (
-              <Composer
-                conversationId={selected.id}
-                customerName={selected.customerName || "the customer"}
-                channel={selected.channel}
-                savedReplies={savedReplies}
-                closed={selected.status === "closed"}
+      {!selectedFromUrl ? (
+        <ConversationList
+          conversations={conversations}
+          queue={queue}
+          queueLabel={
+            label
+              ? labels.find((item) => item.id === label)?.name ?? "Label"
+              : QUEUE_LABELS[queue] ?? "Conversations"
+          }
+          queueCount={queueCount}
+          query={query}
+          sort={sort}
+          label={label}
+          now={now}
+          readOnly={readOnly}
+          tabCounts={{ waiting: waitingCount, customer: customerCount }}
+        />
+      ) : (
+        <section className="mb-3 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--app-panel)] lg:mr-3 lg:mt-3 lg:rounded-2xl">
+          {selected ? (
+            <>
+              <ConversationHeader
+                conversation={selected}
+                agentId={agent.id}
+                backHref={listHref}
+                readOnly={readOnly}
+                details={
+                  <DetailsPanel
+                    conversation={selected}
+                    customer={customer}
+                    context={parseContext(selected.contextJson)}
+                    agents={agents}
+                    linkedSession={linkedSession}
+                    readOnly={readOnly}
+                  />
+                }
               />
-            )}
-          </>
-        ) : (
-          <div className="grid min-h-0 flex-1 place-items-center px-6 text-center">
-            <div>
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-white/[0.05]">
-                <Headphones size={20} aria-hidden className="app-muted" />
-              </span>
-              <p className="mt-3 text-sm font-medium">
-                {conversations.length
-                  ? "Select a conversation"
-                  : "Nothing waiting in this queue"}
-              </p>
-              <p className="mt-1 text-xs app-muted">
-                {conversations.length
-                  ? "Choose a customer from the list to read and reply."
-                  : "Switch queues from the rail to see other conversations."}
-              </p>
+              <MessageThread
+                conversationId={selected.id}
+                subject={selected.subject}
+                messages={selected.messages}
+                now={now}
+              />
+              {readOnly ? (
+                <div className="shrink-0 border-t app-border px-6 py-5">
+                  <p className="mx-auto max-w-[800px] rounded-xl border app-border bg-[var(--app-panel-2)] px-4 py-3 text-center text-xs app-muted">
+                    Your support role is read-only, so replies are disabled.
+                  </p>
+                </div>
+              ) : (
+                <Composer
+                  conversationId={selected.id}
+                  customerName={selected.customerName || "the customer"}
+                  channel={selected.channel}
+                  savedReplies={savedReplies}
+                  closed={selected.status === "closed"}
+                />
+              )}
+            </>
+          ) : (
+            <div className="grid min-h-0 flex-1 place-items-center px-6 text-center">
+              <div>
+                <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-white/[0.05]">
+                  <Headphones size={20} aria-hidden className="app-muted" />
+                </span>
+                <p className="mt-3 text-sm font-medium">This conversation no longer exists</p>
+                <a href={listHref} className="mt-2 inline-block text-xs text-brand-200 underline">
+                  Back to the inbox
+                </a>
+              </div>
             </div>
-          </div>
-        )}
-      </section>
+          )}
+        </section>
+      )}
     </main>
   );
 }

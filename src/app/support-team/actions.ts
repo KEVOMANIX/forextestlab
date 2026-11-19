@@ -325,6 +325,19 @@ export async function snoozeConversation(formData: FormData) {
   refresh(conversationId);
 }
 
+export async function toggleConversationStar(formData: FormData) {
+  const actor = await supportWriter();
+  const conversationId = clean(formData.get("conversationId"), 100);
+  if (!conversationId) return;
+  const starred = formData.get("starred") === "true";
+  await prisma.supportConversation.update({
+    where: { id: conversationId },
+    data: { starred },
+  });
+  await audit(actor, starred ? "support.starred" : "support.unstarred", conversationId);
+  refresh(conversationId);
+}
+
 export async function addConversationTag(formData: FormData) {
   const actor = await supportWriter();
   const conversationId = clean(formData.get("conversationId"), 100);

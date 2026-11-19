@@ -180,6 +180,7 @@ model SupportConversation {
   snoozedUntil               DateTime?
   resolvedAt                 DateTime?
   closedAt                   DateTime?
+  starred                    Boolean                  @default(false)
   satisfactionScore          Int?
   satisfactionComment        String?
   satisfactionAt             DateTime?

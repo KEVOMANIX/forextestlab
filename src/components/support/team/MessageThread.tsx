@@ -2,7 +2,7 @@ import { MessagesSquare, Paperclip } from "lucide-react";
 
 import { ScrollToLatest } from "@/components/support/ScrollToLatest";
 import { formatNewYorkDateTime } from "@/lib/date-time";
-import { dayKey, formatBytes } from "./format";
+import { formatBytes, initials, shortAgo } from "./format";
 
 export type ThreadMessage = {
   id: string;
@@ -15,30 +15,14 @@ export type ThreadMessage = {
   attachments: Array<{ id: string; fileName: string; size: number }>;
 };
 
-const GROUP_WINDOW_MS = 5 * 60_000;
-
-function dayLabel(value: Date, now: number) {
-  const today = new Date(now);
-  const days = Math.round(
-    (Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
-      Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())) /
-      86_400_000,
-  );
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  return value.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: days > 300 ? "numeric" : undefined,
-  });
-}
-
 export function MessageThread({
   conversationId,
+  subject,
   messages,
   now,
 }: {
   conversationId: string;
+  subject?: string;
   messages: ThreadMessage[];
   now: number;
 }) {
@@ -58,96 +42,82 @@ export function MessageThread({
     );
   }
 
+  // Gmail-style: every message is a full-width row; older ones fold to a
+  // one-line preview and the newest stays open. Clicking a row toggles it.
+  const lastIndex = messages.length - 1;
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
-      <div className="mx-auto flex w-full max-w-[800px] flex-col gap-1">
+    <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-6 sm:px-6">
+      <div className="mx-auto flex w-full max-w-[1100px] flex-col">
+        {subject && (
+          <h1 className="px-3 pb-4 pt-5 text-xl font-normal sm:pl-[68px] sm:text-[22px]">{subject}</h1>
+        )}
         {messages.map((message, index) => {
-          const previous = messages[index - 1];
-          const newDay =
-            !previous || dayKey(previous.createdAt) !== dayKey(message.createdAt);
           const internal = message.visibility === "internal";
           const fromCustomer = message.senderType === "customer";
-          // Consecutive messages from the same voice read as one turn, so only
-          // the first of a run carries the name and timestamp.
-          const grouped =
-            !newDay &&
-            !!previous &&
-            previous.senderType === message.senderType &&
-            (previous.visibility === "internal") === internal &&
-            message.createdAt.getTime() - previous.createdAt.getTime() <
-              GROUP_WINDOW_MS;
-
+          const system = message.senderType === "system";
+          const name = internal ? `Internal note · ${message.senderName}` : message.senderName;
+          const avatarTone = internal
+            ? "bg-amber-400 text-surface-950"
+            : fromCustomer
+              ? "bg-[#c0502b] text-white"
+              : system
+                ? "bg-slate-500 text-white"
+                : "bg-brand-500 text-surface-950";
+          const body = message.deletedAt ? "This message was deleted." : message.body;
           return (
-            <div key={message.id}>
-              {newDay && (
-                <div className="my-5 flex items-center gap-3 first:mt-0">
-                  <span className="h-px flex-1 bg-[var(--app-border)]" />
-                  <span className="text-[11px] app-muted">
-                    {dayLabel(message.createdAt, now)}
+            <details
+              key={message.id}
+              open={index === lastIndex || undefined}
+              className={`group border-b app-border ${
+                internal ? "rounded-lg border-l-[3px] border-l-amber-300/70 bg-amber-300/[0.06]" : ""
+              }`}
+            >
+              <summary className="flex cursor-pointer list-none items-start gap-3 px-3 py-3 [&::-webkit-details-marker]:hidden">
+                <span
+                  className={`grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-semibold ${avatarTone}`}
+                >
+                  {initials(message.senderName || "?")}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline gap-3">
+                    <strong className={`truncate text-sm font-semibold ${internal ? "text-amber-200" : ""}`}>
+                      {name}
+                    </strong>
+                    <span className="ml-auto shrink-0 text-xs app-muted">
+                      {formatNewYorkDateTime(message.createdAt)}
+                      <span className="hidden sm:inline"> ({shortAgo(message.createdAt, now)} ago)</span>
+                    </span>
                   </span>
-                  <span className="h-px flex-1 bg-[var(--app-border)]" />
-                </div>
-              )}
-              <div
-                className={`flex ${grouped ? "mt-1" : "mt-4"} ${
-                  internal ? "justify-center" : fromCustomer ? "justify-start" : "justify-end"
-                }`}
-              >
-                <article
-                  className={`rounded-[13px] px-4 py-3 ${
-                    internal
-                      ? "w-full border border-amber-300/25 bg-amber-300/[0.07]"
-                      : fromCustomer
-                        ? "max-w-[68%] border app-border bg-[var(--app-panel-solid)]"
-                        : "max-w-[68%] border border-brand-400/25 bg-brand-500/[0.12]"
+                  <span className="block truncate text-[13px] app-muted group-open:hidden">
+                    {body.replace(/\s+/g, " ")}
+                  </span>
+                  <span className="hidden text-xs app-muted group-open:block">
+                    {internal ? "Only the support team can see this" : fromCustomer ? "to support" : "to customer"}
+                  </span>
+                </span>
+              </summary>
+              <div className="pb-5 pl-3 pr-4 sm:pl-[68px]">
+                <p
+                  className={`whitespace-pre-wrap break-words text-sm leading-[1.65] ${
+                    message.deletedAt ? "italic app-muted" : ""
                   }`}
                 >
-                  {!grouped && (
-                    <div className="mb-1.5 flex items-baseline justify-between gap-4">
-                      <strong
-                        className={`text-[11px] font-semibold ${
-                          internal
-                            ? "text-amber-200"
-                            : fromCustomer
-                              ? "app-muted"
-                              : "text-brand-200"
-                        }`}
-                      >
-                        {internal
-                          ? `Internal note · ${message.senderName}`
-                          : message.senderName}
-                      </strong>
-                      <span className="shrink-0 text-[11px] app-muted">
-                        {formatNewYorkDateTime(message.createdAt)}
-                      </span>
-                    </div>
-                  )}
-                  <p
-                    className={`whitespace-pre-wrap break-words text-sm leading-[1.55] ${
-                      message.deletedAt ? "italic app-muted" : ""
-                    }`}
-                  >
-                    {message.deletedAt ? "This message was deleted." : message.body}
-                  </p>
-                  {!message.deletedAt &&
-                    message.attachments.map((attachment) => (
-                      <a
-                        key={attachment.id}
-                        href={`/api/support/attachments/${attachment.id}`}
-                        className="mt-2 flex items-center gap-2 rounded-lg border app-border px-3 py-2 text-[11px] transition-colors hover:border-brand-400/40"
-                      >
-                        <Paperclip size={12} aria-hidden className="shrink-0 app-muted" />
-                        <span className="min-w-0 flex-1 truncate">
-                          {attachment.fileName}
-                        </span>
-                        <span className="shrink-0 app-muted">
-                          {formatBytes(attachment.size)}
-                        </span>
-                      </a>
-                    ))}
-                </article>
+                  {body}
+                </p>
+                {!message.deletedAt &&
+                  message.attachments.map((attachment) => (
+                    <a
+                      key={attachment.id}
+                      href={`/api/support/attachments/${attachment.id}`}
+                      className="mt-3 flex max-w-sm items-center gap-2 rounded-lg border app-border px-3 py-2 text-[12px] transition-colors hover:border-brand-400/40"
+                    >
+                      <Paperclip size={13} aria-hidden className="shrink-0 app-muted" />
+                      <span className="min-w-0 flex-1 truncate">{attachment.fileName}</span>
+                      <span className="shrink-0 app-muted">{formatBytes(attachment.size)}</span>
+                    </a>
+                  ))}
               </div>
-            </div>
+            </details>
           );
         })}
         <ScrollToLatest marker={`${conversationId}:${messages.length}`} />

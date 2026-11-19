@@ -24,7 +24,7 @@ type SendResult = { ok: boolean; message?: string; conversationId?: string };
  * because that is what makes the message reachable — the widget finds a
  * conversation by the customer's user id.
  */
-export function NewConversation() {
+export function NewConversation({ variant = "small" }: { variant?: "small" | "compose" } = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -125,9 +125,14 @@ export function NewConversation() {
           setOpen(true);
           window.setTimeout(() => searchRef.current?.focus(), 50);
         }}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-2.5 text-[11px] font-bold text-surface-950 transition-colors hover:bg-brand-400"
+        className={
+          variant === "compose"
+            ? "inline-flex items-center gap-3 rounded-2xl bg-brand-500/20 px-5 py-3.5 text-sm font-semibold text-brand-200 shadow-sm transition-colors hover:bg-brand-500/30"
+            : "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-2.5 text-[11px] font-bold text-surface-950 transition-colors hover:bg-brand-400"
+        }
       >
-        <PenLine size={13} aria-hidden /> New
+        <PenLine size={variant === "compose" ? 18 : 13} aria-hidden />
+        {variant === "compose" ? "New message" : "New"}
       </button>
 
       <Modal open={open} onClose={close} title="Message a customer">

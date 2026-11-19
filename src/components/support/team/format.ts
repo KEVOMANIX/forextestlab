@@ -73,3 +73,18 @@ export function formatBytes(size: number) {
 export function dayKey(value: Date) {
   return value.toISOString().slice(0, 10);
 }
+
+/**
+ * Plain-text email bodies often carry Outlook conditional comments
+ * (`<!--[if !mso]><!-->`), stray tags and long runs of blank lines. Strip those
+ * for display only; the stored message is untouched.
+ */
+export function cleanMessageBody(value: string) {
+  return value
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<!\[endif\]-->|<!--\[if[^\]]*\]>/gi, "")
+    .replace(/<\/?(?:div|span|p|br|table|tr|td|tbody|center|font|o:p)[^>]*>/gi, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}

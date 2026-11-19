@@ -2,7 +2,7 @@ import { MessagesSquare, Paperclip } from "lucide-react";
 
 import { ScrollToLatest } from "@/components/support/ScrollToLatest";
 import { formatNewYorkDateTime } from "@/lib/date-time";
-import { formatBytes, initials, shortAgo } from "./format";
+import { cleanMessageBody, formatBytes, initials, shortAgo } from "./format";
 
 export type ThreadMessage = {
   id: string;
@@ -63,7 +63,7 @@ export function MessageThread({
               : system
                 ? "bg-slate-500 text-white"
                 : "bg-brand-500 text-surface-950";
-          const body = message.deletedAt ? "This message was deleted." : message.body;
+          const body = message.deletedAt ? "This message was deleted." : cleanMessageBody(message.body);
           return (
             <details
               key={message.id}

@@ -66,9 +66,9 @@ export function QueueRail({
       aria-label="Support queues"
       className="hidden w-[232px] shrink-0 flex-col bg-[var(--app-bg)] lg:flex"
     >
-      <div className="flex items-center justify-between px-3 pb-3 pt-4">
+      <div className="px-3 pb-3 pt-4">
         <NewConversation variant="compose" />
-        <span className="flex items-center gap-1">
+        <span className="mt-2 flex items-center gap-1 pl-2">
           <SupportTeamRefresh />
           <InboxSound unread={unread} />
         </span>

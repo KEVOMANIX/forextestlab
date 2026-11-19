@@ -127,7 +127,7 @@ export function NewConversation({ variant = "small" }: { variant?: "small" | "co
         }}
         className={
           variant === "compose"
-            ? "inline-flex items-center gap-3 rounded-2xl bg-brand-500/20 px-5 py-3.5 text-sm font-semibold text-brand-200 shadow-sm transition-colors hover:bg-brand-500/30"
+            ? "inline-flex items-center gap-3 whitespace-nowrap rounded-2xl bg-brand-500/20 px-6 py-4 text-sm font-semibold text-brand-200 shadow-sm transition-colors hover:bg-brand-500/30"
             : "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-brand-500 px-2.5 text-[11px] font-bold text-surface-950 transition-colors hover:bg-brand-400"
         }
       >

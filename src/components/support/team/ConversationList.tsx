@@ -4,7 +4,7 @@ import Link from "next/link";
 import { toggleConversationStar } from "@/app/support-team/actions";
 import { NewConversation } from "./NewConversation";
 import { PopoverMenu } from "./controls";
-import { isOverdue } from "./format";
+import { cleanMessageBody, isOverdue } from "./format";
 
 export type ListConversation = {
   id: string;
@@ -218,7 +218,7 @@ export function ConversationList({
                     <span className={unread ? "font-bold" : ""}>{conversation.subject}</span>
                     <span className="app-muted">
                       {" - "}
-                      {conversation.messages[0]?.body.replace(/\s+/g, " ") || "No messages yet"}
+                      {cleanMessageBody(conversation.messages[0]?.body ?? "").replace(/\s+/g, " ") || "No messages yet"}
                     </span>
                   </span>
                   <span

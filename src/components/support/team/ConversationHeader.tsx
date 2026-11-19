@@ -39,7 +39,7 @@ export function ConversationHeader({
   const finished =
     conversation.status === "resolved" || conversation.status === "closed";
   const meta = [
-    conversation.customerName,
+    conversation.customerName !== conversation.customerEmail ? conversation.customerName : null,
     conversation.customerEmail,
     conversation.category.replaceAll("_", " "),
     conversation.channel,

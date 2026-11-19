@@ -215,7 +215,10 @@ export default async function SupportTeamPage(props: {
       prisma.supportConversation.count({ where }),
       // Five cheap counts for the rail badges, in place of the 1,000
       // conversation rows the old operations panel loaded on every render.
-      prisma.supportConversation.count({ where: queueWhere("waiting", agent.id) }),
+      // Inbox badge and "new" chip count unread conversations, as in Gmail.
+      prisma.supportConversation.count({
+        where: { AND: [queueWhere("waiting", agent.id), { agentUnreadCount: { gt: 0 } }] },
+      }),
       prisma.supportConversation.count({ where: queueWhere("mine", agent.id) }),
       prisma.supportConversation.count({ where: queueWhere("snoozed", agent.id) }),
       prisma.supportConversation.count({ where: queueWhere("resolved", agent.id) }),

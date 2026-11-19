@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 
 import { Logo } from "@/components/Logo";
 import { AppThemeProvider } from "@/components/app/ThemeContext";
 import { initials } from "@/components/support/team/format";
+import { SupportThemeToggle } from "@/components/support/team/SupportThemeToggle";
 import { requireSupportAgent } from "@/lib/support";
 
 export const metadata: Metadata = {
@@ -24,14 +26,17 @@ export default async function SupportTeamLayout({
   children: React.ReactNode;
 }) {
   const { agent } = await requireSupportAgent();
+  // Light by default; the header switch stores the choice in its own cookie.
+  const theme = (await cookies()).get("ftl_support_theme")?.value === "dark" ? "dark" : "light";
   return (
-    <AppThemeProvider forcedTheme="light">
+    <AppThemeProvider forcedTheme={theme}>
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-[var(--app-bg)] text-[var(--app-text)]">
         <header className="flex h-16 shrink-0 items-center gap-3 border-b app-border bg-[var(--app-panel)] px-4 sm:px-5">
           <Logo className="h-7" />
           <span className="h-5 w-px bg-[var(--app-border)]" />
           <span className="text-sm font-semibold">Support</span>
           <div className="ml-auto flex items-center gap-3">
+            <SupportThemeToggle theme={theme} />
             <Link
               href="/admin"
               aria-label="Admin"

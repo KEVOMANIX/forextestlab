@@ -1,27 +1,48 @@
 ---
 title: Your first backtest in ForexTestLab
-description: Choose a market, define your rules, and complete a replay session you can review.
+description: Choose a market, write your rules, and complete a replay session you can review, step by step.
 category: Getting started
 date: 2026-10-05
-cover: /product/market-replay-20261008.webp
-coverAlt: A EUR/USD replay session in ForexTestLab
+updated: 2026-11-20
+cover: /learn/new-backtest-setup-20261107.png
+coverAlt: The New backtest form with EUR/USD selected and a one-month replay period
 ctaLabel: Start a backtest
 ctaHref: /app/backtest
+takeaways:
+  - Give the test one question and write the entry, stop, and exit rules before you start.
+  - Free includes three new sessions a month on the seven major pairs, each up to 31 days of history.
+  - Review several trades in the journal before deciding a rule works.
 ---
 ## Give the test one question
 
-Start with a rule you can recognize before the next candle appears. For example: does your entry follow a defined breakout and retest? Write down the entry condition, the invalidation condition, and the exit rule before replaying. Changing these after seeing the outcome makes different trades hard to compare.
+Start with a rule you can recognise before the next candle appears. For example: does a breakout and retest of the Asian range work on EUR/USD? Write down the entry condition, what proves the idea wrong (your stop), and the exit rule before replaying. If you change them after seeing the outcome, the trades are no longer comparable.
 
-Choose an instrument and a date range supported by its available history. The Free plan gives you three new sessions each calendar month on the major pairs, each covering up to 31 days of history. These are historical testing windows, not 31 days of account access.
+## Set up the session
 
-## Set up the replay
+Open [New backtest](/app/backtest). Fill in four sections:
 
-Open New backtest, choose your market and dates, and set the account and execution assumptions. Spread, commission, and slippage can change the result, so keep them consistent across tests you intend to compare.
+1. **Session details**: a name that records the rule and period, such as "EUR/USD · Asian range retest", plus optional tags.
+2. **Markets**: choose a market and its data provider. See [How to choose a market and data source](/learn/choose-market-data-for-a-backtest).
+3. **Session type**: a normal backtesting session, or a prop firm session with profit target and drawdown rules (Pro).
+4. **Replay period**: pick a length and dates inside the **Available** range, or turn on **Blind backtest** to replay a random window with the dates hidden.
 
-Check the chart time zone and timeframe before starting. Use Play to advance continuously or step through candles when a decision needs attention. Go to can move to a date, session opening or closing, or a price level; reaching a destination pauses the replay.
+Set the **Starting account balance**, then press **Start backtest**.
 
-## Complete a decision, then review it
+![New backtest form with Session details, Markets, Session type, starting balance, and Replay period](/learn/new-backtest-setup-20261107.png "The New backtest form. The available range appears after you choose a market.")
 
-Place a simulated order only when your recorded conditions appear. Define position size, stop, and target using the order ticket. After closing the trade, open Journal and record what you saw and whether you followed the plan.
+> [!NOTE]
+> The Free plan gives you three new sessions each calendar month on the seven major pairs, each covering up to 31 days of history from any point in the past. Those 31 days are the length of the test, not a time limit on your account. [Compare plans](/pricing).
 
-Review several trades rather than treating one result as evidence of a reliable method. Keep the test rules and execution assumptions beside your results. Historical simulation is a practice record; it does not establish what a live account will earn.
+## Replay and trade
+
+Check the chart time zone and timeframe first. Press **Play** to advance continuously, or step one candle at a time when a decision needs attention. **Go to** jumps to a session open or close, a date, or a price level, and pauses when it gets there. See [Trading sessions and time zones](/learn/sessions-and-time-zones).
+
+![ForexTestLab replay workspace with charts, replay controls, and the order panel](/product/market-replay-light-20261102.webp "The replay workspace: chart, replay controls, and order ticket.")
+
+Place a simulated order only when the conditions you wrote down appear. Set the position size, stop, and target in the order ticket before you continue. Open positions, with their stop, target, and commission, are listed in the panel under the chart.
+
+## Review the session
+
+After closing trades, open the journal and [review each trade](/learn/review-a-trade): the setup, whether you followed the plan, the outcome, and one lesson. Then look at the session's [analytics](/learn/win-rate-and-expectancy).
+
+Judge the rule on several trades, not one result. Historical simulation is practice; it does not show what a live account will earn.

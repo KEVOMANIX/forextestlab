@@ -1,25 +1,41 @@
 ---
 title: How to test without seeing future candles
-description: Keep your decisions tied to information available at the replay moment.
+description: Keep each decision tied to what the chart showed at that moment, and use rewinds and higher timeframes without leaking hindsight.
 category: Backtesting
 date: 2026-10-05
-ctaLabel: Open your workspace
-ctaHref: /app
+updated: 2026-11-20
+cover: /learn/go-to-rewind-20261120.png
+coverAlt: Go to panel with Backward selected and the warning that rewinding undoes trades opened after the destination
+ctaLabel: Start a blind backtest
+ctaHref: /app/backtest
+takeaways:
+  - Write the reason for a trade before you advance the chart, not after.
+  - Treat an unfinished higher-timeframe candle as provisional; its final shape belongs to the future.
+  - Rewinding undoes later trades, so log every rewind instead of quietly taking a second attempt.
 ---
 ## Decide before advancing
 
-A replay is useful when the entry decision uses only information available at that moment. Write the reason for entering before revealing the next move. Returning to a winning trade and constructing a reason afterward measures hindsight instead of the original decision.
+A replay only measures your method when each entry uses information available at that moment. Write the reason for entering, the stop, and the target before you step forward. If you go back to a winning trade and build a reason afterwards, you are measuring hindsight, not the original decision.
 
-Keep your setup rules fixed during one test. If you discover a useful change, record it as a new version and test that version on another period.
+Keep your setup rules fixed for the whole test. If you find a change worth trying, save it as a new version of the rule and test it on a different period.
+
+> [!TIP]
+> Not knowing the date helps too. A [blind backtest](/learn/blind-backtesting-without-hindsight) replays a random window of real history with the dates hidden, so you cannot recall what happened next.
 
 ## Be careful with higher timeframes
 
-A higher-timeframe candle covers many smaller candles. While that period is still unfolding, its high, low, close, and volume can change. Its final shape should not inform an earlier entry. Treat an unfinished candle as provisional when comparing timeframes.
+A 4-hour or daily candle is built from many smaller candles. While that period is still forming, its high, low, and close keep changing. When you switch timeframe during a replay, the current higher-timeframe candle shows only the part of the period that has already played; its final shape must not inform an earlier entry.
 
-In an interactive trade chart, check the trade's review moment before drawing conclusions. If you suspect that switching timeframe exposes later data, report the session, trade, selected timeframe, and unexpected timestamp to support.
+If you think switching timeframe has shown you prices from after the replay time, note the session, trade, timeframe, and the timestamp that looked wrong, and send it to [support](/support).
 
-## Use navigation deliberately
+## Rewind deliberately
 
-Go to runs forward through the replay when reaching a later destination. Moving backward can undo trades opened after the destination. Write down the intended test sequence so a rewind does not quietly turn an initial decision into a second attempt.
+**Go to** moves the replay to a session open or close, a date and time, or a price level. Moving **Forward** plays through to the destination. Moving **Backward** rewinds, and the panel warns that rewinding undoes trades opened after the destination.
 
-Record missed setups and losing trades as carefully as winners. A review that contains only memorable successes gives an incomplete account of the test.
+![Go to panel on the Date & time tab with Backward selected, listing Previous day, Previous week, and Pick a date and time](/learn/go-to-rewind-20261120.png "Backward destinations rewind the replay. Trades opened after that point are removed.")
+
+A rewind is useful for checking how a setup formed. It is not a way to retake a trade you already saw play out. If you rewind and trade the same move again, write in the journal that it was a second attempt, or mark it **Experimental** so it stays out of your performance figures.
+
+## Record the misses as well as the wins
+
+Log setups you missed and trades that lost with the same care as the winners. A review that only contains memorable successes gives a false picture of the test. In the journal, describe what the chart showed at the decision point; you can check it later on the trade's interactive chart.

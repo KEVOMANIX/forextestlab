@@ -3,8 +3,8 @@ title: Build and test a strategy with AI
 description: Describe a strategy in plain words, let the AI write the Pine Script, check the rules it used, and improve the strategy one change at a time.
 category: Strategy
 date: 2026-11-22
-cover: /learn/ai-strategy-builder-20261122.png
-coverAlt: Strategy Lab with the AI chat on the left, the London breakout test on the chart, and the generated Pine code on the right
+cover: /learn/ai-strategy-builder-20261123.png
+coverAlt: Full-screen Strategy Lab with the AI chat and its live steps on the left, the London breakout test on the chart, and the generated Pine code on the right
 ctaLabel: Open Strategy Lab
 ctaHref: /app/strategies
 takeaways:
@@ -14,11 +14,11 @@ takeaways:
 ---
 ## Open the AI in Strategy Lab
 
-Open [Strategy Lab](/app/strategies) and create or open a strategy. On a wide screen the AI chat sits on the left, the chart and test results in the middle, and the code on the right. On a smaller screen, press **AI** at the top to open the chat over the chart, and press it again to close it.
+Open [Strategy Lab](/app/strategies) and create or open a strategy. The strategy opens full screen: the main menu shrinks to icons so the chart and code get the room. On a wide screen the AI chat sits on the left, the chart and test results in the middle, and the code on the right. Drag the chat's right edge to make it wider or narrower; the width is remembered. On a smaller screen, press **AI** at the top to open the chat over the chart, and press it again to close it.
 
 You don't need to know Pine Script. Every change the AI makes is ordinary code in the editor, so you can read it, edit it yourself, and save it like any other script.
 
-![Strategy Lab with the AI chat, the London breakout test on the chart, and the generated Pine code](/learn/ai-strategy-builder-20261122.png "The AI lists the rules it used, checks the code, and shows the test result in the chat.")
+![Strategy Lab with the AI chat, the London breakout test on the chart, and the generated Pine code](/learn/ai-strategy-builder-20261123.png "The AI lists the rules it used, checks the code, and shows the test result in the chat.")
 
 ## Describe the strategy
 
@@ -31,20 +31,32 @@ Write the rule the way you would explain it to another trader. A good descriptio
 
 For example: *"London breakout of the Asian range. Stop at the other side of the range, target 2R, one trade a day."* If you are not sure where to start, pick one of the example strategies shown in the empty chat.
 
+## Follow what the AI is doing
+
+While the AI works, the chat lists each step as it happens:
+
+1. **Reading your request**.
+2. **Writing the Pine code** when you asked for a change, or **Answering your question** when you asked something.
+3. **Checking the code on sample prices**, then **no errors** or the error it found.
+4. **Fixing the code** if the check failed, then checking again.
+5. **Updated the editor** with the number of lines changed, or **No code changed** after an answer.
+
+Questions never touch your code. Ask "why is there no stop loss?" and you get an answer; ask "add a 30 pip stop" and the code changes.
+
 ## Check the rules it used
 
 The AI answers with a short explanation and a list of the rules in the code. A ✓ is a rule you asked for. A **?** is an assumption the AI made because the description did not say, such as whether to enter on the candle close or on the first touch.
 
 Read the list before you look at the result. If an assumption is wrong, say so in your next message ("enter on the first touch of the range instead"); the code is changed and tested again.
 
-Before the code reaches the editor, it is run on sample prices to catch errors. If the run fails, the AI gets the error and fixes the code, up to two times. The chat says **checked, no errors** when the code passed. If errors remain, they are shown in the chat; ask the AI to fix them or correct the line yourself.
+Before the code reaches the editor, it is run on sample prices to catch errors. If the run fails, the AI gets the error and fixes the code, up to two times. If errors remain, they are shown in the chat; ask the AI to fix them or correct the line yourself.
 
 > [!NOTE]
 > Strategy Lab runs Pine Script v6 on ForexTestLab's own price history. Imported libraries and request.* feeds that pull in other symbols or timeframes are not supported, so the AI writes scripts without them.
 
 ## Run the test and read the result
 
-On **Pro**, the test runs automatically after each AI change. On **Free**, press **Run test** in the chat message when you are ready; each run counts toward your daily test limit, so you choose when to spend one.
+On **Pro**, the test runs automatically after each AI change and the chat shows **Running the test**, then the result. On **Free**, the chat says **Ready to test**; press **Run test** in the chat message when you are ready; each run counts toward your daily test limit, so you choose when to spend one.
 
 The result appears on the chart, in the tester below it, and in the chat as trades, profit factor, and net profit. After a change, the chat shows the previous and new numbers side by side, for example *Trades 63 → 38 · PF 1.08 → 1.41*. Use [How to read an equity curve, profit factor, and drawdown](/learn/read-equity-curve-profit-factor-drawdown) to judge whether the change helped.
 
@@ -52,7 +64,7 @@ A few trades over two weeks, like the example above, are not enough to judge a r
 
 ## Improve it one change at a time
 
-Ask follow-up questions in the same chat:
+Ask follow-up questions in the same chat. Questions about results need a test first; if none has run, the AI asks you to press **Run test** and ask again.
 
 - **Explain this result**: the AI reads the test summary, including results by month, weekday, and hour, and points out where the money was made or lost.
 - **Which hours lose the most?**: useful before adding a time filter.

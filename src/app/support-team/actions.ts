@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db";
 import { recordEmailFailure } from "@/lib/email-failures";
 import { supportTeamAddedEmail } from "@/lib/lifecycle-email";
 import { sendLifecycleEmail, sendResolvedEmail } from "@/lib/lifecycle-send";
-import { asMessageIdHeader } from "@/lib/support-email-threading";
+import { asMessageIdHeader, baseSubject } from "@/lib/support-email-threading";
 import {
   sendDirectSupportEmail,
   sendSupportEmailReply,
@@ -545,7 +545,7 @@ export async function startOutboundConversation(
 
 export async function sendSupportEmail(
   formData: FormData,
-): Promise<WriteResult> {
+): Promise<WriteResult & { conversationId?: string }> {
   const actor = await supportWriter();
   const userId = clean(formData.get("userId"), 60);
   const subject =
@@ -555,7 +555,7 @@ export async function sendSupportEmail(
   if (!body) return { ok: false, message: "Write an email before sending." };
   const profile = await prisma.userProfile.findUnique({
     where: { id: userId },
-    select: { email: true, displayName: true },
+    select: { id: true, email: true, displayName: true },
   });
   if (!profile) return { ok: false, message: "That account no longer exists." };
   const recipientEmail = profile.email ?? "";
@@ -583,5 +583,43 @@ export async function sendSupportEmail(
     },
     "support_email",
   );
-  return { ok: true };
+  // Kept as an email thread so it shows in Sent and Waiting on customer, and
+  // the customer's reply (matched by subject) lands back in the same thread.
+  const now = new Date();
+  const conversation = await prisma.$transaction(async (tx) => {
+    const created = await tx.supportConversation.create({
+      data: {
+        userId: profile.id,
+        customerEmail: recipientEmail,
+        customerName: profile.displayName,
+        subject: baseSubject(subject),
+        category: "other",
+        priority: "normal",
+        channel: "email",
+        status: "waiting_customer",
+        assignedAgentId: actor.agent.id,
+        assignedAgentName: actor.agent.displayName,
+        firstResponseAt: now,
+        lastMessageAt: now,
+        customerUnreadCount: 0,
+        agentUnreadCount: 0,
+        agentLastReadAt: now,
+        lastCustomerNotificationAt: now,
+      },
+    });
+    await tx.supportMessage.create({
+      data: {
+        conversationId: created.id,
+        senderType: "agent",
+        senderId: actor.agent.id,
+        senderName: actor.agent.displayName,
+        body,
+        deliveredAt: now,
+      },
+    });
+    return created;
+  });
+  publishSupportConversationChanged(conversation.id);
+  refresh(conversation.id);
+  return { ok: true, conversationId: conversation.id };
 }

@@ -107,7 +107,7 @@ export function NewConversation({ variant = "small" }: { variant?: "small" | "co
       }
       close();
       setBusy(false);
-      if (delivery === "chat" && result.conversationId) {
+      if (result.conversationId) {
         router.push(`/support-team?conversation=${result.conversationId}`);
       }
       router.refresh();

@@ -53,6 +53,7 @@ In answer mode, answer in MESSAGE (cite numbers from the test summary when there
 export function authorPrompt(params: { prompt: string; code: string; summary?: ResultSummary | null }): string {
   const parts = [`Current script:\n\`\`\`pine\n${params.code.trim() || "(empty)"}\n\`\`\``];
   if (params.summary) parts.push(`Latest test result (JSON; byWeekday and byHour use UTC entry times; pnl in USD):\n${JSON.stringify(params.summary)}`);
+  else parts.push("No test result yet for this script. If the question needs results (trades, hours, months, profit), say briefly that the trader should press Run test first and then ask again; do not describe yourself or your limits.");
   parts.push(`Trader's request:\n${params.prompt.trim()}`);
   return parts.join("\n\n");
 }

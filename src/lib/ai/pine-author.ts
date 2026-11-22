@@ -22,6 +22,7 @@ export const PINE_AUTHOR_INSTRUCTION = `You write and edit TradingView Pine Scri
 The scripts run in Resin, a Pine v6 runner, on historical FX or XAU/USD candles. Rules for every script you write:
 - First line exactly: //@version=6
 - Declare strategy("Name", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=10000, margin_long=1, margin_short=1) unless the trader asks for different sizing. For XAUUSD use default_qty_value=10.
+- Every strategy() argument must be a literal constant (a plain number, string or true/false), never a variable or expression.
 - Never use import, request.* (no security, no other symbols or timeframes), use_bar_magnifier=true, calc_on_every_tick=true, or input.* widgets that need a UI.
 - Sessions: use time(timeframe.period, "HHMM-HHMM", "Europe/London") or "America/New_York" / "Asia/Tokyo"; use na() to test it. Keep the session's own city time zone so daylight saving is handled.
 - Pip size is syminfo.mintick * 10 for FX pairs.

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getUserEntitlements } from "@/lib/billing/entitlements";
 import { geminiConfigured, streamGemini, type ChatTurn } from "@/lib/ai/gemini";
-import { AI_DAILY_LIMIT, PINE_AUTHOR_INSTRUCTION, authorPrompt, fixPrompt, parseAuthorReply, type AuthorResult } from "@/lib/ai/pine-author";
+import { AI_DAILY_LIMIT, PINE_AUTHOR_INSTRUCTION, authorPrompt, fixPrompt, parseAuthorReply, replyMode, type AuthorMode, type AuthorResult } from "@/lib/ai/pine-author";
 import { DEMO_RANGE_END, DEMO_RANGE_START } from "@/lib/market-data/demo-generator";
 import { DemoDataProvider } from "@/lib/market-data/providers/demo-data-provider";
 import { isStrategyFxMarket } from "@/lib/strategy-language/markets";
@@ -50,9 +50,13 @@ async function check(code: string, symbol: string, timeframe: "15m" | "1h" | "4h
   }
 }
 
-async function ask(history: ChatTurn[], signal: AbortSignal): Promise<string> {
-  let text = "";
-  for await (const chunk of streamGemini({ systemInstruction: PINE_AUTHOR_INSTRUCTION, history, signal, temperature: 0.2 })) text += chunk;
+/** Collects one Gemini reply, reporting the declared mode as soon as it streams in. */
+async function ask(history: ChatTurn[], signal: AbortSignal, onMode?: (mode: AuthorMode) => void): Promise<string> {
+  let text = "", reported = false;
+  for await (const chunk of streamGemini({ systemInstruction: PINE_AUTHOR_INSTRUCTION, history, signal, temperature: 0.2 })) {
+    text += chunk;
+    if (!reported && onMode) { const mode = replyMode(text); if (mode) { reported = true; onMode(mode); } }
+  }
   return text;
 }
 
@@ -75,19 +79,36 @@ export async function POST(request: Request) {
   const remaining = limit - used - 1;
 
   const history: ChatTurn[] = [...input.history, { role: "user", text: authorPrompt({ prompt: input.prompt, code: input.code, summary: input.summary }) }];
-  try {
-    let reply: AuthorResult = parseAuthorReply(await ask(history, request.signal));
-    let checked = false, errors: string[] = [];
-    for (let attempt = 0; reply.code; attempt++) {
-      ({ checked, errors } = await check(reply.code, input.symbol, input.timeframe, request.signal));
-      if (!errors.length || attempt >= MAX_FIXES) break;
-      history.push({ role: "model", text: `CODE:\n\`\`\`pine\n${reply.code}\`\`\`` }, { role: "user", text: fixPrompt(errors) });
-      const fixed = parseAuthorReply(await ask(history, request.signal));
-      reply = { message: reply.message, rules: fixed.rules.length ? fixed.rules : reply.rules, code: fixed.code ?? reply.code };
-    }
-    return json({ ok: true, ...reply, checked, errors, remaining });
-  } catch (error) {
-    if (!request.signal.aborted) console.error("Strategy Lab AI failed", { error: error instanceof Error ? error.message : error });
-    return json({ ok: false, error: "The AI couldn't answer. Try again.", remaining }, 502);
-  }
+  // NDJSON: one {type:"step"} line per real stage, then {type:"done"} or {type:"error"}.
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: Record<string, unknown>) => { try { controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`)); } catch { /* client left */ } };
+      try {
+        send({ type: "step", step: "reading" });
+        let reply: AuthorResult = parseAuthorReply(await ask(history, request.signal, mode => send({ type: "step", step: mode === "code" ? "writing" : "answering" })));
+        let checked = false, errors: string[] = [], fixes = 0;
+        for (let attempt = 0; reply.code; attempt++) {
+          send({ type: "step", step: "checking", attempt: attempt + 1 });
+          ({ checked, errors } = await check(reply.code, input.symbol, input.timeframe, request.signal));
+          if (!checked) { send({ type: "step", step: "unchecked" }); break; }
+          if (!errors.length) { send({ type: "step", step: "checked" }); break; }
+          send({ type: "step", step: "errors", count: errors.length, first: errors[0] });
+          if (attempt >= MAX_FIXES) break;
+          send({ type: "step", step: "fixing", attempt: attempt + 1 });
+          history.push({ role: "model", text: `MODE: code\nCODE:\n\`\`\`pine\n${reply.code}\`\`\`` }, { role: "user", text: fixPrompt(errors) });
+          const fixed = parseAuthorReply(await ask(history, request.signal));
+          fixes++;
+          reply = { ...reply, rules: fixed.rules.length ? fixed.rules : reply.rules, code: fixed.code ?? reply.code };
+        }
+        send({ type: "done", ok: true, ...reply, checked, errors, fixes, remaining });
+      } catch (error) {
+        if (!request.signal.aborted) console.error("Strategy Lab AI failed", { error: error instanceof Error ? error.message : error });
+        send({ type: "error", error: "The AI couldn't answer. Try again.", remaining });
+      } finally {
+        try { controller.close(); } catch { /* already closed */ }
+      }
+    },
+  });
+  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "private, no-store", "X-Accel-Buffering": "no" } });
 }

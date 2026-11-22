@@ -59,6 +59,8 @@ plot(slow, "Slow EMA", color=color.orange)`;
 const DAY = 86_400_000;
 const EDITOR_WIDTH_KEY = "ftl:strategy-lab-editor-width:v1";
 const EDITOR_MIN = 320;
+const CHAT_WIDTH_KEY = "ftl:strategy-lab-chat-width:v1";
+const CHAT_MIN = 300, CHAT_MAX = 640;
 const date = (time: number) => new Date(time).toISOString().slice(0, 10);
 const timestamp = (value: string) => Date.parse(`${value}T00:00:00Z`);
 const money = (value: string | number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(Number(value));
@@ -200,6 +202,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
   const [savedCode, setSavedCode] = useState<string | null>(null);
   const [editorWidth, setEditorWidth] = useState(440);
   const [aiOpen, setAiOpen] = useState(false);
+  const [chatWidth, setChatWidth] = useState(380);
   const [versions, setVersions] = useState<Version[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const marketMatches = markets.filter(item => `${item.symbol} ${item.name} ${item.source}`.toLowerCase().includes(marketSearch.toLowerCase()));
@@ -223,6 +226,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
   useEffect(() => {
     try { const pine = localStorage.getItem("ftl:strategy-lab-pine-draft:v1"); if (pine) setCode(pine); } catch { /* browser storage unavailable */ }
     try { const width = Number(localStorage.getItem(EDITOR_WIDTH_KEY)); if (width >= EDITOR_MIN) setEditorWidth(width); } catch { /* default width */ }
+    try { const width = Number(localStorage.getItem(CHAT_WIDTH_KEY)); if (width >= CHAT_MIN && width <= CHAT_MAX) setChatWidth(width); } catch { /* default width */ }
     const selected = new URLSearchParams(window.location.search).get("script");
     if (selected) void loadPineScripts().then(scripts => {
       const script = scripts.find(item => item.id === selected);
@@ -333,10 +337,20 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
   };
   const toggleSettings = (pane: SettingsPane) => setSettings(current => current === pane ? null : pane);
   const chooseTab = (tab: TesterTab) => { setTesterTab(tab); setTesterOpen(true); };
+  const resizeChat = (event: React.PointerEvent) => {
+    event.preventDefault();
+    const startX = event.clientX, startWidth = chatWidth;
+    // Leave the chart at least 420px beside the code editor.
+    const limit = Math.max(CHAT_MIN, Math.min(CHAT_MAX, (bodyRef.current?.clientWidth ?? 1400) - editorWidth - 420));
+    let latest = startWidth;
+    const move = (moveEvent: PointerEvent) => { latest = Math.min(limit, Math.max(CHAT_MIN, startWidth + moveEvent.clientX - startX)); setChatWidth(latest); };
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); try { localStorage.setItem(CHAT_WIDTH_KEY, String(latest)); } catch { /* width is a convenience */ } };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  };
   const resizeEditor = (event: React.PointerEvent) => {
     event.preventDefault();
     const startX = event.clientX, startWidth = editorWidth;
-    const limit = Math.max(EDITOR_MIN, (bodyRef.current?.clientWidth ?? 1200) - 420);
+    const limit = Math.max(EDITOR_MIN, (bodyRef.current?.clientWidth ?? 1200) - 420 - (aiOpen && window.innerWidth >= 1280 ? chatWidth : 0));
     let latest = startWidth;
     const move = (moveEvent: PointerEvent) => { latest = Math.min(limit, Math.max(EDITOR_MIN, startWidth + startX - moveEvent.clientX)); setEditorWidth(latest); };
     const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); try { localStorage.setItem(EDITOR_WIDTH_KEY, String(latest)); } catch { /* width is a convenience */ } };
@@ -353,7 +367,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
   const aiSummary = useMemo(() => strategy ? summarizeReport(strategy, { timeframe: ranTimeframe, from, through, maxDrawdownPercent: maxDrawdownPercent(strategy.equity.map(point => point.balance)) }) : null, [strategy, ranTimeframe, from, through]);
   const activeTab = tabs.some(([tab]) => tab === testerTab) ? testerTab : "overview";
 
-  return <div className={`${focusMode ? "fixed inset-0 z-[120] h-dvh" : "min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)]"} flex flex-col bg-[var(--app-panel-solid)] text-[var(--app-text)]`}>
+  return <div className={`${focusMode ? "fixed inset-0 z-[120] h-dvh" : "min-h-[calc(100dvh-4rem)] lg:h-dvh"} flex flex-col bg-[var(--app-panel-solid)] text-[var(--app-text)]`}>
     {dialogs.dialog}
     <header className="relative z-30 shrink-0 border-b app-border bg-[var(--app-panel-solid)]">
       <div className="flex min-h-12 flex-wrap items-center gap-2 px-3 py-1.5 sm:px-4">
@@ -397,7 +411,8 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
     {sampleMode && <div className="shrink-0 border-b border-amber-400/35 bg-amber-400/10 px-4 py-2 text-xs"><strong>Sample data.</strong> Sign in to test real history. <a href="/sign-in?next=%2Fapp%2Fstrategies" className="font-semibold underline">Sign in</a></div>}
 
     <div ref={bodyRef} className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
-      {aiOpen && <aside aria-label="AI strategy builder" className="absolute inset-y-0 left-0 z-40 flex w-[min(360px,100%)] flex-col border-r app-border shadow-2xl xl:static xl:z-auto xl:w-[300px] xl:shrink-0 xl:shadow-none">
+      {aiOpen && <aside aria-label="AI strategy builder" className="absolute inset-y-0 left-0 z-40 flex w-[min(380px,100%)] flex-col border-r app-border shadow-2xl xl:relative xl:z-auto xl:w-[var(--lab-chat-width)] xl:shrink-0 xl:shadow-none" style={{ "--lab-chat-width": `${chatWidth}px` } as React.CSSProperties}>
+        <div onPointerDown={resizeChat} role="separator" aria-orientation="vertical" aria-label="Resize AI chat" className="absolute inset-y-0 right-0 z-10 hidden w-1.5 translate-x-1/2 cursor-col-resize hover:bg-[var(--app-accent)]/40 xl:block" />
         <StrategyLabChat storageKey={storageKey} code={code} symbol={market?.symbol ?? "EURUSD"} timeframe={pineTimeframe} summary={aiSummary} testing={busy} autoRun={limits.testsPerDay === null} signedIn={!sampleMode} onApply={applyAi} onRun={() => run()} onClose={() => setAiOpen(false)} />
       </aside>}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

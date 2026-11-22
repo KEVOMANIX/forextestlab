@@ -11,7 +11,17 @@ describe("parseAuthorReply", () => {
   });
   it("handles an explanation with no code", () => {
     const reply = parseAuthorReply("MESSAGE:\nMost losses were on Fridays.\nRULES:\n");
-    expect(reply).toEqual({ message: "Most losses were on Fridays.", rules: [], code: null });
+    expect(reply).toEqual({ mode: "answer", message: "Most losses were on Fridays.", rules: [], code: null });
+  });
+  it("drops code from an answer", () => {
+    const reply = parseAuthorReply("MODE: answer\nMESSAGE:\nThe stop is 30 pips.\nCODE:\n```pine\n//@version=6\n```");
+    expect(reply.mode).toBe("answer");
+    expect(reply.code).toBeNull();
+    expect(reply.message).toBe("The stop is 30 pips.");
+  });
+  it("reads the declared code mode", () => {
+    const reply = parseAuthorReply("MODE: code\nMESSAGE:\nAdded a stop.\nRULES:\n- Stop 30 pips\nCODE:\n```pine\n//@version=6\n```");
+    expect(reply).toEqual({ mode: "code", message: "Added a stop.", rules: ["Stop 30 pips"], code: "//@version=6\n" });
   });
   it("falls back to the raw text when the format is ignored", () => {
     expect(parseAuthorReply("Just some words").message).toBe("Just some words");

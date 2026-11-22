@@ -5,7 +5,8 @@
  */
 
 export type AuthorTurn = { role: "user" | "model"; text: string };
-export type AuthorResult = { message: string; rules: string[]; code: string | null };
+export type AuthorMode = "answer" | "code";
+export type AuthorResult = { mode: AuthorMode; message: string; rules: string[]; code: string | null };
 export type ResultSummary = {
   symbol: string; timeframe: string; from: string; through: string;
   trades: number; longs: number; netPnl: number; netPercent: number; winRate: number;
@@ -31,7 +32,12 @@ The scripts run in Resin, a Pine v6 runner, on historical FX or XAU/USD candles.
 - Keep it short and readable: clear variable names, a comment above each rule. Under 150 lines.
 - When editing existing code, change only what the request needs and keep the rest, including the strategy name.
 
+Decide the mode first:
+- MODE: answer when the trader asks a question, wants a result or the code explained, or asks for advice. Do not include CODE in this mode, even if a change would help; describe the change and let them ask for it.
+- MODE: code only when they ask you to create, change, fix, add or remove something in the strategy.
+
 Reply in exactly this format:
+MODE: <answer or code>
 MESSAGE:
 <one to three short sentences in plain words, no code>
 RULES:
@@ -42,7 +48,7 @@ CODE:
 <the full script>
 \`\`\`
 
-If the trader only asks a question or wants a result explained, answer in MESSAGE (cite numbers from the test summary), leave RULES empty, and omit CODE. Never promise future profits; a backtest is practice on history.`;
+In answer mode, answer in MESSAGE (cite numbers from the test summary when there is one; say so when no test has run), leave RULES empty, and omit CODE. Never promise future profits; a backtest is practice on history.`;
 
 export function authorPrompt(params: { prompt: string; code: string; summary?: ResultSummary | null }): string {
   const parts = [`Current script:\n\`\`\`pine\n${params.code.trim() || "(empty)"}\n\`\`\``];
@@ -58,8 +64,11 @@ export function fixPrompt(errors: string[]): string {
 /** Reads the MESSAGE / RULES / CODE reply. Missing sections come back empty. */
 export function parseAuthorReply(text: string): AuthorResult {
   const fence = /```(?:pine(?:script)?)?[ \t]*\r?\n([\s\S]*?)```/i.exec(text);
-  const code = fence?.[1]?.trim() ? fence[1].replace(/\r\n/g, "\n").trim() + "\n" : null;
-  const withoutCode = fence ? text.slice(0, fence.index) : text;
+  const found = fence?.[1]?.trim() ? fence[1].replace(/\r\n/g, "\n").trim() + "\n" : null;
+  // An answer never touches the editor, even if the model attached code anyway.
+  const mode: AuthorMode = replyMode(text) ?? (found ? "code" : "answer");
+  const code = mode === "code" ? found : null;
+  const withoutCode = (fence ? text.slice(0, fence.index) : text).replace(/^\s*MODE:.*$/im, "");
   const section = (name: string, next: string[]) => {
     const match = new RegExp(`${name}:\\s*([\\s\\S]*?)(?=${next.map(item => `\\n\\s*${item}:`).join("|") || "$"}|$)`, "i").exec(withoutCode);
     return match?.[1]?.trim() ?? "";
@@ -68,7 +77,13 @@ export function parseAuthorReply(text: string): AuthorResult {
   const rules = section("RULES", ["CODE"]).split("\n").map(line => line.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean).slice(0, 12);
   if (!message) message = withoutCode.replace(/^\s*(RULES|CODE):[\s\S]*$/im, "").trim();
   if (!message && code) message = "Here is the script.";
-  return { message: message.slice(0, 1200), rules, code };
+  return { mode, message: message.slice(0, 1200), rules: mode === "code" ? rules : [], code };
+}
+
+/** The declared mode, readable as soon as its line has streamed in. */
+export function replyMode(text: string): AuthorMode | null {
+  const match = /^\s*MODE:\s*(answer|code)\b/im.exec(text);
+  return match ? (match[1]!.toLowerCase() as AuthorMode) : null;
 }
 
 type ReportTrade = { direction: "long" | "short"; entryTime: number; pnl: number };

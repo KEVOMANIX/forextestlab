@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BarChart3, BookOpenText, Braces, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, LifeBuoy, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy, WalletCards } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Logo } from "@/components/Logo";
@@ -83,7 +83,8 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
     return item;
   };
   const [collapsed, setCollapsed] = useState(initialCollapsed);
-  const fullScreen = isFullScreenPath(pathname);
+  const search = useSearchParams();
+  const fullScreen = isFullScreenPath(pathname, search);
   // Full-screen pages start with the menu as icons whatever the saved choice;
   // opening it there lasts until the trader leaves the page.
   const [openOnFullScreen, setOpenOnFullScreen] = useState(false);

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Check, ChevronDown, ChevronUp, Loader2, Maximize2, Minimize2, Play, Search } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronDown, ChevronUp, Loader2, Maximize2, Minimize2, Play, RotateCcw, Search, Sparkles } from "lucide-react";
 
 import { useAppTheme } from "@/components/app/ThemeContext";
 import { fetchRanges, fetchSymbols } from "@/lib/backtest/client";
@@ -17,6 +17,8 @@ import { maxDrawdownPercent, sampleEquity, savePineResult } from "@/lib/chart/pi
 import type { StrategyDiagnostic } from "@/lib/strategy-language/parser";
 import type { LabCandles, LabPlot, LabTrade } from "./StrategyLabChart";
 import { useLabDialog } from "./LabDialog";
+import { StrategyLabChat, type RunOutcome } from "./StrategyLabChat";
+import { summarizeReport } from "@/lib/ai/pine-author";
 
 const StrategyCodeEditor = dynamic(() => import("./StrategyCodeEditor").then(module => module.StrategyCodeEditor), { ssr: false, loading: () => <div className="grid h-full min-h-[300px] place-items-center bg-[var(--code-bg)] text-sm text-[var(--code-muted)]">Loading editor…</div> });
 const StrategyLabChart = dynamic(() => import("./StrategyLabChart").then(module => module.StrategyLabChart), { ssr: false });
@@ -24,7 +26,9 @@ const StrategyEquityChart = dynamic(() => import("./StrategyLabChart").then(modu
 type Source = "dukascopy" | "histdata" | "demo";
 type Market = { symbol: string; source: Source; name: string };
 type SettingsPane = "market" | "period" | null;
-type TesterTab = "overview" | "performance" | "trades" | "problems" | "properties";
+type TesterTab = "overview" | "performance" | "trades" | "versions" | "problems" | "properties";
+type Version = { id: string; code: string; label: string; time: number };
+const VERSIONS_KEY = (key: string) => `ftl:strategy-lab-versions:v1:${key}`;
 type LabTimeframe = "15m" | "1h" | "4h" | "1d";
 type PineReport = {
   kind: "strategy";
@@ -195,6 +199,8 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
   const [scriptName, setScriptName] = useState("");
   const [savedCode, setSavedCode] = useState<string | null>(null);
   const [editorWidth, setEditorWidth] = useState(440);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [versions, setVersions] = useState<Version[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const marketMatches = markets.filter(item => `${item.symbol} ${item.name} ${item.source}`.toLowerCase().includes(marketSearch.toLowerCase()));
   const problemCount = serverDiagnostics.length + (error ? 1 : 0);
@@ -223,6 +229,10 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
       if (script) { setCode(script.code); setScriptId(script.id); setScriptName(script.name); setSavedCode(script.code); }
     });
   }, []);
+  const storageKey = scriptId ?? "draft";
+  useEffect(() => { if (window.matchMedia("(min-width: 1280px)").matches) setAiOpen(true); }, []);
+  useEffect(() => { try { const saved = JSON.parse(localStorage.getItem(VERSIONS_KEY(storageKey)) ?? "[]") as Version[]; setVersions(Array.isArray(saved) ? saved : []); } catch { setVersions([]); } }, [storageKey]);
+  const keepVersions = (next: Version[]) => { const kept = next.slice(0, 30); setVersions(kept); try { localStorage.setItem(VERSIONS_KEY(storageKey), JSON.stringify(kept)); } catch { /* versions are a convenience */ } };
   useEffect(() => { try { localStorage.setItem("ftl:strategy-lab-pine-draft:v1", code); } catch { /* browser storage unavailable */ } }, [code]);
   useEffect(() => {
     if (sampleMode) return;
@@ -258,16 +268,17 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
   // A changed setup makes the last result stale; the code is kept on the chart until the next run.
   useEffect(() => { setPineReport(null); setError(null); setServerDiagnostics([]); setFocusTrade(null); }, [market, from, through, pineTimeframe]);
 
-  const run = async () => {
-    if (busy || !market) return;
+  const run = async (override?: string): Promise<RunOutcome> => {
+    const script = override ?? code;
+    if (busy || !market) return null;
     const startTime = timestamp(from);
     const endTime = timestamp(through) + DAY - 1;
-    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) { setError("Choose valid From and Through dates."); setSettings("period"); return; }
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) { setError("Choose valid From and Through dates."); setSettings("period"); return null; }
     setBusy(true); setProgress("Running test…"); setError(null); setServerDiagnostics([]); setTesterOpen(true);
     try {
-      const response = await fetch("/api/strategy-tests/pine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, symbol: market.symbol, source: market.source, timeframe: pineTimeframe, startTime, endTime, startingBalance: 10_000 }) });
+      const response = await fetch("/api/strategy-tests/pine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: script, symbol: market.symbol, source: market.source, timeframe: pineTimeframe, startTime, endTime, startingBalance: 10_000 }) });
       const data = await response.json() as { ok: boolean; report?: PineReport | IndicatorReport; error?: string; diagnostics?: StrategyDiagnostic[] };
-      if (!response.ok || !data.ok || !data.report) { setError(data.error ?? "The Pine test could not complete."); setServerDiagnostics(data.diagnostics ?? []); setTesterTab("problems"); return; }
+      if (!response.ok || !data.ok || !data.report) { setError(data.error ?? "The Pine test could not complete."); setServerDiagnostics(data.diagnostics ?? []); setTesterTab("problems"); return null; }
       setPineReport(data.report);
       setRanTimeframe(pineTimeframe);
       const report = data.report;
@@ -282,10 +293,18 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
       setVisibleTrades(20);
       setFocusTrade(null);
       setTesterTab(current => current === "problems" ? "overview" : current);
-    } catch { setError("Connection lost while running the test. Try again."); setTesterTab("problems"); }
+      return report.kind === "strategy" ? { trades: report.trades.length, netPnl: report.netPnl, profitFactor: report.profitFactor } : null;
+    } catch { setError("Connection lost while running the test. Try again."); setTesterTab("problems"); return null; }
     finally { setBusy(false); setProgress(null); }
   };
 
+  const applyAi = async (next: string, label: string, runNow: boolean): Promise<RunOutcome> => {
+    const now = Date.now();
+    const before = versions.some(item => item.code === code) ? [] : [{ id: crypto.randomUUID(), code, label: "Before AI change", time: now - 1 }];
+    keepVersions([{ id: crypto.randomUUID(), code: next, label, time: now }, ...before, ...versions]);
+    setCode(next);
+    return runNow ? run(next) : null;
+  };
   const persist = (name: string, scriptCode: string) => {
     const id = scriptId ?? crypto.randomUUID();
     void savePineScript({ id, name, code: scriptCode, updatedAt: Date.now() }).then(ok => {
@@ -329,8 +348,9 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
   const chartOverlay = pineReport ? (pineReport.kind === "indicator" ? pineReport.overlay : pineReport.overlay ?? true) : true;
   const statusText = progress ?? (strategy ? `${strategy.trades.length} trades · ${signedMoney(strategy.netPnl)}` : pineReport ? `${chartPlots.length} plots · ${pineReport.bars.toLocaleString()} candles` : "Ready");
   const tabs: [TesterTab, string][] = strategy
-    ? [["overview", "Overview"], ["performance", "Performance summary"], ["trades", "List of trades"], ["problems", `Problems${problemCount ? ` ${problemCount}` : ""}`], ["properties", "Properties"]]
-    : [["overview", "Overview"], ["problems", `Problems${problemCount ? ` ${problemCount}` : ""}`], ["properties", "Properties"]];
+    ? [["overview", "Overview"], ["performance", "Performance summary"], ["trades", "List of trades"], ["versions", `Versions${versions.length ? ` ${versions.length}` : ""}`], ["problems", `Problems${problemCount ? ` ${problemCount}` : ""}`], ["properties", "Properties"]]
+    : [["overview", "Overview"], ["versions", `Versions${versions.length ? ` ${versions.length}` : ""}`], ["problems", `Problems${problemCount ? ` ${problemCount}` : ""}`], ["properties", "Properties"]];
+  const aiSummary = useMemo(() => strategy ? summarizeReport(strategy, { timeframe: ranTimeframe, from, through, maxDrawdownPercent: maxDrawdownPercent(strategy.equity.map(point => point.balance)) }) : null, [strategy, ranTimeframe, from, through]);
   const activeTab = tabs.some(([tab]) => tab === testerTab) ? testerTab : "overview";
 
   return <div className={`${focusMode ? "fixed inset-0 z-[120] h-dvh" : "min-h-[calc(100dvh-4rem)] lg:h-[calc(100dvh-4rem)]"} flex flex-col bg-[var(--app-panel-solid)] text-[var(--app-text)]`}>
@@ -347,6 +367,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
         <select value={pineTimeframe} onChange={event => setPineTimeframe(event.target.value as LabTimeframe)} aria-label="Candles" className="h-8 rounded-md border-0 bg-[var(--app-panel-2)] px-2 text-xs text-[var(--app-text)]"><option value="15m">15m</option><option value="1h">1h</option><option value="4h">4h</option><option value="1d">1d</option></select>
         <button type="button" onClick={() => toggleSettings("period")} aria-expanded={settings === "period"} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[var(--app-panel-2)] px-2.5 text-xs">{from || "From"} <span className="app-muted">→</span> {through || "Through"}{candleEstimate > 0 && <span className={`ml-1 rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${overLimit ? "bg-loss/15 text-loss" : "app-muted"}`}>{overLimit ? "Too many candles" : `≈${candleEstimate.toLocaleString()} candles`}</span>}<ChevronDown size={12} /></button>
         <div className="ml-auto flex items-center gap-2">
+          <button type="button" onClick={() => setAiOpen(!aiOpen)} aria-pressed={aiOpen} className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold ${aiOpen ? "border-[var(--app-accent)] text-[var(--app-accent-text)]" : "app-border hover:bg-[var(--app-panel-2)]"}`}><Sparkles size={14} />AI</button>
           <button type="button" onClick={save} className="h-8 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Save</button>
           <button type="button" onClick={() => setFocusMode(!focusMode)} aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Exit focus mode" : "Focus mode"} className="grid size-8 place-items-center rounded-md border app-border hover:bg-[var(--app-panel-2)]">{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
           <button type="button" disabled={!market || busy || overLimit} title={overLimit ? `This period has about ${candleEstimate.toLocaleString()} candles. Tests can use up to ${MAX_TEST_CANDLES.toLocaleString()}.` : undefined} onClick={() => void run()} className="inline-flex h-8 items-center gap-2 rounded-md bg-[var(--app-accent)] px-3.5 text-xs font-bold text-[var(--app-accent-ink)] disabled:opacity-50">{busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {busy ? "Running…" : "Run test"}</button>
@@ -375,7 +396,10 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
 
     {sampleMode && <div className="shrink-0 border-b border-amber-400/35 bg-amber-400/10 px-4 py-2 text-xs"><strong>Sample data.</strong> Sign in to test real history. <a href="/sign-in?next=%2Fapp%2Fstrategies" className="font-semibold underline">Sign in</a></div>}
 
-    <div ref={bodyRef} className="flex min-h-0 flex-1 flex-col lg:flex-row">
+    <div ref={bodyRef} className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
+      {aiOpen && <aside aria-label="AI strategy builder" className="absolute inset-y-0 left-0 z-40 flex w-[min(360px,100%)] flex-col border-r app-border shadow-2xl xl:static xl:z-auto xl:w-[300px] xl:shrink-0 xl:shadow-none">
+        <StrategyLabChat storageKey={storageKey} code={code} symbol={market?.symbol ?? "EURUSD"} timeframe={pineTimeframe} summary={aiSummary} testing={busy} autoRun={limits.testsPerDay === null} signedIn={!sampleMode} onApply={applyAi} onRun={() => run()} onClose={() => setAiOpen(false)} />
+      </aside>}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <section aria-label="Test chart" className="relative min-h-[320px] flex-1 border-b app-border bg-[var(--app-panel-2)]/40">
           {pineReport?.candles ? <>
@@ -404,6 +428,8 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
               : <p className="py-8 text-center text-sm app-muted">{busy ? "Running…" : "Run a Pine v6 strategy to see its performance here."}</p>)}
             {activeTab === "performance" && strategy && <Performance report={strategy} timeframe={ranTimeframe} />}
             {activeTab === "trades" && strategy && <TradeList report={strategy} visibleTrades={visibleTrades} onMore={() => setVisibleTrades(count => count + 100)} focusTrade={focusTrade} onFocus={setFocusTrade} />}
+            {activeTab === "versions" && (versions.length ? <ul className="max-w-3xl divide-y divide-[var(--app-border)] text-xs">{versions.map(item => <li key={item.id} className="flex items-center gap-3 py-2"><span className="w-28 shrink-0 app-muted">{new Date(item.time).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span><span className="min-w-0 flex-1 truncate">{item.label}</span>{item.code === code ? <span className="text-[var(--app-accent-text)]">In editor</span> : <button type="button" onClick={() => setCode(item.code)} className="inline-flex h-7 items-center gap-1.5 rounded-md border app-border px-2.5 font-semibold hover:border-[var(--app-accent)]"><RotateCcw size={12} />Restore</button>}</li>)}</ul>
+              : <p className="py-8 text-center text-sm app-muted">Each AI change is kept here so you can go back to it.</p>)}
             {activeTab === "problems" && <div className="space-y-2 text-sm">{error && <p role="alert" className="flex gap-2 text-loss"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</p>}{serverDiagnostics.map((issue, index) => <p key={`${issue.line}-${index}`} className="flex gap-2 text-loss"><AlertCircle size={15} className="mt-0.5 shrink-0" />Line {issue.line}: {issue.message}</p>)}{!problemCount && <p className="flex items-center gap-2 text-[var(--app-accent-text)]"><Check size={16} />No script errors.</p>}</div>}
             {activeTab === "properties" && <div className="grid max-w-3xl gap-x-8 gap-y-1.5 text-xs sm:grid-cols-2">
               {([["Market", market ? `${market.symbol} · ${sourceName(market.source)}` : "—"], ["Candles", pineTimeframe], ["Period", `${from || "—"} → ${through || "—"}`], ["Starting balance", money(10_000)], ["Engine", pineReport?.engine ?? "Resin"], ["History", rangeText], ["Fills", strategy?.tickBars ? `Real ticks on ${strategy.tickBars.toLocaleString()} candles` : "Candle high/low"]] as [string, string][]).map(([label, value]) => <p key={label} className="flex justify-between gap-4 border-b app-border py-1.5"><span className="app-muted">{label}</span><span className="text-right">{value}</span></p>)}

@@ -61,6 +61,7 @@ model UserProfile {
   billingSubscriptions   BillingSubscription[]
   freeSessionUsage       FreeSessionUsage[]
   pineTestUsage          PineTestUsage[]
+  pineAiUsage            PineAiUsage[]
   aiChats                AiChat[]
   tradingPlan            TradingPlan?
   pineScripts            PineScript[]
@@ -83,6 +84,17 @@ model FreeSessionUsage {
 
 /// Strategy Lab tests run on a UTC day, for the Free plan's daily allowance.
 model PineTestUsage {
+  user      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  day       String
+  used      Int         @default(0)
+  updatedAt DateTime    @updatedAt
+
+  @@id([userId, day])
+}
+
+/// AI requests in the Strategy Lab per user per UTC day.
+model PineAiUsage {
   user      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   day       String

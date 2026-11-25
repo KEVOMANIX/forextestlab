@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, Check, ChevronDown, ChevronUp, Loader2, Maximize2, Minimize2, Play, RotateCcw, Search, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronDown, ChevronUp, Loader2, Maximize2, Minimize2, Moon, Play, RotateCcw, Search, Sparkles, Sun } from "lucide-react";
 
 import { useAppTheme } from "@/components/app/ThemeContext";
 import { fetchRanges, fetchSymbols } from "@/lib/backtest/client";
@@ -172,7 +172,7 @@ function TradeList({ report, visibleTrades, onMore, focusTrade, onFocus }: { rep
 export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE_PINE_LIMITS }: { sampleMode: boolean; allowedSymbols: readonly string[] | null; limits?: PinePlanLimits }) {
   const MAX_TEST_CANDLES = limits.testCandles;
   const proCandles = limits.testCandles < PRO_PINE_LIMITS.testCandles;
-  const { theme } = useAppTheme();
+  const { theme, toggle: toggleTheme } = useAppTheme();
   const router = useRouter();
   const dialogs = useLabDialog();
   const [renaming, setRenaming] = useState(false);
@@ -383,6 +383,7 @@ export function StrategyLabWorkspace({ sampleMode, allowedSymbols, limits = FREE
         <div className="ml-auto flex items-center gap-2">
           <button type="button" onClick={() => setAiOpen(!aiOpen)} aria-pressed={aiOpen} className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold ${aiOpen ? "border-[var(--app-accent)] text-[var(--app-accent-text)]" : "app-border hover:bg-[var(--app-panel-2)]"}`}><Sparkles size={14} />AI</button>
           <button type="button" onClick={save} className="h-8 rounded-md border app-border px-3 text-xs font-semibold hover:bg-[var(--app-panel-2)]">Save</button>
+          <button type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} className="grid size-8 place-items-center rounded-md border app-border hover:bg-[var(--app-panel-2)]">{theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}</button>
           <button type="button" onClick={() => setFocusMode(!focusMode)} aria-label={focusMode ? "Exit focus mode" : "Focus mode"} title={focusMode ? "Exit focus mode" : "Focus mode"} className="grid size-8 place-items-center rounded-md border app-border hover:bg-[var(--app-panel-2)]">{focusMode ? <Minimize2 size={14} /> : <Maximize2 size={14} />}</button>
           <button type="button" disabled={!market || busy || overLimit} title={overLimit ? `This period has about ${candleEstimate.toLocaleString()} candles. Tests can use up to ${MAX_TEST_CANDLES.toLocaleString()}.` : undefined} onClick={() => void run()} className="inline-flex h-8 items-center gap-2 rounded-md bg-[var(--app-accent)] px-3.5 text-xs font-bold text-[var(--app-accent-ink)] disabled:opacity-50">{busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} {busy ? "Running…" : "Run test"}</button>
         </div>

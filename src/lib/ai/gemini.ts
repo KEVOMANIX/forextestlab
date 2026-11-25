@@ -47,7 +47,16 @@ function apiKey(): string {
   return key;
 }
 
-function model(): string {
+/**
+ * "full" writes Pine code (Strategy Lab) and stays on GEMINI_MODEL. "light"
+ * explains results (AI Analyst, AI Insights) and uses the cheaper
+ * GEMINI_LIGHT_MODEL, gemini-2.5-flash-lite by default.
+ */
+export type ModelTier = "full" | "light";
+const DEFAULT_LIGHT_MODEL = "gemini-2.5-flash-lite";
+
+function model(tier: ModelTier = "full"): string {
+  if (tier === "light") return process.env.GEMINI_LIGHT_MODEL?.trim() || DEFAULT_LIGHT_MODEL;
   return process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
 }
 
@@ -70,7 +79,8 @@ function generationConfig(modelName: string, maxOutputTokens: number, temperatur
     temperature,
     maxOutputTokens,
     topP: 0.95,
-    ...(modelName.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: THINKING_BUDGET } } : {}),
+    // Flash-Lite answers without thinking (budget 0) to keep it cheap.
+    ...(modelName.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: modelName.includes("lite") ? 0 : THINKING_BUDGET } } : {}),
   };
 }
 
@@ -187,9 +197,10 @@ export async function* streamGeminiWithTools(params: {
   signal?: AbortSignal;
   maxOutputTokens?: number;
   temperature?: number;
+  tier?: ModelTier;
 }): AsyncGenerator<string> {
-  const { systemInstruction, history, tools, runTool, signal, maxOutputTokens = 8192, temperature = 0.4 } = params;
-  const modelName = model();
+  const { systemInstruction, history, tools, runTool, signal, maxOutputTokens = 8192, temperature = 0.4, tier = "light" } = params;
+  const modelName = model(tier);
   const contents: Content[] = history.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] }));
 
   for (let round = 0; ; round += 1) {

@@ -30,6 +30,17 @@ describe("Gemini streaming", () => {
     expect(config.thinkingConfig.thinkingBudget).toBeLessThan(config.maxOutputTokens / 4);
   });
 
+  it("explains results on the light model without thinking", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "test");
+    vi.stubEnv("GEMINI_MODEL", "gemini-2.5-flash");
+    vi.stubEnv("GEMINI_LIGHT_MODEL", "");
+    const fetchMock = vi.fn().mockResolvedValue(sse([{ candidates: [{ content: { parts: [{ text: "Hi" }] }, finishReason: "STOP" }] }]));
+    vi.stubGlobal("fetch", fetchMock);
+    await collect(streamGeminiWithTools({ systemInstruction: "s", history: [{ role: "user", text: "q" }], tools: [], runTool: async () => null }));
+    expect(fetchMock.mock.calls[0]![0]).toContain("models/gemini-2.5-flash-lite:");
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).generationConfig.thinkingConfig.thinkingBudget).toBe(0);
+  });
+
   it("skips thought summaries and says so when the answer is cut short", async () => {
     vi.stubEnv("GEMINI_API_KEY", "test");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sse([

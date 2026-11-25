@@ -3,7 +3,7 @@ title: Build and test a strategy with AI
 description: Describe a strategy in plain words, let the AI write the Pine Script, check the rules it used, and improve the strategy one change at a time.
 category: Strategy
 date: 2026-11-22
-cover: /learn/ai-strategy-builder-20261123.png
+cover: /learn/ai-strategy-builder-20261125.png
 coverAlt: Full-screen Strategy Lab with the AI chat and its live steps on the left, the London breakout test on the chart, and the generated Pine code on the right
 ctaLabel: Open Strategy Lab
 ctaHref: /app/strategies
@@ -18,7 +18,7 @@ Open [Strategy Lab](/app/strategies) and create or open a strategy. The strategy
 
 You don't need to know Pine Script. Every change the AI makes is ordinary code in the editor, so you can read it, edit it yourself, and save it like any other script.
 
-![Strategy Lab with the AI chat, the London breakout test on the chart, and the generated Pine code](/learn/ai-strategy-builder-20261123.png "The AI lists the rules it used, checks the code, and shows the test result in the chat.")
+![Strategy Lab with the AI chat, the London breakout test on the chart, and the generated Pine code](/learn/ai-strategy-builder-20261125.png "The AI lists the rules it used, checks the code, and shows the test result in the chat.")
 
 ## Describe the strategy
 

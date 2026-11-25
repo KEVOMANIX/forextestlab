@@ -161,10 +161,10 @@ export function StrategyLabChat({ storageKey, code, symbol, timeframe, summary, 
         {STARTERS.map(item => <button key={item} type="button" disabled={busy || !signedIn} onClick={() => void send(item)} className="block w-full rounded-lg border app-border px-3 py-2 text-left hover:border-[var(--app-accent)] disabled:opacity-50">{item}</button>)}
       </div>}
       {messages.map(item => item.role === "user"
-        ? <div key={item.id} className="ml-8 rounded-[10px_10px_2px_10px] border app-border bg-[var(--app-panel-2)] px-3 py-2">{item.text}</div>
-        : <div key={item.id} className="rounded-lg border app-border p-3">
+        ? <div key={item.id} className="chat-user ml-8 rounded-[12px_12px_3px_12px] px-3 py-2">{item.text}</div>
+        : <div key={item.id} className="chat-ai rounded-[12px_12px_12px_3px] p-3">
           {item.text && <p className="whitespace-pre-wrap">{item.text}</p>}
-          {!!item.rules?.length && <ul className="mt-2 space-y-0.5">{item.rules.map(rule => { const guess = rule.startsWith("?"); return <li key={rule} className="flex gap-1.5"><span className={`font-bold ${guess ? "text-amber-400" : "text-[var(--app-accent-text)]"}`}>{guess ? "?" : "✓"}</span><span className={guess ? "app-muted" : ""}>{guess ? rule.replace(/^\?\s*/, "") : rule}</span></li>; })}</ul>}
+          {!!item.rules?.length && <ul className="mt-2 space-y-0.5">{item.rules.map(rule => { const guess = rule.startsWith("?"); return <li key={rule} className="flex gap-1.5"><span className={`font-bold ${guess ? "text-amber-400" : "text-[var(--chat-ai-accent)]"}`}>{guess ? "?" : "✓"}</span><span className={guess ? "app-muted" : ""}>{guess ? rule.replace(/^\?\s*/, "") : rule}</span></li>; })}</ul>}
           {!!item.steps?.length && <ol aria-label="What the AI did" className={`${item.text || item.rules?.length ? "mt-2.5 border-t app-border pt-2" : ""} space-y-1 text-[11.5px]`}>{item.steps.map((step, index) => <li key={index} className={`flex gap-1.5 ${step.state === "error" ? "text-loss" : step.state === "active" ? "" : "app-muted"}`}><StepIcon state={step.state} /><span>{step.text}</span></li>)}</ol>}
           {item.outcome && <Outcome outcome={item.outcome} previous={item.previous} />}
           {item.changed !== undefined && !item.outcome && !item.errors?.length && !item.steps?.some(step => step.state === "active") && <button type="button" disabled={busy} onClick={() => void runFor(item.id, onRun)} className="mt-2 inline-flex h-7 items-center gap-1.5 rounded-md bg-[var(--app-accent)] px-2.5 text-[11.5px] font-bold text-[var(--app-accent-ink)] disabled:opacity-50"><Play size={12} />Run test</button>}

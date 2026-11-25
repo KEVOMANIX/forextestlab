@@ -436,11 +436,11 @@ export function AiAnalystView({
             <div className="mx-auto w-full max-w-3xl space-y-5 py-6">
               {opening && <p className="flex items-center gap-2 text-sm app-muted"><Loader2 size={14} className="animate-spin" aria-hidden />Opening chat…</p>}
               {messages.map((message, index) => message.role === "user" ? (
-                <div key={index} className="flex justify-end"><div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-[var(--app-panel-2)] px-4 py-2.5 text-sm">{message.text}</div></div>
+                <div key={index} className="flex justify-end"><div className="max-w-[85%] whitespace-pre-wrap chat-user rounded-2xl rounded-br-sm px-4 py-2.5 text-sm">{message.text}</div></div>
               ) : (
                 <div key={index} className="group/answer flex gap-3">
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-300 to-brand-600 text-surface-950"><Sparkles size={13} aria-hidden /></span>
-                  <div className="min-w-0 flex-1 text-sm leading-6">
+                  <div className="chat-ai min-w-0 flex-1 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm leading-6">
                     {message.text
                       ? <><RichText text={message.text} />{!(loading && index === messages.length - 1) && <CopyAnswer text={message.text} />}</>
                       : <span className="flex items-center gap-2 app-muted"><Loader2 size={14} className="animate-spin" aria-hidden />Looking through your trades…</span>}

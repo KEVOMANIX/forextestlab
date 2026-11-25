@@ -101,6 +101,11 @@
     --app-accent: #45d6a8;
     --app-accent-hover: #7be8c4;
     --app-accent-ink: #092019;
+    --chat-user-bg: #2563eb;
+    --chat-user-text: #ffffff;
+    --chat-ai-bg: #14283a;
+    --chat-ai-border: #27506e;
+    --chat-ai-accent: #7dd3fc;
     --app-accent-rgb: 69 214 168;
     --app-profit-text: rgb(var(--trade-profit-rgb));
     --app-loss-text: rgb(var(--trade-loss-rgb));
@@ -232,6 +237,11 @@
     --app-accent: #0f9f7d;
     --app-accent-hover: #0c8066;
     --app-accent-ink: #ffffff;
+    --chat-user-bg: #2563eb;
+    --chat-user-text: #ffffff;
+    --chat-ai-bg: #eaf3fc;
+    --chat-ai-border: #bcd7f1;
+    --chat-ai-accent: #0369a1;
     --app-accent-rgb: 15 159 125;
     --app-warn-text: #92610a;
     --app-warn-wash: rgba(180, 130, 10, 0.14);
@@ -1102,4 +1112,9 @@
     @apply flex h-9 w-full items-center justify-start gap-2 rounded-lg border-0 bg-transparent px-2.5 text-xs font-semibold text-[var(--app-text)] transition-colors hover:bg-[var(--app-panel-2)];
   }
   .analytics-menu > div { @apply w-full; }
+}
+
+@layer components {
+  .chat-user { background: var(--chat-user-bg); color: var(--chat-user-text); }
+  .chat-ai { background: var(--chat-ai-bg); border: 1px solid var(--chat-ai-border); }
 }

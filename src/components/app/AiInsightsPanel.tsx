@@ -359,11 +359,11 @@ export function AiInsightsPanel({
             }
           >
             {message.role === "user" ? (
-              <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-brand-500/90 px-3.5 py-2 text-sm text-surface-950">
+              <div className="max-w-[85%] chat-user rounded-2xl rounded-br-sm px-3.5 py-2 text-sm">
                 {message.text}
               </div>
             ) : (
-              <div className="group/answer w-full max-w-[92%] rounded-2xl rounded-bl-sm border app-border bg-[var(--app-panel-2)]/60 px-3.5 py-2.5 text-sm">
+              <div className="group/answer w-full max-w-[92%] chat-ai rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm">
                 {message.text ? (
                   <>
                     <RichText text={message.text} />

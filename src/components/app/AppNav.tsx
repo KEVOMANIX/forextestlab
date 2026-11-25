@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { BarChart3, BookOpenText, Braces, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, LayoutDashboard, LifeBuoy, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy, WalletCards } from "lucide-react";
+import { BarChart3, BookOpenText, Braces, ChevronLeft, ChevronRight, CircleHelp, CircleUserRound, CreditCard, Crown, LayoutDashboard, LifeBuoy, Loader2, LogIn, LogOut, Menu, Moon, Plus, ShieldCheck, Sparkles, Sun, Trophy, WalletCards } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -134,10 +134,11 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
           </>}
       </nav>
       {compact ? (
-        <div className="flex flex-col items-center gap-1 border-t app-border py-3">
-          <button type="button" onClick={toggle} title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} className="grid h-9 w-9 place-items-center rounded-lg app-muted transition-colors hover:bg-[var(--app-panel-2)] hover:text-brand-300">{theme === "dark" ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />}</button>
-          <Link href={signedIn ? "/account" : "/sign-in"} title={signedIn ? displayName ?? "Account settings" : "Sign in"} aria-label={signedIn ? "Account settings" : "Sign in"} className="grid h-9 w-9 place-items-center rounded-full bg-[var(--app-accent-wash)] text-[11px] font-bold text-brand-300 ring-1 ring-brand-400/25">{signedIn ? initials(displayName) : <LogIn size={15} aria-hidden />}</Link>
-          {signedIn && !free && <ProBadge />}
+        <div className="flex flex-col items-center gap-2 border-t app-border py-3">
+          <Link href={signedIn ? "/account" : "/sign-in"} title={signedIn ? `${displayName ?? "Account settings"}${free ? "" : " · Pro"}` : "Sign in"} aria-label={signedIn ? `Account settings${free ? "" : ", Pro plan"}` : "Sign in"} className={`relative mt-1.5 grid h-9 w-9 place-items-center rounded-full text-[11px] font-bold transition-transform hover:scale-105 ${signedIn ? "bg-gradient-to-br from-brand-200 to-brand-600 text-surface-950" : "bg-[var(--app-accent-wash)] text-brand-300 ring-1 ring-brand-400/25"} ${signedIn && !free ? "shadow-[0_0_0_2px_var(--app-sidebar),0_0_0_4px_#f2c14e]" : ""}`}>
+            {signedIn ? initials(displayName) : <LogIn size={15} aria-hidden />}
+            {signedIn && !free && <span data-testid="sidebar-pro-plan" className="absolute -right-2 -top-2.5 grid h-4 w-4 place-items-center rounded-full bg-[#f2c14e] text-[#2a1e00] shadow-[0_0_0_2px_var(--app-sidebar)]" aria-hidden><Crown size={10} fill="currentColor" strokeWidth={1.5} /></span>}
+          </Link>
           {signedIn && <button type="button" onClick={signOut} disabled={signingOut} aria-label="Sign out" title="Sign out" className="grid h-9 w-9 place-items-center rounded-lg app-muted transition-colors hover:bg-loss/[0.08] hover:text-loss disabled:cursor-wait disabled:opacity-50">{signingOut ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <LogOut size={15} aria-hidden />}</button>}
         </div>
       ) : (

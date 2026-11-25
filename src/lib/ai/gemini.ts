@@ -50,10 +50,10 @@ function apiKey(): string {
 /**
  * "full" writes Pine code (Strategy Lab) and stays on GEMINI_MODEL. "light"
  * explains results (AI Analyst, AI Insights) and uses the cheaper
- * GEMINI_LIGHT_MODEL, gemini-2.5-flash-lite by default.
+ * GEMINI_LIGHT_MODEL, gemini-3.1-flash-lite by default.
  */
 export type ModelTier = "full" | "light";
-const DEFAULT_LIGHT_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_LIGHT_MODEL = "gemini-3.1-flash-lite";
 
 function model(tier: ModelTier = "full"): string {
   if (tier === "light") return process.env.GEMINI_LIGHT_MODEL?.trim() || DEFAULT_LIGHT_MODEL;
@@ -79,8 +79,9 @@ function generationConfig(modelName: string, maxOutputTokens: number, temperatur
     temperature,
     maxOutputTokens,
     topP: 0.95,
-    // Flash-Lite answers without thinking (budget 0) to keep it cheap.
-    ...(modelName.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: modelName.includes("lite") ? 0 : THINKING_BUDGET } } : {}),
+    ...(modelName.startsWith("gemini-2.5") ? { thinkingConfig: { thinkingBudget: THINKING_BUDGET } } : {}),
+    // Flash-Lite answers with minimal thinking to keep it cheap.
+    ...(modelName.startsWith("gemini-3") && modelName.includes("lite") ? { thinkingConfig: { thinkingLevel: "minimal" } } : {}),
   };
 }
 

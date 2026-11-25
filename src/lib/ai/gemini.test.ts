@@ -37,8 +37,8 @@ describe("Gemini streaming", () => {
     const fetchMock = vi.fn().mockResolvedValue(sse([{ candidates: [{ content: { parts: [{ text: "Hi" }] }, finishReason: "STOP" }] }]));
     vi.stubGlobal("fetch", fetchMock);
     await collect(streamGeminiWithTools({ systemInstruction: "s", history: [{ role: "user", text: "q" }], tools: [], runTool: async () => null }));
-    expect(fetchMock.mock.calls[0]![0]).toContain("models/gemini-2.5-flash-lite:");
-    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).generationConfig.thinkingConfig.thinkingBudget).toBe(0);
+    expect(fetchMock.mock.calls[0]![0]).toContain("models/gemini-3.1-flash-lite:");
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).generationConfig.thinkingConfig.thinkingLevel).toBe("minimal");
   });
 
   it("skips thought summaries and says so when the answer is cut short", async () => {

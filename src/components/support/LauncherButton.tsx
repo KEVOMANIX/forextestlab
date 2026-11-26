@@ -86,7 +86,7 @@ export function LauncherButton({
         />
       </span>
 
-      <span className="relative z-10">{open ? "Close" : "Help"}</span>
+      <span className="relative z-10">{open ? "Close" : "Chat with us"}</span>
 
       {idle && loud && (
         <span className="absolute -right-1 -top-1 z-10 grid h-4 min-w-4 animate-badge-pop place-items-center rounded-full bg-loss px-1 text-[10px] font-bold text-white ring-2 ring-surface-950/40 motion-reduce:animate-none">

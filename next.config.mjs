@@ -33,6 +33,8 @@ const nextConfig = {
     return [
       { source: "/how-it-works", destination: "/features#workflow", permanent: true },
       { source: "/waitlist", destination: "/sign-up", permanent: true },
+      { source: "/about", destination: "/features", permanent: true },
+      { source: "/favicon.ico", destination: "/icons/favicon-48.png", permanent: true },
     ];
   },
   async headers() {

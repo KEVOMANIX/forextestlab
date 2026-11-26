@@ -122,14 +122,14 @@ export function AppNav({ signedIn, displayName, admin = false, freePlan = null, 
           <NavGroup label="Replay" items={REPLAY} pathname={pathname} compact />
           <NavGroup label="Tools" items={TOOLS} pathname={pathname} compact markPro={menuItem} />
           <NavGroup label="Account" items={ACCOUNT} pathname={pathname} compact />
-          <NavGroup label="Help" items={HELP} pathname={pathname} compact />
+          <NavGroup label="Chat with us" items={HELP} pathname={pathname} compact />
           {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} compact />}
         </> : <>
           <DesktopLink item={DASHBOARD} pathname={pathname} />
           <NavGroup label="Replay" items={REPLAY} pathname={pathname} />
           <NavGroup label="Tools" items={TOOLS} pathname={pathname} markPro={menuItem} />
           <NavGroup label="Account" items={ACCOUNT} pathname={pathname} />
-          <NavGroup label="Help" items={HELP} pathname={pathname} />
+          <NavGroup label="Chat with us" items={HELP} pathname={pathname} />
           {admin && <NavGroup label="Administration" items={[ADMIN]} pathname={pathname} />}
           </>}
       </nav>

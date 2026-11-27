@@ -102,6 +102,19 @@ export function AuthForm({
     let result: { error: { message: string } | null };
 
     if (mode === "sign-up") {
+      // Throwaway inboxes are refused before Supabase sends a confirmation.
+      // A failed check (network) lets the sign-up through rather than block it.
+      const check = await fetch("/api/signup-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      }).catch(() => null);
+      if (check?.status === 422) {
+        const body = (await check.json().catch(() => null)) as { message?: string } | null;
+        setError(body?.message ?? "Please use a permanent email address.");
+        setBusy(null);
+        return;
+      }
       result = await supabase.auth.signUp({
         email,
         password,
